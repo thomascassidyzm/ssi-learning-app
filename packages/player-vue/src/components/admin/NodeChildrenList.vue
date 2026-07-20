@@ -6,7 +6,8 @@
 // the same row shape: avatar initial, name (click → that thing's home),
 // caption, count columns.
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { classHomePath, groupHomePath, isMemberNodeSurface, schoolHomePath } from '@/composables/nodeSurfacePaths'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
@@ -34,6 +35,10 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
+// Member mount (leader inside /schools) vs admin mount — same rows, links
+// stay within the caller's own scope (see nodeSurfacePaths.ts).
+const member = computed(() => isMemberNodeSurface(route.path))
 
 function initial(name: string): string {
   return (name.trim()[0] || '?').toUpperCase()
@@ -59,7 +64,7 @@ const rows = computed<Row[]>(() => {
         { value: n.rollup?.classCount ?? 0, word: 'classes' },
         { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
       ],
-      to: `/admin/groups/${n.id}`,
+      to: groupHomePath(n.id, member.value),
     }))
   }
   if (props.lens === 'groups') {
@@ -73,7 +78,7 @@ const rows = computed<Row[]>(() => {
         { value: g.rollup?.classCount ?? 0, word: 'classes' },
         { value: g.rollup?.learnerCount ?? 0, word: 'learners' },
       ],
-      to: `/admin/groups/${g.id}`,
+      to: groupHomePath(g.id, member.value),
     }))
   }
   if (props.lens === 'schools') {
@@ -89,7 +94,7 @@ const rows = computed<Row[]>(() => {
       ],
       // Stay inside the one map surface: a school IS a node (THE MODEL I2),
       // so open its node home rather than repainting a separate school page.
-      to: s.nodeId ? `/admin/groups/${s.nodeId}` : `/admin/schools/${s.schoolId}`,
+      to: schoolHomePath(s.nodeId, s.schoolId, member.value),
     }))
   }
   if (props.lens === 'teachers') {
@@ -100,19 +105,27 @@ const rows = computed<Row[]>(() => {
         ? joinNames(t.classes.map((c: any) => c.name))
         : 'No classes yet',
       counts: [{ value: t.classes?.length ?? 0, word: t.classes?.length === 1 ? 'class' : 'classes' }],
-      to: t.classes?.length === 1 ? `/admin/classes/${t.classes[0].id}` : null,
+      to: t.classes?.length === 1 ? classHomePath(t.classes[0].id, member.value) : null,
     }))
   }
   if (props.lens === 'classes') {
+    // Class practice leads (founder ruling: play-as-class is the primary
+    // school metric); the students' own hours stay on the class home below.
     return (p.classes || []).map((c: any): Row => ({
       key: c.id,
       name: c.name,
-      caption: [c.home, joinNames(c.teachers || [])].filter(Boolean).join(' · '),
+      caption: [
+        c.home,
+        joinNames(c.teachers || []),
+        c.lastClassSessionAt
+          ? `Last class session ${new Date(c.lastClassSessionAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+          : 'No class practice yet',
+      ].filter(Boolean).join(' · '),
       counts: [
+        { value: `${c.classPracticeHours ?? 0}h`, word: 'class practice' },
         { value: c.studentCount, word: 'students' },
-        { value: `${c.practiceHours}h`, word: 'practised' },
       ],
-      to: `/admin/classes/${c.id}`,
+      to: classHomePath(c.id, member.value),
     }))
   }
   if (props.lens === 'students') {

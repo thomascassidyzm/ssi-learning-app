@@ -30,6 +30,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { between, weekdayTimestamp, insertChunked, DAY } from './demoSchoolGen'
 import { resolveGroupSubtreeIds } from './demoSchoolGraph'
+import { ensureClassLearnerEntity } from './classLearnerEntity'
 
 export interface NodeRefreshResult {
   groupId: string
@@ -48,10 +49,13 @@ const WINDOW_DAYS = 56 // ~8 weeks
 
 // fast / steady / idle personas — the Russell-2024 engagement shape the demo
 // generators already use (20/50/30), expressed as a total-window plan.
+// Trimmed 2026-07-20 (play-as-class re-anchor, LANE B): the class practising
+// together is now the PRIMARY signal — students are the bonus layer, so
+// their session volume shrinks relative to the class arc below.
 const PERSONAS = [
-  { key: 'fast', weight: 0.2, sessions: [18, 32] as const, recencyDays: [0, 0] as const, seedGain: [8, 14] as const },
-  { key: 'steady', weight: 0.5, sessions: [8, 16] as const, recencyDays: [0, 4] as const, seedGain: [2, 7] as const },
-  { key: 'idle', weight: 0.3, sessions: [1, 5] as const, recencyDays: [10, 25] as const, seedGain: [0, 2] as const },
+  { key: 'fast', weight: 0.2, sessions: [10, 18] as const, recencyDays: [0, 0] as const, seedGain: [8, 14] as const },
+  { key: 'steady', weight: 0.5, sessions: [5, 10] as const, recencyDays: [0, 4] as const, seedGain: [2, 7] as const },
+  { key: 'idle', weight: 0.3, sessions: [1, 4] as const, recencyDays: [10, 25] as const, seedGain: [0, 2] as const },
 ] as const
 type Persona = (typeof PERSONAS)[number]
 
@@ -132,8 +136,46 @@ export async function refreshDemoNodeActivity(
     courseCode: c.course_code as string,
     teacherUserId: c.teacher_user_id as string | null,
     currentSeed: (c.current_seed as number) || 20,
+    classLearnerId: null as string | null,
   }))
   if (!classes.length) return emptyResult
+
+  // ---- teacher fallback: classes.teacher_user_id (the lead pointer) is
+  // nullable — some demo classes carry their teachers only in class_teachers.
+  // class_sessions.teacher_user_id is NOT NULL, so without this fallback the
+  // arc insert dies AFTER the replace-delete has run and the whole demo tree
+  // goes class-practice-dark (hit live on the IME tree, 2026-07-20).
+  const teacherless = classes.filter((c) => !c.teacherUserId)
+  if (teacherless.length) {
+    const { data: ctRows } = await supabase
+      .from('class_teachers')
+      .select('class_id, teacher_user_id')
+      .in('class_id', teacherless.map((c) => c.id))
+    const ctByClass = new Map<string, string>()
+    for (const r of ctRows || []) {
+      if (!ctByClass.has(r.class_id as string)) ctByClass.set(r.class_id as string, r.teacher_user_id as string)
+    }
+    for (const c of teacherless) c.teacherUserId = ctByClass.get(c.id) || null
+  }
+
+  // ---- class learning identity (founder ruling 2026-07-19: play-as-class is
+  // the PRIMARY school metric — every demo class is itself a learner). Ensure
+  // + belt-and-braces demo-flag every class in the guarded subtree so board
+  // metrics / test_learner_ids() never mistake class practice for real data.
+  for (const cls of classes) {
+    const ensured = await ensureClassLearnerEntity(supabase, cls.id)
+    if ('error' in ensured) {
+      console.warn('[demoNodeRefresh] ensureClassLearnerEntity failed for', cls.id, ensured.error)
+      continue
+    }
+    cls.classLearnerId = ensured.learnerId
+    const { error: demoFlagErr } = await supabase
+      .from('learners')
+      .update({ is_demo: true })
+      .eq('id', ensured.learnerId)
+    if (demoFlagErr) console.warn('[demoNodeRefresh] class learner is_demo flag failed for', cls.id, demoFlagErr.message)
+  }
+  const classLearnerIds = classes.map((c) => c.classLearnerId).filter((id): id is string => !!id)
 
   // ---- the students: class-tag role student, then guard 3 (is_demo only).
   // A learner can belong to MORE THAN ONE class (dual-course learners in the
@@ -189,9 +231,13 @@ export async function refreshDemoNodeActivity(
 
   // ---- REPLACE step 1: delete the subtree's synthetic student telemetry.
   // Every delete keyed strictly by the is_demo learner-id set / demo class ids.
+  // `sessions` also carries the class-identity rows (keyed by class learner
+  // id) — cleared here too so a re-run never stacks the class's own arc.
+  const sessionDeleteIds = [...learnerIds, ...classLearnerIds]
   for (const table of ['sessions', 'seed_progress', 'lego_progress'] as const) {
-    for (let i = 0; i < learnerIds.length; i += 100) {
-      const chunk = learnerIds.slice(i, i + 100)
+    const ids = table === 'sessions' ? sessionDeleteIds : learnerIds
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100)
       const { error } = await supabase.from(table).delete().in('learner_id', chunk)
       if (error) throw new Error(`${table} delete failed: ${error.message}`)
     }
@@ -207,6 +253,7 @@ export async function refreshDemoNodeActivity(
   const seedRowsAll: Record<string, unknown>[] = []
   const legoRowsAll: Record<string, unknown>[] = []
   const enrollmentPatches: { learner_id: string; course_id: string; patch: Record<string, unknown> }[] = []
+  const classLastLegoPatches: { classId: string; lastLegoId: string }[] = []
 
   for (const { learnerId, cls } of learners) {
     const persona = drawPersona()
@@ -281,23 +328,38 @@ export async function refreshDemoNodeActivity(
 
   // Teacher-led class sessions — the SOURCE of school/class rate-of-progress
   // (analytics_class_sessions_scoped reads start→end LEGO ordinals from
-  // class_sessions). The arc must ADVANCE session by session and END at the
-  // class's current seed with the latest session landing today — a fixed
-  // start/end range would roll the weekly rate down to zero at "now" (the
-  // burst-then-dead shape this whole verb exists to kill).
+  // class_sessions) AND, as of the play-as-class re-anchor, the source of the
+  // class's OWN learning identity: every class_sessions row also emits a
+  // matching `sessions` row keyed to the class learner id (ONE arc, two
+  // projections — never two independently-drawn timelines). The arc must
+  // ADVANCE session by session and END at the class's current seed with the
+  // latest session landing today — a fixed start/end range would roll the
+  // weekly rate down to zero at "now" (the burst-then-dead shape this whole
+  // verb exists to kill).
   const classSessionRows: Record<string, unknown>[] = []
   for (const cls of classes) {
-    const nCs = between(8, 14)
-    // Spread over ~5 weeks, oldest → newest, latest today: steady cadence
-    // (2-4 days apart with jitter), so the rolling weekly rate stays alive.
+    // No resolvable teacher even via class_teachers → no teacher-led arc for
+    // this class (class_sessions.teacher_user_id is NOT NULL). Honest skip,
+    // loudly — a demo class without a teacher is a tree-shape problem to fix
+    // at mint time, not something to paper over with a fake teacher id.
+    if (!cls.teacherUserId) {
+      console.warn('[demoNodeRefresh] class has no teacher (lead or class_teachers) — skipping class-practice arc:', cls.id)
+      continue
+    }
+    const nCs = between(12, 24)
+    // Spread over the full ~8-week window, oldest → newest, latest today:
+    // classroom cadence of 2-4 sessions/week (2-4 days apart with jitter), so
+    // the rolling weekly rate stays alive across the whole demo window.
     const offsets: number[] = [0]
     let acc = 0
     for (let k = 1; k < nCs; k++) {
       acc += between(2, 4)
-      offsets.push(Math.min(acc, 38))
+      offsets.push(Math.min(acc, WINDOW_DAYS - 2))
     }
     const arcSeeds = Math.min(cls.currentSeed - 1, between(6, 10)) // seeds covered across the arc
     const arcStartSeed = Math.max(1, cls.currentSeed - arcSeeds)
+    let newestClassSession: { st: Date; dur: number; endLegoId: string } | null = null
+    let classMinutes = 0
     for (let k = 0; k < nCs; k++) {
       const dayOff = offsets[k]
       const dayStart = now - dayOff * DAY - 10 * 3600000
@@ -308,16 +370,49 @@ export async function refreshDemoNodeActivity(
       const progress = (nCs - 1 - k) / Math.max(1, nCs - 1) // 0 = oldest, 1 = newest
       const endSeed = Math.round(arcStartSeed + arcSeeds * progress)
       const startSeed = Math.max(1, endSeed - 1)
+      const endLegoId = `S${String(endSeed).padStart(4, '0')}L0${between(1, 3)}`
+      const cyclesCompleted = Math.floor(dur / 11)
       classSessionRows.push({
         class_id: cls.id,
         teacher_user_id: cls.teacherUserId,
         start_lego_id: `S${String(startSeed).padStart(4, '0')}L01`,
-        end_lego_id: `S${String(endSeed).padStart(4, '0')}L0${between(1, 3)}`,
+        end_lego_id: endLegoId,
         started_at: st.toISOString(),
         ended_at: new Date(st.getTime() + dur * 1000).toISOString(),
-        cycles_completed: Math.floor(dur / 11),
+        cycles_completed: cyclesCompleted,
         duration_seconds: dur,
       })
+      classMinutes += dur / 60
+      if (cls.classLearnerId) {
+        // Same source arc — the class-identity practice-hours spine (sessions
+        // keyed on class_learner_id) that THE LENS and dashboards read.
+        sessionRowsAll.push({
+          learner_id: cls.classLearnerId, course_id: cls.courseCode, started_at: st.toISOString(),
+          ended_at: new Date(st.getTime() + dur * 1000).toISOString(), duration_seconds: dur,
+          items_practiced: cyclesCompleted, points_earned: cyclesCompleted,
+        })
+      }
+      // offsets[0] is always 0 (the arc's most recent session) — k===0 is
+      // newest by construction, no need to compare after the fact.
+      if (k === 0) newestClassSession = { st, dur, endLegoId }
+    }
+
+    if (cls.classLearnerId && newestClassSession) {
+      const endSeedNum = parseInt(newestClassSession.endLegoId.slice(1, 5), 10)
+      enrollmentPatches.push({
+        learner_id: cls.classLearnerId,
+        course_id: cls.courseCode,
+        patch: {
+          last_practiced_at: newestClassSession.st.toISOString(),
+          total_practice_minutes: Math.round(classMinutes),
+          last_completed_lego_id: newestClassSession.endLegoId,
+          highest_completed_lego_id: newestClassSession.endLegoId,
+          highest_completed_seed: endSeedNum,
+          last_completed_round_index: endSeedNum * 3,
+          highest_completed_round_index: endSeedNum * 3,
+        },
+      })
+      classLastLegoPatches.push({ classId: cls.id, lastLegoId: newestClassSession.endLegoId })
     }
   }
 
@@ -332,6 +427,10 @@ export async function refreshDemoNodeActivity(
       .eq('learner_id', u.learner_id)
       .eq('course_id', u.course_id)
     if (error) console.warn('[demoNodeRefresh] course_enrollments update failed for', u.learner_id, error.message)
+  }
+  for (const p of classLastLegoPatches) {
+    const { error } = await supabase.from('classes').update({ last_lego_id: p.lastLegoId }).eq('id', p.classId)
+    if (error) console.warn('[demoNodeRefresh] classes.last_lego_id sync failed for', p.classId, error.message)
   }
 
   try {

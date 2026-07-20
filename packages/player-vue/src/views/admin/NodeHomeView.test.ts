@@ -93,6 +93,7 @@ beforeEach(() => {
   replaceMock.mockClear()
   routeMock.params = { id: 'programme' }
   routeMock.query = {}
+  ;(routeMock as any).path = undefined
 })
 
 describe('NodeHomeView — one grammar at every level', () => {
@@ -216,6 +217,49 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).not.toMatch(/\bseed\b/i)
   })
 
+  it('CLASS-PRACTICE PIN: class home LEADS with the class practising together — practice card first, journey + belt from class play, students below as the bonus layer', async () => {
+    routeMock.params = { id: 'class-1' }
+    const payload = classPayload()
+    ;(payload as any).classPractice = { weekSessions: 2, sessions28d: 2, totalSessions: 3, lastSessionAt: new Date().toISOString(), hours: 1.3 }
+    payload.journey = { done: 238, total: 320, source: 'class-play', legoId: 'S0060L02', seedNumber: 60 } as any
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    // Stats row leads with class practice, not individual hours.
+    expect(text).toContain('Class sessions this week')
+    expect(text).toContain('1.3h')
+    // The Class practice card renders FIRST among the class cards.
+    const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
+    expect(cards[0]).toBe('Class practice')
+    expect(text).toContain('sessions this week')
+    expect(text).toContain('Last class session')
+    // Journey rides the CLASS's own play-as-class position (LEGO units).
+    expect(text).toContain('The class has travelled 238 of 320 LEGOs together')
+    // Belt comes from the class's play position (seed 60 → green → Blue next).
+    expect(text).toContain('Blue belt')
+    // Students remain below, in the same flat row grammar (the bonus layer).
+    expect(wrapper.findAll('.child-name').map((n) => n.text())).toEqual(['Asha', 'Ravi'])
+    // Never the word "seed" user-facing (position-is-LEGO ruling).
+    expect(text).not.toMatch(/\bseed\b/i)
+  })
+
+  it('a class with NO class practice yet: teaching invitation copy, journey falls back to the students\' average', async () => {
+    routeMock.params = { id: 'class-1' }
+    const payload = classPayload()
+    ;(payload as any).classPractice = { weekSessions: 0, sessions28d: 0, totalSessions: 0, lastSessionAt: null, hours: 0 }
+    payload.journey = { done: 60, total: 320, source: 'estimate', legoId: null, seedNumber: null } as any
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('No class practice yet')
+    // Fallback journey rendering: students' average LEGOs drives the bar.
+    expect(text).toContain('LEGOs mastered on average')
+  })
+
   it('LEARNER-PAGE-DEAD PIN: student rows are FLAT — everything in-row, no click, no navigation, no streak', async () => {
     routeMock.params = { id: 'class-1' }
     setupFetch(classPayload())
@@ -237,5 +281,33 @@ describe('NodeHomeView — one grammar at every level', () => {
     await row.find('.child-btn').trigger('click')
     expect(pushMock).not.toHaveBeenCalled()
     expect(wrapper.find('.child-detail').exists()).toBe(false)
+  })
+  it('MEMBER-MOUNT PIN (/schools/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
+    ;(routeMock as any).path = '/schools/org/programme'
+    setupFetch(nodePayload())
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Same grammar renders (rail, identity, stats, children)
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+    expect(wrapper.text()).toContain("you're here")
+    // Rail rooted at the leader's scope: no "All organisations" admin escape
+    expect(wrapper.text()).not.toContain('All organisations')
+    // Navigation stays inside /schools/org — child row and rail ancestor
+    await wrapper.find('.child-btn').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/schools/org/school-node')
+    await wrapper.find('.rail-link').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/schools/org/nation')
+    // See insights points at the member lens, not /admin
+    expect(wrapper.find('a[href="/schools/org/programme/insights"]').exists()).toBe(true)
+    // Verbs: leaders keep the invite pair; structural admin verbs are hidden
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Invite a person')
+    expect(verbs).toContain('Get a shareable link')
+    expect(verbs).not.toContain('Add a group')
+    expect(verbs).not.toContain('Mint a demo org')
+    expect(verbs).not.toContain('Rename')
+    expect(verbs).not.toContain('Delete')
+    expect(verbs).not.toContain('Courses')
   })
 })

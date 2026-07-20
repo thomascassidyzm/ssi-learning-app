@@ -18,6 +18,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 
 const route = useRoute()
@@ -88,8 +89,12 @@ const subtitle = computed(() =>
     : 'How everyone below this is moving, compared with the average you choose. Rate leads; position is just context.')
 
 // Overview = this node's home — the same URL family the lens was opened from.
+// Member mount (/schools/org/:id/insights — a leader inside the /schools
+// shell) goes back to the member node home; admin mounts keep their family.
+const member = computed(() => isMemberNodeSurface(route.path))
 const homeLink = computed(() => {
   const p = route.path
+  if (member.value) return `/schools/org/${nodeId.value}`
   if (p.includes('/admin/classes/')) return `/admin/classes/${nodeId.value}`
   if (p.includes('/admin/schools/')) return `/admin/schools/${nodeId.value}`
   return `/admin/groups/${nodeId.value}`
@@ -122,7 +127,7 @@ const homeLink = computed(() => {
             <UpdatedStamp />
             <div class="verbs">
               <router-link :to="homeLink" class="verb-btn verb-btn-secondary">Overview</router-link>
-              <router-link to="/admin/stats" class="verb-btn verb-btn-secondary">All boards</router-link>
+              <router-link v-if="!member" to="/admin/stats" class="verb-btn verb-btn-secondary">All boards</router-link>
             </div>
           </div>
         </header>

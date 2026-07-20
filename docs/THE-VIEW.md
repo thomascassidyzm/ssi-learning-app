@@ -84,8 +84,10 @@ a trial/paid state in the header and teachers as children. Nothing branches on t
   reused aggressively.
 - Not a new data model — one endpoint (`GET /api/groups/:id/home`) serves the whole page from the
   same subtree resolver (`groupRollups.computeNodeExtras`) the tree and table already use.
-- Not a member-area change — teachers' and leaders' `/schools` views are untouched in this pass;
-  this consolidates the admin inspection surfaces. The member area converges on the same grammar
-  as a later scoped pass.
+- ~~Not a member-area change~~ **Leaders converged 2026-07-20:** a group/region leader's
+  `/schools` landing IS node home, mounted at `/schools/org/:id` inside the member shell — same
+  page, same endpoint, server-scoped to their own subtree (rail rooted at their top node, no
+  All-organisations escape, verbs reduced to the invite pair). Teachers and school admins keep
+  their `/schools` surfaces for now — they converge in a later scoped pass.
 
-*Last updated: 2026-07-19*
+*Last updated: 2026-07-20*

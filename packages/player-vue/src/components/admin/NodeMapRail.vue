@@ -4,8 +4,9 @@
 // you-are-here lit, siblings one tap away, children below — the whole org
 // navigable up/down from any node without leaving the page. Same rail at
 // every level; this is the spine of THE VIEW.
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { groupHomePath, isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 
 export interface RailRef {
   id: string
@@ -25,10 +26,14 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
+// Member mount (leader inside /schools) vs admin mount — same rail, links
+// stay within the caller's own scope (see nodeSurfacePaths.ts).
+const member = computed(() => isMemberNodeSurface(route.path))
 const showSiblings = ref(false)
 
 function open(ref_: RailRef): void {
-  router.push(`/admin/groups/${ref_.id}`)
+  router.push(groupHomePath(ref_.id, member.value))
 }
 
 function labelWord(r: RailRef): string {
@@ -42,7 +47,9 @@ function labelWord(r: RailRef): string {
     <!-- The way UP and OUT (founder pass C, 2026-07-19): from any depth,
          one obvious control back to the Structure overview — the rail's
          ancestors go up the tree; this goes up out of it. -->
-    <router-link to="/admin/structure" class="rail-up">
+    <!-- Members have no forest above their top node — the rail is already
+         rooted at their scope, so the admin escape doesn't render. -->
+    <router-link v-if="!member" to="/admin/structure" class="rail-up">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
       </svg>

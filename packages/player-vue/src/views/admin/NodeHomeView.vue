@@ -18,10 +18,17 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
+import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
+
+// Member mount (/schools/org/:id — a leader inside the /schools shell) vs the
+// admin mount. Same page, same endpoint; the server scopes a leader to their
+// subtree, and links/verbs stay within member scope (nodeSurfacePaths.ts).
+const member = computed(() => isMemberNodeSurface(route.path))
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -142,16 +149,29 @@ const labelWord = computed(() => {
   return 'Group'
 })
 
-// ─── Stats row (same cards at every level, subtree totals) ───
+// ─── Stats row (same cards at every level, subtree totals). CLASS PRACTICE
+// leads (founder ruling: play-as-class is the only metric that matters in a
+// school — individual accounts are the bonus). Student practice hours stay
+// available per-student / per-school below and in THE LENS. ───
+const classPractice = computed(() => home.value?.classPractice ?? null)
 const stats = computed(() => {
   const n = home.value?.node
   if (!n) return []
   const r = n.rollup || {}
+  const cp = classPractice.value
+  if (isClass.value) {
+    return [
+      { value: cp?.weekSessions ?? 0, word: 'Class sessions this week' },
+      { value: `${cp?.hours ?? 0}h`, word: 'Class practice' },
+      { value: r.learnerCount ?? 0, word: 'Students' },
+      { value: r.teacherCount ?? 0, word: 'Teachers' },
+    ]
+  }
   return [
-    { value: r.learnerCount ?? 0, word: isClass.value ? 'Students' : 'Learners' },
+    { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: 'Class practice' },
+    { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? 'Classes practising this week' : 'Classes' },
     { value: r.teacherCount ?? 0, word: 'Teachers' },
-    { value: r.classCount ?? 0, word: 'Classes' },
-    { value: `${home.value?.practiceHours ?? 0}h`, word: 'Practice hours' },
+    { value: r.learnerCount ?? 0, word: 'Learners' },
   ]
 })
 
@@ -163,9 +183,7 @@ const stats = computed(() => {
 const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
-  if (isClass.value) return `/admin/classes/${n.id}/insights`
-  if (n.commercial?.schoolId) return `/admin/schools/${n.commercial.schoolId}/analytics`
-  return `/admin/groups/${n.id}/analytics`
+  return nodeInsightsPath(n, isClass.value, member.value)
 })
 
 // The old "Class tools" page is DEAD (founder ruling 2026-07-19): in the
@@ -198,13 +216,21 @@ const classAvgLegos = computed(() => {
   return Math.round(list.reduce((s: number, x: any) => s + (x.legos_mastered || 0), 0) / list.length)
 })
 
-const classBelt = computed<Belt>(() => deriveBelt(classAvgSeeds.value))
+// The class's OWN belt comes from its play-as-class position (the journey's
+// seed number) when the class has practised together; students' average is
+// the fallback for classes that have never pressed Play as class.
+const classPlaySeeds = computed<number | null>(() => {
+  const j = home.value?.journey
+  return j?.source === 'class-play' && typeof j.seedNumber === 'number' ? j.seedNumber : null
+})
+const classBelt = computed<Belt>(() => deriveBelt(classPlaySeeds.value ?? classAvgSeeds.value))
 
 const nextBeltInfo = computed(() => {
   const idx = BELTS.findIndex((b) => b.key === classBelt.value)
   const next = BELTS[idx + 1]
   if (!next) return null
-  return { name: next.name, remaining: Math.max(0, next.min - classAvgSeeds.value) }
+  const seeds = classPlaySeeds.value ?? classAvgSeeds.value
+  return { name: next.name, remaining: Math.max(0, next.min - seeds) }
 })
 
 const beltDistribution = computed<Record<string, number>>(() => {
@@ -297,7 +323,7 @@ const listPayload = computed(() => {
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
           <!-- Verbs hold their space but go inert while another node loads —
                a mid-switch click must never act on the PREVIOUS node. -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -312,16 +338,43 @@ const listPayload = computed(() => {
                (Course Journey · Belt distribution · practice benchmark),
                in the same card grammar as the stats row. -->
           <div v-if="isClass" class="class-cards" :class="{ 'is-switching': switching }">
+            <!-- CLASS PRACTICE leads — the class practising together IS the
+                 primary metric (founder ruling). Students are the bonus layer
+                 below. -->
+            <div class="schools-card class-card">
+              <span class="schools-kicker">Class practice</span>
+              <template v-if="classPractice?.totalSessions">
+                <p class="class-practice-headline frost-mono-nums">
+                  {{ classPractice.weekSessions }}<span class="class-practice-unit"> {{ classPractice.weekSessions === 1 ? 'session' : 'sessions' }} this week</span>
+                </p>
+                <p class="class-card-note">
+                  Last class session {{ classPractice.lastSessionAt ? timeAgo(classPractice.lastSessionAt) : '—' }}.<br />
+                  {{ classPractice.hours }}h practised together over {{ classPractice.totalSessions }} {{ classPractice.totalSessions === 1 ? 'session' : 'sessions' }}.
+                </p>
+              </template>
+              <p v-else class="class-card-note">No class practice yet — the teacher's Play as class button starts the first session.</p>
+            </div>
             <div class="schools-card class-card">
               <span class="schools-kicker">Course journey</span>
-              <!-- Bar runs in LEGOs on both sides (class average vs course
-                   total) — the server's journey.done is the class-entity's
-                   play-as-class SEED cursor, a different unit to the LEGO
-                   total, so it never drives this bar (the old page's latent
-                   mixed-unit bug, caught on the 2026-07-19 verify pass). -->
-              <JourneyBar v-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" label="Course Journey" />
+              <!-- The bar runs in LEGOs on both sides. journey.done is the
+                   CLASS's own play-as-class position as a LEGO ordinal
+                   (source 'class-play'); only classes that have never played
+                   together fall back to the students' average (the server's
+                   'estimate' journey is a seed count — a different unit, so
+                   it never drives this bar). -->
+              <JourneyBar
+                v-if="journey && journey.source === 'class-play'"
+                :done="journey.done"
+                :total="Math.max(journey.total, journey.done)"
+                label="Course Journey"
+              />
+              <JourneyBar v-else-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" label="Course Journey" />
               <p class="class-card-note">
-                {{ classAvgLegos }} LEGOs mastered on average across the class.<br />
+                <template v-if="journey && journey.source === 'class-play'">
+                  The class has travelled {{ journey.done }} of {{ journey.total }} LEGOs together.
+                  Students average {{ classAvgLegos }} LEGOs on their own.<br />
+                </template>
+                <template v-else>{{ classAvgLegos }} LEGOs mastered on average across the class.<br /></template>
                 <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
                 <template v-else>Reached Black belt — top of the ladder.</template>
               </p>
@@ -369,7 +422,7 @@ const listPayload = computed(() => {
               <div v-if="isLoading" class="children-loading">Loading…</div>
               <NodeChildrenList v-else :lens="lens" :payload="listPayload">
                 <template #empty>
-                  {{ isClass ? 'No students in this class yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.' }}
+                  {{ isClass ? 'No students in this class yet.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.') }}
                 </template>
               </NodeChildrenList>
             </div>
@@ -447,6 +500,8 @@ const listPayload = computed(() => {
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
 }
 .class-card-note { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.class-practice-headline { margin: 0; font-size: 28px; font-weight: 700; color: var(--schools-fg-1, #222); line-height: 1.1; }
+.class-practice-unit { font-size: var(--text-sm); font-weight: 500; color: var(--schools-fg-2, #555); }
 .belt-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; }
 .belt-legend-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .belt-legend-count { font-weight: var(--font-semibold); font-size: var(--text-sm); color: var(--ink-primary, #2C2622); }
