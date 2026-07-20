@@ -349,7 +349,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       { value: 'global', label: 'Global average · this course', word: 'global' },
       { value: 'global_all_courses', label: 'Global average · all courses', word: 'global' },
     ]
-    const compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
+    // `let`, not `const`: a root node whose default this-course global cohort
+    // is empty auto-widens to all-courses below (never a blank landing).
+    let compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
       ? requestedCompare
       : compareOptions[0].value
 
@@ -437,23 +439,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // demo entities draw demo peers, real entities draw real peers, never
     // mixed (schoolIdsInWorld).
     const entityIsDemo = Boolean(nodeRow?.is_demo)
-    const cohortCourse = compareTo === 'global_all_courses' ? null : courseCode
-    let members: { id: string; classIds: string[] }[] = []
+    let cohortCourse = compareTo === 'global_all_courses' ? null : courseCode
 
-    if (isGlobalCompare) {
-      if (classRow) {
-        let q = svc.from('classes').select('id, school_id').eq('is_active', true).neq('id', classRow.id)
-        if (cohortCourse) q = q.eq('course_code', cohortCourse)
-        const { data } = await q.limit(MAX_COHORT_IDS)
-        const rows = (data ?? []) as { id: string; school_id: string | null }[]
-        // Same world only: a school-less (ACT) class is real; a demo class
-        // never seats a real peer, and vice-versa.
-        const world = await schoolIdsInWorld(
-          svc, [...new Set(rows.map((r) => r.school_id).filter(Boolean))] as string[], entityIsDemo)
-        members = rows
-          .filter((r) => (r.school_id ? world.has(r.school_id) : !entityIsDemo))
-          .map((r) => ({ id: r.id, classIds: [r.id] }))
-      } else {
+    // Peer resolution reads the current compareTo/cohortCourse, so it can be
+    // re-run after the root all-courses fallback below. Returns an error string
+    // only for the unresolvable-ancestor case (globals never error here).
+    const resolveMembers = async (): Promise<{ members: { id: string; classIds: string[] }[]; error?: string }> => {
+      if (isGlobalCompare) {
+        if (classRow) {
+          let q = svc.from('classes').select('id, school_id').eq('is_active', true).neq('id', classRow.id)
+          if (cohortCourse) q = q.eq('course_code', cohortCourse)
+          const { data } = await q.limit(MAX_COHORT_IDS)
+          const rows = (data ?? []) as { id: string; school_id: string | null }[]
+          // Same world only: a school-less (ACT) class is real; a demo class
+          // never seats a real peer, and vice-versa.
+          const world = await schoolIdsInWorld(
+            svc, [...new Set(rows.map((r) => r.school_id).filter(Boolean))] as string[], entityIsDemo)
+          return {
+            members: rows
+              .filter((r) => (r.school_id ? world.has(r.school_id) : !entityIsDemo))
+              .map((r) => ({ id: r.id, classIds: [r.id] })),
+          }
+        }
         let q = svc.from('classes').select('id, school_id').eq('is_active', true).not('school_id', 'is', null)
         if (cohortCourse) q = q.eq('course_code', cohortCourse)
         const { data } = await q.limit(MAX_COHORT_IDS)
@@ -467,67 +474,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           bySchool.set(sid, arr)
         }
         const world = await schoolIdsInWorld(svc, [...bySchool.keys()], entityIsDemo)
-        members = [...bySchool.entries()].filter(([id]) => world.has(id)).map(([id, classIds]) => ({ id, classIds }))
+        return { members: [...bySchool.entries()].filter(([id]) => world.has(id)).map(([id, classIds]) => ({ id, classIds })) }
       }
-    } else {
       // an ancestor group id — its subtree is exactly the scope already fetched
       if (!compareAnc || !compareAnc.path) {
-        insufficient('That comparison scope has no resolvable data yet.')
-        return
+        return { members: [], error: 'That comparison scope has no resolvable data yet.' }
       }
       if (classRow) {
-        members = scopeClasses
-          .filter((c) => c.id !== classRow!.id && (!cohortCourse || c.course_code === cohortCourse))
-          .map((c) => ({ id: c.id, classIds: [c.id] }))
-      } else {
-        // Peer schools only: classes attached directly to groups with no school
-        // stay out of the cohort (counted in entity values only — header note).
-        const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
-        const bySchool = new Map<string, string[]>()
-        for (const c of scopeClasses) {
-          if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
-          if (cohortCourse && c.course_code !== cohortCourse) continue
-          const arr = bySchool.get(c.school_id) ?? []
-          arr.push(c.id)
-          bySchool.set(c.school_id, arr)
+        return {
+          members: scopeClasses
+            .filter((c) => c.id !== classRow!.id && (!cohortCourse || c.course_code === cohortCourse))
+            .map((c) => ({ id: c.id, classIds: [c.id] })),
         }
-        members = [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds }))
       }
+      // Peer schools only: classes attached directly to groups with no school
+      // stay out of the cohort (counted in entity values only — header note).
+      const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
+      const bySchool = new Map<string, string[]>()
+      for (const c of scopeClasses) {
+        if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+        if (cohortCourse && c.course_code !== cohortCourse) continue
+        const arr = bySchool.get(c.school_id) ?? []
+        arr.push(c.id)
+        bySchool.set(c.school_id, arr)
+      }
+      return { members: [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds })) }
     }
 
     // ─── Sessions + math (shared primitives). Ceil: periodDays can be
     // fractional (hourly buckets) and the RPC takes whole days. ───
     const fetchDays = Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
-    const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-    const { data: rawRows, error: rpcError } = await svc.rpc('analytics_class_sessions_scoped', {
-      p_class_ids: allClassIds,
-      p_days: fetchDays,
-      p_include_demo: entityIsDemo,
-    })
-    if (rpcError) {
-      console.error('[node-rate-compare] analytics_class_sessions_scoped error:', rpcError.message)
+    const now = new Date()
+    // Gating (K_FLOOR / "does this peer have any data") is always decided by
+    // RATE activity — the same cohort, regardless of which measure is displayed.
+    const loadActive = async (
+      members: { id: string; classIds: string[] }[],
+    ): Promise<{ rows: ScopedSessionRow[]; active: { member: { id: string; classIds: string[] }; rateWindow: ReturnType<typeof aggregateWindowPace> }[] } | { rpcError: string }> => {
+      const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+      const { data: rawRows, error } = await svc.rpc('analytics_class_sessions_scoped', {
+        p_class_ids: allClassIds,
+        p_days: fetchDays,
+        p_include_demo: entityIsDemo,
+      })
+      if (error) return { rpcError: error.message }
+      const rows = (rawRows as ScopedSessionRow[]) || []
+      const active = members
+        .map((m) => ({ member: m, rateWindow: aggregateWindowPace(rows, m.classIds, days, now) }))
+        .filter((x) => x.rateWindow.hasData)
+      return { rows, active }
+    }
+
+    const firstMembers = await resolveMembers()
+    if (firstMembers.error) {
+      insufficient(firstMembers.error)
+      return
+    }
+    let loaded = await loadActive(firstMembers.members)
+    if ('rpcError' in loaded) {
+      console.error('[node-rate-compare] analytics_class_sessions_scoped error:', loaded.rpcError)
       res.status(500).json({ error: 'Failed to load rate data' })
       return
     }
-    const rows = (rawRows as ScopedSessionRow[]) || []
-    const now = new Date()
-
-    // Gating (K_FLOOR / "does this peer have any data") is always decided by
-    // RATE activity — the same cohort, regardless of which measure is
-    // displayed (contract: "computed... over the SAME cohort members").
-    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
-    const active = members
-      .map((m) => ({ member: m, rateWindow: aggregateWindowPace(rows, m.classIds, days, now) }))
-      .filter((x) => x.rateWindow.hasData)
     const effectiveFloor = isAdmin ? 1 : K_FLOOR
+
+    // ─── Root all-courses fallback: a root node's DEFAULT comparison is
+    // "global · this course" (the sole this-course option a root has — every
+    // deeper node defaults to a same-course ancestor average). When a
+    // self-contained world is the whole population for its course, that cohort
+    // is empty and the landing would be blank. Widen it to "global · all
+    // courses" automatically so a root always opens on a real comparison. Only
+    // on the untouched DEFAULT — an explicit empty pick keeps its named
+    // empty-state (below), and the this-course option stays selectable. ───
+    if (loaded.active.length < effectiveFloor && !requestedCompare && compareTo === 'global') {
+      const widened = 'global_all_courses'
+      compareTo = widened
+      cohortCourse = null
+      baseBody.applied.compare_to = widened
+      const wm = await resolveMembers()
+      const wl = await loadActive(wm.members)
+      if ('rpcError' in wl) {
+        console.error('[node-rate-compare] analytics_class_sessions_scoped error:', wl.rpcError)
+        res.status(500).json({ error: 'Failed to load rate data' })
+        return
+      }
+      loaded = wl
+    }
+
+    const rows = loaded.rows
+    const active = loaded.active
+    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
     if (active.length < effectiveFloor) {
       // Name the actual gate rather than a vague "not enough data" (founder ask
-      // 2026-07-20): which peer unit, how many are needed, over what window.
+      // 2026-07-20): which peer unit, how many are needed, over what window. On
+      // a widened root this still fires only when all-courses is ALSO empty.
       const unit = classRow ? 'classes' : 'schools'
       const worldNote = entityIsDemo ? 'demo ' : ''
+      const scopeNote = cohortCourse ? 'on this course ' : ''
       const reason = active.length === 0
-        ? `No other ${worldNote}${unit} on this course have practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
-        : `Only ${active.length} other ${worldNote}${unit} on this course ${active.length === 1 ? 'has' : 'have'} practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
+        ? `No other ${worldNote}${unit} ${scopeNote}have practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
+        : `Only ${active.length} other ${worldNote}${unit} ${scopeNote}${active.length === 1 ? 'has' : 'have'} practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
       insufficient(reason, active.length)
       return
     }

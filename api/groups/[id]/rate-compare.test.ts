@@ -456,6 +456,51 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.cohortSize).toBe(1)
   })
 
+  it('root node auto-widens to all-courses when its default this-course global cohort is empty (landing never blank)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Make `programme` a ROOT, and leave the only outside peer (school-3) on a
+    // DIFFERENT course — so global·this-course(hin) has no peers but
+    // global·all-courses does.
+    TABLES.groups.find((g: any) => g.id === 'programme').parent_id = null
+    TABLES.classes.find((c: any) => c.id === 'c5').course_code = 'fra_for_eng'
+    const res = makeRes()
+    await handler(makeReq('programme'), res) // no compare_to → default = global (this course)
+    expect(res.statusCode).toBe(200)
+    // The empty this-course default silently widened to all-courses…
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(1) // school-3, via its (now fra) class
+    // …but the this-course option stays offered for anyone who wants to switch back.
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['global', 'global_all_courses'])
+    expect(res.body.average.label).toBe('Global average · all courses')
+  })
+
+  it('an EXPLICIT empty this-course pick does NOT auto-widen — keeps the named empty-state', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.groups.find((g: any) => g.id === 'programme').parent_id = null
+    TABLES.classes.find((c: any) => c.id === 'c5').course_code = 'fra_for_eng'
+    const res = makeRes()
+    await handler(makeReq('programme', { compare_to: 'global' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.compare_to).toBe('global') // respected, not widened
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.reason).toMatch(/on this course/)
+    expect(res.body.reason).toMatch(/at least 1/)
+  })
+
+  it('root with NO comparable peers on any course stays insufficient after widening (honest, named)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // `nation` is a root that contains every school → both this-course and
+    // all-courses global cohorts are empty. Widening cannot rescue it.
+    const res = makeRes()
+    await handler(makeReq('nation'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.applied.compare_to).toBe('global_all_courses') // it did attempt the widen
+    expect(res.body.reason).toMatch(/have practised in the selected period/)
+    expect(res.body.reason).not.toMatch(/on this course/) // all-courses scope, so no course clause
+  })
+
   it('404s an unknown id', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
