@@ -44,10 +44,18 @@ straight-to-surface; already-registered → sign-in-instead; tester stays OTP-on
 `possession-redeem.test.ts` (named-role linkAuth refusal ×4, pupil mode carries name),
 `invites.test.ts` (school_leader mint at school node; 400 at plain group node).
 
+## Bonus defect found + fixed while building the pack
+
+Demo generators wrote `classes.student_join_code` without registering the `invite_codes` row —
+**37 class join links across the whole demo estate were dead** ("Invalid code" on click; very
+plausibly part of the founder's staging experience). Repaired live
+(`scripts/demo-data/repair-class-join-codes.mjs` — 37/37, 3 already ok) and both generators
+fixed at source (`79dcb22c`).
+
 ## Status
 
-- [x] Deliverable 1 — fix + tests, pushed to dev (`90887d85`, `41bc2c07`)
-- [ ] Deliverable 2 — IME pack on deployed dev (six links, fresh-context redeems, screenshots)
-- [ ] Promote dev → staging when green
-
-*(updated incrementally — evidence lands below as it's produced)*
+- [x] Deliverable 1 — fix + tests, pushed to dev (`90887d85`, docs `41bc2c07`, APML `7419ed96`)
+- [x] Deliverable 2 — IME pack on deployed dev: **6/6 roles ALL PASS**, fresh-context redeems,
+      3 screenshots per role + DB truth → [`ime-invite-pack.md`](./ime-invite-pack.md)
+- [x] Demo estate class-link repair (37 dead links → live) (`79dcb22c`)
+- [x] Promoted dev → staging (all suites green, deployed-dev walk green)
