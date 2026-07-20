@@ -80,9 +80,9 @@ function resetTables(): void {
       { id: 's3-node', name: 'Green Valley International', type: 'school', parent_id: 'other-prog', path: 'india/other/s3', is_demo: false },
     ],
     schools: [
-      { id: 'school-1', school_name: 'Sunrise Public School', group_id: 'programme', node_group_id: 's1-node' },
-      { id: 'school-2', school_name: 'St. Mary’s Academy', group_id: 'programme', node_group_id: 's2-node' },
-      { id: 'school-3', school_name: 'Green Valley International', group_id: 'other-prog', node_group_id: 's3-node' },
+      { id: 'school-1', school_name: 'Sunrise Public School', group_id: 'programme', node_group_id: 's1-node', is_demo: false },
+      { id: 'school-2', school_name: 'St. Mary’s Academy', group_id: 'programme', node_group_id: 's2-node', is_demo: false },
+      { id: 'school-3', school_name: 'Green Valley International', group_id: 'other-prog', node_group_id: 's3-node', is_demo: false },
     ],
     classes: [
       { id: 'c1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true },
@@ -406,6 +406,54 @@ describe('GET /api/groups/:id/rate-compare', () => {
     const res2 = makeRes()
     await handler(makeReq('school-2'), res2)
     expect(lastRpcArgs.p_include_demo).toBe(true)
+  })
+
+  it('demo entity global cohort excludes REAL peers (analytics real or absent — never mixed)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // school-1 becomes demo; every other school stays real.
+    TABLES.schools.find((s: any) => s.id === 'school-1').is_demo = true
+    TABLES.groups.find((g: any) => g.id === 's1-node').is_demo = true
+    const res = makeRes()
+    // c1 (demo) vs global on hin — the only hin peers (c2/c3/c5) live in real
+    // schools, so the demo entity is left with no comparable world.
+    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.cohortSize).toBe(0)
+    // …and the empty-state NAMES the gate, not a vague "not enough data".
+    expect(res.body.reason).toMatch(/classes on this course/)
+    expect(res.body.reason).toMatch(/at least 1/)
+    expect(res.body.reason).toMatch(/Last 30 days/)
+    expect(res.body.reason).not.toBe('Not enough data to compare fairly yet.')
+  })
+
+  it('demo entity global cohort SEATS demo peers (demo compares within the demo world)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.schools.find((s: any) => s.id === 'school-1').is_demo = true
+    TABLES.groups.find((g: any) => g.id === 's1-node').is_demo = true
+    // a DEMO peer school on the same course, plus a real one that must be ignored.
+    TABLES.groups.push({ id: 's4-node', name: 'Demo Peer', type: 'school', parent_id: 'programme', path: 'india/ime/s4', is_demo: true })
+    TABLES.schools.push({ id: 'school-4', school_name: 'Demo Peer', group_id: 'programme', node_group_id: 's4-node', is_demo: true })
+    TABLES.classes.push({ id: 'c6', class_name: 'Demo Hindi', course_code: 'hin_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(false)
+    // only the demo peer (c6) — real peers c2/c3/c5 are excluded from the demo world
+    expect(res.body.cohortSize).toBe(1)
+  })
+
+  it('real entity global_all_courses cohort excludes DEMO schools (a real average is never diluted)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // school-3 (a peer for school-1's all-courses pool) is turned demo.
+    TABLES.schools.find((s: any) => s.id === 'school-3').is_demo = true
+    TABLES.groups.find((g: any) => g.id === 's3-node').is_demo = true
+    const res = makeRes()
+    await handler(makeReq('school-1', { compare_to: 'global_all_courses' }), res)
+    expect(res.statusCode).toBe(200)
+    // school-2 remains (real); school-3 now demo → dropped. Was 2, now 1.
+    expect(res.body.cohortSize).toBe(1)
   })
 
   it('404s an unknown id', async () => {
