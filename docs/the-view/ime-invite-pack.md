@@ -1,44 +1,46 @@
-# IME invite pack — six role-shaped links, redeemed and evidenced
+# IME invite pack — six PERSONAL links (species 1: the link IS the login)
 
-**Date:** 2026-07-20 · **Build:** deployed dev (`ssi-learning-app-git-dev-zenjin.vercel.app`) ·
-**All DEMO** — minted from the IME Demo Programme tree, personas named `(demo)`, emails are
-plus-addressed test addresses. Full run: `packages/player-vue/e2e/the-view/ime-invite-pack.mjs`
-(ALL PASS, 6/6 roles). Evidence images in `docs/the-view/ime-invite-pack/`.
+**Date:** 2026-07-20 · **All DEMO** — six pre-provisioned accounts in the IME Demo Programme tree,
+display names like "IME Programme Leader". Each link signs its person **straight in — ZERO
+screens, no dialog of any kind** — onto the role-matched surface. Redeemable repeatedly; revocable
+from the node's ways-in (or `invite_codes.is_active`). Full run: `packages/player-vue/e2e/the-view/
+ime-personal-pack.mjs` — **ALL PASS** (6/6 roles + repeat-click ×2 + revoked-fails-friendly).
 
-Every link was redeemed in a **fresh incognito context**: capture screen → landing surface →
-account identity. Zero OTPs, zero email round-trips, zero `link-<uuid>` ghosts for named roles.
+> **Host note.** The codes are host-independent (one shared DB). Verified end-to-end on the
+> deployed dev build and on staging. The `saysomethingin.app` forms below go live the moment
+> `main` carries this build (staging → main promote) — at the time of writing prod still served
+> the previous build.
 
-| # | Role | Minted at | Link | Capture screen | Lands on | Account (DB truth) |
-|---|---|---|---|---|---|---|
-| 1 | **Group leader** | IME Demo Programme | `/group/GXK-737` | "You've been invited to lead IME Demo Programme's SSi rollout" + name/email | Programme node home (`/schools`: 3 regions rollup) | `thomas.cassidy+ime-lead@gmail.com` · "Imogen Marsh (demo)" · govt_admin |
-| 2 | **Sub-group leader** | Pilot Districts Region | `/group/JRT-919` | "…invited to lead Pilot Districts Region's SSi rollout" + name/email | Region node home (3 schools · 200 students · 666.4h) | `thomas.cassidy+ime-region@gmail.com` · "Rhodri Vaughan (demo)" · govt_admin |
-| 3 | **School leader** | Sunrise Public School, Pune | `/redeem/WPV-386` | "You've been invited to help lead Sunrise Public School, Pune" + name/email | School dashboard (`/schools`) | `thomas.cassidy+ime-schoollead@gmail.com` · "Carys Puw (demo)" · school_admin |
-| 4 | **Teacher** | Sunrise Public School, Pune | `/redeem/YNS-182` | "You've been invited as a teacher at Sunrise Public School, Pune" + name/email | Teacher dashboard ("Welcome back, Gethin." + Create class) | `thomas.cassidy+ime-teacher@gmail.com` · "Gethin Rees (demo)" · teacher |
-| 5 | **Student → class** | Grade 6A, Sunrise (class join code) | `/redeem/DEMO-IME0-3` | "You're joining Grade 6A — Sunrise Public School, Pune" + name ONLY | Player, on the class course (English for Hindi speakers) | "Alys (demo)" · student · placeholder email BY DESIGN (pupils have none) |
-| 6 | **Learner → group** | Pilot Districts Region (learner join) | `/redeem/FXZ-847` | "You're joining Pilot Districts Region" + name ONLY | Player | "Begw (demo)" · student (group-affiliated) · placeholder email by design |
+| # | Who (display name) | Signs in as | Lands on | Production link | Staging link (live now) |
+|---|---|---|---|---|---|
+| 1 | IME Programme Leader | Group leader, IME Demo Programme | Programme node home (9 schools rollup) | `https://saysomethingin.app/group/QJM-868` | `https://staging.saysomethingin.app/group/QJM-868` |
+| 2 | IME Region Leader | Group leader, Pilot Districts Region | Region node home (3 schools · 200 students) | `https://saysomethingin.app/group/YSZ-629` | `https://staging.saysomethingin.app/group/YSZ-629` |
+| 3 | IME School Leader | School admin, Sunrise Public School, Pune | School dashboard | `https://saysomethingin.app/redeem/KJJ-726` | `https://staging.saysomethingin.app/redeem/KJJ-726` |
+| 4 | IME Teacher | Teacher, Sunrise Public School, Pune | Teacher dashboard | `https://saysomethingin.app/redeem/ZKD-834` | `https://staging.saysomethingin.app/redeem/ZKD-834` |
+| 5 | IME Student | Pupil, Grade 6A (Sunrise) | Player, ON THE CLASS COURSE (English for Hindi speakers) | `https://saysomethingin.app/redeem/EMU-671` | `https://staging.saysomethingin.app/redeem/EMU-671` |
+| 6 | IME Learner | Learner, Pilot Districts Region (no class) | Player | `https://saysomethingin.app/redeem/FZB-346` | `https://staging.saysomethingin.app/redeem/FZB-346` |
 
-Exact link codes + URLs: `ime-invite-pack/links.json` (all revocable from the node's ways-in;
-mark: **demo** — mint fresh ones from the live tree for the real IME send).
+Evidence: `ime-invite-pack/p-<role>-landing.jpg` (fresh-incognito landing per role, name visible in
+the shell for staff) · `personal-links.json` (codes + bound accounts).
 
-## Evidence index
+## What each click was verified to do (fresh incognito, per role)
 
-Per role, three shots: `<role>-1-capture.jpg` (the one screen), `<role>-2-landing.jpg` (role
-surface), `<role>-3-account.jpg` (open avatar menu / identity — staff shells show name + role).
+1. **ZERO dialog** — a 300ms-interval watcher asserted no form element ever rendered between
+   click and landing.
+2. **Role-matched landing** — leaders on their node home, school leader + teacher on the school
+   surfaces, student in the player **on the class's course**, learner in the player.
+3. **Named identity** — the shell shows the pre-provisioned display name (e.g. "IME Programme
+   Leader · Govt Admin").
+4. **Repeatable** — second fresh-context click on the same link: straight in again.
+5. **Revocable** — a revoked personal link fails friendly ("Invalid code"), mints no session.
 
-## What this proves (the founder's pins)
+## The two species (founder-ruled 2026-07-20 — THE-MODEL §1.13/I12)
 
-1. **Role-scoped links** — six different links, each token carrying `{node, role}`; each capture
-   screen names the role AND the place. No generic link anywhere.
-2. **Link is the credential, identity captured** — one friendly screen, then in. Named roles are
-   real accounts (their name, their typed email, recorded unverified); DB truth printed in the
-   run log confirms zero ghosts.
-3. **Landing matches role** — leaders → their node home; teacher → school teacher surface;
-   student → player on the class course; learner → player. No leader/teacher ever dumped in the
-   player.
-4. **Pupil path stays light** — name only, one tap to "Start learning".
+- **PERSONAL (this pack):** account pre-provisioned at mint (role + node + name, optional email);
+  the link is the login; zero screens. Node verb: **Invite a person**.
+- **OPEN shareable:** person unknown at mint → ONE identity-capture screen (name + email for named
+  roles, name only for pupils), then in as a real named account. Node verbs: **Get a shareable
+  link** / **Get join link**.
 
-## Also fixed in this pass (found while building the pack)
-
-Demo generators never registered classes' `student_join_code` in `invite_codes` — **37 class
-join links across the demo estate were dead** ("Invalid code"). Repaired live
-(`scripts/demo-data/repair-class-join-codes.mjs`, 37/37) and both generators fixed at source.
+*These six are demo artifacts. For the real IME send, mint fresh personal links from the live tree
+("Invite a person" on the node) — same zero-screen behaviour, real names/emails.*
