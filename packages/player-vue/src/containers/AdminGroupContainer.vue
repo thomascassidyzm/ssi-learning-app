@@ -96,10 +96,15 @@ onUnmounted(() => ctx.clear())
 <template>
   <div class="schools-container schools-surface">
     <AdminTopBar />
-    <div v-if="!isClassRoute && !isCheckingAccess && !isDenied && !isLoading && !loadError" class="entity-context-bar">
+    <!-- Once painted, the bar stays MOUNTED through node→node reloads — its
+         unmount/remount was shoving main-content up and down on every rail
+         switch (the org-switch wobble, measured 2026-07-20). While a new node
+         loads the name blanks (never the previous group's name) but the bar
+         holds its geometry. -->
+    <div v-if="!isClassRoute && !isCheckingAccess && !isDenied && (hasPainted || !isLoading) && !loadError" class="entity-context-bar">
       <div class="entity-context-identity">
         <span class="entity-context-eyebrow">Viewing group</span>
-        <span class="entity-context-name" :title="ctx.currentUser?.value?.organization_name || ctx.currentUser?.value?.group_path || 'Group'">{{ ctx.currentUser?.value?.organization_name || ctx.currentUser?.value?.group_path || 'Group' }}</span>
+        <span class="entity-context-name" :title="isLoading ? '' : (ctx.currentUser?.value?.organization_name || ctx.currentUser?.value?.group_path || 'Group')">{{ isLoading ? '\u00A0' : (ctx.currentUser?.value?.organization_name || ctx.currentUser?.value?.group_path || 'Group') }}</span>
       </div>
     </div>
     <div v-if="(isCheckingAccess || isDenied || isLoading) && !hasPainted" class="schools-loading">

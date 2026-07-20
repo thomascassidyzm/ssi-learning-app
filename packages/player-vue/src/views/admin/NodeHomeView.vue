@@ -26,6 +26,19 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 const home = ref<any | null>(null)
 
+// ─── Layout stability across node switches (founder bug 2026-07-20: "3-4
+// up and down page wobbles" per rail switch). The rules while a load runs:
+// hold every section's GEOMETRY, never show the WRONG node's VALUES.
+// · switching (node id changed): value slots blank to nbsp but keep their
+//   boxes; the children list keeps its previous height via min-height.
+// · same-node refresh / lens change: identity+stats keep their (still
+//   correct) numbers — stale-while-refreshing; only the children body holds.
+const loadedId = ref('')
+const switching = computed(() => isLoading.value && !!home.value && String(route.params.id || '') !== loadedId.value)
+const childrenBodyEl = ref<HTMLElement | null>(null)
+const childrenHoldPx = ref<number | null>(null)
+const NBSP = '\u00A0'
+
 const LENSES = [
   { value: 'children', label: 'Directly below' },
   { value: 'groups', label: 'All groups' },
@@ -48,6 +61,9 @@ function setLens(value: string): void {
 async function fetchHome(): Promise<void> {
   const id = String(route.params.id || '')
   if (!id) return
+  // Measure the children body BEFORE the loading state swaps in, so the
+  // section can hold exactly this height until the new rows land.
+  childrenHoldPx.value = childrenBodyEl.value?.offsetHeight || null
   isLoading.value = true
   error.value = null
   try {
@@ -62,6 +78,7 @@ async function fetchHome(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || 'Failed to load')
     home.value = data
+    loadedId.value = id
     markUpdated()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load'
@@ -234,16 +251,22 @@ const listPayload = computed(() => {
         <div class="main-col">
           <!-- IDENTITY HEADER -->
           <header class="identity">
+            <!-- While a different node loads, VALUES blank (never the old
+                 node's identity) but every box keeps its size — the switch
+                 settles once, when the new node's data lands. -->
             <div class="identity-text">
-              <span class="schools-kicker">{{ labelWord }}</span>
-              <h1 class="identity-name arsenal">{{ home.node.name }}</h1>
+              <span class="schools-kicker">{{ switching ? NBSP : labelWord }}</span>
+              <h1 class="identity-name arsenal">{{ switching ? NBSP : home.node.name }}</h1>
               <div class="identity-badges">
-                <span v-if="stateBadge" class="state-badge" :class="`tone-${stateBadge.tone}`">{{ stateBadge.word }}</span>
+                <span v-if="stateBadge" class="state-badge" :class="switching ? 'tone-grey' : `tone-${stateBadge.tone}`">{{ switching ? NBSP : stateBadge.word }}</span>
               </div>
               <p v-if="isClass && home.teachers?.length" class="identity-teachers">
-                Taught by
-                <template v-for="(t, i) in home.teachers" :key="t.user_id">
-                  <strong>{{ t.name }}</strong><span v-if="t.is_lead" class="lead-tag"> (lead)</span><span v-if="i < home.teachers.length - 1">, </span>
+                <template v-if="switching">{{ NBSP }}</template>
+                <template v-else>
+                  Taught by
+                  <template v-for="(t, i) in home.teachers" :key="t.user_id">
+                    <strong>{{ t.name }}</strong><span v-if="t.is_lead" class="lead-tag"> (lead)</span><span v-if="i < home.teachers.length - 1">, </span>
+                  </template>
                 </template>
               </p>
             </div>
@@ -256,13 +279,15 @@ const listPayload = computed(() => {
 
           <!-- ACTION BAR — the verbs, across the top of the node page
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" @changed="fetchHome" />
+          <!-- Verbs hold their space but go inert while another node loads —
+               a mid-switch click must never act on the PREVIOUS node. -->
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
           <div class="stats-row">
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
-              <span class="stat-value frost-mono-nums">{{ s.value }}</span>
+              <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
             </div>
           </div>
@@ -270,7 +295,7 @@ const listPayload = computed(() => {
           <!-- CLASS TEACHING CARDS — the density the old class page had
                (Course Journey · Belt distribution · practice benchmark),
                in the same card grammar as the stats row. -->
-          <div v-if="isClass" class="class-cards">
+          <div v-if="isClass" class="class-cards" :class="{ 'is-switching': switching }">
             <div class="schools-card class-card">
               <span class="schools-kicker">Course journey</span>
               <!-- Bar runs in LEGOs on both sides (class average vs course
@@ -317,12 +342,21 @@ const listPayload = computed(() => {
                 >{{ l.label }}</button>
               </div>
             </div>
-            <div v-if="isLoading" class="children-loading">Loading…</div>
-            <NodeChildrenList v-else :lens="lens" :payload="listPayload">
-              <template #empty>
-                {{ isClass ? 'No students in this class yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.' }}
-              </template>
-            </NodeChildrenList>
+            <!-- The body holds its pre-load height while rows re-fetch (node
+                 switch, lens change or refresh) — no collapse-to-spinner,
+                 one settle when the new rows land. -->
+            <div
+              ref="childrenBodyEl"
+              class="children-body"
+              :style="isLoading && childrenHoldPx ? { minHeight: `${childrenHoldPx}px` } : undefined"
+            >
+              <div v-if="isLoading" class="children-loading">Loading…</div>
+              <NodeChildrenList v-else :lens="lens" :payload="listPayload">
+                <template #empty>
+                  {{ isClass ? 'No students in this class yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.' }}
+                </template>
+              </NodeChildrenList>
+            </div>
           </section>
         </div>
       </div>
@@ -412,5 +446,10 @@ const listPayload = computed(() => {
   border: 1px solid rgba(44, 38, 34, 0.14); background: rgba(255, 255, 255, 0.5); color: var(--schools-fg-2, #555); cursor: pointer;
 }
 .chip.is-active { background: rgba(var(--tone-red, 219 30 23), 0.08); border-color: rgba(var(--tone-red, 219 30 23), 0.4); color: var(--schools-red, #DB1E17); }
-.children-loading { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); }
+.children-body { display: flex; flex-direction: column; }
+.children-loading { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); margin: auto 0; }
+
+/* Mid-switch, the class cards blank their values (they'd be the previous
+   node's) but keep their boxes — kickers stay, bodies go invisible. */
+.class-cards.is-switching .class-card > :not(.schools-kicker) { visibility: hidden; }
 </style>

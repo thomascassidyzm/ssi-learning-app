@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-19 (founder pass B: flat student rows, streaks killed, Class tools page dead)
+# Last updated: 2026-07-20 (layout stability: hold-geometry node switches, no wobble)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 purpose: |
@@ -46,6 +46,20 @@ data:
   authz: resolveGroupTreeCaller + callerCanSeeGroup; leader scope-trims ancestors/siblings to own subtree
   rollups: shared resolver (api/_utils/groupRollups.computeNodeExtras) — same story as tree/table lenses
   practice_hours: subtree school_summary sum (incl. staff practice); class level sums class_student_progress
+
+layout_stability:  # founder bug 2026-07-20 — "3-4 up and down page wobbles" per rail switch
+  # While a load runs, every section HOLDS its geometry; VALUES never show the wrong node.
+  - node switch (id changed): identity/stats/class-card/action-bar value slots blank to nbsp
+    but keep their boxes; the children body holds its pre-load height (measured min-height)
+    instead of collapsing to a spinner line; ONE settle when the new node's data lands
+  - same-node refresh / lens change: identity+stats keep their still-correct numbers
+    (stale-while-refreshing); only the children body holds
+  - action bar goes visibility:hidden mid-switch so a click can never act on the previous node
+  - AdminGroupContainer's entity-context-bar stays MOUNTED once painted (its unmount/remount
+    was the biggest measured shifter); the group name blanks while loading
+  - the map rail keeps its previous tree until arrival (continuity ruling) and swaps once
+  - probe: packages/player-vue/e2e/the-view/layout-stability-probe.mjs (CLS + section height
+    timeline per switch, deployed build; target CLS/switch < 0.02 incl. input-adjacent shifts)
 
 navigation_rules:  # THE-VIEW §2
   - clicking any node NAME anywhere in admin lands on that node's HOME

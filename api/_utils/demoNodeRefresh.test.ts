@@ -134,6 +134,47 @@ describe('refreshDemoNodeActivity — hard safety', () => {
   })
 })
 
+describe('refreshDemoNodeActivity — dual-course learners', () => {
+  it('a learner tagged into TWO classes gets coherent telemetry in BOTH courses, counted once', async () => {
+    const log = emptyLog()
+    const db = makeDb({
+      classes: [
+        { id: 'cls-1', school_id: 'sch-1', course_code: 'fra_for_eng', teacher_user_id: 't-1', current_seed: 25 },
+        { id: 'cls-2', school_id: 'sch-1', course_code: 'spa_for_eng', teacher_user_id: 't-1', current_seed: 12 },
+      ],
+      user_tags: [
+        { user_id: 'u-demo', tag_value: 'CLASS:cls-1', role_in_context: 'student' },
+        { user_id: 'u-demo', tag_value: 'CLASS:cls-2', role_in_context: 'student' },
+      ],
+      course_enrollments: [
+        // Anchors far apart so the assertion is deterministic: max persona
+        // seedGain is 14, so spa can never legitimately reach fra's band.
+        { learner_id: 'l-demo', course_id: 'fra_for_eng', enrolled_at: '2026-05-01T00:00:00Z', highest_completed_seed: 60 },
+        { learner_id: 'l-demo', course_id: 'spa_for_eng', enrolled_at: '2026-06-01T00:00:00Z', highest_completed_seed: 3 },
+      ],
+      course_seeds: [
+        ...Array.from({ length: 100 }, (_, i) => ({ course_code: 'fra_for_eng', seed_number: i + 1 })),
+        ...Array.from({ length: 100 }, (_, i) => ({ course_code: 'spa_for_eng', seed_number: i + 1 })),
+      ],
+    })
+    const result = await refreshDemoNodeActivity(makeSupabase(db, log), 'g-demo', 'admin-1')
+    expect(result.learnersTouched).toBe(1) // distinct learners, not pairs
+
+    const sessions = log.inserts.filter((i) => i.table === 'sessions').flatMap((i) => i.rows)
+    const courses = new Set(sessions.map((s: any) => s.course_id))
+    expect(courses).toEqual(new Set(['fra_for_eng', 'spa_for_eng']))
+
+    // Each course's enrollment patched against ITS OWN anchor (never the other course's).
+    const patches = log.updates.filter((u) => u.table === 'course_enrollments')
+    expect(patches).toHaveLength(2)
+    const byCourse = new Map(patches.map((p) => [p.filters.find(([c]) => c === 'course_id')![1], p.patch]))
+    expect((byCourse.get('fra_for_eng') as any).highest_completed_seed).toBeGreaterThanOrEqual(60)
+    const spaSeed = (byCourse.get('spa_for_eng') as any).highest_completed_seed
+    expect(spaSeed).toBeGreaterThanOrEqual(3)
+    expect(spaSeed).toBeLessThanOrEqual(3 + 14) // anchored to spa's own cursor, not fra's
+  })
+})
+
 describe('refreshDemoNodeActivity — replace + recency shape', () => {
   it('deletes existing telemetry before regenerating (replace, not stack)', async () => {
     const log = emptyLog()
