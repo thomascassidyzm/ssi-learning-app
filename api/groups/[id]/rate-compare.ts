@@ -175,6 +175,25 @@ async function subtreeClasses(
   return out
 }
 
+/**
+ * Restrict a set of candidate peer school ids to the entity's OWN world —
+ * demo peers for a demo entity, real peers for a real one, NEVER mixed
+ * (insight-engine doctrine: analytics are real or absent; a demo org's cohort
+ * IS the demo world — that's its real data — and a real org's average is never
+ * diluted by seeded demo rows). The RPC's p_include_demo already zeroes the
+ * wrong-world SESSIONS, but cohort MEMBERSHIP must match too: otherwise a
+ * global / global_all_courses pool (which spans other subtrees and every
+ * course) can seat a real school beside a demo entity, producing the nonsense
+ * "demo 3.7 vs real 13.8" comparison the founder hit on the IME programme.
+ */
+async function schoolIdsInWorld(svc: SupabaseClient, schoolIds: string[], wantDemo: boolean): Promise<Set<string>> {
+  const out = new Set<string>()
+  if (schoolIds.length === 0) return out
+  const { data } = await svc.from('schools').select('id, is_demo').in('id', schoolIds).limit(MAX_COHORT_IDS)
+  for (const s of data ?? []) if (Boolean((s as any).is_demo) === wantDemo) out.add((s as any).id)
+  return out
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -412,15 +431,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ─── Cohort: peers-like-me within the chosen scope. ───
+    // A DEMO node reads its own demo sessions (demo orgs are self-contained
+    // subtrees, so its ancestor cohorts are demo peers); a real node keeps the
+    // RPC's demo exclusion. The same flag decides the cohort's WORLD below —
+    // demo entities draw demo peers, real entities draw real peers, never
+    // mixed (schoolIdsInWorld).
+    const entityIsDemo = Boolean(nodeRow?.is_demo)
     const cohortCourse = compareTo === 'global_all_courses' ? null : courseCode
     let members: { id: string; classIds: string[] }[] = []
 
     if (isGlobalCompare) {
       if (classRow) {
-        let q = svc.from('classes').select('id').eq('is_active', true).neq('id', classRow.id)
+        let q = svc.from('classes').select('id, school_id').eq('is_active', true).neq('id', classRow.id)
         if (cohortCourse) q = q.eq('course_code', cohortCourse)
         const { data } = await q.limit(MAX_COHORT_IDS)
-        members = (data ?? []).map((c: any) => ({ id: c.id, classIds: [c.id] }))
+        const rows = (data ?? []) as { id: string; school_id: string | null }[]
+        // Same world only: a school-less (ACT) class is real; a demo class
+        // never seats a real peer, and vice-versa.
+        const world = await schoolIdsInWorld(
+          svc, [...new Set(rows.map((r) => r.school_id).filter(Boolean))] as string[], entityIsDemo)
+        members = rows
+          .filter((r) => (r.school_id ? world.has(r.school_id) : !entityIsDemo))
+          .map((r) => ({ id: r.id, classIds: [r.id] }))
       } else {
         let q = svc.from('classes').select('id, school_id').eq('is_active', true).not('school_id', 'is', null)
         if (cohortCourse) q = q.eq('course_code', cohortCourse)
@@ -434,7 +466,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           arr.push(cid)
           bySchool.set(sid, arr)
         }
-        members = [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds }))
+        const world = await schoolIdsInWorld(svc, [...bySchool.keys()], entityIsDemo)
+        members = [...bySchool.entries()].filter(([id]) => world.has(id)).map(([id, classIds]) => ({ id, classIds }))
       }
     } else {
       // an ancestor group id — its subtree is exactly the scope already fetched
@@ -466,10 +499,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // fractional (hourly buckets) and the RPC takes whole days. ───
     const fetchDays = Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
     const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-    // A DEMO node reads its own demo sessions (demo orgs are self-contained
-    // subtrees, so its ancestor cohorts are demo peers); a real node keeps the
-    // RPC's demo exclusion — a real cohort never gains a demo row.
-    const entityIsDemo = Boolean(nodeRow?.is_demo)
     const { data: rawRows, error: rpcError } = await svc.rpc('analytics_class_sessions_scoped', {
       p_class_ids: allClassIds,
       p_days: fetchDays,
@@ -492,7 +521,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .filter((x) => x.rateWindow.hasData)
     const effectiveFloor = isAdmin ? 1 : K_FLOOR
     if (active.length < effectiveFloor) {
-      insufficient('Not enough data to compare fairly yet.', active.length)
+      // Name the actual gate rather than a vague "not enough data" (founder ask
+      // 2026-07-20): which peer unit, how many are needed, over what window.
+      const unit = classRow ? 'classes' : 'schools'
+      const worldNote = entityIsDemo ? 'demo ' : ''
+      const reason = active.length === 0
+        ? `No other ${worldNote}${unit} on this course have practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
+        : `Only ${active.length} other ${worldNote}${unit} on this course ${active.length === 1 ? 'has' : 'have'} practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
+      insufficient(reason, active.length)
       return
     }
 

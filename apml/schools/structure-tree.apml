@@ -1,25 +1,43 @@
 # APML: Structure tree — row grammar + demo-refresh verb
 # Last updated: 2026-07-20
-# Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings 2026-07-19
-# (OPEN by the name; refresh demo data as a verb on a DEMO node)
+# Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings
+# 2026-07-19 (rows are links; ⋯ maintenance-only) + 2026-07-20 (quiet chips,
+# hierarchy rails); refresh demo data as a verb on a DEMO node
 
 purpose: |
   The Structure page (/admin/structure) is the org tree's editing surface —
   two lenses (tree/table) over the same group nodes. This spec pins the ROW
   GRAMMAR (how a row's verbs are laid out) and the demo-refresh verb.
 
-row_grammar:  # founder-ruled 2026-07-19 — obvious over clever, works on a phone
-  name: clicking the node NAME opens the quick-actions panel (NodePanel)
-  open: |
-    A labeled "Open" pill sits IMMEDIATELY NEXT TO the name — always visible
-    (never hover-gated), a word not an icon, >=36px tall at phone width.
-    Tapping it lands on the node's HOME (/admin/groups/:id, or
-    /admin/schools/:id for a commercial node) — THE-VIEW §2.
+row_grammar:  # founder-ruled 2026-07-19/20 — name is the anchor, repetition is noise
+  rows_are_links: |
+    A click ANYWHERE on a row (tree or table lens) opens the node's HOME
+    (/admin/groups/:id, or /admin/schools/:id for a commercial node) —
+    THE-VIEW §2. No separate Open control; in-row controls stop propagation.
+  quiet_chips:  # founder-ruled 2026-07-20 — info that repeats on every row is not info
+    label_word: |
+      shown ONLY where it disambiguates — when the row's own sibling set
+      mixes labels (parent computes over ALL its children; AdminStructure
+      does the same across roots). 10.5px faded mono when shown. Change
+      label via ⋯ works regardless.
+    demo_badge: marked ONCE at the demo subtree's root; descendants silent
+      (parentIsDemo prop). Standalone demo roots keep theirs.
+    status_pill: attention states only (trial/past_due); paid-and-fine
+      silent; trial ALSO hidden for demo nodes and inside demo subtrees —
+      a demo school on trial is normal state, not attention.
+    size: one muted right-aligned "N learners"; full breakdown on hover.
+  hierarchy:  # founder-ruled 2026-07-20 — depth legible at a glance
+    rails: one faint 1px vertical guide per ancestor level (.rail, 22px
+      step, 16px under 768px), stretched through row padding so lines read
+      continuous; rows are flat DOM siblings so rail count IS the depth.
+    typography: name steps down by level — depth-0 15px semibold,
+      depth-1 14px medium, depth-2+ 13px medium. Roots anchor the page.
   overflow: |
-    The less-used verbs fold into ONE always-visible ⋯ overflow menu with
-    labeled words: Rename · Add child group · Invite people · Mint a demo
-    org · Delete. No bare-icon strips, no hover-only reveals.
-  table_lens: same Open-pill-by-the-name treatment; rename/delete stay as row icons
+    Maintenance verbs only, ONE always-visible ⋯ menu with labeled words:
+    Rename · Change label · Delete. Create/invite/mint live on the node
+    home's action bar (NodeActionBar), not on rows.
+  table_lens: whole-row link + zebra stripe (rgba(44,38,34,0.03) even rows);
+    rename/delete stay as row icons; label/Demo/status stay plain columns
 
 demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
   verb: |
