@@ -22,7 +22,13 @@ interface NodeShape {
   rollup?: { teacherCount?: number; classCount?: number; childGroupCount?: number; learnerCount?: number }
 }
 
-const props = defineProps<{ node: NodeShape }>()
+// `member` = the /schools/org mount (a leader on their own subtree). Leaders
+// get the invite verbs — /api/groups/:id/invites authorizes a govt_admin on
+// their governed node or any strict descendant — while the structural verbs
+// (add/rename/mint/delete/courses) stay admin-only for now: their endpoints
+// are ssi_admin-gated, and a leader's create-school lane is a separate
+// surface (POST /api/govt/create-school).
+const props = defineProps<{ node: NodeShape; member?: boolean }>()
 const emit = defineEmits<{ changed: []; renamed: [name: string]; minted: [] }>()
 
 const { getAuthToken } = useAdminClient()
@@ -356,15 +362,15 @@ function closeDelete(): void {
            learner-only "Get join link" folded into the shareable menu. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" @click="toggle('person')">Invite a person</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
-      <button v-if="!node.commercial" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
-      <button v-if="node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
+      <button v-if="!member && !node.commercial" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
+      <button v-if="!member && node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
         {{ isRefreshing ? 'Refreshing…' : 'Refresh demo activity' }}
       </button>
-      <button type="button" class="verb verb-danger" @click="requestDelete">Delete</button>
+      <button v-if="!member" type="button" class="verb verb-danger" @click="requestDelete">Delete</button>
     </div>
 
     <!-- Inline forms (one at a time) -->

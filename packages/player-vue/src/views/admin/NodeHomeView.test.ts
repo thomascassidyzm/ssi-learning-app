@@ -93,6 +93,7 @@ beforeEach(() => {
   replaceMock.mockClear()
   routeMock.params = { id: 'programme' }
   routeMock.query = {}
+  ;(routeMock as any).path = undefined
 })
 
 describe('NodeHomeView — one grammar at every level', () => {
@@ -237,5 +238,33 @@ describe('NodeHomeView — one grammar at every level', () => {
     await row.find('.child-btn').trigger('click')
     expect(pushMock).not.toHaveBeenCalled()
     expect(wrapper.find('.child-detail').exists()).toBe(false)
+  })
+  it('MEMBER-MOUNT PIN (/schools/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
+    ;(routeMock as any).path = '/schools/org/programme'
+    setupFetch(nodePayload())
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Same grammar renders (rail, identity, stats, children)
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+    expect(wrapper.text()).toContain("you're here")
+    // Rail rooted at the leader's scope: no "All organisations" admin escape
+    expect(wrapper.text()).not.toContain('All organisations')
+    // Navigation stays inside /schools/org — child row and rail ancestor
+    await wrapper.find('.child-btn').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/schools/org/school-node')
+    await wrapper.find('.rail-link').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/schools/org/nation')
+    // See insights points at the member lens, not /admin
+    expect(wrapper.find('a[href="/schools/org/programme/insights"]').exists()).toBe(true)
+    // Verbs: leaders keep the invite pair; structural admin verbs are hidden
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Invite a person')
+    expect(verbs).toContain('Get a shareable link')
+    expect(verbs).not.toContain('Add a group')
+    expect(verbs).not.toContain('Mint a demo org')
+    expect(verbs).not.toContain('Rename')
+    expect(verbs).not.toContain('Delete')
+    expect(verbs).not.toContain('Courses')
   })
 })

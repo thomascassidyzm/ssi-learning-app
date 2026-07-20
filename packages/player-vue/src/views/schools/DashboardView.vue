@@ -20,6 +20,24 @@ import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+
+// THE VIEW (docs/THE-VIEW.md): a group/region leader's landing IS their top
+// node's home — the same recursive node surface the admin sees, server-scoped
+// to their subtree, mounted at /schools/org/:id. The group dashboard below
+// remains only for legacy leaders with no group (region_code-only rows) and
+// for the admin read-view mounts. Watch, not a one-shot: the container's
+// loadFromAuth resolves the context async, so group_id can land after mount.
+watch(
+  currentUser,
+  (u) => {
+    if (isAdminView) return
+    if (isGovtAdmin.value && u?.group_id) {
+      void router.replace(`/schools/org/${u.group_id}`)
+    }
+  },
+  { immediate: true },
+)
+
 const { density } = useSchoolsDensity()
 const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 

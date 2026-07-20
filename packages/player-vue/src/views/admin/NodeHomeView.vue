@@ -18,10 +18,16 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 
 const route = useRoute()
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
+
+// Member mount (/schools/org/:id — a leader inside the /schools shell) vs the
+// admin mount. Same page, same endpoint; the server scopes a leader to their
+// subtree, and links/verbs stay within member scope (nodeSurfacePaths.ts).
+const member = computed(() => isMemberNodeSurface(route.path))
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -163,9 +169,7 @@ const stats = computed(() => {
 const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
-  if (isClass.value) return `/admin/classes/${n.id}/insights`
-  if (n.commercial?.schoolId) return `/admin/schools/${n.commercial.schoolId}/analytics`
-  return `/admin/groups/${n.id}/analytics`
+  return nodeInsightsPath(n, isClass.value, member.value)
 })
 
 // The old "Class tools" page is DEAD (founder ruling 2026-07-19): in the
@@ -297,7 +301,7 @@ const listPayload = computed(() => {
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
           <!-- Verbs hold their space but go inert while another node loads —
                a mid-switch click must never act on the PREVIOUS node. -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -369,7 +373,7 @@ const listPayload = computed(() => {
               <div v-if="isLoading" class="children-loading">Loading…</div>
               <NodeChildrenList v-else :lens="lens" :payload="listPayload">
                 <template #empty>
-                  {{ isClass ? 'No students in this class yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.' }}
+                  {{ isClass ? 'No students in this class yet.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.') }}
                 </template>
               </NodeChildrenList>
             </div>

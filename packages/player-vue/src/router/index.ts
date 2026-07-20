@@ -210,6 +210,26 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // THE VIEW for members (docs/THE-VIEW.md): a group/school leader's
+        // node home — the SAME recursive page the admin surface uses, mounted
+        // inside the /schools shell. One :id route serves groups, schools AND
+        // classes (the home endpoint resolves whichever it's given), and the
+        // server scopes a leader to their own subtree — rail rooted at their
+        // top node, no admin escape. Server-backed reads only (no client
+        // org-table queries — the RLS-condition caution).
+        path: 'org/:id',
+        name: 'schools-node-home',
+        component: NodeHomeView,
+        meta: { title: 'Organisation', description: 'Node home (member scope)', nodeSurface: true },
+      },
+      {
+        // THE LENS at member scope — "See insights" on the member node home.
+        path: 'org/:id/insights',
+        name: 'schools-node-insights',
+        component: NodeInsightsView,
+        meta: { title: 'Insights', description: 'The Insight Engine scoped to this node (member scope)' },
+      },
+      {
         path: 'play',
         name: 'schools-play',
         component: PlayerContainer,

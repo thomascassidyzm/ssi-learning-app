@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-20 (layout stability: hold-geometry node switches, no wobble)
+# Last updated: 2026-07-20 (member mount: /schools/org/:id — leaders land on THE VIEW)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 purpose: |
@@ -14,6 +14,16 @@ surface:
   route_school: /admin/schools/:id    # node home for a school's node (index; deep tools stay at sub-routes)
   route_class: /admin/classes/:id     # node home at class level (AdminClassHome shell)
   redirect_full_schools_list: "/admin/groups/:id/schools -> /admin/groups/:id?lens=schools"
+  route_member: /schools/org/:id      # MEMBER mount (2026-07-20): a leader's node home inside the
+                                      # /schools shell — ONE :id route for groups, schools AND classes
+                                      # (the endpoint resolves the kind); + /schools/org/:id/insights.
+                                      # Server-scoped to the leader's own subtree; rail rooted at their
+                                      # top node (no "All organisations" admin escape); verbs reduced to
+                                      # the invite pair (invites endpoint already leader-authorized);
+                                      # links derived per-mount via composables/nodeSurfacePaths.ts.
+                                      # Landing: DashboardView redirects a govt_admin with a group_id
+                                      # to /schools/org/:group_id (legacy region-only leaders keep the
+                                      # old group dashboard).
 
 grammar:  # the same five parts, every level (THE-VIEW §1)
   map_rail: NodeMapRail.vue           # ancestors root→here, you-are-here lit, siblings toggle, children below
@@ -77,7 +87,10 @@ tests:
   - api/groups/[id]/home.test.ts                               # id resolution, rail, rollups, lenses, leader trimming
 
 out_of_scope: |
-  Member-area /schools views (DashboardView, SchoolsView, ClassDetail) are
-  untouched — they converge on this grammar in a later scoped pass. Class
-  co-teacher MEMBERSHIP mutations are another worker's piece; here the
+  The LEADER member path now converges on this grammar via the member mount
+  (route_member above, 2026-07-20). Teacher and school_admin /schools views
+  (TeacherDashboard, DashboardView school branch, ClassDetail) still converge
+  in a later scoped pass — school_admin needs a leader door on
+  resolveGroupTreeCaller first (it currently authorizes govt_admins only).
+  Class co-teacher MEMBERSHIP mutations are another worker's piece; here the
   teachers list renders read-only from class_teachers + the lead pointer.
