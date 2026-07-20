@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { courseDisplayName } from '@ssi/core'
 import type { TreemapData, DataQuery, Tone } from '../spec'
 
 // ── Rich per-course shape (exported for boards and narrative cards) ──────────
@@ -117,7 +118,7 @@ const resolver = async (
 
   const nodes: TreemapData['nodes'] = rows.map((r) => ({
     id: r.courseCode,
-    name: r.courseCode,
+    name: courseDisplayName(r.courseCode),
     value: r.ltvProxy,
     tone: assignTone(r.ltvProxy, maxLtv),
     // muted = zero activity (no data yet); the treemap can render these as ghost tiles

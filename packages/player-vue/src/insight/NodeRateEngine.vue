@@ -27,6 +27,7 @@ import RateCompare from './components/RateCompare.vue'
 import WindowChips from './components/WindowChips.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { courseDisplayName } from '@ssi/core'
 import type { RateComparisonData } from './spec'
 
 interface CourseOption { code: string; classCount: number }
@@ -153,7 +154,7 @@ watch(
 
 // ─── Pickers ───
 const courseSelectOptions = computed(() =>
-  (engineState.value?.options.courses ?? []).map((c) => ({ value: c.code, label: c.code })))
+  (engineState.value?.options.courses ?? []).map((c) => ({ value: c.code, label: courseDisplayName(c.code) })))
 
 function compareWord(o: CompareOption): string {
   if (!props.plainWords) return o.label
@@ -222,7 +223,7 @@ const metricDesc = computed(() => {
       </label>
       <div v-else-if="engineState.applied.course_code" class="nre-field">
         <span class="nre-field-label">Course</span>
-        <p class="nre-fixed">{{ engineState.applied.course_code }}</p>
+        <p class="nre-fixed">{{ courseDisplayName(engineState.applied.course_code) }}</p>
       </div>
 
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide">

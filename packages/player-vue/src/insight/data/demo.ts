@@ -21,6 +21,7 @@ import type {
 import type { CourseValueData, CourseValueRow } from './courseValue'
 import type { RetentionResolverResult } from './retention'
 import type { HealthPayload, HealthFailureTrendPoint, HealthVersionStat, HealthDeviceStat } from './health'
+import { courseDisplayName } from '@ssi/core'
 
 // ── Demo flag helper ────────────────────────────────────────────────────────
 // True when the URL carries ?demo or ?demo=1 (or any value). Cheap, no caching:
@@ -87,6 +88,12 @@ const COURSES: DemoCourse[] = [
   { code: 'gle_for_eng', name: 'Irish for English speakers',    weight: 4 },
   { code: 'eus_for_eng', name: 'Basque for English speakers',   weight: 2 },
 ]
+
+// User-facing display name for a demo course code — prefers the authored name
+// above, falls back to the @ssi/core derivation so a code never leaks raw.
+function demoCourseName(code: string): string {
+  return COURSES.find((c) => c.code === code)?.name ?? courseDisplayName(code)
+}
 
 // Six regions (ISO country codes) with weights — GB/US dominate.
 const REGIONS = ['GB', 'US', 'ES', 'FR', 'DE', 'AU'] as const
@@ -217,7 +224,7 @@ export function demoCourseValue(): CourseValueData {
 
   const nodes: TreemapData['nodes'] = rows.map((r) => ({
     id: r.courseCode,
-    name: r.courseCode,
+    name: demoCourseName(r.courseCode),
     value: r.ltvProxy,
     tone: ltvTone(r.ltvProxy, maxLtv),
     muted: r.reach === 0,
@@ -314,10 +321,10 @@ export function demoGrowthRows(): { period_start: string; new_users: number }[] 
 
 // ============================================================================
 // demoCourseList() → the dropdown shape ContentFrictionBoard.courseOptions uses.
-// { value: course_code, label: 'Display (code)' }
+// { value: course_code, label: display name } — code stays the value, name shows.
 // ============================================================================
 export function demoCourseList(): { value: string; label: string }[] {
-  return COURSES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }))
+  return COURSES.map((c) => ({ value: c.code, label: c.name }))
 }
 
 // ============================================================================
