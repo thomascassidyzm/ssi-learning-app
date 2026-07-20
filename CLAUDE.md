@@ -880,12 +880,18 @@ A **Cycle** is an immutable, pre-validated learning unit:
 - Keep new components under 300 lines
 
 ### Feedback Loops
-Before every commit:
+Before every commit **and before pushing any PR** — these are CI-gated, so a red one blocks the merge:
 ```bash
-pnpm --filter player-vue typecheck  # Must pass
+# player-vue (Vue SPA)
+pnpm --filter player-vue typecheck  # Must pass (run `pnpm --filter @ssi/core build` first — vue-tsc reads core's dist)
 pnpm --filter player-vue test       # Must pass
-pnpm --filter player-vue lint       # Must pass
+pnpm --filter player-vue lint       # Must pass — `eslint .` (covers src AND e2e/**, not just src)
+
+# API (Vercel serverless routes under api/)
+pnpm run typecheck:api              # Must pass — tsc over ALL of api/** (widened 2026-07-17, was audio-only)
+pnpm run test:api                   # Must pass — vitest -c vitest.api.config.ts
 ```
+**Lint gate detail:** `player-vue lint` fails on any **error** (exit 1); pre-existing **warnings** (147 as of 2026-07-20, mostly `no-unused-vars`) do NOT fail it — the command has no `--max-warnings`. So the bar is "zero new errors", e.g. `prefer-const`, not "zero warnings". Don't mass-fix warnings unless asked.
 
 ### Files Being Created
 > **Historical (Jan 2026 plan snapshot).** As-shipped, only `types/Cycle.ts` and `composables/useCyclePlayback.ts` exist; `utils/validateCycle.ts` and `components/CyclePlayer.vue` were never created — the playback engine landed as `playback/SimplePlayer.ts` instead.
