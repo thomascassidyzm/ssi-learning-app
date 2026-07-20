@@ -2,7 +2,7 @@
  * Create School API - POST /api/admin/create-school
  *
  * Replaces the three-write client flow in
- * packages/player-vue/src/views/admin/SchoolsSetup.vue::createSchool
+ * packages/player-vue/src/views/admin/AdminStructure.vue::createSchool
  * (schools insert + two invite_codes inserts for teacher / admin join
  * codes). The schools insert still worked client-side, but the two
  * invite_codes inserts were silently failing as warnings after
@@ -15,13 +15,14 @@
  * no multi-table txn).
  *
  * Requires ssi_admin / god caller — enforced by verifyAdmin().
- * This is the platform-admin SchoolsSetup view, not in-school
+ * This is the platform-admin AdminStructure view, not in-school
  * creation by a school_admin (which doesn't exist as a flow today).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { ensureSchoolNode } from '../_utils/schoolNode'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -91,6 +92,7 @@ export default async function handler(
       return
     }
     schoolId = school.id
+    await ensureSchoolNode(supabase, { id: school.id as string, school_name: schoolName, group_id: groupId })
 
     // Step 2: invite_codes for teacher join code
     const { error: teacherCodeError } = await supabase.from('invite_codes').insert({

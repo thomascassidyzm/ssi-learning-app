@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
@@ -21,6 +23,7 @@ const {
   totalPracticeHours,
   fetchSchools,
   selectSchoolToView,
+  isLoading: schoolsLoading,
   error: fetchError,
 } = useSchoolData()
 const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
@@ -28,17 +31,12 @@ const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
 const sortKey = ref<SortKey>('hours')
-const isRefreshing = ref(false)
 
-async function handleRefresh() {
-  if (isRefreshing.value) return
-  isRefreshing.value = true
-  try {
-    await fetchSchools()
-  } finally {
-    isRefreshing.value = false
-  }
-}
+// The ONE refresh protocol: register this page's loader; the navbar button and
+// pull-to-refresh both drive it, and the initial/reactive loads route through
+// the same refresh() so the spinner + "Updated HH:MM" stamp stay honest.
+const { isRefreshing, refresh, registerRefresh } = useDashboardRefresh()
+registerRefresh(fetchSchools, { immediate: false })
 
 const filteredSchools = computed<School[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -65,6 +63,7 @@ const awaitingCount = computed(() => schools.value.filter((s) => !s.has_admin).l
 
 const headerLede = computed(() => {
   const n = schools.value.length
+  if (!n && schoolsLoading.value) return 'Loading schools…'
   if (!n) return 'No schools registered in this programme yet.'
   const base = `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'}.`
   if (!awaitingCount.value) return base
@@ -127,7 +126,7 @@ function openAddModal() {
 
 async function closeAddModal() {
   showAddModal.value = false
-  if (createdSchool.value) await fetchSchools()
+  if (createdSchool.value) await refresh()
 }
 
 async function handleCreateSchool() {
@@ -176,36 +175,16 @@ function handleExport() {
   URL.revokeObjectURL(url)
 }
 
-// ---------- Refetch on visibility/focus (schools created via redemption in
-// another tab shouldn't need a manual refresh) ----------
-let refetchTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleRefetch() {
-  if (!currentUser.value) return
-  if (refetchTimer) clearTimeout(refetchTimer)
-  refetchTimer = setTimeout(() => {
-    refetchTimer = null
-    fetchSchools()
-  }, 400)
-}
-
-function handleVisibilityChange() {
-  if (document.visibilityState === 'visible') scheduleRefetch()
-}
-
+// Founder ruling (2026-07-19): NO auto-refresh — the old visibility/focus
+// refetch is gone. Data loads on navigation (and when the user arrives) and
+// then HOLDS STILL until a deliberate refresh. Both loads route through the
+// shared refresh() so they show the spinner and stamp "Updated HH:MM".
 onMounted(() => {
-  if (currentUser.value) fetchSchools()
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('focus', scheduleRefetch)
-})
-
-onBeforeUnmount(() => {
-  if (refetchTimer) clearTimeout(refetchTimer)
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  window.removeEventListener('focus', scheduleRefetch)
+  if (currentUser.value) void refresh()
 })
 
 watch(currentUser, (u) => {
-  if (u) fetchSchools()
+  if (u) void refresh()
 })
 </script>
 
@@ -218,17 +197,6 @@ watch(currentUser, (u) => {
         <p class="hero-lede schools-subtle">{{ headerLede }}</p>
       </div>
       <div class="hero-actions">
-        <button
-          type="button"
-          class="btn-ghost btn-icon"
-          :disabled="isRefreshing"
-          :class="{ 'is-spinning': isRefreshing }"
-          title="Refresh"
-          aria-label="Refresh schools list"
-          @click="handleRefresh"
-        >
-          ⟳
-        </button>
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
@@ -241,7 +209,11 @@ watch(currentUser, (u) => {
          on screen indefinitely with no visible sign anything was wrong. -->
     <div v-if="fetchError" class="schools-card fetch-error-banner">
       <span>Couldn't refresh this list — showing the last data loaded. {{ fetchError }}</span>
-      <button type="button" class="btn-ghost" :disabled="isRefreshing" @click="handleRefresh">Retry</button>
+      <button type="button" class="btn-ghost" :disabled="isRefreshing" @click="refresh">Retry</button>
+    </div>
+
+    <div class="stats-updated-row">
+      <UpdatedStamp />
     </div>
 
     <div class="kpi-grid">
@@ -357,11 +329,14 @@ watch(currentUser, (u) => {
               <span class="row-link">Open →</span>
             </td>
           </tr>
-          <tr v-if="!filteredSchools.length">
-            <td colspan="10" class="empty-row schools-subtle">
-              <template v-if="searchQuery">No schools match "{{ searchQuery }}".</template>
-              <template v-else>No schools to show.</template>
-            </td>
+          <tr v-if="!filteredSchools.length && searchQuery">
+            <td colspan="10" class="empty-row schools-subtle">No schools match "{{ searchQuery }}".</td>
+          </tr>
+          <tr v-else-if="!filteredSchools.length && schoolsLoading">
+            <td colspan="10" class="empty-row schools-subtle">Loading schools…</td>
+          </tr>
+          <tr v-else-if="!filteredSchools.length">
+            <td colspan="10" class="empty-row schools-subtle">No schools to show.</td>
           </tr>
         </tbody>
       </table>
@@ -455,6 +430,13 @@ watch(currentUser, (u) => {
   display: flex;
   gap: 8px;
   flex: none;
+}
+
+.stats-updated-row {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 16px;
+  margin-bottom: 6px;
 }
 
 .kpi-grid {

@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useUserRole } from '@/composables/useUserRole'
 import { isDemoMode } from '@/composables/demo/demoMode'
+import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
+import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 
 interface NavTab {
   name: string
@@ -34,6 +36,11 @@ const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { canAccessAdmin, hasSchoolRole } = useUserRole()
+
+// Play-as-class: while a class session is live, the class name is the primary
+// identity (section tabs + Learn/school chrome dropped) so a tutor always knows
+// WHICH class is on screen.
+const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
 
 declare const __BUILD_NUMBER__: string
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
@@ -119,7 +126,7 @@ const handleSignOut = async () => {
     if (auth?.signOut) {
       await auth.signOut()
     } else {
-      await supabaseRef?.value?.auth.signOut()
+      await supabaseRef?.value?.auth.signOut({ scope: 'local' })
     }
   } finally {
     window.location.reload()
@@ -145,8 +152,19 @@ const closeMobileMenu = () => {
       <span class="logo-build mono">{{ buildNumber }}</span>
     </router-link>
 
+    <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so it
+         takes the centre of the bar as the dominant identity; the section tabs
+         are dropped to cut chrome. -->
+    <PlayAsClassIdentity
+      v-if="isPlayingAsClass"
+      class="nav-play-as-class"
+      :class-name="className"
+      :school-name="props.mode !== 'teach' ? schoolName : undefined"
+      @exit="exitClassSession"
+    />
+
     <!-- Navigation Tabs (desktop) -->
-    <div class="nav-tabs" role="tablist" v-if="tabs.length > 0">
+    <div class="nav-tabs" role="tablist" v-else-if="tabs.length > 0">
       <router-link
         v-for="tab in tabs"
         :key="tab.name"
@@ -161,7 +179,7 @@ const closeMobileMenu = () => {
     <div v-else class="nav-tabs-spacer" aria-hidden="true"></div>
 
     <!-- Mobile Menu Button -->
-    <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
+    <button v-if="!isPlayingAsClass" class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
       <svg v-if="!isMobileMenuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
         <line x1="4" y1="7" x2="20" y2="7"/>
         <line x1="4" y1="12" x2="20" y2="12"/>
@@ -176,15 +194,15 @@ const closeMobileMenu = () => {
     <!-- Right Section -->
     <div class="nav-right">
       <!-- Admin Button (SSi admins only) -->
-      <button v-if="canAccessAdmin && !isDemoMode" class="chip-btn" @click="router.push('/admin')">
+      <button v-if="canAccessAdmin && !isDemoMode && !isPlayingAsClass" class="chip-btn" @click="router.push('/admin')">
         <svg class="chip-btn-glyph" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3l8 3v6c0 4.5-3.3 8.2-8 9-4.7-.8-8-4.5-8-9V6z"/>
         </svg>
         Admin
       </button>
 
-      <!-- Learn Button (back to player, hidden in demo) -->
-      <button v-if="!isDemoMode" class="learn-btn" @click="router.push('/')">
+      <!-- Learn Button (back to player, hidden in demo + during a class session) -->
+      <button v-if="!isDemoMode && !isPlayingAsClass" class="learn-btn" @click="router.push('/')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
@@ -203,8 +221,9 @@ const closeMobileMenu = () => {
 
       <!-- Authenticated User Section -->
       <template v-else-if="isLoaded && isSignedIn">
-        <!-- School Badge (schools context only) -->
-        <div v-if="props.mode !== 'teach'" class="school-badge" :title="schoolName">
+        <!-- School Badge (schools context only; demoted into the class identity
+             while a class session is live) -->
+        <div v-if="props.mode !== 'teach' && !isPlayingAsClass" class="school-badge" :title="schoolName">
           <div class="school-badge-avatar">
             <span>{{ schoolInitials }}</span>
           </div>
@@ -236,6 +255,15 @@ const closeMobileMenu = () => {
                   <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
                 </svg>
                 Settings
+              </router-link>
+              <!-- Leaving the dashboard is a navigation, never an identity
+                   sign-out — roles are additive facets of one account (see
+                   SchoolsTopBar's menu note, founder incident 2026-07-18). -->
+              <router-link to="/" class="user-dropdown-item" @click="isUserMenuOpen = false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12l9-9 9 9M5 10v10h14V10"/>
+                </svg>
+                My player
               </router-link>
               <button class="user-dropdown-item logout" @click="handleSignOut">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">

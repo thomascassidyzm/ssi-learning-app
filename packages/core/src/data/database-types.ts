@@ -270,7 +270,6 @@ export interface EnrolledCourseRow extends CourseRow {
   last_practiced_at: string | null;
   completed_seeds: number;
   progress: number;  // 0-100
-  streak: number;
   is_currently_active: boolean;
 }
 

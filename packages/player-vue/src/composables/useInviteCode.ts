@@ -17,6 +17,16 @@ export interface InviteCodeContext {
   grantedCourses?: readonly string[]
   accessDescription?: string
   durationDescription?: string
+  // Set when validateCode ran with a bearer token and the signed-in user has
+  // already redeemed this code's context — subsequent redeems of a personal
+  // link go straight to their surface (founder ruling 2026-07-20).
+  alreadyRedeemed?: boolean
+  redirectTo?: string
+  // Species 1 (founder-ruled 2026-07-20): this code is bound to a
+  // PRE-PROVISIONED account — the link IS the login. Zero screens: no
+  // capture, no confirm; the client mints the session and routes to
+  // redirectTo directly.
+  personal?: boolean
 }
 
 // Module-level singleton state
@@ -55,13 +65,19 @@ function persistPendingCode() {
 }
 
 export function useInviteCode() {
-  async function validateCode(code: string): Promise<boolean> {
+  async function validateCode(code: string, authToken?: string): Promise<boolean> {
     validationError.value = null
     isValidating.value = true
     try {
       const res = await fetch('/api/code/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Optional bearer: lets the server report alreadyRedeemed for the
+          // signed-in user so a re-clicked personal link goes straight to
+          // their surface instead of re-running the flow.
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({ code: code.trim().toUpperCase() }),
       })
       const data = await res.json()
@@ -87,6 +103,9 @@ export function useInviteCode() {
             schoolName: data.context?.schoolName,
             className: data.context?.className,
             courseName: data.context?.courseName,
+            alreadyRedeemed: data.alreadyRedeemed === true,
+            redirectTo: data.redirectTo,
+            personal: data.personal === true,
           }
         }
         persistPendingCode()
@@ -185,6 +204,39 @@ export function useInviteCode() {
     }
   }
 
+  /**
+   * Straight-in link redemption — the invite LINK is the credential. No email
+   * typed: the server mints the account + a session from possession of the
+   * (already-validated) pending code alone (api/auth/possession-redeem.ts
+   * linkAuth mode), flagging it for a real-email prompt on first run. Same
+   * return shape as possessionRedeem; caller owns setSession() + redeemCode().
+   */
+  async function linkPossessionRedeem(
+    displayName?: string
+  ): Promise<{ success: boolean; session?: { access_token: string; refresh_token: string }; reason?: string; error?: string }> {
+    if (!pendingCode.value || pendingCode.value.codeKind !== 'invite') {
+      return { success: false, error: 'No pending invite code' }
+    }
+    try {
+      const res = await fetch('/api/auth/possession-redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: pendingCode.value.code,
+          linkAuth: true,
+          displayName,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        return { success: true, session: data.session }
+      }
+      return { success: false, reason: data.reason, error: data.error || 'Failed to sign you in' }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to sign you in' }
+    }
+  }
+
   function clearPendingCode() {
     pendingCode.value = null
     validationError.value = null
@@ -199,6 +251,7 @@ export function useInviteCode() {
     validateCode,
     redeemCode,
     possessionRedeem,
+    linkPossessionRedeem,
     clearPendingCode,
   }
 }

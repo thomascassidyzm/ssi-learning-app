@@ -1,8 +1,10 @@
 /**
- * Tests for PATCH /api/admin/update-school — server-mediated schools.group_id
- * write, repointed off the direct client update that 403'd once the
- * 2026-07-04 grant-hygiene window revoked authenticated writes on the org
- * tables (see CLAUDE.md RLS section).
+ * Tests for PATCH/GET/DELETE /api/admin/update-school — server-mediated
+ * schools.group_id write, repointed off the direct client update that 403'd
+ * once the 2026-07-04 grant-hygiene window revoked authenticated writes on
+ * the org tables (see CLAUDE.md RLS section). GET/DELETE also cover the
+ * school_admin self-serve ownership fallback (a school deleting itself,
+ * founder ruling on hierarchy-level delete) alongside the ssi_admin path.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -11,8 +13,15 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
 let verifyAdminResult: any
+let verifyAuthTokenResult: any
 vi.mock('../_utils/auth', () => ({
   verifyAdmin: vi.fn(async () => verifyAdminResult),
+  verifyAuthToken: vi.fn(async () => verifyAuthTokenResult),
+}))
+
+let ownSchoolId: string | null
+vi.mock('../_utils/schoolScope', () => ({
+  schoolIdForAdmin: vi.fn(async () => ownSchoolId),
 }))
 
 let schoolImpact: any
@@ -98,6 +107,8 @@ beforeEach(async () => {
   deleteError = null
   groupRow = { id: 'group-1' }
   verifyAdminResult = { userId: 'admin-1' }
+  verifyAuthTokenResult = { valid: false, error: 'no token' }
+  ownSchoolId = null
   schoolImpact = {
     schoolId: 'school-1',
     schoolName: 'Ysgol Test',
@@ -161,8 +172,10 @@ describe('PATCH /api/admin/update-school', () => {
 })
 
 describe('GET /api/admin/update-school (impact preview)', () => {
-  it('rejects a non-admin caller', async () => {
+  it('rejects a caller who is neither admin nor the school\'s own admin', async () => {
     verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: true, userId: 'random-user' }
+    ownSchoolId = 'some-other-school'
     const req = { method: 'GET', query: { school_id: 'school-1' }, headers: { authorization: 'Bearer tok' } } as any
     const res = makeRes()
     await handler(req, res)
@@ -176,16 +189,53 @@ describe('GET /api/admin/update-school (impact preview)', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.impact).toMatchObject({ schoolName: 'Ysgol Test' })
   })
+
+  it('the school\'s OWN admin (self-serve, no ssi_admin) can preview impact', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: true, userId: 'school-admin-1' }
+    ownSchoolId = 'school-1'
+    const req = { method: 'GET', query: { school_id: 'school-1' }, headers: { authorization: 'Bearer tok' } } as any
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+  })
 })
 
 describe('DELETE /api/admin/update-school', () => {
-  it('rejects a non-admin caller', async () => {
+  it('rejects a caller who is neither admin nor the school\'s own admin', async () => {
     verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: true, userId: 'random-user' }
+    ownSchoolId = 'some-other-school'
     const req = makeDeleteReq('school-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
     expect(deleteSchoolCascade).not.toHaveBeenCalled()
+  })
+
+  it('401s an unauthenticated non-admin caller', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(401)
+    expect(deleteSchoolCascade).not.toHaveBeenCalled()
+  })
+
+  it('the school\'s OWN admin (self-serve, no ssi_admin) can delete their own school', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: true, userId: 'school-admin-1' }
+    ownSchoolId = 'school-1'
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteSchoolCascade).toHaveBeenCalledWith(expect.anything(), 'school-1')
+    expect(auditAdminDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorUserId: 'school-admin-1' })
+    )
   })
 
   it('requires school_id', async () => {

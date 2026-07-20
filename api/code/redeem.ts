@@ -13,6 +13,7 @@ import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlem
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
+import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -63,6 +64,51 @@ async function claimCodeUse(
     .eq('id', id)
   if (updErr) throw new Error(`${table} increment failed: ${updErr.message}`)
   return true
+}
+
+/**
+ * Group-scoped teacher/student affiliation (THE-MODEL.md §6, I8; I7 — any
+ * node, not just leaves). Writes the GROUP: tag at the invited node, and —
+ * if that node IS a school's own node (schools.node_group_id) — dual-writes
+ * the legacy SCHOOL:<id> tag too (§5 item 5), so every deployed dashboard
+ * still sees the person tonight without waiting on a reader repoint.
+ * Returns an error message on failure, or null on success.
+ */
+async function affiliateToGroupNode(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  groupId: string,
+  roleInContext: 'teacher' | 'student'
+): Promise<string | null> {
+  const { error: groupTagError } = await supabase
+    .from('user_tags')
+    .insert({
+      user_id: userId,
+      tag_type: 'group',
+      tag_value: `GROUP:${groupId}`,
+      role_in_context: roleInContext,
+      added_by: userId,
+    })
+  if (groupTagError) return groupTagError.message
+
+  const { data: schoolNode } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('node_group_id', groupId)
+    .maybeSingle()
+  if (schoolNode) {
+    const { error: schoolTagError } = await supabase
+      .from('user_tags')
+      .insert({
+        user_id: userId,
+        tag_type: 'school',
+        tag_value: `SCHOOL:${(schoolNode as any).id}`,
+        role_in_context: roleInContext,
+        added_by: userId,
+      })
+    if (schoolTagError) return schoolTagError.message
+  }
+  return null
 }
 
 export default async function handler(
@@ -174,6 +220,37 @@ async function redeemInviteCode(
       res.status(200).json({ success: false, error: 'Already redeemed for this class' })
       return
     }
+  } else if (
+    (codeType === 'teacher' || codeType === 'student') &&
+    inviteRow.grants_group_id &&
+    !inviteRow.grants_school_id &&
+    !inviteRow.grants_class_id
+  ) {
+    // Group-scoped codes (THE-MODEL.md §6, I8; api/groups/:id/invites.ts) carry
+    // ONLY grants_group_id — an interior-node join (I7). Same dedup shape as
+    // the school/class checks above, scoped to the group tag instead.
+    const { data: existingTag } = await supabase
+      .from('user_tags')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tag_type', 'group')
+      .eq('tag_value', `GROUP:${inviteRow.grants_group_id}`)
+      .is('removed_at', null)
+      .maybeSingle()
+    if (existingTag) {
+      res.status(200).json({ success: false, error: 'Already redeemed for this group' })
+      return
+    }
+  }
+
+  // Operator-capture guard (2026-07-18): every invite code type mutates the
+  // signed-in account's roles (platform_role or educational_role) — an
+  // ssi_admin testing an invite link must never have their real account
+  // captured. Refuse BEFORE claiming a use, so the test doesn't burn a
+  // capped code either.
+  if (await isOperatorAccount(supabase, userId)) {
+    res.status(200).json({ success: false, error: OPERATOR_CAPTURE_ERROR })
+    return
   }
 
   // Atomically claim a use (conditional on still-active/unexpired/under-cap),
@@ -201,8 +278,15 @@ async function redeemInviteCode(
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
     const metadata = authUser?.user?.user_metadata as Record<string, unknown> | undefined
     const metadataName = metadata?.display_name
+    // A link-auth (straight-in) account carries a placeholder email
+    // (api/auth/possession-redeem.ts) — never derive a display name from it
+    // ("link-<uuid>"); fall back to a generic name until they add a real one.
+    const authEmail = authUser?.user?.email
+    const emailPrefix = authEmail && !authEmail.endsWith('@invite.saysomethingin.app')
+      ? authEmail.split('@')[0]
+      : undefined
     const displayName = (typeof metadataName === 'string' && metadataName.trim())
-      || authUser?.user?.email?.split('@')[0]
+      || emailPrefix
       || 'User'
     // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
     // prove mailbox receipt — that endpoint mints a session without ever
@@ -468,38 +552,63 @@ async function redeemInviteCode(
       return
     }
   } else if (codeType === 'teacher') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'school',
-        tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
-        role_in_context: 'teacher',
-        added_by: userId,
-      })
-    // 23505 → idempotent no-op (concurrent/retried redemption already tagged
-    // this user for this school). See the school_admin_join branch note above.
-    if (tagError && tagError.code !== '23505') {
-      console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    if (inviteRow.grants_group_id && !inviteRow.grants_school_id) {
+      // Group-scoped code (interior-node join, I7) — no legacy branch to fall
+      // through to.
+      const affiliateError = await affiliateToGroupNode(supabase, userId, inviteRow.grants_group_id as string, 'teacher')
+      if (affiliateError) {
+        console.error('[CodeRedeem] Failed to create teacher group tag:', affiliateError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+    } else {
+      const { error: tagError } = await supabase
+        .from('user_tags')
+        .insert({
+          user_id: userId,
+          tag_type: 'school',
+          tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
+          role_in_context: 'teacher',
+          added_by: userId,
+        })
+      // 23505 → idempotent no-op (concurrent/retried redemption already tagged
+      // this user for this school). See the school_admin_join branch note above.
+      if (tagError && tagError.code !== '23505') {
+        console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
     }
   } else if (codeType === 'student') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'class',
-        tag_value: `CLASS:${inviteRow.grants_class_id}`,
-        role_in_context: 'student',
-        added_by: userId,
-      })
-    // 23505 → idempotent no-op (concurrent/retried redemption already tagged
-    // this user into this class). See the school_admin_join branch note above.
-    if (tagError && tagError.code !== '23505') {
-      console.error('[CodeRedeem] Failed to create student tag:', tagError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    if (inviteRow.grants_group_id && !inviteRow.grants_class_id) {
+      // Group-scoped code (interior-node join, I7) — no legacy branch to fall
+      // through to. No course to auto-enrol into (a group-scoped student code
+      // carries no class), so the course_enrollments step below stays gated
+      // on grants_class_id and is skipped for this path, same as any student
+      // code without a class grant.
+      const affiliateError = await affiliateToGroupNode(supabase, userId, inviteRow.grants_group_id as string, 'student')
+      if (affiliateError) {
+        console.error('[CodeRedeem] Failed to create student group tag:', affiliateError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+    } else {
+      const { error: tagError } = await supabase
+        .from('user_tags')
+        .insert({
+          user_id: userId,
+          tag_type: 'class',
+          tag_value: `CLASS:${inviteRow.grants_class_id}`,
+          role_in_context: 'student',
+          added_by: userId,
+        })
+      // 23505 → idempotent no-op (concurrent/retried redemption already tagged
+      // this user into this class). See the school_admin_join branch note above.
+      if (tagError && tagError.code !== '23505') {
+        console.error('[CodeRedeem] Failed to create student tag:', tagError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
     }
   }
 

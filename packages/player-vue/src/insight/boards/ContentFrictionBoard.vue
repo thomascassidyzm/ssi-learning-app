@@ -25,6 +25,7 @@ import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { resolveMetric } from '../registry'
 import InsightWidget from '../InsightWidget.vue'
 import { isInsightDemo, demoCourseList, demoFriction } from '../data/demo'
+import { courseDisplayName } from '@ssi/core'
 import type {
   CohortGridData,
   RankedBarData,
@@ -49,11 +50,13 @@ const courseOptions = computed(() =>
     ? demoCourseList()
     : coursesComposable.courses.value.map(c => ({
         value: c.course_code,
-        label: c.display_name
-          ? `${c.display_name} (${c.course_code})`
-          : c.course_code,
+        label: c.display_name || courseDisplayName(c.course_code),
       }))
 )
+
+const selectedCourseLabel = computed(() =>
+  courseOptions.value.find(o => o.value === selectedCourse.value)?.label
+    || courseDisplayName(selectedCourse.value))
 
 // ---- resolved state --------------------------------------------------------
 const isLoading = ref(false)
@@ -350,7 +353,7 @@ function onCourseChange(e: Event) {
         </select>
         <span v-if="coursesComposable.isLoading.value" class="cfb-picker-hint">Loading courses…</span>
         <span v-else-if="isLoading" class="cfb-picker-hint">Loading friction…</span>
-        <span v-else-if="selectedCourse" class="cfb-picker-hint">{{ selectedCourse }}</span>
+        <span v-else-if="selectedCourse" class="cfb-picker-hint">{{ selectedCourseLabel }}</span>
       </div>
     </header>
 

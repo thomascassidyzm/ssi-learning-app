@@ -40,3 +40,6 @@ test-results/
 packages/player-vue/e2e/schools-nav/sessions.json
 packages/player-vue/e2e/resolved-session-audit/sessions.json
 packages/player-vue/e2e/tutors-audit/out/
+
+# local View-as verification screenshots (regenerate via verify-viewas.mjs)
+packages/player-vue/e2e/schools-nav/viewas-*.png

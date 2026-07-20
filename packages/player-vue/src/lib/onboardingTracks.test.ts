@@ -13,25 +13,26 @@ function course(partial: Partial<LiveCourse>): LiveCourse {
   }
 }
 
-describe('isYearTrialCourse — the 365-day school-offer set (mirrors provision.ts isWelsh || isFree)', () => {
-  it('includes free and community tiers', () => {
-    expect(isYearTrialCourse(course({ pricing_tier: 'free' }))).toBe(true)
-    expect(isYearTrialCourse(course({ pricing_tier: 'community' }))).toBe(true)
+describe('isYearTrialCourse — the 365-day HERITAGE set (non-commercial: !isCommercialCourse)', () => {
+  it('includes free and community minority-language tiers', () => {
+    expect(isYearTrialCourse(course({ target_lang: 'gle', course_code: 'gle_for_eng', pricing_tier: 'free' }))).toBe(true)
+    expect(isYearTrialCourse(course({ target_lang: 'cat', course_code: 'cat_for_eng', pricing_tier: 'community' }))).toBe(true)
   })
 
-  it('includes Welsh despite its premium tier (the heritage anomaly, both variants)', () => {
-    expect(isYearTrialCourse(course({ course_code: 'cym_n_for_eng', pricing_tier: 'premium' }))).toBe(true)
-    expect(isYearTrialCourse(course({ course_code: 'cym_s_for_eng', pricing_tier: 'premium' }))).toBe(true)
+  it('includes Welsh despite its premium tier (the heritage flagship, both variants)', () => {
+    expect(isYearTrialCourse(course({ target_lang: 'cym', course_code: 'cym_n_for_eng', pricing_tier: 'premium' }))).toBe(true)
+    expect(isYearTrialCourse(course({ target_lang: 'cym', course_code: 'cym_s_for_eng', pricing_tier: 'premium' }))).toBe(true)
   })
 
-  it('excludes every other premium course', () => {
-    expect(isYearTrialCourse(course({ course_code: 'spa_for_eng' }))).toBe(false)
-    expect(isYearTrialCourse(course({ course_code: 'eng_for_fra' }))).toBe(false)
+  it('excludes every commercial (Big-10 target) course', () => {
+    expect(isYearTrialCourse(course({ target_lang: 'spa', course_code: 'spa_for_eng' }))).toBe(false)
+    expect(isYearTrialCourse(course({ target_lang: 'eng', course_code: 'eng_for_fra' }))).toBe(false)
   })
 
-  it('agrees with isFreeTier for non-Welsh courses', () => {
-    const c = course({ pricing_tier: 'community' })
-    expect(isYearTrialCourse(c)).toBe(isFreeTier(c))
+  it('classifies by TARGET, not tier: Welsh (heritage) diverges from its premium tier', () => {
+    const welsh = course({ target_lang: 'cym', course_code: 'cym_s_for_eng', pricing_tier: 'premium' })
+    expect(isYearTrialCourse(welsh)).toBe(true)
+    expect(isFreeTier(welsh)).toBe(false)
   })
 })
 

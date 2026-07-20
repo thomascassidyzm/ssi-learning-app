@@ -15,6 +15,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
@@ -22,6 +23,37 @@ import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/uti
 const GUEST_ID_KEY = 'ssi-guest-id'
 const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
+
+// Dead-session recovery (see recoverDeadSession below).
+const DEAD_SESSION_NAV_GUARD_KEY = 'ssi-dead-session-nav-guard'
+/** SchoolsContainer reads + clears this to show "please sign in again". */
+export const SIGNIN_AGAIN_NOTICE_KEY = 'ssi-signin-again-notice'
+let isRecoveringDeadSession = false
+
+/**
+ * supabase-js only removes its stored session when the server logout call
+ * succeeds or fails with an ignorable status — a revoked session's logout
+ * can answer otherwise, leaving the dead token in localStorage to
+ * resurrect on the next boot. And any concurrent getSession() can
+ * re-persist the in-memory session after a purge (both verified live
+ * 2026-07-18 in the stale-session recovery check). Purge explicitly.
+ */
+function purgeSupabaseAuthStorage(): void {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (/^sb-.+-auth-token$/.test(key)) localStorage.removeItem(key)
+    }
+  } catch { /* storage blocked — nothing to purge */ }
+}
+/**
+ * Navigation indirection so tests can observe/prevent real navigation —
+ * jsdom can't perform location.href assignment or reload.
+ */
+export const deadSessionNav = {
+  reload: () => window.location.reload(),
+  goto: (url: string) => { window.location.href = url },
+  currentPath: () => window.location.pathname,
+}
 
 export interface AuthState {
   /** Supabase Auth user (null if guest) */
@@ -215,7 +247,9 @@ export function useAuth(): AuthState & AuthActions {
         let emails: string[] = []
         try {
           emails = await loadMyVerifiedEmails()
-          if (email && !emails.includes(email)) {
+          // Never back-fill a link-auth placeholder into verified_emails — it's
+          // not a real inbox and would surface as the user's primary email.
+          if (email && !isPlaceholderEmail(email) && !emails.includes(email)) {
             emails = [...emails, email]
             await supabase.value
               .from('learners')
@@ -293,7 +327,10 @@ export function useAuth(): AuthState & AuthActions {
 
       // 3. Truly new user — create learner with this email in verified_emails
       if (fetchError?.code === 'PGRST116') {
-        const displayName = email?.split('@')[0] || 'Learner'
+        // A link-auth placeholder must not become the display name ("link-<uuid>")
+        // or land in verified_emails — treat it as "no email yet".
+        const realEmail = email && !isPlaceholderEmail(email) ? email : ''
+        const displayName = realEmail?.split('@')[0] || 'Learner'
 
         // This insert races api/code/redeem.ts's own learner-creation insert
         // (both fire off the same SIGNED_IN event — see RedeemCode.vue's
@@ -308,7 +345,7 @@ export function useAuth(): AuthState & AuthActions {
             user_id: userId,
             display_name: displayName,
             preferences: defaultPreferences(),
-            verified_emails: email ? [email] : [],
+            verified_emails: realEmail ? [realEmail] : [],
             needs_verification: needsEmailVerification,
           })
           .select()
@@ -474,6 +511,16 @@ export function useAuth(): AuthState & AuthActions {
         const s = result.data.session
         void writeAuthHandoff({ access_token: s.access_token, refresh_token: s.refresh_token })
 
+        // Trust-but-verify: getSession() serves the cached session without
+        // asking the server, so a session revoked elsewhere (sign-out on
+        // another device, refresh-token reuse revocation) keeps an unexpired
+        // token that client-direct PostgREST reads accept but GoTrue-verified
+        // endpoints reject — a half-dead login where the player works and
+        // every admin/server call fails "Auth session missing!" (2026-07-18
+        // incident). Validate once in the background; tear down only on the
+        // definitive session-gone error, never on network flakes.
+        void validateSessionAlive(supabaseClient)
+
         // Check if there's guest progress to migrate
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
         if (hadGuestId) {
@@ -528,6 +575,88 @@ export function useAuth(): AuthState & AuthActions {
   // ACTIONS
   // ============================================
 
+  /**
+   * Check the locally-restored session is still alive server-side.
+   * GoTrue answers a revoked session's token with session_not_found, which
+   * supabase-js surfaces as AuthSessionMissingError — the one error that
+   * definitively means "this session no longer exists". Anything else
+   * (network flake, timeout) must never sign the user out.
+   */
+  async function validateSessionAlive(client: SupabaseClient): Promise<void> {
+    try {
+      const { error } = await client.auth.getUser()
+      if (error?.name === 'AuthSessionMissingError') {
+        await recoverDeadSession(client)
+      }
+    } catch {
+      // Only the explicit error above may tear down — swallow everything else.
+    }
+  }
+
+  /**
+   * Graceful recovery for a session the server no longer honours (stale
+   * pre-deploy sessions, sessions revoked from another device). Without
+   * this, admin/schools surfaces sit on a red "Auth session missing!"
+   * banner with empty data until the user works out they must sign in
+   * again themselves.
+   *
+   * 1. Try refreshSession() — a refreshable session comes back live with a
+   *    new token; reload once so every surface reboots against it (the
+   *    in-flight fetches already failed with the dead token).
+   * 2. Refresh failed → the session is definitively gone: tear down
+   *    locally and, on the server-verified surfaces (/admin, /schools,
+   *    /tutors), hard-navigate to the schools sign-in wall with a friendly
+   *    "please sign in again" notice. Hard navigation (the same escape
+   *    SchoolsContainer.handleSignOut uses) resets module singletons like
+   *    the school context, so no half-dead state survives.
+   */
+  async function recoverDeadSession(client: SupabaseClient): Promise<void> {
+    if (isRecoveringDeadSession) return
+    isRecoveringDeadSession = true
+    try {
+      // Loop guard for EVERY recovery navigation (reload or redirect):
+      // at most 3 navigations per 5-minute window — verified live
+      // 2026-07-18: without a guard, a zombie that survives teardown
+      // reload-loops the page sub-second. It legitimately takes up to two
+      // recovery navigations to land clean (a concurrent getSession() can
+      // re-persist the zombie between purge and navigation), so a one-shot
+      // guard strands the user on a half-dead page instead.
+      let guard = { n: 0, t: Date.now() }
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(DEAD_SESSION_NAV_GUARD_KEY) || '')
+        if (parsed && typeof parsed.n === 'number' && Date.now() - parsed.t < 300_000) guard = parsed
+      } catch { /* absent or malformed — fresh window */ }
+      const canNavigate = guard.n < 3
+      const markNavigated = () =>
+        sessionStorage.setItem(DEAD_SESSION_NAV_GUARD_KEY, JSON.stringify({ n: guard.n + 1, t: guard.t }))
+
+      const { data, error } = await client.auth.refreshSession()
+      if (!error && data?.session) {
+        console.warn('[useAuth] Dead session refreshed — reloading to pick up the live token')
+        if (canNavigate) {
+          markNavigated()
+          deadSessionNav.reload()
+        }
+        return
+      }
+      console.warn('[useAuth] Session revoked server-side and not refreshable — routing to sign-in')
+      await signOut()
+      const path = deadSessionNav.currentPath()
+      if (/^\/(admin|schools|tutors)(\/|$)/.test(path)) {
+        sessionStorage.setItem(SIGNIN_AGAIN_NOTICE_KEY, '1')
+        if (canNavigate) {
+          markNavigated()
+          // Re-purge right before leaving: a concurrent getSession() may
+          // have re-persisted the dead session since signOut's purge.
+          purgeSupabaseAuthStorage()
+          deadSessionNav.goto('/schools')
+        }
+      }
+    } finally {
+      isRecoveringDeadSession = false
+    }
+  }
+
   async function signOut(): Promise<void> {
     // The network sign-out must NEVER block local teardown. If the Supabase call
     // hangs or throws (flaky network, an already-expired/invalid session), we
@@ -536,14 +665,22 @@ export function useAuth(): AuthState & AuthActions {
     // runs. Bound it with a timeout and swallow errors.
     if (supabase.value) {
       try {
+        // scope:'local' — supabase-js defaults to 'global', which revokes the
+        // account's sessions on EVERY device. Signing out on a phone (or a
+        // test-account private window) then killed the desktop's session
+        // server-side while its cached token lived on, so GoTrue-verified
+        // endpoints answered "Auth session missing!" (2026-07-18 admin
+        // incident). Sign-out means this device only.
         await Promise.race([
-          supabase.value.auth.signOut(),
+          supabase.value.auth.signOut({ scope: 'local' }),
           new Promise((resolve) => setTimeout(resolve, 3000)),
         ])
       } catch (err) {
         console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
       }
     }
+    // Definitive local teardown — see purgeSupabaseAuthStorage.
+    purgeSupabaseAuthStorage()
     supabaseUser.value = null
     learner.value = null
     useUserRole().clear()

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminActivity } from '@/composables/admin/useAdminActivity'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 
 const { getClient } = useAdminClient()
 
@@ -17,18 +18,13 @@ const {
   topCourseToday,
   sessionsByHour,
   fetchActivity,
-  startAutoRefresh,
-  stopAutoRefresh,
 } = useAdminActivity(getClient())
 
-onMounted(async () => {
-  await fetchActivity()
-  startAutoRefresh()
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
-})
+// Founder ruling (2026-07-19): NO auto-refresh, not even on the live-activity
+// board. The old 60s poll is gone; data loads once and holds until the user
+// hits the shared refresh (navbar button / pull-to-refresh).
+const { registerRefresh } = useDashboardRefresh()
+registerRefresh(fetchActivity)
 </script>
 
 <template>
@@ -52,7 +48,7 @@ onUnmounted(() => {
           </template>
         </div>
       </div>
-      <div class="refresh-note">Auto-refresh · 60s</div>
+      <div class="refresh-note"><UpdatedStamp /></div>
     </header>
 
     <!-- KPI strip (canon §5.1: stones are rare, but a real-time activity

@@ -6,6 +6,8 @@ import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useA
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const { getClient } = useAdminClient()
 const router = useRouter()
@@ -98,9 +100,12 @@ function navigateToUser(learnerId: string) {
   router.push(`/admin/users/${learnerId}`)
 }
 
-onMounted(async () => {
-  await fetchAll()
-})
+// The ONE refresh protocol: register the loader; navbar button + pull-to-refresh
+// drive it, initial load routes through it for the spinner + honest stamp. No poll.
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(fetchAll, { immediate: false })
+
+onMounted(() => { void refresh() })
 </script>
 
 <template>
@@ -121,6 +126,8 @@ onMounted(async () => {
             <span class="metric-value mono-nums">{{ newThisWeek }}</span>
             new this week
           </span>
+          <span class="metric-sep">·</span>
+          <UpdatedStamp />
         </div>
       </div>
     </header>
@@ -275,8 +282,12 @@ onMounted(async () => {
             <td class="cell-muted">
               {{ user.last_active ? timeAgo(user.last_active) : '—' }}
             </td>
-            <td class="cell-muted mono-nums">
-              {{ user.practice_minutes > 0 ? formatDuration(user.practice_minutes) : '—' }}
+            <td
+              class="cell-muted mono-nums"
+              :title="user.practice_minutes_estimated ? 'Approximate — derived from course position, no session logs for at least one course' : undefined"
+            >
+              <template v-if="user.practice_minutes > 0">{{ user.practice_minutes_estimated ? '~' : '' }}{{ formatDuration(user.practice_minutes) }}</template>
+              <template v-else>—</template>
             </td>
             <td class="cell-actions">
               <button
@@ -285,8 +296,8 @@ onMounted(async () => {
                 @click.stop="navigateToUser(user.id)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M9 3v18M3 9h18"/>
                 </svg>
               </button>
             </td>

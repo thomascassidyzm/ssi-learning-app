@@ -8,6 +8,60 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { verifyAuthToken } from '../_utils/auth'
+
+/**
+ * Already-redeemed check (founder ruling 2026-07-20: subsequent redeems of a
+ * personal link go STRAIGHT to the person's surface — no confirm screen, no
+ * second code spend). Mirrors redeem.ts's own dedup checks exactly, read-only.
+ * Returns the role landing when the bearer user has already redeemed THIS
+ * code's context, else null.
+ */
+async function checkAlreadyRedeemed(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  inviteRow: any
+): Promise<string | null> {
+  const codeType: string = inviteRow.code_type
+  const landing = codeType === 'ssi_admin' ? '/admin'
+    : ['school_admin', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+    : '/'
+
+  const hasTag = async (tagType: string, tagValue: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from('user_tags')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tag_type', tagType)
+      .eq('tag_value', tagValue)
+      .is('removed_at', null)
+      .maybeSingle()
+    return !!data
+  }
+
+  if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
+    if (await hasTag('school', `SCHOOL:${inviteRow.grants_school_id}`)) return landing
+  } else if (codeType === 'student' && inviteRow.grants_class_id) {
+    if (await hasTag('class', `CLASS:${inviteRow.grants_class_id}`)) return landing
+  } else if ((codeType === 'teacher' || codeType === 'student') && inviteRow.grants_group_id) {
+    if (await hasTag('group', `GROUP:${inviteRow.grants_group_id}`)) return landing
+  } else if (codeType === 'govt_admin') {
+    const { data: govt } = await supabase
+      .from('govt_admins')
+      .select('group_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (govt && (!inviteRow.grants_group_id || (govt as any).group_id === inviteRow.grants_group_id)) return landing
+  } else if (codeType === 'school_admin') {
+    const { data: school } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('admin_user_id', userId)
+      .maybeSingle()
+    if (school) return landing
+  }
+  return null
+}
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -191,6 +245,24 @@ export default async function handler(
           .eq('id', inviteRow.grants_school_id)
           .single()
         context.schoolName = school?.school_name
+      } else if ((codeType === 'teacher' || codeType === 'student') && inviteRow.grants_group_id) {
+        // Node-scoped codes (ways-in mints, THE-MODEL §1.10): the invite is
+        // AT a group node. Without this the capture screen showed a bare
+        // "Teacher Invite"/"Student Invite" with no place name — every link
+        // looked like the same generic link (founder finding 2026-07-20).
+        // If the node is a school's own node, prefer the school's name.
+        const { data: group } = await supabase
+          .from('groups')
+          .select('name')
+          .eq('id', inviteRow.grants_group_id)
+          .single()
+        context.groupName = group?.name
+        const { data: schoolNode } = await supabase
+          .from('schools')
+          .select('school_name')
+          .eq('node_group_id', inviteRow.grants_group_id)
+          .maybeSingle()
+        if (schoolNode?.school_name) context.schoolName = schoolNode.school_name
       } else if (codeType === 'tester') {
         // No additional context needed for tester codes
         // Auto-entitlement trigger in DB handles course access
@@ -207,13 +279,47 @@ export default async function handler(
         }
       }
 
-      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType)
+      // PERSONAL links (species 1): the code is bound to a pre-provisioned
+      // account — the client skips ALL capture and signs straight in. Report
+      // the role landing so the client can route without a second call.
+      const personalUserId = inviteRow.metadata?.personal_auth_user_id as string | undefined
+      const roleLanding = codeType === 'ssi_admin' ? '/admin'
+        : ['school_admin', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+        : '/'
+
+      // Optional bearer: when the visitor already has a session, report
+      // whether THEY have already redeemed this code's context, so the client
+      // can go straight to their surface (no confirm screen, no second spend).
+      // For a personal code that means "this session IS the link's account".
+      let alreadyRedeemed = false
+      let redirectTo: string | undefined = personalUserId ? roleLanding : undefined
+      if (req.headers.authorization) {
+        const authResult = await verifyAuthToken(req)
+        if (authResult.valid && authResult.userId) {
+          if (personalUserId) {
+            if (authResult.userId === personalUserId) {
+              alreadyRedeemed = true
+            }
+          } else {
+            const landing = await checkAlreadyRedeemed(supabase, authResult.userId, inviteRow)
+            if (landing) {
+              alreadyRedeemed = true
+              redirectTo = landing
+            }
+          }
+        }
+      }
+
+      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType, personalUserId ? '(personal)' : '')
       res.status(200).json({
         valid: true,
         codeKind: 'invite',
         codeType,
         inviteCodeId: inviteRow.id,
         context,
+        personal: !!personalUserId,
+        alreadyRedeemed,
+        ...(redirectTo ? { redirectTo } : {}),
       })
       return
     }

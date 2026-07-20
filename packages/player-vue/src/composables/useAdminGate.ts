@@ -2,45 +2,46 @@
  * useAdminGate — the ONE reactive access gate every admin/methodology
  * surface must call.
  *
- * Trinity audit (docs/trinity/admin.md) found two holes in how admin access
- * was actually enforced:
+ * Doctrine (founder ruling, 2026-07-19 — "security lives on the server, per
+ * request; a browser timer is UX, not enforcement"):
  *
- * 1. The top-level router guard (router/index.ts beforeEach) DEFERS rather
- *    than denies on an unresolved role cache — correct, it avoids bouncing
- *    an about-to-resolve admin. But AdminContainer's own reactive gate was
- *    the thing that turned that deferral into an eventual deny for a real
- *    non-admin. The standalone read-view routes — /admin/schools/:id,
- *    /admin/groups/:id, /admin/classes/:id, /admin/users/:learnerId/progress
- *    — are siblings of AdminContainer's children, not nested inside it, so
- *    they had NO gate of their own: a cold-cache non-admin deep link fired
- *    the scoped data query and could render another school/group's live
- *    data before the (nonexistent) correction ever landed. The org tables
- *    these query (schools/classes/groups/…) are RLS-off by design — this
- *    UI-level gate IS the enforcement, not a redundant belt-and-braces.
+ *   THE SERVER IS THE ENFORCEMENT. Every endpoint that reads or writes
+ *   org/admin data re-verifies the caller's role/scope on EVERY request —
+ *   verifyAdmin / an inline platform_role check (admin endpoints),
+ *   resolveVisibleScope (school endpoints), or resolveGroupTreeCaller +
+ *   callerCanSeeGroup (the node-home endpoint behind the /admin/schools|
+ *   groups|classes/:id read-views). A de-platformed ssi_admin's requests
+ *   therefore 403 the instant they're made, regardless of any client state.
+ *   The /admin/users/:learnerId/progress read-view reads learner rows under
+ *   own-row RLS (+ admin-bypass), also enforced server-side per request.
+ *   (Full server-side audit: docs/trinity/admin.md — 0 endpoint gaps.)
  *
- * 2. useUserRole's role refs are set ONCE at sign-in (initialize()) and
- *    never re-polled. AdminContainer's `watch(isDenied)` is reactive, but
- *    nothing ever changed platformRole again — so a de-platformed ssi_admin
- *    kept full admin UI, on EVERY admin screen including the correctly
- *    gated ones, until their next reload/sign-out.
+ * So this gate is a UX affordance, not a security control: it keeps a
+ * revoked admin from staring at a dead shell whose every request 403s, by
+ * bouncing them to `/`. It re-validates on NAVIGATION (each route change
+ * re-runs the injected auth's refreshRole() DB re-fetch) — NOT on a timer.
+ * There is deliberately NO interval and NO tab-refocus re-check: those were
+ * the last idle network chatter on admin surfaces, and since the server
+ * enforces per request they bought no security, only ~1 request/min of noise
+ * (founder: "are we sure we need that?" — we are not; removed). A mid-session
+ * downgrade is caught on the admin's next navigation or reload; in the idle
+ * gap between, every server request they make already 403s.
  *
- * This composable generalises AdminContainer's original gate to every admin
- * surface (closing #1) and adds periodic + tab-refocus re-validation via the
- * injected auth's refreshRole() — a real DB re-fetch, same one used after
- * invite-code redemption — so a mid-session downgrade revokes access live
- * (closing #2). Deny-not-defer: callers show a loading state while
- * `isCheckingAccess`, must render NOTHING (and start no data fetch) while
- * `isCheckingAccess || isDenied`, and only proceed once both are false.
+ * Two jobs remain, both about the SHELL, not data access:
+ * 1. Gate the standalone read-view routes (/admin/schools|groups|classes/:id,
+ *    /admin/users/:learnerId/progress) — siblings of AdminContainer's
+ *    children, so they'd otherwise render with no reactive gate.
+ * 2. Bounce on a mid-session role change discovered by navigation revalidation.
+ *
+ * Deny-not-defer: callers show a loading state while `isCheckingAccess`, must
+ * render NOTHING (and start no data fetch) while `isCheckingAccess ||
+ * isDenied`, and only proceed once both are false.
  */
 
-import { computed, inject, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, inject, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
-
-// Cheap re-validation cadence — a real DB round-trip, not a subscription, so
-// this stays a plain poll rather than new server/realtime infrastructure.
-const REVALIDATE_INTERVAL_MS = 60_000
 
 /**
  * The pure access-state computeds — no router/lifecycle side effects, so
@@ -64,6 +65,7 @@ interface InjectedAuth {
 
 export function useAdminGate() {
   const router = useRouter()
+  const route = useRoute()
   const { isCheckingAccess, isDenied } = useAdminAccessState()
   const auth = inject<InjectedAuth | null>('auth', null)
 
@@ -75,23 +77,19 @@ export function useAdminGate() {
     { immediate: true },
   )
 
-  function revalidate(): void {
-    void auth?.refreshRole?.()
-  }
-
-  function handleVisibility(): void {
-    if (document.visibilityState === 'visible') revalidate()
-  }
-
-  let intervalId: ReturnType<typeof setInterval> | undefined
-  onMounted(() => {
-    intervalId = setInterval(revalidate, REVALIDATE_INTERVAL_MS)
-    document.addEventListener('visibilitychange', handleVisibility)
-  })
-  onUnmounted(() => {
-    if (intervalId !== undefined) clearInterval(intervalId)
-    document.removeEventListener('visibilitychange', handleVisibility)
-  })
+  // Revalidate the caller's role on NAVIGATION only — each route change (incl.
+  // the initial mount, immediate:true) re-runs the real DB re-fetch, so a
+  // mid-session downgrade is discovered the next time the admin moves. No
+  // interval, no tab-refocus timer: the server enforces per request, so those
+  // bought no security — only idle chatter. An explicit refresh navigates /
+  // reloads, which re-runs this too.
+  watch(
+    () => route.fullPath,
+    () => {
+      void auth?.refreshRole?.()
+    },
+    { immediate: true },
+  )
 
   return { isCheckingAccess, isDenied }
 }

@@ -1,32 +1,33 @@
 /**
- * Demo Schools API - /api/admin/demo-schools
+ * Demo Schools API - /api/admin/demo-schools (backs the "Demos" admin page)
  *
- * Self-serve "Create demo school" tool (owner: Nick, Head of Partnerships).
- * Lets any ssi_admin provision a full showcase org for a prospect — real
- * accounts, real classes, realistic seeded activity (api/_utils/demoSchoolGen.ts)
- * — without engineering help, and tear it down cleanly afterwards.
+ * Self-serve demo-org tool (owner: Nick, Head of Partnerships). Lets any
+ * ssi_admin provision an arbitrary-depth group hierarchy for a prospect —
+ * NO teachers/classes/students anywhere in this flow (2026-07-17 spec) — and
+ * tear it down cleanly afterwards. Growing the tree after creation (sub-
+ * groups, more joinable leaves) goes through api/admin/demo-leaf.ts and the
+ * shared /api/groups endpoints, not this file.
  *
  * GET                        — list demo orgs (most recent first)
- * POST { action: 'create', prospectName, orgShape, courseCode, numSchools?,
- *        teachersPerSchool?, classesPerSchool?, learnersPerSchool? }
- *   — provisions the org; returns the full result including staff
- *     credentials (email + one-time password — shown once, never persisted).
+ * POST { action: 'create', prospectName, courseCode }
+ *   — provisions the root organisation group + its first joinable leaf
+ *     (a hidden class the UI never names); returns the org plus that leaf's
+ *     student join code.
  * POST { action: 'expire', id }
  *   — clean teardown: bans every staff auth account created for this org
- *     (Supabase ban_duration, not a delete — reversible) and marks the
- *     demo_orgs row 'expired'. Learner rows are synthetic (never signed in)
- *     and need no teardown.
+ *     (Supabase ban_duration, not a delete — reversible; legacy pre-2026-07-17
+ *     orgs may still carry seeded staff) and marks the demo_orgs row
+ *     'expired'.
  * POST { action: 'extend', id, days? }
  *   — pushes expires_at out (default +30 days).
  * POST { action: 'refresh', id }
- *   — tops up seeded activity from the org's last activity through today,
- *     continuing each learner's own trajectory (keen stays keen, laggards
- *     stay sparse, a small slice shift tier). Idempotent — re-running on an
- *     already-fresh org adds little/nothing. See api/_utils/demoSchoolRefresh.ts.
+ *   — legacy-only: tops up seeded staff/student activity on a pre-2026-07-17
+ *     org. New Demos orgs have no seeded activity to refresh (a no-op).
+ *     See api/_utils/demoSchoolRefresh.ts.
  * POST { action: 'purge', id }
  *   — one-way hard delete: removes every row this tool created (schools,
  *     classes, learners incl. class-entity, progress/session data, invite
- *     codes) and hard-deletes staff auth accounts. Requires the org to
+ *     codes) and hard-deletes any staff auth accounts. Requires the org to
  *     already be 'expired' — expire first, purge once you're sure. See
  *     api/_utils/demoSchoolTeardown.ts.
  *
@@ -38,7 +39,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
-import { provisionDemoOrg, type OrgShape } from '../_utils/demoSchoolGen'
+import { provisionDemoOrg } from '../_utils/demoSchoolGen'
 import { purgeDemoOrg } from '../_utils/demoSchoolTeardown'
 import { refreshDemoOrgActivity } from '../_utils/demoSchoolRefresh'
 import { discoverDemoOrgGraph } from '../_utils/demoSchoolGraph'
@@ -48,7 +49,6 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const RATE_WINDOW_MS = 60 * 60 * 1000
 const PER_ADMIN_CREATE_LIMIT = 10
-const ORG_SHAPES: OrgShape[] = ['single_school', 'group', 'government_region']
 const DEFAULT_EXTEND_DAYS = 30
 // Long ban, not a delete — expiry is a reversible teardown, matching the
 // "extendable" requirement (an admin can un-expire by re-extending later).
@@ -94,14 +94,10 @@ export default async function handler(
   const { action } = req.body || {}
 
   if (action === 'create') {
-    const { prospectName, orgShape, courseCode, numSchools, teachersPerSchool, classesPerSchool, learnersPerSchool } = req.body || {}
+    const { prospectName, courseCode } = req.body || {}
 
     if (!prospectName || typeof prospectName !== 'string' || !prospectName.trim()) {
       res.status(400).json({ error: 'prospectName is required' })
-      return
-    }
-    if (!ORG_SHAPES.includes(orgShape)) {
-      res.status(400).json({ error: `orgShape must be one of ${ORG_SHAPES.join(', ')}` })
       return
     }
     if (!courseCode || typeof courseCode !== 'string') {
@@ -126,12 +122,7 @@ export default async function handler(
 
       const result = await provisionDemoOrg(supabase, {
         prospectName: prospectName.trim(),
-        orgShape,
         courseCode,
-        numSchools: numSchools ? Number(numSchools) : undefined,
-        teachersPerSchool: teachersPerSchool ? Number(teachersPerSchool) : undefined,
-        classesPerSchool: classesPerSchool ? Number(classesPerSchool) : undefined,
-        learnersPerSchool: learnersPerSchool ? Number(learnersPerSchool) : undefined,
         createdBy: admin.userId,
       })
 
@@ -139,7 +130,7 @@ export default async function handler(
         await supabase.from('player_events').insert({
           occurred_at: new Date().toISOString(),
           event_type: 'admin_demo_school_created',
-          payload: { actor_user_id: admin.userId, prospect_name: result.orgName, demo_org_id: result.demoOrgId, org_shape: result.orgShape },
+          payload: { actor_user_id: admin.userId, prospect_name: result.orgName, demo_org_id: result.demoOrgId },
         })
       } catch (auditErr) {
         console.warn('[DemoSchools] audit insert threw:', auditErr)

@@ -284,6 +284,16 @@ async function registerJoinCodes(q, schoolId, createdBy) {
       await q(`insert into public.classes (id, school_id, teacher_user_id, class_name, course_code, student_join_code, current_seed, last_lego_id, is_active)
                values ($1,$2,$3,$4,$5,$6,$7,$8,true)`,
         [classId, schoolId, teacherUid, className, COURSE_CODE, `${codePrefix}-${ci + 3}`, classSeed, classLego])
+      // Register the class's student join code in invite_codes — without this
+      // the /redeem/<student_join_code> link on ClassDetail is DEAD (validate
+      // finds no row). Mirrors api/teacher/create-class-join-code.ts; same gap
+      // demoLeaf.ts already closes for admin-minted demo leaves.
+      await q(
+        `insert into public.invite_codes (code, code_type, created_by, grants_class_id, is_active)
+         values ($1,'student',$2,$3,true)
+         on conflict (code) do nothing`,
+        [`${codePrefix}-${ci + 3}`, adminUid, classId],
+      )
       schoolTotals.classes++
 
       // teacher-led class-play sessions, last 3-4 weeks, varied recency

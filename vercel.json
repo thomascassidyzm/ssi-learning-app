@@ -3,6 +3,7 @@
   "outputDirectory": "packages/player-vue/dist",
   "installCommand": "npm install -g pnpm && pnpm install",
   "framework": "vite",
+  "regions": ["dub1"],
   "functions": {
     "api/audio/[audioId].ts": {
       "maxDuration": 10

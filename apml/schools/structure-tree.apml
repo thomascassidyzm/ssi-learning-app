@@ -1,0 +1,84 @@
+# APML: Structure tree — row grammar + demo-refresh verb
+# Last updated: 2026-07-20
+# Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings
+# 2026-07-19 (rows are links; ⋯ maintenance-only) + 2026-07-20 (quiet chips,
+# hierarchy rails); refresh demo data as a verb on a DEMO node
+
+purpose: |
+  The Structure page (/admin/structure) is the org tree's editing surface —
+  two lenses (tree/table) over the same group nodes. This spec pins the ROW
+  GRAMMAR (how a row's verbs are laid out) and the demo-refresh verb.
+
+row_grammar:  # founder-ruled 2026-07-19/20 — name is the anchor, repetition is noise
+  rows_are_links: |
+    A click ANYWHERE on a row (tree or table lens) opens the node's HOME
+    (/admin/groups/:id, or /admin/schools/:id for a commercial node) —
+    THE-VIEW §2. No separate Open control; in-row controls stop propagation.
+  quiet_chips:  # founder-ruled 2026-07-20 — info that repeats on every row is not info
+    label_word: |
+      shown ONLY where it disambiguates — when the row's own sibling set
+      mixes labels (parent computes over ALL its children; AdminStructure
+      does the same across roots). 10.5px faded mono when shown. Change
+      label via ⋯ works regardless.
+    demo_badge: marked ONCE at the demo subtree's root; descendants silent
+      (parentIsDemo prop). Standalone demo roots keep theirs.
+    status_pill: attention states only (trial/past_due); paid-and-fine
+      silent; trial ALSO hidden for demo nodes and inside demo subtrees —
+      a demo school on trial is normal state, not attention.
+    size: one muted right-aligned "N learners"; full breakdown on hover.
+  hierarchy:  # founder-ruled 2026-07-20 — depth legible at a glance
+    rails: one faint 1px vertical guide per ancestor level (.rail, 22px
+      step, 16px under 768px), stretched through row padding so lines read
+      continuous; rows are flat DOM siblings so rail count IS the depth.
+    typography: name steps down by level — depth-0 15px semibold,
+      depth-1 14px medium, depth-2+ 13px medium. Roots anchor the page.
+  overflow: |
+    Maintenance verbs only, ONE always-visible ⋯ menu with labeled words:
+    Rename · Change label · Delete. Create/invite/mint live on the node
+    home's action bar (NodeActionBar), not on rows.
+  table_lens: whole-row link + zebra stripe (rgba(44,38,34,0.03) even rows);
+    rename/delete stay as row icons; label/Demo/status stay plain columns
+
+demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
+  verb: |
+    "Refresh demo activity" in NodePanel, rendered ONLY when node.is_demo.
+    Regenerates the node's subtree's synthetic telemetry up to the minute so
+    demo dashboards never read burst-then-dead. Reports counts inline.
+  endpoint: POST /api/groups/:id/demo-refresh   # api/groups/[id]/demo-refresh.ts
+  engine: api/_utils/demoNodeRefresh.ts (refreshDemoNodeActivity)
+  semantics:
+    - REPLACE not top-up: deletes the subtree's synthetic student telemetry
+      (sessions, seed_progress, lego_progress, class_sessions) then
+      regenerates — idempotent, refreshes never stack
+    - ~8 weeks of practice sessions, power-law weighted toward recent days
+      and today; fast/steady/idle personas (20/50/30) per learner
+    - per (learner, CLASS) pair, not per learner (2026-07-20): a dual-course
+      learner (two class tags) gets coherent telemetry in BOTH courses, each
+      anchored to its OWN enrollment cursor; personas draw per pair (fast in
+      French, idle in Spanish is honest); learnersTouched counts distinct
+      learners
+    - positions anchored to each learner's existing enrollment cursor
+      (continuing cohort, never teleported); capped by the course seed count
+    - class_sessions form an ADVANCING start→end LEGO arc ending at the
+      class's current_seed with the newest session today — the school/class
+      rate-of-progress reads these ordinals, a fixed range rolls to zero
+  hard_safety:  # impossible to touch non-demo data; server-side, refuse not skip
+    - the target group row must be is_demo=true → else 403 refused
+    - every school in the subtree must be is_demo=true → else refused
+    - only is_demo=true learners enter the write set; STUDENT class-tags only
+      (demo staff are real logins — their practice history is never touched)
+    - admin-gated (verifyAdmin) + service-role writes; audit to player_events
+  legacy: |
+    api/_utils/demoSchoolRefresh.ts (demo_orgs-keyed, continuation top-up)
+    remains for pre-2026-07-17 orgs via /api/admin/demo-schools refresh.
+
+components:
+  - packages/player-vue/src/views/admin/AdminStructure.vue
+  - packages/player-vue/src/components/admin/StructureTreeNode.vue
+  - packages/player-vue/src/components/admin/NodePanel.vue
+
+tests:
+  - packages/player-vue/src/components/admin/StructureTreeNode.test.ts  # Open pill; overflow words
+  - packages/player-vue/src/components/admin/NodePanel.test.ts          # demo-only verb; POST + counts
+  - api/_utils/demoNodeRefresh.test.ts                                  # all three safety guards; replace; arc
+  - packages/player-vue/e2e/the-view/demo-refresh-walk.mjs              # deployed-dev walk (evidence in docs/the-view/demo-refresh/)

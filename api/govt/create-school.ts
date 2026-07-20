@@ -37,6 +37,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { ensureSchoolNode } from '../_utils/schoolNode'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -106,6 +107,7 @@ export default async function handler(
     }
 
     await ensureJoinCodesRegistered(supabase, school.id as string, userId)
+    await ensureSchoolNode(supabase, { id: school.id as string, school_name: schoolName, group_id: groupId })
 
     console.log('[GovtCreateSchool] created', school.id, schoolName, 'group', groupId, 'by', userId)
     res.status(200).json({ school })

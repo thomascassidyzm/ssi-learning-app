@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.2"
-  date: "2026-07-16"
+  version: "1.0.4"
+  date: "2026-07-19"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -102,6 +102,76 @@ principle OfflineFirst:
     sync: "Background sync when online"
     fallback: "Full functionality offline after initial load"
 
+principle PersonalLinksAreTheLogin:
+  statement: "Species 1: a PERSONAL link is a pre-provisioned account's login — click -> authenticated -> role dashboard, ZERO screens, repeatable, revocable"
+
+  why: |
+    Founder clarification 2026-07-20 (screenshot evidence): what he emails
+    known partners is a personal link — the person is KNOWN at mint, so the
+    account exists before the click (role + node + display name, optional
+    email). Any screen on that click is ceremony. The capture flow below
+    (IdentityCaptureNotGhosts) applies ONLY to open shareable links where
+    the person is unknown at mint.
+
+  mint_flow: |
+    POST api/groups/:id/invites { role, personal: { name, email?, class_id? } }
+    (ssi_admin or governing leader) -> provisionPersona (api/_utils):
+    createUser (placeholder address when no email; needs_verification) +
+    learners row (display_name, educational_role, is_demo from the node) +
+    role wiring mirroring redeem.ts (govt_admins / SCHOOL admin tag / GROUP
+    +SCHOOL teacher tags / CLASS tag + enrolment / GROUP student tag) ->
+    invite_codes row with metadata.personal_auth_user_id (server-derived,
+    never client-supplied). Node verbs: "Invite a person" (this) vs "Get a
+    shareable link" (species 2).
+
+  redeem_flow: |
+    validate.ts returns personal:true + redirectTo -> RedeemCode.vue calls
+    possession-redeem directly (zero screens; replaces any foreign session
+    — the link IS the login) -> server mints the session for the BOUND
+    account (no createUser, already-registered rail deliberately N/A,
+    rate limits + possession_mint_attempts outcome personal_signin) ->
+    router lands on the role surface. Revocation = is_active; expiry and
+    max_uses respected; revoked links fail friendly.
+
+principle IdentityCaptureNotGhosts:
+  statement: "Species 2 (OPEN shareable links): ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
+
+  why: |
+    The pure zero-screen straight-in (2026-07-19) minted anonymous
+    link-<uuid>@invite.saysomethingin.app accounts for every role — a
+    teacher on a roster with no name and no email is a support hole, not an
+    account. Founder-reconciled 2026-07-20 (THE-MODEL.md §1.13 + I12): the
+    capture screen is the account's identity being born, not ceremony.
+
+  named_role_flow: |
+    /redeem/:code (teacher | school_admin | school_admin_join | govt_admin)
+    in a fresh context -> RedeemCode.vue 'details' step: role + place in
+    the heading ("You've been invited as a teacher at <School>"), name +
+    email fields -> POST api/auth/possession-redeem (typed email, NO OTP,
+    email recorded unverified; needs_verification handles later round-trip)
+    -> setSession -> api/code/redeem -> role landing (leader/teacher ->
+    /schools scope-resolved; ssi_admin stays OTP-only).
+
+  pupil_flow: |
+    /redeem/:code (student -> class, or learner -> group) -> 'name' step
+    (name only — young learners have no email) -> possession-redeem
+    linkAuth mode (placeholder email survives for code_type student ONLY;
+    server refuses linkAuth for named roles: reason identity_required,
+    logged to possession_mint_attempts) -> player, class course switched.
+
+  reclick_flow: |
+    validate.ts accepts an optional bearer and returns alreadyRedeemed +
+    redirectTo when the session user already holds this code's context
+    (mirrors redeem.ts dedup checks read-only) -> RedeemCode.vue router-
+    replaces straight to the surface: no confirm screen, no second spend.
+
+  ways_in_roles: |
+    api/groups/:id/invites roles: leader (govt_admin), school_leader
+    (school_admin_join keyed by grants_school_id — mintable/listed only
+    where the node IS a school), teacher, student (the learner join).
+    NodeActionBar picker: Group leader / School leader / Teacher / Learner.
+    Classes are never invited; a class's student link lives on ClassDetail.
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 
@@ -165,7 +235,7 @@ principle SchoolCreationOnePrimitive:
     only ever written by the legacy school_admin invite-code branch this
     principle retires). The honest signal, computed as
     school_summary.has_admin (20260714 migration) and mirrored client-side
-    in SchoolsSetup.vue: admin_user_id IS NOT NULL OR a live admin user_tags
+    in AdminStructure.vue: admin_user_id IS NOT NULL OR a live admin user_tags
     row exists for the school.
 
   retired_but_not_broken: |
@@ -205,6 +275,78 @@ principle StaffHomeIsDashboard:
         a bespoke check in App.vue's onMounted; migrated onto the shared gate
         2026-07-16 so it's reachable from router guards too, not just
         components.
+
+principle OperatorCaptureGuard:
+  statement: |
+    Roles are additive facets of ONE account — and an OPERATOR account
+    (platform_role='ssi_admin') never takes on educational roles through
+    self-service flows. Both role-granting self-service endpoints refuse an
+    ssi_admin caller (api/_utils/operatorGuard.ts, shared message): invite
+    redemption (api/code/redeem.ts, before claiming a code use) and
+    onboarding provisioning (api/onboarding/provision.ts, before any
+    grant/role/trial write). Operators test signup and invite links from
+    separate test accounts (intentional, per CLAUDE.md); deliberate role
+    grants to an admin go through admin tooling, never signup paths.
+    Corollary in the shells: leaving /schools is a NAVIGATION ("My player"
+    in SchoolsTopBar's user menu + TopNav's dropdown), never an identity
+    sign-out — "Sign out" is account-level only.
+
+  incident_closed: |
+    2026-07-18 live case: the founder's main admin account was captured as a
+    teacher by two test walks of real flows while signed in — the /tutors
+    signup (2026-07-16: teachers row, a "My class" class, display_name
+    overwritten via onboarding/profile) and a teacher invite redemption
+    (2026-07-18, code SRC-324 → educational_role='teacher' + a school tag,
+    per role_change_audit). The schools shell then swallowed every login
+    (with the since-removed staff redirect), and its only exit was full
+    sign-out. DB remediation applied 2026-07-18 (audited in
+    role_change_audit, source='admin-cleanup'): role nulled, tag
+    soft-removed, tutor-test teachers/class/shadow-learner rows deleted,
+    display_name restored. Regression net: redeem.test.ts +
+    provision.test.ts operator-guard cases.
+
+principle DeviceLocalSignOut:
+  statement: |
+    Sign-out is THIS DEVICE only. Every supabase auth.signOut() call passes
+    scope:'local' (useAuth.signOut plus the raw fallbacks in TopNav,
+    SchoolsContainer and RedeemCode) — supabase-js's default scope:'global'
+    revokes the account's sessions on EVERY device, so a sign-out on a phone
+    or a test private window silently killed the desktop's session
+    server-side. The desktop then held a "zombie" session: a cached,
+    unexpired token that stateless client-direct PostgREST reads accept but
+    GoTrue-verified server endpoints reject with session_not_found. Two
+    defences beyond the scope fix: (1) useAuth.initialize validates a
+    restored session once in the background (auth.getUser()) and tears down
+    ONLY on the definitive AuthSessionMissingError — never on network
+    flakes; (2) api/_utils/auth.ts maps that error to the plain-words
+    banner "Your session has ended — sign in again" instead of supabase-js's
+    "Auth session missing!".
+
+    Graceful recovery (2026-07-18, second pass): tearing down is not enough —
+    every user whose session predates the 2026-07-18 session-handling deploy
+    boots into the dead-session state, and a bare teardown left them on a
+    broken admin/schools page. useAuth.recoverDeadSession now runs on the
+    definitive dead-session signal: (1) try auth.refreshSession() — a
+    refreshable session comes back live and the page reloads once (60s
+    sessionStorage loop guard) so all surfaces reboot on the fresh token;
+    (2) refresh failed → local sign-out, then on /admin, /schools or /tutors
+    a hard navigation to the /schools sign-in wall carrying the
+    ssi-signin-again-notice flag, which SchoolsContainer renders as a calm
+    "Your session has expired — please sign in again" info alert. The
+    learner never sits on the red error banner with empty data. Regression
+    net: useAuth.deadSession.test.ts (refresh-first, redirect + notice,
+    player-surface no-redirect, reload loop guard).
+
+  incident_closed: |
+    2026-07-18 (FABLE incident 2, ~18:52): /admin/structure showed "Auth
+    session missing!", 0 organisations, empty tree — while the learner side
+    and the Settings role check (client-direct reads) worked. auth.sessions
+    held ZERO rows for the founder's admin account despite a 17:01 sign-in:
+    a global-scope sign-out during the day's multi-window account testing
+    had revoked every session, and the admin tab kept serving the revoked
+    token. Regression net: useAuth.deadSession.test.ts (scope + boot
+    teardown), api/_utils/auth.test.ts (error mapping),
+    AdminStructure.test.ts (token on data calls; 401 banner).
 
 principle ResolvedSessionGate:
   statement: |
@@ -284,9 +426,104 @@ principle GroupRollupServerMediated:
     endpoint instead of querying the views directly; the legacy
     region_code-only fallback (no live govt_admin uses it) is untouched.
 
-# =============================================================================
-# USER ROLES
-# =============================================================================
+principle TeacherOwnPracticeVisible:
+  statement: |
+    A teacher's OWN practice (their learner's sessions rows) is a
+    first-class dashboard number, reported per-teacher as
+    own_practice_minutes on GET /api/school/roster and shown in
+    TeachersView's "Own practice" column — separate from "Student hours"
+    (their classes' students' practice).
+
+  gap_closed: |
+    2026-07-17, Chepstow (real trial school): a teacher self-joined via the
+    teacher join code, created a class, practiced ~4 minutes — and every
+    number on the school admin's dashboard read 0. Root cause: every schools
+    aggregate (class_student_progress, class_activity_stats, school_summary)
+    joins user_tags with role_in_context='student' only, so a teacher's own
+    learner is counted nowhere. In a trial school the staff's own practice
+    is usually the ONLY activity, so the whole dashboard read as "tracking
+    is broken". The earlier admin-surface fix (admin_practice_minutes RPCs
+    reading sessions directly) was correct but only fixed ssi_admin views —
+    which is why the RPC returned 4 minutes while the teacher's screen
+    showed 0.
+
+  pattern: |
+    roster.ts sums sessions.duration_seconds per teacher learner (service
+    role); useTeachersData's ssi_admin admin-view branch mirrors it under
+    the "Admins can read all sessions" RLS policy.
+
+principle HeadlineHoursIncludeStaffPractice:
+  statement: |
+    A school's HEADLINE hours (school_summary.total_practice_hours, the
+    dashboard "Hours practised" tile, govt tiles/straplines, and every group/
+    org rollup that sums school hours) include ALL practice in the school —
+    students AND staff learners — because that is a more valid testament to
+    true engagement (founder ruling, Tom 2026-07-18). Kept honest, never
+    silently inflated: the number is shown WITH its composition ("incl. Xm
+    staff practice") wherever staff minutes are nonzero, and small values use
+    minutes-first formatting (never a rounded "0h" when real minutes exist).
+
+  gap_closed: |
+    Trial schools where only staff have practiced (Chepstow: Lucy's 4m, zero
+    students) showed a bleak headline 0 even after TeacherOwnPracticeVisible
+    made her minutes visible per-teacher — the school/group rollups still
+    summed class_student_progress (students) only. The founder ruled the
+    headline should count staff's own learning too.
+
+  pattern: |
+    Single source of truth is the school_summary VIEW (migration
+    20260718_headline_hours_include_staff_practice): total_practice_hours =
+    student practice + staff practice, plus a new staff_practice_hours column
+    broken out for the composition line. "Staff" = users tagged to the school
+    as teacher OR admin, summed over ALL their learner accounts' sessions
+    (DISTINCT learner ids, so a teacher+admin double-tag can't double-count;
+    disjoint from student practice, which only sees role_in_context='student').
+    group_summary sums both columns, so org rollups inherit it; roster.ts and
+    group-summary.ts read the view with SELECT * and forward both columns.
+
+  boundary: |
+    Class-level student stats stay students-only — a class's teacher
+    practicing is school engagement, not that class's progress. Only the
+    school/group HEADLINE rollups mix staff in; class_student_progress and
+    class_activity_stats are untouched.
+
+principle NoAutoRefreshOneAffordance:
+  statement: |
+    NO auto-refresh anywhere on dashboard surfaces — not even during a live
+    class (founder ruling, Tom 2026-07-19). Data loads on navigation and then
+    HOLDS STILL. The only way it updates is a deliberate human action through
+    ONE universal affordance: a circular-arrow refresh button in a consistent
+    navbar position (top-right, near identity) AND pull-to-refresh on touch,
+    both firing the same action, with a quiet "Updated HH:MM" stamp near the
+    stats so staleness is honest. Consistency law §1.12: same spot, same icon,
+    same behaviour on every dashboard page.
+
+  pattern: |
+    One shared singleton composable, composables/useDashboardRefresh.ts. Each
+    dashboard page registers its loader (registerRefresh, auto-cleaned on
+    unmount) and routes its INITIAL load through the same refresh() so the
+    spinner + timestamp are honest from first paint. Exception: pages whose
+    loads are driven by route/prop watches (NodeHomeView, NodeRateEngine)
+    bypass refresh() — its in-flight guard would drop rapid drill navigations —
+    and instead call markUpdated() at their loader's success point so the
+    stamp is still honest from the first load. components/shared/
+    RefreshButton.vue (in SchoolsTopBar + AdminTopBar, renders only where a
+    loader is registered), UpdatedStamp.vue (reads the shared timestamp), and
+    usePullToRefresh.ts (wired at the container scroll root) all drive the one
+    action. A failed refresh NEVER advances the stamp. Full audit +
+    on/off-protocol inventory: docs/the-view/refresh/README.md.
+
+  removed_polling: |
+    useAdminActivity's setInterval(fetchActivity, 60s) live-activity poll, and
+    SchoolsView's visibilitychange/focus auto-refetch. Deliberately KEPT (not
+    dashboard-data auto-refresh): useAdminGate's 60s auth revalidation, and all
+    player/audio/offline/SW timers. Play-as-class has no polling to begin with —
+    useClassProgressStore is a write path; class stats load on navigation.
+
+  pinned_by: |
+    noDashboardPolling.test.ts (fails if setInterval / visibility-focus
+    refetch reappears in any guarded surface); useDashboardRefresh.test.ts;
+    usePullToRefresh.test.ts.
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"
@@ -666,7 +903,12 @@ interface TeacherDashboard:
       - "NO <transition> around the routed component — instant swap. Two real-browser bug classes came from animating it: out-in's afterLeave hang (blank page until hard reload) and the plain crossfade's double-DOM (incoming page stacked below the leaving one, then snapped up; white viewport when the leave hung at opacity 0). Guarded by SchoolsContainer.pageTransition.test.ts."
       - "Scroll container is .schools-container (overflow-y auto), NOT the window — the container resets scrollTop to 0 on route change (router scrollBehavior can't reach it), so every page renders in place, scrolled to top."
       - "SchoolsTopBar renders NO tabs until the school context resolves — never the teacher fallback set (a school_admin briefly saw the wrong tab set on cold boot)."
-      - "SchoolsTopBar mobile layout (320-430px, 2026-07-16 audit fix): hamburger, brand, Learn button, and user-menu trigger all carry flex:none plus explicit >=44px tap-target sizing so they can't be crushed below usable size or overlap — verified with real-browser bounding-box assertions (e2e/mobile-topbar/topbar-layout.spec.ts) across chromium/webkit/iphone/android."
+      - "SchoolsTopBar mobile layout (320-430px, 2026-07-16 audit fix): hamburger, Learn button, and user-menu trigger all carry flex:none plus explicit >=44px tap-target sizing so they can't be crushed below usable size or overlap — verified with real-browser bounding-box assertions (e2e/mobile-topbar/topbar-layout.spec.ts) across chromium/webkit/iphone/android."
+      - "Identity-first hierarchy (2026-07-17 navbar redesign): the SCHOOL NAME is a permanent bar element (.context-name, bold, ellipsis-truncated, full name in the title tooltip) between the brand and the tabs — visible at EVERY width. Below 430px the brand wordmark is dropped entirely so the school name takes its space; the hamburger's Dashboard link covers 'home'. The e2e spec asserts the name has real width (>=60px) and the brand is hidden at phone widths."
+      - "school_admin tab set is Dashboard/Classes/Students/Teachers/Analytics/Upgrade — Settings lives in the user menu ('School settings', school_admin only), not the tab rail; it remains two taps everywhere."
+      - "Admin surface (AdminTopBar, 2026-07-17 redesign + same-day Structure consolidation): the four admin ideas as flat tabs — Structure (org tree, ex-Setup) / Invites (doors) / Users (people) / Stats + Insights (numbers) — plus a grouped 'More' menu (NavMoreMenu.vue) carrying Onboarding (Provisioning) and Methodology (Platform), each with icon + one-line description. ONE row at every width: below 980px all destinations collapse into a single menu whose trigger names the CURRENT section (gold underline when active-inside). Guarded by AdminTopBar.test.ts."
+      - "Structure surface (/admin/structure, AdminStructure.vue, 2026-07-17): the org tree IS the page — the old Setup tabs dissolved. Groups+Schools = the recursive GroupTreeNode tree with inline create-at-node (add organisation at root, add sub-group/school on any row), rename (pencil), ConfirmDeleteModal delete; Staff+Entitlements = facets of the SELECTED node (click a group/school row); ways-in are a display-only strip linking into /admin/invites?q=<code> — no creation forms or raw code cells duplicated. Search filters the tree and matches school names (branch stays visible). /admin/setup and /admin/schools redirect here. Server endpoints unchanged (api/groups, api/admin/create-school, create-staff, update-school, api/entitlement/*)."
+      - "Admin read-view containers (/admin/schools/:id, /admin/groups/:id) set meta.hideAppEscape — they carry AdminTopBar, and the floating AppEscape 'Back' pill used to render on top of its 'Back to App' link. Their entity-context-bar is identity-first: 'Viewing school/group' eyebrow + bold truncating name, sticky under the top bar."
       - "Any per-class/per-school data view (DashboardView's class lists, TeacherInsightsView's analytics) must gate its empty state on the fetch's OWN loading flag, not just an empty array — otherwise a legitimately-loading '[]' renders the confident-wrong empty state (e.g. 'No classes yet') for the ~1-2s before real data lands (2026-07-16 fix)."
       - "Any view that fetches on mount using currentUser (school context) must use `watch(currentUser, fn, {immediate:true})`, never a one-shot call — currentUser resolves asynchronously post-mount, so a bare call only works when navigating in from a page that already waited (SPA nav), and is permanently dead on a direct load/reload (TeacherInsightsView fix, 2026-07-16; DashboardView already had this right)."
 

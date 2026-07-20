@@ -70,6 +70,15 @@ const step = ref<Step>('choose')
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
 const signedInEmail = computed(() => auth?.user?.value?.email || '')
 
+// TeachDashboard.vue bounces a signed-in-but-not-yet-provisioned tutor here on
+// a 404 from GET /api/teacher/me — this is that bounce's App→User twin (was
+// previously silent, trinity ledger LA #1).
+const redirectNotice = computed(() =>
+  route.query?.reason === 'not-provisioned'
+    ? "You're signed in, but we haven't set up your tutor account yet — pick your language below to finish."
+    : ''
+)
+
 const liveCourses = ref<LiveCourse[]>([])
 // Pick the TARGET (taught) language FIRST — most schools/tutors teach English,
 // so it's the dropdown, defaulted to English. The list below then shows the
@@ -417,10 +426,15 @@ async function useDifferentEmail() {
   busy.value = true
   try {
     await supabase.value?.auth.signOut()
+    error.value = ''
+  } catch (e: any) {
+    // Sign-out failing means the old session may still be live underneath —
+    // don't clear error to '' below and silently pretend it worked (trinity
+    // ledger LA onboarding L9).
+    error.value = e?.message || 'Could not sign you out — please try again.'
   } finally {
     busy.value = false
     email.value = ''
-    error.value = ''
   }
 }
 
@@ -435,7 +449,14 @@ function changeEmail() {
 }
 
 async function sendCode() {
-  if (!canSend.value || !supabase.value) return
+  if (!canSend.value) return
+  if (!supabase.value) {
+    // canSend doesn't check client readiness — clicking Send while it's still
+    // injecting previously no-opped with zero signal (trinity ledger LA
+    // onboarding L10).
+    error.value = "Still connecting — please try again in a moment."
+    return
+  }
   const isResend = step.value === 'otp'
   busy.value = true
   error.value = ''
@@ -665,6 +686,7 @@ async function continueIn() {
       <Transition name="ob-swap" mode="out-in">
         <!-- STEP 1: choose language + email -->
         <section v-if="step === 'choose'" key="choose" class="ob-step">
+          <p v-if="redirectNotice" class="ob-redirect-notice">{{ redirectNotice }}</p>
           <p v-if="offerLine" class="ob-trial">{{ offerLine }}</p>
 
           <h1 class="ob-title">Which language will you teach?</h1>
@@ -1399,6 +1421,18 @@ async function continueIn() {
 }
 .ob-trial span { color: var(--text-muted, #8a8078); font-weight: var(--font-medium, 500); }
 .ob-trial-quiet { color: var(--ssi-red, #c23a3a); }
+
+.ob-redirect-notice {
+  margin: 0 0 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--font-medium, 500);
+  color: var(--ob-accent-ink);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.08);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.2);
+}
 
 .ob-title {
   margin: 0;

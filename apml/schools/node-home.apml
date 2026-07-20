@@ -1,0 +1,96 @@
+# APML: Node Home — THE VIEW's one recursive dashboard
+# Last updated: 2026-07-20 (member mount: /schools/org/:id — leaders land on THE VIEW)
+# Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
+
+purpose: |
+  One page — the NODE HOME — with the same grammar at every level of the org
+  tree, replacing the three-designs era (group summary page / Full-schools
+  list / Structure panel as separate dashboards). Total clarity about what
+  you're in and where you're looking: a MAP of the org with a visual
+  you-are-here at every level.
+
+surface:
+  route_group: /admin/groups/:id      # node home for a group node (index)
+  route_school: /admin/schools/:id    # node home for a school's node (index; deep tools stay at sub-routes)
+  route_class: /admin/classes/:id     # node home at class level (AdminClassHome shell)
+  redirect_full_schools_list: "/admin/groups/:id/schools -> /admin/groups/:id?lens=schools"
+  route_member: /schools/org/:id      # MEMBER mount (2026-07-20): a leader's node home inside the
+                                      # /schools shell — ONE :id route for groups, schools AND classes
+                                      # (the endpoint resolves the kind); + /schools/org/:id/insights.
+                                      # Server-scoped to the leader's own subtree; rail rooted at their
+                                      # top node (no "All organisations" admin escape); verbs reduced to
+                                      # the invite pair (invites endpoint already leader-authorized);
+                                      # links derived per-mount via composables/nodeSurfacePaths.ts.
+                                      # Landing: DashboardView redirects a govt_admin with a group_id
+                                      # to /schools/org/:group_id (legacy region-only leaders keep the
+                                      # old group dashboard).
+
+grammar:  # the same five parts, every level (THE-VIEW §1)
+  map_rail: NodeMapRail.vue           # ancestors root→here, you-are-here lit, siblings toggle, children below
+  identity_header: node name + label badge + demo/trial/paid state; class level adds read-only teachers (lead first)
+  stats_row: learners · teachers · classes · practice hours — SUBTREE totals via groupRollups.computeNodeExtras
+  children_list: NodeChildrenList.vue # one row grammar for every lens payload
+  verbs: invite someone (role × node) · see insights · quick actions (Structure flyout)
+  # The admin "Class tools" page is DEAD (founder ruling 2026-07-19): it
+  # duplicated the class node home with zero admin-usable verbs. Its route
+  # (/admin/schools/:id/classes/:classId) redirects to /admin/classes/:classId.
+  student_rows: |
+    FLAT (founder ruling 2026-07-19): all per-student teaching data on the one
+    row, no click — health dot, last practised, course-journey bar (LEGOs done
+    of course total), belt, LEGOs, practice hours, last-7-days sparkline +
+    week minutes. No expansion panel, no individual learner page, and NO
+    STREAKS anywhere (docs/gamification-done-right.md). On phone the row
+    wraps: stats strip + journey bar under the name (sparkline hidden).
+
+lenses:  # filters over the one view, never separate pages; ?lens= in the URL
+  children: direct child nodes (default)
+  groups: every group below, all the way down
+  schools: every school below, with teacher names
+  teachers: every teacher below, with their classes
+  classes: every class below, with student counts + hours
+  students: fixed lens at class level
+
+data:
+  endpoint: GET /api/groups/:id/home?lens=<lens>   # api/groups/[id]/home.ts
+  id_resolution: group node id | school id (schools.node_group_id, minted on demand) | class id → kind 'class'
+  authz: resolveGroupTreeCaller + callerCanSeeGroup; leader scope-trims ancestors/siblings to own subtree
+  rollups: shared resolver (api/_utils/groupRollups.computeNodeExtras) — same story as tree/table lenses
+  practice_hours: subtree school_summary sum (incl. staff practice); class level sums class_student_progress
+
+layout_stability:  # founder bug 2026-07-20 — "3-4 up and down page wobbles" per rail switch
+  # While a load runs, every section HOLDS its geometry; VALUES never show the wrong node.
+  - node switch (id changed): identity/stats/class-card/action-bar value slots blank to nbsp
+    but keep their boxes; the children body holds its pre-load height (measured min-height)
+    instead of collapsing to a spinner line; ONE settle when the new node's data lands
+  - same-node refresh / lens change: identity+stats keep their still-correct numbers
+    (stale-while-refreshing); only the children body holds
+  - action bar goes visibility:hidden mid-switch so a click can never act on the previous node
+  - AdminGroupContainer's entity-context-bar stays MOUNTED once painted (its unmount/remount
+    was the biggest measured shifter); the group name blanks while loading
+  - the map rail keeps its previous tree until arrival (continuity ruling) and swaps once
+  - probe: packages/player-vue/e2e/the-view/layout-stability-probe.mjs (CLS + section height
+    timeline per switch, deployed build; target CLS/switch < 0.02 incl. input-adjacent shifts)
+
+navigation_rules:  # THE-VIEW §2
+  - clicking any node NAME anywhere in admin lands on that node's HOME
+  - Structure stays the quick-actions flyout; its open/see-progress verbs land on node home
+  - old URLs live, old designs die (group summary, Full-schools list, admin ClassDetail shell)
+
+components:
+  - packages/player-vue/src/views/admin/NodeHomeView.vue
+  - packages/player-vue/src/views/admin/AdminClassHome.vue
+  - packages/player-vue/src/components/admin/NodeMapRail.vue
+  - packages/player-vue/src/components/admin/NodeChildrenList.vue
+
+tests:
+  - packages/player-vue/src/views/admin/NodeHomeView.test.ts   # same grammar at 4 levels; lens filters; name-click pin
+  - api/groups/[id]/home.test.ts                               # id resolution, rail, rollups, lenses, leader trimming
+
+out_of_scope: |
+  The LEADER member path now converges on this grammar via the member mount
+  (route_member above, 2026-07-20). Teacher and school_admin /schools views
+  (TeacherDashboard, DashboardView school branch, ClassDetail) still converge
+  in a later scoped pass — school_admin needs a leader door on
+  resolveGroupTreeCaller first (it currently authorizes govt_admins only).
+  Class co-teacher MEMBERSHIP mutations are another worker's piece; here the
+  teachers list renders read-only from class_teachers + the lead pointer.

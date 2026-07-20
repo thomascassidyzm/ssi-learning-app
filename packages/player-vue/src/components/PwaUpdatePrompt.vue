@@ -36,9 +36,13 @@ const {
   onRegistered(registration) {
     console.log('[PWA] Service worker registered')
     if (registration) {
+      // Check for a new build every 5 minutes. This is a background SW update
+      // poll, not dashboard data — a new deploy still surfaces well within a
+      // sitting, but at 1/5min it stops reading as "auto-refresh" idle chatter
+      // in the Network tab (founder ruling, 2026-07-19).
       updateCheckInterval = setInterval(() => {
         registration.update().catch(() => {})
-      }, 60 * 1000)
+      }, 5 * 60 * 1000)
     }
   },
   onRegisterError(error) {

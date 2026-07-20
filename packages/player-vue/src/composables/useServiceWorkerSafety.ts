@@ -31,6 +31,9 @@ export interface ServiceWorkerConfig {
 
 const isCheckingKillSwitch = ref(false)
 const killSwitchError = ref<string | null>(null)
+/** Set immediately before the kill switch unregisters/reloads — App.vue renders
+ * this as an overlay so the reload isn't silent (trinity ledger LA offline #6). */
+export const killSwitchMessage = ref<string | null>(null)
 
 // ============================================================================
 // FUNCTIONS
@@ -92,11 +95,16 @@ export async function checkKillSwitch(): Promise<boolean> {
       if (config.message) {
         console.warn('[SW Safety] Message:', config.message)
       }
+      killSwitchMessage.value = config.message || 'Updating the app — this page will reload in a moment.'
 
       await unregisterAllServiceWorkers()
       await clearAllCaches()
 
       try { sessionStorage.setItem(GUARD_KEY, '1') } catch { /* storage blocked */ }
+
+      // Give the overlay a moment to actually be seen before the reload
+      // unmounts everything.
+      await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Reload to get fresh content
       window.location.reload()

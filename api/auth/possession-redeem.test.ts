@@ -35,10 +35,12 @@ vi.mock('dns', () => ({
 }))
 
 let inviteRow: any
-let rateCounts: { ip: number; code: number }
+let rateCounts: { ip: number; code: number; ipNonPersonal?: number }
 let attempts: any[]
 let createUserResult: any
+let createUserArg: any
 let generateLinkResult: any
+let generateLinkArg: any
 let verifyOtpResult: any
 let deleteUserCalls: string[]
 
@@ -57,9 +59,19 @@ function makeAttemptsBuilder() {
       calls.push(['eq', col, val])
       return builder
     },
+    neq: (col: string, val: any) => {
+      calls.push(['neq', col, val])
+      return builder
+    },
     gte: () => {
       const isIp = calls.some((c) => c[0] === 'eq' && c[1] === 'ip_hash')
-      const count = isIp ? rateCounts.ip : rateCounts.code
+      // The per-IP query excludes successful personal sign-ins
+      // (neq outcome personal_signin) — mirror that with a separate fixture
+      // so the exclusion is actually testable.
+      const excludesPersonal = calls.some((c) => c[0] === 'neq' && c[1] === 'outcome' && c[2] === 'personal_signin')
+      const count = isIp
+        ? (excludesPersonal && rateCounts.ipNonPersonal !== undefined ? rateCounts.ipNonPersonal : rateCounts.ip)
+        : rateCounts.code
       return Promise.resolve({ count, data: null, error: null })
     },
   }
@@ -74,6 +86,9 @@ function makeInviteValidationBuilder() {
   }
   return builder
 }
+
+let getUserByIdResult: any = { data: { user: null }, error: null }
+let getUserByIdArg: string | undefined
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (_url: string, key: string) => {
@@ -92,8 +107,9 @@ vi.mock('@supabase/supabase-js', () => ({
       },
       auth: {
         admin: {
-          createUser: () => Promise.resolve(createUserResult),
-          generateLink: () => Promise.resolve(generateLinkResult),
+          createUser: (arg: any) => { createUserArg = arg; return Promise.resolve(createUserResult) },
+          generateLink: (arg: any) => { generateLinkArg = arg; return Promise.resolve(generateLinkResult) },
+          getUserById: (id: string) => { getUserByIdArg = id; return Promise.resolve(getUserByIdResult) },
           deleteUser: (id: string) => {
             deleteUserCalls.push(id)
             return Promise.resolve({ error: null })
@@ -129,6 +145,8 @@ describe('POST /api/auth/possession-redeem', () => {
     mxResolution = 'has-mx'
     attempts = []
     deleteUserCalls = []
+    createUserArg = undefined
+    generateLinkArg = undefined
     rateCounts = { ip: 0, code: 0 }
     inviteRow = {
       id: 'invite-1',
@@ -264,5 +282,162 @@ describe('POST /api/auth/possession-redeem', () => {
     await handler(makeReq({ code: 'TEACH-1', email: 'a@school.example' }), res)
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
+  })
+
+  // --- Link-auth (placeholder-email) mode: PUPILS ONLY (founder ruling
+  // 2026-07-20). A student/learner link mints from the code + a captured
+  // name; young learners have no email to give. Named roles must never
+  // reach this path — their accounts are real (typed email), never ghosts. ---
+  describe('linkAuth (pupil) mode', () => {
+    beforeEach(() => {
+      inviteRow.code = 'CLASS-1'
+      inviteRow.code_type = 'student'
+    })
+
+    it('mints a session from the code alone — no email in the body', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+    })
+
+    it('mints the account against a unique placeholder address flagged link_auth, carrying the captured name', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
+
+      expect(createUserArg.email).toMatch(/^link-[0-9a-f-]+@invite\.saysomethingin\.app$/)
+      // Same address flows into the magic-link mint, so the session is for it.
+      expect(generateLinkArg.email).toBe(createUserArg.email)
+      // onboarded_via stays 'possession' so the needs-real-email prompt fires;
+      // link_auth is the analytics-only distinguisher.
+      expect(createUserArg.user_metadata.onboarded_via).toBe('possession')
+      expect(createUserArg.user_metadata.link_auth).toBe(true)
+      expect(createUserArg.user_metadata.display_name).toBe('Alys')
+    })
+
+    it('does not require a valid email and skips the MX gate', async () => {
+      mxResolution = 'no-mx' // would 400 a typed email; irrelevant to link-auth
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(attempts.some((a) => a.outcome === 'no_mx_domain')).toBe(false)
+    })
+
+    it('still enforces code validity (expired code is rejected before minting)', async () => {
+      inviteRow.expires_at = '2020-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+      expect(res._json).toEqual({ success: false, error: 'Code expired' })
+      expect(createUserArg).toBeUndefined()
+    })
+
+    it('still rejects code types outside the possession-eligible set', async () => {
+      inviteRow.code_type = 'ssi_admin'
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+      expect(res._json.success).toBe(false)
+      expect(attempts.some((a) => a.outcome === 'unsupported_code_type')).toBe(true)
+      expect(createUserArg).toBeUndefined()
+    })
+
+    it('still rate limits by code', async () => {
+      rateCounts.code = 20
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+      expect(res._status).toBe(429)
+    })
+
+    // THE PIN (founder ruling 2026-07-20): a named-role link can never mint a
+    // link-<uuid> ghost. The client shows the capture screen; if anything
+    // still sends linkAuth for a named role, the server refuses and asks for
+    // identity.
+    it.each(['teacher', 'school_admin', 'school_admin_join', 'govt_admin'])(
+      'refuses linkAuth for the named role %s — identity_required, no account created',
+      async (codeType) => {
+        inviteRow.code_type = codeType
+        const res = makeRes()
+        await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+        expect(res._json.success).toBe(false)
+        expect(res._json.reason).toBe('identity_required')
+        expect(createUserArg).toBeUndefined()
+        expect(attempts.some((a) => a.outcome === 'identity_required')).toBe(true)
+      }
+    )
+  })
+
+  // --- Personal links (species 1, founder-ruled 2026-07-20): the code is
+  // bound at mint time to a PRE-PROVISIONED account; possession IS that
+  // account's login. Zero screens, no new account ever created here. ---
+  describe('personal (species 1) mode', () => {
+    beforeEach(() => {
+      inviteRow.code = 'PERS-1'
+      inviteRow.code_type = 'govt_admin'
+      inviteRow.metadata = { personal_auth_user_id: 'persona-77', personal_name: 'IME Programme Leader' }
+      getUserByIdResult = { data: { user: { id: 'persona-77', email: 'persona-77@invite.saysomethingin.app' } }, error: null }
+      getUserByIdArg = undefined
+    })
+
+    it('mints a session for the BOUND account — no createUser, even for a named role via linkAuth', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.personal).toBe(true)
+      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+      // The session is for the stored user's own email — bound server-side.
+      expect(getUserByIdArg).toBe('persona-77')
+      expect(generateLinkArg.email).toBe('persona-77@invite.saysomethingin.app')
+      // THE PIN: personal sign-in never creates an account.
+      expect(createUserArg).toBeUndefined()
+      expect(attempts.some((a) => a.outcome === 'personal_signin' && a.auth_user_id === 'persona-77')).toBe(true)
+    })
+
+    it('is repeatable — a second click mints again (no exhaustion below max_uses)', async () => {
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), makeRes())
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._json.success).toBe(true)
+    })
+
+    it('a revoked-at-auth-layer persona (account deleted) fails friendly, not 500', async () => {
+      getUserByIdResult = { data: { user: null }, error: null }
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(false)
+      expect(attempts.some((a) => a.outcome === 'personal_account_missing')).toBe(true)
+    })
+
+    it('still enforces expiry before any sign-in', async () => {
+      inviteRow.expires_at = '2020-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._json).toEqual({ success: false, error: 'Code expired' })
+      expect(getUserByIdArg).toBeUndefined()
+    })
+
+    it('still rate limits by code', async () => {
+      rateCounts.code = 20
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(429)
+    })
+
+    // Live repro 2026-07-20: successful personal logins burned the per-IP
+    // guessing budget (a demo walk rate-limited itself). Successful
+    // personal_signin outcomes are excluded from the per-IP count; failed
+    // attempts still count, and the per-code limit still counts everything.
+    it('is NOT starved by its own prior successful sign-ins on the same IP', async () => {
+      rateCounts.ip = 25 // raw attempts, mostly personal_signin successes
+      rateCounts.ipNonPersonal = 2 // what the filtered per-IP query sees
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+    })
   })
 })

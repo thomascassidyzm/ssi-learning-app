@@ -42,10 +42,14 @@ const TeachersView = () => import('@/views/schools/TeachersView.vue')
 const StudentsView = () => import('@/views/schools/StudentsView.vue')
 const TeacherDashboard = () => import('@/views/schools/TeacherDashboard.vue')
 const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
-const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
+// THE LENS: the node-scoped Insight Engine — mounted at the old analytics
+// URLs (the URLs live, the old-school analytics page died).
+const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
+// THE VIEW — the one recursive node home (docs/THE-VIEW.md)
+const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
@@ -102,7 +106,7 @@ const routes: RouteRecordRaw[] = [
       // through to the live school experience as intended. (Guard on the PARENT
       // so it covers every child route, not just the bare dashboard.)
       if (canAccessAdmin.value && !hasSchoolRole.value) {
-        return next('/admin/setup')
+        return next('/admin/structure')
       }
       // A user with a KNOWN role but NO school role is not a school member.
       // Solo tutors have no `educational_role`, so they look identical to a
@@ -204,6 +208,26 @@ const routes: RouteRecordRaw[] = [
           title: 'Schools',
           description: 'All schools in group (govt admin)',
         },
+      },
+      {
+        // THE VIEW for members (docs/THE-VIEW.md): a group/school leader's
+        // node home — the SAME recursive page the admin surface uses, mounted
+        // inside the /schools shell. One :id route serves groups, schools AND
+        // classes (the home endpoint resolves whichever it's given), and the
+        // server scopes a leader to their own subtree — rail rooted at their
+        // top node, no admin escape. Server-backed reads only (no client
+        // org-table queries — the RLS-condition caution).
+        path: 'org/:id',
+        name: 'schools-node-home',
+        component: NodeHomeView,
+        meta: { title: 'Organisation', description: 'Node home (member scope)', nodeSurface: true },
+      },
+      {
+        // THE LENS at member scope — "See insights" on the member node home.
+        path: 'org/:id/insights',
+        name: 'schools-node-insights',
+        component: NodeInsightsView,
+        meta: { title: 'Insights', description: 'The Insight Engine scoped to this node (member scope)' },
       },
       {
         path: 'play',
@@ -324,26 +348,37 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // AdminContainer carries its own nav
     children: [
       {
-        // Default /admin landing — redirect to the Setup page (schools + groups
-        // + staff + entitlements), not the Invite-Codes subpage.
+        // Default /admin landing — the Structure surface (the org tree).
         path: '',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
+        // Canonical invites surface (2026-07-17 rethink): one create card
+        // (org / direct / demo) + one live list, replacing the
+        // creation/list halves of Access, Demos and Try Links. See
+        // docs/invites-redesign/DESIGN.md.
+        path: 'invites',
+        name: 'admin-invites',
+        component: () => import('@/views/admin/AdminInvites.vue'),
+        meta: { title: 'Invites', description: 'One primitive — who × where × what × limits; every link that lets someone in, real or demo' },
+      },
+      {
+        // Old paths — kept working, not just bookmark hygiene. Ways-in
+        // management now lives on /admin/structure (THE-MODEL.md §1.10).
         path: 'access',
-        name: 'admin-access',
-        component: () => import('@/views/admin/AdminAccess.vue'),
-        meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
+        redirect: '/admin/structure',
+      },
+      {
+        path: 'demos',
+        redirect: '/admin/structure',
+      },
+      {
+        path: 'demo-organisations',
+        redirect: '/admin/structure',
       },
       {
         path: 'demo-schools',
-        name: 'admin-demo-schools',
-        component: () => import('@/views/admin/AdminDemoSchools.vue'),
-        meta: { title: 'Demo Schools', description: 'Self-serve sales showcase orgs for prospects' },
-      },
-      {
-        path: 'invites',
-        redirect: '/admin/access',
+        redirect: '/admin/structure',
       },
       {
         path: 'analytics',
@@ -389,13 +424,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        redirect: '/admin/access',
+        redirect: '/admin/structure',
       },
       {
         path: 'try-links',
-        name: 'admin-try-links',
-        component: () => import('@/views/admin/AdminTryLinks.vue'),
-        meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
+        redirect: '/admin/structure',
       },
       {
         path: 'release-notes',
@@ -404,17 +437,23 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Release Notes', description: 'Curate the What\'s New panel in Settings' },
       },
       {
-        // Canonical path — the whole Setup console (schools + groups + staff +
-        // entitlements), not just schools. /admin/schools (below) redirects here
-        // for old links.
+        // Structure — the org tree IS the page (2026-07-17 consolidation:
+        // Setup's Groups/Schools/Staff/Entitlements tabs dissolved into one
+        // tree with node facets; ways-in management lives on the node panel —
+        // THE-MODEL.md §1.10).
+        path: 'structure',
+        name: 'admin-structure',
+        component: () => import('@/views/admin/AdminStructure.vue'),
+        meta: { title: 'Structure', description: 'The org tree — groups, schools, staff and entitlements at the node they belong to' },
+      },
+      {
+        // Old Setup console path — Setup dissolved into Structure.
         path: 'setup',
-        name: 'admin-setup',
-        component: () => import('@/views/admin/SchoolsSetup.vue'),
-        meta: { title: 'Setup' },
+        redirect: '/admin/structure',
       },
       {
         path: 'schools',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
         path: 'methodology',
@@ -454,12 +493,16 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/schools/:id',
     component: AdminSchoolsContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — the floating Back pill overlapped it
     children: [
       {
+        // THE VIEW (docs/THE-VIEW.md): the school's landing IS node home —
+        // same recursive page as every other level. Deep school tools stay
+        // at the sibling sub-routes below.
         path: '',
         name: 'admin-school-dashboard',
-        component: DashboardView,
-        meta: { title: 'School Dashboard', description: 'Admin view of a school' },
+        component: NodeHomeView,
+        meta: { title: 'School Home', description: 'Node home for a school', nodeSurface: true },
       },
       {
         path: 'classes',
@@ -468,10 +511,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'School Classes' },
       },
       {
+        // The admin "Class tools" page is DEAD (founder ruling 2026-07-19):
+        // it duplicated the class node home with zero admin-usable verbs.
+        // The URL survives as a redirect so old links never 404.
         path: 'classes/:classId',
         name: 'admin-school-class-detail',
-        component: ClassDetail,
-        meta: { title: 'Class Detail' },
+        redirect: (to) => ({ path: `/admin/classes/${to.params.classId}` }),
       },
       {
         path: 'students',
@@ -488,8 +533,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analytics',
         name: 'admin-school-analytics',
-        component: AnalyticsView,
-        meta: { title: 'School Analytics' },
+        component: NodeInsightsView,
+        meta: { title: 'School Insights', description: 'The Insight Engine scoped to this school' },
       },
     ],
   },
@@ -497,39 +542,65 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/groups/:id',
     component: AdminGroupContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — no floating Back pill on top
     children: [
       {
+        // THE VIEW (docs/THE-VIEW.md): the group's landing IS node home.
         path: '',
         name: 'admin-group-dashboard',
-        component: DashboardView,
-        meta: { title: 'Group Dashboard' },
+        component: NodeHomeView,
+        meta: { title: 'Group Home', description: 'Node home for a group', nodeSurface: true },
       },
       {
+        // The old Full-schools list — the URL lives, the separate design
+        // dies: node home with the All-schools lens preselected.
         path: 'schools',
         name: 'admin-group-schools',
-        component: SchoolsView,
-        meta: { title: 'Schools in Group' },
+        redirect: (to) => ({ path: `/admin/groups/${to.params.id}`, query: { lens: 'schools' } }),
       },
       {
         path: 'analytics',
         name: 'admin-group-analytics',
-        component: AnalyticsView,
-        meta: { title: 'Group Analytics' },
+        component: NodeInsightsView,
+        meta: { title: 'Group Insights', description: 'The Insight Engine scoped to this group' },
       },
     ],
   },
   // Standalone admin read-views
   {
+    // THE VIEW (docs/THE-VIEW.md): class level gets the same node home —
+    // map rail, identity (lead + co-teachers, read-only), students as
+    // children (with the full teaching data in-row). Deliberately the SAME
+    // container + view pair as /admin/groups/:id so drilling group → class
+    // reuses the mounted surface (one continuous map, no repaint — founder
+    // ruling 2026-07-19). This IS the class page for admins — the old
+    // "Class tools" page is dead (founder ruling 2026-07-19).
     path: '/admin/classes/:id',
-    name: 'admin-class-detail',
-    component: () => import('@/views/admin/AdminClassDetail.vue'),
-    meta: { title: 'Class Detail (Admin)' },
+    component: AdminGroupContainer,
+    meta: { hideAppEscape: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-class-detail',
+        component: NodeHomeView,
+        meta: { title: 'Class Home (Admin)', nodeSurface: true },
+      },
+    ],
   },
   {
+    // THE LENS at class level — "See insights" on a class node home.
+    path: '/admin/classes/:id/insights',
+    name: 'admin-class-insights',
+    component: () => import('@/views/admin/AdminClassInsights.vue'),
+    meta: { title: 'Class Insights (Admin)' },
+  },
+  {
+    // The individual learner page is DEAD (founder ruling 2026-07-19) — its
+    // teacher-relevant content (journey, last-7-days) lives flat on the
+    // student rows of the class node home. The URL survives as a redirect
+    // so old links never 404.
     path: '/admin/users/:learnerId/progress',
-    name: 'admin-user-progress',
-    component: () => import('@/views/admin/AdminUserProgress.vue'),
-    meta: { title: 'User Progress (Admin)' },
+    redirect: (to) => ({ path: `/admin/users/${to.params.learnerId}` }),
   },
   // Shareable redeem link. :code? is optional — a bare /redeem visit (e.g. a
   // teacher's whiteboard code, typed manually rather than clicked) drops into
@@ -625,9 +696,14 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(_to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
+    }
+    // Drilling within THE VIEW's node surface is movement inside ONE map —
+    // keep the scroll where it is (no jump-to-top jolt between nodes).
+    if (to.meta.nodeSurface && from.meta.nodeSurface) {
+      return false
     }
     return { top: 0 }
   },

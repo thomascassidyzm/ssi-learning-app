@@ -22,20 +22,20 @@ describe('/admin + /methodology guard', () => {
   })
 
   it('does not bounce on an uninitialized role cache — defers rather than guessing', async () => {
-    await router.push('/admin/setup')
-    expect(router.currentRoute.value.fullPath).toBe('/admin/setup')
+    await router.push('/admin/structure')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
   })
 
   it('bounces a KNOWN non-admin to /', async () => {
     useUserRole().initialize(null, 'teacher')
-    await router.push('/admin/setup')
+    await router.push('/admin/structure')
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
   it('lets a known ssi_admin straight through', async () => {
     useUserRole().initialize('ssi_admin', null)
-    await router.push('/admin/setup')
-    expect(router.currentRoute.value.fullPath).toBe('/admin/setup')
+    await router.push('/admin/structure')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
   })
 
   it('/methodology is covered by the same guard', async () => {

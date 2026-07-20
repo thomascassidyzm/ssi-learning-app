@@ -54,7 +54,7 @@ export async function purgeDemoOrg(
     throw new Error('Demo org must be expired before it can be purged — expire it first')
   }
 
-  const { schoolIds, classIds, classLearnerIds, staffAuthUids, studentUserIds } = await discoverDemoOrgGraph(supabase, org)
+  const { groupIds, schoolIds, classIds, classLearnerIds, staffAuthUids, studentUserIds } = await discoverDemoOrgGraph(supabase, org)
 
   const { data: studentLearners } = studentUserIds.length
     ? await supabase.from('learners').select('id, user_id').in('user_id', studentUserIds)
@@ -85,6 +85,13 @@ export async function purgeDemoOrg(
   if (schoolIds.length) {
     await deleteInChunks(supabase, 'invite_codes', 'grants_school_id', schoolIds)
   }
+  if (classIds.length) {
+    // Demos leaf classes (demoLeaf.ts) register their student_join_code as a
+    // grants_class_id invite_codes row, not grants_school_id — the old
+    // synthetic-roster generator never did (its students were bulk-inserted
+    // learner rows, no redeem flow), so this had no prior demo-org case.
+    await deleteInChunks(supabase, 'invite_codes', 'grants_class_id', classIds)
+  }
 
   if (classIds.length) {
     await deleteInChunks(supabase, 'classes', 'id', classIds)
@@ -112,10 +119,12 @@ export async function purgeDemoOrg(
   if (schoolIds.length) {
     await deleteInChunks(supabase, 'schools', 'id', schoolIds)
   }
-  if (org.group_id) {
-    await supabase.from('govt_admins').delete().eq('group_id', org.group_id)
-    const { error: groupErr } = await supabase.from('groups').delete().eq('id', org.group_id)
-    if (groupErr) throw new Error(`groups delete failed: ${groupErr.message}`)
+  if (groupIds.length) {
+    await deleteInChunks(supabase, 'govt_admins', 'group_id', groupIds)
+    // Whole subtree in one statement (root + every sub-group the admin
+    // built on top of it) — deepest-first isn't needed, self-FK checks
+    // resolve at statement end once every row in the batch is gone.
+    await deleteInChunks(supabase, 'groups', 'id', groupIds)
   }
 
   return {

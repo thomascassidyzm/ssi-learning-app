@@ -225,17 +225,42 @@ $$;
 -- Name: admin_practice_minutes(uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer)
+CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer, is_estimated boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with sess as (
-    select user_id, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
-    from player_events where user_id = any(p_learner_ids) group by user_id, session_id
+  with logged as (
+    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
+    from sessions s
+    where s.learner_id = any(p_learner_ids)
+    group by s.learner_id, s.course_id
+  ),
+  lego_order as (
+    select cl.course_code, cl.lego_id,
+           row_number() over (partition by cl.course_code order by cl.seed_number, cl.lego_index) as ord
+    from course_legos cl
+  ),
+  estimated as (
+    select ce.learner_id, ce.course_id,
+           lo.ord * public.position_derived_seconds_per_lego() as seconds
+    from course_enrollments ce
+    join lego_order lo on lo.course_code = ce.course_id and lo.lego_id = ce.highest_completed_lego_id
+    where ce.learner_id = any(p_learner_ids)
+      and ce.highest_completed_lego_id is not null
+      and not exists (
+        select 1 from logged l where l.learner_id = ce.learner_id and l.course_id = ce.course_id
+      )
+  ),
+  combined as (
+    select learner_id, seconds, false as is_estimated from logged
+    union all
+    select learner_id, seconds, true as is_estimated from estimated
   )
-  select user_id as learner_id,
-         coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
-  from sess group by user_id;
+  select learner_id,
+         round(sum(seconds) / 60.0)::int as practice_minutes,
+         bool_or(is_estimated) as is_estimated
+  from combined
+  group by learner_id;
 $$;
 
 
@@ -243,17 +268,42 @@ $$;
 -- Name: admin_practice_minutes_by_course(uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer)
+CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer, is_estimated boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with sess as (
-    select user_id, course_code, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
-    from player_events where (p_learner_ids is null or user_id = any(p_learner_ids)) and course_code is not null
-    group by user_id, course_code, session_id
+  with logged as (
+    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
+    from sessions s
+    where (p_learner_ids is null or s.learner_id = any(p_learner_ids))
+    group by s.learner_id, s.course_id
+  ),
+  lego_order as (
+    select cl.course_code, cl.lego_id,
+           row_number() over (partition by cl.course_code order by cl.seed_number, cl.lego_index) as ord
+    from course_legos cl
+  ),
+  estimated as (
+    select ce.learner_id, ce.course_id,
+           lo.ord * public.position_derived_seconds_per_lego() as seconds
+    from course_enrollments ce
+    join lego_order lo on lo.course_code = ce.course_id and lo.lego_id = ce.highest_completed_lego_id
+    where (p_learner_ids is null or ce.learner_id = any(p_learner_ids))
+      and ce.highest_completed_lego_id is not null
+      and not exists (
+        select 1 from logged l where l.learner_id = ce.learner_id and l.course_id = ce.course_id
+      )
+  ),
+  combined as (
+    select course_id, seconds, false as is_estimated from logged
+    union all
+    select course_id, seconds, true as is_estimated from estimated
   )
-  select course_code, coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
-  from sess group by course_code;
+  select course_id as course_code,
+         round(sum(seconds) / 60.0)::int as practice_minutes,
+         bool_or(is_estimated) as is_estimated
+  from combined
+  group by course_id;
 $$;
 
 
@@ -3316,6 +3366,31 @@ $$;
 
 
 --
+-- Name: inherit_parent_group_test_flags(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.inherit_parent_group_test_flags() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  parent_is_test BOOLEAN;
+  parent_is_demo BOOLEAN;
+BEGIN
+  IF NEW.parent_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT is_test, is_demo INTO parent_is_test, parent_is_demo
+  FROM public.groups WHERE id = NEW.parent_id;
+
+  NEW.is_test := COALESCE(NEW.is_test, FALSE) OR COALESCE(parent_is_test, FALSE);
+  NEW.is_demo := COALESCE(NEW.is_demo, FALSE) OR COALESCE(parent_is_demo, FALSE);
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: is_class_teacher(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3744,6 +3819,15 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: position_derived_seconds_per_lego(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.position_derived_seconds_per_lego() RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$ select 120 $$;
 
 
 --
@@ -4433,6 +4517,52 @@ $$;
 
 
 --
+-- Name: admin_impersonation_audit; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_impersonation_audit (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    admin_user_id text NOT NULL,
+    target_user_id text NOT NULL,
+    target_role text NOT NULL,
+    target_name text,
+    target_school_id uuid,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone,
+    ip_address text,
+    user_agent text
+);
+
+
+--
+-- Name: TABLE admin_impersonation_audit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.admin_impersonation_audit IS 'Audit trail for ssi_admin "View as" read-only impersonation. Service-role-only (RLS on, no policies) — written only by api/admin/view-as.ts. The compliance record for this legitimate-interest support-access feature.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.admin_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.admin_user_id IS 'auth uid (learners.user_id) of the ssi_admin who viewed as the persona.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.target_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.target_user_id IS 'auth uid (learners.user_id) of the teacher/school_admin/govt_admin persona viewed.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.target_role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.target_role IS 'Persona role at the time of viewing: teacher | school_admin | govt_admin.';
+
+
+--
 -- Name: algorithm_config; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4830,7 +4960,8 @@ CREATE TABLE public.classes (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     last_lego_id text,
-    class_learner_id uuid
+    class_learner_id uuid,
+    group_id uuid
 );
 
 
@@ -4846,6 +4977,13 @@ COMMENT ON TABLE public.classes IS 'Class records. current_seed and helix_state 
 --
 
 COMMENT ON COLUMN public.classes.teacher_user_id IS 'Lead-teacher pointer (denormalised convenience). NOT the source of truth for teacher↔class — that is user_tags(tag_type=''class'', role_in_context=''teacher''). Nullable since 2026-06-13 (first-class-class). Read teachers via class_teachers / is_class_teacher().';
+
+
+--
+-- Name: COLUMN classes.group_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.classes.group_id IS 'Direct affiliation to ANY group node (THE MODEL I7). Dual-written with school_id during expand phase; school_id remains authoritative for deployed prod readers until contract.';
 
 
 --
@@ -4941,6 +5079,7 @@ CREATE TABLE public.schools (
     provider_customer_id text,
     name_confirmed boolean DEFAULT true NOT NULL,
     is_test boolean DEFAULT false NOT NULL,
+    node_group_id uuid,
     CONSTRAINT schools_platform_status_check CHECK ((platform_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'expired'::text, 'cancelled'::text]))),
     CONSTRAINT schools_trial_kind_check CHECK (((trial_kind IS NULL) OR (trial_kind = ANY (ARRAY['premium_1mo'::text, 'free_1yr'::text]))))
 );
@@ -4986,6 +5125,13 @@ COMMENT ON COLUMN public.schools.teacher_seats IS 'Paid teacher seats = Paddle q
 --
 
 COMMENT ON COLUMN public.schools.is_test IS 'Not a genuine paying/pilot customer — soak-test/E2E/owner-test school. Superset of is_demo (seeded demo data). Board metrics (schools.total) exclude is_test, never is_demo alone.';
+
+
+--
+-- Name: COLUMN schools.node_group_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.schools.node_group_id IS 'The school''s OWN node in the one group tree (THE MODEL I2). schools.group_id remains the legacy parent pointer; the node''s parent_id carries the same fact in the tree. schools row survives as the commercial attachment during expand phase.';
 
 
 --
@@ -5035,7 +5181,7 @@ CREATE TABLE public.user_tags (
     added_at timestamp with time zone DEFAULT now() NOT NULL,
     removed_at timestamp with time zone,
     CONSTRAINT user_tags_role_in_context_check CHECK ((role_in_context = ANY (ARRAY['admin'::text, 'teacher'::text, 'student'::text]))),
-    CONSTRAINT user_tags_tag_type_check CHECK ((tag_type = ANY (ARRAY['school'::text, 'class'::text])))
+    CONSTRAINT user_tags_tag_type_check CHECK ((tag_type = ANY (ARRAY['school'::text, 'class'::text, 'group'::text])))
 );
 
 
@@ -5043,7 +5189,7 @@ CREATE TABLE public.user_tags (
 -- Name: TABLE user_tags; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.user_tags IS 'Soft connections between users and schools/classes. removed_at enables soft delete.';
+COMMENT ON TABLE public.user_tags IS 'Soft connections between users and org nodes. tag_type school/class (legacy, dual-written) or group (THE MODEL: GROUP:<groups.id>, any node). removed_at enables soft delete.';
 
 
 --
@@ -6719,6 +6865,8 @@ CREATE TABLE public.entitlement_grants (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     expires_at timestamp with time zone,
     is_active boolean DEFAULT true NOT NULL,
+    state text,
+    CONSTRAINT entitlement_grants_state_check CHECK ((state = ANY (ARRAY['trial'::text, 'paid'::text]))),
     CONSTRAINT one_target_level CHECK ((((((group_id IS NOT NULL))::integer + ((school_id IS NOT NULL))::integer) + ((class_id IS NOT NULL))::integer) = 1))
 );
 
@@ -6728,6 +6876,13 @@ CREATE TABLE public.entitlement_grants (
 --
 
 COMMENT ON TABLE public.entitlement_grants IS 'Course access grants at group/school/class level.';
+
+
+--
+-- Name: COLUMN entitlement_grants.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.entitlement_grants.state IS 'THE MODEL §1.11: binary entitlement state. trial = exactly one course (granted_courses is a single-element array, expires_at auto-derived: 30d premium / 365d free). paid = all courses (granted_courses is a compat-only full live/beta-catalogue expansion, expires_at NULL). NULL = legacy/custom multi-course grant predating this ruling — left as-is, never auto-migrated.';
 
 
 --
@@ -6852,7 +7007,7 @@ COMMENT ON TABLE public.groups IS 'Hierarchical grouping for entitlement cascade
 -- Name: COLUMN groups.type; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.groups.type IS 'Descriptive type: nation, region, district, programme, etc.';
+COMMENT ON COLUMN public.groups.type IS 'LABEL ONLY (THE MODEL, 2026-07-18): school, organisation, district, lea, nation, region, programme, ... Zero behavioural difference — no code may branch on it except to choose display wording/icon.';
 
 
 --
@@ -6875,13 +7030,14 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
     COALESCE(tc.teacher_count, (0)::bigint) AS teacher_count,
     COALESCE(cc.class_count, (0)::bigint) AS class_count,
     COALESCE(sc.student_count, (0)::bigint) AS student_count,
-    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours,
+    (COALESCE(ph.total_practice_hours, (0)::numeric) + COALESCE(sp.staff_practice_hours, (0)::numeric)) AS total_practice_hours,
     s.name_confirmed,
     s.teacher_join_code,
     s.admin_join_code,
     s.created_at,
-    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin
-   FROM (((((public.schools s
+    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin,
+    COALESCE(sp.staff_practice_hours, (0)::numeric) AS staff_practice_hours
+   FROM ((((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
           WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))) tc ON (true))
@@ -6896,6 +7052,12 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
            FROM (public.class_student_progress csp
              JOIN public.classes c ON ((c.id = csp.class_id)))
           WHERE (c.school_id = s.id)) ph ON (true))
+     LEFT JOIN LATERAL ( SELECT ((COALESCE(sum(sess.duration_seconds), (0)::bigint))::numeric / (3600)::numeric) AS staff_practice_hours
+           FROM public.sessions sess
+          WHERE (sess.learner_id IN ( SELECT DISTINCT l.id
+                   FROM (public.user_tags ut3
+                     JOIN public.learners l ON ((l.user_id = ut3.user_id)))
+                  WHERE ((ut3.tag_type = 'school'::text) AND (ut3.tag_value = ('SCHOOL:'::text || s.id)) AND (ut3.role_in_context = ANY (ARRAY['teacher'::text, 'admin'::text])) AND (ut3.removed_at IS NULL))))) sp ON (true))
      LEFT JOIN LATERAL ( SELECT (EXISTS ( SELECT 1
                    FROM public.user_tags ut2
                   WHERE ((ut2.tag_type = 'school'::text) AND (ut2.tag_value = ('SCHOOL:'::text || s.id)) AND (ut2.role_in_context = 'admin'::text) AND (ut2.removed_at IS NULL)))) AS has_admin_tag) at ON (true));
@@ -6914,7 +7076,8 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     COALESCE(sum(ss.class_count), (0)::numeric) AS class_count,
     COALESCE(sum(ss.student_count), (0)::numeric) AS student_count,
     COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours,
-    g.name_confirmed
+    g.name_confirmed,
+    COALESCE(sum(ss.staff_practice_hours), (0)::numeric) AS staff_practice_hours
    FROM ((public.groups g
      LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids))))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
@@ -8736,6 +8899,14 @@ ALTER TABLE ONLY public.sample_flags ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: admin_impersonation_audit admin_impersonation_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_impersonation_audit
+    ADD CONSTRAINT admin_impersonation_audit_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: algorithm_config algorithm_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10091,6 +10262,20 @@ CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owne
 
 
 --
+-- Name: idx_admin_impersonation_audit_admin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_admin_impersonation_audit_admin ON public.admin_impersonation_audit USING btree (admin_user_id, started_at DESC);
+
+
+--
+-- Name: idx_admin_impersonation_audit_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_admin_impersonation_audit_target ON public.admin_impersonation_audit USING btree (target_user_id, started_at DESC);
+
+
+--
 -- Name: idx_algorithm_config_updated; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10235,6 +10420,13 @@ CREATE INDEX idx_classes_class_learner ON public.classes USING btree (class_lear
 --
 
 CREATE INDEX idx_classes_course ON public.classes USING btree (course_code);
+
+
+--
+-- Name: idx_classes_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_classes_group_id ON public.classes USING btree (group_id);
 
 
 --
@@ -11365,6 +11557,13 @@ CREATE INDEX idx_schools_join_code ON public.schools USING btree (teacher_join_c
 
 
 --
+-- Name: idx_schools_node_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_schools_node_group_id ON public.schools USING btree (node_group_id);
+
+
+--
 -- Name: idx_schools_region; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11813,6 +12012,13 @@ CREATE TRIGGER courses_beta_timestamp_trigger BEFORE UPDATE ON public.courses FO
 
 
 --
+-- Name: groups groups_inherit_parent_test_flags; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER groups_inherit_parent_test_flags BEFORE INSERT OR UPDATE OF parent_id ON public.groups FOR EACH ROW EXECUTE FUNCTION public.inherit_parent_group_test_flags();
+
+
+--
 -- Name: language_briefs language_briefs_updated_at_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12097,6 +12303,14 @@ ALTER TABLE ONLY public.classes
 
 
 --
+-- Name: classes classes_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.classes
+    ADD CONSTRAINT classes_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id);
+
+
+--
 -- Name: classes classes_school_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12277,7 +12491,7 @@ ALTER TABLE ONLY public.dashboard_sessions
 --
 
 ALTER TABLE ONLY public.demo_orgs
-    ADD CONSTRAINT demo_orgs_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id);
+    ADD CONSTRAINT demo_orgs_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
 
 
 --
@@ -12285,7 +12499,7 @@ ALTER TABLE ONLY public.demo_orgs
 --
 
 ALTER TABLE ONLY public.demo_orgs
-    ADD CONSTRAINT demo_orgs_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id);
+    ADD CONSTRAINT demo_orgs_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE SET NULL;
 
 
 --
@@ -12365,7 +12579,7 @@ ALTER TABLE ONLY public.course_seeds
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT fk_invite_codes_class FOREIGN KEY (grants_class_id) REFERENCES public.classes(id);
+    ADD CONSTRAINT fk_invite_codes_class FOREIGN KEY (grants_class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
 
 
 --
@@ -12373,7 +12587,7 @@ ALTER TABLE ONLY public.invite_codes
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT fk_invite_codes_school FOREIGN KEY (grants_school_id) REFERENCES public.schools(id);
+    ADD CONSTRAINT fk_invite_codes_school FOREIGN KEY (grants_school_id) REFERENCES public.schools(id) ON DELETE CASCADE;
 
 
 --
@@ -12389,7 +12603,7 @@ ALTER TABLE ONLY public.govt_admins
 --
 
 ALTER TABLE ONLY public.govt_admins
-    ADD CONSTRAINT govt_admins_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT govt_admins_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --
@@ -12413,7 +12627,7 @@ ALTER TABLE ONLY public.groups
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT invite_codes_grants_group_id_fkey FOREIGN KEY (grants_group_id) REFERENCES public.groups(id);
+    ADD CONSTRAINT invite_codes_grants_group_id_fkey FOREIGN KEY (grants_group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
 
 
 --
@@ -12517,7 +12731,7 @@ ALTER TABLE ONLY public.learner_speaking_opportunities
 --
 
 ALTER TABLE ONLY public.learners
-    ADD CONSTRAINT learners_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT learners_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --
@@ -12621,7 +12835,15 @@ ALTER TABLE ONLY public.schools
 --
 
 ALTER TABLE ONLY public.schools
-    ADD CONSTRAINT schools_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT schools_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: schools schools_node_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schools
+    ADD CONSTRAINT schools_node_group_id_fkey FOREIGN KEY (node_group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
 
 
 --
@@ -13344,6 +13566,12 @@ CREATE POLICY "Users read own entitlements" ON public.user_entitlements FOR SELE
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
+
+--
+-- Name: admin_impersonation_audit; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: algorithm_config; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15359,6 +15587,15 @@ GRANT ALL ON FUNCTION public.inherit_group_test_flags() TO service_role;
 
 
 --
+-- Name: FUNCTION inherit_parent_group_test_flags(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO anon;
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO authenticated;
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO service_role;
+
+
+--
 -- Name: FUNCTION is_class_teacher(p_class_id uuid, p_uid text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15438,6 +15675,15 @@ GRANT ALL ON FUNCTION public.null_lego_audio_on_text_change() TO service_role;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO anon;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO authenticated;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO service_role;
+
+
+--
+-- Name: FUNCTION position_derived_seconds_per_lego(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.position_derived_seconds_per_lego() TO anon;
+GRANT ALL ON FUNCTION public.position_derived_seconds_per_lego() TO authenticated;
+GRANT ALL ON FUNCTION public.position_derived_seconds_per_lego() TO service_role;
 
 
 --
@@ -15638,6 +15884,13 @@ GRANT ALL ON FUNCTION public.update_updated_at() TO service_role;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO anon;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO authenticated;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO service_role;
+
+
+--
+-- Name: TABLE admin_impersonation_audit; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.admin_impersonation_audit TO service_role;
 
 
 --
@@ -16480,6 +16733,7 @@ GRANT ALL ON TABLE public.phase_prompts TO service_role;
 --
 
 GRANT ALL ON TABLE public.player_events TO service_role;
+GRANT SELECT,INSERT ON TABLE public.player_events TO authenticated;
 
 
 --

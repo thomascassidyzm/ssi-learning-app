@@ -105,7 +105,7 @@ beforeEach(async () => {
   enrollments = [
     { learner_id: 'l1', course_id: 'spa_for_eng', last_practiced_at: '2026-07-15T00:00:00Z', total_practice_minutes: 30 },
   ]
-  practiceRpcResult = { data: [{ learner_id: 'l1', practice_minutes: 45 }], error: null }
+  practiceRpcResult = { data: [{ learner_id: 'l1', practice_minutes: 45, is_estimated: false }], error: null }
   handler = (await import('./users')).default
 })
 
@@ -134,12 +134,23 @@ describe('GET /api/admin/users', () => {
     expect(alice.primary_email).toBe('alice@example.com')
     expect(alice.tier).toBe('free')
     expect(alice.practice_minutes).toBe(45) // from the RPC, not the stale counter
+    expect(alice.practice_minutes_estimated).toBe(false) // logged-present
     expect(alice.course_ids).toEqual(['spa_for_eng'])
     expect(alice.needs_verification).toBe(true)
 
     const bob = res.body.users.find((u: any) => u.id === 'l2')
     expect(bob.tier).toBe('admin') // ssi_admin platform_role
     expect(bob.practice_minutes).toBe(0) // no RPC row, no enrollment fallback
+    expect(bob.practice_minutes_estimated).toBe(false)
+  })
+
+  it('Mode B: flags position-derived minutes as estimated (logged-missing fallback)', async () => {
+    practiceRpcResult = { data: [{ learner_id: 'l1', practice_minutes: 12, is_estimated: true }], error: null }
+    const res = makeRes()
+    await handler(makeReq({ page: '1', limit: '50' }), res)
+    const alice = res.body.users.find((u: any) => u.id === 'l1')
+    expect(alice.practice_minutes).toBe(12)
+    expect(alice.practice_minutes_estimated).toBe(true)
   })
 
   it('Mode B: falls back to the enrollment counter when the practice RPC errors', async () => {

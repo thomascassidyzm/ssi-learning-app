@@ -421,6 +421,17 @@ class RealAudioController {
 }
 ```
 
+### Standing rule: ALWAYS respect phone safe areas (iOS notch / status bar / home indicator)
+
+The app installs as a standalone PWA with `viewport-fit=cover` and `apple-mobile-web-app-status-bar-style: black-translucent` (see `index.html`) — so the webview fills the ENTIRE screen, under the status bar and notch. **Any fixed or in-flow shell chrome that sits at a screen edge MUST pad itself out of the safe area, or its controls become untappable in the notch/status-bar zone.** (Real bug, 2026-07-18: the `/schools` shell header rendered under the iOS status bar — the hamburger, Learn escape, and avatar were all in the notch.)
+
+Rules for any edge-anchored header/footer/FAB:
+- **Top chrome**: grow height by `env(safe-area-inset-top)` AND pad content down by it. With the global `box-sizing: border-box`, add the inset to `height` (`calc(54px + env(safe-area-inset-top, 0px))`) so it's extra, not eaten. For an in-flow header, don't ALSO add the inset to the following content's margin — that double-counts (the topbar owns it).
+- **Left/right**: use `max(<base-pad>, env(safe-area-inset-left/right, 0px))` on horizontal padding so landscape notches don't clip controls.
+- **Bottom chrome**: add `env(safe-area-inset-bottom)` to bottom padding/offset so it clears the home indicator.
+- `env(...)` is `0` on desktop and non-notched devices, so all of this is a no-op there — always safe to add.
+- Reference implementations that do it right: `SchoolsTopBar.vue`, `AdminTopBar.vue`, `AppEscape.vue`, `BottomNav.vue`, `TopNav.vue`, `AdminContainer.vue`.
+
 ---
 
 ## Audio Architecture: Atomic Files vs Pre-Rendered Sessions

@@ -50,6 +50,9 @@ const ALLOWED_METHODS = [
   'getLegoProgressById',
   'saveLegoProgress',
   'updateLegoProgress',
+  'startSession',
+  'checkpointSession',
+  'endSession',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
 
@@ -281,6 +284,78 @@ async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, course
   if (error) throw new Error(`updateCurrentCycle failed: ${error.message}`)
 }
 
+// Practice-hours spine (LANE A, docs/the-view/play-as-class-REPORT.md §1.2):
+// the direct browser `sessions` insert in class mode is rejected by RLS
+// (sessions_own_insert requires learner_id = current_learner_id(), which
+// resolves to the STAFF row, never the class's) — so real class practice
+// wrote zero `sessions` rows. Mirrors @ssi/core SessionStore's
+// startSession/checkpointSession/endSession, server-mediated exactly like
+// every other method in this file.
+async function startSession(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const now = new Date().toISOString()
+  const { data, error } = await svc
+    .from('sessions')
+    .insert({
+      learner_id: learnerId,
+      course_id: courseId,
+      started_at: now,
+      ended_at: null,
+      duration_seconds: 0,
+      items_practiced: 0,
+      spikes_detected: 0,
+      final_rolling_average: 0,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(`startSession failed: ${error.message}`)
+  return data
+}
+
+// checkpointSession/endSession only receive a bare sessionId from the
+// client (no learnerId), so verify the row actually belongs to the
+// resolved class learner before writing it — same extra-hop pattern as
+// updateLegoProgress above.
+async function assertSessionOwnedByClass(svc: SupabaseClient, learnerId: string, sessionId: string) {
+  const { data: row, error } = await svc
+    .from('sessions')
+    .select('learner_id')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (error) throw new Error(`session ownership check failed: ${error.message}`)
+  if (!row || (row as any).learner_id !== learnerId) {
+    throw new Error('session does not belong to this class')
+  }
+}
+
+async function checkpointSession(svc: SupabaseClient, learnerId: string, sessionId: string, itemsPracticed: number, durationSeconds: number) {
+  await assertSessionOwnedByClass(svc, learnerId, sessionId)
+  const { error } = await svc
+    .from('sessions')
+    .update({
+      items_practiced: itemsPracticed,
+      duration_seconds: durationSeconds,
+      ended_at: new Date().toISOString(),
+    })
+    .eq('id', sessionId)
+  if (error) throw new Error(`checkpointSession failed: ${error.message}`)
+}
+
+async function endSession(svc: SupabaseClient, learnerId: string, sessionId: string, itemsPracticed: number, durationSeconds: number) {
+  await assertSessionOwnedByClass(svc, learnerId, sessionId)
+  const { data, error } = await svc
+    .from('sessions')
+    .update({
+      ended_at: new Date().toISOString(),
+      duration_seconds: durationSeconds,
+      items_practiced: itemsPracticed,
+    })
+    .eq('id', sessionId)
+    .select()
+    .single()
+  if (error) throw new Error(`endSession failed: ${error.message}`)
+  return data
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -378,6 +453,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'updateLegoProgress':
         await updateLegoProgress(svc, learnerId, a[0], a[1])
+        break
+      case 'startSession':
+        result = await startSession(svc, learnerId, courseId)
+        break
+      case 'checkpointSession':
+        await checkpointSession(svc, learnerId, a[0], a[1], a[2])
+        break
+      case 'endSession':
+        result = await endSession(svc, learnerId, a[0], a[1], a[2])
         break
     }
 

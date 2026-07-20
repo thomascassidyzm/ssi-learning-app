@@ -8,9 +8,15 @@ import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { usePullToRefresh } from '@/composables/usePullToRefresh'
+import { SIGNIN_AGAIN_NOTICE_KEY } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { setSchoolsClient } from '@/composables/schools/client'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useClassesData } from '@/composables/schools/useClassesData'
+import { useTeachersData } from '@/composables/schools/useTeachersData'
+import { useStudentsData } from '@/composables/schools/useStudentsData'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -24,14 +30,13 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
 // Load the school context for the real authenticated user — the schools
 // composables scope their queries off this.
 const ctx = useSchoolContext()
-// Populate school context from the real auth session once both are ready.
 watch(
   () => auth?.isAuthenticated?.value && canAccessSchools.value,
   (ready) => {
@@ -44,12 +49,51 @@ watch(
   { immediate: true },
 )
 
+// Prefetch hoist: fire the dashboard-suite data fetches here, at container
+// (route entry) level, the moment the school context resolves — instead of
+// waiting for each destination view (DashboardView, TeachersView, ...) to
+// mount on navigation. A fresh demo-claim or login lands on /schools before
+// role/school data exists; starting these here means the data is usually
+// warm by the time the learner actually clicks into a tab. Composables are
+// module-level singletons (see useClassesData etc.) so this is just calling
+// their existing fetch functions earlier — no new caching layer.
+const { fetchSchools: prefetchSchools } = useSchoolData()
+const { fetchClasses: prefetchClasses } = useClassesData()
+const { fetchTeachers: prefetchTeachers } = useTeachersData()
+const { fetchStudents: prefetchStudents } = useStudentsData()
+watch(
+  () => ctx.currentUser.value,
+  (user) => {
+    if (!user) return
+    prefetchSchools()
+    if (ctx.isTeacher.value || ctx.isSchoolAdmin.value) prefetchClasses()
+    if (ctx.isSchoolAdmin.value) {
+      prefetchTeachers()
+      prefetchStudents()
+    } else if (ctx.isTeacher.value) {
+      prefetchStudents()
+    }
+  },
+  { immediate: true },
+)
+
 // Inline login state
 const loginEmail = ref('')
 const loginOtp = ref('')
 const loginStep = ref<'email' | 'otp'>('email')
 const loginError = ref('')
 const isLoginLoading = ref(false)
+
+// Set by useAuth.recoverDeadSession when a server-revoked session couldn't
+// be refreshed and the user was routed here — a calm "sign in again", never
+// the red error banner with empty data.
+const sessionExpiredNotice = ref(false)
+try {
+  if (sessionStorage.getItem(SIGNIN_AGAIN_NOTICE_KEY) === '1') {
+    sessionExpiredNotice.value = true
+    sessionStorage.removeItem(SIGNIN_AGAIN_NOTICE_KEY)
+  }
+} catch { /* storage blocked — no notice, sign-in still works */ }
 
 const isEmailValid = computed(() =>
   loginEmail.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.value)
@@ -62,10 +106,10 @@ const hasSchoolContext = computed(() => !!ctx.currentUser.value)
 
 // Platform-subscription gate (lever-3). FAIL-OPEN: ctx.platformActive defaults
 // to true for legacy rows / pre-migration DBs / unloaded context, so this never
-// locks anyone out before the migration lands. ssi_admins, act-as sessions, and
-// demo (no real auth) all bypass — only a real, expired school/tutor is blocked.
+// locks anyone out before the migration lands. ssi_admins and demo (no real
+// auth) all bypass — only a real, expired school/tutor is blocked.
 const platformBypass = computed(
-  () => isSsiAdmin.value || isActingAs.value || !isAuthenticated.value,
+  () => isSsiAdmin.value || !isAuthenticated.value,
 )
 const platformActive = computed(() => platformBypass.value || ctx.platformActive.value)
 
@@ -195,7 +239,7 @@ const isJoinCodeLoading = ref(false)
 async function handleSignOut() {
   try {
     if (auth?.signOut) await auth.signOut()
-    else await supabase.value?.auth?.signOut()
+    else await supabase.value?.auth?.signOut({ scope: 'local' })
   } finally {
     window.location.href = '/schools'
   }
@@ -286,6 +330,10 @@ watch(
   },
   { flush: 'post' },
 )
+
+// Pull-to-refresh: the touch half of the ONE refresh protocol, fired from the
+// same scroll root and driving the same shared refresh() as the navbar button.
+const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 </script>
 
 <template>
@@ -341,6 +389,10 @@ watch(
             <p class="form-lede">
               Enter the email address your school registered with us. We'll send a single-use code.
             </p>
+
+            <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
+              Your session has expired — please sign in again.
+            </div>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
               {{ loginError }}
@@ -494,6 +546,27 @@ watch(
 
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
+      <!-- Pull-to-refresh indicator: a circular-arrow glyph that follows the
+           finger and snaps to a spin once past threshold. Same action as the
+           navbar refresh button. -->
+      <div
+        v-if="isPulling"
+        class="pull-indicator"
+        :style="{ transform: `translate(-50%, ${Math.min(pullDistance, 90)}px)` }"
+      >
+        <svg
+          class="pull-indicator__icon"
+          :style="{ transform: `rotate(${pullDistance * 3}deg)` }"
+          width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      </div>
+
       <SchoolsTopBar />
 
       <!-- Dunning grace: Paddle marked past_due but retries are still running.
@@ -539,8 +612,29 @@ watch(
   overflow-y: auto;
 }
 
+.pull-indicator {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--schools-ink, #1c1a17);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+
 .main-content {
-  margin-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+  /* The in-flow SchoolsTopBar now owns the top safe-area inset (it grows by
+     env(safe-area-inset-top) and pads its controls clear of the status bar),
+     so this margin must NOT add the inset again — doing so double-counted it
+     and pushed the dashboard down by an extra notch height. */
+  margin-top: var(--nav-height, 80px);
   min-height: calc(100vh - var(--nav-height, 80px) - env(safe-area-inset-top, 0px));
   position: relative;
   z-index: 10;
@@ -555,7 +649,9 @@ watch(
   margin-top: 0;
   padding: 0;
   max-width: none;
-  min-height: calc(100vh - 54px);
+  /* Topbar is 54px + top inset now, so the full-bleed player area is the
+     rest of the viewport below it. */
+  min-height: calc(100vh - 54px - env(safe-area-inset-top, 0px));
 }
 
 /* Loading */
@@ -833,6 +929,11 @@ watch(
   background: rgba(219, 30, 23, 0.08);
   border: 1px solid rgba(219, 30, 23, 0.25);
   color: var(--schools-red-deep);
+}
+.form-alert--info {
+  background: rgba(43, 108, 176, 0.08);
+  border: 1px solid rgba(43, 108, 176, 0.25);
+  color: var(--schools-text-primary, #2d3748);
 }
 .form-alert--success {
   background: rgba(31, 138, 91, 0.1);

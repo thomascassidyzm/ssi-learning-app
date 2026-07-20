@@ -170,7 +170,10 @@ onMounted(() => {
               <span class="cm-label">Active 30d</span>
             </div>
             <div class="course-metric">
-              <span class="cm-value frost-mono-nums">{{ formatDuration(getStats(course.course_code).total_practice_minutes) }}</span>
+              <span
+                class="cm-value frost-mono-nums"
+                :title="getStats(course.course_code).total_practice_minutes_estimated ? 'Approximate — includes learners with no session logs, derived from course position' : undefined"
+              >{{ getStats(course.course_code).total_practice_minutes_estimated ? '~' : '' }}{{ formatDuration(getStats(course.course_code).total_practice_minutes) }}</span>
               <span class="cm-label">Practice</span>
             </div>
           </div>

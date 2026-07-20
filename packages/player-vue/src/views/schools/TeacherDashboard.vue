@@ -6,6 +6,8 @@ import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -21,8 +23,8 @@ const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
-const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
-const { canPlayAsClass, launchClassSession } = usePlayAsClass()
+const { classes: classesData, isLoading: classesLoading, error: classesError, fetchClasses, createClass, getClassReport } = useClassesData()
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -195,13 +197,22 @@ const headlineSubtitle = computed(() => {
   return `${enrichedClasses.value.length} ${enrichedClasses.value.length === 1 ? 'class' : 'classes'}${schoolBit} · ${totalStudents.value} students · ${totalHours.value}h this week`
 })
 
-onMounted(async () => {
+// The ONE refresh protocol: one loader for this classes dashboard, driving the
+// navbar button + pull-to-refresh. Initial load routes through it (spinner +
+// honest "Updated HH:MM"). No polling — the roster holds still until refreshed.
+async function loadDashboard(): Promise<void> {
   if (selectedUser.value) {
     await fetchClasses()
     fetchReportsForClasses()
     loadPractice7d()
   }
   if (isSchoolAdmin.value && !isAdminView) loadSchoolTrial()
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadDashboard, { immediate: false })
+
+onMounted(async () => {
+  await refresh()
   // Deep-linked from the dashboard's "Create class" CTA → open the form straight away.
   if (!isAdminView && router.currentRoute.value.query.create) openCreateModal()
 })
@@ -232,8 +243,12 @@ function closeCreateModal() {
 async function handleCreateClass(params: { class_name: string; course_code: string }) {
   if (isCreatingClass.value) return
   createClassError.value = null
-  const schoolId = selectedUser.value?.school_id
-  if (!schoolId) {
+  const schoolId = selectedUser.value?.school_id ?? null
+  // A school admin's account is always tied to a school — a missing id there
+  // is a genuine data problem. A teacher with no school_id is a groupless
+  // tutor (THE-MODEL §1.3/I5), not an error — their classes affiliate to no
+  // group node, exactly like the personal /teach lane always has.
+  if (!schoolId && isSchoolAdmin.value) {
     createClassError.value = 'No school found for your account. Please contact an administrator.'
     return
   }
@@ -334,7 +349,7 @@ function exportCsv() {
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
-        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
+        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }} <UpdatedStamp /></p>
       </div>
       <div class="page-head-actions">
         <button v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
@@ -344,6 +359,14 @@ function exportCsv() {
           + New class
         </button>
       </div>
+    </div>
+
+    <div v-if="classesError" class="fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ classesError }}</span>
+      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
+    </div>
+    <div v-if="playError" class="fetch-error-banner">
+      <span>{{ playError }}</span>
     </div>
 
     <!-- Summary strip -->
@@ -485,6 +508,17 @@ function exportCsv() {
       </button>
     </div>
 
+    <!-- Still loading, nothing cached yet -->
+    <div v-else-if="classesLoading" class="empty-state schools-card schools-card-pad">
+      <p class="schools-subtle">Loading your classes…</p>
+    </div>
+
+    <!-- Fetch failed -->
+    <div v-else-if="classesError" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">Couldn't load classes</h3>
+      <p class="empty-text schools-subtle">{{ classesError }}</p>
+    </div>
+
     <!-- No classes at all -->
     <div v-else class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">No classes yet</h3>
@@ -527,6 +561,20 @@ function exportCsv() {
   padding: 22px 28px 32px;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 .page-head {

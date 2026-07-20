@@ -13,13 +13,33 @@ import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+
+// THE VIEW (docs/THE-VIEW.md): a group/region leader's landing IS their top
+// node's home — the same recursive node surface the admin sees, server-scoped
+// to their subtree, mounted at /schools/org/:id. The group dashboard below
+// remains only for legacy leaders with no group (region_code-only rows) and
+// for the admin read-view mounts. Watch, not a one-shot: the container's
+// loadFromAuth resolves the context async, so group_id can land after mount.
+watch(
+  currentUser,
+  (u) => {
+    if (isAdminView) return
+    if (isGovtAdmin.value && u?.group_id) {
+      void router.replace(`/schools/org/${u.group_id}`)
+    }
+  },
+  { immediate: true },
+)
+
 const { density } = useSchoolsDensity()
-const { canPlayAsClass, launchClassSession } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 const {
   schools,
@@ -31,10 +51,12 @@ const {
   totalTeachers,
   totalClasses,
   totalPracticeHours,
+  totalStaffPracticeHours,
   fetchSchools,
   confirmSchoolName,
   selectSchoolToView,
   clearViewingSchool,
+  error: schoolsFetchError,
 } = useSchoolData()
 
 const {
@@ -42,6 +64,7 @@ const {
   isLoading: classesLoading,
   fetchClasses,
   getClassReport,
+  error: classesFetchError,
 } = useClassesData()
 
 const {
@@ -51,12 +74,16 @@ const {
   renameGroup,
 } = useGovtAdminActions()
 
+// A failed refresh must never look like "up to date" — see SchoolsView.vue
+// for the same fix on the govt-admin list screen.
+const dashboardFetchError = computed(() => schoolsFetchError.value || classesFetchError.value)
+
 // ---------- Govt admin: "name your group" first-run card ----------
 const groupNameDraft = ref('')
 const isSavingGroupName = ref(false)
 const groupNameError = ref<string | null>(null)
 const showNameGroupCard = computed(() =>
-  isGovtAdmin.value && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
+  isGovtAdmin.value && !isAdminView && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
 )
 
 async function saveGroupName() {
@@ -82,7 +109,7 @@ const schoolNameDraft = ref('')
 const isSavingSchoolName = ref(false)
 const schoolNameError = ref<string | null>(null)
 const showNameSchoolCard = computed(() =>
-  isSchoolAdmin.value && currentSchool.value?.name_confirmed === false
+  isSchoolAdmin.value && !isAdminView && currentSchool.value?.name_confirmed === false
 )
 
 watch(currentSchool, (school) => {
@@ -152,15 +179,27 @@ async function fetchReports() {
   }
 }
 
-watch(currentUser, (user) => {
+// The ONE refresh protocol: one role-aware loader for the whole dashboard,
+// driving the navbar button + pull-to-refresh. Initial load routes through it
+// (spinner + honest "Updated HH:MM"). No polling — the dashboard holds still,
+// even during a live class, until a deliberate refresh (founder ruling).
+async function loadDashboard(): Promise<void> {
+  const user = currentUser.value
   if (!user) return
-  fetchSchools()
+  await fetchSchools()
   if (isTeacher.value || isSchoolAdmin.value) {
-    fetchClasses().then(fetchReports)
+    await fetchClasses().then(fetchReports)
   }
   if (isGovtAdmin.value) {
-    fetchSchoolLinks()
+    await fetchSchoolLinks()
+    if (viewingSchool.value) await fetchClasses().then(fetchReports)
   }
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadDashboard, { immediate: false })
+
+watch(currentUser, (user) => {
+  if (user) void refresh()
 }, { immediate: true })
 
 // Govt admin drills into a school → load that school's classes (the classes
@@ -188,10 +227,14 @@ watch(viewingSchool, (school) => {
 // ---------- Display helpers ----------
 const firstName = computed(() => {
   const name = currentUser.value?.display_name || ''
-  return name.split(/\s+/).filter(Boolean)[0] || 'there'
+  // Link-auth accounts carry a machine placeholder ("link-<uuid>") until the
+  // person sets a real name — never greet anyone with it.
+  if (/^link-[0-9a-f]{8}/i.test(name)) return ''
+  return name.split(/\s+/).filter(Boolean)[0] || ''
 })
 
-const greetingName = computed(() => `Welcome back, ${firstName.value}.`)
+const greetingName = computed(() =>
+  firstName.value ? `Welcome back, ${firstName.value}.` : 'Welcome back.')
 
 const todayLabel = computed(() => {
   const parts = new Date().toLocaleDateString('en-GB', {
@@ -239,8 +282,26 @@ const greetingLines = computed(() => {
   return `${n} classes on the go, ${teacherStats.value.students} students total.`
 })
 
+// Minutes-first headline formatting (founder ruling 2026-07-18): never render a
+// rounded "0h" when real minutes exist — a trial school where only staff have
+// practised (e.g. Chepstow, Lucy's 4m) must show "4m", not "0h". Matches the
+// Own-practice column's formatOwnPractice in TeachersView.
+function formatPracticeHours(hours: number): string {
+  const minutes = Math.round((hours || 0) * 60)
+  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10}h`
+  return `${minutes}m`
+}
+
+// The honest "incl. Xm staff practice" composition line — shown only when staff
+// minutes are nonzero, so the headline is never silently inflated.
+const staffPracticeNote = computed(() => {
+  const minutes = Math.round((totalStaffPracticeHours.value || 0) * 60)
+  if (minutes <= 0) return ''
+  return `incl. ${formatPracticeHours(totalStaffPracticeHours.value)} staff practice`
+})
+
 const adminGreetingLines = computed(() => {
-  return `${totalStudents.value} students across ${totalClasses.value} classes — ${Math.round(totalPracticeHours.value)}h practised all-time.`
+  return `${totalStudents.value} students across ${totalClasses.value} classes — ${formatPracticeHours(totalPracticeHours.value)} practised all-time.`
 })
 
 const breadcrumb = computed(() => {
@@ -281,6 +342,16 @@ async function handlePlayClass(cls: ClassInfo) {
       <span class="breadcrumb-sep">·</span>
       <span class="breadcrumb-current">{{ breadcrumb.school }}</span>
     </nav>
+
+    <div v-if="dashboardFetchError" class="fetch-error-banner">
+      <span>Couldn't refresh this dashboard — showing the last data loaded. {{ dashboardFetchError }}</span>
+      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
+    </div>
+    <div v-if="playError" class="fetch-error-banner">
+      <span>{{ playError }}</span>
+    </div>
+
+    <div class="dashboard-updated-row"><UpdatedStamp /></div>
 
     <!-- ============================================================
          TEACHER
@@ -344,7 +415,7 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </div>
 
@@ -403,7 +474,7 @@ async function handlePlayClass(cls: ClassInfo) {
          ============================================================ -->
     <template v-else-if="isSchoolAdmin">
       <Greeting
-        :name="`Welcome back, ${firstName}.`"
+        :name="greetingName"
         :lines="adminGreetingLines"
         :date="todayLabel"
         :dense="density === 'compact'"
@@ -449,8 +520,9 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="stat-label">Classes</span>
         </div>
         <div class="stat-card">
-          <span class="arsenal stat-value">{{ Math.round(totalPracticeHours) }}h</span>
+          <span class="arsenal stat-value">{{ formatPracticeHours(totalPracticeHours) }}</span>
           <span class="stat-label">Hours practised</span>
+          <span v-if="staffPracticeNote" class="stat-subnote">{{ staffPracticeNote }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>
@@ -498,7 +570,7 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
                 <td v-if="canPlayAsClass" class="row-cta">
-                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
                 </td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">
@@ -548,8 +620,8 @@ async function handlePlayClass(cls: ClassInfo) {
       <Greeting
         :name="`${schoolName}`"
         :lines="isViewingSchool
-          ? `${totalClasses} classes · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`
-          : `${schools.length} schools · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`"
+          ? `${totalClasses} classes · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`
+          : `${schools.length} schools · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`"
         :date="todayLabel"
         :dense="density === 'compact'"
       >
@@ -607,12 +679,17 @@ async function handlePlayClass(cls: ClassInfo) {
         <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
       </div>
 
-      <!-- Add schools / Create school (design §1e, §5c revised) -->
-      <div v-if="!isViewingSchool" class="schools-card schools-card-pad add-schools-card">
+      <!-- Add schools / Create school (design §1e, §5c revised). In the
+           read-only View-as, this card only earns its place if there are
+           outstanding links to show — otherwise it would be an empty header. -->
+      <div v-if="!isViewingSchool && (!isAdminView || schoolLinks.length)" class="schools-card schools-card-pad add-schools-card">
         <header class="card-header-row">
           <h3 class="arsenal card-header-title">Schools in your group</h3>
         </header>
-        <div class="add-schools-row">
+        <!-- Creating a school is a write — hidden in the ssi_admin read-only
+             View-as (isAdminView). The read-only outstanding-links table below
+             stays visible so the persona's dashboard is still complete. -->
+        <div v-if="!isAdminView" class="add-schools-row">
           <input
             v-model="newSchoolLabel"
             type="text"
@@ -624,7 +701,7 @@ async function handlePlayClass(cls: ClassInfo) {
             {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
           </button>
         </div>
-        <div v-if="createdSchoolLinks" class="created-links">
+        <div v-if="!isAdminView && createdSchoolLinks" class="created-links">
           <InviteLinkField label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)" />
           <InviteLinkField label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" />
         </div>
@@ -681,7 +758,7 @@ async function handlePlayClass(cls: ClassInfo) {
               <div class="schools-subtle">Students</div>
             </div>
             <div>
-              <div class="arsenal govt-tile-stat">{{ Math.round(school.total_practice_hours) }}h</div>
+              <div class="arsenal govt-tile-stat">{{ formatPracticeHours(school.total_practice_hours) }}</div>
               <div class="schools-subtle">Hours</div>
             </div>
           </div>
@@ -759,7 +836,28 @@ async function handlePlayClass(cls: ClassInfo) {
   padding-bottom: 32px;
 }
 
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
+}
+
 /* ---------- Breadcrumb ---------- */
+.dashboard-updated-row {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 14px;
+  margin-bottom: 10px;
+}
+
 .dashboard-breadcrumb {
   display: inline-flex;
   align-items: center;
@@ -831,6 +929,7 @@ async function handlePlayClass(cls: ClassInfo) {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .stat-value {
@@ -841,6 +940,14 @@ async function handlePlayClass(cls: ClassInfo) {
 .stat-label {
   font-size: 12px;
   color: var(--schools-fg-2);
+}
+/* Composition line under the headline hours — full-width wrap below the
+   value/label row (founder ruling 2026-07-18, "incl. Xm staff practice"). */
+.stat-subnote {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--schools-fg-2);
+  opacity: 0.85;
 }
 
 /* ---------- Teacher: compact table ---------- */

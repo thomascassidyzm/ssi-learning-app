@@ -13,6 +13,9 @@ interface CourseProgress {
   enrolled_at: string
   last_practiced_at: string | null
   total_practice_minutes: number
+  /** True when total_practice_minutes is a position-derived estimate (no
+   *  session logs for this course) rather than logged time. */
+  total_practice_minutes_estimated: boolean
   seeds_completed: number
   legos_mastered: number
   legos_retired: number
@@ -73,8 +76,12 @@ async function fetchProgress() {
     const { data: minutesRows } = await client
       .rpc('admin_practice_minutes_by_course', { p_learner_ids: [currentUser.value.learner_id] })
     const minutesByCourse = new Map<string, number>()
-    ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
-      if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+    const minutesEstimatedByCourse = new Map<string, boolean>()
+    ;(minutesRows as Array<{ course_code: string; practice_minutes: number; is_estimated: boolean }> | null)?.forEach(r => {
+      if (r.course_code) {
+        minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+        minutesEstimatedByCourse.set(r.course_code, !!r.is_estimated)
+      }
     })
 
     const seedCountMap = new Map<string, number>()
@@ -95,12 +102,13 @@ async function fetchProgress() {
       enrolled_at: e.enrolled_at,
       last_practiced_at: e.last_practiced_at,
       total_practice_minutes: minutesByCourse.get(e.course_id) ?? 0,
+      total_practice_minutes_estimated: minutesEstimatedByCourse.get(e.course_id) ?? false,
       seeds_completed: seedCountMap.get(e.course_id) || 0,
       legos_mastered: legoCountMap.get(e.course_id)?.total || 0,
       legos_retired: legoCountMap.get(e.course_id)?.retired || 0,
     }))
 
-    // Last 14 days of daily activity for the streak + sparkline, from the
+    // Last 14 days of daily activity for the sparkline, from the
     // player_events-derived rollup (learner_speaking_opportunities). The legacy
     // `sessions` table is no longer the source of truth. LSO is per-(course,day),
     // so sum play_seconds across courses into one entry per day and reuse the
@@ -188,27 +196,6 @@ const initials = computed(() => {
     .join('') || '?'
 })
 
-// Streak: count consecutive days back from today that have at least one session
-const streakDays = computed(() => {
-  if (recentSessions.value.length === 0) return 0
-  const dates = new Set(recentSessions.value.map(s => s.started_at.split('T')[0]))
-  let streak = 0
-  const d = new Date()
-  for (let i = 0; i < 14; i++) {
-    const key = d.toISOString().split('T')[0]
-    if (dates.has(key)) {
-      streak++
-      d.setDate(d.getDate() - 1)
-    } else if (i === 0) {
-      // Allow today to be skipped if user hasn't played yet
-      d.setDate(d.getDate() - 1)
-    } else {
-      break
-    }
-  }
-  return streak
-})
-
 const last7Hours = computed<number[]>(() => {
   const out: number[] = []
   const today = new Date()
@@ -248,20 +235,6 @@ const lastSessionLabel = computed(() => {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
-})
-
-// Second-person ("you're", "your") is only correct for the learner's own
-// self-view. This page is admin/teacher-facing ONLY (AdminUserProgress.vue
-// is its sole mount point) — isAdminView is true whenever it's live today —
-// but the branch stays keyed on isAdminView (default false) so a genuine
-// future self-view route gets the learner-voice copy for free.
-const streakLine = computed(() => {
-  if (isAdminView) {
-    if (streakDays.value === 0) return 'No current streak.'
-    return `On a ${streakDays.value}-day streak.`
-  }
-  if (streakDays.value === 0) return "You're back — let's get this streak going."
-  return `You're on a ${streakDays.value}-day streak.`
 })
 
 const subtitle = computed(() => {
@@ -310,7 +283,7 @@ const journeyTotal = computed(() => {
         <section class="left-col">
           <div class="schools-kicker">{{ dateLine }}</div>
           <h1 class="arsenal page-title">
-            Demat, {{ greetingName }}.<br />{{ streakLine }}
+            Demat, {{ greetingName }}.
           </h1>
           <p class="page-sub schools-subtle">{{ subtitle }}</p>
 
@@ -360,10 +333,8 @@ const journeyTotal = computed(() => {
               label="LEGOs retired"
             />
             <div class="stat-row">
-              <div class="stat">
-                <div class="arsenal stat-val">{{ streakDays }}d</div>
-                <div class="schools-subtle stat-label">Streak</div>
-              </div>
+              <!-- No streak stat — streaks are banned (founder ruling
+                   2026-07-19, docs/gamification-done-right.md). -->
               <div class="stat">
                 <div class="arsenal stat-val">{{ hoursThisWeek }}h</div>
                 <div class="schools-subtle stat-label">This week</div>
@@ -403,7 +374,7 @@ const journeyTotal = computed(() => {
               <td>{{ formatCourseName(c.course_id) }}</td>
               <td>{{ c.legos_retired }}</td>
               <td>{{ c.seeds_completed }}</td>
-              <td>{{ c.total_practice_minutes }}m</td>
+              <td :title="c.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
               <td>
                 {{
                   c.last_practiced_at

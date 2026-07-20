@@ -22,6 +22,10 @@ interface GroupSummary {
   teacher_count: number
   student_count: number
   total_practice_hours: number
+  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
+  // ruling 2026-07-18). Broken out so the headline can show the honest
+  // "incl. Xm staff practice" composition instead of silently inflating.
+  staff_practice_hours?: number
 }
 
 type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
@@ -38,6 +42,9 @@ export interface School {
   class_count: number
   student_count: number
   total_practice_hours: number
+  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
+  // ruling 2026-07-18). Broken out for the "incl. Xm staff practice" line.
+  staff_practice_hours?: number
   created_at: string
   // Drives the "confirm your school's name" first-run card (invite-born
   // admins only — see schools.name_confirmed migration). Optional so
@@ -115,15 +122,25 @@ export function useSchoolData() {
   // Fetch school(s) based on user role
   async function fetchSchools(): Promise<void> {
     if (isDemoMode.value) return  // Data pre-populated by populateDemoData
-    if (!selectedUser.value) return
+    // Snapshot the context ONCE. selectedUser is a shared module-level ref
+    // (useSchoolContext.currentUser) that other flows can null mid-flight —
+    // e.g. an admin read-view (AdminSchoolsContainer) tears down ctx on
+    // unmount while navigating between drill-ins. Re-reading
+    // `selectedUser.value` across the awaits below then threw "Cannot read
+    // properties of null (reading 'school_id')" (the reported school-leader
+    // crash). Bind it here so this call operates on a consistent scope; the
+    // generation guard already discards a stale call's writes if the context
+    // changed underneath it.
+    const user = selectedUser.value
+    if (!user) return
 
     const myGeneration = ++fetchGeneration
     isLoading.value = true
     error.value = null
 
     try {
-      const userGroupId = selectedUser.value.group_id
-      const userRegionCode = selectedUser.value.region_code
+      const userGroupId = user.group_id
+      const userRegionCode = user.region_code
 
       if (isGovtAdmin.value && userGroupId) {
         // Group leader: server-mediated (/api/school/group-summary), NOT a
@@ -146,7 +163,7 @@ export function useSchoolData() {
         // endpoint 403s unless told explicitly which group is being READ.
         // A real govt_admin never sends this — the server always derives
         // their own group, never trusting a client-supplied id for that path.
-        const isAdminView = selectedUser.value._scopeSource === 'admin-view'
+        const isAdminView = user._scopeSource === 'admin-view'
         const url = isAdminView
           ? `/api/school/group-summary?groupId=${encodeURIComponent(userGroupId)}`
           : '/api/school/group-summary'
@@ -176,6 +193,7 @@ export function useSchoolData() {
             class_count: s.class_count,
             student_count: s.student_count,
             total_practice_hours: s.total_practice_hours,
+            staff_practice_hours: s.staff_practice_hours ?? 0,
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -193,6 +211,7 @@ export function useSchoolData() {
             teacher_count: groupData.teacher_count,
             student_count: groupData.student_count,
             total_practice_hours: groupData.total_practice_hours,
+            staff_practice_hours: groupData.staff_practice_hours ?? 0,
           }
         }
       } else if (isGovtAdmin.value && userRegionCode) {
@@ -228,6 +247,7 @@ export function useSchoolData() {
             class_count: s.class_count,
             student_count: s.student_count,
             total_practice_hours: s.total_practice_hours,
+            staff_practice_hours: s.staff_practice_hours ?? 0,
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -243,7 +263,7 @@ export function useSchoolData() {
         if (!regionError && regionData) {
           groupSummary.value = { ...regionData, group_name: regionData.region_name }
         }
-      } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
+      } else if ((isSchoolAdmin.value || isTeacher.value) && user.school_id) {
         // A REAL school admin/teacher viewing their OWN school: server-mediated
         // (/api/school/roster), NOT a direct `school_summary` read. That view
         // LATERAL-joins user_tags to count teachers/students, and user_tags'
@@ -259,7 +279,7 @@ export function useSchoolData() {
         // session carries the RLS ssi_admin branch — so it keeps using the
         // direct view read instead of this caller-scoped endpoint, which
         // would 403 the real admin's non-staff learner row.
-        const isSelfView = selectedUser.value._scopeSource === 'self'
+        const isSelfView = user._scopeSource === 'self'
         let data: any = null
         if (isSelfView) {
           const { data: { session } } = await client.auth.getSession()
@@ -275,7 +295,7 @@ export function useSchoolData() {
           const { data: viewData, error: fetchError } = await client
             .from('school_summary')
             .select('*')
-            .eq('school_id', selectedUser.value.school_id)
+            .eq('school_id', user.school_id)
             .single()
           if (fetchError) throw fetchError
           data = viewData
@@ -287,7 +307,7 @@ export function useSchoolData() {
           const { data: schoolData } = await client
             .from('schools')
             .select('teacher_join_code, admin_join_code')
-            .eq('id', selectedUser.value.school_id)
+            .eq('id', user.school_id)
             .single()
 
           const activeDaysMap = await fetchSchoolActiveDays([schoolId])
@@ -307,6 +327,7 @@ export function useSchoolData() {
             class_count: data.class_count,
             student_count: data.student_count,
             total_practice_hours: data.total_practice_hours,
+            staff_practice_hours: data.staff_practice_hours ?? 0,
             created_at: data.created_at,
             name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
@@ -395,6 +416,15 @@ export function useSchoolData() {
     return schools.value.reduce((sum, s) => sum + s.total_practice_hours, 0)
   })
 
+  // Staff's OWN practice component of totalPracticeHours (founder ruling
+  // 2026-07-18). Drives the honest "incl. Xm staff practice" headline line;
+  // already summed into totalPracticeHours above, never added on top.
+  const totalStaffPracticeHours = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.staff_practice_hours ?? 0
+    if (groupSummary.value) return groupSummary.value.staff_practice_hours ?? 0
+    return schools.value.reduce((sum, s) => sum + (s.staff_practice_hours ?? 0), 0)
+  })
+
   return {
     // State
     schools,
@@ -411,6 +441,7 @@ export function useSchoolData() {
     totalTeachers,
     totalClasses,
     totalPracticeHours,
+    totalStaffPracticeHours,
 
     // Actions
     fetchSchools,

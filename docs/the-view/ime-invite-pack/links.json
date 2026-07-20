@@ -1,0 +1,31 @@
+{
+  "group_leader": {
+    "code": "GVM-886",
+    "id": "89027cdc-6731-4d18-8b08-148bc673d0ee",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/group/GVM-886"
+  },
+  "subgroup_leader": {
+    "code": "YRY-768",
+    "id": "0f5498ea-5ba5-4061-a233-d98762cc2469",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/group/YRY-768"
+  },
+  "school_leader": {
+    "code": "TBV-414",
+    "id": "8e8eba6f-4af5-4a64-a1b5-06c2e4c30909",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/TBV-414"
+  },
+  "teacher": {
+    "code": "YNS-182",
+    "id": "7ca445b8-faf5-47de-99a9-32b725112490",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/YNS-182"
+  },
+  "student": {
+    "code": "DEMO-IME0-3",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/DEMO-IME0-3"
+  },
+  "learner": {
+    "code": "FXZ-847",
+    "id": "847c2c18-b5c6-45d6-acd0-c3c8027c6570",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/FXZ-847"
+  }
+}

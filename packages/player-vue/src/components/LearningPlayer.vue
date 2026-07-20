@@ -46,6 +46,7 @@ import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { useClassAwareProgressStore, type ClassContextForProgress } from '../composables/schools/useClassProgressStore'
+import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
@@ -700,6 +701,17 @@ const learnerId = computed(() => props.classContext?.class_learner_id || staffLe
 const activeProgressStore = useClassAwareProgressStore(
   progressStore as unknown as Ref<any>,
   computed(() => props.classContext as ClassContextForProgress | null),
+  supabase as unknown as Ref<any>,
+)
+
+// Practice-hours spine (LANE A, docs/the-view/play-as-class-REPORT.md §1.2):
+// same server-mediated routing as activeProgressStore above, but for the
+// `sessions` insert/checkpoint/end — RLS rejects a direct browser write
+// targeting the class's learner id, so class mode routes through
+// /api/school/class-progress instead of a transparent passthrough.
+const activeSessionStore = useClassAwareSessionStore(
+  sessionStore as unknown as Ref<any>,
+  computed(() => props.classContext as ClassContextForSession | null),
   supabase as unknown as Ref<any>,
 )
 
@@ -3212,7 +3224,7 @@ const learningSession = useLearningSession({
   // updateEnrollmentActivity through this option; in class mode they need the
   // same server-mediated routing as every other progress write.
   progressStore: activeProgressStore as unknown as Ref<ProgressStore | null>,
-  sessionStore: sessionStore,
+  sessionStore: activeSessionStore as unknown as Ref<SessionStore | null>,
   // Direct supabase ref for the speaking-opportunities RPC — bypasses
   // sessionStore which has had chronic null-at-runtime issues.
   supabase: supabase,
@@ -11567,7 +11579,27 @@ onMounted(async () => {
           // Instant-playback failed for some reason (backend 500,
           // round map not refreshed, etc.). Fall through to the
           // legacy load — that's our safety net, exactly as designed.
-          console.warn('[InstantPlayback] Cutover path failed, falling back to legacy:', err)
+          const status = (err as { status?: number } | null)?.status
+          if (status === 403) {
+            // An entitlement 403 here is NOT a benign degrade — it means a
+            // learner who SHOULD get the fast path is being dropped onto the
+            // slow legacy walk. This is exactly the silent regression class
+            // d4396730 introduced. Make it LOUD (error, not warn) and record
+            // it in player_events so it's visible in telemetry, not just the
+            // console.
+            console.error(
+              '[InstantPlayback] ENTITLEMENT 403 → degrading to slow legacy walk. ' +
+              'Signed-in paid learner denied the fast path (auth token likely not ' +
+              'reaching the server, or a genuine entitlement gap).', err,
+            )
+            logEvent('instant_playback_entitlement_fallback', {
+              courseCode: courseCode.value,
+              guest: isGuestLearner.value,
+              mode: inferEnrollmentMode,
+            })
+          } else {
+            console.warn('[InstantPlayback] Cutover path failed, falling back to legacy:', err)
+          }
         }
       }
 
@@ -12823,7 +12855,7 @@ defineExpose({
 
 <template>
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
-  <div class="learning-player-root">
+  <div class="learning-player-root" :class="{ 'has-blocking-overlay': showPaywall || (offlineLeaseLocked && !isOnline) }">
 
   <!-- Offline download progress is shown as a ring on the mode button + the
        Offline row in ModeTray (where offline was switched on), not a banner. -->
@@ -14006,18 +14038,24 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
-  /* Without an explicit z-index here, this element's own stacking level is
-     'auto' among its siblings in PlayerContainer.vue — so a sibling like
-     PlayerRestingState.vue's `.resting-state` (z-index: 50) outranks this
-     ENTIRE subtree regardless of how high a z-index is set on something
-     nested inside it (e.g. .paywall-overlay's z-index: 3000 only orders it
-     against other stacking contexts *inside* .learning-player-root, never
-     against outside siblings). That silently let resting-state's pointer-
-     events:auto content paint over — and swallow every tap on — the paywall
-     card. Must stay above PlayerRestingState's 50; well below the nav/
-     course-selector/settings chrome (2000-3000) that intentionally floats
-     above the whole player.
-  */
+  /* NO unconditional z-index here. This full-viewport div is a sibling of
+     PlayerRestingState.vue's `.resting-state` (z-index: 50) in
+     PlayerContainer.vue; with z-index 'auto' the resting state paints and
+     hit-tests ABOVE this entire subtree, which is what makes its tappable
+     course name (the course chooser trigger), Save Progress, etc. reachable
+     while paused. A permanent z-index: 100 on this root put a transparent
+     tap-shield over the whole resting UI and killed the course chooser for
+     every user (prod incident 2026-07-18). */
+}
+
+/* While a blocking overlay (paywall / offline-lease lock) is showing, the
+   root must outrank .resting-state's 50 — the overlay's own z-index: 3000
+   only orders it INSIDE this stacking context, never against outside
+   siblings, so without this the resting state silently ate every tap on the
+   paywall card (the original fd382b27 bug). Elevation is scoped to exactly
+   the moments a blocking overlay is up; stays well below the nav/
+   course-selector/settings chrome (2000-3000). */
+.learning-player-root.has-blocking-overlay {
   z-index: 100;
 }
 

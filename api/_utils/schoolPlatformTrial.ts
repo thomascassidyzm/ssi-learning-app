@@ -12,9 +12,12 @@
  */
 
 // A school pays £15/teacher/mo for the dashboard; the trial is time-limited
-// even on free courses.
-const PLATFORM_TRIAL_PREMIUM_DAYS = 30 // premium-track school + every tutor
-const PLATFORM_TRIAL_FREE_DAYS = 365 // free-track school (still pays for the platform)
+// even on free courses. Exported: THE-MODEL.md §1.11 generalizes this same
+// 30d-premium/365d-free derivation to any node's binary trial entitlement
+// (api/entitlement/grant.ts) — one constant pair, no drift between the two
+// trial clocks.
+export const PLATFORM_TRIAL_PREMIUM_DAYS = 30 // premium-track school + every tutor
+export const PLATFORM_TRIAL_FREE_DAYS = 365 // free-track school (still pays for the platform)
 
 export type PlatformTrial = { track: string; kind: string; expires_at: string; days: number }
 
@@ -107,10 +110,13 @@ export async function provisionSchoolPlatformTrial(
   email: string,
   schoolId: string,
   courseCode: string | null,
-  isFree: boolean,
+  // Heritage course (Welsh + free/minority languages) → 1-year window; a
+  // commercial (Big-10) course → 1-month. Callers derive this from
+  // !isCommercialCourse (@ssi/core) — the single trial-length source of truth.
+  isHeritage: boolean,
 ): Promise<{ trial: PlatformTrial | null; burned: boolean; denied: boolean }> {
-  const kind = isFree ? 'free_1yr' : 'premium_1mo'
-  const days = isFree ? PLATFORM_TRIAL_FREE_DAYS : PLATFORM_TRIAL_PREMIUM_DAYS
+  const kind = isHeritage ? 'free_1yr' : 'premium_1mo'
+  const days = isHeritage ? PLATFORM_TRIAL_FREE_DAYS : PLATFORM_TRIAL_PREMIUM_DAYS
   const expiresAt = isoIn(days)
 
   const burn = await burnTrial(supabase, email, 'school', schoolId)

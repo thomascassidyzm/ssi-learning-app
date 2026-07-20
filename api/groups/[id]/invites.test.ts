@@ -1,0 +1,397 @@
+/**
+ * Tests for POST /api/groups/:id/invites — THE-MODEL.md §6 groundwork:
+ * invites mint people (role × group × limits), never structure. The group
+ * is fixed by the path, never a client-supplied grants_group_id.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
+
+let verifyAdminResult: any
+let verifyAuthTokenResult: any
+vi.mock('../../_utils/auth', () => ({
+  verifyAdmin: vi.fn(async () => verifyAdminResult),
+  verifyAuthToken: vi.fn(async () => verifyAuthTokenResult),
+}))
+
+let provisionPersonaResult: any
+let provisionPersonaArg: any
+vi.mock('../../_utils/provisionPersona', () => ({
+  provisionPersona: vi.fn(async (_svc: any, spec: any) => {
+    provisionPersonaArg = spec
+    return provisionPersonaResult
+  }),
+}))
+
+let govtAdminRow: any
+// Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
+// sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
+let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+let existingCodes: Set<string> = new Set()
+let insertedRows: any[] = []
+let insertError: any = null
+// GET fixtures: the school-node bridge (schools.node_group_id -> id) and the
+// invite_codes list the GET reads back.
+let schoolsRows: { id: string; node_group_id: string; school_name?: string; group_id?: string | null }[] = []
+let codeRows: any[] = []
+// Ledger fixtures: subtree groups (resolveSubtree's list read), classes, and
+// a record of every .update() the handler issues.
+let subtreeGroupRows: { id: string; name: string }[] = []
+let classesRows: { id: string; class_name: string; school_id: string }[] = []
+let updatedRows: [string, any, [string, unknown][]][] = []
+
+function makeChainable(table: string) {
+  let eqVal: unknown
+  const eqFilters: [string, unknown][] = []
+  let orExpr: string | null = null
+  let updatePatch: any = null
+  const builder: any = {
+    select: () => builder,
+    eq: (col: string, val: unknown) => { eqVal = val; eqFilters.push([col, val]); return builder },
+    in: () => builder,
+    is: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    or: (expr: string) => { orExpr = expr; return builder },
+    update: (patch: any) => { updatePatch = patch; return builder },
+    maybeSingle: () => {
+      if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
+      if (table === 'groups') {
+        const path = groupPaths[eqVal as string]
+        return Promise.resolve({ data: path ? { id: eqVal, path } : null, error: null })
+      }
+      if (table === 'schools') {
+        // ownSchoolIdForNode: schools.select('id').eq('node_group_id', nodeId)
+        const nodeId = eqFilters.find((f) => f[0] === 'node_group_id')?.[1]
+        const s = schoolsRows.find((r) => r.node_group_id === nodeId)
+        return Promise.resolve({ data: s ? { id: s.id } : null, error: null })
+      }
+      if (table === 'invite_codes') {
+        const byCode = eqFilters.find((f) => f[0] === 'code')?.[1]
+        const full = codeRows.find((r) => r.code === byCode)
+        if (full) return Promise.resolve({ data: full, error: null })
+        return Promise.resolve({ data: existingCodes.has(eqVal as string) ? { id: 'dup' } : null, error: null })
+      }
+      return Promise.resolve({ data: null, error: null })
+    },
+    insert: (row: unknown) => {
+      insertedRows.push(row)
+      return builder
+    },
+    single: () => {
+      if (insertError) return Promise.resolve({ data: null, error: insertError })
+      const row = insertedRows[insertedRows.length - 1] as any
+      return Promise.resolve({ data: { id: 'invite-1', code: row.code }, error: null })
+    },
+    // Thenable — list reads and update() are awaited directly off the builder.
+    then: (resolve: (r: { data: any; error: any }) => void) => {
+      if (updatePatch !== null) {
+        updatedRows.push([table, updatePatch, eqFilters.slice()])
+        return resolve({ data: null, error: null })
+      }
+      if (table === 'groups') return resolve({ data: subtreeGroupRows, error: null })
+      if (table === 'schools') return resolve({ data: schoolsRows, error: null })
+      if (table === 'classes') return resolve({ data: classesRows, error: null })
+      if (table === 'learners') return resolve({ data: [], error: null })
+      if (table !== 'invite_codes') return resolve({ data: [], error: null })
+      let rows = codeRows.slice()
+      for (const [col, val] of eqFilters) rows = rows.filter((r) => r[col] === val)
+      if (orExpr) {
+        // Split on top-level commas only — `col.in.(a,b)` carries commas
+        // inside its parens.
+        const parts: string[] = []
+        let depth = 0, cur = ''
+        for (const ch of orExpr) {
+          if (ch === '(') depth++
+          if (ch === ')') depth--
+          if (ch === ',' && depth === 0) { parts.push(cur); cur = '' } else { cur += ch }
+        }
+        if (cur) parts.push(cur)
+        const clauses = parts.map((c) => {
+          const p = c.split('.')
+          // supports col.eq.val and col.in.(a,b,c)
+          if (p[1] === 'in') {
+            const vals = c.slice(c.indexOf('(') + 1, c.lastIndexOf(')')).split(',')
+            return [p[0], vals] as [string, string[]]
+          }
+          return [p[0], p[2]] as [string, string]
+        })
+        rows = rows.filter((r) => clauses.some(([col, val]) =>
+          Array.isArray(val) ? val.includes(String(r[col])) : String(r[col]) === val
+        ))
+      }
+      return resolve({ data: rows, error: null })
+    },
+  }
+  return builder
+}
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({ from: (table: string) => makeChainable(table) }),
+}))
+
+// Dynamic import, AFTER the process.env writes above — static imports are
+// linked (and this module's top-level env reads run) before this test
+// file's own top-level statements execute, so a static import would always
+// see empty env vars (same pattern as api/admin/invites.test.ts).
+let handler: typeof import('./invites').default
+
+function makeReq(body: unknown, groupId = 'group-1'): VercelRequest {
+  return { method: 'POST', body, query: { id: groupId }, headers: { authorization: 'Bearer tok' } } as any
+}
+
+function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
+  const res: any = {}
+  res.status = vi.fn((code: number) => { res.statusCode = code; return res })
+  res.json = vi.fn((body: any) => { res.body = body; return res })
+  return res
+}
+
+beforeEach(async () => {
+  insertedRows = []
+  existingCodes = new Set()
+  insertError = null
+  govtAdminRow = null
+  schoolsRows = []
+  codeRows = []
+  subtreeGroupRows = []
+  classesRows = []
+  updatedRows = []
+  provisionPersonaArg = undefined
+  provisionPersonaResult = { authUserId: 'persona-9', email: 'persona-9@invite.saysomethingin.app', learnerId: 'learner-9' }
+  verifyAdminResult = { error: 'Not admin', status: 403 }
+  verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
+  handler = (await import('./invites')).default
+})
+
+function makeGetReq(groupId = 'group-1'): VercelRequest {
+  return { method: 'GET', query: { id: groupId }, headers: { authorization: 'Bearer tok' } } as any
+}
+
+describe('POST /api/groups/:id/invites', () => {
+  it('rejects an invalid role', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'principal' }), res)
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('ssi_admin may mint a leader invite for any group, grants_group_id fixed by the path', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'leader', limits: { max_uses: 5 } }, 'group-3'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0]).toMatchObject({
+      code_type: 'govt_admin',
+      grants_group_id: 'group-3',
+      max_uses: 5,
+      created_by: 'admin-1',
+    })
+    expect(insertedRows[0].grants_school_id).toBeUndefined()
+    expect(insertedRows[0].grants_class_id).toBeUndefined()
+  })
+
+  it('a govt_admin governing the exact node may mint an invite for it', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher' }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0]).toMatchObject({ code_type: 'teacher', grants_group_id: 'group-1' })
+  })
+
+  it('a govt_admin governing an ANCESTOR node may mint an invite for a descendant', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'student' }, 'group-2'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0]).toMatchObject({ code_type: 'student', grants_group_id: 'group-2' })
+  })
+
+  it('rejects a govt_admin who does not govern this node or an ancestor of it', async () => {
+    govtAdminRow = { group_id: 'group-3' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher' }, 'group-1'), res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.length).toBe(0)
+  })
+
+  it('rejects an unauthenticated caller', async () => {
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher' }), res)
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('ignores a client-supplied grants_group_id — the path id always wins', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'leader', grants_group_id: 'other-group' } as any, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0].grants_group_id).toBe('group-1')
+  })
+
+  it('school_leader at a school node mints a school_admin_join code keyed by grants_school_id', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    schoolsRows = [{ id: 'school-9', node_group_id: 'group-1' }]
+    const res = makeRes()
+    await handler(makeReq({ role: 'school_leader' }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0]).toMatchObject({ code_type: 'school_admin_join', grants_school_id: 'school-9' })
+    expect(insertedRows[0].grants_group_id).toBeUndefined()
+  })
+
+  it('rejects school_leader at a plain group node (no attached school)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'school_leader' }, 'group-1'), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+
+  // --- Personal links (species 1, founder-ruled 2026-07-20) ---
+  it('personal mint provisions the account first and binds it into the code metadata — never client-supplied', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'leader', personal: { name: 'IME Programme Leader', personal_auth_user_id: 'attacker' } as any }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(provisionPersonaArg).toMatchObject({ role: 'leader', name: 'IME Programme Leader', groupId: 'group-1', createdBy: 'admin-1' })
+    expect(insertedRows[0].metadata).toEqual({ personal_auth_user_id: 'persona-9', personal_name: 'IME Programme Leader' })
+    expect(res.body.account).toMatchObject({ auth_user_id: 'persona-9', name: 'IME Programme Leader' })
+  })
+
+  it('personal mint requires a name', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: {} }, 'group-1'), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+
+  it('personal mint mints NO code when provisioning fails', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    provisionPersonaResult = { authUserId: '', email: '', learnerId: null, error: 'already been registered' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'X', email: 'x@y.example' } }, 'group-1'), res)
+    expect(res.statusCode).toBe(409)
+    expect(insertedRows.length).toBe(0)
+  })
+})
+
+describe('GET /api/groups/:id/invites — school-node bridge (THE MODEL I2)', () => {
+  it('surfaces a school node\'s codes that reference it by grants_school_id, not the node id', async () => {
+    // The founder-reported bug: a school node (group-1) whose only demo codes
+    // were minted against the SCHOOL row (school-1) before the node existed.
+    verifyAdminResult = { userId: 'admin-1' }
+    schoolsRows = [{ id: 'school-1', node_group_id: 'group-1' }]
+    codeRows = [
+      { code: 'DEMO-T', code_type: 'teacher', grants_school_id: 'school-1', grants_group_id: null, is_active: true, max_uses: null, use_count: 0, expires_at: null, created_at: 't' },
+      { code: 'ELSEWHERE', code_type: 'teacher', grants_school_id: 'other-school', grants_group_id: null, is_active: true, max_uses: null, use_count: 0, expires_at: null, created_at: 't' },
+    ]
+    const res = makeRes()
+    await handler(makeGetReq('group-1'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.links.map((l: any) => l.code)).toEqual(['DEMO-T'])
+    expect(res.body.links[0]).toMatchObject({ role: 'teacher' })
+  })
+
+  it('a plain group node (no attached school) matches only grants_group_id', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    schoolsRows = [] // group-1 has no school row -> ownSchoolId null
+    codeRows = [
+      { code: 'LEADER', code_type: 'govt_admin', grants_group_id: 'group-1', grants_school_id: null, is_active: true, max_uses: null, use_count: 0, expires_at: null, created_at: 't' },
+      { code: 'STRAY', code_type: 'teacher', grants_school_id: 'some-school', grants_group_id: null, is_active: true, max_uses: null, use_count: 0, expires_at: null, created_at: 't' },
+    ]
+    const res = makeRes()
+    await handler(makeGetReq('group-1'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.links.map((l: any) => l.code)).toEqual(['LEADER'])
+    expect(res.body.links[0]).toMatchObject({ role: 'leader' })
+  })
+})
+
+describe('GET ?scope=subtree — the link ledger (founder scope-add 2026-07-20)', () => {
+  function ledgerReq(groupId = 'group-1'): VercelRequest {
+    return { method: 'GET', query: { id: groupId, scope: 'subtree' }, headers: { authorization: 'Bearer tok' } } as any
+  }
+
+  beforeEach(() => {
+    verifyAdminResult = { userId: 'admin-1' }
+    subtreeGroupRows = [
+      { id: 'group-1', name: 'Root Programme' },
+      { id: 'group-2', name: 'Region A' },
+    ]
+    schoolsRows = [{ id: 'school-1', node_group_id: 'group-2', school_name: 'School One', group_id: 'group-2' }]
+    classesRows = [{ id: 'class-1', class_name: 'Grade 6A', school_id: 'school-1' }]
+  })
+
+  it('lists links from the WHOLE subtree — node, descendant group, school, class — with status incl. revoked', async () => {
+    codeRows = [
+      { code: 'ROOT-L', code_type: 'govt_admin', grants_group_id: 'group-1', is_active: true, max_uses: null, use_count: 2, expires_at: null, created_at: 't', created_by: 'u1', metadata: null },
+      { code: 'SUB-T', code_type: 'teacher', grants_group_id: 'group-2', is_active: true, max_uses: null, use_count: 0, expires_at: null, created_at: 't', created_by: 'u1', metadata: { personal_auth_user_id: 'p1', personal_name: 'IME Teacher' } },
+      { code: 'SCH-A', code_type: 'school_admin_join', grants_school_id: 'school-1', is_active: false, max_uses: null, use_count: 1, expires_at: null, created_at: 't', created_by: 'u1', metadata: null },
+      { code: 'CLS-S', code_type: 'student', grants_class_id: 'class-1', is_active: true, max_uses: 5, use_count: 5, expires_at: null, created_at: 't', created_by: 'u1', metadata: null },
+    ]
+    const res = makeRes()
+    await handler(ledgerReq(), res)
+    expect(res.statusCode).toBe(200)
+    const byCode = Object.fromEntries(res.body.links.map((l: any) => [l.code, l]))
+    expect(byCode['ROOT-L']).toMatchObject({ role: 'leader', species: 'shareable', status: 'active', where: { name: 'Root Programme', kind: 'group' } })
+    expect(byCode['SUB-T']).toMatchObject({ role: 'teacher', species: 'personal', personalName: 'IME Teacher', where: { name: 'Region A' } })
+    expect(byCode['SCH-A']).toMatchObject({ role: 'school_leader', status: 'revoked', where: { name: 'School One', kind: 'school' } })
+    expect(byCode['CLS-S']).toMatchObject({ role: 'student', status: 'exhausted', uses: { count: 5, max: 5 }, where: { kind: 'class' } })
+    expect(byCode['CLS-S'].where.name).toContain('Grade 6A')
+  })
+})
+
+describe('PATCH /api/groups/:id/invites — ledger verbs', () => {
+  function patchReq(body: unknown, groupId = 'group-1'): VercelRequest {
+    return { method: 'PATCH', body, query: { id: groupId }, headers: { authorization: 'Bearer tok' } } as any
+  }
+
+  beforeEach(() => {
+    verifyAdminResult = { userId: 'admin-1' }
+    subtreeGroupRows = [{ id: 'group-1', name: 'Root' }, { id: 'group-2', name: 'Region A' }]
+    schoolsRows = []
+    classesRows = []
+  })
+
+  it('revoke flips is_active off for a subtree code', async () => {
+    codeRows = [{ id: 'ic-1', code: 'SUB-T', code_type: 'teacher', grants_group_id: 'group-2', is_active: true, metadata: null, max_uses: null, expires_at: null }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'SUB-T', action: 'revoke' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(updatedRows.some(([t, patch]) => t === 'invite_codes' && patch.is_active === false)).toBe(true)
+  })
+
+  it('refuses to touch a code whose grant target is OUTSIDE the subtree', async () => {
+    codeRows = [{ id: 'ic-2', code: 'AWAY', code_type: 'teacher', grants_group_id: 'group-9', is_active: true, metadata: null, max_uses: null, expires_at: null }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'AWAY', action: 'revoke' }), res)
+    expect(res.statusCode).toBe(404)
+    expect(updatedRows.length).toBe(0)
+  })
+
+  it('rotate mints a NEW code with the SAME personal binding and revokes the old one', async () => {
+    codeRows = [{ id: 'ic-3', code: 'PERS-1', code_type: 'teacher', grants_group_id: 'group-2', grants_school_id: null, grants_class_id: null, is_active: true, max_uses: null, expires_at: null, metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher' } }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'PERS-1', action: 'rotate' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.url).toContain('/redeem/')
+    expect(insertedRows[0]).toMatchObject({
+      code_type: 'teacher',
+      grants_group_id: 'group-2',
+      metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher' },
+    })
+    expect(updatedRows.some(([t, patch]) => t === 'invite_codes' && patch.is_active === false)).toBe(true)
+  })
+
+  it('rotate refuses a shareable (non-personal) link', async () => {
+    codeRows = [{ id: 'ic-4', code: 'OPEN-1', code_type: 'teacher', grants_group_id: 'group-2', is_active: true, metadata: null, max_uses: null, expires_at: null }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'OPEN-1', action: 'rotate' }), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+})

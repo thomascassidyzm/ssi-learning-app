@@ -275,3 +275,251 @@ not a visible-options choice among things the design already listed).
 **Decided by:** agent (Stage 2 execution per the design + Tom's ruling; the pagehide-race fix and
 the null-timestamp scoping correction are judgment calls made against the ruling's stated intent,
 flagged here rather than silently shipped)
+
+## 2026-07-17 — Organisation = root of the existing groups tree, no new table
+**Move:** Built the founder "Organisations + full group hierarchy" model (ORGANISATION →
+arbitrary-depth GROUP containers → leaf ENTITY = school) entirely on the existing `groups`
+table (`parent_id`/`path`, already arbitrary-depth via `trg_compute_group_path`) plus the
+existing `groups.is_demo`/`is_test` flags — no new `organisations` table, and `demo_orgs`
+(20260716e) is left untouched as the orthogonal expiry-tracking ledger for the sales-demo tool,
+not folded in. Added one migration (groups-inherit-from-parent-group trigger, mirroring the
+existing schools-inherit-from-group trigger) so `is_demo`/`is_test` cascade correctly at any
+depth, plus `is_demo` passthrough on `POST /api/groups` and a recursive `GroupTreeNode.vue`
+admin tree UI (replacing the old hardcoded 3-level template) wired to `ConfirmDeleteModal.vue`.
+**Better:** Nick (and any admin) gets the described flow — create an org, build nested
+groups/entities of any depth, get shareable join links — on infrastructure that was already
+95% built by this week's region-tier and self-serve-delete work; the group-delete endpoint
+(`api/groups/[id].ts`) had no UI to hang off (explicitly noted in `73cbca76`'s commit message)
+and now has one.
+**Simpler:** zero new tables for the org concept itself — an "organisation" is just `parent_id
+IS NULL` on a row in a tree that already exists, `is_demo` is a column that already exists and
+already cascades to schools. The leaf-only-join invariant ("learners join ONLY an end entity")
+needed no new enforcement code: `api/code/redeem.ts`'s `student` branch only ever writes
+`CLASS:` tags from `grants_class_id` — there is no code path today that creates a group- or
+school-level learner membership, so this was already true by construction, not something this
+feature had to build.
+**Cheaper (total):** one small trigger migration (mirrors an existing one exactly, same
+maintenance shape) + one recursive Vue component reusing existing CSS tokens and the existing
+`ConfirmDeleteModal`; no new DB surface to keep in sync, no new RLS policies (the six org tables
+stay in their documented RLS-off holding pattern per CLAUDE.md's gated TODO — this feature adds
+rows to that pattern, it doesn't change the pattern).
+**Searched & rejected:**
+- Evolve `demo_orgs` into the general organisation model (the brief's second option) —
+  rejected: `demo_orgs` is a narrow, purpose-built expiry ledger (`expires_at`/`status`/a
+  creation-time metadata snapshot) for one sales-tool flow; a real paying organisation has no
+  expiry and needs none of that shape. Its `group_id`/`school_id` FKs already point INTO the
+  groups tree, so a demo org today already *is* one instance of the general model — nothing to
+  fold, they already compose correctly as two independent, orthogonal concerns (the tree vs. an
+  ephemeral tracking row over one tree instance).
+- A dedicated `organisations` table as the root, with `groups` re-pointed to hang off it —
+  rejected: `groups.parent_id IS NULL` already means exactly "top of a tree"; a second table
+  for the same fact is a duplicate source of truth for zero new capability, and every existing
+  subtree-scoping/RLS-adjacent code (`schoolScope.ts`, `isStrictDescendantGroup`) already treats
+  the groups tree as the one hierarchy — a parallel root concept would need its own scoping code
+  to stay in sync with it.
+**Search width:** visible-options (both alternatives were named in the brief itself).
+**Decided by:** agent (>90% confidence per CLAUDE.md's BSC-autonomy rule — schema/DB decision,
+inside the "code and database changes, decide and go" bucket, not an outward-facing action).
+
+## 2026-07-18 — login lands in your own player; view-as dies with the session
+**Move:** Removed the '/' cached-role staff redirect (beforeEnter + the role-driven corrective
+watch) from `router/index.ts`; the only thing that now moves a freshly-resolved session off '/'
+is the new opt-in "Start me at" preference (`learners.preferences.start_surface`, surfaced in
+SettingsScreen's Dashboards section, options limited to surfaces the current role can access,
+default Player), read via a new `useStartSurface` module singleton. `useAuth.signOut` now tears
+down all session-scoped surface/view-as state: `useSchoolContext` (admin-view/persona scope),
+the start-surface singleton, and the persisted `ssi-active-class` / `ssi-demo-active-class` /
+`ssi-last-dashboard` keys. Course-progress persistence untouched.
+**Better:** kills the trap class where a stale localStorage role/class context from a prior
+session (tutor test account, view-as detour) hijacked a fresh login onto /schools — founder
+ruling: remember progress, not position. A stale/demoted preference degrades silently to the
+player, never a bounce-wall.
+**Simpler:** deletes a role-inference redirect (two code paths: fast cached + slow resolved) and
+replaces it with one explicit, DB-persisted setting read by one watch; landing behaviour is now
+identical for every role.
+**Cheaper (total):** one optional JSONB key in an existing preferences column — no new table, no
+new endpoint, no localStorage mirror to invalidate.
+**Searched & rejected:**
+- Keep the staff→/schools redirect but validate the cache against the DB before redirecting —
+  rejected: still a position-memory, still needs the async fetch anyway, and re-creates the
+  race the resolved-session gate exists to kill.
+- Persist "last surface" server-side and restore it — rejected: exactly the behaviour the
+  ruling forbids (position memory), just moved somewhere harder to clear.
+- localStorage-cached preference for a synchronous fast-path redirect — rejected: reintroduces
+  the stale-cache-hijack this change removes; a one-tick post-resolution redirect is imperceptible.
+**Search width:** visible-options
+**Decided by:** agent (ruling from Tom)
+
+## 2026-07-18 — operator-capture guard: self-service flows never mutate an ssi_admin's roles
+**Move:** New `api/_utils/operatorGuard.ts`; invite redemption (`api/code/redeem.ts`, before the
+use-claim) and onboarding provisioning (`api/onboarding/provision.ts`, before any write) refuse a
+caller whose learner row carries `platform_role='ssi_admin'`, with one shared message pointing at
+test accounts. Schools shells gain a "My player" menu item (SchoolsTopBar + TopNav) — leaving the
+dashboard is navigation, never identity sign-out. DB remediation for the live capture applied
+directly (audited in role_change_audit, source='admin-cleanup').
+**Better:** closes the incident class where the founder's real admin account was captured as a
+teacher/tutor by testing real signup/invite flows while signed in; also stops a test burning a
+capped code use or a one-per-email trial burn.
+**Simpler:** one 15-line util + two early returns; no new state, no client changes to the flows.
+**Cheaper (total):** one extra indexed select per role-granting redemption/provision call — paths
+that already do several round-trips.
+**Searched & rejected:**
+- Confirmation dialog ("really take this role onto your admin account?") — rejected: the operator
+  is testing the REAL flow; a dialog either blocks the test anyway or gets clicked through and
+  captures again. Refusal + test accounts is the honest shape.
+- Client-side guard in RedeemCode.vue/Onboarding.vue — rejected: the mutation is server-side;
+  a client guard is bypassable and misses future callers.
+- Auto-revert after redemption — rejected: leaves a mutation window and cleanup complexity for
+  zero benefit over refusing up front.
+**Search width:** visible-options
+**Decided by:** agent (incident + ruling from Tom: testing must never mutate operator roles)
+
+## 2026-07-19 — THE LENS: one node-scoped rate endpoint, not a second engine
+**Move:** `GET /api/groups/:id/rate-compare` — resolves group/school/class ids exactly like the
+node-home endpoint, returns picker options (courses below the node; the ancestor chain nearest-
+first) AND the resolved comparison in one round trip. `NodeRateEngine.vue` is the ONE engine
+component both admin node pages (mounted at the old analytics URLs; `AnalyticsView.vue` deleted)
+and the teacher surface consume; `plainWords` prop carries design law §1.12. Additive
+`p_include_demo` on the sessions RPC so a demo node reads its own sessions (canary-applied).
+**Better:** the compare-to chain IS the org tree (parent avg default) — same story as the map
+rail; teacher/leader/admin read the same numbers via the same math (api/_utils/rateCompare.ts);
+the engine tells the same story as the node-home stats row on demo orgs.
+**Simpler:** deletes the old-school AnalyticsView and the teacher view's demo-fixture fork;
+reuses home.ts id-resolution, resolveVisibleScope authz, and the existing RPC — no new tables,
+no new RPC, one new endpoint + one component.
+**Cheaper (total):** one round trip per view; no polling (refresh protocol); fewer surfaces to
+maintain; K_FLOOR privacy held for non-admin callers (admin floor 1 — they already hold row
+access, so the floor would blank the tool while protecting nothing).
+**Searched & rejected:**
+- Extending `/api/school/rate-compare` with node ids — rejected: its entity/compare vocabulary is
+  the fixed 3-level ladder; the node model needs the arbitrary-depth ancestor chain, and mixing
+  both grammars in one endpoint doubles every authz branch.
+- Client-side compare-chain derivation from the home payload — rejected: teacher surface has no
+  home payload, and cohort resolution must stay server-side (sovereignty).
+- Sibling-group cohort members above class level — rejected: structurally too sparse to ever
+  clear K_FLOOR; schools are the peers-like-me unit that yields a meaningful, k-clearable spread.
+**Search width:** visible-options
+**Decided by:** agent (founder frame: "insight engine at every node", compare chain = map rail)
+
+## 2026-07-19 — teacher/admin/leader invite links go STRAIGHT IN again (regression fix)
+**Move:** Restored the founder's "magic link with a built-in token" for possession-eligible invite
+types (teacher / school_admin / school_admin_join / govt_admin-leader / student). Clicking a
+`/redeem/CODE` (or `/group/CODE`) link now auto-establishes a session from possession of the code
+alone — NO email/name form, NO OTP — and lands on the role dashboard. Implemented as a `linkAuth`
+mode on `api/auth/possession-redeem.ts`: a brand-new user has no email at click-time, so the
+account is minted against a unique placeholder address (`link-<uuid>@invite.saysomethingin.app`,
+never emailed) and flagged `needs_verification` so first-run prompts for a real email (existing
+`SettingsScreen` + `api/email/verify.ts` machinery). `RedeemCode.vue` auto-runs it on mount; the
+email form / OTP remains the fallback for anyone without a link and whenever the mint can't proceed.
+**Diagnosis:** teacher/admin invite links were NEVER minted as Supabase `generateLink` magic links
+in git history (pickaxed all of `api/`); the "straight in" experience drifted off through
+`cecee5eb` (inline auth rewrite) → `afb2ea6e` (possession email+name form, never formless) → the
+the-model unified-invites redesign (`7826e513`/`386a3450`, invites became anonymous `/redeem`
+codes). So the invite code in the URL is the only token the link carried, and the recipient still
+had to authenticate — the "completely different type of magic link" the founder flagged.
+**Better:** clicking a teacher/admin/leader link authenticates you straight onto your dashboard —
+the experience the founder remembers, zero ceremony.
+**Simpler:** reuses the proven possession `generateLink→verifyOtp` mint and the existing
+needs-verification/add-real-email loop; no invite-creation change, no new table, one endpoint mode
++ the RedeemCode entry flow. `onboarded_via` stays `'possession'` for both paths so the whole
+downstream apparatus is untouched.
+**Cheaper (total):** no new infra; links stay revocable (unified invite list), single-use/expiring,
+and redemption still records through `invite_codes`.
+**Known trade-off (flagged to founder, dev-only until tasted):** formless straight-in mints against
+a placeholder email, so on a MULTI-use shared link the same person clicking on two devices makes two
+accounts. Clean resolution = per-person single-use straight-in links; deferred to founder's taste
+call on the dev artifact.
+**Searched & rejected:**
+- Email-bound magic link minted at invite-creation (true token-in-URL, real email, dedupe-safe) —
+  rejected for now: requires the inviter to supply the recipient's email at mint time, changing the
+  anonymous-shareable-link invite model the task spec said to keep ("links remain revocable…records
+  through invite_codes"). It's the cleaner long-term shape if the founder wants per-person links.
+- Supabase anonymous sign-in (no placeholder email, email=null) — rejected: hard dependency on a
+  project-level auth setting that can't be verified/toggled from here; the placeholder path reuses a
+  mint already proven in production.
+**Search width:** visible-options
+**Decided by:** agent (task spec: "token embedded, session established on click… email-OTP stays as
+the fallback for people without a link"); placeholder-vs-per-person shape held for founder taste-pass.
+
+## 2026-07-19 — straight-in is the DESIGN: the link is the credential (founder sharpening, elevated to standing principle)
+**Move:** Founder sharpened the fix above into a standing principle, now written as `THE-MODEL.md`
+§1.13 + invariant **I12**. Verbatim: *"given that the email is not even verified before they get
+access, [the OTP step] is just an unnecessary friction point."* THE LINK IS THE CREDENTIAL —
+possession of the invite/access link already grants the account, so an OTP/email screen after the
+click re-proves possession of what the click just proved: **ceremony, not security**. Straight-in on
+click is the DESIGN, not a convenience; no future "standardisation"/"sign-in hardening" pass may
+reintroduce an interstitial on a valid link (that's a regression, pinned by I12 + the
+`RedeemCode.test.ts` "goes STRAIGHT IN" assertions: zero interstitial steps, no OTP input, no form).
+**Better:** the invariant is now load-bearing doc + executable pin, so the teacher/admin/leader
+experience can't silently regress back to a form.
+**Simpler:** one principle ("the link is the credential") replaces case-by-case arguments about which
+flows may skip OTP.
+**Cheaper (total):** the security budget is explicitly redirected to where it does real work — link
+revocability, expiry/single-use where configured, and the unified audit trail
+(`invite_codes` + `possession_mint_attempts`) — never on re-proving the click.
+**Searched & rejected:** keep OTP "for safety" — rejected on the founder's own ground: access is
+granted before any email is verified and nothing matches the typed email to the invitee, so the step
+protects nothing while taxing every teacher.
+**Search width:** founder-ruled
+**Decided by:** founder (verbatim ruling); agent recorded + pinned.
+
+## 2026-07-20 — role-shaped invite links: ONE identity-capture screen replaces the ghost mint (founder reconciliation)
+**Move:** Founder-ruled reconciliation of §1.13 after the staging shambles (every node's link felt
+generic; redeem minted anonymous `link-<uuid>@invite.saysomethingin.app` accounts and dumped every
+role wherever). The link stays the credential — NO OTP, NO email round-trip — but **named roles
+(teacher / school leader / group leader) get ONE identity-capture screen on first redeem** ("You've
+been invited as a teacher at <School>. Your name / your email") and the account is born REAL: their
+name, their recorded (unverified-is-fine) email. Pupil links (student→class, learner→group) keep
+lighter capture: name only — young learners have no email; the placeholder address survives for
+code_type `student` ONLY, server-enforced (`identity_required` refusal otherwise). Re-clicking a
+link under a session that already redeemed it goes straight to the person's surface — no confirm
+screen, no second code spend. `validate.ts` now resolves node context (group/school name) for
+node-scoped codes so no capture screen is ever anonymous. THE-MODEL §1.13 + I12 rewritten; pins
+updated in `RedeemCode.test.ts` / `possession-redeem.test.ts` / `invites.test.ts`.
+**Better:** teachers/leaders arrive as real named people on the right surface; the founder can send
+IME links that say who and where they're for.
+**Simpler:** one capture screen IS the account creation — no ghost-account + later-repair loop
+(SettingsScreen add-email nudge stops being the only source of identity for staff).
+**Cheaper (total):** deletes the support cost of nameless accounts on teacher rosters and dead
+"who is link-3f2a…?" dashboards; no new tables, no new endpoints — same possession mint, one new
+refusal branch.
+**Generic-link ruling (my read, journalled):** the node's "Get join link" learner path (role
+`student`, `grants_group_id` = the node) is NOT the generic-link bug and is kept — it is node-scoped
+and learner-only, the low-friction path the model wants for pupils. What died is the ghost mint for
+named roles and the anonymous screens. Per-person single-use links remain OPEN (held for founder
+taste, `project_straight_in_invite_links` memory).
+**Searched & rejected:**
+- Full email verification (OTP) for named roles — rejected: re-proves possession the click just
+  proved (§1.13 verbatim); school gateways still quarantine the mail (the original Option A driver).
+- Capture email lazily after landing (keep zero screens, prompt on the dashboard) — rejected: the
+  ghost exists in that window, appears on rosters/audits, and the founder ruled the capture screen
+  is the account being born, not ceremony.
+**Search width:** founder-ruled shape; agent owned the enforcement layers.
+**Decided by:** founder (reconciled design, project brief 2026-07-20); agent implementation.
+
+## 2026-07-20 — TWO link species: PERSONAL (pre-provisioned, zero screens) vs OPEN (capture) — founder clarification
+**Move:** Founder-ruled (screenshot evidence): the capture screen shipped earlier today is the flow
+for **OPEN shareable links only** (person unknown at mint). **PERSONAL links** — the thing he emails
+known partners — are pre-provisioned accounts (role + node + display name, optional email) whose
+link IS the login: click → authenticated as THAT account → role dashboard, ZERO screens, repeatable,
+revocable. Implemented: `provisionPersona` (api/_utils) + `personal:{name,email?,class_id?}` on the
+node mint endpoint (binding stored as `invite_codes.metadata.personal_auth_user_id`, server-derived
+only) + a personal branch in `possession-redeem.ts` (mints the session for the bound account) +
+client zero-screen path + "Invite a person" vs "Get a shareable link" verbs on the node.
+**Better:** partners get the real straight-in (what §1.13 always meant); open links keep honest
+identity capture; both species carry names — no ghosts anywhere.
+**Simpler:** same invite_codes table, same possession mint, same rails (revocation = is_active,
+expiry, rate limits, audit); one metadata key instead of a new table/column.
+**Cheaper (total):** no migration (metadata jsonb), no OTP infra, and pre-provisioning removes the
+"who is this account?" support loop entirely for known partners.
+**Security note (deliberate):** the personal branch skips the already-registered takeover rail —
+signing into the bound account IS the link's purpose; binding is admin-gated at mint and never
+client-supplied. Rate limits + audit unchanged. Session-replacement on click is by design (the link
+is the login), unlike open links which still confirm under a foreign session before spending a code.
+**Searched & rejected:**
+- Supabase generateLink magic links as the personal mechanism — rejected: single-use and
+  short-lived; founder needs repeatable, revocable links.
+- A `grants_auth_user_id` column — rejected for tonight: needs a live migration for zero functional
+  gain over metadata; revisit in the contract phase if personal links become hot-path.
+**Search width:** founder-ruled shape; agent owned mechanism.
+**Decided by:** founder (species clarification, 2026-07-20 late); agent implementation.

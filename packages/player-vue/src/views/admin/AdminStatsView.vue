@@ -13,6 +13,7 @@
 // is actually selected. Frostwell Courtyard canon; desktop-first.
 // ============================================================================
 import { ref, computed, defineAsyncComponent, type Component } from 'vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const LifecycleBoard = defineAsyncComponent(() => import('@/insight/boards/LifecycleBoard.vue'))
 const RatesBoard = defineAsyncComponent(() => import('@/insight/boards/RatesBoard.vue'))
@@ -44,6 +45,15 @@ const boards: BoardTab[] = [
 const activeBoard = ref<BoardId>('lifecycle')
 const activeComponent = computed<Component>(() => (boards.find(b => b.id === activeBoard.value) ?? boards[0]).component)
 function selectBoard(id: BoardId) { activeBoard.value = id }
+
+// The ONE refresh protocol on the board view: each board owns its own async
+// fetch (no page-level data here, and no polling to remove), so the universal
+// refresh remounts the active board via a key nonce — a clean, board-agnostic
+// re-fetch. No "Updated" stamp here: we can't observe the board's async fetch
+// completing, so a stamp would be dishonest (see docs/the-view/refresh audit).
+const boardNonce = ref(0)
+const { registerRefresh } = useDashboardRefresh()
+registerRefresh(() => { boardNonce.value++ }, { immediate: false })
 </script>
 
 <template>
@@ -76,7 +86,7 @@ function selectBoard(id: BoardId) { activeBoard.value = id }
     </nav>
 
     <section class="board-host" aria-live="polite">
-      <component :is="activeComponent" :key="activeBoard" />
+      <component :is="activeComponent" :key="`${activeBoard}:${boardNonce}`" />
     </section>
   </div>
 </template>

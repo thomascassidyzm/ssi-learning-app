@@ -104,11 +104,26 @@ export default async function handler(
         .select('id, group_id')
         .eq('user_id', userId)
         .maybeSingle()
-      if (!govtAdmin) {
-        res.status(403).json({ error: 'Only government admins can create school_admin codes' })
-        return
+      if (govtAdmin) {
+        derivedGrantsGroupId = (govtAdmin as any).group_id ?? null
+      } else {
+        // ssi_admins (the /admin/invites surface) may mint school_admin codes
+        // for ANY group, so the client-supplied grants_group_id is honoured for
+        // them — they are the platform operator, not a region leader, so the
+        // leader-scoped derivation above has nothing to derive from. The
+        // leader invariant is untouched: a govt_admin caller always gets the
+        // group stamped from their own row, never from the payload.
+        const { data: learner } = await supabase
+          .from('learners')
+          .select('platform_role')
+          .eq('user_id', userId)
+          .single()
+        if (!learner || learner.platform_role !== 'ssi_admin') {
+          res.status(403).json({ error: 'Only government admins can create school_admin codes' })
+          return
+        }
+        derivedGrantsGroupId = grants_group_id ?? null
       }
-      derivedGrantsGroupId = (govtAdmin as any).group_id ?? null
     } else if (code_type === 'teacher') {
       if (!grants_school_id) {
         res.status(400).json({ error: 'grants_school_id required for teacher codes' })

@@ -342,6 +342,10 @@ const totalSeeds = computed(() => {
 // For a signed-in learner we read the server value (same definition as admin);
 // guests / offline fall back to the local session-history estimate.
 const serverEngagedMinutes = ref(null)
+// True when serverEngagedMinutes is a position-derived backup estimate (no
+// session logs yet) rather than logged time — never set for the local
+// belt-progress fallback, which is its own (unflagged) estimate.
+const serverEngagedMinutesEstimated = ref(false)
 async function loadEngagedMinutes() {
   const sb = supabaseClient
   if (!sb?.value) return
@@ -352,13 +356,19 @@ async function loadEngagedMinutes() {
     const res = await fetch('/api/me/engaged-time', { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return
     const data = await res.json()
-    if (typeof data?.engagedMinutes === 'number') serverEngagedMinutes.value = data.engagedMinutes
+    if (typeof data?.engagedMinutes === 'number') {
+      serverEngagedMinutes.value = data.engagedMinutes
+      serverEngagedMinutesEstimated.value = !!data.isEstimated
+    }
   } catch {
     /* non-fatal — fall back to the local estimate */
   }
 }
 const totalLearningMinutes = computed(() =>
   serverEngagedMinutes.value ?? beltProgress.value?.totalLearningMinutes.value ?? 0
+)
+const totalLearningMinutesEstimated = computed(() =>
+  serverEngagedMinutes.value != null && serverEngagedMinutesEstimated.value
 )
 const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
@@ -570,6 +580,7 @@ onMounted(() => {
             :total-seeds="totalSeeds"
             :current-belt-name="currentBeltName"
             :total-learning-minutes="totalLearningMinutes"
+            :total-learning-minutes-estimated="totalLearningMinutesEstimated"
             :total-phrases-spoken="totalPhrasesSpoken"
             @open-belts="null"
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"

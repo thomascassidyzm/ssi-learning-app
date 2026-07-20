@@ -51,6 +51,12 @@ describe('useClassesData', () => {
         user_id: 'u-admin', learner_id: 'l-a', display_name: 'Admin',
         educational_role: 'school_admin', platform_role: null, school_id: 's1'
       })
+    } else if (role === 'tutor') {
+      // Groupless tutor (THE-MODEL §1.3/I5): no school_id at all.
+      ctx.currentUser.value = ({
+        user_id: 'u-tutor', learner_id: 'l-tu', display_name: 'Tutor',
+        educational_role: 'tutor', platform_role: null,
+      })
     }
     const { useClassesData } = await import('./useClassesData')
     return useClassesData()
@@ -73,6 +79,18 @@ describe('useClassesData', () => {
     expect(cd.classes.value[0].student_count).toBe(2)
     expect(cd.classes.value[0].avg_seeds_completed).toBe(25) // (20+30)/2
     expect(cd.classes.value[0].avg_practice_minutes).toBe(45) // (30+60)/2
+  })
+
+  it('THE-MODEL I5: a groupless tutor (no school_id) still takes the myTaughtClassIds branch — same as a school teacher', async () => {
+    const cd = await setup({
+      classes: { data: [
+        { id: 'c1', class_name: 'Tutor Class', course_code: 'cym_for_eng', school_id: null, teacher_user_id: 'u-tutor', student_join_code: 'XYZ', current_seed: 3, is_active: true, created_at: '2025-01-01' },
+      ], error: null },
+      class_student_progress: { data: [], error: null },
+    }, 'tutor')
+    await cd.fetchClasses()
+    expect(cd.classes.value).toHaveLength(1)
+    expect(cd.classes.value[0].id).toBe('c1')
   })
 
   it('returns empty when no classes found', async () => {
@@ -257,6 +275,20 @@ describe('useClassesData', () => {
     expect(result?.teachers).toEqual([])
     // ...and the failure is surfaced truthfully rather than swallowed.
     expect(cd.error.value).toBeTruthy()
+  })
+
+  it('createClass accepts a null school_id (groupless tutor, THE-MODEL I5)', async () => {
+    const cd = await setup({
+      classes: { data: {
+        id: 'new-c', class_name: 'Tutor Class', course_code: 'cym', school_id: null,
+        teacher_user_id: 'u-teacher', student_join_code: 'JOIN2', current_seed: 1,
+        is_active: true, created_at: '2025-03-01'
+      }, error: null },
+      invite_codes: { data: null, error: null },
+    })
+    const result = await cd.createClass({ class_name: 'Tutor Class', course_code: 'cym', school_id: null })
+    expect(result?.class_name).toBe('Tutor Class')
+    expect(result?.school_id).toBeNull()
   })
 
   // --- totalStudentsInClasses ---

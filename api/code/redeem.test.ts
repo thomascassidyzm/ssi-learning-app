@@ -52,11 +52,18 @@ function makeChainable(table: string) {
 
 let authUserOverride: { email?: string; user_metadata?: Record<string, unknown> } = { email: 'leader@example.com' }
 
+// Controls what the atomic claim_entitlement_code_use RPC returns. Redemption
+// is claim-first (Plan 009): the code's use is claimed BEFORE the grant, so a
+// normal redemption needs the claim to succeed (RPC returns the row id). The
+// exhausted-claim test overrides this to { data: null } to model a used-up code.
+let entitlementClaimResult: { data: unknown; error: unknown } = { data: 'claimed', error: null }
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
     rpc: (name: string, params: any) => {
       if (name === 'claim_invite_code_use') return Promise.resolve({ data: params.p_id, error: null })
+      if (name === 'claim_entitlement_code_use') return Promise.resolve(entitlementClaimResult)
       return Promise.resolve({ data: null, error: null })
     },
     auth: {
@@ -86,6 +93,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     writes = {}
     responders = {}
     authUserOverride = { email: 'leader@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
     handler = (await import('./redeem')).default
   })
 
@@ -598,6 +606,324 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
+  it('LEAF GRANT COMPAT (I10): a student code carrying an explicit grants_class_id still joins at tag_type=class (CLASS:<id>), never group — the leaf-only rule this pinned is superseded by I7, but an explicit leaf grant is unchanged', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-leaf',
+            code: 'STU-LEAF',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-leaf-1',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-leaf-1' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.classes = () => ({ data: { course_code: 'cym_for_eng' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-LEAF', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // Exactly one user_tags write, and it is leaf-scoped (class). An explicit
+    // grants_class_id always wins over any group grant (see the group-only
+    // branch below) — this is compat, not an enforced leaf-only restriction.
+    expect(writes.user_tags).toHaveLength(1)
+    const tagWrite = writes.user_tags[0].payload
+    expect(tagWrite.tag_type).toBe('class')
+    expect(tagWrite.tag_value).toBe('CLASS:class-leaf-1')
+    expect(tagWrite.tag_type).not.toBe('school')
+    expect(tagWrite.tag_type).not.toBe('group')
+  })
+
+  it('DEGENERATE GRANT (pre-existing edge case, unhardened): a student code with neither grants_class_id nor grants_group_id still writes a broken CLASS:null tag rather than silently affiliating anywhere else', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-noclass',
+            code: 'STU-NOCLASS',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-noclass-1' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-NOCLASS', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // No group/school-level fallback is ever created for a student redemption.
+    expect(writes.groups).toBeUndefined()
+    expect(writes.schools).toBeUndefined()
+    // The tag write still happens and is still tag_type='class' — the current
+    // (undesirable) behavior is a broken tag_value rather than a silent
+    // group/school-level enrollment. Documents the edge case for whoever
+    // hardens this: grants_class_id should be validated before this branch.
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload.tag_type).toBe('class')
+    expect(writes.user_tags[0].payload.tag_value).toBe('CLASS:null')
+    // course_enrollments is skipped entirely without a class id — no orphan
+    // enrollment gets created either.
+    expect(writes.course_enrollments).toBeUndefined()
+  })
+
+  it('INTERIOR-NODE JOIN (I7): a teacher code carrying only grants_group_id (no grants_school_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-1',
+            code: 'TEACH-GRP-1',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-interior-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-1' }, error: null })
+    // Default schools responder (data: null) — this group node is not a school.
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-interior-1',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it("INTERIOR-NODE JOIN + DUAL-WRITE (THE-MODEL.md §5 item 5): a teacher code granting a group that IS a school's own node (schools.node_group_id) also writes the legacy SCHOOL: tag so deployed dashboards see the person tonight", async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-2',
+            code: 'TEACH-GRP-2',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-2' }, error: null })
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-42' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-2', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(2)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-school-node-1',
+      role_in_context: 'teacher',
+    })
+    expect(writes.user_tags[1].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-42',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('INTERIOR-NODE JOIN (I7): a student code carrying only grants_group_id (no grants_class_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school, and no course_enrollments write (no class to enrol into)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-group-1',
+            code: 'STU-GRP-1',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-interior-2',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-student-group-1' }, error: null })
+    // Default schools responder (data: null) — this group node is not a school.
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-GRP-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-interior-2',
+      role_in_context: 'student',
+    })
+    // No class grant on a group-scoped student code — nothing to enrol into.
+    expect(writes.course_enrollments).toBeUndefined()
+  })
+
+  it("INTERIOR-NODE JOIN + DUAL-WRITE (THE-MODEL.md §5 item 5): a student code granting a group that IS a school's own node also writes the legacy SCHOOL: tag", async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-group-2',
+            code: 'STU-GRP-2',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-2',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-student-group-2' }, error: null })
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-77' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-GRP-2', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(2)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-school-node-2',
+      role_in_context: 'student',
+    })
+    expect(writes.user_tags[1].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-77',
+      role_in_context: 'student',
+    })
+  })
+
+  it('group-scoped dedup: a teacher already tagged GROUP:<id> gets "Already redeemed for this group" and writes nothing (check-then-act, same shape as the school/class dedup checks above)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-dup',
+            code: 'TEACH-GRP-DUP',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-already-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.user_tags = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'existing-tag-1' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-DUP', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Already redeemed for this group')
+    expect(writes.user_tags).toBeUndefined()
+    expect(writes.learners).toBeUndefined()
+  })
+
   it('teacher branch: a brand-new learner from possession-onboarding is created with needs_verification true', async () => {
     authUserOverride = { email: 'newteacher@school.example', user_metadata: { onboarded_via: 'possession', display_name: 'New Teacher' } }
     responders.invite_codes = (calls) => {
@@ -722,6 +1048,227 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(res._json.courseCode).toBe('zho_for_eng')
   })
 
+  it('teacher branch: writes a SCHOOL: tag with role_in_context teacher and redirects to /schools', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-3',
+            code: 'TEACH-3',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-9',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-3' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-3', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-9',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('school_admin_join branch: writes a SCHOOL: tag with role_in_context admin and redirects to /schools', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-admin-join-1',
+            code: 'ADMIN-JOIN-1',
+            code_type: 'school_admin_join',
+            grants_region: null,
+            grants_school_id: 'school-9',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-admin-join-1' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'ADMIN-JOIN-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-9',
+      role_in_context: 'admin',
+    })
+    // school_admin_join sets educational_role via the 'school_admin' override
+    // (distinct from the plain school_admin invite-born branch above).
+    const learnerUpdate = writes.learners.find((w) => w.op === 'update')
+    expect(learnerUpdate?.payload).toMatchObject({ educational_role: 'school_admin' })
+  })
+
+  it('returns "Code expired" for an active invite code past its expires_at, without claiming a use', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-expired-1',
+            code: 'EXP-1',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-9',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: '2020-01-01T00:00:00.000Z',
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'EXP-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Code expired')
+    expect(writes.user_tags).toBeUndefined()
+  })
+
+  it('returns "Code fully used" once use_count reaches max_uses', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-exhausted-1',
+            code: 'MAXED-1',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-9',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: 1,
+            use_count: 1,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'MAXED-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Code fully used')
+    expect(writes.user_tags).toBeUndefined()
+  })
+
+  it('returns "Invalid code" for an unknown/inactive code (no matching row)', async () => {
+    responders.invite_codes = () => ({ data: null, error: { message: 'no rows' } })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'DOES-NOT-EXIST', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Invalid code')
+  })
+
+  it('operator-capture guard: refuses to role-mutate an ssi_admin account, before any use is claimed (2026-07-18 incident)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-op',
+            code: 'SRC-324',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-1',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    // The signed-in account is the platform operator.
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-op', platform_role: 'ssi_admin' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SRC-324', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/platform admin/)
+    // Nothing written: no role update, no tag, no use claimed.
+    expect(writes.learners).toBeUndefined()
+    expect(writes.user_tags).toBeUndefined()
+    expect(writes.role_change_audit).toBeUndefined()
+  })
+
+  it('rejects a request missing codeKind', async () => {
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'ANY-CODE' } }), res)
+    expect(res._status).toBe(400)
+  })
+
+  it('rejects unauthenticated callers', async () => {
+    const { verifyAuthToken } = await import('../_utils/auth')
+    ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: false, error: 'Missing or invalid Authorization header' })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'ANY-CODE', codeKind: 'invite' } }), res)
+    expect(res._status).toBe(401)
+  })
+
   // --- Plan 012: idempotent user_tags inserts (23505 → success) ---------------
   // A duplicate active tag from a concurrent/retried redemption must not 500;
   // the redemption is idempotent (the winner's tag grants the same membership).
@@ -778,6 +1325,108 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
   it('teacher branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('teacher'))
   it('school_admin_join branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('school_admin_join'))
   it('student branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('student'))
+})
+
+describe('POST /api/code/redeem (entitlement codes)', () => {
+  let handler: typeof import('./redeem').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    authUserOverride = { email: 'learner@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
+    handler = (await import('./redeem')).default
+  })
+
+  it('valid entitlement code creates a user_entitlements row and reports success', async () => {
+    responders.entitlement_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'ent-1',
+            code: 'FULL-1',
+            access_type: 'full',
+            granted_courses: null,
+            duration_type: 'lifetime',
+            duration_days: null,
+            label: 'Full lifetime access',
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+            grants_platform_role: null,
+            grants_dashboard_courses: null,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-ent-1' }, error: null })
+    responders.user_entitlements = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: null, error: null } // not already redeemed
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'FULL-1', codeKind: 'entitlement' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.codeKind).toBe('entitlement')
+    expect(res._json.label).toBe('Full lifetime access')
+    expect(writes.user_entitlements).toHaveLength(1)
+    expect(writes.user_entitlements[0].payload).toMatchObject({
+      learner_id: 'learner-ent-1',
+      entitlement_code_id: 'ent-1',
+      access_type: 'full',
+      expires_at: null,
+    })
+  })
+
+  it('reports "Code already redeemed" without inserting a second user_entitlements row', async () => {
+    responders.entitlement_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'ent-2',
+            code: 'FULL-2',
+            access_type: 'full',
+            granted_courses: null,
+            duration_type: 'lifetime',
+            duration_days: null,
+            label: 'Full lifetime access',
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+            grants_platform_role: null,
+            grants_dashboard_courses: null,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-ent-2' }, error: null })
+    responders.user_entitlements = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'existing-entitlement' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'FULL-2', codeKind: 'entitlement' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Code already redeemed')
+    expect(writes.user_entitlements).toBeUndefined()
+  })
 
   // --- Plan 009: entitlement claim-first (exhausted claim → no grant) ----------
 
@@ -810,8 +1459,9 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     }
     responders.learners = () => ({ data: { id: 'learner-ent-1' }, error: null })
     // user_entitlements "already redeemed" check → null (not previously redeemed).
-    // The default rpc mock returns { data: null } for claim_entitlement_code_use,
-    // which claimCodeUse reads as claimed=false (code exhausted).
+    // Model an exhausted code: the atomic claim RPC finds no capacity and
+    // returns no row, which claimCodeUse reads as claimed=false.
+    entitlementClaimResult = { data: null, error: null }
 
     const res = makeRes()
     await handler(makeReq({ body: { code: 'ENT-CAP', codeKind: 'entitlement' } }), res)

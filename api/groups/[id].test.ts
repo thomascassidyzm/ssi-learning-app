@@ -41,15 +41,23 @@ let updateCalls: any[] = []
 let deleteCalls: any[] = []
 let ungroupSchoolsError: any = null
 let deleteGroupError: any = null
+// Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
+// sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
+let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
 
 function makeChainable(table: string) {
+  let eqVal: unknown
   const builder: any = {
     select: () => builder,
     update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
     delete: () => { deleteCalls.push({ table }); return builder },
-    eq: () => builder,
+    eq: (_col: string, val: unknown) => { eqVal = val; return builder },
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
+      if (table === 'groups') {
+        const path = groupPaths[eqVal as string]
+        return Promise.resolve({ data: path ? { path } : null, error: null })
+      }
       return Promise.resolve({ data: null, error: null })
     },
     single: () => Promise.resolve({ data: { id: 'group-1', name: 'Updated Name' }, error: null }),
@@ -93,6 +101,7 @@ beforeEach(() => {
   ungroupSchoolsError = null
   deleteGroupError = null
   govtAdminRow = null
+  groupPaths = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   groupImpact = {
@@ -165,14 +174,50 @@ describe('PATCH /api/groups/:id', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(401)
   })
+
+  it('rejects re-parenting a group as its own parent (cycle check)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('PATCH', { parent_id: 'group-1' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('rejects re-parenting a group under its own descendant (cycle check)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // group-2's path ("1.2") is a strict descendant of group-1's ("1").
+    const req = makeReq('PATCH', { parent_id: 'group-2' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('allows re-parenting under an unrelated group', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('PATCH', { parent_id: 'group-3' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ parent_id: 'group-3' })
+  })
 })
 
 describe('GET /api/groups/:id (impact preview)', () => {
-  it('rejects a non-admin caller', async () => {
+  it('rejects a caller who is neither admin nor a leader of an ancestor group', async () => {
     const req = makeReq('GET', {}, 'group-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
+  })
+
+  it('401s an unauthenticated non-admin caller', async () => {
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const req = makeReq('GET', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(401)
   })
 
   it('returns the computed impact', async () => {
@@ -183,11 +228,59 @@ describe('GET /api/groups/:id (impact preview)', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.impact).toMatchObject({ groupName: 'Gwynedd Ed Test', schoolCount: 2 })
   })
+
+  it('a leader of an ANCESTOR group can preview one of their own sub-groups', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('GET', {}, 'group-2')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+  })
 })
 
 describe('DELETE /api/groups/:id', () => {
-  it('rejects a non-admin caller', async () => {
+  it('rejects a caller who is neither admin nor a leader of an ancestor group', async () => {
     const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('401s an unauthenticated non-admin caller', async () => {
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(401)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('a leader of an ANCESTOR group can delete one of their own SUB-groups', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-2')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteGroupCascade).toHaveBeenCalledWith(expect.anything(), 'group-2')
+    expect(auditAdminDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorUserId: 'leader-1' })
+    )
+  })
+
+  it('a leader CANNOT delete their OWN governed group (not a sub-group of itself)', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('a leader CANNOT delete an unrelated group outside their subtree', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-3')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)

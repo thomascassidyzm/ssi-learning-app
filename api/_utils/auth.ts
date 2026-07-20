@@ -55,7 +55,14 @@ export async function verifyAuthToken(req: VercelRequest): Promise<VerifyTokenRe
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user) {
-      return { valid: false, error: error?.message || 'Invalid token' }
+      // GoTrue's session_not_found (a revoked session's still-unexpired
+      // token) surfaces as AuthSessionMissingError, whose message "Auth
+      // session missing!" reads as gibberish in a UI banner. Say what it
+      // means and what to do.
+      const message = error?.name === 'AuthSessionMissingError'
+        ? 'Your session has ended — sign in again'
+        : error?.message || 'Invalid token'
+      return { valid: false, error: message }
     }
 
     return { valid: true, userId: user.id }
@@ -78,7 +85,7 @@ export async function getAuthUserId(req: VercelRequest): Promise<string | null> 
  * Uses the user's own auth token to query learners (works with RLS).
  * Returns the user ID if admin, null otherwise.
  */
-export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string } | { error: string; status: number }> {
+export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string } | { error: string; status: number; userId?: string }> {
   const authResult = await verifyAuthToken(req)
   if (!authResult.valid || !authResult.userId) {
     return { error: authResult.error || 'Unauthorized', status: 401 }
@@ -108,7 +115,9 @@ export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string 
       learner?.educational_role === 'god'
 
     if (!isAdmin) {
-      return { error: 'Requires SSi admin access', status: 403 }
+      // The token IS valid — carry the uid so callers with a non-admin door
+      // (e.g. rate-compare's visible-scope path) don't re-verify it.
+      return { error: 'Requires SSi admin access', status: 403, userId: authResult.userId }
     }
 
     return { userId: authResult.userId }

@@ -79,7 +79,19 @@ export function createClassAwareProgressStore(
   return {
     async getEnrollment(learnerId, courseId) {
       if (!inClass()) return baseStore.value?.getEnrollment(learnerId, courseId) ?? null
-      return call('getEnrollment', [])
+      const row = await call('getEnrollment', [])
+      if (!row) return row
+      // The class-progress endpoint returns raw JSON, so timestamps arrive as
+      // ISO strings — but the base ProgressStore.getEnrollment hydrates them to
+      // Date, and callers (the resume gap rule, daysSinceLastPractice) call
+      // .getTime() on last_practiced_at. Without this, launching play-as-class
+      // for a class whose enrollment has ever been practised white-screens the
+      // player ("Gn.value.getTime is not a function"). Match the base contract.
+      return {
+        ...row,
+        last_practiced_at: row.last_practiced_at ? new Date(row.last_practiced_at) : null,
+        enrolled_at: row.enrolled_at ? new Date(row.enrolled_at) : (row.enrolled_at ?? null),
+      }
     },
     async createEnrollment(learnerId, courseId) {
       if (!inClass()) return baseStore.value?.createEnrollment(learnerId, courseId)

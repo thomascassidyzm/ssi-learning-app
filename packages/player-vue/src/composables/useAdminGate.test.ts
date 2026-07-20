@@ -6,13 +6,12 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useAdminGate } from '@/composables/useAdminGate'
 
-// useAdminGate generalises AdminContainer's original access gate to every
-// admin surface AND adds the piece that was missing everywhere (Trinity
-// audit finding #2, docs/trinity/admin.md): useUserRole's role refs are set
-// once at sign-in and never re-polled, so a de-platformed ssi_admin kept
-// full admin UI until reload. This proves both halves: the reactive
-// deny-and-bounce on a role change, and the periodic/tab-refocus trigger
-// that discovers that change live via the injected auth's refreshRole().
+// useAdminGate gates every admin surface. Doctrine (founder ruling 2026-07-19):
+// the SERVER enforces role/scope per request, so this gate is a UX shell
+// affordance — it bounces a revoked admin to `/` and re-validates the role on
+// NAVIGATION only (no interval, no tab-refocus timer). These tests prove: the
+// reactive deny-and-bounce on a role change, and that navigation — not a
+// timer — is what triggers the DB re-fetch via the injected auth.refreshRole().
 
 const Host = defineComponent({
   setup() {
@@ -97,7 +96,7 @@ describe('useAdminGate', () => {
     expect(router.currentRoute.value.path).toBe('/')
   })
 
-  it('periodically calls the injected auth.refreshRole() while mounted, so a downgrade is discovered without any user action', async () => {
+  it('re-validates the role on navigation (mount + each route change), never on a timer', async () => {
     vi.useFakeTimers()
     useUserRole().initialize('ssi_admin', null)
     const router = buildRouter()
@@ -108,14 +107,19 @@ describe('useAdminGate', () => {
     mount(Host, { global: { plugins: [router], provide: { auth: { refreshRole } } } })
     await flushPromises()
 
-    expect(refreshRole).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(60_000)
+    // Once on mount (the initial navigation) — then NOTHING on an idle timer.
     expect(refreshRole).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.advanceTimersByTimeAsync(300_000)
+    expect(refreshRole).toHaveBeenCalledTimes(1)
+
+    // A navigation to another admin route re-validates again.
+    await router.push('/admin/test?x=1')
+    await flushPromises()
     expect(refreshRole).toHaveBeenCalledTimes(2)
   })
 
-  it('re-validates immediately on tab refocus (visibilitychange), not just the interval', async () => {
+  it('registers no idle timer or tab-refocus re-check — a downgrade is caught by the server per request, not a poll', async () => {
+    vi.useFakeTimers()
     useUserRole().initialize('ssi_admin', null)
     const router = buildRouter()
     router.push('/admin/test')
@@ -124,27 +128,15 @@ describe('useAdminGate', () => {
     const refreshRole = vi.fn().mockResolvedValue(undefined)
     mount(Host, { global: { plugins: [router], provide: { auth: { refreshRole } } } })
     await flushPromises()
+    refreshRole.mockClear()
 
+    // No interval fires…
+    await vi.advanceTimersByTimeAsync(600_000)
+    // …and a tab refocus does nothing either (the visibilitychange listener is gone).
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
     document.dispatchEvent(new Event('visibilitychange'))
     await flushPromises()
 
-    expect(refreshRole).toHaveBeenCalledTimes(1)
-  })
-
-  it('stops the revalidation interval on unmount — no leaked timer', async () => {
-    vi.useFakeTimers()
-    useUserRole().initialize('ssi_admin', null)
-    const router = buildRouter()
-    router.push('/admin/test')
-    await router.isReady()
-
-    const refreshRole = vi.fn().mockResolvedValue(undefined)
-    const wrapper = mount(Host, { global: { plugins: [router], provide: { auth: { refreshRole } } } })
-    await flushPromises()
-    wrapper.unmount()
-
-    await vi.advanceTimersByTimeAsync(120_000)
     expect(refreshRole).not.toHaveBeenCalled()
   })
 })

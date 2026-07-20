@@ -208,12 +208,12 @@ async function loadEnrollmentAgg(
 async function loadDerivedPracticeMinutes(
   supabase: SupabaseClient,
   learnerIds: string[],
-): Promise<Map<string, number> | null> {
+): Promise<Map<string, { minutes: number; isEstimated: boolean }> | null> {
   if (learnerIds.length === 0) return new Map()
   const { data, error } = await supabase.rpc('admin_practice_minutes', { p_learner_ids: learnerIds })
   if (error) { console.warn('[AdminUsers] practice RPC error, falling back to counter:', error); return null }
-  const out = new Map<string, number>()
-  for (const row of data || []) out.set(row.learner_id, row.practice_minutes || 0)
+  const out = new Map<string, { minutes: number; isEstimated: boolean }>()
+  for (const row of data || []) out.set(row.learner_id, { minutes: row.practice_minutes || 0, isEstimated: !!row.is_estimated })
   return out
 }
 
@@ -356,10 +356,13 @@ export default async function handler(
         emails: emails?.all || [],
         tier: tierFor(l, activeSubs, activeEnts),
         last_active: agg?.last_active ?? null,
-        // Derived from telemetry (SSoT); fall back to the legacy counter only if
-        // the RPC errored (practiceMap === null), never just because a learner
-        // has no telemetry — that legitimately means 0.
-        practice_minutes: practiceMap ? (practiceMap.get(l.id) ?? 0) : (agg?.practice_minutes ?? 0),
+        // Derived from sessions.duration_seconds (SSoT); fall back to the legacy
+        // counter only if the RPC errored (practiceMap === null), never just
+        // because a learner has no telemetry — that legitimately means 0.
+        practice_minutes: practiceMap ? (practiceMap.get(l.id)?.minutes ?? 0) : (agg?.practice_minutes ?? 0),
+        // Position-derived backup (never logged+estimate summed) — flags when
+        // this learner's total includes an estimate for at least one course.
+        practice_minutes_estimated: practiceMap ? (practiceMap.get(l.id)?.isEstimated ?? false) : false,
         course_ids: agg?.course_ids ?? [],
       }
     })

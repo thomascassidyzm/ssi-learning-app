@@ -6,8 +6,8 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
-import { prewarmInstantCaches } from './composables/useInstantPlayback'
-import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
+import { prewarmInstantCaches, setInstantPlaybackAuthProvider } from './composables/useInstantPlayback'
+import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { checkContentVersion } from './composables/useScriptCache'
@@ -28,9 +28,7 @@ import { installConsoleDedup } from './utils/consoleDedup'
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
-const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
-import { useActAs } from './composables/useActAs'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 
@@ -217,6 +215,22 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
       { auth: { persistSession: true, autoRefreshToken: true } }
     )
     setSchoolsClient(supabaseClient.value)
+    // Feed the caller's Supabase access token to the instant-playback fast-path
+    // fetches (round-map / cycles / infplay-cycles). These endpoints are
+    // entitlement-gated server-side (d4396730): without a token, a signed-in
+    // paid learner past the free-preview window (seed <=19) is treated as
+    // anonymous and 403'd onto the slow legacy walk. getSession() is a local
+    // read (no network), so resolving it per fetch is cheap.
+    setInstantPlaybackAuthProvider(async () => {
+      const client = supabaseClient.value
+      if (!client) return null
+      try {
+        const { data } = await client.auth.getSession()
+        return data.session?.access_token ?? null
+      } catch {
+        return null
+      }
+    })
   } catch (err) {
     console.error('[App] Failed to initialize Supabase client synchronously:', err)
   }
@@ -508,17 +522,9 @@ provide('inviteCode', inviteCode)
 provide('installPrompt', installPrompt)
 provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
-// Rehydrate an in-flight admin act-as (sessionStorage) after a reload.
-const { restoreActAs } = useActAs()
-
 onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
-
-  // Re-prime the schools context if an admin reloaded while acting-as.
-  restoreActAs().catch(err => {
-    console.warn('[App] act-as restore failed (non-fatal):', err)
-  })
 
   // Check service worker kill switch (for emergency recovery)
   // If kill switch is active, this will unregister SW and reload
@@ -667,8 +673,10 @@ onMounted(async () => {
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
-    <ActingAsBanner />
     <CheckoutOverlay />
+    <div v-if="killSwitchMessage" class="kill-switch-overlay">
+      <p>{{ killSwitchMessage }}</p>
+    </div>
   </div>
 </template>
 
@@ -685,5 +693,24 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+.kill-switch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(20, 16, 14, 0.92);
+  color: #fff;
+}
+
+.kill-switch-overlay p {
+  max-width: 420px;
+  font-size: 16px;
+  line-height: 1.5;
 }
 </style>

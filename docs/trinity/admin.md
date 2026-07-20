@@ -8,6 +8,31 @@
 
 ---
 
+## Doctrine addendum — server is the enforcement; the gate is UX (2026-07-19)
+
+> **Founder challenge:** "the useAdminGate 60-second role poll — are we sure we need that?" **Answer after a full server-side audit: no.** The poll is removed. Security lives on the server, per request; a browser timer is UX, not enforcement.
+
+**Server-side enforcement audit (2026-07-19) — every endpoint that reads or writes org/admin data was checked for per-request role/scope verification. Result: 0 gaps.**
+
+| Endpoint group | Server-side enforcement (per request) |
+|---|---|
+| `api/admin/*` (codes, invites, grant/revoke-entitlement, create-school/staff/govt-admin, update-school, update-user-role, users, view-as, set-trial, board-metrics/snapshot, attention, onboarding-messages, demo-*) | `verifyAdmin` helper, or an inline `learners.platform_role==='ssi_admin' \|\| educational_role==='god'` check → 403. `codes`/`invites` additionally enforce "you can only toggle codes you created" for non-ssi callers. |
+| `api/school/*` (roster, class-progress, daily-activity, rate-compare, class-practice-7d, group-summary, delete-class, rename-class, portal, remove-staff, subscription, update-profile, update-seats) | `resolveVisibleScope(verifiedAuthUid)` (teacher/school_admin/govt scope from the caller's own identity), or `admin_user_id`/`user_tag` school resolution → 403. Client can never request arbitrary learners/schools. |
+| `api/groups/[id]/home` + `tree`/`table` (the read-view data source) | `resolveGroupTreeCaller` + `callerCanSeeGroup` — ssi_admin sees the forest; a group leader only their own subtree. |
+| `api/groups/[id]`, `[id]/invites`, `[id]/demo-mint`, `index`, `govt/*`, `invite/create`, `entitlement/*` | `verifyAdmin`, inline `govt_admins`-row check, or own-user scope + `codeGuard`. Privileged code types have `expires_at`/`max_uses` server-bounded. |
+| `api/entitlement/user`, `offline-lease`, `me/*`, `teacher/{me,classes,commissions,portal,…}` | Own-user scope (caller's verified `user_id`) or `actAsGuard`. |
+| `NONE` guard by design | `access/claim` (own-user), `board/snapshot/[code]` + `teacher/by-code` (public by share-code), `teacher/{paddle,wise}-webhook` (RSA/HMAC signature-verified). |
+
+**The four admin read-views the gate was originally built to protect are now server-enforced, not UI-gated:**
+- `/admin/schools/:id`, `/admin/groups/:id`, `/admin/classes/:id` → `NodeHomeView`/`AdminClassHome` → **`GET /api/groups/:id/home`** (`callerCanSeeGroup`). The stale claim in the old gate header — "these read RLS-off org tables directly, so the UI gate IS the enforcement" — was true when written but was superseded by THE VIEW migration; those reads go through the server now.
+- `/admin/users/:learnerId/progress` → `AdminUserProgress` → `learners` under **own-row RLS + admin-bypass** (server-side per request).
+
+**Consequence for the poll:** a de-platformed `ssi_admin`'s every request 403s (or returns empty via RLS) the instant it's made — no client state can change that. So `useAdminGate`'s 60s `refreshRole()` interval + `visibilitychange` re-check bought **no** security; they were the last idle network chatter on admin surfaces (~1 request/min). Removed. The gate now re-validates the role **on navigation only** (each route change re-runs `auth.refreshRole()`); a mid-session downgrade is caught on the admin's next navigation or reload, and in the idle gap between, the server already 403s everything. Pinned by `noDashboardPolling.test.ts` (now covers `useAdminGate.ts`) and `useAdminGate.test.ts`.
+
+**Residual (tracked separately, NOT a gate/poll issue):** the `/schools` dashboard composables (`useClassesData`, `useSchoolContext`, `useStudentsData`, `useTeachersData`, `useAnalyticsData`, `useCourseAccess`, `useSchoolData`) and one admin invite picker (`OrgInviteForm.vue`) still **read** the RLS-off org tables directly from the browser. These are the CLAUDE.md "repoint client org-table reads to server endpoints" workstream (RLS-tighten condition #2), gated to the pre-first-paying-school window. Every privileged **write/mint** those forms trigger already goes through a server-enforced endpoint; the residual is org-structure *reads*, unaffected by the admin gate.
+
+---
+
 ## Group 1: Access Codes (`AdminAccess.vue`) — `/admin/access`, child of `AdminContainer`
 
 > Note: despite the "impersonation / sign-in-as" description in the task brief, this file is actually **Access Codes management** (invite codes, direct-entitlement codes, a per-person magic-link grant, and an email allowlist) — there is no impersonation UI here (that's `GodModePanel.vue`). Audited as it actually exists.
