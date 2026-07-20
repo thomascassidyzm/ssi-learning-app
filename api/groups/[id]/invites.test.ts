@@ -16,6 +16,15 @@ vi.mock('../../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => verifyAuthTokenResult),
 }))
 
+let provisionPersonaResult: any
+let provisionPersonaArg: any
+vi.mock('../../_utils/provisionPersona', () => ({
+  provisionPersona: vi.fn(async (_svc: any, spec: any) => {
+    provisionPersonaArg = spec
+    return provisionPersonaResult
+  }),
+}))
+
 let govtAdminRow: any
 // Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
 // sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
@@ -107,6 +116,8 @@ beforeEach(async () => {
   govtAdminRow = null
   schoolsRows = []
   codeRows = []
+  provisionPersonaArg = undefined
+  provisionPersonaResult = { authUserId: 'persona-9', email: 'persona-9@invite.saysomethingin.app', learnerId: 'learner-9' }
   verifyAdminResult = { error: 'Not admin', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   handler = (await import('./invites')).default
@@ -193,6 +204,34 @@ describe('POST /api/groups/:id/invites', () => {
     const res = makeRes()
     await handler(makeReq({ role: 'school_leader' }, 'group-1'), res)
     expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+
+  // --- Personal links (species 1, founder-ruled 2026-07-20) ---
+  it('personal mint provisions the account first and binds it into the code metadata — never client-supplied', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'leader', personal: { name: 'IME Programme Leader', personal_auth_user_id: 'attacker' } as any }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(provisionPersonaArg).toMatchObject({ role: 'leader', name: 'IME Programme Leader', groupId: 'group-1', createdBy: 'admin-1' })
+    expect(insertedRows[0].metadata).toEqual({ personal_auth_user_id: 'persona-9', personal_name: 'IME Programme Leader' })
+    expect(res.body.account).toMatchObject({ auth_user_id: 'persona-9', name: 'IME Programme Leader' })
+  })
+
+  it('personal mint requires a name', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: {} }, 'group-1'), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+
+  it('personal mint mints NO code when provisioning fails', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    provisionPersonaResult = { authUserId: '', email: '', learnerId: null, error: 'already been registered' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'X', email: 'x@y.example' } }, 'group-1'), res)
+    expect(res.statusCode).toBe(409)
     expect(insertedRows.length).toBe(0)
   })
 })

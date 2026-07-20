@@ -212,29 +212,45 @@ export default async function handler(
         }
       }
 
+      // PERSONAL links (species 1): the code is bound to a pre-provisioned
+      // account — the client skips ALL capture and signs straight in. Report
+      // the role landing so the client can route without a second call.
+      const personalUserId = inviteRow.metadata?.personal_auth_user_id as string | undefined
+      const roleLanding = codeType === 'ssi_admin' ? '/admin'
+        : ['school_admin', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+        : '/'
+
       // Optional bearer: when the visitor already has a session, report
       // whether THEY have already redeemed this code's context, so the client
       // can go straight to their surface (no confirm screen, no second spend).
+      // For a personal code that means "this session IS the link's account".
       let alreadyRedeemed = false
-      let redirectTo: string | undefined
+      let redirectTo: string | undefined = personalUserId ? roleLanding : undefined
       if (req.headers.authorization) {
         const authResult = await verifyAuthToken(req)
         if (authResult.valid && authResult.userId) {
-          const landing = await checkAlreadyRedeemed(supabase, authResult.userId, inviteRow)
-          if (landing) {
-            alreadyRedeemed = true
-            redirectTo = landing
+          if (personalUserId) {
+            if (authResult.userId === personalUserId) {
+              alreadyRedeemed = true
+            }
+          } else {
+            const landing = await checkAlreadyRedeemed(supabase, authResult.userId, inviteRow)
+            if (landing) {
+              alreadyRedeemed = true
+              redirectTo = landing
+            }
           }
         }
       }
 
-      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType)
+      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType, personalUserId ? '(personal)' : '')
       res.status(200).json({
         valid: true,
         codeKind: 'invite',
         codeType,
         inviteCodeId: inviteRow.id,
         context,
+        personal: !!personalUserId,
         alreadyRedeemed,
         ...(redirectTo ? { redirectTo } : {}),
       })

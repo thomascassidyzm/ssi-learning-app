@@ -77,6 +77,9 @@ function makeInviteValidationBuilder() {
   return builder
 }
 
+let getUserByIdResult: any = { data: { user: null }, error: null }
+let getUserByIdArg: string | undefined
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (_url: string, key: string) => {
     if (key === 'anon-key') {
@@ -96,6 +99,7 @@ vi.mock('@supabase/supabase-js', () => ({
         admin: {
           createUser: (arg: any) => { createUserArg = arg; return Promise.resolve(createUserResult) },
           generateLink: (arg: any) => { generateLinkArg = arg; return Promise.resolve(generateLinkResult) },
+          getUserById: (id: string) => { getUserByIdArg = id; return Promise.resolve(getUserByIdResult) },
           deleteUser: (id: string) => {
             deleteUserCalls.push(id)
             return Promise.resolve({ error: null })
@@ -352,5 +356,65 @@ describe('POST /api/auth/possession-redeem', () => {
         expect(attempts.some((a) => a.outcome === 'identity_required')).toBe(true)
       }
     )
+  })
+
+  // --- Personal links (species 1, founder-ruled 2026-07-20): the code is
+  // bound at mint time to a PRE-PROVISIONED account; possession IS that
+  // account's login. Zero screens, no new account ever created here. ---
+  describe('personal (species 1) mode', () => {
+    beforeEach(() => {
+      inviteRow.code = 'PERS-1'
+      inviteRow.code_type = 'govt_admin'
+      inviteRow.metadata = { personal_auth_user_id: 'persona-77', personal_name: 'IME Programme Leader' }
+      getUserByIdResult = { data: { user: { id: 'persona-77', email: 'persona-77@invite.saysomethingin.app' } }, error: null }
+      getUserByIdArg = undefined
+    })
+
+    it('mints a session for the BOUND account — no createUser, even for a named role via linkAuth', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.personal).toBe(true)
+      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+      // The session is for the stored user's own email — bound server-side.
+      expect(getUserByIdArg).toBe('persona-77')
+      expect(generateLinkArg.email).toBe('persona-77@invite.saysomethingin.app')
+      // THE PIN: personal sign-in never creates an account.
+      expect(createUserArg).toBeUndefined()
+      expect(attempts.some((a) => a.outcome === 'personal_signin' && a.auth_user_id === 'persona-77')).toBe(true)
+    })
+
+    it('is repeatable — a second click mints again (no exhaustion below max_uses)', async () => {
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), makeRes())
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._json.success).toBe(true)
+    })
+
+    it('a revoked-at-auth-layer persona (account deleted) fails friendly, not 500', async () => {
+      getUserByIdResult = { data: { user: null }, error: null }
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(false)
+      expect(attempts.some((a) => a.outcome === 'personal_account_missing')).toBe(true)
+    })
+
+    it('still enforces expiry before any sign-in', async () => {
+      inviteRow.expires_at = '2020-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._json).toEqual({ success: false, error: 'Code expired' })
+      expect(getUserByIdArg).toBeUndefined()
+    })
+
+    it('still rate limits by code', async () => {
+      rateCounts.code = 20
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(429)
+    })
   })
 })

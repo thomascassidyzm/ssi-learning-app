@@ -146,6 +146,29 @@ describe('RedeemCode.vue — identity capture, then in (no OTP)', () => {
     expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
   })
 
+  it('a PERSONAL link (species 1) signs straight into the bound account — ZERO screens: no capture form, no confirm, lands on the role surface', async () => {
+    const posted: any[] = []
+    const { wrapper, supabase } = mountRedeemCode({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-p1', codeType: 'govt_admin', context: { groupName: 'IME Demo Programme' }, personal: true, alreadyRedeemed: false, redirectTo: '/schools' },
+      '/api/auth/possession-redeem': (body: any) => {
+        posted.push(body)
+        return { success: true, personal: true, session: { access_token: 'at-p', refresh_token: 'rt-p' } }
+      },
+    })
+    await flushAsync()
+    await flushAsync()
+
+    // THE PIN: zero screens. No name field, no email field, no OTP, no confirm.
+    expect(wrapper.find('#redeem-name').exists()).toBe(false)
+    expect(wrapper.find('#redeem-pupil-name').exists()).toBe(false)
+    expect(wrapper.find('#redeem-details-email').exists()).toBe(false)
+    expect(wrapper.find('#redeem-otp').exists()).toBe(false)
+    expect(posted.length).toBe(1)
+    expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'at-p', refresh_token: 'rt-p' })
+    expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
+    expect(routerReplace).toHaveBeenCalledWith('/schools')
+  })
+
   it('a re-clicked link under a session that already redeemed it goes STRAIGHT to the role surface — no confirm, no second spend', async () => {
     const { supabase } = mountRedeemCode(
       {

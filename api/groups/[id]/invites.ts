@@ -35,6 +35,7 @@ import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { generateCode } from '../../_utils/codeGen'
 import { isStrictDescendantGroup, ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
+import { provisionPersona } from '../../_utils/provisionPersona'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -119,7 +120,7 @@ export default async function handler(
       const ownSchoolId = await ownSchoolIdForNode(supabase, groupId)
       let query = supabase
         .from('invite_codes')
-        .select('code, code_type, max_uses, use_count, expires_at, created_at')
+        .select('code, code_type, metadata, max_uses, use_count, expires_at, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
       query = ownSchoolId
@@ -139,6 +140,10 @@ export default async function handler(
             code: row.code,
             limits: { max_uses: row.max_uses, expires_at: row.expires_at },
             useCount: row.use_count,
+            // Species 1 marker: this link is a specific person's login.
+            ...(row.metadata?.personal_auth_user_id
+              ? { personal: true, personalName: row.metadata?.personal_name ?? null }
+              : {}),
           }
         })
         .filter(Boolean)
@@ -151,9 +156,14 @@ export default async function handler(
     return
   }
 
-  const { role, limits } = (req.body || {}) as {
+  const { role, limits, personal } = (req.body || {}) as {
     role?: string
     limits?: { max_uses?: number; expires_at?: string }
+    // Species 1 (founder-ruled 2026-07-20): pre-provision a REAL account
+    // (role + node + display name) and bind the minted code to it — the link
+    // becomes that person's login, zero screens. Omitted → species 2, the
+    // shareable open link with identity capture at redeem.
+    personal?: { name?: string; email?: string; class_id?: string }
   }
 
   if (role !== 'teacher' && role !== 'leader' && role !== 'school_leader' && role !== 'student') {
@@ -173,7 +183,62 @@ export default async function handler(
     }
   }
 
+  if (personal !== undefined) {
+    if (!personal || typeof personal.name !== 'string' || !personal.name.trim()) {
+      res.status(400).json({ error: 'personal.name is required for a personal link' })
+      return
+    }
+    if (personal.class_id && role !== 'student') {
+      res.status(400).json({ error: 'personal.class_id only applies to student links' })
+      return
+    }
+  }
+
   try {
+    // Personal links: provision the account FIRST, so a code is never minted
+    // pointing at nothing. teacher/student class checks need the node's own
+    // school where applicable.
+    let personaUserId: string | null = null
+    let personaEmail: string | null = null
+    let personaName: string | null = null
+    if (personal) {
+      const nodeSchoolId = role === 'school_leader'
+        ? schoolLeaderSchoolId
+        : await ownSchoolIdForNode(supabase, groupId)
+      if (personal.class_id && nodeSchoolId) {
+        const { data: cls } = await supabase
+          .from('classes')
+          .select('id, school_id')
+          .eq('id', personal.class_id)
+          .maybeSingle()
+        if (!cls || (cls as any).school_id !== nodeSchoolId) {
+          res.status(400).json({ error: 'class does not belong to this school' })
+          return
+        }
+      } else if (personal.class_id && !nodeSchoolId) {
+        res.status(400).json({ error: 'class links can only be minted at a school' })
+        return
+      }
+      const persona = await provisionPersona(supabase, {
+        role: role as 'leader' | 'school_leader' | 'teacher' | 'student',
+        name: personal.name!.trim().slice(0, 100),
+        email: personal.email,
+        groupId,
+        classId: personal.class_id,
+        schoolId: nodeSchoolId,
+        createdBy: callerUserId,
+      })
+      if (persona.error || !persona.authUserId) {
+        console.error('[GroupInvites] persona provisioning failed:', persona.error)
+        const conflict = /already been registered|already registered|already exists/i.test(persona.error || '')
+        res.status(conflict ? 409 : 500).json({ error: conflict ? 'An account already exists for this email' : 'Could not set up the account' })
+        return
+      }
+      personaUserId = persona.authUserId
+      personaEmail = persona.email
+      personaName = personal.name!.trim().slice(0, 100)
+    }
+
     let newCode: string | null = null
     for (let attempt = 0; attempt < 10; attempt++) {
       const candidate = generateCode()
@@ -204,6 +269,11 @@ export default async function handler(
       ...(role === 'school_leader'
         ? { grants_school_id: schoolLeaderSchoolId }
         : { grants_group_id: groupId }),
+      // Personal binding — server-derived from the account we just
+      // provisioned above, never client-supplied.
+      ...(personaUserId
+        ? { metadata: { personal_auth_user_id: personaUserId, personal_name: personaName } }
+        : {}),
     }
     if (limits?.expires_at !== undefined) insertData.expires_at = limits.expires_at
     if (limits?.max_uses !== undefined) insertData.max_uses = limits.max_uses
@@ -225,6 +295,7 @@ export default async function handler(
       code: created.code,
       id: created.id,
       url: `${origin}/${redeemPathForRole(role)}/${created.code}`,
+      ...(personaUserId ? { account: { auth_user_id: personaUserId, email: personaEmail, name: personaName } } : {}),
     })
   } catch (error) {
     console.error('[GroupInvites] Error:', error)

@@ -190,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // service-role-only *_code_validation view).
     const { data: inviteRow } = await supabase
       .from('invite_code_validation')
-      .select('id, code, code_type, max_uses, use_count, expires_at, is_active')
+      .select('id, code, code_type, metadata, max_uses, use_count, expires_at, is_active')
       .eq('code_normalized', strippedCode)
       .eq('is_active', true)
       .maybeSingle()
@@ -216,17 +216,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(200).json({ success: false, error: 'This invite needs to be redeemed by email sign-in' })
       return
     }
-    if (isLinkAuth && !LINK_AUTH_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {
-      // A named-role link redeemed without a typed email: the client should
-      // have shown the identity-capture screen. Refuse the ghost mint and tell
-      // it to capture — never create a link-<uuid> account for a teacher/
-      // leader/admin.
-      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: null, ipHash, outcome: 'identity_required' })
-      res.status(200).json({ success: false, reason: 'identity_required', error: 'This invite needs your name and email first' })
-      return
-    }
-
-    // Per-code rate limit — bounds abuse of a single leaked/guessed valid code.
+    // Per-code rate limit — bounds abuse of a single leaked/guessed valid
+    // code. Runs BEFORE the personal branch so a personal login link gets the
+    // same brute-bounding as everything else.
     const { count: codeCount } = await supabase
       .from('possession_mint_attempts')
       .select('id', { count: 'exact', head: true })
@@ -236,6 +228,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if ((codeCount ?? 0) >= PER_CODE_LIMIT) {
       await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'rate_limited_code' })
       res.status(429).json({ success: false, error: 'Too many attempts on this code. Please try again later.' })
+      return
+    }
+
+    // PERSONAL links (species 1, founder-ruled 2026-07-20): the code is bound
+    // at mint time to a PRE-PROVISIONED account (metadata.personal_auth_user_id,
+    // written only by the admin-gated mint endpoint — never client-supplied).
+    // Possession of the link IS that account's login: mint a session for the
+    // stored user, zero screens. The already-registered takeover rail
+    // deliberately does not apply — signing into this exact account is the
+    // link's entire purpose, and the binding was authorized at mint.
+    // Revocation (is_active), expiry and rate limits all still gate above.
+    const personalUserId = (inviteRow as any).metadata?.personal_auth_user_id as string | undefined
+    if (personalUserId) {
+      const { data: personalUser } = await supabase.auth.admin.getUserById(personalUserId)
+      const personalEmail = personalUser?.user?.email
+      if (!personalEmail) {
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: null, ipHash, outcome: 'personal_account_missing' })
+        res.status(200).json({ success: false, error: 'This link is no longer valid' })
+        return
+      }
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: personalEmail,
+      })
+      const hashedToken = (linkData as any)?.properties?.hashed_token
+      if (linkError || !hashedToken) {
+        console.error('[PossessionRedeem] personal generateLink failed:', linkError)
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: personalEmail, ipHash, outcome: 'error', authUserId: personalUserId, errorDetail: linkError?.message ?? 'generateLink returned no hashed_token' })
+        res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
+        return
+      }
+      const personalAnonClient = createClient(supabaseUrl, supabaseAnonKey)
+      const { data: verifyData, error: verifyError } = await personalAnonClient.auth.verifyOtp({
+        token_hash: hashedToken,
+        type: 'magiclink',
+      })
+      if (verifyError || !verifyData?.session) {
+        console.error('[PossessionRedeem] personal verifyOtp failed:', verifyError)
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: personalEmail, ipHash, outcome: 'mint_failed', authUserId: personalUserId, errorDetail: verifyError?.message ?? 'verifyOtp returned no session' })
+        res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
+        return
+      }
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: personalEmail, ipHash, outcome: 'personal_signin', authUserId: personalUserId })
+      res.status(200).json({
+        success: true,
+        personal: true,
+        session: {
+          access_token: verifyData.session.access_token,
+          refresh_token: verifyData.session.refresh_token,
+        },
+      })
+      return
+    }
+
+    if (isLinkAuth && !LINK_AUTH_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {
+      // A named-role link redeemed without a typed email: the client should
+      // have shown the identity-capture screen. Refuse the ghost mint and tell
+      // it to capture — never create a link-<uuid> account for a teacher/
+      // leader/admin.
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: null, ipHash, outcome: 'identity_required' })
+      res.status(200).json({ success: false, reason: 'identity_required', error: 'This invite needs your name and email first' })
       return
     }
 
