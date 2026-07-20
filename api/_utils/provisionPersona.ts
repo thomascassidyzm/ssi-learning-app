@@ -73,22 +73,40 @@ export async function provisionPersona(svc: Svc, spec: PersonaSpec): Promise<Per
   }
   const authUserId = created.user.id
 
-  const { data: learner, error: learnerError } = await svc
-    .from('learners')
-    .insert({
-      user_id: authUserId,
-      display_name: spec.name,
-      educational_role: EDUCATIONAL_ROLE[spec.role],
-      needs_verification: !spec.email,
-      is_demo: isDemo,
-    })
-    .select('id')
-    .single()
-  if (learnerError) {
-    await svc.auth.admin.deleteUser(authUserId).catch(() => {})
-    return { authUserId: '', email, learnerId: null, error: `learner insert failed: ${learnerError.message}` }
+  // An auth trigger creates the learners row on createUser (verified live
+  // 2026-07-20: blind insert hits learners_user_id_key) — but redeem.ts's
+  // own comment says it doesn't always. Update-if-present, insert-if-not.
+  const learnerFields = {
+    display_name: spec.name,
+    educational_role: EDUCATIONAL_ROLE[spec.role],
+    needs_verification: !spec.email,
+    is_demo: isDemo,
   }
-  const learnerId = (learner as any)?.id as string
+  let learnerId: string | null = null
+  const { data: existingLearner } = await svc
+    .from('learners')
+    .select('id')
+    .eq('user_id', authUserId)
+    .maybeSingle()
+  if (existingLearner) {
+    const { error: updateError } = await svc.from('learners').update(learnerFields).eq('user_id', authUserId)
+    if (updateError) {
+      await svc.auth.admin.deleteUser(authUserId).catch(() => {})
+      return { authUserId: '', email, learnerId: null, error: `learner update failed: ${updateError.message}` }
+    }
+    learnerId = (existingLearner as any).id as string
+  } else {
+    const { data: learner, error: learnerError } = await svc
+      .from('learners')
+      .insert({ user_id: authUserId, ...learnerFields })
+      .select('id')
+      .single()
+    if (learnerError) {
+      await svc.auth.admin.deleteUser(authUserId).catch(() => {})
+      return { authUserId: '', email, learnerId: null, error: `learner insert failed: ${learnerError.message}` }
+    }
+    learnerId = (learner as any)?.id as string
+  }
 
   const tag = (tagType: string, tagValue: string, roleInContext: string) =>
     svc.from('user_tags').insert({
