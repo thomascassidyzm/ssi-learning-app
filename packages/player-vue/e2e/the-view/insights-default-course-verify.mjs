@@ -79,10 +79,12 @@ for (const [name, id] of nodes) {
 const dataless = coastalDefault.courses.find((c) => c.hasData === false)
 if (dataless) {
   const j = await api(`/api/groups/${COASTAL}/rate-compare?course_code=${dataless.code}`)
-  check('explicit dataless pick honoured, empty state NAMED (not generic)',
-    j.applied.course_code === dataless.code && j.insufficientData === true
-      && j.reason && j.reason !== 'Not enough data to compare fairly yet.',
-    `reason="${j.reason}"`)
+  // the pick is honoured; the compare may ladder to a live global comparison,
+  // or land on a NAMED (never generic) empty state
+  check('explicit dataless pick honoured, never the generic empty state',
+    j.applied.course_code === dataless.code
+      && (j.insufficientData === false || (j.reason && j.reason !== 'Not enough data to compare fairly yet.')),
+    `insufficient=${j.insufficientData} reason="${j.reason || ''}"`)
 } else {
   console.log('note: Coastal currently offers no dataless course to explicit-pick (all active)')
 }

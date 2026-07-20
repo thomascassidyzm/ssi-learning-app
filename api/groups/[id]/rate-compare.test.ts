@@ -195,10 +195,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // Compare chain nearest-first: school → programme → nation → globals
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
       ['s1-node', 'programme', 'nation', 'global', 'global_all_courses'])
-    expect(res.body.applied.compare_to).toBe('s1-node')
-    // c1 is the only class in school-1 — no peers, honest insufficiency even for admin
-    expect(res.body.insufficientData).toBe(true)
-    expect(res.body.cohortSize).toBe(0)
+    // c1 is the only class in school-1 — the school-average default is empty,
+    // so the ladder widens to global · this course (c2/c3/c5): never a blank landing.
+    expect(res.body.applied.compare_to).toBe('global')
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(3)
   })
 
   it('admin · class vs programme average: peer classes on the SAME course only', async () => {
@@ -543,13 +544,17 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     expect(res.body.options.courses[0].code).toBe('tam_for_eng')
   })
 
-  it('an EXPLICIT course pick is never overridden by the k-floor preference', async () => {
+  it('an EXPLICIT course pick is never overridden by the k-floor preference — the compare ladders instead', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
     const res = makeRes()
     await handler(makeReq('school-2', { course_code: 'tam_for_eng' }), res)
-    expect(res.body.applied.course_code).toBe('tam_for_eng')
-    expect(res.body.insufficientData).toBe(true) // honest, named — the user chose it
+    expect(res.body.applied.course_code).toBe('tam_for_eng') // the pick is honoured
+    // no other school runs tam → programme and global · this-course are both
+    // empty; the DEFAULT compare ladders to all-courses so the pick still
+    // lands on a real comparison (entity stays anchored to tam).
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    expect(res.body.insufficientData).toBe(false)
   })
 
   it('the default course does not depend on the window (switching windows never re-defaults)', async () => {
@@ -583,6 +588,29 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     await handler(makeReq('school-2'), res2)
     expect(res2.body.kFloor).toBe(5)
     expect(res2.body.insufficientData).toBe(true) // 1 peer < 5
+  })
+
+  it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A second region under `programme` running a course nobody else runs —
+    // its parent-average cohort is empty for EVERY course it has.
+    TABLES.groups.push({ id: 'metro', name: 'Metro International', type: 'region', parent_id: 'programme', path: 'india/ime/metro', is_demo: false })
+    TABLES.groups.push({ id: 's4-node', name: 'Metro School', type: 'school', parent_id: 'metro', path: 'india/ime/metro/s4', is_demo: false })
+    TABLES.schools.push({ id: 'school-4', school_name: 'Metro School', group_id: 'metro', node_group_id: 's4-node', is_demo: false })
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 8 French', course_code: 'fra_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
+    SESSION_ROWS.push(...sessions('c6', 'fra_for_eng', [[0, 6], [6, 12]]))
+    const res = makeRes()
+    await handler(makeReq('metro'), res) // default compare = programme average
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.course_code).toBe('fra_for_eng') // its own busiest
+    // parent cohort empty on fra → ladder: global (still empty) → all courses
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBeGreaterThanOrEqual(1)
+    expect(res.body.average.label).toBe('Global average · all courses')
+    // the narrower options are all still offered for manual picking
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
+      ['programme', 'nation', 'global', 'global_all_courses'])
   })
 
   it('a genuinely dark node says WHY — never the generic compare message', async () => {

@@ -544,10 +544,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let cohortCourse = compareTo === 'global_all_courses' ? null : courseCode
 
     // Peer resolution reads the current compareTo/cohortCourse, so it can be
-    // re-run after the root all-courses fallback below. Returns an error string
-    // only for the unresolvable-ancestor case (globals never error here).
+    // re-run by the compare ladder below (which may move an ANCESTOR default
+    // onto a global rung — hence compareTo is re-read here, never the
+    // request-time isGlobalCompare). Returns an error string only for the
+    // unresolvable-ancestor case (globals never error here).
     const resolveMembers = async (): Promise<{ members: { id: string; classIds: string[] }[]; error?: string }> => {
-      if (isGlobalCompare) {
+      if (compareTo === 'global' || compareTo === 'global_all_courses') {
         if (classRow) {
           let q = svc.from('classes').select('id, school_id').eq('is_active', true).neq('id', classRow.id)
           if (cohortCourse) q = q.eq('course_code', cohortCourse)
@@ -643,27 +645,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    // ─── Root all-courses fallback: a root node's DEFAULT comparison is
-    // "global · this course" (the sole this-course option a root has — every
-    // deeper node defaults to a same-course ancestor average). When a
-    // self-contained world is the whole population for its course, that cohort
-    // is empty and the landing would be blank. Widen it to "global · all
-    // courses" automatically so a root always opens on a real comparison. Only
-    // on the untouched DEFAULT — an explicit empty pick keeps its named
-    // empty-state (below), and the this-course option stays selectable. ───
-    if (loaded.active.length < effectiveFloor && !requestedCompare && compareTo === 'global') {
-      const widened = 'global_all_courses'
-      compareTo = widened
-      cohortCourse = null
-      baseBody.applied.compare_to = widened
-      const wm = await resolveMembers()
-      const wl = await loadActive(wm.members)
-      if ('rpcError' in wl) {
-        console.error('[node-rate-compare] analytics_class_sessions_scoped error:', wl.rpcError)
-        res.status(500).json({ error: 'Failed to load rate data' })
-        return
+    // ─── Compare LADDER on the untouched DEFAULT (generalises the old
+    // root-only all-courses fallback, 2026-07-20): when the default
+    // comparison's cohort misses the floor, widen — global · this course,
+    // then global · all courses — so a node whose peers simply don't share
+    // its courses (Metro International under a programme of eng_for_* schools)
+    // still opens on a real comparison. Intermediate ancestors are skipped
+    // deliberately: any ancestor's this-course cohort is a subset of the
+    // global this-course cohort, so if global fails they all fail. Only on
+    // the DEFAULT — an explicit empty pick keeps its named empty-state
+    // (below), and every narrower option stays selectable. On total failure
+    // the last rung's state stands (honest all-courses reason). ───
+    if (!requestedCompare) {
+      for (const rung of ['global', 'global_all_courses'] as const) {
+        if (loaded.active.length >= effectiveFloor) break
+        if (compareTo === rung) continue // already tried as the default
+        compareTo = rung
+        cohortCourse = rung === 'global_all_courses' ? null : courseCode
+        baseBody.applied.compare_to = rung
+        const wm = await resolveMembers()
+        const wl = await loadActive(wm.members)
+        if ('rpcError' in wl) {
+          console.error('[node-rate-compare] analytics_class_sessions_scoped error:', wl.rpcError)
+          res.status(500).json({ error: 'Failed to load rate data' })
+          return
+        }
+        loaded = wl
       }
-      loaded = wl
     }
 
     const rows = loaded.rows
@@ -711,7 +719,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // never "You" (the entity here is never the viewer's own learner identity). ───
     const levelNoun = nodeMeta.kind === 'class' ? 'class' : (nodeMeta.label || 'group')
     const cohortUnit = classRow ? 'classes' : 'schools'
-    const cohortLabel = isGlobalCompare
+    // compareTo may have moved onto a global rung via the ladder — label from
+    // its FINAL value, not the request-time isGlobalCompare.
+    const cohortLabel = compareTo === 'global' || compareTo === 'global_all_courses'
       ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
       : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
 
