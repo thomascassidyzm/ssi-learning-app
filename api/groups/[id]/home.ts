@@ -52,6 +52,24 @@ function inSubtree(path: string | null | undefined, rootPath: string): boolean {
   return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
 }
 
+/**
+ * LEGO ordinal for a `S{NNNN}L{NN}` position id within a course — the same
+ * (seed_number, lego_index) row-number ordering analytics_class_sessions_scoped
+ * uses, computed as two indexed head-counts. Returns 0 when the id doesn't
+ * parse (null/legacy values), so callers can fall back.
+ */
+async function legoOrdinal(svc: SupabaseClient, courseCode: string, legoId: string | null | undefined): Promise<number> {
+  const m = typeof legoId === 'string' ? legoId.match(/S(\d+)L(\d+)/) : null
+  if (!m) return 0
+  const seed = parseInt(m[1], 10)
+  const lego = parseInt(m[2], 10)
+  const [{ count: before }, { count: within }] = await Promise.all([
+    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).lt('seed_number', seed),
+    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).eq('seed_number', seed).lte('lego_index', lego),
+  ])
+  return (before ?? 0) + (within ?? 0)
+}
+
 /** Learner display names for a set of auth uids, via learners.user_id. */
 async function namesForAuthUids(svc: SupabaseClient, uids: string[]): Promise<Map<string, string>> {
   const names = new Map<string, string>()
@@ -88,14 +106,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       resolveGroupTreeCaller(req, res, svc),
       svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
       svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
-      svc.from('classes').select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed').eq('id', rawId).maybeSingle(),
+      svc.from('classes').select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed, last_lego_id, class_learner_id').eq('id', rawId).maybeSingle(),
       svc.from('groups').select('id, name, type, parent_id, path, is_demo, is_test'),
     ])
     if (!caller) return
 
     // ─── Resolve :id → a group node (or a class), same precedence as before ───
     let nodeId: string | null = null
-    let classRow: { id: string; class_name: string; course_code: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null; current_seed: number | null } | null = null
+    let classRow: { id: string; class_name: string; course_code: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null; current_seed: number | null; last_lego_id: string | null; class_learner_id: string | null } | null = null
 
     if (asGroup) {
       nodeId = rawId
@@ -169,10 +187,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }))
       return hours
     })
-    const [, extras, practiceHours] = await Promise.all([
+    // CLASS PRACTICE rollup — classes practising together across the subtree
+    // (class_sessions), the primary school metric. Same class-id union as the
+    // lenses: node-attached (group_id) ∪ legacy school-attached.
+    const classPracticePromise = schoolsPromise.then(async () => {
+      const classIds = new Set<string>()
+      await Promise.all([
+        ...chunk(subtreeIds).map(async (batch) => {
+          const { data } = await svc.from('classes').select('id').in('group_id', batch).eq('is_active', true)
+          for (const c of data ?? []) classIds.add((c as any).id)
+        }),
+        ...chunk(schoolRows.map((s) => s.id)).map(async (batch) => {
+          const { data } = await svc.from('classes').select('id').in('school_id', batch).eq('is_active', true)
+          for (const c of data ?? []) classIds.add((c as any).id)
+        }),
+      ])
+      let seconds = 0
+      let sessions7d = 0
+      const active7d = new Set<string>()
+      const weekAgo = Date.now() - 7 * 86400000
+      await Promise.all(chunk([...classIds]).map(async (batch) => {
+        const { data } = await svc.from('class_sessions').select('class_id, started_at, duration_seconds').in('class_id', batch)
+        for (const r of data ?? []) {
+          seconds += Number((r as any).duration_seconds) || 0
+          if (new Date((r as any).started_at).getTime() >= weekAgo) {
+            sessions7d += 1
+            active7d.add((r as any).class_id as string)
+          }
+        }
+      }))
+      return {
+        hours: Math.round((seconds / 3600) * 10) / 10,
+        sessions7d,
+        activeClasses7d: active7d.size,
+        classCount: classIds.size,
+      }
+    })
+    const [, extras, practiceHours, classPractice] = await Promise.all([
       schoolsPromise,
       computeNodeExtras(svc, [nodeId, ...childRows.map((c) => c.id)], allGroups),
       practiceHoursPromise,
+      classPracticePromise,
     ])
     const schoolNodeIds = new Set(schoolRows.map((s) => s.node_group_id).filter(Boolean) as string[])
     const subtreeSchoolIds = schoolRows.map((s) => s.id)
@@ -215,11 +270,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // (founder ruling 2026-07-19). No streaks anywhere: founder ruling
     // 2026-07-19, reasoning in docs/gamification-done-right.md.
     if (classRow) {
-      const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }] = await Promise.all([
+      const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }, { data: classSessions }, { data: classEnrollment }] = await Promise.all([
         svc.from('class_teachers').select('teacher_user_id, is_lead').eq('class_id', classRow.id),
         svc.from('class_student_progress').select('learner_id, student_name, seeds_completed, legos_mastered, total_practice_seconds, last_active_at, joined_class_at').eq('class_id', classRow.id),
         svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', classRow.course_code),
         svc.from('class_activity_stats').select('total_practice_seconds, active_students, school_id, region_code, course_code').eq('class_id', classRow.id).maybeSingle(),
+        // PLAY-AS-CLASS IS THE PRIMARY METRIC (founder ruling): the class's
+        // own teacher-led sessions lead this page. Newest first; 500 covers
+        // years of twice-weekly classroom practice.
+        svc.from('class_sessions').select('started_at, ended_at, duration_seconds, cycles_completed, end_lego_id').eq('class_id', classRow.id).order('started_at', { ascending: false }).limit(500),
+        // The class's OWN learning account (THE-MODEL I6) — its enrollment
+        // cursor is what play-as-class advances, and is the journey source.
+        classRow.class_learner_id
+          ? svc.from('course_enrollments').select('highest_completed_lego_id, last_completed_lego_id, last_practiced_at, total_practice_minutes').eq('learner_id', classRow.class_learner_id).eq('course_id', classRow.course_code).maybeSingle()
+          : Promise.resolve({ data: null as any }),
       ])
       const teacherIds = new Set<string>((ct ?? []).map((t: any) => t.teacher_user_id))
       if (classRow.teacher_user_id) teacherIds.add(classRow.teacher_user_id)
@@ -284,12 +348,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
       const classHours = (csp ?? []).reduce((sum: number, s: any) => sum + (Number(s.total_practice_seconds) || 0), 0) / 3600
 
-      // Journey: how far the class entity has travelled through the course
-      // (same numbers the old class page's Course Journey card told).
+      // ─── CLASS PRACTICE — the headline layer (founder ruling: play-as-class
+      // is the only metric that matters in a school; students are the bonus). ───
+      const cs = (classSessions ?? []) as { started_at: string; ended_at: string | null; duration_seconds: number | null; cycles_completed: number | null; end_lego_id: string | null }[]
+      const weekAgo = Date.now() - 7 * 86400000
+      const monthAgo = Date.now() - 28 * 86400000
+      const classPractice = {
+        weekSessions: cs.filter((s) => new Date(s.started_at).getTime() >= weekAgo).length,
+        sessions28d: cs.filter((s) => new Date(s.started_at).getTime() >= monthAgo).length,
+        totalSessions: cs.length,
+        lastSessionAt: cs[0]?.started_at ?? null,
+        hours: Math.round((cs.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0) / 3600) * 10) / 10,
+      }
+
+      // Journey: how far the CLASS has travelled together — the class-entity's
+      // play-as-class position (enrollment cursor, falling back to the newest
+      // class session's end LEGO, then classes.last_lego_id), expressed as a
+      // LEGO ordinal so it shares units with the course total. Only when no
+      // class play exists at all do we fall back to the legacy current_seed
+      // estimate (a seed count — kept so pre-play classes still show a bar).
       const journeyTotal = Number(legoTotal) || 0
-      const journeyDone = journeyTotal > 0
-        ? Math.min(journeyTotal, classRow.current_seed || 0)
-        : (classRow.current_seed || 0)
+      const journeyLegoId = (classEnrollment as any)?.highest_completed_lego_id
+        || cs.find((s) => s.end_lego_id)?.end_lego_id
+        || classRow.last_lego_id
+        || null
+      const journeyOrd = journeyLegoId ? await legoOrdinal(svc, classRow.course_code, journeyLegoId) : 0
+      const journeySeedMatch = journeyLegoId?.match(/S(\d+)L/)
+      const journeyDone = journeyOrd > 0
+        ? Math.min(journeyTotal || journeyOrd, journeyOrd)
+        : (journeyTotal > 0 ? Math.min(journeyTotal, classRow.current_seed || 0) : (classRow.current_seed || 0))
 
       // Practice min/student/week benchmark vs school + course averages
       // (the old page's Bench card, same formulas).
@@ -327,8 +414,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         children: [],
         teachers,
         students,
-        journey: { done: journeyDone, total: journeyTotal },
+        journey: {
+          done: journeyDone,
+          total: journeyTotal,
+          source: journeyOrd > 0 ? 'class-play' : 'estimate',
+          legoId: journeyOrd > 0 ? journeyLegoId : null,
+          seedNumber: journeyOrd > 0 && journeySeedMatch ? parseInt(journeySeedMatch[1], 10) : null,
+        },
         benchmark,
+        classPractice,
         practiceHours: Math.round(classHours * 10) / 10,
         schoolId: classRow.school_id,
         nodeId,
@@ -439,6 +533,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const teachersByClass = new Map<string, Set<string>>()
       const studentCountByClass = new Map<string, number>()
       const hoursByClass = new Map<string, number>()
+      const classHoursByClass = new Map<string, number>()
+      const lastClassSessionByClass = new Map<string, string>()
       await Promise.all([
         ...chunk(classIds).map(async (batch) => {
           const { data } = await svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', batch)
@@ -456,6 +552,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             hoursByClass.set(cid, (hoursByClass.get(cid) || 0) + (Number((r as any).total_practice_seconds) || 0) / 3600)
           }
         }),
+        // Class practice per class (the primary metric) — classes lens only.
+        ...(lens === 'classes'
+          ? chunk(classIds).map(async (batch) => {
+              const { data } = await svc.from('class_sessions').select('class_id, started_at, duration_seconds').in('class_id', batch)
+              for (const r of data ?? []) {
+                const cid = (r as any).class_id as string
+                classHoursByClass.set(cid, (classHoursByClass.get(cid) || 0) + (Number((r as any).duration_seconds) || 0) / 3600)
+                const at = String((r as any).started_at)
+                if ((lastClassSessionByClass.get(cid) || '') < at) lastClassSessionByClass.set(cid, at)
+              }
+            })
+          : []),
       ])
       // Lead pointer unioned in after the wave.
       for (const c of classes) {
@@ -480,6 +588,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             studentCount: studentCountByClass.get(c.id) || 0,
             practiceHours: Math.round((hoursByClass.get(c.id) || 0) * 10) / 10,
+            classPracticeHours: Math.round((classHoursByClass.get(c.id) || 0) * 10) / 10,
+            lastClassSessionAt: lastClassSessionByClass.get(c.id) || null,
           })).sort((a, b) => (a.home || '').localeCompare(b.home || '') || a.name.localeCompare(b.name)),
         }
       } else {
@@ -514,6 +624,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       siblings,
       children: childRows.map(withExtras),
       practiceHours: Math.round(practiceHours * 10) / 10,
+      classPractice,
       ...(lensPayload || {}),
     })
   } catch (error) {

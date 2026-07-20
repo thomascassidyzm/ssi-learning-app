@@ -46,6 +46,7 @@ import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { useClassAwareProgressStore, type ClassContextForProgress } from '../composables/schools/useClassProgressStore'
+import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
@@ -700,6 +701,17 @@ const learnerId = computed(() => props.classContext?.class_learner_id || staffLe
 const activeProgressStore = useClassAwareProgressStore(
   progressStore as unknown as Ref<any>,
   computed(() => props.classContext as ClassContextForProgress | null),
+  supabase as unknown as Ref<any>,
+)
+
+// Practice-hours spine (LANE A, docs/the-view/play-as-class-REPORT.md §1.2):
+// same server-mediated routing as activeProgressStore above, but for the
+// `sessions` insert/checkpoint/end — RLS rejects a direct browser write
+// targeting the class's learner id, so class mode routes through
+// /api/school/class-progress instead of a transparent passthrough.
+const activeSessionStore = useClassAwareSessionStore(
+  sessionStore as unknown as Ref<any>,
+  computed(() => props.classContext as ClassContextForSession | null),
   supabase as unknown as Ref<any>,
 )
 
@@ -3212,7 +3224,7 @@ const learningSession = useLearningSession({
   // updateEnrollmentActivity through this option; in class mode they need the
   // same server-mediated routing as every other progress write.
   progressStore: activeProgressStore as unknown as Ref<ProgressStore | null>,
-  sessionStore: sessionStore,
+  sessionStore: activeSessionStore as unknown as Ref<SessionStore | null>,
   // Direct supabase ref for the speaking-opportunities RPC — bypasses
   // sessionStore which has had chronic null-at-runtime issues.
   supabase: supabase,

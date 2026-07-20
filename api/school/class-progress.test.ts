@@ -28,6 +28,7 @@ let DB: {
   classes: Array<{ id: string; class_learner_id: string | null; course_code: string }>
   course_enrollments: Array<Record<string, any>>
   lego_progress: Array<Record<string, any>>
+  sessions: Array<Record<string, any>>
 }
 
 function makeChainable(table: string) {
@@ -45,6 +46,9 @@ function makeChainable(table: string) {
         const row = { id: `row-${Math.random()}`, ...builder._insertRow }
         ;(DB as any)[table].push(row)
         return { data: row, error: null }
+      }
+      if (builder._updatePatch) {
+        rows.forEach((r) => Object.assign(r, builder._updatePatch))
       }
       return rows[0] ? { data: rows[0], error: null } : { data: null, error: { message: 'not found', code: 'PGRST116' } }
     },
@@ -87,6 +91,7 @@ beforeEach(async () => {
     classes: [{ id: 'class-1', class_learner_id: 'class-learner-1', course_code: 'cym_for_eng' }],
     course_enrollments: [{ learner_id: 'class-learner-1', course_id: 'cym_for_eng', last_completed_lego_id: null, last_completed_round_index: null, current_cycle_index: 0 }],
     lego_progress: [],
+    sessions: [],
   }
   scope = { role: 'teacher', classIds: ['class-1'], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null, learnerId: 'staff-learner-a' }
 })
@@ -159,6 +164,50 @@ describe('POST /api/school/class-progress', () => {
     DB.lego_progress.push({ id: 'lp-1', learner_id: 'some-other-learner' })
     const res = makeRes()
     await handler(makeReq({ classId: 'class-1', method: 'updateLegoProgress', args: ['lp-1', { reps_completed: 2 }] }), res)
+    expect(res.statusCode).toBe(500)
+  })
+
+  it('startSession writes a sessions row keyed on the CLASS learner id, never client-supplied', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'startSession', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.result.learner_id).toBe('class-learner-1')
+    expect(res.body.result.course_id).toBe('cym_for_eng')
+    expect(DB.sessions).toHaveLength(1)
+    expect(DB.sessions[0].learner_id).toBe('class-learner-1')
+  })
+
+  it('checkpointSession updates the class session row', async () => {
+    DB.sessions.push({ id: 'sess-1', learner_id: 'class-learner-1', items_practiced: 0, duration_seconds: 0 })
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'checkpointSession', args: ['sess-1', 12, 300] }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.sessions.find((r) => r.id === 'sess-1')
+    expect(row.items_practiced).toBe(12)
+    expect(row.duration_seconds).toBe(300)
+  })
+
+  it('checkpointSession refuses a sessionId belonging to a different learner', async () => {
+    DB.sessions.push({ id: 'sess-2', learner_id: 'some-other-learner', items_practiced: 0, duration_seconds: 0 })
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'checkpointSession', args: ['sess-2', 12, 300] }), res)
+    expect(res.statusCode).toBe(500)
+  })
+
+  it('endSession sets ended_at/duration/items on the class session row', async () => {
+    DB.sessions.push({ id: 'sess-3', learner_id: 'class-learner-1', items_practiced: 0, duration_seconds: 0, ended_at: null })
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'endSession', args: ['sess-3', 30, 900] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.result.items_practiced).toBe(30)
+    expect(res.body.result.duration_seconds).toBe(900)
+    expect(res.body.result.ended_at).not.toBeNull()
+  })
+
+  it('endSession refuses a sessionId belonging to a different learner', async () => {
+    DB.sessions.push({ id: 'sess-4', learner_id: 'some-other-learner', items_practiced: 0, duration_seconds: 0 })
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'endSession', args: ['sess-4', 30, 900] }), res)
     expect(res.statusCode).toBe(500)
   })
 
