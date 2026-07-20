@@ -509,6 +509,74 @@ describe('GET /api/groups/:id/rate-compare', () => {
   })
 })
 
+describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2026-07-20: busiest by RECENT ACTIVITY, k-floor preferred)', () => {
+  it('activity beats class count: a class-heavy course with no practice never becomes the default', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The Coastal Districts hole: eng_for_hin has MORE classes below school-2
+    // than any other course — but zero practice. hin/tam carry the sessions.
+    for (const id of ['c7', 'c8', 'c9']) {
+      TABLES.classes.push({ id, class_name: `Eng ${id}`, course_code: 'eng_for_hin', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.course_code).toBe('hin_for_eng') // active, not class-heavy
+    expect(res.body.insufficientData).toBe(false)
+    // Dropdown: active courses first (by recent activity), dataless last + flagged
+    expect(res.body.options.courses.map((c: any) => c.code)).toEqual(['hin_for_eng', 'tam_for_eng', 'eng_for_hin'])
+    expect(res.body.options.courses.map((c: any) => c.hasData)).toEqual([true, true, false])
+  })
+
+  it('prefers the highest-ranked course whose ancestor cohort clears the k-floor', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Make tam the busiest at school-2 (5 recent sessions vs hin's 4) — but NO
+    // peer school under `programme` runs tam, so its cohort fails even the
+    // admin floor of 1. hin has an active peer (school-1). Default must be hin.
+    SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.compare_to).toBe('programme')
+    expect(res.body.applied.course_code).toBe('hin_for_eng')
+    expect(res.body.insufficientData).toBe(false)
+    // …but tam still ranks first in the dropdown (it IS the busiest here)
+    expect(res.body.options.courses[0].code).toBe('tam_for_eng')
+  })
+
+  it('an EXPLICIT course pick is never overridden by the k-floor preference', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
+    const res = makeRes()
+    await handler(makeReq('school-2', { course_code: 'tam_for_eng' }), res)
+    expect(res.body.applied.course_code).toBe('tam_for_eng')
+    expect(res.body.insufficientData).toBe(true) // honest, named — the user chose it
+  })
+
+  it('the default course does not depend on the window (switching windows never re-defaults)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const win of ['today', '7d', '30d', 'all']) {
+      const res = makeRes()
+      await handler(makeReq('school-2', { window: win }), res)
+      expect(res.body.applied.course_code).toBe('hin_for_eng')
+    }
+  })
+
+  it('a genuinely dark node says WHY — never the generic compare message', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS = SESSION_ROWS.filter((r) => !['c2', 'c3', 'c4'].includes(r.class_id))
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.reason).toBe('No practice recorded below this level yet.')
+    // …and a dark CLASS names itself, not "below this level"
+    const res2 = makeRes()
+    await handler(makeReq('c2'), res2)
+    expect(res2.body.insufficientData).toBe(true)
+    expect(res2.body.reason).toBe('No practice recorded in this class yet.')
+  })
+})
+
 describe('GET /api/groups/:id/rate-compare — windows (?window=, rolling day units)', () => {
   it('defaults to "30d" when neither window nor days is present', async () => {
     verifyAdminResult = { userId: 'admin-1' }
