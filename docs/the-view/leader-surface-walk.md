@@ -51,6 +51,21 @@ minted fresh and deleted after each leg.
   **leader-walk-finish** 27/27 PASS (one flake fixed in the script: the admin
   bounce is waited-for, not raced with a fixed 7s sleep). Zero page errors on
   every leg.
-- Promotion + staging/production verification recorded below as it happened.
+- Dev moved under the walk (`f646ab50`, LANE B class-practice payload landed
+  mid-session) — the full suite was re-run green against the `f646ab5` build
+  before promoting, so the promoted tip is exactly what was verified. One
+  false alarm en route: repeated probe redemptions tripped the redemption
+  rate limit ("Too many attempts") — a limiter working as designed, not a
+  build defect; the suite passed once it cooled.
+- **Promoted dev → staging** (`153914af`, merge of dev `8ce525fb`):
+  staging.saysomethingin.app served `153914a`; member-mount 28/28, finish
+  walk all legs, player smoke (home 4.8s, start control, 4 audio plays,
+  zero errors) — ALL GREEN.
+- **Promoted staging → main** (`153914af` fast-forward):
+  saysomethingin.app served `153914a`; player smoke ALL GREEN (first hit
+  21.9s cold edge, warm re-run 4.5s), member-mount 28/28 ALL GREEN, finish
+  walk ALL GREEN — the personal zero-screen landing, subtree drill, admin
+  refusal, open capture code and teacher link all verified **on production**.
+  ![production landing](leader-surface-walk/prod-landing.jpg)
 
 *Last updated: 2026-07-20*
