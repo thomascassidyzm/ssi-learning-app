@@ -51,7 +51,7 @@ async function copyShare(): Promise<void> {
 }
 
 // One inline form open at a time.
-type Form = 'invite' | 'group' | 'school' | 'demo' | 'courses' | 'rename' | null
+type Form = 'person' | 'invite' | 'group' | 'school' | 'demo' | 'courses' | 'rename' | null
 const openForm = ref<Form>(null)
 function toggle(f: Exclude<Form, null>): void {
   openForm.value = openForm.value === f ? null : f
@@ -62,6 +62,42 @@ function toggle(f: Exclude<Form, null>): void {
 
 const entitlementNodeId = computed(() => props.node.commercial?.schoolId ?? props.node.id)
 const entitlementNodeType = computed<'group' | 'school'>(() => (props.node.commercial ? 'school' : 'group'))
+
+// ─── Invite a person (species 1: personal link — the account is provisioned
+// NOW with their name; the link is their login, zero screens on click) ───
+const personRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>('teacher')
+const personName = ref('')
+const personEmail = ref('')
+const isInvitingPerson = ref(false)
+async function submitPerson(): Promise<void> {
+  if (isInvitingPerson.value || !personName.value.trim()) return
+  isInvitingPerson.value = true
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch(`/api/groups/${props.node.id}/invites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+      body: JSON.stringify({
+        role: personRole.value,
+        limits: {},
+        personal: { name: personName.value.trim(), ...(personEmail.value.trim() ? { email: personEmail.value.trim() } : {}) },
+      }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    openForm.value = null
+    announce(
+      `Personal link created for ${personName.value.trim()}`,
+      data.url ? { url: data.url, hint: 'Email this to them — clicking it signs them straight in.' } : null,
+    )
+    personName.value = ''
+    personEmail.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create the personal link'
+  } finally {
+    isInvitingPerson.value = false
+  }
+}
 
 // ─── Invite people ───
 // Role-scoped links (founder-ruled 2026-07-20): every link names its role and
@@ -335,7 +371,8 @@ function closeDelete(): void {
   <div class="node-actions">
     <!-- Verbs, most-common-first (founder-ruled 2026-07-19) -->
     <div class="verb-bar">
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Invite people</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" @click="toggle('person')">Invite a person</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
       <button type="button" class="verb" :disabled="isGettingLink" @click="getJoinLink">
         {{ isGettingLink ? 'Getting link…' : 'Get join link' }}
       </button>
@@ -351,7 +388,20 @@ function closeDelete(): void {
     </div>
 
     <!-- Inline forms (one at a time) -->
-    <div v-if="openForm === 'invite'" class="verb-form">
+    <div v-if="openForm === 'person'" class="verb-form">
+      <select v-model="personRole" class="frost-select">
+        <option value="teacher">Teacher</option>
+        <option value="leader">Group leader</option>
+        <option v-if="node.commercial" value="school_leader">School leader</option>
+        <option value="student">Learner</option>
+      </select>
+      <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
+      <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
+      <button class="btn-primary-sm" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
+        {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
+      </button>
+    </div>
+    <div v-else-if="openForm === 'invite'" class="verb-form">
       <select v-model="inviteRole" class="frost-select">
         <option value="teacher">Teacher</option>
         <option value="leader">Group leader</option>

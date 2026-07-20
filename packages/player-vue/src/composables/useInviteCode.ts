@@ -22,6 +22,11 @@ export interface InviteCodeContext {
   // link go straight to their surface (founder ruling 2026-07-20).
   alreadyRedeemed?: boolean
   redirectTo?: string
+  // Species 1 (founder-ruled 2026-07-20): this code is bound to a
+  // PRE-PROVISIONED account — the link IS the login. Zero screens: no
+  // capture, no confirm; the client mints the session and routes to
+  // redirectTo directly.
+  personal?: boolean
 }
 
 // Module-level singleton state
@@ -100,6 +105,7 @@ export function useInviteCode() {
             courseName: data.context?.courseName,
             alreadyRedeemed: data.alreadyRedeemed === true,
             redirectTo: data.redirectTo,
+            personal: data.personal === true,
           }
         }
         persistPendingCode()

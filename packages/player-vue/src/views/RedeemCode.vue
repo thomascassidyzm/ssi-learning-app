@@ -262,6 +262,17 @@ async function validateAndProceed(rawCode: string): Promise<void> {
     router.replace(surface)
     return
   }
+  // PERSONAL link (species 1): the code is bound to a pre-provisioned
+  // account — the link IS that person's login. ZERO screens: sign straight
+  // into the bound account and land on the role surface. A different
+  // pre-existing session doesn't gate this (nothing is being spent or
+  // granted — this is a sign-in, and the link's whole meaning is "log me in
+  // as the person this was minted for"); the server binds the account from
+  // the code row, never from anything the client sends.
+  if (pendingCode.value?.personal) {
+    await handlePersonalSignIn()
+    return
+  }
   // Valid code — check auth state. A session already present does NOT mean
   // it's the RIGHT session (a govt_admin link opened in a browser still
   // signed into a personal/learner account is the trap this guards against)
@@ -281,6 +292,47 @@ async function validateAndProceed(rawCode: string): Promise<void> {
     return
   }
   step.value = 'auth'
+}
+
+// --- Step 1p (personal link, species 1): zero screens, the link is the login ---
+// Mint a session for the account this code was bound to at mint time and land
+// directly on the role surface. Repeatable until revoked/expired. A stale
+// different-account session is replaced — the personal link's meaning is
+// "sign in as the person this was minted for".
+async function handlePersonalSignIn() {
+  const client = supabase.value
+  if (!client) {
+    error.value = 'App not ready. Please try again.'
+    step.value = 'invalid'
+    return
+  }
+  step.value = 'redeeming'
+  error.value = ''
+  try {
+    if (isSignedIn.value) {
+      await client.auth.signOut({ scope: 'local' }).catch(() => {})
+    }
+    const result = await linkPossessionRedeem()
+    if (result.success && result.session) {
+      const { error: setSessionError } = await client.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      })
+      if (!setSessionError) {
+        await auth?.refreshRole?.()
+        const surface = pendingCode.value?.redirectTo || '/'
+        clearPendingCode()
+        useSchoolContext().clear()
+        router.replace(surface)
+        return
+      }
+    }
+    error.value = result.error || 'This link could not sign you in. Ask for a new one.'
+    step.value = 'invalid'
+  } catch {
+    error.value = 'This link could not sign you in. Ask for a new one.'
+    step.value = 'invalid'
+  }
 }
 
 // --- Step 1c (pupil path): name-only capture, then in ---

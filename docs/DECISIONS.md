@@ -496,3 +496,30 @@ taste, `project_straight_in_invite_links` memory).
   is the account being born, not ceremony.
 **Search width:** founder-ruled shape; agent owned the enforcement layers.
 **Decided by:** founder (reconciled design, project brief 2026-07-20); agent implementation.
+
+## 2026-07-20 — TWO link species: PERSONAL (pre-provisioned, zero screens) vs OPEN (capture) — founder clarification
+**Move:** Founder-ruled (screenshot evidence): the capture screen shipped earlier today is the flow
+for **OPEN shareable links only** (person unknown at mint). **PERSONAL links** — the thing he emails
+known partners — are pre-provisioned accounts (role + node + display name, optional email) whose
+link IS the login: click → authenticated as THAT account → role dashboard, ZERO screens, repeatable,
+revocable. Implemented: `provisionPersona` (api/_utils) + `personal:{name,email?,class_id?}` on the
+node mint endpoint (binding stored as `invite_codes.metadata.personal_auth_user_id`, server-derived
+only) + a personal branch in `possession-redeem.ts` (mints the session for the bound account) +
+client zero-screen path + "Invite a person" vs "Get a shareable link" verbs on the node.
+**Better:** partners get the real straight-in (what §1.13 always meant); open links keep honest
+identity capture; both species carry names — no ghosts anywhere.
+**Simpler:** same invite_codes table, same possession mint, same rails (revocation = is_active,
+expiry, rate limits, audit); one metadata key instead of a new table/column.
+**Cheaper (total):** no migration (metadata jsonb), no OTP infra, and pre-provisioning removes the
+"who is this account?" support loop entirely for known partners.
+**Security note (deliberate):** the personal branch skips the already-registered takeover rail —
+signing into the bound account IS the link's purpose; binding is admin-gated at mint and never
+client-supplied. Rate limits + audit unchanged. Session-replacement on click is by design (the link
+is the login), unlike open links which still confirm under a foreign session before spending a code.
+**Searched & rejected:**
+- Supabase generateLink magic links as the personal mechanism — rejected: single-use and
+  short-lived; founder needs repeatable, revocable links.
+- A `grants_auth_user_id` column — rejected for tonight: needs a live migration for zero functional
+  gain over metadata; revisit in the contract phase if personal links become hot-path.
+**Search width:** founder-ruled shape; agent owned mechanism.
+**Decided by:** founder (species clarification, 2026-07-20 late); agent implementation.
