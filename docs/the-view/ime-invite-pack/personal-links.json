@@ -1,0 +1,62 @@
+{
+  "programme_leader": {
+    "code": "QJM-868",
+    "id": "307af56d-ed76-422f-9b8e-70111a7700e0",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/group/QJM-868",
+    "account": {
+      "auth_user_id": "e4c5958d-32a3-472d-83c2-0bb04a2a3676",
+      "email": "persona-18891410-2d78-4ed2-b479-d4aefbcc952f@invite.saysomethingin.app",
+      "name": "IME Programme Leader"
+    }
+  },
+  "region_leader": {
+    "code": "YSZ-629",
+    "id": "23f000a7-2588-418a-8322-6fb0818c7cef",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/group/YSZ-629",
+    "account": {
+      "auth_user_id": "75231091-f13a-43eb-997f-eacff644a752",
+      "email": "persona-96287054-c517-4fb4-9c44-c6dfb24b18a8@invite.saysomethingin.app",
+      "name": "IME Region Leader"
+    }
+  },
+  "school_leader": {
+    "code": "KJJ-726",
+    "id": "a662b387-af58-41b9-9d92-c58426ea6d06",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/KJJ-726",
+    "account": {
+      "auth_user_id": "ff58aeb1-2bde-4fa9-88af-73b433c05f2c",
+      "email": "persona-c62179ad-df52-44be-8714-866c3b9a064f@invite.saysomethingin.app",
+      "name": "IME School Leader"
+    }
+  },
+  "teacher": {
+    "code": "ZKD-834",
+    "id": "a1b86c40-13c2-4ed1-a80b-160d57ba231f",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/ZKD-834",
+    "account": {
+      "auth_user_id": "d2bc531d-8b13-4c38-acbf-ce8bcca16fc0",
+      "email": "persona-95c397c3-da1b-4172-8f3e-294aa4b72b42@invite.saysomethingin.app",
+      "name": "IME Teacher"
+    }
+  },
+  "student": {
+    "code": "EMU-671",
+    "id": "9dbf22f0-93e8-45d4-ba48-3b49837a67dc",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/EMU-671",
+    "account": {
+      "auth_user_id": "e722f8d1-a08e-41ff-9a76-9da920c89519",
+      "email": "persona-d67f3281-0223-443d-a5c8-3390280695f3@invite.saysomethingin.app",
+      "name": "IME Student"
+    }
+  },
+  "learner": {
+    "code": "FZB-346",
+    "id": "2d65cf77-0e34-419f-9c07-3e4f1addc05e",
+    "url": "https://ssi-learning-app-git-dev-zenjin.vercel.app/redeem/FZB-346",
+    "account": {
+      "auth_user_id": "d3e4a65f-6f87-46e9-b03e-e91e1664d8db",
+      "email": "persona-d45bf200-5033-4d07-9ec1-4441234f2456@invite.saysomethingin.app",
+      "name": "IME Learner"
+    }
+  }
+}

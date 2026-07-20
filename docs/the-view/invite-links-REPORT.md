@@ -59,3 +59,31 @@ fixed at source (`79dcb22c`).
       3 screenshots per role + DB truth → [`ime-invite-pack.md`](./ime-invite-pack.md)
 - [x] Demo estate class-link repair (37 dead links → live) (`79dcb22c`)
 - [x] Promoted dev → staging (all suites green, deployed-dev walk green)
+
+
+---
+
+## 2026-07-20 (late) — TWO SPECIES ruling + personal links shipped
+
+Founder clarification (screenshot evidence): the capture screen is for **OPEN shareable links
+only**. **PERSONAL links** — what gets emailed to known partners — are pre-provisioned accounts
+whose link IS the login: zero screens, role landing, repeatable, revocable. Built + shipped:
+
+- `provisionPersona` (api/_utils) + `personal:{name,email?,class_id?}` on the node mint;
+  binding = `invite_codes.metadata.personal_auth_user_id`, server-derived only.
+- `possession-redeem.ts` personal branch: session minted for the BOUND account; the
+  already-registered rail deliberately N/A here (journalled).
+- Client zero-screen path incl. class-course switch for personal pupil links.
+- Node verbs: **Invite a person** vs **Get a shareable link**.
+- Rate-limiter fixes found by the acceptance walk itself: successful personal sign-ins and the
+  limiter's own refusals no longer count toward the per-IP window (a block could self-perpetuate).
+- Pins: personal zero-screens / bound-account mint / provision-first / rate-fix; THE-MODEL
+  §1.13+I12 rewritten (two species); APML `PersonalLinksAreTheLogin`.
+
+**IME pack v2 (`ime-invite-pack.md`): six personal links, ALL PASS on deployed dev AND verified
+per-link on the staging host** (zero dialog watcher, role landings, names in shell, repeat-click,
+revoked-fails-friendly, student on the class course). Suites: api 660 + player-vue 959 green.
+
+**Prod note:** at time of writing `saysomethingin.app` still served the pre-species-1 build — the
+six production URLs go live on the next staging→main promote (staging is green and soaked with
+exactly this build).

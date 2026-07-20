@@ -23,7 +23,7 @@ interface NodeShape {
 }
 
 const props = defineProps<{ node: NodeShape }>()
-const emit = defineEmits<{ changed: []; renamed: [name: string] }>()
+const emit = defineEmits<{ changed: []; renamed: [name: string]; minted: [] }>()
 
 const { getAuthToken } = useAdminClient()
 function authHeaders(token: string | null): Record<string, string> {
@@ -92,6 +92,7 @@ async function submitPerson(): Promise<void> {
     )
     personName.value = ''
     personEmail.value = ''
+    emit('minted')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create the personal link'
   } finally {
@@ -116,57 +117,36 @@ async function submitInvite(): Promise<void> {
   isInviting.value = true
   try {
     const token = await getAuthToken()
-    const resp = await fetch(`/api/groups/${props.node.id}/invites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ role: inviteRole.value, limits: {} }),
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    const path = inviteRole.value === 'leader' ? 'group' : 'redeem'
-    const url = data.url || (data.code ? `${window.location.origin}/${path}/${data.code}` : null)
+    // Reuse this node's existing shareable link for the role when one is
+    // live (the old Get-join-link behaviour, now for every role) — keeps the
+    // ledger free of duplicate open links.
+    const listResp = await fetch(`/api/groups/${props.node.id}/invites`, { headers: authHeaders(token) })
+    const listData = await listResp.json().catch(() => ({}))
+    let link = listResp.ok
+      ? (listData.links || []).find((l: any) => l.role === inviteRole.value && !l.personal)
+      : null
+    if (!link) {
+      const resp = await fetch(`/api/groups/${props.node.id}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+        body: JSON.stringify({ role: inviteRole.value, limits: {} }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+      const path = inviteRole.value === 'leader' ? 'group' : 'redeem'
+      link = data.url ? data : (data.code ? { url: `${window.location.origin}/${path}/${data.code}` } : null)
+    }
     openForm.value = null
+    try { if (link?.url) await navigator.clipboard.writeText(link.url) } catch { /* clipboard unavailable */ }
     announce(
-      `Invite created for "${props.node.name}"`,
-      url ? { url, hint: inviteHintByRole[inviteRole.value] || 'Share this invite link.' } : null,
+      `Shareable link for "${props.node.name}" — copied.`,
+      link?.url ? { url: link.url, hint: inviteHintByRole[inviteRole.value] || 'Share this invite link.' } : null,
     )
+    emit('minted')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create invite'
   } finally {
     isInviting.value = false
-  }
-}
-
-// ─── Get join link — the learner (student-role) join link, to clipboard ───
-const isGettingLink = ref(false)
-async function getJoinLink(): Promise<void> {
-  if (isGettingLink.value) return
-  isGettingLink.value = true
-  error.value = null
-  try {
-    const token = await getAuthToken()
-    // Reuse an existing student link if there is one, else mint one.
-    const listResp = await fetch(`/api/groups/${props.node.id}/invites`, { headers: authHeaders(token) })
-    const listData = await listResp.json().catch(() => ({}))
-    let student = listResp.ok ? (listData.links || []).find((l: any) => l.role === 'student') : null
-    if (!student) {
-      const resp = await fetch(`/api/groups/${props.node.id}/invites`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-        body: JSON.stringify({ role: 'student', limits: {} }),
-      })
-      const data = await resp.json().catch(() => ({}))
-      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-      student = data.code ? { url: `${window.location.origin}/redeem/${data.code}` } : null
-    }
-    if (student?.url) {
-      try { await navigator.clipboard.writeText(student.url) } catch { /* clipboard unavailable */ }
-      announce('Join link copied.', { url: student.url, hint: 'Anyone with this link joins as a learner.' })
-    }
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to get join link'
-  } finally {
-    isGettingLink.value = false
   }
 }
 
@@ -371,11 +351,11 @@ function closeDelete(): void {
   <div class="node-actions">
     <!-- Verbs, most-common-first (founder-ruled 2026-07-19) -->
     <div class="verb-bar">
+      <!-- Two link species, two verbs (founder-ruled 2026-07-20): a personal
+           link for a known person, or a shareable link by role — the old
+           learner-only "Get join link" folded into the shareable menu. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" @click="toggle('person')">Invite a person</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
-      <button type="button" class="verb" :disabled="isGettingLink" @click="getJoinLink">
-        {{ isGettingLink ? 'Getting link…' : 'Get join link' }}
-      </button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
       <button v-if="!node.commercial" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
