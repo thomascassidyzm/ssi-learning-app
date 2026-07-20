@@ -122,6 +122,11 @@ async function fetchTable(): Promise<void> {
 
 const tablePageCount = computed(() => Math.max(1, Math.ceil(tableTotal.value / tablePageSize.value)))
 
+// The type word shows only where it disambiguates (founder-ruled 2026-07-20):
+// root rows carry it only when the forest mixes labels at the top level;
+// each node makes the same call for its own children.
+const rootLabelsMixed = computed(() => new Set(treeRoots.value.map((r) => r.label)).size > 1)
+
 let searchDebounce: ReturnType<typeof setTimeout> | undefined
 watch(search, () => {
   clearTimeout(searchDebounce)
@@ -407,6 +412,7 @@ onMounted(() => { void refresh() })
               :depth="0"
               :search="search"
               :quick-filter="quickFilter"
+              :show-label="rootLabelsMixed"
             />
             <div v-if="treeRoots.length === 0" class="structure-empty">
               <strong>No organisations yet</strong>
