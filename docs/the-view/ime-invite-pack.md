@@ -6,10 +6,10 @@ screens, no dialog of any kind** — onto the role-matched surface. Redeemable r
 from the node's ways-in (or `invite_codes.is_active`). Full run: `packages/player-vue/e2e/the-view/
 ime-personal-pack.mjs` — **ALL PASS** (6/6 roles + repeat-click ×2 + revoked-fails-friendly).
 
-> **Host note.** The codes are host-independent (one shared DB). Verified end-to-end on the
-> deployed dev build and on staging. The `saysomethingin.app` forms below go live the moment
-> `main` carries this build (staging → main promote) — at the time of writing prod still served
-> the previous build.
+> **PRODUCTION VERIFIED 2026-07-20 ~07:30 UK.** All six links walked in fresh incognito contexts
+> against `saysomethingin.app` itself: zero dialogs, correct landings, ALL PASS. Leaders land on
+> their node home (`/schools/org/<their node>` — THE VIEW member mount). Send the production
+> forms.
 
 | # | Who (display name) | Signs in as | Lands on | Production link | Staging link (live now) |
 |---|---|---|---|---|---|
