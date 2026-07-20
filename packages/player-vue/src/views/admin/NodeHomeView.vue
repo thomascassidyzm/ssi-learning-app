@@ -10,6 +10,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
+import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
@@ -41,6 +42,8 @@ const childrenHoldPx = ref<number | null>(null)
 // wraps to two lines, so blanking it to a single nbsp mid-switch dropped a
 // line and shoved everything below up then down (390px probe, 2026-07-20).
 const identityEl = ref<HTMLElement | null>(null)
+// The ways-in ledger refreshes when the action bar mints something new.
+const ledgerEl = ref<InstanceType<typeof WaysInLedger> | null>(null)
 const identityHoldPx = ref<number | null>(null)
 const NBSP = '\u00A0'
 
@@ -128,8 +131,15 @@ const labelWord = computed(() => {
   const n = home.value?.node
   if (!n) return ''
   if (isClass.value) return 'Class'
+  // Label-not-type (THE-MODEL §2.1): the node's OWN label is the display
+  // word. Only when a node carries no label do we fall back to what its
+  // attachments suggest. (Founder-reported wart 2026-07-20: the IME
+  // programme kicker read "School" because the demo root's hidden join-leaf
+  // school row made `commercial` truthy — the attachment must never outvote
+  // the label.)
+  if (n.label) return n.label[0].toUpperCase() + n.label.slice(1)
   if (n.commercial || n.hasSchool) return 'School'
-  return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'
+  return 'Group'
 })
 
 // ─── Stats row (same cards at every level, subtree totals) ───
@@ -287,7 +297,7 @@ const listPayload = computed(() => {
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
           <!-- Verbs hold their space but go inert while another node loads —
                a mid-switch click must never act on the PREVIOUS node. -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" />
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -364,6 +374,11 @@ const listPayload = computed(() => {
               </NodeChildrenList>
             </div>
           </section>
+
+          <!-- WAYS IN — the link ledger (founder scope-add 2026-07-20):
+               every link minted anywhere in this subtree, with copy /
+               revoke / re-mint. The management face of the link system. -->
+          <WaysInLedger v-if="!isClass && home.node" ref="ledgerEl" :node-id="home.node.id" />
         </div>
       </div>
     </template>
