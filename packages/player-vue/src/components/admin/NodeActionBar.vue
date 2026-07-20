@@ -64,8 +64,17 @@ const entitlementNodeId = computed(() => props.node.commercial?.schoolId ?? prop
 const entitlementNodeType = computed<'group' | 'school'>(() => (props.node.commercial ? 'school' : 'group'))
 
 // ─── Invite people ───
-const inviteRole = ref<'teacher' | 'leader' | 'student'>('teacher')
+// Role-scoped links (founder-ruled 2026-07-20): every link names its role and
+// its node — never one generic link. 'school_leader' appears only on school
+// nodes (it grants the school-admin seat); 'student' is the learner join.
+const inviteRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>('teacher')
 const isInviting = ref(false)
+const inviteHintByRole: Record<string, string> = {
+  teacher: 'Share this with the teacher it\'s for.',
+  leader: 'Share this with the leader it\'s for.',
+  school_leader: 'Share this with the school leader it\'s for.',
+  student: 'Anyone with this link joins as a learner.',
+}
 async function submitInvite(): Promise<void> {
   if (isInviting.value) return
   isInviting.value = true
@@ -79,10 +88,11 @@ async function submitInvite(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     const path = inviteRole.value === 'leader' ? 'group' : 'redeem'
+    const url = data.url || (data.code ? `${window.location.origin}/${path}/${data.code}` : null)
     openForm.value = null
     announce(
       `Invite created for "${props.node.name}"`,
-      data.code ? { url: `${window.location.origin}/${path}/${data.code}`, hint: 'Share this invite link.' } : null,
+      url ? { url, hint: inviteHintByRole[inviteRole.value] || 'Share this invite link.' } : null,
     )
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create invite'
@@ -344,8 +354,9 @@ function closeDelete(): void {
     <div v-if="openForm === 'invite'" class="verb-form">
       <select v-model="inviteRole" class="frost-select">
         <option value="teacher">Teacher</option>
-        <option value="leader">Leader</option>
-        <option value="student">Student</option>
+        <option value="leader">Group leader</option>
+        <option v-if="node.commercial" value="school_leader">School leader</option>
+        <option value="student">Learner</option>
       </select>
       <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
         {{ isInviting ? 'Creating…' : 'Create invite link' }}

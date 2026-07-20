@@ -270,21 +270,28 @@ describe('POST /api/auth/possession-redeem', () => {
     expect(res._json.success).toBe(true)
   })
 
-  // --- Link-auth (straight-in) mode: the invite link IS the credential, no
-  // email typed. The founder's "magic link with a built-in token". ---
-  describe('linkAuth (straight-in) mode', () => {
+  // --- Link-auth (placeholder-email) mode: PUPILS ONLY (founder ruling
+  // 2026-07-20). A student/learner link mints from the code + a captured
+  // name; young learners have no email to give. Named roles must never
+  // reach this path — their accounts are real (typed email), never ghosts. ---
+  describe('linkAuth (pupil) mode', () => {
+    beforeEach(() => {
+      inviteRow.code = 'CLASS-1'
+      inviteRow.code_type = 'student'
+    })
+
     it('mints a session from the code alone — no email in the body', async () => {
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
 
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
       expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
     })
 
-    it('mints the account against a unique placeholder address flagged link_auth', async () => {
+    it('mints the account against a unique placeholder address flagged link_auth, carrying the captured name', async () => {
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
 
       expect(createUserArg.email).toMatch(/^link-[0-9a-f-]+@invite\.saysomethingin\.app$/)
       // Same address flows into the magic-link mint, so the session is for it.
@@ -293,12 +300,13 @@ describe('POST /api/auth/possession-redeem', () => {
       // link_auth is the analytics-only distinguisher.
       expect(createUserArg.user_metadata.onboarded_via).toBe('possession')
       expect(createUserArg.user_metadata.link_auth).toBe(true)
+      expect(createUserArg.user_metadata.display_name).toBe('Alys')
     })
 
     it('does not require a valid email and skips the MX gate', async () => {
       mxResolution = 'no-mx' // would 400 a typed email; irrelevant to link-auth
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
       expect(attempts.some((a) => a.outcome === 'no_mx_domain')).toBe(false)
@@ -307,7 +315,7 @@ describe('POST /api/auth/possession-redeem', () => {
     it('still enforces code validity (expired code is rejected before minting)', async () => {
       inviteRow.expires_at = '2020-01-01T00:00:00.000Z'
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
       expect(res._json).toEqual({ success: false, error: 'Code expired' })
       expect(createUserArg).toBeUndefined()
     })
@@ -315,7 +323,7 @@ describe('POST /api/auth/possession-redeem', () => {
     it('still rejects code types outside the possession-eligible set', async () => {
       inviteRow.code_type = 'ssi_admin'
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
       expect(res._json.success).toBe(false)
       expect(attempts.some((a) => a.outcome === 'unsupported_code_type')).toBe(true)
       expect(createUserArg).toBeUndefined()
@@ -324,8 +332,25 @@ describe('POST /api/auth/possession-redeem', () => {
     it('still rate limits by code', async () => {
       rateCounts.code = 20
       const res = makeRes()
-      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
       expect(res._status).toBe(429)
     })
+
+    // THE PIN (founder ruling 2026-07-20): a named-role link can never mint a
+    // link-<uuid> ghost. The client shows the capture screen; if anything
+    // still sends linkAuth for a named role, the server refuses and asks for
+    // identity.
+    it.each(['teacher', 'school_admin', 'school_admin_join', 'govt_admin'])(
+      'refuses linkAuth for the named role %s — identity_required, no account created',
+      async (codeType) => {
+        inviteRow.code_type = codeType
+        const res = makeRes()
+        await handler(makeReq({ code: 'CLASS-1', linkAuth: true }), res)
+        expect(res._json.success).toBe(false)
+        expect(res._json.reason).toBe('identity_required')
+        expect(createUserArg).toBeUndefined()
+        expect(attempts.some((a) => a.outcome === 'identity_required')).toBe(true)
+      }
+    )
   })
 })

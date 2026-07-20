@@ -42,7 +42,11 @@ const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 const POSSESSION_ELIGIBLE_CODE_TYPES = new Set(['teacher', 'school_admin', 'school_admin_join', 'govt_admin', 'student'])
 
 // --- State ---
-const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'details' | 'already-registered' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
+// 'details' = the identity-capture screen (named roles: name + email;
+// founder ruling 2026-07-20 — the ONE screen between click and dashboard).
+// 'name' = the lighter pupil capture (student/learner links: name only, no
+// email — young learners have none to give).
+const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'details' | 'name' | 'already-registered' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
 const email = ref('')
 const displayName = ref('')
@@ -130,6 +134,39 @@ const isPossessionEligible = computed(() => {
 })
 
 // --- Role-specific copy ---
+// The capture screen leads with WHO you are here ("You've been invited as a
+// teacher at Ysgol y Garn") — plain words, the role and the place, never
+// "invite code"/"redeem" jargon (§1.12 verbs-on-top).
+const captureHeading = computed(() => {
+  const pc = pendingCode.value
+  if (!pc) return 'Welcome'
+  const place = pc.schoolName || pc.groupName || ''
+  switch (pc.codeType) {
+    case 'teacher':
+      return place ? `You've been invited as a teacher at ${place}` : "You've been invited as a teacher"
+    case 'govt_admin':
+      return place ? `You've been invited to lead ${place}` : "You've been invited as a group leader"
+    case 'school_admin':
+      return place ? `You've been invited to set up ${place}` : "You've been invited to set up your school"
+    case 'school_admin_join':
+      return place ? `You've been invited to help lead ${place}` : "You've been invited as a school leader"
+    case 'student': {
+      if (pc.className) return `You're joining ${pc.className}`
+      return place ? `You're joining ${place}` : "You're joining your group"
+    }
+    default:
+      return 'Welcome'
+  }
+})
+
+const captureSub = computed(() => {
+  const pc = pendingCode.value
+  if (pc?.codeType === 'student') {
+    return pc.className && pc.schoolName ? pc.schoolName : ''
+  }
+  return ''
+})
+
 const authInstructionText = computed(() => {
   const pc = pendingCode.value
   if (!pc) return 'Enter your email to get started'
@@ -198,12 +235,31 @@ onMounted(async () => {
 })
 
 async function validateAndProceed(rawCode: string): Promise<void> {
-  const valid = await validateCode(rawCode)
+  // Pass the session's token (when there is one) so the server can tell us
+  // if THIS user already redeemed this code — a re-clicked personal link
+  // then goes straight to their surface, no confirm, no second code spend.
+  let sessionToken: string | undefined
+  if (isSignedIn.value && supabase.value) {
+    try {
+      const { data: { session } } = await supabase.value.auth.getSession()
+      sessionToken = session?.access_token
+    } catch { /* validate still works without it */ }
+  }
+  const valid = await validateCode(rawCode, sessionToken)
   if (!valid) {
     // Surface the API's specific reason ('Code expired' / 'Code fully used' /
     // 'Invalid code') when available, rather than a generic catch-all.
     error.value = validationError.value || 'This code is invalid or has expired'
     step.value = 'invalid'
+    return
+  }
+  // Already redeemed by this signed-in user — straight to their surface
+  // (founder ruling 2026-07-20: subsequent redeems of a personal link have
+  // zero ceremony).
+  if (isSignedIn.value && pendingCode.value?.alreadyRedeemed) {
+    const surface = pendingCode.value.redirectTo || '/'
+    clearPendingCode()
+    router.replace(surface)
     return
   }
   // Valid code — check auth state. A session already present does NOT mean
@@ -214,50 +270,52 @@ async function validateAndProceed(rawCode: string): Promise<void> {
     step.value = 'confirm'
     return
   }
-  // Straight-in (the founder's "magic link with a built-in token"): for
-  // possession-eligible invite types, the link IS the credential — establish
-  // the session from possession of the code with NO form and land on the role
-  // dashboard. The email form / OTP stays as the fallback for anyone without a
-  // link (bare /redeem, entitlement codes, ssi_admin/tester invites) and is
-  // reachable if the straight-in mint can't proceed (see handleLinkRedeem).
+  // The link is the credential — no OTP, no email round-trip (§1.13). But
+  // named roles (teacher/leader/school admin) get ONE identity-capture screen
+  // on first redeem (name + email, founder ruling 2026-07-20) so the account
+  // is real — never a link-<uuid> ghost. Pupil links (student/learner) keep
+  // the lighter capture: name only. The email/OTP flow stays as the fallback
+  // for code types that need it (entitlement/ssi_admin/tester).
   if (isPossessionEligible.value) {
-    await handleLinkRedeem()
+    step.value = pendingCode.value?.codeType === 'student' ? 'name' : 'details'
     return
   }
   step.value = 'auth'
 }
 
-// --- Step 1c (default path): straight-in link redemption, no form ---
-// The invite link authenticates on click: mint a session from possession of
-// the code and drop the user straight onto their dashboard (via doRedeem). On
-// any failure (rate-limited, transient, app not ready) fall back to the
-// details form so they can still get in by typing an email — never dead-end.
-async function handleLinkRedeem() {
+// --- Step 1c (pupil path): name-only capture, then in ---
+// Student/learner links: the link is the credential and young learners have
+// no email to give — capture a name, mint the account server-side against a
+// placeholder address (replaced when they add a real one later), and land
+// them in the player.
+async function handlePupilSubmit() {
+  if (!displayName.value.trim()) return
   const client = supabase.value
   if (!client) {
-    step.value = 'details'
+    error.value = 'App not ready. Please try again.'
     return
   }
-  step.value = 'redeeming'
+  isLoading.value = true
   error.value = ''
   try {
-    const result = await linkPossessionRedeem(displayName.value.trim() || undefined)
+    const result = await linkPossessionRedeem(displayName.value.trim())
     if (result.success && result.session) {
       const { error: setSessionError } = await client.auth.setSession({
         access_token: result.session.access_token,
         refresh_token: result.session.refresh_token,
       })
       if (setSessionError) {
-        step.value = 'details'
+        error.value = setSessionError.message || 'Could not sign you in. Please try again.'
         return
       }
       await doRedeem()
       return
     }
-    // Couldn't mint straight in — offer the email form quietly as the fallback.
-    step.value = 'details'
-  } catch {
-    step.value = 'details'
+    error.value = result.error || 'Something went wrong. Please try again.'
+  } catch (err: any) {
+    error.value = err.message || 'Something went wrong. Please try again.'
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -297,7 +355,12 @@ async function useDifferentEmail() {
     isLoading.value = false
     email.value = ''
     error.value = ''
-    step.value = 'auth'
+    // After signing out, the natural door for a possession-eligible invite is
+    // the capture screen (the link is the credential) — OTP only for the code
+    // types that require it.
+    step.value = isPossessionEligible.value
+      ? (pendingCode.value?.codeType === 'student' ? 'name' : 'details')
+      : 'auth'
   }
 }
 
@@ -640,8 +703,10 @@ function goHome() {
 
       <!-- Auth + OTP flow -->
       <template v-else>
-        <h2 class="code-title">{{ displayTitle }}</h2>
-        <p v-if="displayDetail" class="detail-text">{{ displayDetail }}</p>
+        <!-- Capture steps lead with the role + place in plain words; the
+             other steps keep the code-type title. -->
+        <h2 class="code-title">{{ step === 'details' || step === 'name' ? captureHeading : displayTitle }}</h2>
+        <p v-if="step === 'details' || step === 'name' ? captureSub : displayDetail" class="detail-text">{{ step === 'details' || step === 'name' ? captureSub : displayDetail }}</p>
 
         <!-- Confirm identity — a session already exists; make sure it's the
              RIGHT one before spending the one-shot code (owner ruling
@@ -656,11 +721,13 @@ function goHome() {
           </button>
         </div>
 
-        <!-- Details (step === 'details') — the default door for possession-
-             eligible invites: no OTP wait, session is established from the
-             invite link itself. -->
+        <!-- Details (step === 'details') — THE identity-capture screen for
+             named roles (founder ruling 2026-07-20): one friendly screen
+             (your name, your email), then in. No OTP, no email round-trip —
+             the link is still the credential; the email is recorded
+             unverified and confirmed later from Settings. -->
         <form v-else-if="step === 'details'" class="auth-form" @submit.prevent="handlePossessionSubmit">
-          <p class="instruction-text">{{ authInstructionText }}</p>
+          <p class="instruction-text">Tell us who you are and you're in — no password, no code to wait for.</p>
 
           <Transition name="error-fade">
             <div v-if="error" class="error-banner">
@@ -680,8 +747,9 @@ function goHome() {
                 id="redeem-name"
                 v-model="displayName"
                 type="text"
-                placeholder="Optional"
+                placeholder="e.g. Sian Jones"
                 autocomplete="name"
+                required
               />
             </div>
           </div>
@@ -708,7 +776,7 @@ function goHome() {
             type="submit"
             class="btn btn--primary"
             :class="{ loading: isLoading }"
-            :disabled="!isEmailValid || isLoading"
+            :disabled="!displayName.trim() || !isEmailValid || isLoading"
           >
             <span v-if="!isLoading">Continue</span>
             <span v-else class="btn-spinner"></span>
@@ -718,6 +786,49 @@ function goHome() {
             Prefer to verify with an emailed code first?
             <button type="button" :disabled="isLoading" @click="switchToEmailCode">Use email code instead</button>
           </p>
+        </form>
+
+        <!-- Pupil capture (step === 'name') — student/learner links: name
+             only, no email (young learners have none to give). The link is
+             the credential; one field, then straight into the player. -->
+        <form v-else-if="step === 'name'" class="auth-form" @submit.prevent="handlePupilSubmit">
+          <p class="instruction-text">{{ pendingCode?.className ? "What's your name? Your teacher will see it on the class list." : "What's your name?" }}</p>
+
+          <Transition name="error-fade">
+            <div v-if="error" class="error-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {{ error }}
+            </div>
+          </Transition>
+
+          <div class="input-group">
+            <label for="redeem-pupil-name" class="input-label">Your name</label>
+            <div class="input-wrapper">
+              <input
+                id="redeem-pupil-name"
+                v-model="displayName"
+                type="text"
+                placeholder="e.g. Alys"
+                autocomplete="name"
+                autofocus
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            class="btn btn--primary"
+            :class="{ loading: isLoading }"
+            :disabled="!displayName.trim() || isLoading"
+          >
+            <span v-if="!isLoading">Start learning</span>
+            <span v-else class="btn-spinner"></span>
+          </button>
         </form>
 
         <!-- Already registered (step === 'already-registered') — security

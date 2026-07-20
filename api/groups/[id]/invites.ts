@@ -39,15 +39,22 @@ import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-type Role = 'teacher' | 'leader' | 'student'
+// Role vocabulary (founder-ruled 2026-07-20, role-scoped links): 'leader' =
+// group leader (govt_admin), 'school_leader' = school admin seat at a school
+// node (school_admin_join — only mintable/listable where the node IS a
+// school), 'teacher', 'student' = the learner/pupil join. Classes are never
+// invited — a class's student link lives on the class page.
+type Role = 'teacher' | 'leader' | 'school_leader' | 'student'
 
 const CODE_TYPE_BY_ROLE: Record<Role, string> = {
   leader: 'govt_admin',
+  school_leader: 'school_admin_join',
   teacher: 'teacher',
   student: 'student',
 }
 const ROLE_BY_CODE_TYPE: Record<string, Role> = {
   govt_admin: 'leader',
+  school_admin_join: 'school_leader',
   teacher: 'teacher',
   student: 'student',
 }
@@ -149,9 +156,21 @@ export default async function handler(
     limits?: { max_uses?: number; expires_at?: string }
   }
 
-  if (role !== 'teacher' && role !== 'leader' && role !== 'student') {
-    res.status(400).json({ error: "role must be one of 'teacher', 'leader', 'student'" })
+  if (role !== 'teacher' && role !== 'leader' && role !== 'school_leader' && role !== 'student') {
+    res.status(400).json({ error: "role must be one of 'teacher', 'leader', 'school_leader', 'student'" })
     return
+  }
+
+  // school_leader is only meaningful where the node IS a school — the code
+  // grants the school-admin seat (school_admin_join keys off grants_school_id,
+  // the commercial row, not the node id).
+  let schoolLeaderSchoolId: string | null = null
+  if (role === 'school_leader') {
+    schoolLeaderSchoolId = await ownSchoolIdForNode(supabase, groupId)
+    if (!schoolLeaderSchoolId) {
+      res.status(400).json({ error: 'School leader links can only be minted at a school' })
+      return
+    }
   }
 
   try {
@@ -179,7 +198,12 @@ export default async function handler(
       code_type: CODE_TYPE_BY_ROLE[role],
       created_by: callerUserId,
       is_active: true,
-      grants_group_id: groupId,
+      // school_leader grants the school-admin seat by school id (what
+      // redeem.ts's school_admin_join branch reads); everything else is
+      // node-scoped by group id.
+      ...(role === 'school_leader'
+        ? { grants_school_id: schoolLeaderSchoolId }
+        : { grants_group_id: groupId }),
     }
     if (limits?.expires_at !== undefined) insertData.expires_at = limits.expires_at
     if (limits?.max_uses !== undefined) insertData.max_uses = limits.max_uses
