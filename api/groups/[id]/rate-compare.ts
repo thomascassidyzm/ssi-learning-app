@@ -413,6 +413,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (censusError) console.error('[node-rate-compare] course census error:', censusError.message)
       censusRows = (censusData as ScopedSessionRow[]) || []
     }
+    // Privacy floor: K_FLOOR protects REAL peers from inference. A DEMO
+    // entity's cohort is demo-only by construction (schoolIdsInWorld), i.e.
+    // seeded fictional schools — the floor would blank every demo leader
+    // surface (a demo world has ~3-4 peer schools) while protecting nothing,
+    // the same rationale as the admin floor of 1.
+    const effectiveFloor = isAdmin || entityIsDemo ? 1 : K_FLOOR
     const courseByClass = new Map(entityAllClasses.map((c) => [c.id, c.course_code]))
     const rankCutoffMs = now.getTime() - CENSUS_RANK_DAYS * 86_400_000
     const courseActivity = new Map<string, { recent: number; ever: number }>()
@@ -461,7 +467,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       windowLabel: windowConfig.label,
       trendLabel: windowConfig.trendLabel,
       trendPeriodDays: windowConfig.periodDays,
-      kFloor: isAdmin ? 1 : K_FLOOR,
+      kFloor: effectiveFloor,
     }
     const insufficient = (reason: string, cohortSize = 0): void => {
       res.setHeader('Cache-Control', 'no-store')
@@ -480,8 +486,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       insufficient(classRow ? 'No practice recorded in this class yet.' : 'No practice recorded below this level yet.')
       return
     }
-
-    const effectiveFloor = isAdmin ? 1 : K_FLOOR
 
     // ─── K-floor preference (the school fix, generalised up the tree): when
     // DEFAULTING the course at a node whose compare scope is an ancestor,

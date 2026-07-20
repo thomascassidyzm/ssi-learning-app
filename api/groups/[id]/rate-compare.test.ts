@@ -561,6 +561,30 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     }
   })
 
+  it('a DEMO entity holds a floor of 1 for NON-ADMIN leaders too — demo cohorts are fictional schools, the floor protects nobody', async () => {
+    verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
+    visibleScopeResult = {
+      ...EMPTY_SCOPE, role: 'govt_admin', groupId: 'programme',
+      schoolIds: ['school-1', 'school-2'], classIds: ['c1', 'c2', 'c3', 'c4'],
+    }
+    // the whole programme world is demo
+    for (const g of TABLES.groups) g.is_demo = true
+    for (const s of TABLES.schools) s.is_demo = true
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.kFloor).toBe(1)
+    expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
+    expect(res.body.cohortSize).toBe(1)
+    // a REAL school for the same leader keeps the full privacy floor
+    for (const g of TABLES.groups) g.is_demo = false
+    for (const s of TABLES.schools) s.is_demo = false
+    const res2 = makeRes()
+    await handler(makeReq('school-2'), res2)
+    expect(res2.body.kFloor).toBe(5)
+    expect(res2.body.insufficientData).toBe(true) // 1 peer < 5
+  })
+
   it('a genuinely dark node says WHY — never the generic compare message', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     SESSION_ROWS = SESSION_ROWS.filter((r) => !['c2', 'c3', 'c4'].includes(r.class_id))
