@@ -35,7 +35,7 @@ vi.mock('dns', () => ({
 }))
 
 let inviteRow: any
-let rateCounts: { ip: number; code: number }
+let rateCounts: { ip: number; code: number; ipNonPersonal?: number }
 let attempts: any[]
 let createUserResult: any
 let createUserArg: any
@@ -59,9 +59,19 @@ function makeAttemptsBuilder() {
       calls.push(['eq', col, val])
       return builder
     },
+    neq: (col: string, val: any) => {
+      calls.push(['neq', col, val])
+      return builder
+    },
     gte: () => {
       const isIp = calls.some((c) => c[0] === 'eq' && c[1] === 'ip_hash')
-      const count = isIp ? rateCounts.ip : rateCounts.code
+      // The per-IP query excludes successful personal sign-ins
+      // (neq outcome personal_signin) — mirror that with a separate fixture
+      // so the exclusion is actually testable.
+      const excludesPersonal = calls.some((c) => c[0] === 'neq' && c[1] === 'outcome' && c[2] === 'personal_signin')
+      const count = isIp
+        ? (excludesPersonal && rateCounts.ipNonPersonal !== undefined ? rateCounts.ipNonPersonal : rateCounts.ip)
+        : rateCounts.code
       return Promise.resolve({ count, data: null, error: null })
     },
   }
@@ -415,6 +425,19 @@ describe('POST /api/auth/possession-redeem', () => {
       const res = makeRes()
       await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
       expect(res._status).toBe(429)
+    })
+
+    // Live repro 2026-07-20: successful personal logins burned the per-IP
+    // guessing budget (a demo walk rate-limited itself). Successful
+    // personal_signin outcomes are excluded from the per-IP count; failed
+    // attempts still count, and the per-code limit still counts everything.
+    it('is NOT starved by its own prior successful sign-ins on the same IP', async () => {
+      rateCounts.ip = 25 // raw attempts, mostly personal_signin successes
+      rateCounts.ipNonPersonal = 2 // what the filtered per-IP query sees
+      const res = makeRes()
+      await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
     })
   })
 })
