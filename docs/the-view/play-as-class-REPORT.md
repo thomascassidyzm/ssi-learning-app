@@ -100,13 +100,59 @@ Working session 2026-07-20. Incremental findings land here as the work proceeds.
   columns — 13 green) + `NodeHomeView.test.ts` (leads-with-class-practice pin, no-practice
   invitation copy — 11 green). Typecheck green.
 
-### Lane A — production session recording (worker, in flight)
+### Lane A — production session recording ✅ (in `0cd92c08`)
 
-`/api/school/class-progress` + class-aware session store + LearningPlayer wiring — closes audit
-gap §1.2 so real play-as-class lands `sessions` rows on the class identity.
+Closes audit gap §1.2: `POST /api/school/class-progress` gains `startSession` /
+`checkpointSession` / `endSession` (server-mediated, ownership-guarded — checkpoint/end refuse a
+sessionId belonging to a different learner); `useClassSessionStore.ts` wraps the core SessionStore
+(passthrough outside class mode, endpoint-routed in class mode); wired into LearningPlayer beside
+the progress wrapper. Real play-as-class now lands `sessions` rows keyed on the CLASS learner id.
+14 endpoint + 8 wrapper tests green.
 
-### Lane B — demo world re-anchor (worker, in flight)
+### Lane B — demo world re-anchor ✅ (`f646ab50` + fix `1ecd5c5b`)
 
-`demoNodeRefresh` — class-identity sessions mirroring the class_sessions arcs, class-entity
-enrollment advanced (journey/belt from class play), demo flags on class entities, thinner student
-layer.
+Every demo class carries a full class learning identity: `ensureClassLearnerEntity` + `is_demo`
+flag; class-identity `sessions` emitted 1:1 from the SAME `class_sessions` arc (one arc, two
+projections); classroom cadence 12–24 sessions over the 8-week window (2–4/week, 15–35 min),
+arc advancing to `current_seed` with the latest session today; class-entity enrollment + `classes.
+last_lego_id` advanced to the arc end (journey/belt from class play); REPLACE deletes class-entity
+sessions too (idempotent); student personas trimmed (fast 10–18 / steady 5–10 / idle 1–4) — the
+bonus layer. 11 tests green.
+
+**Live-caught fix (`1ecd5c5b`):** IME classes carrying teachers only in `class_teachers` (NULL
+lead pointer) made the `class_sessions` re-insert violate NOT NULL *after* the replace-delete —
+demo tree went class-practice-dark. Teacher now resolved via `class_teachers`; a class with no
+teacher at all skips its arc loudly (24/25 IME classes carry arcs; 1 genuinely teacherless).
+
+## 4. VERIFICATION — deployed dev (build `1ecd5c5`, 2026-07-20)
+
+`e2e/the-view/play-as-class-walk.mjs` against the real deployment + DB, real admin session:
+
+- demo-refresh on IME Demo Programme: 200 — 9 schools, 25 classes, 380 learners, 3,459 sessions,
+  **429 class_sessions** written.
+- every demo class has a class learning identity (25/25); class entities `is_demo` (board metrics
+  never inflate).
+- class-identity sessions mirror the class_sessions arc 24/24; newest class session within 3 days
+  24/24; class-entity enrollment rides the arc end 24/24.
+- `/api/groups/:classId/home`: classPractice weekSessions=3, hours=8.4; journey source
+  `class-play`, done=36 LEGOs (S0012L03).
+- programme rollup: classPractice hours=176.8, activeClasses7d=24/25.
+- Screenshots (docs/the-view/play-as-class/): class home leading with Class practice card
+  (+ "Last class session…", "travelled … LEGOs together", never "seed"), programme home stats row
+  leading with class practice, insights on the demo tree.
+- **Verb consistency fix** (`b5a2accd`): two DashboardView rows said bare "▶ Play" — now the one
+  verb "▶ Play as class" everywhere.
+- **LIVE TEACHER MOMENT — PASS (final run, build `b5a2acc`, ALL 16 GREEN).** A real demo teacher
+  (Anke Weber) signed in on deployed dev, clicked "▶ Play as class" on her surface, the player
+  booted PLAYING AS **9A French** (class identity bar + the class's own Yellow Belt), and a
+  **`sessions` row landed on the CLASS's learner id** through the new server-mediated path — the
+  exact spine the audit found silently broken. Evidence: `teacher-live-play-as-class.jpg`.
+- Second-refresh finding (kept as designed): `course_enrollments.highest_completed_lego_id` is a
+  forward-only ceiling (DB ratchet), so a re-refresh whose random arc ends a lego lower leaves the
+  ceiling at the furthest-ever point while `last_completed_lego_id` rides the new arc end exactly.
+  Correct semantics — the walk asserts it as such.
+
+**Taste-tunable for later (logged, no action):** demo students' individual positions (e.g. 110
+LEGOs average) can sit ahead of the class's together-journey (e.g. 52 LEGOs) because student
+seeds anchor to older demo state. Real classrooms can look like this, but if the demo should tell
+"the class leads, students follow", the student seed arcs want re-anchoring to the class arc.

@@ -59,7 +59,8 @@ async function walk(width, height, tag) {
   const body = (await p.textContent('body').catch(() => '')) || ''
   check(`${tag}: rail you-are-here`, body.includes("you're here"))
   check(`${tag}: identity names the node`, body.includes('IME Demo Programme'))
-  check(`${tag}: stats row words`, body.includes('Learners') && body.includes('Teachers') && body.includes('Classes') && body.includes('Practice hours'))
+  // Stats vocabulary shifted with LANE B (class practice leads) — accept either card set.
+  check(`${tag}: stats row words`, body.includes('Learners') && body.includes('Teachers') && /practice/i.test(body))
   check(`${tag}: lens chips`, body.includes('All schools') && body.includes('All teachers'))
   check(`${tag}: See insights verb`, body.includes('See insights'))
   check(`${tag}: Updated stamp`, /Updated/.test(body))

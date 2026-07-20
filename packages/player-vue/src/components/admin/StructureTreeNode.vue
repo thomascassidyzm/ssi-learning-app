@@ -16,7 +16,15 @@ const props = withDefaults(defineProps<{
   depth: number
   search?: string
   quickFilter?: QuickFilter
-}>(), { search: '', quickFilter: 'all' })
+  // Quiet the chips (founder-ruled 2026-07-20): information that repeats on
+  // every row is not information. The label word shows only where it
+  // disambiguates — the PARENT computes whether this node's sibling set
+  // mixes labels and passes the verdict down. Same for demo: a subtree
+  // that is demo all the way down is marked ONCE at its root, so each row
+  // needs to know whether its parent already carries the badge.
+  showLabel?: boolean
+  parentIsDemo?: boolean
+}>(), { search: '', quickFilter: 'all', showLabel: false, parentIsDemo: false })
 
 const api = inject<StructureApi>('structureApi')!
 
@@ -45,8 +53,14 @@ const visibleChildren = computed(() =>
 )
 const isTruncated = computed(() => props.node.rollup.childGroupCount > 0 && props.node.children.length === 0)
 
-const indentStyle = computed(() => ({ paddingLeft: `calc(var(--space-4) + ${props.depth} * var(--space-6))` }))
-const childIndentStyle = computed(() => ({ paddingLeft: `calc(var(--space-4) + ${props.depth + 1} * var(--space-6))` }))
+// Children only see the label word when their sibling set mixes labels
+// (computed over ALL children, not the filtered view, so labels don't
+// flicker as filters change).
+const childLabelsMixed = computed(() => new Set(props.node.children.map((c) => c.label)).size > 1)
+
+// Depth class steps the name's weight/size down by level (roots strongest)
+// — typography carries the hierarchy the type word used to shout.
+const depthClass = computed(() => `depth-${Math.min(props.depth, 2)}`)
 
 const editing = computed(() => api.editingId.value === props.node.id)
 
@@ -87,9 +101,17 @@ const metaTitle = computed(() => {
   const r = props.node.rollup
   return `${r.teacherCount} teachers · ${r.classCount} classes · ${r.learnerCount} learners (everyone below this)`
 })
+// Demo is marked ONCE at the demo subtree's root; descendants inherit the
+// context silently (founder-ruled 2026-07-20).
+const showDemoBadge = computed(() => props.node.is_demo && !props.parentIsDemo)
 const attentionStatus = computed(() => {
   const s = props.node.commercial?.platformStatus
-  return s && s !== 'active' && s !== 'paid' ? s : null
+  if (!s || s === 'active' || s === 'paid') return null
+  // A demo school on trial is its normal state, not attention — the pill is
+  // for real orgs where trial means a decision is coming (founder-ruled
+  // 2026-07-20). Non-trial oddities still show even on demo.
+  if (s === 'trial' && (props.node.is_demo || props.parentIsDemo)) return null
+  return s
 })
 </script>
 
@@ -98,13 +120,19 @@ const attentionStatus = computed(() => {
        2026-07-19). Interactive children below stop propagation. -->
   <div
     class="structure-row is-link"
-    :style="indentStyle"
     role="link"
     tabindex="0"
     @click="onRowClick"
     @keydown.enter.self="onRowClick"
     @keydown.space.self.prevent="onRowClick"
   >
+    <!-- Depth rails: one faint vertical guide per ancestor level. Rows are
+         flat siblings in the DOM, so each row draws its own segments; they
+         stack into continuous lines (founder-ruled 2026-07-20: hierarchy
+         must be legible at a glance). -->
+    <span v-if="depth > 0" class="tree-rails" aria-hidden="true">
+      <span v-for="i in depth" :key="i" class="rail"></span>
+    </span>
     <template v-if="editing">
       <input
         class="structure-rename-input"
@@ -116,7 +144,7 @@ const attentionStatus = computed(() => {
         @keyup.escape="api.cancelRename()"
       />
     </template>
-    <span v-else class="structure-name">
+    <span v-else class="structure-name" :class="depthClass">
       {{ node.name }}
     </span>
 
@@ -134,9 +162,9 @@ const attentionStatus = computed(() => {
       <option v-if="!LABEL_OPTIONS.includes(node.label)" :value="node.label">{{ node.label }}</option>
       <option v-for="opt in LABEL_OPTIONS" :key="opt" :value="opt">{{ opt === 'lea' ? 'LEA' : opt }}</option>
     </select>
-    <span v-else class="label-word">{{ node.label === 'lea' ? 'LEA' : node.label }}</span>
+    <span v-else-if="showLabel" class="label-word">{{ node.label === 'lea' ? 'LEA' : node.label }}</span>
 
-    <span v-if="node.is_demo" class="org-badge is-demo">Demo</span>
+    <span v-if="showDemoBadge" class="org-badge is-demo">Demo</span>
     <span v-if="attentionStatus" class="status-pill tone-amber">
       <span class="status-dot"></span>{{ attentionStatus.replace(/_/g, ' ') }}
     </span>
@@ -165,9 +193,14 @@ const attentionStatus = computed(() => {
     :depth="depth + 1"
     :search="search"
     :quick-filter="quickFilter"
+    :show-label="childLabelsMixed"
+    :parent-is-demo="node.is_demo || parentIsDemo"
   />
 
-  <div v-if="isTruncated" class="structure-drill-in" :style="childIndentStyle">
+  <div v-if="isTruncated" class="structure-drill-in">
+    <span class="tree-rails" aria-hidden="true">
+      <span v-for="i in depth + 1" :key="i" class="rail"></span>
+    </span>
     <button class="link-btn" @click="api.drillInto(node)">
       → {{ node.rollup.childGroupCount }} more group{{ node.rollup.childGroupCount === 1 ? '' : 's' }} — drill in
     </button>
@@ -192,11 +225,42 @@ const attentionStatus = computed(() => {
   box-shadow: inset 0 0 0 2px rgba(var(--tone-red), 0.45);
 }
 
+/* Depth rails — one faint vertical guide per ancestor level. The negative
+   vertical margin stretches each segment through the row's own padding so
+   consecutive rows read as one continuous line. */
+.tree-rails {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+  margin: calc(-1 * var(--space-2)) 0;
+}
+.rail {
+  width: 22px;
+  position: relative;
+}
+.rail::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(44, 38, 34, 0.10);
+}
+@media (max-width: 768px) {
+  .rail { width: 16px; }
+}
+
+/* Name typography steps down by level — roots strongest — so indentation +
+   type carry the hierarchy the label word used to spell out. */
 .structure-name {
   padding: 2px 6px;
   color: var(--schools-fg);
   font-weight: var(--font-semibold);
 }
+.structure-name.depth-0 { font-size: 15px; letter-spacing: -0.01em; }
+.structure-name.depth-1 { font-size: var(--text-sm); font-weight: var(--font-medium); }
+.structure-name.depth-2 { font-size: 13px; font-weight: var(--font-medium); }
 
 .structure-rename-input {
   font: inherit;
@@ -222,9 +286,10 @@ const attentionStatus = computed(() => {
 }
 
 .label-word {
-  font-size: var(--text-xs);
+  font-size: 10.5px;
   font-family: var(--font-mono);
   color: var(--schools-fg-3);
+  opacity: 0.75;
 }
 
 .structure-meta {
@@ -282,7 +347,12 @@ const attentionStatus = computed(() => {
 .overflow-item.is-danger { color: rgb(var(--tone-red)); }
 .overflow-item.is-danger:hover { background: rgba(var(--tone-red), 0.08); }
 
-.structure-drill-in { padding: var(--space-1, 4px) var(--space-4) var(--space-2); }
+.structure-drill-in {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1, 4px) var(--space-4) var(--space-2);
+}
+.structure-drill-in .tree-rails { margin: calc(-1 * var(--space-1, 4px)) 0 calc(-1 * var(--space-2)); }
 .link-btn {
   background: none;
   border: none;

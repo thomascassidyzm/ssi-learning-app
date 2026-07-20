@@ -65,14 +65,22 @@ const roleChips = computed(() => {
   const present = [...new Set(links.value.map((l) => l.role))]
   return present.map((r) => ({ value: r, word: ROLE_WORD[r] || r }))
 })
+// Class rows roll up to their school for filtering — a root node would
+// otherwise grow one chip per class (30+ at the IME programme), which is
+// noise, not navigation. `where.name` for a class is "Class — School".
+function chipKey(l: LedgerLink): string {
+  if (l.where.kind !== 'class') return l.where.name
+  const dash = l.where.name.indexOf(' — ')
+  return dash >= 0 ? l.where.name.slice(dash + 3) : l.where.name
+}
 const whereChips = computed(() => {
-  const seen = new Map<string, string>()
-  for (const l of links.value) seen.set(l.where.name, l.where.name)
-  return [...seen.keys()]
+  const seen = new Set<string>()
+  for (const l of links.value) seen.add(chipKey(l))
+  return [...seen]
 })
 const visible = computed(() => links.value.filter((l) =>
   (roleFilter.value === 'all' || l.role === roleFilter.value) &&
-  (whereFilter.value === 'all' || l.where.name === whereFilter.value)
+  (whereFilter.value === 'all' || chipKey(l) === whereFilter.value)
 ))
 
 function when(iso: string): string {
