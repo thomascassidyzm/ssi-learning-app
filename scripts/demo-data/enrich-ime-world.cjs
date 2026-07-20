@@ -142,18 +142,29 @@ const METRO_PLAN = [
     ],
   },
   {
+    // French runs at TWO classes here so it is Global Edge's DEFAULT course
+    // (rate-compare defaults to the busiest course, ties alphabetical — deu
+    // would win a 1-1-1 tie and has no peer school, landing the school's
+    // insights on the honest k-floor empty state). French electives are
+    // dual-populated from the German/Mandarin rosters — realistic, and it
+    // multiplies the two-course learners the founder asked for.
     key: 'globaledge', name: 'Global Edge Academy, Mumbai',
-    admin: 'Farhan Merchant', teachers: ['Anke Weber', 'Li Wen'],
+    admin: 'Farhan Merchant', teachers: ['Anke Weber', 'Li Wen', 'Claire Fontaine'],
     classes: [
       { name: 'Grade 8 German', course: 'deu_for_eng', seedBand: [12, 20], students: 13 },
       { name: 'Grade 9 Mandarin', course: 'zho_for_eng', seedBand: [8, 14], students: 12 },
+      { name: '8A French', course: 'fra_for_eng', seedBand: [10, 16], students: 2, dual: { from: 'Grade 8 German', n: 6 } },
+      { name: '9A French', course: 'fra_for_eng', seedBand: [12, 18], students: 2, dual: { from: 'Grade 9 Mandarin', n: 6 } },
     ],
   },
   {
+    // Spanish at TWO classes so it is the default course (a 1-1-1 tie would
+    // alphabetically pick cym — the Welsh Club — which has no peer school).
     key: 'lotusvalley', name: 'Lotus Valley International, Delhi',
     admin: 'Kavita Bhatnagar', teachers: ['Elena Garcia', 'Gareth Llewelyn'],
     classes: [
       { name: 'Year 6 Spanish', course: 'spa_for_eng', seedBand: [18, 25], students: 14 },
+      { name: 'Year 7 Spanish', course: 'spa_for_eng', seedBand: [14, 20], students: 12 },
       // The founder's wink: one small Welsh class, mostly Year 6 kids doubling up.
       { name: 'Welsh Club', course: 'cym_n_for_eng', seedBand: [3, 7], students: 3, dual: { from: 'Year 6 Spanish', n: 5 } },
     ],
