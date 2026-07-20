@@ -415,7 +415,7 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </div>
 
@@ -570,7 +570,7 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
                 <td v-if="canPlayAsClass" class="row-cta">
-                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
                 </td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">
