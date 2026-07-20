@@ -177,6 +177,24 @@ describe('POST /api/groups/:id/invites', () => {
     expect(res.statusCode).toBe(201)
     expect(insertedRows[0].grants_group_id).toBe('group-1')
   })
+
+  it('school_leader at a school node mints a school_admin_join code keyed by grants_school_id', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    schoolsRows = [{ id: 'school-9', node_group_id: 'group-1' }]
+    const res = makeRes()
+    await handler(makeReq({ role: 'school_leader' }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertedRows[0]).toMatchObject({ code_type: 'school_admin_join', grants_school_id: 'school-9' })
+    expect(insertedRows[0].grants_group_id).toBeUndefined()
+  })
+
+  it('rejects school_leader at a plain group node (no attached school)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'school_leader' }, 'group-1'), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
 })
 
 describe('GET /api/groups/:id/invites — school-node bridge (THE MODEL I2)', () => {

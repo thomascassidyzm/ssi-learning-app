@@ -102,6 +102,45 @@ principle OfflineFirst:
     sync: "Background sync when online"
     fallback: "Full functionality offline after initial load"
 
+principle IdentityCaptureNotGhosts:
+  statement: "The link is the credential; ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
+
+  why: |
+    The pure zero-screen straight-in (2026-07-19) minted anonymous
+    link-<uuid>@invite.saysomethingin.app accounts for every role — a
+    teacher on a roster with no name and no email is a support hole, not an
+    account. Founder-reconciled 2026-07-20 (THE-MODEL.md §1.13 + I12): the
+    capture screen is the account's identity being born, not ceremony.
+
+  named_role_flow: |
+    /redeem/:code (teacher | school_admin | school_admin_join | govt_admin)
+    in a fresh context -> RedeemCode.vue 'details' step: role + place in
+    the heading ("You've been invited as a teacher at <School>"), name +
+    email fields -> POST api/auth/possession-redeem (typed email, NO OTP,
+    email recorded unverified; needs_verification handles later round-trip)
+    -> setSession -> api/code/redeem -> role landing (leader/teacher ->
+    /schools scope-resolved; ssi_admin stays OTP-only).
+
+  pupil_flow: |
+    /redeem/:code (student -> class, or learner -> group) -> 'name' step
+    (name only — young learners have no email) -> possession-redeem
+    linkAuth mode (placeholder email survives for code_type student ONLY;
+    server refuses linkAuth for named roles: reason identity_required,
+    logged to possession_mint_attempts) -> player, class course switched.
+
+  reclick_flow: |
+    validate.ts accepts an optional bearer and returns alreadyRedeemed +
+    redirectTo when the session user already holds this code's context
+    (mirrors redeem.ts dedup checks read-only) -> RedeemCode.vue router-
+    replaces straight to the surface: no confirm screen, no second spend.
+
+  ways_in_roles: |
+    api/groups/:id/invites roles: leader (govt_admin), school_leader
+    (school_admin_join keyed by grants_school_id — mintable/listed only
+    where the node IS a school), teacher, student (the learner join).
+    NodeActionBar picker: Group leader / School leader / Teacher / Learner.
+    Classes are never invited; a class's student link lives on ClassDetail.
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 

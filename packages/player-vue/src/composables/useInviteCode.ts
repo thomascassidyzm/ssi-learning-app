@@ -17,6 +17,11 @@ export interface InviteCodeContext {
   grantedCourses?: readonly string[]
   accessDescription?: string
   durationDescription?: string
+  // Set when validateCode ran with a bearer token and the signed-in user has
+  // already redeemed this code's context — subsequent redeems of a personal
+  // link go straight to their surface (founder ruling 2026-07-20).
+  alreadyRedeemed?: boolean
+  redirectTo?: string
 }
 
 // Module-level singleton state
@@ -55,13 +60,19 @@ function persistPendingCode() {
 }
 
 export function useInviteCode() {
-  async function validateCode(code: string): Promise<boolean> {
+  async function validateCode(code: string, authToken?: string): Promise<boolean> {
     validationError.value = null
     isValidating.value = true
     try {
       const res = await fetch('/api/code/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Optional bearer: lets the server report alreadyRedeemed for the
+          // signed-in user so a re-clicked personal link goes straight to
+          // their surface instead of re-running the flow.
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({ code: code.trim().toUpperCase() }),
       })
       const data = await res.json()
@@ -87,6 +98,8 @@ export function useInviteCode() {
             schoolName: data.context?.schoolName,
             className: data.context?.className,
             courseName: data.context?.courseName,
+            alreadyRedeemed: data.alreadyRedeemed === true,
+            redirectTo: data.redirectTo,
           }
         }
         persistPendingCode()

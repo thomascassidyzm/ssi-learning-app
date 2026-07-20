@@ -65,6 +65,15 @@ const POSSESSION_ELIGIBLE_CODE_TYPES = new Set([
   'student',
 ])
 
+// Link-auth (placeholder-email, no typed address) is for PUPILS only — young
+// learners joining a class or group who have no email to give. Named roles
+// (teacher/leader/school admin) always pass through the one identity-capture
+// screen (name + email) on first redeem — founder ruling 2026-07-20: a
+// teacher's account must be real (their name, their recorded email), never a
+// link-<uuid> ghost. The client enforces this by never sending linkAuth for
+// named roles; this set is the server-side guarantee.
+const LINK_AUTH_ELIGIBLE_CODE_TYPES = new Set(['student'])
+
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PER_CODE_LIMIT = 20
 const PER_IP_LIMIT = 10
@@ -205,6 +214,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (!POSSESSION_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {
       await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'unsupported_code_type' })
       res.status(200).json({ success: false, error: 'This invite needs to be redeemed by email sign-in' })
+      return
+    }
+    if (isLinkAuth && !LINK_AUTH_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {
+      // A named-role link redeemed without a typed email: the client should
+      // have shown the identity-capture screen. Refuse the ghost mint and tell
+      // it to capture — never create a link-<uuid> account for a teacher/
+      // leader/admin.
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: null, ipHash, outcome: 'identity_required' })
+      res.status(200).json({ success: false, reason: 'identity_required', error: 'This invite needs your name and email first' })
       return
     }
 
