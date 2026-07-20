@@ -140,6 +140,24 @@ export async function refreshDemoNodeActivity(
   }))
   if (!classes.length) return emptyResult
 
+  // ---- teacher fallback: classes.teacher_user_id (the lead pointer) is
+  // nullable — some demo classes carry their teachers only in class_teachers.
+  // class_sessions.teacher_user_id is NOT NULL, so without this fallback the
+  // arc insert dies AFTER the replace-delete has run and the whole demo tree
+  // goes class-practice-dark (hit live on the IME tree, 2026-07-20).
+  const teacherless = classes.filter((c) => !c.teacherUserId)
+  if (teacherless.length) {
+    const { data: ctRows } = await supabase
+      .from('class_teachers')
+      .select('class_id, teacher_user_id')
+      .in('class_id', teacherless.map((c) => c.id))
+    const ctByClass = new Map<string, string>()
+    for (const r of ctRows || []) {
+      if (!ctByClass.has(r.class_id as string)) ctByClass.set(r.class_id as string, r.teacher_user_id as string)
+    }
+    for (const c of teacherless) c.teacherUserId = ctByClass.get(c.id) || null
+  }
+
   // ---- class learning identity (founder ruling 2026-07-19: play-as-class is
   // the PRIMARY school metric — every demo class is itself a learner). Ensure
   // + belt-and-braces demo-flag every class in the guarded subtree so board
@@ -320,6 +338,14 @@ export async function refreshDemoNodeActivity(
   // verb exists to kill).
   const classSessionRows: Record<string, unknown>[] = []
   for (const cls of classes) {
+    // No resolvable teacher even via class_teachers → no teacher-led arc for
+    // this class (class_sessions.teacher_user_id is NOT NULL). Honest skip,
+    // loudly — a demo class without a teacher is a tree-shape problem to fix
+    // at mint time, not something to paper over with a fake teacher id.
+    if (!cls.teacherUserId) {
+      console.warn('[demoNodeRefresh] class has no teacher (lead or class_teachers) — skipping class-practice arc:', cls.id)
+      continue
+    }
     const nCs = between(12, 24)
     // Spread over the full ~8-week window, oldest → newest, latest today:
     // classroom cadence of 2-4 sessions/week (2-4 days apart with jitter), so
