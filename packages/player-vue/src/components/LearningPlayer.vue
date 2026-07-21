@@ -8393,7 +8393,14 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
       return
     }
     // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
-    const targetLegoId = cachedRounds.value[resolvedTargetIdx]?.legoId
+    // Resolve the target LEGO id atomically against simplePlayer's OWN
+    // rounds array (the one resolvedTargetIdx was found in) — NEVER by
+    // reusing that index against cachedRounds, a separate mirror that can
+    // desync from the live queue (e.g. the instant-playback full-script
+    // handoff replaces cachedRounds with the whole-course array without
+    // touching the live queue). Cross-indexing the two was the belt-skip
+    // fencepost bug: it silently landed one seed short of the tapped belt.
+    const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
     if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
     else simplePlayer.jumpToRound(resolvedTargetIdx)
     deriveBeltFromLandedRound()
