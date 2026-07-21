@@ -29,7 +29,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { computeGroupImpact, deleteGroupCascade } from '../_utils/schoolGroupDeletion'
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
@@ -47,7 +47,7 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 async function resolveAdminOrSubtreeLeader(
   req: VercelRequest,
   res: VercelResponse,
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   groupId: string,
 ): Promise<string | null> {
   const adminResult = await verifyAdmin(req)

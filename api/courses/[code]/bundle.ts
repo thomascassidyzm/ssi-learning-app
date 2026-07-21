@@ -193,11 +193,6 @@ interface PodSentenceRow {
   glue_to_next: boolean | null
 }
 
-interface CourseAudioRow {
-  id: string
-  duration_ms: number | null
-}
-
 /** Build a LEGO id of the form "S0042L01". Same helper as infplay-cycles.ts. */
 function buildLegoId(seed: number, lego: number): string {
   return `S${String(seed).padStart(4, '0')}L${String(lego).padStart(2, '0')}`

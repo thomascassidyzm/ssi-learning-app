@@ -179,6 +179,12 @@ export class SimplePlayer {
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  // playGeneration the currently-armed play-path safety watchdog belongs to,
+  // and the highest currentTime seen for it. The watchdog is a STALL detector:
+  // each timeupdate that shows real progress reschedules it, so a healthy clip
+  // that legitimately runs past the window is never truncated. See armSafetyTimer.
+  private safetyGen: number = 0
+  private lastAudioCurrentTime: number = 0
   // True only while the silent pause clip is sounding on this.audio. Lets the
   // 'ended' hub and the teardown chokepoint tell a pause clip apart from a real
   // voice clip.
@@ -239,7 +245,10 @@ export class SimplePlayer {
 
     this.audio.addEventListener('ended', this.onEndedHandler)
     this.audio.addEventListener('error', this.onErrorHandler)
-    this.onTimeUpdateHandler = () => this.updateMediaPositionState()
+    this.onTimeUpdateHandler = () => {
+      this.updateMediaPositionState()
+      this.noteAudioProgress()
+    }
     this.audio.addEventListener('timeupdate', this.onTimeUpdateHandler)
     this.audio.addEventListener('loadedmetadata', this.onTimeUpdateHandler)
 
@@ -473,6 +482,7 @@ export class SimplePlayer {
     const existingLegoIds = new Set(this.rounds.map(r => r.legoId))
 
     // Insert each round at the correct position based on legoId (which encodes seed + lego index)
+    let indexShift = 0
     for (const round of newRounds) {
       // Skip if this exact LEGO already exists (by legoId, not roundNumber)
       if (existingLegoIds.has(round.legoId)) {
@@ -485,11 +495,20 @@ export class SimplePlayer {
         this.rounds.push(round)
       } else {
         this.rounds.splice(insertIndex, 0, round)
-        if (insertIndex <= this.state.roundIndex) {
-          this.state.roundIndex++
+        // Accumulate the shift; emit once at the end via updateState so the
+        // state_changed event fires (otherwise a direct roundIndex++ bypasses
+        // Vue reactivity and the expansion-watcher chain never re-fires when
+        // the resumed learner is far from the loaded edge). Ported from the
+        // appendRounds fix below — both insertion paths now share the
+        // invariant: never mutate roundIndex outside updateState.
+        if (insertIndex <= this.state.roundIndex + indexShift) {
+          indexShift++
         }
       }
       existingLegoIds.add(round.legoId)
+    }
+    if (indexShift > 0) {
+      this.updateState({ roundIndex: this.state.roundIndex + indexShift })
     }
   }
 
@@ -872,7 +891,16 @@ export class SimplePlayer {
             if (this.state.phase !== 'buffering' || !this.state.isPlaying) return
             this.updateState({ phase: 'prompt' })
           }
-          this.playAudio(await this.resolveUrl(currentCycle.known.audioUrl))
+          // Staleness guard: resolveUrl (offline/cache path) can take tens–
+          // hundreds of ms (IndexedDB read + mp3→WAV re-encode). If a
+          // skip/jump/round-boundary superseded us during the await, playing
+          // now would emit the OLD cycle's audio against the NEW cycle's text
+          // — the audio/text desync the app must never produce. A superseded
+          // continuation must go inert (no playAudio, no phase advance).
+          const gen = this.playGeneration
+          const url = await this.resolveUrl(currentCycle.known.audioUrl)
+          if (gen !== this.playGeneration || this.currentCycle !== currentCycle || !this.state.isPlaying) return
+          this.playAudio(url)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -885,7 +913,12 @@ export class SimplePlayer {
         break
       case 'voice1':
         if (currentCycle?.target?.voice1Url) {
-          this.playAudio(await this.resolveUrl(currentCycle.target.voice1Url), true)
+          // Staleness guard — see the prompt branch. A superseded await must
+          // not play the old cycle's voice1 over the new cycle's text.
+          const gen = this.playGeneration
+          const url = await this.resolveUrl(currentCycle.target.voice1Url)
+          if (gen !== this.playGeneration || this.currentCycle !== currentCycle || !this.state.isPlaying) return
+          this.playAudio(url, true)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -899,7 +932,12 @@ export class SimplePlayer {
         // time the next PROMPT phase fires, all three URLs are warm.
         this.prefetchNextCycle()
         if (currentCycle?.target?.voice2Url) {
-          this.playAudio(await this.resolveUrl(currentCycle.target.voice2Url), true)
+          // Staleness guard — see the prompt branch. A superseded await must
+          // not play the old cycle's voice2 over the new cycle's text.
+          const gen = this.playGeneration
+          const url = await this.resolveUrl(currentCycle.target.voice2Url)
+          if (gen !== this.playGeneration || this.currentCycle !== currentCycle || !this.state.isPlaying) return
+          this.playAudio(url, true)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -1038,12 +1076,46 @@ export class SimplePlayer {
       // the learner about what they just heard.
       this.handleAudioFailure(undefined, err?.message)
     })
+    // Arm the stall watchdog. Reset the progress marker first so the first
+    // timeupdate for this clip counts as progress and reschedules cleanly.
+    this.lastAudioCurrentTime = 0
+    this.armSafetyTimer(gen)
+  }
+
+  /**
+   * Arm (or re-arm) the play-path safety watchdog for a given play generation.
+   * This is a STALL detector, not an absolute play deadline: noteAudioProgress
+   * reschedules it every time real playback progress is observed, so a clip
+   * that legitimately runs longer than the window is NEVER truncated. Only a
+   * genuinely stalled element — no `timeupdate` progress for the whole window —
+   * fires, advancing rather than hanging. Firing is gated on the generation so
+   * a superseded play can't advance the machine (the "silently advancing lies
+   * to the learner" failure this timer exists to prevent, without the old
+   * false-positive on long clips).
+   */
+  private armSafetyTimer(gen: number): void {
+    this.clearSafetyTimer()
+    this.safetyGen = gen
     this.safetyTimer = setTimeout(() => {
-      // Ignore if a newer playAudio call has started
       if (gen !== this.playGeneration) return
-      console.warn('[SimplePlayer] Safety timeout — audio ended event never fired, advancing')
+      console.warn('[SimplePlayer] Safety timeout — audio stalled (no progress for 10s), advancing')
       this.onAudioEnded()
     }, 10_000)
+  }
+
+  /**
+   * Feed the stall watchdog from `timeupdate`/`loadedmetadata`. Reschedules the
+   * safety timer whenever currentTime advances. Guarded so only the currently
+   * armed play-path watchdog is rescheduled — pause-clip and idle timeupdates,
+   * and the retry path's own hard deadline, must not re-arm it.
+   */
+  private noteAudioProgress(): void {
+    if (!this.safetyTimer || this.safetyGen !== this.playGeneration) return
+    const t = this.audio.currentTime
+    if (t > this.lastAudioCurrentTime) {
+      this.lastAudioCurrentTime = t
+      this.armSafetyTimer(this.safetyGen)
+    }
   }
 
   private startPausePhase(): void {

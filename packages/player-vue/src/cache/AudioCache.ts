@@ -31,6 +31,11 @@ interface AudioRow {
   mimeType: string
   size: number
   lifecycle: AudioLifecycle
+  // Vestigial: always written null. The per-course clear API that consumed it
+  // was removed (it had no production caller and the write path never
+  // populated this, so it could only ever no-op). Kept in the row + the
+  // `by-course` index to avoid a DB_VERSION migration; repurpose or drop both
+  // in the next schema bump if still unused.
   courseCode: string | null
   cachedAt: number
   lastAccessedAt: number
@@ -60,6 +65,12 @@ export class AudioCacheImpl implements AudioCache {
   // Offline WAV blob URLs, keyed by audio id — decoded once and reused for
   // repeated clips (spaced rep replays the same audio). See getWavBlobUrl.
   private readonly wavUrlCache: Map<string, string> = new Map()
+
+  // In-flight WAV decodes, keyed by id. Concurrent getWavBlobUrl calls for the
+  // same id (prefetch racing playback) share ONE decode + ONE object URL, so a
+  // late caller can't overwrite the map with a second URL without revoking the
+  // first (the blob-URL leak) and the mp3→WAV re-encode runs once, not twice.
+  private readonly wavUrlInflight: Map<string, Promise<string | null>> = new Map()
 
   /** In-flight ensure/acquire de-dupe: one Promise per id. */
   private readonly inflight: Map<string, Promise<void>> = new Map()
@@ -407,15 +418,25 @@ export class AudioCacheImpl implements AudioCache {
   async getWavBlobUrl(id: AudioId): Promise<string | null> {
     const cached = this.wavUrlCache.get(id)
     if (cached) return cached
-    await this.init()
-    if (!this.db) return null
-    const row = await this.db.get(STORE, id)
-    if (!row) return null
-    const wav = await bytesToWavBlob(await row.blob.arrayBuffer())
-    if (!wav) return null
-    const url = URL.createObjectURL(wav)
-    this.wavUrlCache.set(id, url)
-    return url
+    // Coalesce concurrent decodes: one shared promise per id means one decode
+    // and one object URL, so a racing caller can't leak a second URL.
+    const existing = this.wavUrlInflight.get(id)
+    if (existing) return existing
+    const work = (async (): Promise<string | null> => {
+      await this.init()
+      if (!this.db) return null
+      const row = await this.db.get(STORE, id)
+      if (!row) return null
+      const wav = await bytesToWavBlob(await row.blob.arrayBuffer())
+      if (!wav) return null
+      const url = URL.createObjectURL(wav)
+      this.wavUrlCache.set(id, url)
+      return url
+    })().finally(() => {
+      this.wavUrlInflight.delete(id)
+    })
+    this.wavUrlInflight.set(id, work)
+    return work
   }
 
   // ==========================================================================
@@ -482,31 +503,6 @@ export class AudioCacheImpl implements AudioCache {
 
     this.statsCache = { at: now, value: result }
     return result
-  }
-
-  // ==========================================================================
-  // CLEAR
-  // ==========================================================================
-
-  async clearCourse(courseCode: string): Promise<void> {
-    await this.init()
-    if (!this.db) return
-
-    const tx = this.db.transaction(STORE, 'readwrite')
-    const idx = tx.objectStore(STORE).index('by-course')
-    let cursor = await idx.openCursor(IDBKeyRange.only(courseCode))
-    while (cursor) {
-      const row = cursor.value
-      if (row.lifecycle === 'persistent') this.persistentIds.delete(row.id)
-      else this.ephemeralIds.delete(row.id)
-      const staleWavUrl = this.wavUrlCache.get(row.id)
-      if (staleWavUrl) { URL.revokeObjectURL(staleWavUrl); this.wavUrlCache.delete(row.id) }
-      await cursor.delete()
-      cursor = await cursor.continue()
-    }
-    await tx.done
-
-    this.statsCache = null
   }
 
   /**

@@ -574,12 +574,18 @@ export function useClassesData() {
     }
   }
 
+  /**
+   * Persist the end-of-session state. Returns `true` on a confirmed write,
+   * `false` when the write errored or threw. Callers MUST consume this — a
+   * silent `void` here was a "false Saved" hazard (RLS doctrine rule 8): the
+   * resume pointer `end_lego_id` could go unwritten with zero signal.
+   */
   async function endClassSession(
     sessionId: string,
     endLegoId: string,
     cyclesCompleted: number,
     durationSeconds: number
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const { error: err } = await client
         .from('class_sessions')
@@ -591,9 +597,14 @@ export function useClassesData() {
         })
         .eq('id', sessionId)
 
-      if (err) console.error('[ClassesData] Failed to end class session:', err)
+      if (err) {
+        console.error('[ClassesData] Failed to end class session:', err)
+        return false
+      }
+      return true
     } catch (err) {
       console.error('[ClassesData] endClassSession error:', err)
+      return false
     }
   }
 
@@ -822,7 +833,15 @@ export function useClassesData() {
       // route — the live RLS forbids a client teacher-tag insert. Makes the
       // relationship the source of truth so the new class appears under
       // membership reads, not only via the lead pointer.
-      await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      const teacherLinked = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      if (!teacherLinked) {
+        // The teacher↔class relationship row never got written. The class row
+        // exists (so we still return it and show it), but membership reads
+        // won't surface it and the lead pointer is unbacked. Do NOT silently
+        // assert is_lead: true here — that was the "false Saved" lie. Surface
+        // it on the error ref and leave the optimistic teachers list empty.
+        error.value = `Class "${newClass.class_name}" was created but linking you as its teacher failed — it may not appear in your class list until you re-add yourself.`
+      }
 
       const classInfo: ClassInfo = {
         id: newClass.id,
@@ -839,7 +858,7 @@ export function useClassesData() {
         avg_seeds_completed: 0,
         avg_practice_minutes: 0,
         created_at: newClass.created_at,
-        teachers: [{ user_id: newClass.teacher_user_id, is_lead: true }],
+        teachers: teacherLinked ? [{ user_id: newClass.teacher_user_id, is_lead: true }] : [],
       }
 
       classes.value = [...classes.value, classInfo]
@@ -851,16 +870,28 @@ export function useClassesData() {
     }
   }
 
-  async function updateClassProgress(classId: string, lastLegoId: string): Promise<void> {
+  /**
+   * Write the class's resume point (`classes.last_lego_id`). Returns `true` on
+   * a confirmed write, `false` when it errored or threw. A silent `void` here
+   * meant a failed write left the class resuming from a stale lego with no
+   * signal — the "false Saved" class (RLS doctrine rule 8). Callers MUST
+   * consume the result.
+   */
+  async function updateClassProgress(classId: string, lastLegoId: string): Promise<boolean> {
     try {
       const { error: err } = await client
         .from('classes')
         .update({ last_lego_id: lastLegoId })
         .eq('id', classId)
 
-      if (err) console.error('[ClassesData] Failed to update class progress:', err)
+      if (err) {
+        console.error('[ClassesData] Failed to update class progress:', err)
+        return false
+      }
+      return true
     } catch (err) {
       console.error('[ClassesData] updateClassProgress error:', err)
+      return false
     }
   }
 

@@ -260,7 +260,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
         .map(e => e.entitlement_code_id)
         .filter(Boolean)
 
-      let codeLabels = new Map<string, string>()
+      const codeLabels = new Map<string, string>()
       if (codeIds.length > 0) {
         const { data: codes } = await client
           .from('entitlement_codes')

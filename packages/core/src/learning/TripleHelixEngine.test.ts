@@ -229,7 +229,7 @@ describe('TripleHelixEngine', () => {
       engine.recordPractice(item1!.lego.id, item1!.thread_id, true, false);
 
       // After rotation, active thread should be 2
-      let stats = engine.getStats();
+      const stats = engine.getStats();
       expect(stats.activeThread).toBe(2);
 
       // Next item should be from thread 2

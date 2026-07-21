@@ -5,19 +5,24 @@
  * Used by both invite codes and entitlement codes.
  */
 
-import { randomBytes } from 'crypto'
+import { randomBytes, randomInt } from 'crypto'
 
 // Consonants only, excluding I and O (confusable with 1 and 0)
 const CODE_CONSONANTS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 export function generateCode(): string {
+  // Uses the CSPRNG crypto.randomInt (not a predictable PRNG): these codes gate
+  // elevated educational_role grants (teacher/school_admin/govt_admin) into a
+  // school/group on redemption, so their minting must not be predictable from
+  // observed samples. randomInt is uniform over [0, n) and cryptographically
+  // secure. Format is unchanged (ABC-123).
   let letters = ''
   for (let i = 0; i < 3; i++) {
-    letters += CODE_CONSONANTS[Math.floor(Math.random() * CODE_CONSONANTS.length)]
+    letters += CODE_CONSONANTS[randomInt(CODE_CONSONANTS.length)]
   }
   let digits = ''
   for (let i = 0; i < 3; i++) {
-    digits += Math.floor(Math.random() * 10).toString()
+    digits += randomInt(10).toString()
   }
   return `${letters}-${digits}`
 }

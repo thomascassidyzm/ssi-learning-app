@@ -18,14 +18,14 @@
  * admin's own account go through admin tooling, not signup paths.
  */
 
-import type { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const OPERATOR_CAPTURE_ERROR =
   "You're signed in as a platform admin — test signup and invite links from a separate test account (e.g. a private window), so they can't capture your real roles."
 
 /** True when the signed-in account is a platform operator (ssi_admin). */
 export async function isOperatorAccount(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
 ): Promise<boolean> {
   const { data } = await supabase

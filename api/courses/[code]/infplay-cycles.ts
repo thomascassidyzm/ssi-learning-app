@@ -337,7 +337,7 @@ export default async function handler(
       // LEGO's USE pool (Fisher-Yates partial shuffle) — N-1's 3
       // phrases should be different ones, not the same phrase three
       // times.
-      for (const { lego, offset, phraseCount } of spacedRepEntries) {
+      for (const { lego, phraseCount } of spacedRepEntries) {
         const phrases = phrasesByLego.get(lego.lego_id)
         if (!phrases || phrases.length === 0) continue
         const drawn = sampleN(phrases, Math.min(phraseCount, phrases.length))

@@ -20,10 +20,10 @@
  * needs_verification. learners.is_demo follows the node's own is_demo flag so
  * demo containment holds.
  */
-import type { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 
-type Svc = ReturnType<typeof createClient>
+type Svc = SupabaseClient
 
 const PERSONA_EMAIL_DOMAIN = 'invite.saysomethingin.app'
 
@@ -162,7 +162,10 @@ export async function provisionPersona(svc: Svc, spec: PersonaSpec): Promise<Per
   }
 
   if (wireError) {
-    await svc.from('learners').delete().eq('user_id', authUserId).catch(() => {})
+    // Best-effort rollback. The PostgREST builder is a thenable, not a Promise
+    // (no .catch) — it resolves with { error } rather than rejecting, so swallow
+    // via the two-arg .then. deleteUser DOES return a real Promise, so .catch is fine there.
+    await svc.from('learners').delete().eq('user_id', authUserId).then(() => {}, () => {})
     await svc.auth.admin.deleteUser(authUserId).catch(() => {})
     return { authUserId: '', email, learnerId: null, error: `role wiring failed: ${wireError}` }
   }

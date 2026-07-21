@@ -199,12 +199,36 @@ describe('useClassesData', () => {
     expect(id).toBeNull()
   })
 
-  it('endClassSession does not throw on error', async () => {
+  it('endClassSession returns false on error (no false "Saved")', async () => {
     const cd = await setup({
       class_sessions: { data: null, error: { message: 'update failed' } },
     })
-    // Should not throw
-    await cd.endClassSession('sess-1', 'S0010L03', 50, 1800)
+    const ok = await cd.endClassSession('sess-1', 'S0010L03', 50, 1800)
+    expect(ok).toBe(false)
+  })
+
+  it('endClassSession returns true on a confirmed write', async () => {
+    const cd = await setup({
+      class_sessions: { data: null, error: null },
+    })
+    const ok = await cd.endClassSession('sess-1', 'S0010L03', 50, 1800)
+    expect(ok).toBe(true)
+  })
+
+  it('updateClassProgress returns false on error (no false "Saved")', async () => {
+    const cd = await setup({
+      classes: { data: null, error: { message: 'update failed' } },
+    })
+    const ok = await cd.updateClassProgress('c1', 'S0010L03')
+    expect(ok).toBe(false)
+  })
+
+  it('updateClassProgress returns true on a confirmed write', async () => {
+    const cd = await setup({
+      classes: { data: null, error: null },
+    })
+    const ok = await cd.updateClassProgress('c1', 'S0010L03')
+    expect(ok).toBe(true)
   })
 
   it('getClassSessions returns empty on error', async () => {
@@ -229,6 +253,28 @@ describe('useClassesData', () => {
     const result = await cd.createClass({ class_name: 'New Class', course_code: 'cym', school_id: 's1' })
     expect(result?.class_name).toBe('New Class')
     expect(result?.student_count).toBe(0)
+  })
+
+  it('createClass surfaces failure and drops the lead assertion when the teacher link fails', async () => {
+    // The mock client exposes no `auth`, so the service-role class-teacher
+    // write (addClassTeacher -> callClassTeachersApi) resolves false. createClass
+    // must NOT silently assert an is_lead teacher; it must set error.value and
+    // return the class with an empty teachers list.
+    const cd = await setup({
+      classes: { data: {
+        id: 'new-c', class_name: 'Orphan Class', course_code: 'cym', school_id: 's1',
+        teacher_user_id: 'u-teacher', student_join_code: 'JOIN1', current_seed: 1,
+        is_active: true, created_at: '2025-03-01'
+      }, error: null },
+      invite_codes: { data: null, error: null },
+    })
+    const result = await cd.createClass({ class_name: 'Orphan Class', course_code: 'cym', school_id: 's1' })
+    // Class still returned so the UI shows it...
+    expect(result?.class_name).toBe('Orphan Class')
+    // ...but the lead teacher was NOT silently asserted...
+    expect(result?.teachers).toEqual([])
+    // ...and the failure is surfaced truthfully rather than swallowed.
+    expect(cd.error.value).toBeTruthy()
   })
 
   it('createClass accepts a null school_id (groupless tutor, THE-MODEL I5)', async () => {

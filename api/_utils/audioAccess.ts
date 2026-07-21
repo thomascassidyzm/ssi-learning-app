@@ -173,9 +173,24 @@ export const BIG_10 = ['eng', 'spa', 'fra', 'deu', 'ita', 'por', 'zho', 'jpn', '
 // lock out a single live payer before the client begins attaching
 // entitlement tokens to audio requests.
 export const ENTITLEMENT_STRICT = (process.env.ENTITLEMENT_ENFORCE || '').trim().toLowerCase() === 'strict'
-const entitlementSecret = (
-  process.env.ENTITLEMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-).trim()
+
+// Entitlement tokens get their OWN dedicated HMAC secret. We deliberately do
+// NOT fall back to SUPABASE_SERVICE_ROLE_KEY: that would repurpose an
+// all-powerful DB credential to sign low-value, widely-distributed tokens and
+// couple two very different trust tiers (rotating one would force rotating the
+// other). Mint side: api/try-link/validate.ts reads the same env var the same
+// way — the two MUST stay identical or tokens fail to verify.
+const entitlementSecret = (process.env.ENTITLEMENT_TOKEN_SECRET || '').trim()
+const IS_PROD = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
+if (IS_PROD && !entitlementSecret) {
+  // Fail LOUD, not silent (matches the cron CRON_SECRET posture): in production
+  // the dedicated secret MUST be set. verifyEntitlementToken() below refuses
+  // (returns null) without it, so no token can verify — surface the
+  // misconfiguration rather than swallow it.
+  console.error(
+    '[audioAccess] ENTITLEMENT_TOKEN_SECRET not configured in production — entitlement tokens will NOT verify'
+  )
+}
 
 /** Is this course premium (Big-10 target or Welsh)? Community/other → free. */
 export function isPremiumCourse(courseCode: string): boolean {

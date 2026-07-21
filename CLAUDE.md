@@ -193,7 +193,7 @@ We are in a transition from **manifest-first** to **database-first** architectur
 │  • Phase 1-3: Translation, LEGOs,        • @ssi/core: Engine            │
 │    Basket generation                      • player-vue: Demo UI          │
 │  • Phase 8: Audio generation (TTS)       • apps/web: PWA (TODO)         │
-│  • Phase 9: Manifest compilation         • apps/schools-dashboard        │
+│  • Phase 9: Manifest compilation         • /schools in player-vue        │
 │  • Production API: QA, recording                                         │
 │  • Supabase: seeds, legos, audio         • Supabase: learner progress   │
 │                                                                          │
@@ -228,7 +228,7 @@ ssi-learning-app/
 ├── packages/
 │   ├── core/                    # @ssi/core - Framework-agnostic TypeScript
 │   │   ├── src/
-│   │   │   ├── engine/          # CycleOrchestrator, AudioController
+│   │   │   ├── engine/          # Cycle types & interfaces (CyclePhase, ICycleOrchestrator)
 │   │   │   ├── learning/        # TripleHelix, SpacedRepetition, Adaptation
 │   │   │   ├── data/            # Type definitions for LEGOs, Seeds, Phrases
 │   │   │   ├── config/          # Configuration defaults and types
@@ -247,11 +247,10 @@ ssi-learning-app/
 │   │   │   └── App.vue
 │   │   └── public/audio/        # Demo audio files (bundled)
 │   ├── ui/                      # Shared UI components
-│   ├── demo/                    # Demo content
-│   ├── vue-adapter/             # Vue 3 adapter (stub)
-│   └── react-adapter/           # React adapter (stub)
+│   └── demo/                    # Demo content
 ├── apps/
-│   └── web/                     # PWA for community courses (TODO)
+│   ├── web/                     # PWA for community courses (TODO — not yet created)
+│   └── schools-dashboard/       # Doc-only dir (schools live in player-vue/src/views/schools/)
 ├── apml/                        # APML specifications
 │   ├── core/                    # Core data types
 │   ├── engine/                  # CycleOrchestrator spec
@@ -805,20 +804,18 @@ pnpm --filter @ssi/web dev
 
 | File | Purpose |
 |------|---------|
-| `packages/core/src/engine/CycleOrchestrator.ts` | Main cycle state machine |
-| `packages/core/src/engine/types.ts` | Cycle phases, events, interfaces |
+| `packages/player-vue/src/playback/SimplePlayer.ts` | Main 4-phase cycle playback engine (state machine) |
+| `packages/core/src/engine/types.ts` | Cycle phases (`CyclePhase`), events, `ICycleOrchestrator` interface |
 | `packages/core/src/data/types.ts` | LEGO, Seed, Phrase types |
 | `packages/player-vue/src/components/LearningPlayer.vue` | Main player UI |
-| `packages/player-vue/src/components/ConstellationNetworkView.vue` | Pre-built network visualization |
 | `packages/player-vue/src/components/SessionComplete.vue` | Session summary |
-| `packages/player-vue/src/composables/usePrebuiltNetwork.ts` | Network position pre-calculation |
-| `packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts` | Network-session integration |
 | `packages/player-vue/src/composables/useScriptCache.ts` | Script caching |
 | `packages/player-vue/src/composables/useMetaCommentary.ts` | Intro messages |
 | `packages/player-vue/src/composables/useBeltProgress.ts` | Belt progression tracking |
-| `packages/player-vue/src/playback/PriorityRoundLoader.ts` | Lazy loading with priority queue |
-| `packages/player-vue/src/playback/SessionController.ts` | Round management & playback control |
-| `packages/player-vue/src/playback/CyclePlayer.ts` | 4-phase cycle playback engine |
+| `packages/player-vue/src/playback/computePauseDuration.ts` | Dynamic pause-duration calc (re-export shim → `@ssi/core`) |
+| `packages/player-vue/src/playback/adaptationOverrides.ts` | Adaptation-v2 play-time overrides on SimplePlayer |
+| `packages/player-vue/src/playback/bulkAudioDownload.ts` | Batch offline audio download (presigned S3) |
+| `packages/player-vue/src/playback/silentWav.ts` | Silent WAV `data:` URIs for background/lock-screen gaps |
 | `packages/player-vue/src/types/Cycle.ts` | Atomic Cycle type definition |
 | `packages/player-vue/src/containers/SchoolsContainer.vue` | Schools layout + auth + routing |
 | `packages/player-vue/src/views/schools/DashboardView.vue` | Schools dashboard home |
@@ -883,14 +880,21 @@ A **Cycle** is an immutable, pre-validated learning unit:
 - Keep new components under 300 lines
 
 ### Feedback Loops
-Before every commit:
+Before every commit **and before pushing any PR** — these are CI-gated, so a red one blocks the merge:
 ```bash
-pnpm --filter player-vue typecheck  # Must pass
+# player-vue (Vue SPA)
+pnpm --filter player-vue typecheck  # Must pass (run `pnpm --filter @ssi/core build` first — vue-tsc reads core's dist)
 pnpm --filter player-vue test       # Must pass
-pnpm --filter player-vue lint       # Must pass
+pnpm --filter player-vue lint       # Must pass — `eslint .` (covers src AND e2e/**, not just src)
+
+# API (Vercel serverless routes under api/)
+pnpm run typecheck:api              # Must pass — tsc over ALL of api/** (widened 2026-07-17, was audio-only)
+pnpm run test:api                   # Must pass — vitest -c vitest.api.config.ts
 ```
+**Lint gate detail:** `player-vue lint` fails on any **error** (exit 1); pre-existing **warnings** (147 as of 2026-07-20, mostly `no-unused-vars`) do NOT fail it — the command has no `--max-warnings`. So the bar is "zero new errors", e.g. `prefer-const`, not "zero warnings". Don't mass-fix warnings unless asked.
 
 ### Files Being Created
+> **Historical (Jan 2026 plan snapshot).** As-shipped, only `types/Cycle.ts` and `composables/useCyclePlayback.ts` exist; `utils/validateCycle.ts` and `components/CyclePlayer.vue` were never created — the playback engine landed as `playback/SimplePlayer.ts` instead.
 - `/packages/player-vue/src/types/Cycle.ts` - Type definitions
 - `/packages/player-vue/src/utils/validateCycle.ts` - Validation functions
 - `/packages/player-vue/src/composables/useCyclePlayback.ts` - Playback logic
@@ -914,13 +918,12 @@ Best-in-class audio system with backend proxy and graceful degradation. **Core p
 - **IMPORTANT**: All AWS env vars use `.trim()` to handle trailing newlines from copy-paste
 
 ### Two-Layer Caching
-1. **IndexedDB (OfflineCache)**: App-controlled, readable blobs for offline play
+1. **IndexedDB (`cache/AudioCache.ts`)**: App-controlled, readable blobs for offline play (tier-aware store `ssi-audio-cache-v2`)
 2. **Service Worker (Workbox)**: Browser-controlled, CacheFirst strategy for `/api/audio/*`
 
-### Prefetch Manager
-- **File**: `packages/player-vue/src/composables/usePrefetchManager.ts`
-- **Target**: 30 minutes cached ahead during active play
-- **Trigger**: After each cycle completes
+### Prefetch / Cache-Ahead
+- **Files**: `packages/player-vue/src/cache/AudioCache.ts`, `composables/useScriptCache.ts`, `composables/useOfflinePlay.ts` (the standalone `usePrefetchManager.ts` was removed; cache-ahead now lives across the offline/cache stack)
+- **Target**: cache ahead during active play (the historical "30 minutes ahead" figure predates the current stack — needs owner confirmation)
 - **Silent**: Never interrupts playback on prefetch errors
 
 ### Graceful Degradation
@@ -931,10 +934,10 @@ Best-in-class audio system with backend proxy and graceful degradation. **Core p
   3. USE phrases: Play mastered content
   4. Repeat: Loop last successful cycle
 
-### Resumable Downloads
-- Downloads persist across app restarts (localStorage)
-- Resume within 24 hours of interruption
-- Options: Current belt, 2 hours, 5 hours, entire course (up to 10 hours)
+### Offline / Bulk Downloads
+- Bulk offline download resolves a batch of audio ids to presigned S3 URLs in one request, then fetches directly (`playback/bulkAudioDownload.ts`), bypassing the per-file `/api/audio/:id` proxy.
+- Download status is shared via `composables/useOfflineDownloadStatus.ts`; offline leases via `composables/useOfflineLease.ts`.
+- (The older resumable-download / "persist across restarts, resume within 24h, belt/2h/5h/full-course" options described a removed `DownloadManager` — needs owner confirmation against the current bulk-download flow.)
 
 ### Analytics (player_events.audio_play)
 Every audio play is tracked client-side via `player_events`:
@@ -946,11 +949,12 @@ Every audio play is tracked client-side via `player_events`:
 | File | Purpose |
 |------|---------|
 | `api/audio/[audioId].ts` | Vercel serverless proxy |
-| `packages/player-vue/src/composables/usePrefetchManager.ts` | 30-min buffer |
+| `packages/player-vue/src/cache/AudioCache.ts` | Tier-aware IndexedDB audio cache |
+| `packages/player-vue/src/cache/resolvePlaybackUrl.ts` | Audio id → playable (lock-screen-safe) URL |
+| `packages/player-vue/src/composables/useScriptCache.ts` | Script + cache-ahead |
 | `packages/player-vue/src/composables/useOfflinePlay.ts` | Graceful degradation |
 | `packages/player-vue/src/config/audioConfig.ts` | URL builder & config |
-| `packages/core/src/cache/AudioSource.ts` | Proxy URL support |
-| `packages/core/src/cache/DownloadManager.ts` | Resumable downloads |
+| `packages/player-vue/src/playback/bulkAudioDownload.ts` | Batch offline audio download |
 | `apml/cache/audio-architecture.apml` | Full architecture spec |
 
 ---
@@ -971,17 +975,13 @@ App starts → Load Round N → PLAY     Background: load rest by priority
               └── < 2 seconds        └── seamless continuation
 ```
 
-### PriorityRoundLoader
-- **File**: `packages/player-vue/src/playback/PriorityRoundLoader.ts`
-- **Purpose**: Smart background loading based on user intent
+### Instant playback / incremental round loading
+- **File**: `packages/player-vue/src/composables/useInstantPlayback.ts` (sub-second time-to-first-play); rounds are built via `providers/generateLearningScript.ts` → `providers/toSimpleRounds.ts` → `SimplePlayer.initialize()`, and added incrementally with `SimplePlayer.addRounds()` / `appendRounds()`.
+- **Purpose**: play the first round fast, then extend the queue in the background.
 
-**Loading Priority:**
-1. Round N (BLOCKING - what user will play first)
-2. Round N+1 (seamless continuation)
-3. First of NEXT belt (belt-skip ready)
-4. Rest of current belt
-5. Rest of next belt
-6. Continue belt-by-belt forward
+> **Historical note**: the standalone `PriorityRoundLoader.ts` (belt-priority background loading — round N → N+1 → first-of-next-belt → rest) was removed. Background loading now rides `useInstantPlayback` + the round-builder pipeline above; the exact priority ordering below is historical and needs owner confirmation against the current pipeline.
+>
+> 1. Round N (BLOCKING) 2. Round N+1 3. First of next belt 4. Rest of current belt 5. Rest of next belt 6. Belt-by-belt forward
 
 ### Belt Thresholds
 ```
@@ -1001,11 +1001,12 @@ loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]>
 getBasketsBatch(legoIds: string[]): Promise<Map<string, ClassifiedBasket>>
 ```
 
-### SessionController Incremental Methods
+### SimplePlayer Incremental Methods
 ```typescript
-initializeEmpty(courseId: string)  // Start with no rounds
-addRound(round: RoundTemplate)      // Add single round
-hasRound(roundIndex: number)        // Check if round exists
+// packages/player-vue/src/playback/SimplePlayer.ts
+addRounds(newRounds: Round[])       // Add rounds (dedupes by legoId)
+appendRounds(newRounds: Round[])    // Append without dedupe (infinite-play)
+hasRound(roundNumber: number)       // Check if round exists
 ```
 
 ### Course End Detection
@@ -1018,8 +1019,9 @@ When `loadLegoAtPosition(seed)` returns null:
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `packages/player-vue/src/playback/PriorityRoundLoader.ts` | Priority-based background loading |
-| `packages/player-vue/src/playback/SessionController.ts` | Incremental round management |
+| `packages/player-vue/src/composables/useInstantPlayback.ts` | Sub-second time-to-first-play |
+| `packages/player-vue/src/playback/SimplePlayer.ts` | Incremental round management (`addRounds`/`appendRounds`) |
+| `packages/player-vue/src/providers/toSimpleRounds.ts` | ScriptItem[] → SimplePlayer Round[] |
 | `packages/player-vue/src/providers/CourseDataProvider.ts` | Lazy loading methods |
 | `apml/playback/lazy-loading.apml` | Full architecture spec |
 
@@ -1085,5 +1087,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-04-11*
+*Last updated: 2026-07-17 (Key Files / playback / cache file map corrected to the real SimplePlayer + AudioCache stack)*
 *Status: v2.3.0 - Lazy loading for instant startup | Schools dashboard fully implemented at /schools*

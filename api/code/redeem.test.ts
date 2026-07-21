@@ -52,11 +52,18 @@ function makeChainable(table: string) {
 
 let authUserOverride: { email?: string; user_metadata?: Record<string, unknown> } = { email: 'leader@example.com' }
 
+// Controls what the atomic claim_entitlement_code_use RPC returns. Redemption
+// is claim-first (Plan 009): the code's use is claimed BEFORE the grant, so a
+// normal redemption needs the claim to succeed (RPC returns the row id). The
+// exhausted-claim test overrides this to { data: null } to model a used-up code.
+let entitlementClaimResult: { data: unknown; error: unknown } = { data: 'claimed', error: null }
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
     rpc: (name: string, params: any) => {
       if (name === 'claim_invite_code_use') return Promise.resolve({ data: params.p_id, error: null })
+      if (name === 'claim_entitlement_code_use') return Promise.resolve(entitlementClaimResult)
       return Promise.resolve({ data: null, error: null })
     },
     auth: {
@@ -86,6 +93,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     writes = {}
     responders = {}
     authUserOverride = { email: 'leader@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
     handler = (await import('./redeem')).default
   })
 
@@ -785,6 +793,55 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
+  it('INTERIOR-NODE JOIN idempotency: a 23505 on the group tag OR the school dual-write insert is idempotent success, not a 500 (a user already carrying the tag re-redeems)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-dup',
+            code: 'TEACH-GRP-DUP',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-dup',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-dup' }, error: null })
+    // The node IS a school, so the dual-write is attempted too.
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-dup' }, error: null }
+      return { data: null, error: null }
+    }
+    // Both user_tags inserts lose the race / find the tag already present → 23505.
+    responders.user_tags = (calls) => {
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      if (isInsert) {
+        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "user_tags_active_natural_key"' } }
+      }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-DUP', codeKind: 'invite' } }), res)
+
+    // 23505 on either affiliateToGroupNode insert is idempotent success, NOT a 500.
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.role).toBe('teacher')
+  })
+
   it('INTERIOR-NODE JOIN (I7): a student code carrying only grants_group_id (no grants_class_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school, and no course_enrollments write (no class to enrol into)', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
@@ -1260,6 +1317,63 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     await handler(makeReq({ body: { code: 'ANY-CODE', codeKind: 'invite' } }), res)
     expect(res._status).toBe(401)
   })
+
+  // --- Plan 012: idempotent user_tags inserts (23505 → success) ---------------
+  // A duplicate active tag from a concurrent/retried redemption must not 500;
+  // the redemption is idempotent (the winner's tag grants the same membership).
+
+  function inviteTagRedeemTest(codeType: 'teacher' | 'school_admin_join' | 'student') {
+    return async () => {
+      const grantsSchoolId = codeType === 'student' ? null : 'school-x'
+      const grantsClassId = codeType === 'student' ? 'class-x' : null
+      responders.invite_codes = (calls) => {
+        const isSelect = calls.some((c) => c[0] === 'select')
+        if (isSelect) {
+          return {
+            data: {
+              id: `invite-${codeType}`,
+              code: 'TAG-DUP',
+              code_type: codeType,
+              grants_region: null,
+              grants_school_id: grantsSchoolId,
+              grants_class_id: grantsClassId,
+              grants_group_id: null,
+              metadata: {},
+              max_uses: null,
+              use_count: 0,
+              expires_at: null,
+              is_active: true,
+            },
+            error: null,
+          }
+        }
+        return { data: null, error: null }
+      }
+      responders.learners = () => ({ data: { id: `learner-${codeType}` }, error: null })
+      // Dedup existence check reads null (nothing found), but the INSERT loses
+      // the race to a concurrent identical insert and gets 23505.
+      responders.user_tags = (calls) => {
+        const isInsert = calls.some((c) => c[0] === 'insert')
+        if (isInsert) {
+          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "user_tags_active_natural_key"' } }
+        }
+        return { data: null, error: null }
+      }
+      responders.classes = () => ({ data: { course_code: 'cym_for_eng' }, error: null })
+
+      const res = makeRes()
+      await handler(makeReq({ body: { code: 'TAG-DUP', codeKind: 'invite' } }), res)
+
+      // 23505 is treated as success — the redemption is idempotent, NOT a 500.
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.role).toBe(codeType)
+    }
+  }
+
+  it('teacher branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('teacher'))
+  it('school_admin_join branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('school_admin_join'))
+  it('student branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('student'))
 })
 
 describe('POST /api/code/redeem (entitlement codes)', () => {
@@ -1270,6 +1384,7 @@ describe('POST /api/code/redeem (entitlement codes)', () => {
     writes = {}
     responders = {}
     authUserOverride = { email: 'learner@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
     handler = (await import('./redeem')).default
   })
 
@@ -1359,6 +1474,51 @@ describe('POST /api/code/redeem (entitlement codes)', () => {
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(false)
     expect(res._json.error).toBe('Code already redeemed')
+    expect(writes.user_entitlements).toBeUndefined()
+  })
+
+  // --- Plan 009: entitlement claim-first (exhausted claim → no grant) ----------
+
+  it('entitlement branch: an exhausted atomic claim grants nothing and returns "Code fully used"', async () => {
+    responders.entitlement_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'ent-capped-1',
+            code: 'ENT-CAP',
+            access_type: 'course',
+            granted_courses: ['cym_for_eng'],
+            duration_type: 'days',
+            duration_days: 365,
+            label: 'Capped code',
+            max_uses: 1,
+            // Early check passes (0 < 1) — the RACE is that the atomic claim,
+            // not this stale read, is the real gate. The claim reports exhausted.
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+            grants_platform_role: null,
+            grants_dashboard_courses: null,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-ent-1' }, error: null })
+    // user_entitlements "already redeemed" check → null (not previously redeemed).
+    // Model an exhausted code: the atomic claim RPC finds no capacity and
+    // returns no row, which claimCodeUse reads as claimed=false.
+    entitlementClaimResult = { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'ENT-CAP', codeKind: 'entitlement' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json).toMatchObject({ success: false, error: 'Code fully used' })
+    // Claim-first: NO grant was inserted (with the old grant-first order this
+    // would have recorded a user_entitlements insert before the claim ran).
     expect(writes.user_entitlements).toBeUndefined()
   })
 })
