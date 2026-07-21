@@ -9608,14 +9608,18 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
  * TypeError: Load failed"). The audio ids are derived from those same
  * persisted rows, so metadata and audio can't drift apart.
  */
-const collectListeningModeAudioIds = async (): Promise<string[]> => {
+// Returns null (not []) on a genuine fetch failure so the caller can tell
+// "no listening content" apart from "couldn't check" — the latter must NOT
+// let the download report a false "complete" (2026-07-21 flight report:
+// Core silently missing from the offline bundle with no error shown).
+const collectListeningModeAudioIds = async (): Promise<string[] | null> => {
   const client = supabase.value
   const code = courseCode.value
   if (!client || !code) return []
   const meta = await fetchAndCacheListeningMeta(client, code)
   if (!meta) {
     console.warn('[Offline] listening metadata fetch failed — listening bundle skipped this run')
-    return []
+    return null
   }
   return collectListeningMetaAudioIds(meta)
 }
@@ -9637,8 +9641,9 @@ const collectListeningModeAudioIds = async (): Promise<string[]> => {
 // mid-course picker and the INF-PLAY single option) already call for
 // "everything besides the main-loop cycles". 'All' (USE phrases) is
 // deliberately excluded from the offline bundle — see collectListeningModeAudioIds.
-const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
+const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; auxIncomplete: boolean }> => {
   const ids = new Set<string>()
+  let auxIncomplete = false
   const provider = courseDataProvider.value
   if (provider) {
     try {
@@ -9652,41 +9657,56 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
       if (welcome?.id) ids.add(welcome.id)
     } catch (e) { console.warn('[Offline] commentary enumerate failed:', e) }
   }
-  if (podScheduler) {
-    try {
-      if (!podScheduler.isInitialized.value) await podScheduler.initialize()
-      for (const s of podScheduler.podSentences.value ?? []) {
-        if (s?.target_audio_id) ids.add(s.target_audio_id)
-        if (s?.known_audio_id) ids.add(s.known_audio_id)
-        if (s?.explainer_audio_id) ids.add(s.explainer_audio_id)
+  // The three fetches below are mutually independent (pod pool, L1 pool,
+  // listening/Core metadata) — run them concurrently instead of one after
+  // another so their latencies overlap rather than add, cutting time spent
+  // stuck on the "preparing download" screen (2026-07-21 flight report).
+  await Promise.all([
+    (async () => {
+      if (!podScheduler) return
+      try {
+        if (!podScheduler.isInitialized.value) await podScheduler.initialize()
+        for (const s of podScheduler.podSentences.value ?? []) {
+          if (s?.target_audio_id) ids.add(s.target_audio_id)
+          if (s?.known_audio_id) ids.add(s.known_audio_id)
+          if (s?.explainer_audio_id) ids.add(s.explainer_audio_id)
+        }
+        if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
+        if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
+      } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
+    })(),
+    // Layer-1 listening (drained-seed fluency maintenance). Same treatment as
+    // pods: the seed-level target audio is a small bounded pool and L1 laps are
+    // chosen at RUNTIME (every ~50 rounds, from whatever's drained at that
+    // position), so we can't predict the exact clips in advance — cache the whole
+    // pool so any lap that fires offline is guaranteed present. Tom's rule:
+    // listening must load in EVERY offline plan, encouragements are the first
+    // thing to cut, never the listening tracks. Bookends overlap with the pod
+    // intro/outro above; the Set dedupes.
+    (async () => {
+      if (!l1Scheduler) return
+      try {
+        if (!l1Scheduler.isInitialized.value) await l1Scheduler.initialize()
+        for (const seed of (l1Scheduler.seeds.value ?? new Map()).values()) {
+          if (seed?.target1_audio_id) ids.add(seed.target1_audio_id)
+          if (seed?.target2_audio_id) ids.add(seed.target2_audio_id)
+        }
+        if (l1Scheduler.introAudio.value?.id) ids.add(l1Scheduler.introAudio.value.id)
+        if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
+      } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
+    })(),
+    (async () => {
+      try {
+        const found = await collectListeningModeAudioIds()
+        if (found === null) { auxIncomplete = true; return }
+        for (const id of found) ids.add(id)
+      } catch (e) {
+        console.warn('[Offline] Listening mode (Core/All) enumerate failed:', e)
+        auxIncomplete = true
       }
-      if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
-      if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
-    } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
-  }
-  // Layer-1 listening (drained-seed fluency maintenance). Same treatment as
-  // pods: the seed-level target audio is a small bounded pool and L1 laps are
-  // chosen at RUNTIME (every ~50 rounds, from whatever's drained at that
-  // position), so we can't predict the exact clips in advance — cache the whole
-  // pool so any lap that fires offline is guaranteed present. Tom's rule:
-  // listening must load in EVERY offline plan, encouragements are the first
-  // thing to cut, never the listening tracks. Bookends overlap with the pod
-  // intro/outro above; the Set dedupes.
-  if (l1Scheduler) {
-    try {
-      if (!l1Scheduler.isInitialized.value) await l1Scheduler.initialize()
-      for (const seed of (l1Scheduler.seeds.value ?? new Map()).values()) {
-        if (seed?.target1_audio_id) ids.add(seed.target1_audio_id)
-        if (seed?.target2_audio_id) ids.add(seed.target2_audio_id)
-      }
-      if (l1Scheduler.introAudio.value?.id) ids.add(l1Scheduler.introAudio.value.id)
-      if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
-    } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
-  }
-  try {
-    for (const id of await collectListeningModeAudioIds()) ids.add(id)
-  } catch (e) { console.warn('[Offline] Listening mode (Core/All) enumerate failed:', e) }
-  return [...ids]
+    })(),
+  ])
+  return { ids: [...ids], auxIncomplete }
 }
 
 const downloadForOffline = async (roundsAhead: number = Infinity) => {
@@ -9699,7 +9719,7 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const cycleIds = collectRoundsAudioIds(roundsAhead)
-  const auxIds = await collectAuxiliaryAudioIds()  // commentary + pod pools
+  const { ids: auxIds, auxIncomplete } = await collectAuxiliaryAudioIds()  // commentary + pod pools
   const ids = [...new Set([...cycleIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
@@ -9763,10 +9783,10 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Clamp to an entitlement-code expiry so the lease can't outlive the code.
   await grantOfflineLeaseForCurrentCourse()
 
-  if (offlineDlFailed.value > 0) {
+  if (offlineDlFailed.value > 0 || auxIncomplete) {
     // Stays on screen (no auto-hide) so the user knows to retry on better signal.
     offlineDlState.value = 'error'
-    console.warn(`[Offline] incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
+    console.warn(`[Offline] incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
   } else {
     offlineDlState.value = 'complete'
     console.log(`[Offline] complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
@@ -10135,11 +10155,11 @@ const offlineSingleEstimate = ref<{ size: string; lowSpace: boolean; ready: bool
 const refreshOfflineSingleEstimate = async (): Promise<void> => {
   offlineSingleEstimate.value = { size: '', lowSpace: false, ready: false }
   try {
-    const [useIds, auxIds] = await Promise.all([
+    const [useIds, auxResult] = await Promise.all([
       collectInfPlayUseAudioIds(),
       collectAuxiliaryAudioIds(),
     ])
-    const fileCount = new Set([...useIds, ...auxIds]).size
+    const fileCount = new Set([...useIds, ...auxResult.ids]).size
     const avgBytesPerFile = offlineEst.value.avgBytesPerFile || 24 * 1024
     const mb = (fileCount * avgBytesPerFile) / 1e6
     offlineSingleEstimate.value = {
@@ -10169,10 +10189,11 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineActive.value = true
   console.log('[LearningPlayer] Offline ON — INF PLAY USE-only (longest 3/LEGO)')
   offlineDlState.value = 'preparing'
-  const [useIds, auxIds] = await Promise.all([
+  const [useIds, auxResult] = await Promise.all([
     collectInfPlayUseAudioIds(),
     collectAuxiliaryAudioIds(),
   ])
+  const { ids: auxIds, auxIncomplete } = auxResult
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const ids = [...new Set([...useIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
@@ -10222,9 +10243,9 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   // Stamp the 30-day offline lease (same as the mid-course download).
   await grantOfflineLeaseForCurrentCourse()
 
-  if (offlineDlFailed.value > 0) {
+  if (offlineDlFailed.value > 0 || auxIncomplete) {
     offlineDlState.value = 'error'
-    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
+    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
   } else {
     offlineDlState.value = 'complete'
     console.log(`[Offline] INF PLAY complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)

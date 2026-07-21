@@ -158,7 +158,13 @@ export function computeExpiry(
 export function isClockTrustworthy(
   lease: Pick<OfflineLease, 'lastValidatedAt'>,
   nowMs: number = Date.now(),
-  skewToleranceMs: number = 60 * 60 * 1000, // 1h benign skew allowance
+  // 6h benign skew allowance. Was 1h until the 2026-07-21 flight report: a
+  // device can pick up a spuriously wrong NITZ/GPS time fix while reacquiring
+  // a cell signal mid-flight (weak/ghost tower near descent, captive-portal
+  // wifi with a bad clock) and briefly read >1h behind its last validation
+  // with no tampering involved. 6h absorbs that noise while still catching a
+  // clock wound back by more than a flight's length against a 30-day lease.
+  skewToleranceMs: number = 6 * 60 * 60 * 1000,
 ): boolean {
   if (!lease.lastValidatedAt || !Number.isFinite(lease.lastValidatedAt)) return true
   return nowMs >= lease.lastValidatedAt - skewToleranceMs

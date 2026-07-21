@@ -152,8 +152,28 @@ const PAGE = 1000
  * one cache entry. Called from the deliberate offline download. Returns the
  * fresh meta, or null on any fetch failure (nothing partially written — the
  * entry is all-or-nothing so "entry present" always means "fully usable").
+ *
+ * Retries a few times on transient failure before giving up — this call
+ * chains 6+ network round-trips, run right as the user is about to go
+ * offline (the worst possible moment for a transient blip), and previously
+ * had zero retry: one flaky request silently dropped the entire Core/
+ * Listening bundle from the offline download while it still reported
+ * "complete" (2026-07-21 flight report).
  */
 export const fetchAndCacheListeningMeta = async (
+  client: SupabaseClient,
+  courseCode: string,
+  attempts = 3,
+): Promise<CachedListeningMeta | null> => {
+  for (let attempt = 1; attempt < attempts; attempt++) {
+    const meta = await fetchAndCacheListeningMetaOnce(client, courseCode)
+    if (meta) return meta
+    await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+  }
+  return fetchAndCacheListeningMetaOnce(client, courseCode)
+}
+
+const fetchAndCacheListeningMetaOnce = async (
   client: SupabaseClient,
   courseCode: string,
 ): Promise<CachedListeningMeta | null> => {
