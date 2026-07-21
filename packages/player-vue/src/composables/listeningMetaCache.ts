@@ -173,6 +173,45 @@ export const fetchAndCacheListeningMeta = async (
   return fetchAndCacheListeningMetaOnce(client, courseCode)
 }
 
+/**
+ * Retry a live listening-metadata read before falling back to the (possibly
+ * stale, unbounded-age, course-only-keyed) offline snapshot. Shared by every
+ * runtime reader (podLapScheduler, layer1Scheduler, useListeningPods) — they
+ * previously fell back on the FIRST failure with zero retry, and the highest-
+ * risk moment for a transient failure is right after a forced sign-in reload
+ * (auth/network still settling), which is exactly when the stale-snapshot
+ * fallback is most likely to silently serve wrong-vintage audio/text
+ * (2026-07-21 forum report). Mirrors fetchAndCacheListeningMeta's own retry.
+ */
+export const retryListeningRead = async <T>(
+  fn: () => Promise<T>,
+  isOk: (result: T) => boolean,
+  attempts = 3,
+): Promise<T> => {
+  let result = await fn()
+  for (let attempt = 1; attempt < attempts && !isOk(result); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+    result = await fn()
+  }
+  return result
+}
+
+/** Retry variant for readers that signal failure by THROWING (useListeningPods'
+ *  loadFromNetwork) rather than returning a Supabase {error} result. */
+export const retryListeningReadOrThrow = async <T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+): Promise<T> => {
+  for (let attempt = 1; attempt < attempts; attempt++) {
+    try {
+      return await fn()
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+    }
+  }
+  return fn()
+}
+
 const fetchAndCacheListeningMetaOnce = async (
   client: SupabaseClient,
   courseCode: string,

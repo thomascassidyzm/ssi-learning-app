@@ -14,7 +14,7 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
-import { getCachedListeningMeta } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningReadOrThrow } from './listeningMetaCache'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 
 export interface PodSentence {
@@ -201,7 +201,13 @@ export function useListeningPods(
       if (offlineNow) loaded = await loadFromCache()
       if (!loaded) {
         try {
-          loaded = await loadFromNetwork()
+          // Retry before falling back to the offline snapshot — the
+          // highest-risk moment for a transient failure is right after a
+          // forced sign-in reload (auth/network still settling), which is
+          // exactly when a silent fallback to a stale, unbounded-age
+          // snapshot serves the wrong vintage of pod audio/text
+          // (2026-07-21 forum report). See retryListeningRead's doc comment.
+          loaded = await retryListeningReadOrThrow(loadFromNetwork)
         } catch (netErr) {
           loaded = await loadFromCache()
           if (!loaded) throw netErr

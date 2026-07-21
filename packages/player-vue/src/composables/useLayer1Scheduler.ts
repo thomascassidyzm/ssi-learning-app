@@ -54,7 +54,7 @@
 
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCachedListeningMeta } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 
 // ============================================================================
 // Pure logic (exported for unit testing — no Vue/Supabase here)
@@ -393,30 +393,39 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
 
     isLoading.value = true
     try {
-      const [seedsResult, catalogueResult, bookendsResult] = await Promise.all([
-        supabase
-          .from('course_seeds')
-          .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
-          .eq('course_code', courseCode)
-          .order('seed_number', { ascending: true })
-          .limit(5000),
-        // .limit(10000) is REQUIRED — Supabase defaults to 1000 rows, which
-        // truncates the LEGO catalogue on any course with >1000 LEGOs (~200+
-        // seeds), giving later seeds wrong/missing ordinals so they never
-        // get introduced. Mirrors generateLearningScript.ts's catalogue query.
-        supabase
-          .from('course_legos')
-          .select('seed_number, lego_index')
-          .eq('course_code', courseCode)
-          .order('seed_number', { ascending: true })
-          .order('lego_index', { ascending: true })
-          .limit(10000),
-        supabase
-          .from('course_audio')
-          .select('role, text, id, duration_ms')
-          .eq('course_code', courseCode)
-          .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
-      ])
+      // Retry before falling back to the offline snapshot — the highest-risk
+      // moment for a transient failure is right after a forced sign-in
+      // reload (auth/network still settling), which is exactly when a
+      // silent fallback to a stale, unbounded-age snapshot serves the wrong
+      // vintage of seed audio/text (2026-07-21 forum report). See
+      // retryListeningRead's doc comment.
+      const [seedsResult, catalogueResult, bookendsResult] = await retryListeningRead(
+        () => Promise.all([
+          supabase
+            .from('course_seeds')
+            .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
+            .eq('course_code', courseCode)
+            .order('seed_number', { ascending: true })
+            .limit(5000),
+          // .limit(10000) is REQUIRED — Supabase defaults to 1000 rows, which
+          // truncates the LEGO catalogue on any course with >1000 LEGOs (~200+
+          // seeds), giving later seeds wrong/missing ordinals so they never
+          // get introduced. Mirrors generateLearningScript.ts's catalogue query.
+          supabase
+            .from('course_legos')
+            .select('seed_number, lego_index')
+            .eq('course_code', courseCode)
+            .order('seed_number', { ascending: true })
+            .order('lego_index', { ascending: true })
+            .limit(10000),
+          supabase
+            .from('course_audio')
+            .select('role, text, id, duration_ms')
+            .eq('course_code', courseCode)
+            .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
+        ]),
+        ([seeds, catalogue, bookends]) => !seeds.error && !catalogue.error && !bookends.error,
+      )
 
       // Offline fallback (Tom's airplane-mode test 2026-07-09): when the live
       // metadata queries fail, serve the rows persisted by the deliberate

@@ -199,9 +199,11 @@ function mountPods(client: any, course: string): { pods: UseListeningPodsReturn;
   })
   app.provide('supabase', { value: client })
   app.mount(document.createElement('div'))
-  // fetchData chains several awaits (IDB reads + fake queries) — drain a
-  // generous run of macrotasks so it fully settles.
-  const flush = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0)) }
+  // fetchData chains several awaits (IDB reads + fake queries), and on a
+  // failing network the live read now retries with real backoff
+  // (retryListeningReadOrThrow, 500ms/1000ms) before falling back to cache —
+  // drain a generous real-time window so it fully settles either way.
+  const flush = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 100)) }
   return { pods, flush }
 }
 
