@@ -9354,8 +9354,13 @@ const offlineUnavailableBeltNames = computed<Set<string>>(() => {
   const names = new Set<string>()
   for (const belt of BELTS) {
     if (belt.seedsRequired === 0) continue
-    const idx = simplePlayer.findRoundIndexForBeltThreshold(belt.seedsRequired)
-    const cycles = idx >= 0 ? (((rounds[idx]) as any)?.cycles || []) : []
+    // Resolve the target LEGO id against the live engine's own rounds queue,
+    // then look IT up (by value, not by index) in cachedRounds — the same
+    // index would point at a different round in each array if the two have
+    // diverged (see findLegoIdForBeltThreshold's doc comment).
+    const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
+    const round = targetLegoId ? rounds.find((r: any) => r?.legoId === targetLegoId) : null
+    const cycles = (round as any)?.cycles || []
     const hasPlayableCycle = cycles.some((c: any) =>
       audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
     if (!hasPlayableCycle) names.add(belt.name)

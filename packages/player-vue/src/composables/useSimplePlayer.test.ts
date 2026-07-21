@@ -226,4 +226,26 @@ describe('useSimplePlayer — belt-threshold seed→round resolution', () => {
     // The fix: resolve atomically against the SAME array — always correct.
     expect(sp.findLegoIdForBeltThreshold(20)).toBe('S0020L01')
   })
+
+  it('regression: offlineUnavailableBeltNames pattern — resolving a target legoId and finding it BY VALUE in a diverged mirror lands correctly, where cross-indexing would not', () => {
+    // Mirrors LearningPlayer.vue's offlineUnavailableBeltNames, which used to
+    // reuse findRoundIndexForBeltThreshold's index to read cachedRounds (a
+    // separate component-level mirror) — the same fencepost bug as belt-skip,
+    // just for deciding which belts to grey out offline.
+    const sp = useSimplePlayer()
+    sp.initialize(ROUNDS)
+    const idx = sp.findRoundIndexForBeltThreshold(20) // idx 2 in the live queue
+
+    const divergedMirror = [makeRound('S0018L01', 53), ...ROUNDS]
+
+    // The old bug: reusing the live-queue index to read the diverged mirror.
+    const wrongRound = divergedMirror[idx]
+    expect(wrongRound?.legoId).toBe('S0019L02') // one seed short — would under/over-grey belts
+
+    // The fix: resolve the target legoId atomically, then look it up BY
+    // VALUE in the mirror — correct regardless of how the mirror diverged.
+    const targetLegoId = sp.findLegoIdForBeltThreshold(20)
+    const correctRound = divergedMirror.find(r => r.legoId === targetLegoId)
+    expect(correctRound?.legoId).toBe('S0020L01')
+  })
 })
