@@ -4310,7 +4310,29 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
 // Handle round boundary - called when a round completes
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId, completedRound = null) => {
   roundsThisSession.value++
+  // Everything below pauses simplePlayer for an interlude (commentary/pod/L1)
+  // and is trusted to un-pause it on every exit path. Both call sites invoke
+  // this fire-and-forget (no await, no .catch), so an uncaught exception
+  // ANYWHERE in here — e.g. a scheduler's nextLap() throwing on unexpected
+  // data — used to strand simplePlayer paused forever with no recovery:
+  // no stop control, no text (phase frozen), no mic-progress ring, and
+  // re-pressing play didn't help because nothing here ever re-fires. Catch
+  // and fall back to the function's own default ("resume unless a branch
+  // explicitly chose to stay paused") so a data/scheduler bug degrades to a
+  // skipped interlude instead of a permanently stuck player.
+  try {
+    await handleRoundBoundaryBody(completedRoundIndex, completedLegoId, completedRound)
+  } catch (err) {
+    console.error('[LearningPlayer] handleRoundBoundary failed — recovering by resuming playback:', err)
+    if (!userStoppedDuringLap.value && !showSessionComplete.value) {
+      playingPodLapAudio.value = false
+      playingCommentaryAudio.value = false
+      simplePlayer.resume()
+    }
+  }
+}
 
+const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, completedRound = null) => {
   // Did the round we just finished contain a Layer 1 listen cluster? If so,
   // the L2 pod lap should drop its intro bookend so the two clusters play
   // as one continuous listening section. Pairs with the omitOutro flag in
@@ -13204,7 +13226,15 @@ defineExpose({
               <p v-else-if="bufferingPromptVisible" class="hero-known loading-text preparing-text">
                 {{ bufferingPromptMessage }}<span class="loading-cursor">▌</span>
               </p>
-              <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
+              <!-- Suppressed while PodTurnDisplay is actively showing the turn's
+                   own LEGO-tile text (playingPodLapAudio && currentPodTurn) — this
+                   glass pane sits at the top of the screen (z-index 10, above
+                   PodTurnDisplay's 3) and a wrapped two-line message here was
+                   tall enough to cover PodTurnDisplay's top turn row when a
+                   section had a lot of text. The tiles already show what to
+                   do; this line is redundant there and only needed when no
+                   turn display is on screen (the main-cycle listening types). -->
+              <p v-else-if="inListeningContext && !(playingPodLapAudio && currentPodTurn)" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
               <p v-else class="hero-known">{{ displayedKnownText }}</p>
