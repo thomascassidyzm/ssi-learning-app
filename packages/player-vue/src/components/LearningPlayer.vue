@@ -8095,15 +8095,13 @@ const handleRoundForward = async () => {
       const result = await generateScript()
       if (result.items.length > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-        // BUG: calling simplePlayer.addRounds() directly here (instead of
-        // mergeGeneratedRoundsIntoQueue, which loadSeedIfNeeded already uses)
-        // grew the engine's internal roundsRef but left the component's
-        // cachedRounds/loadedRounds mirror unchanged. The very next line reads
-        // cachedRounds.value.length again — still short — so round-forward
-        // permanently concluded "unavailable, staying put" the first time it
-        // ever had to load past the initial preload window, and every
-        // subsequent tap re-hit the same frozen boundary. Root cause of the
-        // dead round-skip chevron (2026-07-21).
+        // Must go through mergeGeneratedRoundsIntoQueue, NOT a bare
+        // simplePlayer.addRounds — that only grows the engine's internal
+        // queue. cachedRounds (read right below, and by the jump target
+        // lookup) is a separate mirror; without this it never grows, so
+        // targetIdx >= cachedRounds.value.length stays true forever and
+        // forward-skip silently no-ops at the loaded edge (round-skip
+        // freeze, live session 0c4bc301, 2026-07-21).
         mergeGeneratedRoundsIntoQueue(result.items)
       }
     }
