@@ -4421,7 +4421,20 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           nextRoundFull,
           (legoId) => adaptationEngine.value!.getPauseMultiplier(legoId),
         )
-        if (breather) simplePlayer.appendRounds([breather])
+        if (breather) {
+          simplePlayer.appendRounds([breather])
+          // Keep the component's loadedRounds mirror in lockstep — appendRounds
+          // only updates the composable's OWN internal rounds array; loadedRounds
+          // is a separate array we must sync here (same mirror-drift species as
+          // the round-skip-forward and belt-skip fencepost bugs, 2026-07-21).
+          if (!loadedRounds.value.some((r: any) => r.roundNumber === breather.roundNumber)) {
+            const insertAt = loadedRounds.value.findIndex((r: any) => r.roundNumber > breather.roundNumber)
+            const merged = [...loadedRounds.value]
+            if (insertAt === -1) merged.push(breather)
+            else merged.splice(insertAt, 0, breather)
+            loadedRounds.value = merged as any
+          }
+        }
       }
     } else {
       currentRoundPlan.value = null
