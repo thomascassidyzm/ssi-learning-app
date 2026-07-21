@@ -7537,20 +7537,28 @@ if (typeof window !== 'undefined') {
  *   2. Arm a 200ms timer to show the dialog with `message`. Mirrors the
  *      bufferingPromptVisible threshold so an instant skip on a warm
  *      cache doesn't flicker the dialog.
- *   3. Look up the destination round, extract audio IDs from its first
- *      cycle, race audioCache.persistent.ensure on each against a 5s
- *      ceiling so a permanent network failure can't deadlock the skip.
- *   4. Check the token before jumping. If a fresh skip superseded ours
- *      (or the user navigated away), bail out — the newer skip owns
- *      the next jumpToRound.
+ *   3. simplePlayer.runSeek (PlayerConductor) brackets everything below:
+ *      pauses the engine (capturing pre-skip play intent in the
+ *      seeking(intent) state), then looks up the destination round,
+ *      extracts audio IDs from its first cycle, races
+ *      audioCache.persistent.ensure on each against a 5s ceiling so a
+ *      permanent network failure can't deadlock the skip.
+ *   4. Check both staleness signals before jumping: runSeek's own
+ *      isStale() (a newer seek — of any kind — superseded us at the
+ *      conductor level) and skipPrepToken (a newer prepareAndJump call,
+ *      or the component unmounted). Either means bail without jumping —
+ *      the newer owner handles its own landing.
  *   5. Clear the dialog, invoke `doJump()`. `doJump` is responsible for
  *      calling simplePlayer.jumpToRound (or jumpToSeed) — the prep
  *      itself doesn't navigate, so callers can carry side effects
  *      (mode flips, belt anchoring, infplay regen) around the jump.
+ *      runSeek restores the pre-skip play intent once this returns.
  *
  * Cancellation rules:
- *   - Each new prepareAndJump increments the token; a stale prefetch
+ *   - Each new prepareAndJump increments skipPrepToken; a stale prefetch
  *     resolves but its token check fails and it returns without jumping.
+ *     runSeek's cancel-and-replace generation counter supersedes the
+ *     conductor-level pause/resume bracketing the same way, independently.
  *   - clearSkipPrepDialog() is called on success and on the token-stale
  *     path, so the dialog never lingers.
  *
@@ -7563,20 +7571,10 @@ const prepareAndJump = async (
   message: string,
   doJump: () => void,
 ): Promise<void> => {
-  // CROSS-CUTTING RULE (Tom, 2026-07-21): every skip — round, cycle, or
-  // belt — must stop the current cycle cleanly BEFORE repositioning, so
-  // audio and display can never desync. Without this, SimplePlayer kept
-  // playing (and could naturally advance on its own) underneath the
-  // prefetch below, which can take up to 5s on a cold cache. By the time
-  // doJump() finally ran, the engine had often already moved past the
-  // cycle the learner saw when they tapped — the display/audio desync and
-  // "keeps playing mid-cycle" reports. jumpToRound only auto-resumes when
-  // it was ALREADY playing at call time, so capture that intent up front
-  // and restore it explicitly once we've actually landed.
-  const wasPlaying = simplePlayer.isPlaying.value
-  simplePlayer.pause()
-
-  // Cancel any in-flight prep — its token becomes stale.
+  // Cancel any in-flight prep — its token becomes stale. This is a SEPARATE,
+  // UI-only staleness signal (dialog visibility + unmount cancellation,
+  // below) from runSeek's own isStale() (the engine-transition staleness
+  // signal) — a newer prepareAndJump call supersedes both independently.
   skipPrepToken += 1
   const myToken = skipPrepToken
   // Clear any stale visibility from the previous prep before arming.
@@ -7595,40 +7593,47 @@ const prepareAndJump = async (
     skipPrepShowTimer = null
   }, 200)
 
-  try {
-    // Read destination from cachedRounds (the local mirror of simplePlayer's
-    // queue). If out-of-bounds we still call doJump — the caller may want
-    // to fall through to whatever path generates the missing rounds.
-    const targetRound = cachedRounds.value[targetRoundIndex]
-    const firstCycle = targetRound?.cycles?.[0]
-    const audioIds = extractAudioIdsFromCycle(firstCycle)
-    if (audioIds.length > 0) {
-      const ensurePromise = Promise.all(
-        audioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
-      )
-      // 5s ceiling so a permanent network failure can't deadlock the skip.
-      // Past the ceiling we fall through and let SimplePlayer's existing
-      // ensureKnownReady + retry-once-then-halt machinery handle it cleanly.
-      await Promise.race([
-        ensurePromise,
-        new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-      ])
+  // Bracketed via PlayerConductor.runSeek (docs/player-decomposition-
+  // options.md Option 2's seeking(intent) state): every skip — round,
+  // cycle, or belt — must stop the current cycle cleanly BEFORE
+  // repositioning, so audio and display can never desync. Without this,
+  // SimplePlayer kept playing (and could naturally advance on its own)
+  // underneath the prefetch below, which can take up to 5s on a cold
+  // cache — the display/audio desync and "keeps playing mid-cycle"
+  // reports (73c1507a). runSeek captures the pre-skip play intent IN THE
+  // STATE and restores it once we've landed, for every exit path.
+  await simplePlayer.runSeek(async (isStale) => {
+    try {
+      // Read destination from cachedRounds (the local mirror of simplePlayer's
+      // queue). If out-of-bounds we still call doJump — the caller may want
+      // to fall through to whatever path generates the missing rounds.
+      const targetRound = cachedRounds.value[targetRoundIndex]
+      const firstCycle = targetRound?.cycles?.[0]
+      const audioIds = extractAudioIdsFromCycle(firstCycle)
+      if (audioIds.length > 0) {
+        const ensurePromise = Promise.all(
+          audioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
+        )
+        // 5s ceiling so a permanent network failure can't deadlock the skip.
+        // Past the ceiling we fall through and let SimplePlayer's existing
+        // ensureKnownReady + retry-once-then-halt machinery handle it cleanly.
+        await Promise.race([
+          ensurePromise,
+          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+        ])
+      }
+    } catch (err) {
+      console.warn('[LearningPlayer] skip-prep prefetch threw — falling through:', err)
     }
-  } catch (err) {
-    console.warn('[LearningPlayer] skip-prep prefetch threw — falling through:', err)
-  }
 
-  // Token check — a newer skip may have superseded us mid-prefetch.
-  if (myToken !== skipPrepToken) {
-    return
-  }
+    // Bail if a newer skip superseded us at the conductor level (isStale) or
+    // the skip-prep dialog's own token (a newer prepareAndJump call, or
+    // unmount) — either means a fresher call now owns the landing.
+    if (isStale() || myToken !== skipPrepToken) return
 
-  clearSkipPrepDialog()
-  doJump()
-  // Restore the pre-skip play intent — doJump's jumpToRound/stepCycle calls
-  // landed with isPlaying already false (we paused above), so they never
-  // auto-resumed themselves.
-  if (wasPlaying) simplePlayer.resume()
+    clearSkipPrepDialog()
+    doJump()
+  })
 }
 
 const handleSkip = async () => {
@@ -8397,82 +8402,83 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   if (!gateSeed(targetSeed)) return
 
   isSkippingBelt.value = true
-  // CROSS-CUTTING RULE (Tom, 2026-07-21): stop the current cycle cleanly
-  // BEFORE the (potentially multi-second, course-wide) load below —
+  // Bracketed via PlayerConductor.runSeek (docs/player-decomposition-
+  // options.md Option 2's seeking(intent) state): stops the current cycle
+  // cleanly BEFORE the (potentially multi-second, course-wide) load below —
   // otherwise SimplePlayer keeps playing/naturally advancing underneath
   // loadSeedIfNeeded, which is exactly the "player keeps playing mid-cycle
-  // after a belt skip" report. Restore the pre-skip play intent once we've
-  // actually landed on the target belt.
-  const wasPlaying = simplePlayer.isPlaying.value
-  simplePlayer.pause()
-  try {
-    cancelInFlightLap()
-    haltAllPlayback()
-    // If we're currently in INF PLAY, picking an earlier content belt must
-    // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
-    // settles in the background so the jump below isn't blocked on it;
-    // failures are logged, not swallowed), then load — the loaded queue is
-    // otherwise only the recycled INF-PLAY set and the target belt's
-    // main-loop rounds aren't present (the same trap that stranded
-    // back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
-    const inInfplay = currentMode.value === 'infplay'
-    if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-      currentMode.value = 'main'
-      void activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
-        console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
+  // after a belt skip" report (73c1507a). runSeek captures the pre-skip
+  // play intent in the state itself and restores it once we've landed —
+  // for EVERY exit path (normal jump, enterInfPlayFromCache, or a thrown
+  // error), not just the happy path. Also gives a rapid double-tap the
+  // same cancel-and-replace protection prepareAndJump already had (the
+  // second tap supersedes the first at the conductor level).
+  await simplePlayer.runSeek(async () => {
+    try {
+      cancelInFlightLap()
+      haltAllPlayback()
+      // If we're currently in INF PLAY, picking an earlier content belt must
+      // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
+      // settles in the background so the jump below isn't blocked on it;
+      // failures are logged, not swallowed), then load — the loaded queue is
+      // otherwise only the recycled INF-PLAY set and the target belt's
+      // main-loop rounds aren't present (the same trap that stranded
+      // back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
+      const inInfplay = currentMode.value === 'infplay'
+      if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+        currentMode.value = 'main'
+        void activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
+          console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
+        })
+      }
+      console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
+
+      // Cheap already-loaded check FIRST — the INF-PLAY idle warm (above, near
+      // the ∞ bootstrap) usually means the target belt's main-loop rounds are
+      // already merged into the live queue, so this returns immediately
+      // instead of paying the full course-wide generateScript() walk in the
+      // foreground (the several-second belt-jump regression). Only a genuine
+      // miss falls through to the regen inside loadSeedIfNeeded.
+      await loadSeedIfNeeded(targetSeed)
+      // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
+      let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+      // Unresolved + we came from INF PLAY: try one more main-loop load. Only
+      // after that, a -1 genuinely means the course doesn't extend to this
+      // belt (e.g. picking Black on a Brown-capped course) — the ONE legitimate
+      // course-end case, so (re-)enter INF PLAY. We never re-enter INF PLAY for
+      // a belt the course DOES contain.
+      if (resolvedTargetIdx < 0 && inInfplay) {
+        await loadSeedIfNeeded(targetSeed, /* forceReload */ true)
+        resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+      }
+      if (resolvedTargetIdx < 0) {
+        await enterInfPlayFromCache()
+        return
+      }
+      // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
+      // Resolve the target LEGO id atomically against simplePlayer's OWN
+      // rounds array (the one resolvedTargetIdx was found in) — NEVER by
+      // reusing that index against cachedRounds, a separate mirror that can
+      // desync from the live queue (e.g. the instant-playback full-script
+      // handoff replaces cachedRounds with the whole-course array without
+      // touching the live queue). Cross-indexing the two was the belt-skip
+      // fencepost bug: it silently landed one seed short of the tapped belt.
+      const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
+      if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
+      else simplePlayer.jumpToRound(resolvedTargetIdx)
+      deriveBeltFromLandedRound()
+
+      // Belt-pill jump can land anywhere (forward or back) — persist cursor.
+      // Optimistic UI: the learner has already landed on the target round;
+      // let the write settle in the background rather than blocking on it
+      // (setRemoteCursor inside already logs failures, never throws).
+      void persistCursorAtCurrentRound().catch((err) => {
+        console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
       })
+    } finally {
+      isSkippingBelt.value = false
     }
-    console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
-
-    // Cheap already-loaded check FIRST — the INF-PLAY idle warm (above, near
-    // the ∞ bootstrap) usually means the target belt's main-loop rounds are
-    // already merged into the live queue, so this returns immediately
-    // instead of paying the full course-wide generateScript() walk in the
-    // foreground (the several-second belt-jump regression). Only a genuine
-    // miss falls through to the regen inside loadSeedIfNeeded.
-    await loadSeedIfNeeded(targetSeed)
-    // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
-    let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-    // Unresolved + we came from INF PLAY: try one more main-loop load. Only
-    // after that, a -1 genuinely means the course doesn't extend to this
-    // belt (e.g. picking Black on a Brown-capped course) — the ONE legitimate
-    // course-end case, so (re-)enter INF PLAY. We never re-enter INF PLAY for
-    // a belt the course DOES contain.
-    if (resolvedTargetIdx < 0 && inInfplay) {
-      await loadSeedIfNeeded(targetSeed, /* forceReload */ true)
-      resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-    }
-    if (resolvedTargetIdx < 0) {
-      await enterInfPlayFromCache()
-      return
-    }
-    // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
-    // Resolve the target LEGO id atomically against simplePlayer's OWN
-    // rounds array (the one resolvedTargetIdx was found in) — NEVER by
-    // reusing that index against cachedRounds, a separate mirror that can
-    // desync from the live queue (e.g. the instant-playback full-script
-    // handoff replaces cachedRounds with the whole-course array without
-    // touching the live queue). Cross-indexing the two was the belt-skip
-    // fencepost bug: it silently landed one seed short of the tapped belt.
-    const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
-    if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
-    else simplePlayer.jumpToRound(resolvedTargetIdx)
-    deriveBeltFromLandedRound()
-
-    // Belt-pill jump can land anywhere (forward or back) — persist cursor.
-    // Optimistic UI: the learner has already landed on the target round;
-    // let the write settle in the background rather than blocking on it
-    // (setRemoteCursor inside already logs failures, never throws).
-    void persistCursorAtCurrentRound().catch((err) => {
-      console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
-    })
-  } finally {
-    // Restore pre-skip play intent for every landing path (normal jump AND
-    // the enterInfPlayFromCache early return) — both call jumpToRound, which
-    // only auto-resumes when isPlaying was already true, and we paused above.
-    if (wasPlaying) simplePlayer.resume()
-    isSkippingBelt.value = false
-  }
+  })
 }
 
 // ── Header belt nav (‹‹ ››) — Tom 2026-06-01 ───────────────────────────────
