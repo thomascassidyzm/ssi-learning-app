@@ -4307,29 +4307,38 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   return podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
 }
 
+// A round-boundary interlude may chain commentary + a segued L1-into-pod lap
+// — legitimately several minutes. This is a last-resort hang backstop (a
+// promise that never settles), not a UX-facing bound, so it's generous.
+const ROUND_BOUNDARY_INTERLUDE_TIMEOUT_MS = 10 * 60 * 1000
+
 // Handle round boundary - called when a round completes
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId, completedRound = null) => {
   roundsThisSession.value++
-  // Everything below pauses simplePlayer for an interlude (commentary/pod/L1)
-  // and is trusted to un-pause it on every exit path. Both call sites invoke
-  // this fire-and-forget (no await, no .catch), so an uncaught exception
-  // ANYWHERE in here — e.g. a scheduler's nextLap() throwing on unexpected
-  // data — used to strand simplePlayer paused forever with no recovery:
-  // no stop control, no text (phase frozen), no mic-progress ring, and
-  // re-pressing play didn't help because nothing here ever re-fires. Catch
-  // and fall back to the function's own default ("resume unless a branch
-  // explicitly chose to stay paused") so a data/scheduler bug degrades to a
-  // skipped interlude instead of a permanently stuck player.
-  try {
-    await handleRoundBoundaryBody(completedRoundIndex, completedLegoId, completedRound)
-  } catch (err) {
-    console.error('[LearningPlayer] handleRoundBoundary failed — recovering by resuming playback:', err)
-    if (!userStoppedDuringLap.value && !showSessionComplete.value) {
-      playingPodLapAudio.value = false
-      playingCommentaryAudio.value = false
-      simplePlayer.resume()
+  // Bracketed via PlayerConductor.runInterlude (docs/player-decomposition-
+  // options.md Option 2): the whole body pauses simplePlayer for an
+  // interlude (commentary/pod/L1) and is trusted to un-pause it on every
+  // exit path. The inner try/catch below is the ORIGINAL ed738a0f recovery
+  // — an uncaught exception ANYWHERE in the body (e.g. a scheduler's
+  // nextLap() throwing on unexpected data) used to strand simplePlayer
+  // paused forever, so a thrown error falls back to resuming (unless the
+  // learner explicitly stopped or the session ended — same as before).
+  // What's NEW here: runInterlude ALSO bounds the whole interlude by a
+  // timeout, so a hung promise (never throws, never resolves — the one
+  // failure mode try/catch alone can't catch) still lands the player back
+  // in a stable state instead of stranding it with no recovery at all.
+  await simplePlayer.runInterlude('round-boundary', async () => {
+    try {
+      await handleRoundBoundaryBody(completedRoundIndex, completedLegoId, completedRound)
+    } catch (err) {
+      console.error('[LearningPlayer] handleRoundBoundary failed — recovering by resuming playback:', err)
+      if (!userStoppedDuringLap.value && !showSessionComplete.value) {
+        playingPodLapAudio.value = false
+        playingCommentaryAudio.value = false
+        simplePlayer.resume()
+      }
     }
-  }
+  }, { timeoutMs: ROUND_BOUNDARY_INTERLUDE_TIMEOUT_MS })
 }
 
 const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, completedRound = null) => {
