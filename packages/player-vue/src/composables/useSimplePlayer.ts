@@ -12,6 +12,7 @@ import {
   type AudioFailedEvent,
   type SimplePlayerRuntimeOverrides,
 } from '../playback/SimplePlayer'
+import { PlayerConductor, type RunOptions } from '../playback/PlayerConductor'
 
 export interface UseSimplePlayerReturn {
   state: ComputedRef<PlaybackState>
@@ -71,6 +72,17 @@ export interface UseSimplePlayerReturn {
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
+  /** Bracket an async interlude (commentary / pod lap / L1 cup) around a
+   * pause — see PlayerConductor.runInterlude. The body keeps its own
+   * internal pause()/resume() decisions (including deliberately landing
+   * paused); only a thrown error or the timeout bound forces a fallback
+   * resume, so a stranded player is structurally impossible. */
+  runInterlude: (kind: string, fn: () => Promise<void>, opts?: RunOptions) => Promise<void>
+  /** Bracket an async seek (skip/jump prep) around a pause — see
+   * PlayerConductor.runSeek. Captures pre-seek play intent in the state
+   * itself and restores it once `fn` resolves; a second call while one is
+   * in flight supersedes it (cancel-and-replace) rather than queueing. */
+  runSeek: <T>(fn: (isStale: () => boolean) => Promise<T>, opts?: RunOptions) => Promise<T | undefined>
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
   onRoundCompleted: (callback: (round: Round) => void) => void
@@ -81,6 +93,13 @@ export interface UseSimplePlayerReturn {
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
   let player: SimplePlayer | null = null
+  // The conductor is the ONLY thing allowed to call control methods on
+  // `player` (docs/player-decomposition-options.md Option 2). Every method
+  // below that used to call `player?.xxx()` directly now routes through
+  // `conductor.request()` (or runInterlude/runSeek for the async brackets)
+  // instead — a fresh conductor is created alongside each new player in
+  // initialize() so the two always point at the same live engine.
+  let conductor: PlayerConductor | null = null
   // Runtime overrides survive across initialize() calls so wiring Turbo
   // before any rounds load still applies once playback starts.
   let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
@@ -121,6 +140,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
     roundsRef.value = rounds
     player = new SimplePlayer(rounds, runtimeOverrides)
+    conductor = new PlayerConductor(player)
 
     // Subscribe to state changes
     player.on('state_changed', (data) => {
@@ -197,18 +217,19 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     player?.setRuntimeOverrides(overrides)
   }
 
-  // Methods (passthrough to player)
-  const play = () => { clearAudioFailed(); player?.play() }
-  const pause = () => player?.pause()
-  const resume = () => { clearAudioFailed(); player?.resume() }
-  const stop = () => { clearAudioFailed(); player?.stop() }
+  // Methods (passthrough to conductor.request — the only sanctioned direct
+  // engine call path; see PlayerConductor's dev guard for the invariant)
+  const play = () => { clearAudioFailed(); conductor?.request((e) => e.play()) }
+  const pause = () => conductor?.request((e) => e.pause())
+  const resume = () => { clearAudioFailed(); conductor?.request((e) => e.resume()) }
+  const stop = () => { clearAudioFailed(); conductor?.request((e) => e.stop()) }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
-  const skipRound = () => player?.skipRound()
-  const stepCycle = (direction: 1 | -1) => { clearAudioFailed(); player?.stepCycle(direction) }
-  const skipToPhase = (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => player?.skipToPhase(phase)
+  const skipRound = () => conductor?.request((e) => e.skipRound())
+  const stepCycle = (direction: 1 | -1) => { clearAudioFailed(); conductor?.request((e) => e.stepCycle(direction)) }
+  const skipToPhase = (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => conductor?.request((e) => e.skipToPhase(phase))
   const jumpToRound = (index: number, cycleIndex?: number) => {
     clearAudioFailed()
-    player?.jumpToRound(index, cycleIndex)
+    conductor?.request((e) => e.jumpToRound(index, cycleIndex))
   }
 
   /**
@@ -284,7 +305,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     const roundIndex = findRoundIndexForSeed(seedNumber)
     if (roundIndex >= 0) {
       console.log(`[useSimplePlayer] Jumping to seed ${seedNumber} → round index ${roundIndex}`)
-      player?.jumpToRound(roundIndex)
+      conductor?.request((e) => e.jumpToRound(roundIndex))
     } else {
       console.warn(`[useSimplePlayer] Cannot jump to seed ${seedNumber} - not found in loaded rounds`)
     }
@@ -304,7 +325,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     const roundIndex = findRoundIndexForLegoId(legoId)
     if (roundIndex >= 0) {
       console.log(`[useSimplePlayer] Jumping to LEGO ${legoId} → round index ${roundIndex}`)
-      player?.jumpToRound(roundIndex)
+      conductor?.request((e) => e.jumpToRound(roundIndex))
     } else {
       console.warn(`[useSimplePlayer] Cannot jump to LEGO ${legoId} - not found in loaded rounds`)
     }
@@ -316,8 +337,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    * IMPORTANT: Must use same insertion logic as SimplePlayer to keep arrays in sync!
    */
   const addRounds = (newRounds: Round[]) => {
-    if (!player || newRounds.length === 0) return
-    player.addRounds(newRounds)
+    if (!conductor || newRounds.length === 0) return
+    conductor.request((e) => e.addRounds(newRounds))
     // Mirror SimplePlayer's insertion logic exactly to keep arrays in sync
     // Uses legoId (not roundNumber) for ordering and deduplication
     const existingLegoIds = new Set(roundsRef.value.map(r => r.legoId))
@@ -345,8 +366,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    * any main-loop rounds also present in the regenerated script).
    */
   const appendRounds = (newRounds: Round[]) => {
-    if (!player || newRounds.length === 0) return
-    player.appendRounds(newRounds)
+    if (!conductor || newRounds.length === 0) return
+    conductor.request((e) => e.appendRounds(newRounds))
     // Mirror SimplePlayer's roundNumber-keyed insertion into roundsRef
     // so any consumer reading the reactive mirror sees the same order.
     const existingRoundNumbers = new Set(roundsRef.value.map(r => r.roundNumber))
@@ -376,13 +397,13 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    * locally-generated whole-course rounds.
    */
   const replaceQueueFromCurrent = (newRounds: Round[]) => {
-    if (!player || newRounds.length === 0) return
+    if (!conductor || newRounds.length === 0) return
     // Capture the current round number BEFORE the engine splice — the engine
     // emits state_changed during the call, bumping internalState.roundIndex by
     // before.length, so reading it after would read a shifted index against
     // the not-yet-rebuilt array (→ undefined → a bad full-replace).
     const currentRoundNumber = roundsRef.value[internalState.value.roundIndex]?.roundNumber
-    player.replaceQueueFromCurrent(newRounds)
+    conductor.request((e) => e.replaceQueueFromCurrent(newRounds))
     if (currentRoundNumber == null) {
       roundsRef.value = [...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
       return
@@ -411,6 +432,16 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    */
   const hasRound = (roundNumber: number): boolean => {
     return player?.hasRound(roundNumber) ?? false
+  }
+
+  const runInterlude = (kind: string, fn: () => Promise<void>, opts?: RunOptions): Promise<void> => {
+    if (!conductor) return Promise.resolve()
+    return conductor.runInterlude(kind, fn, opts)
+  }
+
+  const runSeek = <T,>(fn: (isStale: () => boolean) => Promise<T>, opts?: RunOptions): Promise<T | undefined> => {
+    if (!conductor) return Promise.resolve(undefined)
+    return conductor.runSeek(fn, opts)
   }
 
   // Event hooks
@@ -464,6 +495,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     appendRounds,
     replaceQueueFromCurrent,
     hasRound,
+    runInterlude,
+    runSeek,
     onPhaseChanged,
     onCycleCompleted,
     onRoundCompleted,
