@@ -564,6 +564,171 @@ describe('SimplePlayer — stale awaited play is suppressed', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Fix C (skip/audio sync): every skip/jump entry point must STOP playback
+// cleanly (pause + invalidate the play generation) BEFORE repositioning, then
+// rebuild the audio source atomically. Root cause of the field bug: jumpToRound
+// used to reset audio.src to '' mid-reposition (a same-tick MEDIA_ERR
+// SRC_NOT_SUPPORTED / code 4 waiting to happen) and no skip path bumped
+// playGeneration synchronously before repositioning — so a stale error/
+// rejection belonging to the pre-skip cycle could still reach
+// handleAudioFailure/onErrorHandler after startPhase() had already reset
+// `phase` away from 'idle' in the very same synchronous call, misattributing
+// the failure to the freshly-repositioned cycle (retry/halt against the
+// WRONG src, or a halt requiring a manual tap-to-resume).
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — skip/reposition audio-sync invariant', () => {
+  let mockAudio: MockAudio & { srcHistory: string[] }
+
+  function makeTrackedMockAudio(): MockAudio & { srcHistory: string[] } {
+    const base = makeMockAudio() as MockAudio & { srcHistory: string[] }
+    const srcHistory: string[] = []
+    let _src = ''
+    Object.defineProperty(base, 'src', {
+      get: () => _src,
+      set: (v: string) => { _src = v; srcHistory.push(v) },
+    })
+    base.srcHistory = srcHistory
+    return base
+  }
+
+  beforeEach(() => {
+    mockAudio = makeTrackedMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 6; i++) await Promise.resolve()
+  }
+
+  it('skipRound never assigns an empty/invalid src while repositioning — no manufactured MEDIA_ERR', async () => {
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    player.play()
+    await flush()
+    player.skipRound()
+    await flush()
+
+    // Every src ever assigned is a real audio URL — never the '' that used
+    // to trigger a same-tick MEDIA_ERR_SRC_NOT_SUPPORTED (code 4).
+    expect(mockAudio.srcHistory.every((s) => s !== '')).toBe(true)
+    expect(mockAudio.src).toBe('https://example.com/k.mp3') // round 2's prompt
+  })
+
+  it('jumpToRound (belt-jump / cycle-skip primitive) never assigns an empty src either', async () => {
+    const player = new SimplePlayer(['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound))
+    player.play()
+    await flush()
+    player.jumpToRound(2)
+    await flush()
+
+    expect(mockAudio.srcHistory.every((s) => s !== '')).toBe(true)
+    expect(player.currentState.roundIndex).toBe(2)
+  })
+
+  it('a stale error arriving while startPhase awaits resolveUrl for the post-skip cycle is ignored (phase already flipped back to prompt)', async () => {
+    // Reproduces the exact race: stopForReposition bumps playGeneration
+    // synchronously, but the post-skip cycle's own src assignment (and its
+    // matching lastAssignedSrcGen) only lands once the awaited resolveUrl
+    // resolves. In that window `phase` is already 'prompt' (not idle/pause/
+    // buffering, so the old phase-only guard doesn't help) — only the
+    // generation guard protects it.
+    let release!: (v: string) => void
+    const held = new Promise<string>((r) => { release = r })
+    let call = 0
+    const resolveAudioUrl = vi.fn((url: string) => {
+      call += 1
+      return call === 1 ? Promise.resolve(url) : held
+    })
+    const player = new SimplePlayer(
+      ['S0001L01', 'S0002L01'].map(makeRound),
+      { resolveAudioUrl },
+    )
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play() // round 0 prompt resolves instantly (call 1)
+    await flush()
+
+    player.skipRound() // bumps generation, repositions to round 1, awaits the HELD resolveUrl (call 2)
+    await flush()
+    expect(player.currentState.phase).toBe('prompt') // not idle/pause/buffering — the vulnerable window
+
+    // Browser fires a stale error (e.g. for the round-0 audio pause() aborted)
+    // while still waiting on round 1's resolveUrl.
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+
+    expect(failedEvents).toHaveLength(0)
+    expect(player.currentState.isPlaying).toBe(true)
+
+    // The held resolve finally lands — playback proceeds normally.
+    release('https://example.com/k.mp3')
+    await flush()
+    expect(mockAudio.src).toBe('https://example.com/k.mp3')
+  })
+
+  it('every skip path pauses the audio element before repositioning (stop-then-reposition ordering)', async () => {
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    player.play()
+    await flush()
+
+    const roundIndexAtPauseCall: number[] = []
+    mockAudio.pause.mockImplementation(() => {
+      roundIndexAtPauseCall.push(player.currentState.roundIndex)
+    })
+
+    player.skipRound()
+    await flush()
+
+    // pause() must have been observed with the PRE-skip roundIndex (0) —
+    // i.e. playback was stopped before the reposition to round 1 landed.
+    expect(roundIndexAtPauseCall[0]).toBe(0)
+    expect(player.currentState.roundIndex).toBe(1)
+  })
+
+  it('cycle-skip (stepCycle) keeps audio and display in lockstep across a round boundary', async () => {
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    player.play() // round 0, prompt phase (known audio)
+    await flush()
+    mockAudio._endedHandler!() // prompt → pause (pauseDuration:0 → voice1 directly)
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+
+    // Mid-voice1, learner taps skip-forward (cycle-skip). Only cycle in each
+    // round, so this crosses the round boundary to round 1's cycle 0.
+    player.stepCycle(1)
+    await flush()
+
+    // Display (currentRound/currentCycle) and audio.src must agree on round 1.
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentCycle?.known.text).toBe('hello')
+    expect(mockAudio.src).toBe('https://example.com/k.mp3') // round 1's prompt, not a repeat of round 0's voice1
+  })
+
+  it('skipToPhase stops playback before jumping phase — no stale audio_failed from the previous phase', async () => {
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    mockAudio._endedHandler!() // prompt → voice1
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+
+    player.skipToPhase('prompt')
+    await flush()
+
+    expect(mockAudio.srcHistory.every((s) => s !== '')).toBe(true)
+    expect(player.currentState.phase).toBe('prompt')
+    expect(failedEvents).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Plan 013 Fix C: the play-path safety timer is a STALL detector, not an
 // absolute 10s play deadline. A healthy clip that keeps progressing past 10s
 // must not be force-advanced; a genuinely stalled element still advances.

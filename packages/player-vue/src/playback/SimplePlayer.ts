@@ -221,6 +221,14 @@ export class SimplePlayer {
   private retryAttempted: boolean = false
   private retryUrl: string | null = null
   private retryIsTarget: boolean = false
+  // The playGeneration that was current when the audio element's `.src` was
+  // last assigned for real playback (playAudio / retryCurrentAudio /
+  // startPausePhase). Lets onErrorHandler and handleAudioFailure recognise
+  // "this error belongs to a src a reposition has already superseded" even
+  // when startPhase() re-enters synchronously in the same tick and flips
+  // `phase` back before the stale error/rejection's microtask ever runs —
+  // see stopForReposition.
+  private lastAssignedSrcGen: number = 0
 
   /** Runtime overrides — set via setRuntimeOverrides, may be reassigned at any time. */
   private runtimeOverrides: SimplePlayerRuntimeOverrides = {}
@@ -238,6 +246,10 @@ export class SimplePlayer {
       // UI moves through phases while no sound came out. Pause phase,
       // idle, and buffering don't have audio in flight, so ignore those.
       if (this.state.phase === 'pause' || this.state.phase === 'idle' || this.state.phase === 'buffering') return
+      // Ignore errors against a src generation a reposition has already
+      // superseded (e.g. audio.pause() interrupting a load whose 'error'
+      // task fires after startPhase() re-armed phase in the same tick).
+      if (this.lastAssignedSrcGen !== this.playGeneration) return
       const code = this.audio.error?.code
       console.warn(`[SimplePlayer] audio error (code=${code}) on phase=${this.state.phase}`, e)
       this.handleAudioFailure(code)
@@ -346,6 +358,9 @@ export class SimplePlayer {
   private handleAudioFailure(errorCode: number | undefined, lastError?: string): void {
     if (this.state.phase === 'pause' || this.state.phase === 'idle') return
     if (!this.state.isPlaying) return
+    // Same staleness guard as onErrorHandler — a failure tied to a src a
+    // reposition has already superseded must never retry/halt the NEW cycle.
+    if (this.lastAssignedSrcGen !== this.playGeneration) return
 
     if (!this.retryAttempted && this.retryUrl) {
       // First failure — log and silently retry the same URL.
@@ -372,6 +387,7 @@ export class SimplePlayer {
     const isTarget = this.retryIsTarget
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
+    this.lastAssignedSrcGen = gen
     console.warn(`[SimplePlayer] Retrying audio (attempt 2/2): ${url}`)
     try {
       this.audio.src = url
@@ -640,6 +656,41 @@ export class SimplePlayer {
     return -1
   }
 
+  /**
+   * Stop playback and invalidate any in-flight audio work, synchronously,
+   * BEFORE any reposition. Must be the first call in every skip/jump entry
+   * point (skipRound, jumpToRound, skipToPhase — stepCycle routes through
+   * jumpToRound).
+   *
+   * Bumping playGeneration first — before pause(), before any state change —
+   * guarantees a play() promise or an in-flight startPhase() await left over
+   * from the pre-skip cycle can never retry, halt, or play audio against
+   * post-skip state. This matters even though those methods go on to call
+   * startPhase() again in the very same synchronous call stack: that
+   * re-entrant call flips `phase` back away from 'idle' before the OLD
+   * attempt's rejection/error microtask/task ever gets a chance to run, so a
+   * phase-only guard closes too early. The generation bump has no such
+   * window — it's compared, not raced.
+   *
+   * Deliberately does NOT reset audio.src to ''. Empty string is not a
+   * supported media resource — assigning it fires a same-tick 'error' event
+   * (MEDIA_ERR_SRC_NOT_SUPPORTED, code 4) that used to get misattributed to
+   * the just-repositioned cycle once phase had already flipped back (see
+   * above), triggering a bogus retry/halt against the NEW cycle and
+   * corrupting its audio.src — the observed "skip advances the display,
+   * audio repeats/dies" bug. pause() alone is enough to stop sound; the next
+   * playAudio() call overwrites .src with the real next-cycle URL.
+   */
+  private stopForReposition(): void {
+    ++this.playGeneration
+    this.clearPauseTimer()
+    this.clearSafetyTimer()
+    this.clearLingerTimer()
+    this.audio.pause()
+    this.retryAttempted = false
+    this.retryUrl = null
+  }
+
   // Controls
   play(): void {
     if (this.state.isPlaying) return
@@ -769,10 +820,7 @@ export class SimplePlayer {
   // (prompt/pause/voice1/voice2) without leaving the cycle.
   skipToPhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2'): void {
     if (!this.currentCycle) return
-    this.audio.pause()
-    this.clearPauseTimer()
-    this.clearSafetyTimer()
-    this.clearLingerTimer()
+    this.stopForReposition()
     if (!this.state.isPlaying) {
       this.updateState({ isPlaying: true })
     }
@@ -780,10 +828,7 @@ export class SimplePlayer {
   }
 
   skipRound(): void {
-    this.clearPauseTimer()
-    this.clearSafetyTimer()
-    this.clearLingerTimer()
-    this.audio.pause()
+    this.stopForReposition()
     this.advanceRound()
   }
 
@@ -805,12 +850,8 @@ export class SimplePlayer {
     const safeCycle = cycleCount > 0
       ? Math.min(Math.max(cycleIndex | 0, 0), cycleCount - 1)
       : 0
-    this.clearPauseTimer()
-    this.clearSafetyTimer()
-    this.clearLingerTimer()
-    this.audio.pause()
-    this.audio.src = ''
     const wasPlaying = this.state.isPlaying
+    this.stopForReposition()
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: index, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
@@ -1032,6 +1073,7 @@ export class SimplePlayer {
   private playAudio(url: string, isTarget = false): void {
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
+    this.lastAssignedSrcGen = gen
     // Reset retry state on every fresh play. retryAttempted only stays
     // true between the first failure and either (a) the retry succeeding
     // or (b) playAudio being called again for a different URL.
@@ -1134,6 +1176,7 @@ export class SimplePlayer {
     // clips do. The clip is longer than any realistic pause; the trim timer
     // cuts it to the precise dynamic/Turbo duration. See buildSilentWavDataUri.
     const gen = ++this.playGeneration
+    this.lastAssignedSrcGen = gen
     this.pauseClipActive = true
     try {
       this.audio.src = SILENT_PAUSE_CLIP
