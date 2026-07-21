@@ -1,0 +1,97 @@
+# APML v1.0.0 - PlayerConductor (SimplePlayer transition ownership)
+# SSI Learning App
+# Last Updated: 2026-07-21
+
+spec player_conductor_architecture:
+  version: "1.0.0"
+  status: "implemented — playback lifecycle, round-boundary interlude, and
+    skip/jump seek paths migrated. Full cachedRounds/loadedRounds mirror
+    deletion (Option 2's other named target) is NOT done — see
+    docs/player-decomposition-options.md and open_follow_ups below."
+  date: "2026-07-21"
+
+  source: "packages/player-vue/src/playback/PlayerConductor.ts"
+  decision_doc: "docs/player-decomposition-options.md (Option 2)"
+
+  description: |
+    Seven user-reported player bugs on 2026-07-21 traced to one disease:
+    the player is a de-facto distributed state machine coordinated by
+    ad-hoc async code, with no single owner of "what state is playback in
+    right now, and who's allowed to change it". PlayerConductor is that
+    owner — the only code allowed to call SimplePlayer's
+    play/pause/resume/stop/skipRound/stepCycle/skipToPhase/jumpToRound/
+    addRounds/appendRounds/replaceQueueFromCurrent. LearningPlayer.vue
+    never imports SimplePlayer directly (verified — only
+    composables/useSimplePlayer.ts constructs it); useSimplePlayer routes
+    every one of its methods through the conductor, so all ~80 call sites
+    in LearningPlayer.vue get the guarantees below for free, with zero
+    changes required at most of those call sites.
+
+  disease_and_fix: |
+    Four recurring failure modes (docs/player-decomposition-options.md
+    "The actual disease"), each retired structurally, not just made less
+    likely:
+      - fire-and-forget promises stranding the player paused (ed738a0f) →
+        runInterlude's bounded exit (try/finally + timeout).
+      - async work racing the engine across a skip/jump (73c1507a) →
+        runSeek's seeking(intent) state pauses BEFORE any async prefetch,
+        never after.
+      - state mirrors drifting (loadedRounds vs the engine's own queue) →
+        NOT retired by the conductor (separate, larger migration — see
+        open_follow_ups). One additional live instance (the adaptation-v2
+        breather round) was found and fixed while auditing for this work.
+      - silent stale-cache fallbacks deciding policy invisibly → out of
+        scope (the offline layer, not playback transitions).
+
+  states:
+    loading: "Pre-first-play / just stopped. Not itself bounded by a timeout — exit is a user/data event (play()), not an in-flight async op the conductor owns."
+    playing: "Stable — engine is actively playing."
+    userPaused: "Stable — engine is paused by user/explicit choice."
+    ended: "Set on the engine's session_complete event."
+    interlude(kind, resumeTo): |
+      Transient. Brackets an async interlude (commentary / pod lap / L1
+      cup) around a pause. The body (fn passed to runInterlude) keeps its
+      OWN internal pause()/resume() decisions — including deliberately
+      landing paused (e.g. learner pressed stop mid-lap) — trusted on
+      SUCCESS. Only on FAILURE (thrown error or the timeout bound) does
+      the conductor force a fallback: resume if resumeTo was 'playing'.
+      Serialized: a second interlude/seek queues behind an in-flight one.
+    seeking(intent): |
+      Transient. Brackets an async seek (skip/jump prep — e.g. prefetching
+      destination audio) around a pause. intent is captured ONCE at entry
+      and restored on landing regardless of success/error (bounded exit).
+      NOT FIFO-serialized against other seeks — cancel-and-replace via a
+      generation counter, so a rapid double-tap doesn't stall behind the
+      first tap's full timeout; the superseded seek's own landing is
+      skipped (isStale() flips true), the newest seek owns it.
+
+  api:
+    request: "(engine => void) => void — direct, synchronous, always-immediate engine control. Used internally by useSimplePlayer's play/pause/resume/stop/skip*/jumpToRound/addRounds/appendRounds/replaceQueueFromCurrent, and safe to call from INSIDE an interlude/seek body (never touches the serialization queue, so it can't deadlock against itself)."
+    runInterlude: "(kind, fn, opts?) => Promise<void> — see interlude(kind, resumeTo) above. Exposed as simplePlayer.runInterlude in the composable."
+    runSeek: "(fn(isStale), opts?) => Promise<T|undefined> — see seeking(intent) above. Exposed as simplePlayer.runSeek in the composable."
+
+  dev_guard: |
+    installDevGuard (dev/test builds only, import.meta.env.DEV or
+    MODE==='test') shadows SimplePlayer's control methods on the INSTANCE
+    to flag any call that bypasses the conductor (isExecuting false at
+    call time) via console.error with a stack — non-blocking, a
+    visibility net for the incremental migration, not a hard gate.
+
+  migrated_call_sites:
+    - "useSimplePlayer.ts — every control method now calls conductor.request() instead of the raw player instance (2026-07-21)."
+    - "LearningPlayer.vue handleRoundBoundary — wraps handleRoundBoundaryBody in conductor.runInterlude('round-boundary', ..., {timeoutMs: 10 * 60 * 1000}). Same try/catch recovery contract as the ed738a0f fix; the timeout is new (a hung promise — never throws, never resolves — previously had no recovery path at all)."
+    - "LearningPlayer.vue prepareAndJump (round/cycle skip) — wraps the prefetch+jump body in conductor.runSeek. skipPrepToken (dialog visibility + unmount cancellation) is kept as a SEPARATE UI-layer staleness signal alongside runSeek's own isStale()."
+    - "LearningPlayer.vue handleSkipToBelt (belt skip) — wraps the load+jump body in conductor.runSeek. Previously had NO supersede protection for a rapid double-tap (unlike prepareAndJump's token); runSeek's cancel-and-replace closes that gap for free."
+
+  open_follow_ups: |
+    - Full loadedRounds/cachedRounds mirror deletion: ~90 read/write touch
+      points in LearningPlayer.vue, several with genuinely distinct
+      semantics (live engine mirror vs. text-only metadata mirror vs.
+      preview-mode snapshot) that need per-site understanding before a
+      safe rewrite — a separate, scoped migration. Audited all
+      addRounds/appendRounds/replaceQueueFromCurrent call sites for this
+      round; all but one were already correctly synced or deliberately
+      decoupled by explicit code-comment design.
+    - Plan 019 (docs/... LearningPlayer.vue region extraction) resumes as
+      the follow-on once this settles further, per the decision doc's
+      recommended sequencing.

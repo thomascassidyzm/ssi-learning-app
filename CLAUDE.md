@@ -805,6 +805,7 @@ pnpm --filter @ssi/web dev
 | File | Purpose |
 |------|---------|
 | `packages/player-vue/src/playback/SimplePlayer.ts` | Main 4-phase cycle playback engine (state machine) |
+| `packages/player-vue/src/playback/PlayerConductor.ts` | Single owner of every SimplePlayer transition (play/pause/resume/stop/skip/jump/addRounds) — states loading/playing/userPaused/interlude(kind)/seeking(intent)/ended, dev-mode bypass guard |
 | `packages/core/src/engine/types.ts` | Cycle phases (`CyclePhase`), events, `ICycleOrchestrator` interface |
 | `packages/core/src/data/types.ts` | LEGO, Seed, Phrase types |
 | `packages/player-vue/src/components/LearningPlayer.vue` | Main player UI |
@@ -824,6 +825,7 @@ pnpm --filter @ssi/web dev
 | `packages/player-vue/src/router/index.ts` | All route definitions incl. /schools |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
 | `apml/playback/lazy-loading.apml` | Lazy loading architecture spec |
+| `apml/playback/player-conductor.apml` | PlayerConductor transition-ownership spec |
 | `apml/cache/audio-architecture.apml` | Audio caching spec |
 | `apml/interfaces/constellation-network.apml` | Network visualization spec |
 | `apml/interfaces/learning-player.apml` | Player UI spec |
@@ -1087,5 +1089,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-07-17 (Key Files / playback / cache file map corrected to the real SimplePlayer + AudioCache stack)*
+*Last updated: 2026-07-21 (added PlayerConductor — the single owner of SimplePlayer transitions)*
 *Status: v2.3.0 - Lazy loading for instant startup | Schools dashboard fully implemented at /schools*
