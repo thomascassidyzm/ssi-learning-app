@@ -62,6 +62,11 @@ export interface UseSimplePlayerReturn {
    * Returns -1 only when no loaded round reaches the threshold (still loading
    * or the course doesn't extend that far). */
   findRoundIndexForBeltThreshold: (seedThreshold: number) => number
+  /** Resolve a belt threshold directly to its target LEGO id (atomic
+   * find+read against the live rounds array — never cross-index a
+   * separate rounds mirror with the index from
+   * findRoundIndexForBeltThreshold, which can desync from it). */
+  findLegoIdForBeltThreshold: (seedThreshold: number) => string | null
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
@@ -253,6 +258,25 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Resolve a belt threshold DIRECTLY to its target LEGO id, read from the
+   * exact same `roundsRef` array `findRoundIndexForBeltThreshold` searched.
+   *
+   * Callers must never take the index from `findRoundIndexForBeltThreshold`
+   * and use it to index a DIFFERENT rounds array (e.g. a component-level
+   * `cachedRounds`/`loadedRounds` mirror) — that mirror can diverge from the
+   * live engine queue (the instant-playback full-script handoff swaps it to
+   * the whole-course array without touching the live queue), so the same
+   * index can point at a different round in each array. That cross-array
+   * indexing was the belt-skip fencepost bug (landed one seed short of the
+   * tapped belt, 2026-07-21) — this resolver keeps the find + read atomic
+   * against one array so the two can never desync.
+   */
+  const findLegoIdForBeltThreshold = (seedThreshold: number): string | null => {
+    const idx = findRoundIndexForBeltThreshold(seedThreshold)
+    return idx >= 0 ? (roundsRef.value[idx]?.legoId ?? null) : null
+  }
+
+  /**
    * Jump to the first round of a given seed number.
    * This maps seed numbers (used by belt system) to round indices (used by player).
    */
@@ -435,6 +459,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     findRoundIndexForSeed,
     findRoundIndexForLegoId,
     findRoundIndexForBeltThreshold,
+    findLegoIdForBeltThreshold,
     addRounds,
     appendRounds,
     replaceQueueFromCurrent,

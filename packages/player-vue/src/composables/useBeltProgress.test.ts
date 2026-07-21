@@ -52,6 +52,15 @@ describe('getBeltIndexForSeed', () => {
     expect(getBeltIndexForSeed(280)).toBe(6) // Brown
     expect(getBeltIndexForSeed(400)).toBe(7) // Black
   })
+
+  it('the yellow/orange fencepost: seed 19 is yellow, seed 20 is orange — never off by one', () => {
+    // Regression for the belt-skip landing bug (session 0c4bc301, 2026-07-21):
+    // belt_skip logged toBelt:orange targetSeed:20, but the player landed at
+    // seed 19 and displayed yellow. This locks the exact boundary so a
+    // future off-by-one in belt-derivation trips a test, not a learner.
+    expect(getBeltIndexForSeed(19)).toBe(1) // yellow — one seed short of orange
+    expect(getBeltIndexForSeed(20)).toBe(2) // orange — the tapped belt's first seed
+  })
 })
 
 // ============================================================================
@@ -88,6 +97,18 @@ describe('useBeltProgress - local only', () => {
     bp.setPlayingPosition(10)              // revisit yellow-band seed
     expect(bp.currentBelt.value.name).toBe('yellow')  // follows position DOWN
     expect(bp.highestBeltIndex.value).toBeGreaterThanOrEqual(3) // highest still green
+  })
+
+  it('setPlayingPosition(20) after a belt-skip to orange shows orange, not yellow', () => {
+    // Direct regression for the belt-skip landing bug: deriveBeltFromLandedRound
+    // calls setPlayingPosition with the SEED of the landed round. If belt-skip
+    // ever regresses to landing one seed short again, this catches it here
+    // without needing the full player/round-resolution stack.
+    const bp = useBeltProgress('test_course')
+    bp.initializeSync()
+    bp.setPlayingPosition(20)
+    expect(bp.playingBelt.value.name).toBe('orange')
+    expect(bp.currentBelt.value.name).toBe('orange')
   })
 
   it('updates lastLegoId and highestLegoId on setLastLegoId', () => {
