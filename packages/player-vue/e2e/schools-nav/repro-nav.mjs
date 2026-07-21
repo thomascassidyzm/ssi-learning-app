@@ -175,7 +175,7 @@ for (let c = 0; c < cycles; c++) {
               acc.rvDepth = depth
               return
             }
-            let child = inst.subTree
+            const child = inst.subTree
             const visit = (vnode, d) => {
               if (!vnode || acc.found || d > 40) return
               if (vnode.component) { walk(vnode.component, depth + 1, acc); return }

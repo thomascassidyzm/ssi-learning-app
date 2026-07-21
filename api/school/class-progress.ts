@@ -380,7 +380,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ error: 'Invalid method' })
     return
   }
-  const a = Array.isArray(args) ? args : []
+  // Positional args forwarded to the per-method handlers. Client-supplied and
+  // untyped by design (the method handlers own their own coercion); typed as
+  // any[] to match the existing runtime trust model rather than narrowing each
+  // call site. (Input validation of these is a separate concern, not this pass.)
+  const a: any[] = Array.isArray(args) ? args : []
 
   const svc = createClient(supabaseUrl, supabaseServiceKey)
 

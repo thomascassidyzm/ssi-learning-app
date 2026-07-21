@@ -41,7 +41,7 @@ import {
 } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
-import { getCachedListeningMeta } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
 // ListeningOverlay, PodStageAuditioner, tests) keep their import paths.
@@ -388,27 +388,36 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
     isLoading.value = true
     try {
-      const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
-        supabase
-          .from('listening_pod_sentences')
-          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
-          .eq('pod_id', `${courseCode}:pod-0`)
-          .order('global_order', { ascending: true }),
-        supabase
-          .from('course_audio')
-          .select('role, text, id, duration_ms')
-          .eq('course_code', courseCode)
-          .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
-        // Guests have no enrollment row → in-memory counter only.
-        !isGuestLearner(learnerId)
-          ? supabase
-              .from('course_enrollments')
-              .select('pod_activation_round, completed_pod_rounds')
-              .eq('learner_id', learnerId)
-              .eq('course_id', courseCode)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null } as { data: null; error: null }),
-      ])
+      // Retry before falling back to the offline snapshot — the highest-risk
+      // moment for a transient failure is right after a forced sign-in
+      // reload (auth/network still settling), which is exactly when a
+      // silent fallback to a stale, unbounded-age snapshot serves the wrong
+      // vintage of pod audio/text (2026-07-21 forum report). See
+      // retryListeningRead's doc comment.
+      const [podsResult, bookendsResult, enrollmentResult] = await retryListeningRead(
+        () => Promise.all([
+          supabase
+            .from('listening_pod_sentences')
+            .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
+            .eq('pod_id', `${courseCode}:pod-0`)
+            .order('global_order', { ascending: true }),
+          supabase
+            .from('course_audio')
+            .select('role, text, id, duration_ms')
+            .eq('course_code', courseCode)
+            .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
+          // Guests have no enrollment row → in-memory counter only.
+          !isGuestLearner(learnerId)
+            ? supabase
+                .from('course_enrollments')
+                .select('pod_activation_round, completed_pod_rounds')
+                .eq('learner_id', learnerId)
+                .eq('course_id', courseCode)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null } as { data: null; error: null }),
+        ]),
+        ([pods, bookends]) => !pods.error && !bookends.error,
+      )
 
       // Offline fallback (Tom's airplane-mode test 2026-07-09): when the live
       // metadata queries fail (offline, mid-air drop), serve the rows/bookends

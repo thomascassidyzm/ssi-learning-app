@@ -234,6 +234,41 @@ describe('SimplePlayer.addRounds', () => {
     expect((player as any).state.cycleIndex).toBe(0)
   })
 
+  it('inserting before the cursor emits state_changed with the shifted roundIndex', () => {
+    // Regression for plan 006: addRounds used to bump this.state.roundIndex
+    // directly, bypassing updateState and therefore the state_changed event —
+    // so the persisted position, progress UI, and expansion-watcher chain read
+    // a stale index until some unrelated state change. It must emit once with
+    // the shifted index, exactly like the appendRounds sibling.
+    const infplay = ['S0500L01', 'S0500L02'].map(makeRound)
+    const player = new SimplePlayer(infplay)
+    ;(player as any).state.roundIndex = 1 // playing S0500L02
+    ;(player as any).state.cycleIndex = 0
+
+    const seen: number[] = []
+    player.on('state_changed', (s) => seen.push((s as { roundIndex: number }).roundIndex))
+
+    // Two rounds sort before the cursor → index must shift 1 → 3.
+    player.addRounds(['S0001L01', 'S0002L01'].map(makeRound))
+
+    expect((player as any).state.roundIndex).toBe(3)
+    // A state_changed fired carrying the new index (not left silent).
+    expect(seen).toContain(3)
+  })
+
+  it('inserting only AFTER the cursor does not shift the index and emits no cursor change', () => {
+    const initial = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    ;(player as any).state.roundIndex = 0 // playing S0001L01
+    const seen: number[] = []
+    player.on('state_changed', (s) => seen.push((s as { roundIndex: number }).roundIndex))
+
+    player.addRounds(['S0003L01', 'S0004L01'].map(makeRound)) // both sort AFTER cursor
+
+    expect((player as any).state.roundIndex).toBe(0)
+    expect(seen).toEqual([]) // no updateState → no spurious cursor event
+  })
+
   it('dedupes by legoId — a round already in the queue is not re-inserted', () => {
     const initial = ['S0001L01', 'S0001L02'].map(makeRound)
     const player = new SimplePlayer(initial)
@@ -476,5 +511,118 @@ describe('SimplePlayer — background-safe pause', () => {
     await flush()
     expect(player.currentState.phase).toBe('voice1')
     expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Plan 005: staleness guard on the awaited resolveUrl in startPhase.
+//
+// resolveUrl (offline/cache path) can take tens–hundreds of ms. If a jump
+// supersedes the cycle while that await is pending, the superseded
+// continuation must NOT play the old cycle's clip (that would be the
+// audio/text desync CLAUDE.md forbids). It must go inert.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — stale awaited play is suppressed', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Audio', vi.fn(makeMockAudio))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 6; i++) await Promise.resolve()
+  }
+
+  it('does not play the old cycle audio when a jump occurs during resolveUrl', async () => {
+    let release!: (v: string) => void
+    const held = new Promise<string>((r) => { release = r })
+    let call = 0
+    // Round-0 known audio resolves SLOWLY (held); everything after is instant.
+    const resolveAudioUrl = vi.fn((url: string) => {
+      call += 1
+      return call === 1 ? held : Promise.resolve(url)
+    })
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { resolveAudioUrl },
+    )
+    const playAudioSpy = vi.spyOn(player as unknown as { playAudio: (u: string, t?: boolean) => void }, 'playAudio')
+
+    player.play()            // startPhase('prompt') round 0 → awaits held
+    await flush()
+    // Supersede: jump to round 1 while round 0's resolve is still pending.
+    ;(player as unknown as { jumpToRound: (i: number, c?: number) => void }).jumpToRound(1, 0)
+    await flush()
+    // The stale round-0 resolve finally completes — must be ignored.
+    release('resolved://STALE-round0-known')
+    await flush()
+
+    const playedStale = playAudioSpy.mock.calls.some((c) => c[0] === 'resolved://STALE-round0-known')
+    expect(playedStale).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Plan 013 Fix C: the play-path safety timer is a STALL detector, not an
+// absolute 10s play deadline. A healthy clip that keeps progressing past 10s
+// must not be force-advanced; a genuinely stalled element still advances.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — safety timer is a stall detector', () => {
+  interface TimeMockAudio extends MockAudio {
+    currentTime: number
+    _timeUpdateHandler?: () => void
+  }
+
+  function makeTimeMockAudio(): TimeMockAudio {
+    const a = makeMockAudio() as TimeMockAudio
+    a.currentTime = 0
+    const prev = a.addEventListener.getMockImplementation()!
+    a.addEventListener.mockImplementation((event: string, handler: () => void) => {
+      prev(event, handler)
+      if (event === 'timeupdate' || event === 'loadedmetadata') a._timeUpdateHandler = handler
+    })
+    return a
+  }
+
+  let mockAudio: TimeMockAudio
+  beforeEach(() => {
+    mockAudio = makeTimeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('does not force-advance a clip that keeps progressing past 10s', () => {
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    ;(player as unknown as { state: { isPlaying: boolean } }).state.isPlaying = true
+    const endedSpy = vi.spyOn(player as unknown as { onAudioEnded: () => void }, 'onAudioEnded')
+
+    ;(player as unknown as { playAudio: (u: string) => void }).playAudio('https://example.com/long.mp3')
+
+    // Healthy playback: currentTime advances and timeupdate fires every 5s,
+    // well past the 10s window — each progress tick reschedules the watchdog.
+    for (let i = 1; i <= 4; i++) {
+      vi.advanceTimersByTime(5_000)
+      mockAudio.currentTime = i * 5
+      mockAudio._timeUpdateHandler?.()
+    }
+
+    expect(endedSpy).not.toHaveBeenCalled()
+  })
+
+  it('still advances a stalled clip that makes no progress for 10s', () => {
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    ;(player as unknown as { state: { isPlaying: boolean } }).state.isPlaying = true
+    const endedSpy = vi.spyOn(player as unknown as { onAudioEnded: () => void }, 'onAudioEnded')
+
+    ;(player as unknown as { playAudio: (u: string) => void }).playAudio('https://example.com/stalled.mp3')
+    // No timeupdate / no currentTime progress at all.
+    vi.advanceTimersByTime(10_000)
+
+    expect(endedSpy).toHaveBeenCalled()
   })
 })

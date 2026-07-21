@@ -42,7 +42,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash, randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 
@@ -108,7 +108,7 @@ function isAlreadyRegisteredError(error: any): boolean {
 }
 
 async function logAttempt(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   fields: { inviteCodeId?: string | null; email?: string | null; ipHash: string; outcome: string; authUserId?: string | null; errorDetail?: string | null }
 ): Promise<void> {
   try {

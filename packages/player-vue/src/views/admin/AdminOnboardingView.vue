@@ -51,7 +51,7 @@ function renderPreview(markdown: string): string {
   const html: string[] = []
   let inList = false
   for (const raw of lines) {
-    let line = raw
+    const line = raw
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/\[(.+?)\]/g, '<span class="preview-cta">$1</span>')

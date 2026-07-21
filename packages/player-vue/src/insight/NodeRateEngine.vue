@@ -30,7 +30,7 @@ import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { courseDisplayName } from '@ssi/core'
 import type { RateComparisonData } from './spec'
 
-interface CourseOption { code: string; classCount: number }
+interface CourseOption { code: string; classCount: number; hasData?: boolean }
 interface CompareOption { value: string; label: string; word: string }
 interface WindowOption { value: string; label: string }
 interface MeasureOption { value: string; label: string; desc: string }
@@ -153,8 +153,15 @@ watch(
 )
 
 // ─── Pickers ───
+// Server sends courses sorted active-first (busiest by recent practice);
+// a course with no practice at THIS node is named as such so a human picking
+// manually can't land on an empty screen unwarned. hasData undefined (older
+// server) reads as "has data" — no annotation, exactly today's rendering.
 const courseSelectOptions = computed(() =>
-  (engineState.value?.options.courses ?? []).map((c) => ({ value: c.code, label: courseDisplayName(c.code) })))
+  (engineState.value?.options.courses ?? []).map((c) => ({
+    value: c.code,
+    label: c.hasData === false ? `${courseDisplayName(c.code)} — no practice here` : courseDisplayName(c.code),
+  })))
 
 function compareWord(o: CompareOption): string {
   if (!props.plainWords) return o.label

@@ -48,7 +48,7 @@ export interface AudioCacheSource {
 
 export function createAudioCacheSource(
   audioCache: AudioCache,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   _courseId: string,
   // Offline mode gate. When this returns true, cached audio is served as a
   // blob: URL from IndexedDB instead of the network proxy — the playback

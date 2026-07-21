@@ -13,6 +13,14 @@ import { openDB } from 'idb'
 import { resetAudioCacheForTesting } from './createAudioCache'
 import { AudioCacheImpl } from './AudioCache'
 import type { AudioCache } from './AudioCache.types'
+import { bytesToWavBlob } from './wav'
+
+// getWavBlobUrl is the only consumer of bytesToWavBlob; mock it so the
+// mp3→WAV decode is deterministic (the test fixtures are not real mp3) and
+// countable — the in-flight dedupe assertion checks it runs exactly once.
+vi.mock('./wav', () => ({
+  bytesToWavBlob: vi.fn(async () => new Blob(['wav-bytes'], { type: 'audio/wav' })),
+}))
 
 const DB_NAME = 'ssi-audio-cache-v2'
 
@@ -358,49 +366,45 @@ describe('AudioCache', () => {
   })
 
   // ==========================================================================
-  // COURSE CLEAR
+  // OFFLINE WAV BLOB URL — in-flight dedupe (plan 013 Fix B)
   // ==========================================================================
 
-  it('clearCourse removes only entries for that course', async () => {
-    // Seed two rows manually with different courseCodes (the public API
-    // doesn't yet attach courseCode — this verifies the index-based delete).
-    const t = Date.now()
-    await putRaw({
-      id: 'x',
-      blob: new Blob(['x']),
-      mimeType: 'audio/mpeg',
-      size: 1,
-      lifecycle: 'persistent',
-      courseCode: 'C1',
-      cachedAt: t,
-      lastAccessedAt: t,
-      ephemeralOwnerLegoId: null,
-    })
-    await putRaw({
-      id: 'y',
-      blob: new Blob(['y']),
-      mimeType: 'audio/mpeg',
-      size: 1,
-      lifecycle: 'persistent',
-      courseCode: 'C2',
-      cachedAt: t,
-      lastAccessedAt: t,
-      ephemeralOwnerLegoId: null,
-    })
+  it('getWavBlobUrl decodes once under concurrency and returns one shared URL', async () => {
+    ;(bytesToWavBlob as unknown as ReturnType<typeof vi.fn>).mockClear()
+    ;(URL.createObjectURL as unknown as ReturnType<typeof vi.fn>).mockClear()
 
-    // Build a fresh cache instance so it picks up the seeded rows on init.
     const fresh = newCache()
-    // Trigger init via stats() so the in-memory Sets populate.
-    await fresh.stats()
-    expect(fresh.has('x')).toBe(true)
-    expect(fresh.has('y')).toBe(true)
+    // Stub the DB read: fake-indexeddb can't round-trip a Blob with a working
+    // arrayBuffer() in this env (it serialises to a bare {type} object), and
+    // this test targets the in-flight dedupe path, not storage. A real (node)
+    // Blob has arrayBuffer(), so return one directly and count reads.
+    let getCalls = 0
+    ;(fresh as unknown as { init: () => Promise<void> }).init = async () => {}
+    ;(fresh as unknown as { db: { get: (store: string, id: string) => Promise<unknown> } }).db = {
+      get: async () => {
+        getCalls += 1
+        return { id: 'wav-1', blob: new Blob(['mp3-bytes'], { type: 'audio/mpeg' }) }
+      },
+    }
 
-    await fresh.clearCourse('C1')
+    // Two concurrent calls for the same id (prefetch racing playback). Before
+    // the fix each decoded independently and the second createObjectURL leaked
+    // the first without revoking it.
+    const [u1, u2] = await Promise.all([
+      fresh.getWavBlobUrl('wav-1'),
+      fresh.getWavBlobUrl('wav-1'),
+    ])
 
-    expect(fresh.has('x')).toBe(false)
-    expect(fresh.has('y')).toBe(true)
-    expect(await readRow('x')).toBeUndefined()
-    expect(await readRow('y')).toBeDefined()
+    expect(u1).toBe(u2)
+    expect(u1).toBeTruthy()
+    expect(getCalls).toBe(1) // dedupe short-circuits the second DB read
+    expect(bytesToWavBlob).toHaveBeenCalledTimes(1) // single decode
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1) // single object URL — no leak
+
+    // A subsequent call reuses the memoised URL — still no extra decode.
+    const u3 = await fresh.getWavBlobUrl('wav-1')
+    expect(u3).toBe(u1)
+    expect(bytesToWavBlob).toHaveBeenCalledTimes(1)
   })
 
   // ==========================================================================

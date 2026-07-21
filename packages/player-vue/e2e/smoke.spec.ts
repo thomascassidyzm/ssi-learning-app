@@ -14,7 +14,7 @@ function attachObservers(page: Page) {
   })
   // Log failed subresource requests for visibility — does NOT fail the test.
   page.on('requestfailed', (req) => {
-    // eslint-disable-next-line no-console
+     
     console.log(`[requestfailed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`)
   })
 

@@ -22,7 +22,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { pick, between, weekdayTimestamp, insertChunked, resolveMaxSeed, DAY } from './demoSchoolGen'
+import { between, weekdayTimestamp, insertChunked, resolveMaxSeed, DAY } from './demoSchoolGen'
 import { resolveGroupSubtreeIds } from './demoSchoolGraph'
 
 export interface RefreshResult {

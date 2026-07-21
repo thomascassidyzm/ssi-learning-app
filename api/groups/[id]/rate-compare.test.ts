@@ -195,10 +195,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // Compare chain nearest-first: school → programme → nation → globals
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
       ['s1-node', 'programme', 'nation', 'global', 'global_all_courses'])
-    expect(res.body.applied.compare_to).toBe('s1-node')
-    // c1 is the only class in school-1 — no peers, honest insufficiency even for admin
-    expect(res.body.insufficientData).toBe(true)
-    expect(res.body.cohortSize).toBe(0)
+    // c1 is the only class in school-1 — the school-average default is empty,
+    // so the ladder widens to global · this course (c2/c3/c5): never a blank landing.
+    expect(res.body.applied.compare_to).toBe('global')
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(3)
   })
 
   it('admin · class vs programme average: peer classes on the SAME course only', async () => {
@@ -506,6 +507,125 @@ describe('GET /api/groups/:id/rate-compare', () => {
     const res = makeRes()
     await handler(makeReq('nothing-here'), res)
     expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2026-07-20: busiest by RECENT ACTIVITY, k-floor preferred)', () => {
+  it('activity beats class count: a class-heavy course with no practice never becomes the default', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The Coastal Districts hole: eng_for_hin has MORE classes below school-2
+    // than any other course — but zero practice. hin/tam carry the sessions.
+    for (const id of ['c7', 'c8', 'c9']) {
+      TABLES.classes.push({ id, class_name: `Eng ${id}`, course_code: 'eng_for_hin', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.course_code).toBe('hin_for_eng') // active, not class-heavy
+    expect(res.body.insufficientData).toBe(false)
+    // Dropdown: active courses first (by recent activity), dataless last + flagged
+    expect(res.body.options.courses.map((c: any) => c.code)).toEqual(['hin_for_eng', 'tam_for_eng', 'eng_for_hin'])
+    expect(res.body.options.courses.map((c: any) => c.hasData)).toEqual([true, true, false])
+  })
+
+  it('prefers the highest-ranked course whose ancestor cohort clears the k-floor', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Make tam the busiest at school-2 (5 recent sessions vs hin's 4) — but NO
+    // peer school under `programme` runs tam, so its cohort fails even the
+    // admin floor of 1. hin has an active peer (school-1). Default must be hin.
+    SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.compare_to).toBe('programme')
+    expect(res.body.applied.course_code).toBe('hin_for_eng')
+    expect(res.body.insufficientData).toBe(false)
+    // …but tam still ranks first in the dropdown (it IS the busiest here)
+    expect(res.body.options.courses[0].code).toBe('tam_for_eng')
+  })
+
+  it('an EXPLICIT course pick is never overridden by the k-floor preference — the compare ladders instead', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
+    const res = makeRes()
+    await handler(makeReq('school-2', { course_code: 'tam_for_eng' }), res)
+    expect(res.body.applied.course_code).toBe('tam_for_eng') // the pick is honoured
+    // no other school runs tam → programme and global · this-course are both
+    // empty; the DEFAULT compare ladders to all-courses so the pick still
+    // lands on a real comparison (entity stays anchored to tam).
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    expect(res.body.insufficientData).toBe(false)
+  })
+
+  it('the default course does not depend on the window (switching windows never re-defaults)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const win of ['today', '7d', '30d', 'all']) {
+      const res = makeRes()
+      await handler(makeReq('school-2', { window: win }), res)
+      expect(res.body.applied.course_code).toBe('hin_for_eng')
+    }
+  })
+
+  it('a DEMO entity holds a floor of 1 for NON-ADMIN leaders too — demo cohorts are fictional schools, the floor protects nobody', async () => {
+    verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
+    visibleScopeResult = {
+      ...EMPTY_SCOPE, role: 'govt_admin', groupId: 'programme',
+      schoolIds: ['school-1', 'school-2'], classIds: ['c1', 'c2', 'c3', 'c4'],
+    }
+    // the whole programme world is demo
+    for (const g of TABLES.groups) g.is_demo = true
+    for (const s of TABLES.schools) s.is_demo = true
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.kFloor).toBe(1)
+    expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
+    expect(res.body.cohortSize).toBe(1)
+    // a REAL school for the same leader keeps the full privacy floor
+    for (const g of TABLES.groups) g.is_demo = false
+    for (const s of TABLES.schools) s.is_demo = false
+    const res2 = makeRes()
+    await handler(makeReq('school-2'), res2)
+    expect(res2.body.kFloor).toBe(5)
+    expect(res2.body.insufficientData).toBe(true) // 1 peer < 5
+  })
+
+  it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A second region under `programme` running a course nobody else runs —
+    // its parent-average cohort is empty for EVERY course it has.
+    TABLES.groups.push({ id: 'metro', name: 'Metro International', type: 'region', parent_id: 'programme', path: 'india/ime/metro', is_demo: false })
+    TABLES.groups.push({ id: 's4-node', name: 'Metro School', type: 'school', parent_id: 'metro', path: 'india/ime/metro/s4', is_demo: false })
+    TABLES.schools.push({ id: 'school-4', school_name: 'Metro School', group_id: 'metro', node_group_id: 's4-node', is_demo: false })
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 8 French', course_code: 'fra_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
+    SESSION_ROWS.push(...sessions('c6', 'fra_for_eng', [[0, 6], [6, 12]]))
+    const res = makeRes()
+    await handler(makeReq('metro'), res) // default compare = programme average
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.course_code).toBe('fra_for_eng') // its own busiest
+    // parent cohort empty on fra → ladder: global (still empty) → all courses
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBeGreaterThanOrEqual(1)
+    expect(res.body.average.label).toBe('Global average · all courses')
+    // the narrower options are all still offered for manual picking
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
+      ['programme', 'nation', 'global', 'global_all_courses'])
+  })
+
+  it('a genuinely dark node says WHY — never the generic compare message', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS = SESSION_ROWS.filter((r) => !['c2', 'c3', 'c4'].includes(r.class_id))
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.reason).toBe('No practice recorded below this level yet.')
+    // …and a dark CLASS names itself, not "below this level"
+    const res2 = makeRes()
+    await handler(makeReq('c2'), res2)
+    expect(res2.body.insufficientData).toBe(true)
+    expect(res2.body.reason).toBe('No practice recorded in this class yet.')
   })
 })
 

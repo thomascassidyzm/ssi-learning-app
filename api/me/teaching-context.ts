@@ -170,8 +170,8 @@ async function resolveGroupsDetail(supabase: any, groups: TeachingGroup[]): Prom
       : Promise.resolve({ data: [] }),
   ])
 
-  const schoolNames = new Map((schools ?? []).map((s: any) => [s.id, s.school_name as string]))
-  const groupNames = new Map((groupRows ?? []).map((g: any) => [g.id, g.name as string]))
+  const schoolNames = new Map<string, string>((schools ?? []).map((s: any): [string, string] => [s.id, s.school_name]))
+  const groupNames = new Map<string, string>((groupRows ?? []).map((g: any): [string, string] => [g.id, g.name]))
 
   return groups.map((g) => ({
     id: g.id,
