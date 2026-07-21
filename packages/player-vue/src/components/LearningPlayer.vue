@@ -7541,6 +7541,19 @@ const prepareAndJump = async (
   message: string,
   doJump: () => void,
 ): Promise<void> => {
+  // CROSS-CUTTING RULE (Tom, 2026-07-21): every skip — round, cycle, or
+  // belt — must stop the current cycle cleanly BEFORE repositioning, so
+  // audio and display can never desync. Without this, SimplePlayer kept
+  // playing (and could naturally advance on its own) underneath the
+  // prefetch below, which can take up to 5s on a cold cache. By the time
+  // doJump() finally ran, the engine had often already moved past the
+  // cycle the learner saw when they tapped — the display/audio desync and
+  // "keeps playing mid-cycle" reports. jumpToRound only auto-resumes when
+  // it was ALREADY playing at call time, so capture that intent up front
+  // and restore it explicitly once we've actually landed.
+  const wasPlaying = simplePlayer.isPlaying.value
+  simplePlayer.pause()
+
   // Cancel any in-flight prep — its token becomes stale.
   skipPrepToken += 1
   const myToken = skipPrepToken
@@ -7590,6 +7603,10 @@ const prepareAndJump = async (
 
   clearSkipPrepDialog()
   doJump()
+  // Restore the pre-skip play intent — doJump's jumpToRound/stepCycle calls
+  // landed with isPlaying already false (we paused above), so they never
+  // auto-resumed themselves.
+  if (wasPlaying) simplePlayer.resume()
 }
 
 const handleSkip = async () => {
@@ -8078,7 +8095,16 @@ const handleRoundForward = async () => {
       const result = await generateScript()
       if (result.items.length > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-        simplePlayer.addRounds(toSimpleRoundsWithComponents(result.items) as any)
+        // BUG: calling simplePlayer.addRounds() directly here (instead of
+        // mergeGeneratedRoundsIntoQueue, which loadSeedIfNeeded already uses)
+        // grew the engine's internal roundsRef but left the component's
+        // cachedRounds/loadedRounds mirror unchanged. The very next line reads
+        // cachedRounds.value.length again — still short — so round-forward
+        // permanently concluded "unavailable, staying put" the first time it
+        // ever had to load past the initial preload window, and every
+        // subsequent tap re-hit the same frozen boundary. Root cause of the
+        // dead round-skip chevron (2026-07-21).
+        mergeGeneratedRoundsIntoQueue(result.items)
       }
     }
     if (targetIdx >= cachedRounds.value.length) {
@@ -8351,6 +8377,14 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   if (!gateSeed(targetSeed)) return
 
   isSkippingBelt.value = true
+  // CROSS-CUTTING RULE (Tom, 2026-07-21): stop the current cycle cleanly
+  // BEFORE the (potentially multi-second, course-wide) load below —
+  // otherwise SimplePlayer keeps playing/naturally advancing underneath
+  // loadSeedIfNeeded, which is exactly the "player keeps playing mid-cycle
+  // after a belt skip" report. Restore the pre-skip play intent once we've
+  // actually landed on the target belt.
+  const wasPlaying = simplePlayer.isPlaying.value
+  simplePlayer.pause()
   try {
     cancelInFlightLap()
     haltAllPlayback()
@@ -8406,6 +8440,10 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
       console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
     })
   } finally {
+    // Restore pre-skip play intent for every landing path (normal jump AND
+    // the enterInfPlayFromCache early return) — both call jumpToRound, which
+    // only auto-resumes when isPlaying was already true, and we paused above.
+    if (wasPlaying) simplePlayer.resume()
     isSkippingBelt.value = false
   }
 }

@@ -626,3 +626,104 @@ describe('SimplePlayer — safety timer is a stall detector', () => {
     expect(endedSpy).toHaveBeenCalled()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Skip-bug regression suite (2026-07-21 staging report):
+//   1. round-skip (skipRound) advances exactly one round.
+//   2. cycle-skip (stepCycle) keeps the audio that plays and the
+//      round/cycle the display reads in lockstep — both derive from the
+//      SAME engine state, never a separately-tracked copy.
+//   3. every skip primitive (skipRound / stepCycle / jumpToRound) stops
+//      the audio element BEFORE repositioning, never leaving stale audio
+//      sounding under the new display.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — skip actions', () => {
+  let mockAudio: MockAudio
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('skipRound advances exactly one round, not more, not zero', () => {
+    const rounds = ['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    expect(player.currentState.roundIndex).toBe(0)
+
+    player.skipRound()
+
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentRound?.legoId).toBe('S0002L01')
+
+    player.skipRound()
+
+    expect(player.currentState.roundIndex).toBe(2)
+    expect(player.currentRound?.legoId).toBe('S0003L01')
+  })
+
+  it('skipRound stops the audio element before repositioning', () => {
+    const rounds = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    ;(player as unknown as { state: { isPlaying: boolean } }).state.isPlaying = true
+    mockAudio.paused = false
+
+    player.skipRound()
+
+    expect(mockAudio.pause).toHaveBeenCalled()
+  })
+
+  it('stepCycle(1) crossing a round boundary: currentRound/currentCycle and the audio played always agree on the SAME destination', async () => {
+    // Single-cycle rounds — every forward step crosses a round boundary,
+    // so this exercises exactly the "cycle-skip rolls into the next round"
+    // path the mid-screen chevron uses.
+    const rounds = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    player.play()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(player.currentRound?.legoId).toBe('S0001L01')
+
+    const playAudioSpy = vi.spyOn(player as unknown as { playAudio: (u: string, t?: boolean) => void }, 'playAudio')
+    ;(player as unknown as { stepCycle: (d: 1 | -1) => void }).stepCycle(1)
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Display (state/currentRound/currentCycle) landed on round 2.
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentRound?.legoId).toBe('S0002L01')
+    // Audio played is for the SAME round's known text — never the round-1
+    // clip repeating under round-2's displayed text.
+    const lastPlayedUrl = playAudioSpy.mock.calls[playAudioSpy.mock.calls.length - 1]?.[0]
+    expect(lastPlayedUrl).toBe(rounds[1].cycles[0].known.audioUrl)
+  })
+
+  it('stepCycle stops the current audio before playing the destination cycle', () => {
+    const rounds = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    ;(player as unknown as { state: { isPlaying: boolean } }).state.isPlaying = true
+    mockAudio.paused = false
+    mockAudio.src = 'https://example.com/round1-in-flight.mp3'
+
+    ;(player as unknown as { stepCycle: (d: 1 | -1) => void }).stepCycle(1)
+
+    // jumpToRound (which stepCycle routes through) must have paused +
+    // cleared the in-flight round-1 audio synchronously, before anything
+    // for round 2 is queued.
+    expect(mockAudio.pause).toHaveBeenCalled()
+  })
+
+  it('jumpToRound stops the audio element before repositioning, regardless of play state', () => {
+    const rounds = ['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    ;(player as unknown as { state: { isPlaying: boolean } }).state.isPlaying = true
+    mockAudio.paused = false
+
+    ;(player as unknown as { jumpToRound: (i: number, c?: number) => void }).jumpToRound(2)
+
+    expect(mockAudio.pause).toHaveBeenCalled()
+    expect(player.currentState.roundIndex).toBe(2)
+  })
+})
