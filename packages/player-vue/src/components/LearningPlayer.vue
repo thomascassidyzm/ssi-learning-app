@@ -8078,7 +8078,14 @@ const handleRoundForward = async () => {
       const result = await generateScript()
       if (result.items.length > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-        simplePlayer.addRounds(toSimpleRoundsWithComponents(result.items) as any)
+        // Must go through mergeGeneratedRoundsIntoQueue, NOT a bare
+        // simplePlayer.addRounds — that only grows the engine's internal
+        // queue. cachedRounds (read right below, and by the jump target
+        // lookup) is a separate mirror; without this it never grows, so
+        // targetIdx >= cachedRounds.value.length stays true forever and
+        // forward-skip silently no-ops at the loaded edge (round-skip
+        // freeze, live session 0c4bc301, 2026-07-21).
+        mergeGeneratedRoundsIntoQueue(result.items)
       }
     }
     if (targetIdx >= cachedRounds.value.length) {

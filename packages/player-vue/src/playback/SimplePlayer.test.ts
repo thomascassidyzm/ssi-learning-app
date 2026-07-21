@@ -286,6 +286,119 @@ describe('SimplePlayer.addRounds', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Round-skip (lego_skip) navigation — the header ‹‹ ›› chevron steps exactly
+// one round via jumpToRound(currentIndex ± 1). Regression guard for the
+// 2026-07-21 round-skip freeze (live session 0c4bc301): LearningPlayer.vue's
+// forward handler grew the queue via a bare `simplePlayer.addRounds(...)`
+// call that updated the ENGINE's rounds array but never the component's own
+// `cachedRounds` mirror used to bound-check and resolve the jump target — so
+// once the learner reached the loaded edge, the mirror's length never grew,
+// the bound check stayed permanently true, and forward-skip silently no-oped
+// forever (identical fromLegoId/roundNumber/slot on every repeated tap). The
+// fix routes that path through mergeGeneratedRoundsIntoQueue, which updates
+// both. These tests cover the underlying engine contract the fix relies on.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — round-skip navigation', () => {
+  it('repeated forward jumpToRound calls advance the round index monotonically', () => {
+    const rounds = ['S0001L01', 'S0002L01', 'S0003L01', 'S0004L01', 'S0005L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+
+    const seenIndices: number[] = []
+    for (let i = 0; i < rounds.length - 1; i++) {
+      const fromIdx = player.currentState.roundIndex
+      player.jumpToRound(fromIdx + 1)
+      seenIndices.push(player.currentState.roundIndex)
+    }
+
+    expect(seenIndices).toEqual([1, 2, 3, 4])
+    // Monotonically increasing — never stuck repeating the same index.
+    for (let i = 1; i < seenIndices.length; i++) {
+      expect(seenIndices[i]).toBeGreaterThan(seenIndices[i - 1])
+    }
+    expect(player.currentRound?.legoId).toBe('S0005L01')
+  })
+
+  it('jumpToRound resets cycleIndex (slot) to 0, reflecting the landed position', () => {
+    const rounds = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    ;(player as any).state.cycleIndex = 0
+    player.jumpToRound(1)
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.cycleIndex).toBe(0)
+  })
+
+  it('jumpToRound is a no-op past the last loaded round (out of bounds)', () => {
+    const rounds = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(rounds)
+    player.jumpToRound(1)
+    player.jumpToRound(2) // out of bounds — only 2 rounds loaded
+    // Stays at the last valid round rather than silently corrupting state.
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentRound?.legoId).toBe('S0002L01')
+  })
+
+  it('regression: growing the engine queue without updating an external mirror freezes forward nav at the loaded edge', () => {
+    // Models the exact bug: a caller (LearningPlayer.vue) tracks its own
+    // `cachedRounds` mirror to bound-check + resolve the jump target, and
+    // must keep it synced with every addRounds/appendRounds call.
+    const initial = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    const cachedRoundsMirror = [...initial] // the buggy path: never updated below
+
+    const attemptForwardSkip = () => {
+      const fromIdx = player.currentState.roundIndex
+      const targetIdx = fromIdx + 1
+      if (targetIdx >= cachedRoundsMirror.length) {
+        // Buggy path: grows the ENGINE's queue but forgets the mirror.
+        player.addRounds(['S0003L01'].map(makeRound))
+        // (no `cachedRoundsMirror = [...cachedRoundsMirror, ...newRounds]` here)
+      }
+      if (targetIdx >= cachedRoundsMirror.length) {
+        return false // "staying put" — the observed freeze
+      }
+      player.jumpToRound(targetIdx)
+      return true
+    }
+
+    expect(attemptForwardSkip()).toBe(true) // S0001L01 → S0002L01, still within the original mirror
+    expect(player.currentState.roundIndex).toBe(1)
+
+    // Second tap: engine now HAS a 3rd round (added above by the first tap's
+    // regen), but the stale mirror still reports length 2 — every subsequent
+    // tap no-ops forever, reproducing the live-session freeze.
+    expect(attemptForwardSkip()).toBe(false)
+    expect(player.currentState.roundIndex).toBe(1) // frozen
+    expect(attemptForwardSkip()).toBe(false)
+    expect(player.currentState.roundIndex).toBe(1) // still frozen
+  })
+
+  it('fix: keeping the mirror in lockstep with addRounds lets forward nav reach newly-loaded rounds', () => {
+    const initial = ['S0001L01', 'S0002L01'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    let cachedRoundsMirror = [...initial]
+
+    const attemptForwardSkip = () => {
+      const fromIdx = player.currentState.roundIndex
+      const targetIdx = fromIdx + 1
+      if (targetIdx >= cachedRoundsMirror.length) {
+        const newRounds = ['S0003L01'].map(makeRound)
+        player.addRounds(newRounds)
+        cachedRoundsMirror = [...cachedRoundsMirror, ...newRounds] // kept in sync — the fix
+      }
+      if (targetIdx >= cachedRoundsMirror.length) return false
+      player.jumpToRound(targetIdx)
+      return true
+    }
+
+    expect(attemptForwardSkip()).toBe(true)
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(attemptForwardSkip()).toBe(true) // reaches the freshly-regenerated round
+    expect(player.currentState.roundIndex).toBe(2)
+    expect(player.currentRound?.legoId).toBe('S0003L01')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Background-safe PAUSE phase.
 //
 // The existing fixtures bake pauseDuration:0, which routes prompt→voice1
