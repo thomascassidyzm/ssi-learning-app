@@ -42,6 +42,11 @@ const versionFilePlugin = () => ({
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  server: {
+    proxy: {
+      '/api': { target: 'https://ssi-learning-app-git-dev-zenjin.vercel.app', changeOrigin: true },
+    },
+  },
   plugins: [
     vue(),
     versionFilePlugin(),

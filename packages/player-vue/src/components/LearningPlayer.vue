@@ -1241,12 +1241,21 @@ const envLabel = computed<string | null>(() => {
 // Dev cheat flags (?l1=1 / ?pod=1): read once, gated on envLabel (same
 // dev/staging-only host check that gates showDevReset — never production).
 // Force useLayer1Scheduler / usePodLapScheduler's own boundary decision to
-// fire at the FIRST round boundary reached after play starts, instead of
-// waiting for real cadence — lets each layer be manually previewed without
-// playing enough rounds to reach it naturally. Mirrors forceInterjectionsCheat's
-// shape (below). One-shot: `previewForceRoundIndex` (set in
-// handleRoundBoundaryBody) is captured on the first boundary only, so later
-// boundaries fall back to genuine scheduler cadence.
+// fire at the first round boundary where it can ACTUALLY produce a lap,
+// instead of waiting for real cadence — lets each layer be manually
+// previewed without playing enough rounds to reach it naturally. Mirrors
+// forceInterjectionsCheat's shape (below).
+//
+// Consumed (one-shot), not one-shot-on-the-FIRST-boundary: `podPreviewFired`
+// / `l1PreviewFired` only flip true once a forced lap actually plays, so the
+// cheat keeps retrying on every boundary until content is available. Fixed
+// 2026-07-22 — the original design captured the round index on the literal
+// first boundary regardless of outcome, which silently ate the one shot
+// whenever that first boundary couldn't yet produce a lap: a scheduler not
+// finished initializing (Supabase fetch still in flight), or — the common
+// case — L1's own nextLap() requiring the FIRST seed to be fully introduced,
+// which for a multi-LEGO seed 1 is round 3+, not round 1. See
+// podCadenceFiresAtRound / l1PreviewForced for where these are consumed.
 const forceLayer1PreviewCheat = (() => {
   try {
     const p = new URLSearchParams(window.location.search)
@@ -1259,7 +1268,16 @@ const forcePodPreviewCheat = (() => {
     return !!envLabel.value && p.has('pod')
   } catch { return false }
 })()
-let previewForceRoundIndex: number | null = null
+let podPreviewFired = false
+let l1PreviewFired = false
+// console.warn, not .log — production/staging/dev-alias builds strip
+// console.log/info/debug (vite.config.js esbuild.pure), so a plain .log here
+// is invisible in exactly the field captures used to debug this cheat. warn
+// survives. Arm-time line lets a report immediately distinguish "the cheat
+// never armed" (param/env-gate problem) from "armed but hasn't fired yet"
+// (content/timing problem) — see the FIRED warns at the actual play sites.
+if (forcePodPreviewCheat) console.warn('[LearningPlayer] ?pod=1 preview cheat ARMED — forcing at the first boundary that can produce a lap')
+if (forceLayer1PreviewCheat) console.warn('[LearningPlayer] ?l1=1 preview cheat ARMED — forcing at the first boundary that can produce a lap')
 
 // The orange ↻ reset button is a DEV-only rapid-iteration tool — too loud for
 // the staging soak build the external team sees. The env BADGE still shows on
@@ -1765,11 +1783,15 @@ simplePlayer.onRoundCompleted((round) => {
     seedId: round.seedId,
   })
 
-  // Synchronously pause if a pod is about to fire on this boundary.
-  // handleRoundBoundary is async and runs on a later microtask — by the
-  // time its own pause() lands, simplePlayer's orchestrator may have
-  // already started the next round's prompt audio, causing the pod intro
-  // to overlap with main-player audio. Pausing here, in the same tick as
+  // Synchronously pause if a pod is about to fire on this boundary (a real
+  // cadence fire, or a still-live ?pod=1 preview — podCadenceFiresAtRound
+  // covers both and is safe to call speculatively: it only returns true for
+  // the forced case once podScheduler is actually initialized, so this can
+  // never strand the player paused with nothing to play). handleRoundBoundary
+  // is async and runs on a later microtask — by the time its own pause()
+  // lands, simplePlayer's orchestrator may have already started the next
+  // round's prompt audio, causing the pod intro to overlap with main-player
+  // audio. Pausing here, in the same tick as
   // the round-completed event, beats that race.
   const willFirePod = !beltJustEarned.value
     && podCadenceFiresAtRound(completedRoundIndex)
@@ -3340,9 +3362,12 @@ const l1ConfigFromDb = computed<Partial<Layer1Config>>(() => {
   if (Array.isArray(c.seedPlaylist) && c.seedPlaylist.length) out.seedPlaylist = c.seedPlaylist
   return out
 })
-// ?l1=1 preview cheat: activationCount:1 so a cup is already available after
-// exactly one introduced LEGO (default 30 / ?l1test's 2 would both still be
-// empty at the first boundary this cheat targets — see previewForceRoundIndex).
+// ?l1=1 preview cheat: activationCount:1 so a cup is available as soon as ONE
+// seed is fully introduced (default 30 / ?l1test's 2 would both need far more
+// rounds). Still not literally round 1 for a multi-LEGO seed — nextLap()'s own
+// activation gate requires the seed's LAST lego to have landed — which is why
+// l1PreviewForced (handleRoundBoundaryBody) keeps retrying every boundary
+// rather than pinning to a single captured round.
 const l1PreviewConfig: Partial<Layer1Config> | undefined = forceLayer1PreviewCheat
   ? { cups: 1, activationCount: 1, maxSeedsPerCup: 10 }
   : undefined
@@ -4363,10 +4388,13 @@ const deriveBeltFromLandedRound = () => {
 //     counter and the fire check (here) runs AFTER — the position ordinal is the
 //     one value both see identically, so pause and fire never desync.
 const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
-  // ?pod=1 preview cheat: force true for the single boundary captured as
-  // previewForceRoundIndex (see handleRoundBoundaryBody), real cadence otherwise.
-  if (forcePodPreviewCheat && completedRoundIndex === previewForceRoundIndex) return true
   if (!podScheduler || !podScheduler.isInitialized.value) return false
+  // ?pod=1 preview cheat: force true on every boundary until a forced lap
+  // actually plays (podPreviewFired flips true in the nextLap() success
+  // branch below) — NOT just the first boundary reached. isInitialized is
+  // checked above this so a still-loading scheduler never triggers a forced
+  // pre-pause with nothing to land.
+  if (forcePodPreviewCheat && !podPreviewFired) return true
   if (isInfPlayActive.value) {
     const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
@@ -4413,12 +4441,6 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 }
 
 const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, completedRound = null) => {
-  // ?l1=1 / ?pod=1 preview cheats: capture the FIRST boundary reached this
-  // session as the one to force. One-shot — every later boundary compares
-  // against this fixed index and no longer matches, so cadence returns to real.
-  if ((forceLayer1PreviewCheat || forcePodPreviewCheat) && previewForceRoundIndex === null) {
-    previewForceRoundIndex = completedRoundIndex
-  }
   // Did the round we just finished contain a Layer 1 listen cluster? If so,
   // the L2 pod lap should drop its intro bookend so the two clusters play
   // as one continuous listening section. Pairs with the omitOutro flag in
@@ -4535,7 +4557,17 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
   // Layer-1 fires every clean boundary with no pod (pod wins priority).
-  const l1PreviewForced = forceLayer1PreviewCheat && completedRoundIndex === previewForceRoundIndex
+  // ?l1=1 preview cheat: force true on every eligible boundary until a forced
+  // lap actually plays (l1PreviewFired flips true in the nextLap() success
+  // branch below) — l1Scheduler.isInitialized.value is already required by
+  // l1FiresThisBoundary below, so this can't fire before the scheduler is
+  // ready. Kept as a plain "!l1PreviewFired" (not tied to a specific round)
+  // because nextLap() has its OWN internal activation gate (the first seed
+  // must be fully introduced) independent of this boundary check — a
+  // multi-LEGO seed 1 doesn't finish introducing until round 3+, so pinning
+  // the force to literally the first boundary silently burned the one shot
+  // before any content existed to play (fixed 2026-07-22).
+  const l1PreviewForced = forceLayer1PreviewCheat && !l1PreviewFired
   const l1FiresThisBoundary = !!l1Scheduler
     && l1Scheduler.isInitialized.value
     && currentMode.value !== 'infplay'
@@ -4648,6 +4680,10 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           }
         }
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lapToPlay.plays.length} plays)`)
+        if (forcePodPreviewCheat) {
+          podPreviewFired = true
+          console.warn(`[LearningPlayer] ?pod=1 preview cheat FIRED at round ${lap.podRound}`)
+        }
         simplePlayer.pause()
         const completed = await playPodLap(lapToPlay, l1FiredThisRound)
         // Ratchet writes are fire-and-forget — awaiting the Supabase
@@ -4712,6 +4748,13 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         } else {
           simplePlayer.resume()
         }
+      } else if (forcePodPreviewCheat) {
+        // Forced this boundary (podCadenceFiresAtRound above) but no lap was
+        // available yet (e.g. pod content not authored for this seed range) —
+        // the synchronous pre-pause in onRoundCompleted already paused for
+        // this attempt, so undo it here rather than stranding the player.
+        // podPreviewFired stays false, so the next boundary tries again.
+        simplePlayer.resume()
       }
     }
   }
@@ -4740,6 +4783,10 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
     const l1Lap = l1Scheduler.nextLap(completedMainRound)
     if (l1Lap) {
       console.log(`[LearningPlayer] Playing L1 cup ${l1Lap.cupIndex} @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      if (forceLayer1PreviewCheat) {
+        l1PreviewFired = true
+        console.warn(`[LearningPlayer] ?l1=1 preview cheat FIRED at round ${completedMainRound}`)
+      }
       simplePlayer.pause()
 
       // Reuse the proven pod playback path — shape the L1 lap into a PodLap.

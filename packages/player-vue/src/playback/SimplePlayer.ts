@@ -723,6 +723,19 @@ export class SimplePlayer {
 
   pause(): void {
     if (!this.state.isPlaying) return
+    // Bump playGeneration BEFORE audio.pause() — same reasoning as
+    // stopForReposition() above. Without this, pausing while a play()
+    // promise is still in flight (e.g. a round-boundary interlude — pod lap,
+    // L1 cup, commentary — landing its pause() just as the next round's
+    // prompt audio started) rejects that promise with AbortError ("The
+    // operation was aborted"). Since playAudio()'s catch handler only
+    // ignores rejections whose generation is stale, an un-bumped pause() let
+    // that rejection hit handleAudioFailure — a bogus retry-then-halt
+    // against audio nothing was actually wrong with. Confirmed live
+    // (2026-07-22): a learner's console showed exactly this
+    // "[SimplePlayer] play() rejected: The operation was aborted" during a
+    // round-boundary pause, with the session silently going dead.
+    ++this.playGeneration
     this.audio.pause()
     this.clearPauseTimer()
     this.clearSafetyTimer()
