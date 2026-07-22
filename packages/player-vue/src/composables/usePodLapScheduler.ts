@@ -562,6 +562,26 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   // Main-stage composition lives in ./podStageComposition (buildMainStage).
 
+  // Snapshot the live stage config — stagePlaylist keys are strings in JSON,
+  // numbers in the default; normalise via `String(stage)` lookup. totalStages
+  // is derived from the actual key count so admins can add or remove stages
+  // from the admin page without code changes. Shared by nextLap and the
+  // preview-cheat fallback below.
+  const resolveStageConfig = () => {
+    const livePlaylist = unwrap(options.stagePlaylist) as Record<string | number, PodPlayRole[]> | undefined
+    const liveDuration = unwrap(options.stageDuration) as number | undefined
+    const liveDurations = unwrap(options.stageDurations) as Record<string, number> | undefined
+    const stagePlaylistMap: Record<string | number, PodPlayRole[]> = livePlaylist || DEFAULT_STAGE_PLAYLIST
+    const stageDuration: number = liveDuration ?? DEFAULT_STAGE_DURATION
+    // Pair per-stage durations with their playlist: a live (admin-saved)
+    // playlist without stageDurations keeps uniform legacy maths; the code
+    // defaults pair DEFAULT_STAGE_PLAYLIST with DEFAULT_STAGE_DURATIONS.
+    const stageDurationsMap: Record<string | number, number> | undefined =
+      liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
+    const totalStages = Object.keys(stagePlaylistMap).length
+    return { stagePlaylistMap, stageDuration, stageDurationsMap, totalStages }
+  }
+
   /**
    * Compose the lap that should play right now, based on the current ratchet
    * value. Returns null if there's nothing to play (no sentences, or every
@@ -575,21 +595,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const activeCount = Math.min(podRound, TOTAL)
     if (activeCount < 1) return null
 
-    // Snapshot the live config — stagePlaylist keys are strings in JSON,
-    // numbers in the default; normalise via `String(stage)` lookup.
-    // totalStages is derived from the actual key count so admins can
-    // add or remove stages from the admin page without code changes.
-    const livePlaylist = unwrap(options.stagePlaylist) as Record<string | number, PodPlayRole[]> | undefined
-    const liveDuration = unwrap(options.stageDuration) as number | undefined
-    const liveDurations = unwrap(options.stageDurations) as Record<string, number> | undefined
-    const stagePlaylistMap: Record<string | number, PodPlayRole[]> = livePlaylist || DEFAULT_STAGE_PLAYLIST
-    const stageDuration: number = liveDuration ?? DEFAULT_STAGE_DURATION
-    // Pair per-stage durations with their playlist: a live (admin-saved)
-    // playlist without stageDurations keeps uniform legacy maths; the code
-    // defaults pair DEFAULT_STAGE_PLAYLIST with DEFAULT_STAGE_DURATIONS.
-    const stageDurationsMap: Record<string | number, number> | undefined =
-      liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
-    const totalStages = Object.keys(stagePlaylistMap).length
+    const { stagePlaylistMap, stageDuration, stageDurationsMap, totalStages } = resolveStageConfig()
 
     const plays: PodPlay[] = []
     pendingExposures = []
@@ -629,6 +635,54 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       plays,
       outro: hasBookends ? outroAudio.value : null,
     }
+  }
+
+  /**
+   * ?pod=1 preview-cheat fallback ONLY — never called from the real cadence
+   * path. nextLap() only ever composes from the ratchet-windowed slice
+   * [0, completedPodRounds] of podSentences; for an account whose ratchet
+   * hasn't advanced past a run of sentences that fail to compose (missing
+   * audio, empty buildMainStage output), that whole window can be
+   * unplayable even though the course has good pod content elsewhere. This
+   * ignores the ratchet window entirely and scans the FULL sentence list,
+   * nearest-to-the-ratchet-cursor first, for the first sentence that
+   * composes a playable Stage 1 (debut) lap — so the preview can always
+   * demonstrate the format when the course has ANY pod content, independent
+   * of the learner's ratchet position. Returns null only when the course's
+   * pod content is empty or entirely unplayable.
+   */
+  const nextLapPreviewFallback = (): PodLap | null => {
+    const TOTAL = podSentences.value.length
+    if (TOTAL === 0) return null
+    const { stagePlaylistMap } = resolveStageConfig()
+    const playlist = stagePlaylistMap[1] || stagePlaylistMap['1']
+    if (!playlist) return null
+
+    // Search outward from the ratchet cursor (nearest to "current position")
+    // so the preview shows content close to where the learner actually is,
+    // falling back to the whole course only if that immediate neighbourhood
+    // has nothing playable.
+    const cursor = Math.max(0, Math.min(completedPodRounds.value, TOTAL - 1))
+    const order: number[] = [cursor]
+    for (let d = 1; d < TOTAL; d++) {
+      if (cursor - d >= 0) order.push(cursor - d)
+      if (cursor + d < TOTAL) order.push(cursor + d)
+    }
+
+    for (const idx of order) {
+      const sentence = podSentences.value[idx]
+      if (!sentence.target_audio_id) continue
+      const plays = buildMainStage(sentence, 1, idx + 1, playlist)
+      if (plays.length === 0) continue
+      const hasBookends = !!(introAudio.value && outroAudio.value)
+      return {
+        podRound: completedPodRounds.value + 1,
+        intro: hasBookends ? introAudio.value : null,
+        plays,
+        outro: hasBookends ? outroAudio.value : null,
+      }
+    }
+    return null
   }
 
   /**
@@ -750,6 +804,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     initialize,
     shouldFireLapAt,
     nextLap,
+    nextLapPreviewFallback,
     prefetchLap,
     deferLap,
     markLapCompleted,

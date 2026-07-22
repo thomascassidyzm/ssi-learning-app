@@ -332,6 +332,71 @@ describe('usePodLapScheduler — nextLap composition', () => {
   })
 })
 
+describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)', () => {
+  let state: MockState
+  beforeEach(() => {
+    state = {
+      podSentences: [podSentence(1), podSentence(2), podSentence(3)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 6, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+    }
+  })
+
+  it('returns null when the course has no pod content at all', async () => {
+    state.podSentences = []
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    expect(s.nextLapPreviewFallback()).toBeNull()
+  })
+
+  it('finds a playable sentence when the ratchet-windowed slice has nothing (sentence 1 missing audio)', async () => {
+    // Ratchet is fresh (podRound=1 → activeCount=1) so nextLap() only ever
+    // looks at sentence 1 — which has no target_audio_id here. Real cadence
+    // and the plain preview cheat would both stay stuck forever; the
+    // fallback must reach past the window to sentence 2.
+    state.podSentences = [
+      { ...podSentence(1), target_audio_id: null },
+      podSentence(2),
+      podSentence(3),
+    ]
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    expect(s.nextLap()).toBeNull() // confirms the windowed path is genuinely stuck
+    const lap = s.nextLapPreviewFallback()
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.every(p => p.sentenceIdx === 2)).toBe(true)
+  })
+
+  it('searches outward from the ratchet cursor, reaching the farthest sentence only when nothing closer is playable', async () => {
+    // Ratchet cursor sits at index 2 (0-based) — completedPodRounds=2, TOTAL=5.
+    // Everything except the last sentence (idx 4, two steps away) is unplayable.
+    state.enrollment = { pod_activation_round: 1, completed_pod_rounds: 2 }
+    state.podSentences = [
+      { ...podSentence(1), target_audio_id: null },
+      { ...podSentence(2), target_audio_id: null },
+      { ...podSentence(3), target_audio_id: null },
+      { ...podSentence(4), target_audio_id: null },
+      podSentence(5),
+    ]
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    const lap = s.nextLapPreviewFallback()
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.every(p => p.sentenceIdx === 5)).toBe(true)
+  })
+
+  it('returns null when every sentence in the course is unplayable', async () => {
+    state.podSentences = [
+      { ...podSentence(1), target_audio_id: null },
+      { ...podSentence(2), target_audio_id: null },
+    ]
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    expect(s.nextLapPreviewFallback()).toBeNull()
+  })
+})
+
 describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)', () => {
   // A whole speaker TURN row that's been silence-split: target_audio_id /
   // known_audio_id are the WHOLE-turn clips (must never be played once split);

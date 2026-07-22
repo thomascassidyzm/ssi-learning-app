@@ -573,6 +573,50 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     }
   }
 
+  /**
+   * ?l1=1 preview-cheat fallback ONLY — never called from the real cadence
+   * path. nextLap() requires the activation-count-th seed to be fully
+   * introduced (its last LEGO landed) at `mainRound`, so a preview armed
+   * before that boundary (or resuming mid-course where the cup's assigned
+   * seeds happen to have no audio) can retry every boundary and still find
+   * nothing to show. This ignores activation/cup-fill entirely and
+   * sandwiches whichever of the first few course seeds (by introduction
+   * order — computed once from the static catalogue at init, so it's
+   * available even before mainRound reaches them) actually have audio, so
+   * the preview can always demonstrate the format.
+   */
+  const nextLapPreviewFallback = (mainRound: number): L1Lap | null => {
+    if (!isInitialized.value) return null
+    const order = introductionOrder.value
+    if (order.length === 0) return null
+    const c = cfg()
+    const seedMap = seeds.value
+    const plays: L1Play[] = []
+    for (const sNum of order.slice(0, 4)) {
+      const seed = seedMap.get(sNum)
+      if (!seed?.target1_audio_id) continue
+      plays.push(...buildSeedPlays({
+        seedNumber: sNum,
+        target1Id: seed.target1_audio_id,
+        target2Id: seed.target2_audio_id,
+        knownId: seed.known_audio_id,
+        targetText: seed.target_text_roman || seed.target_text,
+        knownText: seed.known_text,
+      }, c.seedPlaylist))
+    }
+    if (plays.length === 0) return null
+    const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
+    const hasBookends = !!(introAudio.value && outroAudio.value)
+    return {
+      mainRound,
+      cupIndex: 0,
+      bucketSize: playableSeeds,
+      intro: hasBookends ? introAudio.value : null,
+      plays,
+      outro: hasBookends ? outroAudio.value : null,
+    }
+  }
+
   /** Fire-and-forget warm-up of a lap's audio (mirror of pod prefetchLap). */
   const prefetchLap = (mainRound: number, ensureFn?: (audioId: string) => Promise<void>): void => {
     const lap = nextLap(mainRound)
@@ -599,6 +643,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     seedsPerCupAt,
     shouldFireLapAt,
     nextLap,
+    nextLapPreviewFallback,
     prefetchLap,
   }
 }

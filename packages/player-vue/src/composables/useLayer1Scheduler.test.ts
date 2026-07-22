@@ -13,7 +13,44 @@ import {
   composeCupSeeds,
   buildSeedPlays,
   DEFAULT_LAYER1_CONFIG,
+  useLayer1Scheduler,
 } from './useLayer1Scheduler'
+
+// ============================================================================
+// Supabase mock — covers the three query shapes initialize() issues:
+//   .from('course_seeds').select(...).eq(...).order(...).limit(...)
+//   .from('course_legos').select(...).eq(...).order(...).order(...).limit(...)
+//   .from('course_audio').select(...).eq(...).in(...)
+// ============================================================================
+function makeMockSupabase(state: { seeds: any[]; catalogue: any[]; bookends: any[] }) {
+  const builder = (table: string) => {
+    const chain: any = {
+      select: () => chain,
+      eq: () => chain,
+      in: () => chain,
+      order: () => chain,
+      limit: () => chain,
+      then: (cb: any) => {
+        if (table === 'course_seeds') return Promise.resolve({ data: state.seeds, error: null }).then(cb)
+        if (table === 'course_legos') return Promise.resolve({ data: state.catalogue, error: null }).then(cb)
+        if (table === 'course_audio') return Promise.resolve({ data: state.bookends, error: null }).then(cb)
+        return Promise.resolve({ data: null, error: null }).then(cb)
+      },
+    }
+    return chain
+  }
+  return { from: builder } as any
+}
+
+const l1Seed = (n: number, hasAudio = true) => ({
+  seed_number: n,
+  known_text: `K${n}`,
+  target_text: `T${n}`,
+  target_text_roman: null,
+  known_audio_id: hasAudio ? `kn-${n}` : null,
+  target1_audio_id: hasAudio ? `tgt1-${n}` : null,
+  target2_audio_id: hasAudio ? `tgt2-${n}` : null,
+})
 
 // ----------------------------------------------------------------------------
 // seededRng — deterministic, well-distributed enough
@@ -286,5 +323,77 @@ describe('DEFAULT_LAYER1_CONFIG', () => {
       maxSeedsPerCup: 20,
       clusterStep: 5,
     })
+  })
+})
+
+// ----------------------------------------------------------------------------
+// nextLapPreviewFallback — ?l1=1 preview cheat
+// ----------------------------------------------------------------------------
+describe('useLayer1Scheduler — nextLapPreviewFallback (?l1=1 preview cheat)', () => {
+  it('returns null before initialize()', () => {
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds: [], catalogue: [], bookends: [] }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    expect(s.nextLapPreviewFallback(1)).toBeNull()
+  })
+
+  it('returns null when the course has no seeds at all', async () => {
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds: [], catalogue: [], bookends: [] }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    expect(s.nextLapPreviewFallback(1)).toBeNull()
+  })
+
+  it('sandwiches the first few course seeds even at round 1, before nextLap() has any content', async () => {
+    // Default config activates at 30 introduced seeds — nextLap(1) is null
+    // this early regardless of catalogue size. The fallback ignores
+    // activation entirely and uses introductionOrder (computed once from the
+    // static catalogue at init, independent of mainRound).
+    const catalogue = Array.from({ length: 6 }, (_, i) => ({ seed_number: i + 1, lego_index: 1 }))
+    const seeds = Array.from({ length: 6 }, (_, i) => l1Seed(i + 1))
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [] }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    expect(s.nextLap(1)).toBeNull() // confirms real nextLap genuinely has nothing yet
+    const lap = s.nextLapPreviewFallback(1)
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.length).toBeGreaterThan(0)
+    const seedNums = new Set(lap!.plays.map(p => p.seedNumber))
+    expect(seedNums.size).toBeGreaterThan(0)
+    expect(Math.max(...seedNums)).toBeLessThanOrEqual(4) // "first few" — order.slice(0, 4)
+  })
+
+  it('skips seeds with no audio and still finds a playable one among the first few', async () => {
+    const catalogue = Array.from({ length: 4 }, (_, i) => ({ seed_number: i + 1, lego_index: 1 }))
+    const seeds = [l1Seed(1, false), l1Seed(2, false), l1Seed(3, true), l1Seed(4, false)]
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [] }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLapPreviewFallback(1)
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.every(p => p.seedNumber === 3)).toBe(true)
+  })
+
+  it('returns null when none of the first few seeds have audio', async () => {
+    const catalogue = Array.from({ length: 4 }, (_, i) => ({ seed_number: i + 1, lego_index: 1 }))
+    const seeds = Array.from({ length: 4 }, (_, i) => l1Seed(i + 1, false))
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [] }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    expect(s.nextLapPreviewFallback(1)).toBeNull()
   })
 })

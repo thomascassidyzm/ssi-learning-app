@@ -4654,7 +4654,19 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
     }
 
     if (podCadenceFiresAtRound(completedRoundIndex)) {
-      const lap = podScheduler.nextLap()
+      let lap = podScheduler.nextLap()
+      // ?pod=1 preview cheat: nextLap() only ever composes from the
+      // ratchet-windowed slice of podSentences — position-independent in
+      // theory, but an account whose ratchet window lands on unplayable
+      // content (or hasn't advanced at all) still gets nothing. Fall back
+      // to the nearest playable sentence anywhere in the course so the
+      // preview can always demonstrate the format.
+      if (!lap && forcePodPreviewCheat) {
+        lap = podScheduler.nextLapPreviewFallback()
+        if (lap) {
+          console.warn(`[cheat] pod=1: no lap at current position, falling back to nearest pod ${lap.podRound}`)
+        }
+      }
       if (lap) {
         // SEGUE LAYER 1 → LAYER 2. On a pod round the cup wheel is also turning,
         // so instead of two separately-bracketed listening blocks (intro/seeds/
@@ -4782,7 +4794,18 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       l1Scheduler.prefetchLap(completedMainRound + 1, (id) => audioCache.persistent.ensure(id))
     }
 
-    const l1Lap = l1Scheduler.nextLap(completedMainRound)
+    let l1Lap = l1Scheduler.nextLap(completedMainRound)
+    // ?l1=1 preview cheat: nextLap() requires the activation-count-th seed to
+    // be fully introduced by this round — a preview armed before that (or
+    // whose assigned cup has no audio) can retry every boundary and still
+    // find nothing. Fall back to sandwiching the first few course seeds so
+    // the preview can always demonstrate the format.
+    if (!l1Lap && forceLayer1PreviewCheat && !l1PreviewFired) {
+      l1Lap = l1Scheduler.nextLapPreviewFallback(completedMainRound)
+      if (l1Lap) {
+        console.warn(`[cheat] l1=1: no lap at current position, falling back to sandwiching the first course seeds`)
+      }
+    }
     if (l1Lap) {
       console.log(`[LearningPlayer] Playing L1 cup ${l1Lap.cupIndex} @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
       if (forceLayer1PreviewCheat) {
