@@ -3402,10 +3402,12 @@ const currentPodLapPlays = ref<PodPlay[] | null>(null)
 const podLapSentenceIndices = computed(() =>
   currentPodLapPlays.value ? podLapPlayedSentenceIndices(currentPodLapPlays.value) : [],
 )
-// The full pod sentence list, sliced down to exactly this lap's played
-// sentences plus at most one dimmed neighbour each side for cheap context.
-// Falls back to the full list when no lap is in flight (inert — PodTurnDisplay
-// only renders while playingPodLapAudio && currentPodTurn are both truthy).
+// The full pod sentence list, sliced down to EXACTLY this lap's played
+// sentences — no neighbour sentences (Tom 2026-07-22 follow-up: a dimmed
+// neighbour still reads as part of the exercise even though the audio never
+// sounds it). Falls back to the full list when no lap is in flight (inert —
+// PodTurnDisplay only renders while playingPodLapAudio && currentPodTurn are
+// both truthy).
 const podScrollRange = computed(() =>
   podLapDisplayRange(podScheduler ? podScheduler.podSentences.value.length : 0, podLapSentenceIndices.value),
 )
@@ -13362,7 +13364,7 @@ defineExpose({
       v-if="playingPodLapAudio && currentPodTurn"
       :sentences="podScrollSentences"
       :active-index="currentPodTurn.activeIndex"
-      :reminder-top-inset="podReminderVisible ? 56 : 0"
+      :reminder-top-inset="podReminderVisible ? 130 : 0"
     />
 
     <!-- Pod listening reminder — ONE-SHOT transient, fades in as the pod lap
@@ -13397,13 +13399,17 @@ defineExpose({
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
-        <!-- Inline learning hint label. Suppressed during pod listening
-             (playingPodLapAudio && currentPodTurn) — the dedicated
-             pod-listening-reminder transient above owns that instruction
-             now; this panel used to persist for the whole lap and, sitting
-             above PodTurnDisplay (z-index 10 vs 3), covered the dialogue
-             tiles on long pods (2026-07-22). -->
-        <div v-if="showLearningHint && !isIntroPhase && !showInterjection && !(playingPodLapAudio && currentPodTurn)" class="hero-hint-label">
+        <!-- Inline learning hint label. Suppressed for the WHOLE pod lap
+             (playingPodLapAudio alone, not also gated on currentPodTurn) —
+             the dedicated pod-listening-reminder transient (then the small
+             ambient dot) owns that instruction for the entire lap, including
+             the intro-bookend window before the teleprompter resolves its
+             first turn. Gating on currentPodTurn too left that window
+             showing BOTH cues at once — the duplicate cue bug (2026-07-22
+             follow-up). This panel used to persist for the whole lap and,
+             sitting above PodTurnDisplay (z-index 10 vs 3), covered the
+             dialogue tiles on long pods (2026-07-22). -->
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection && !playingPodLapAudio" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -16113,12 +16119,14 @@ defineExpose({
 }
 
 /* ============ POD LISTENING REMINDER (transient, once per pod lap) ============ */
-/* Sits in the top safe-area band PodTurnDisplay always keeps clear (see its
-   reminderTopInset prop) — z-index between PodTurnDisplay (3) and the hero
-   glass pane (10) so it never competes with either. */
+/* Sits BELOW the full header (brand/title row + belt pill) — never inside
+   its band, so it can't render behind/over the SaySomethingin wordmark or
+   the DEV env badge (real bug, 2026-07-22: a flat 14px safe-area offset put
+   it squarely under the title bar). z-index between PodTurnDisplay (3) and
+   the hero glass pane (10) so it never competes with either. */
 .pod-listening-reminder {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  top: calc(var(--header-total) + 12px);
   left: max(1rem, env(safe-area-inset-left, 0px));
   right: max(1rem, env(safe-area-inset-right, 0px));
   z-index: 6;
@@ -16148,10 +16156,12 @@ defineExpose({
 }
 
 /* Small always-on cue while a pod lap plays, once the transient has faded —
-   tiny enough that it can never obscure the dialogue tiles. */
+   tiny enough that it can never obscure the dialogue tiles. Same vertical
+   slot as .pod-listening-reminder above (below the full header) so there's
+   no visual jump when the transient hands off to this dot. */
 .pod-listening-ambient {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  top: calc(var(--header-total) + 14px);
   right: max(1rem, env(safe-area-inset-right, 0px));
   z-index: 6;
   display: flex;

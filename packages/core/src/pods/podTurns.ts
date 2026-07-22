@@ -73,20 +73,19 @@ export function podLapPlayedSentenceIndices(
 
 /**
  * The [start, end] (inclusive, 0-based) slice of the FULL sentence list a pod
- * lap's teleprompter should render: exactly the sentences this lap plays,
- * widened by at most one dimmed neighbour on each side for cheap, natural
- * context — never the whole dialogue (Tom 2026-07-22). Null when nothing is
- * playing yet (no window to show).
+ * lap's teleprompter should render: EXACTLY the sentences this lap plays,
+ * never a dimmed neighbour on either side (Tom 2026-07-22 follow-up: a
+ * neighbour sentence reads as part of the exercise even dimmed, and the audio
+ * never sounds it — "if it is not sounded, it must not look like part of the
+ * exercise"). Null when nothing is playing yet (no window to show).
  */
 export function podLapDisplayRange(
   totalSentences: number,
   playedIndices: readonly number[],
 ): { start: number; end: number } | null {
   if (totalSentences <= 0 || playedIndices.length === 0) return null
-  const lo = Math.min(...playedIndices)
-  const hi = Math.max(...playedIndices)
   return {
-    start: Math.max(0, lo - 1),
-    end: Math.min(totalSentences - 1, hi + 1),
+    start: Math.max(0, Math.min(...playedIndices)),
+    end: Math.min(totalSentences - 1, Math.max(...playedIndices)),
   }
 }

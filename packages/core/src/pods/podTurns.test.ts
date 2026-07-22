@@ -100,16 +100,15 @@ describe('podLapPlayedSentenceIndices', () => {
 })
 
 describe('podLapDisplayRange', () => {
-  it('a single-sentence lap early in the dialogue shows just that sentence plus one trailing neighbour', () => {
-    // "the first phrase is just Buongiorno, Sarah — and not much else"
-    expect(podLapDisplayRange(12, [0])).toEqual({ start: 0, end: 1 })
+  it('a single-sentence lap shows exactly that sentence, no neighbour', () => {
+    expect(podLapDisplayRange(12, [0])).toEqual({ start: 0, end: 0 })
   })
 
-  it('widens by at most one neighbour on each side of a multi-sentence lap', () => {
-    expect(podLapDisplayRange(12, [3, 4, 5])).toEqual({ start: 2, end: 6 })
+  it('shows exactly the played span for a multi-sentence lap, no neighbour widening', () => {
+    expect(podLapDisplayRange(12, [3, 4, 5])).toEqual({ start: 3, end: 5 })
   })
 
-  it('clips the neighbour window at the sentence-list bounds', () => {
+  it('clips to the sentence-list bounds', () => {
     expect(podLapDisplayRange(3, [0, 1, 2])).toEqual({ start: 0, end: 2 })
   })
 
