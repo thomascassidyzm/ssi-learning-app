@@ -83,6 +83,22 @@ spec player_conductor_architecture:
     - "LearningPlayer.vue prepareAndJump (round/cycle skip) — wraps the prefetch+jump body in conductor.runSeek. skipPrepToken (dialog visibility + unmount cancellation) is kept as a SEPARATE UI-layer staleness signal alongside runSeek's own isStale()."
     - "LearningPlayer.vue handleSkipToBelt (belt skip) — wraps the load+jump body in conductor.runSeek. Previously had NO supersede protection for a rapid double-tap (unlike prepareAndJump's token); runSeek's cancel-and-replace closes that gap for free."
 
+  dev_preview_cheats: |
+    ?l1=1 / ?pod=1 (dev/staging only, gated on envLabel — mirrors
+    forceInterjectionsCheat's ?fc): force useLayer1Scheduler /
+    usePodLapScheduler's boundary decision (podCadenceFiresAtRound / the
+    inline l1FiresThisBoundary check in handleRoundBoundaryBody) to fire at
+    the FIRST round-boundary interlude reached this session, instead of
+    waiting for real cadence. One-shot via previewForceRoundIndex, captured
+    on the first boundary — every later boundary reverts to genuine
+    scheduler cadence. ?l1=1 also shrinks the Layer-1 wheel to
+    activationCount:1 (see l1PreviewConfig) so a cup already exists after
+    one introduced LEGO. Routes through the real runInterlude/playPodLap
+    path — no simulated renderer. ?pod=1's actual firing still depends on
+    the course having pod content (podSentences non-empty) and podScheduler
+    being initialized — a safe no-op otherwise, same graceful-degradation
+    shape as the rest of the pod/L1 stack.
+
   open_follow_ups: |
     - Full loadedRounds/cachedRounds mirror deletion: ~90 read/write touch
       points in LearningPlayer.vue, several with genuinely distinct

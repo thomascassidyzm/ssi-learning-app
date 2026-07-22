@@ -1238,6 +1238,29 @@ const envLabel = computed<string | null>(() => {
   return 'DEV'
 })
 
+// Dev cheat flags (?l1=1 / ?pod=1): read once, gated on envLabel (same
+// dev/staging-only host check that gates showDevReset — never production).
+// Force useLayer1Scheduler / usePodLapScheduler's own boundary decision to
+// fire at the FIRST round boundary reached after play starts, instead of
+// waiting for real cadence — lets each layer be manually previewed without
+// playing enough rounds to reach it naturally. Mirrors forceInterjectionsCheat's
+// shape (below). One-shot: `previewForceRoundIndex` (set in
+// handleRoundBoundaryBody) is captured on the first boundary only, so later
+// boundaries fall back to genuine scheduler cadence.
+const forceLayer1PreviewCheat = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return !!envLabel.value && p.has('l1')
+  } catch { return false }
+})()
+const forcePodPreviewCheat = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return !!envLabel.value && p.has('pod')
+  } catch { return false }
+})()
+let previewForceRoundIndex: number | null = null
+
 // The orange ↻ reset button is a DEV-only rapid-iteration tool — too loud for
 // the staging soak build the external team sees. The env BADGE still shows on
 // staging (it labels the deploy); only the button is dev-host-only. Tom
@@ -3317,7 +3340,17 @@ const l1ConfigFromDb = computed<Partial<Layer1Config>>(() => {
   if (Array.isArray(c.seedPlaylist) && c.seedPlaylist.length) out.seedPlaylist = c.seedPlaylist
   return out
 })
-const l1Config = computed<Partial<Layer1Config>>(() => ({ ...l1ConfigFromDb.value, ...(l1TestConfig || {}) }))
+// ?l1=1 preview cheat: activationCount:1 so a cup is already available after
+// exactly one introduced LEGO (default 30 / ?l1test's 2 would both still be
+// empty at the first boundary this cheat targets — see previewForceRoundIndex).
+const l1PreviewConfig: Partial<Layer1Config> | undefined = forceLayer1PreviewCheat
+  ? { cups: 1, activationCount: 1, maxSeedsPerCup: 10 }
+  : undefined
+const l1Config = computed<Partial<Layer1Config>>(() => ({
+  ...l1ConfigFromDb.value,
+  ...(l1TestConfig || {}),
+  ...(l1PreviewConfig || {}),
+}))
 
 const l1Scheduler = supabase?.value
   ? useLayer1Scheduler({
@@ -4305,6 +4338,9 @@ const deriveBeltFromLandedRound = () => {
 //     counter and the fire check (here) runs AFTER — the position ordinal is the
 //     one value both see identically, so pause and fire never desync.
 const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
+  // ?pod=1 preview cheat: force true for the single boundary captured as
+  // previewForceRoundIndex (see handleRoundBoundaryBody), real cadence otherwise.
+  if (forcePodPreviewCheat && completedRoundIndex === previewForceRoundIndex) return true
   if (!podScheduler || !podScheduler.isInitialized.value) return false
   if (isInfPlayActive.value) {
     const mainLoopCount = mainLoopBoundary()
@@ -4352,6 +4388,12 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 }
 
 const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, completedRound = null) => {
+  // ?l1=1 / ?pod=1 preview cheats: capture the FIRST boundary reached this
+  // session as the one to force. One-shot — every later boundary compares
+  // against this fixed index and no longer matches, so cadence returns to real.
+  if ((forceLayer1PreviewCheat || forcePodPreviewCheat) && previewForceRoundIndex === null) {
+    previewForceRoundIndex = completedRoundIndex
+  }
   // Did the round we just finished contain a Layer 1 listen cluster? If so,
   // the L2 pod lap should drop its intro bookend so the two clusters play
   // as one continuous listening section. Pairs with the omitOutro flag in
@@ -4468,11 +4510,12 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
   // Layer-1 fires every clean boundary with no pod (pod wins priority).
+  const l1PreviewForced = forceLayer1PreviewCheat && completedRoundIndex === previewForceRoundIndex
   const l1FiresThisBoundary = !!l1Scheduler
     && l1Scheduler.isInitialized.value
     && currentMode.value !== 'infplay'
     && !podFiresThisBoundary
-    && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+    && (l1PreviewForced || l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1))
   // L1 now fires EVERY clean non-pod boundary (30-cup model), so suppressing
   // encouragements next to it would starve them entirely. The old "don't butt a
   // clip onto a 10-min listen" reason is gone — an L1 cup is only ~1 min — so an
