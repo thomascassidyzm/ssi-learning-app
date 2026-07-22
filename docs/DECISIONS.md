@@ -523,3 +523,42 @@ is the login), unlike open links which still confirm under a foreign session bef
   gain over metadata; revisit in the contract phase if personal links become hot-path.
 **Search width:** founder-ruled shape; agent owned mechanism.
 **Decided by:** founder (species clarification, 2026-07-20 late); agent implementation.
+
+## 2026-07-22 — structural cache freshness: trigger-maintained courses.content_stamp (agent, BSC)
+**Move:** Closed the "content fixed in DB, devices stale for months" bug class (ita 'come'='how'
+gloss: fixed 2026-03-12, still served 2026-07-22). New `courses.content_stamp` (timestamptz),
+maintained by exception-safe AFTER triggers on all six learner-facing content tables
+(course_seeds, course_legos, course_practice_phrases, course_audio, listening_pod_sentences,
+lego_introductions), debounced to one bump per transaction. The app reads it in the ONE tiny
+courses query it already makes on boot (checkContentVersion — no new request); every cache entry
+records the stamp it was built from; mismatch while online → script cache entry dropped
+(regenerates on the next walk, offline lease rescued and re-attached) and the listening metadata
+bundle refetches in the background. Stamp-less entries (every pre-mechanism device) count as
+stale-once — retroactively healing the whole stale fleet. Offline: no stamp obtainable → nothing
+invalidates (a stale cache offline is correct; staleness only matters once online).
+Migration applied live 2026-07-22 (verified: no-op pod update moved ita's stamp, other courses
+untouched, anon PostgREST read OK).
+**Better:** no human ever bumps a version for a content fix again — the DB write IS the
+invalidation; devices self-heal on next online boot; play is never blocked (background refresh).
+**Simpler:** one concept (per-course content vintage) covers listening meta + script cache + the
+offline snapshot fallback (same cache); piggybacks on the existing boot query and the existing
+checkContentVersion call sites (zero call-site changes); META_VERSION/SCRIPT_VERSION shrink to
+their honest job (schema-shape escape hatch).
+**Cheaper (total):** one column + one trigger function; deletes the recurring manual-bump toil and
+the months-stale support burden; refresh cost is bounded by actual content-change frequency.
+**Searched & rejected:**
+- Reuse `courses.version` (int, trigger-bumped) — rejected: it's the dashboard's
+  decomposition-staleness key and deliberately excludes audio; extending it entangles two repos'
+  semantics.
+- Reuse `courses.content_version` (semver) — rejected as the sole mechanism: hand-bumped, which IS
+  the disease; kept for its heavier role (audio regeneration → full clear incl. SW audio cache).
+- Client-side max(updated_at) probes — rejected: course_audio has no updated_at, N extra queries
+  per boot, and updated_at hygiene varies by table; the trigger stamps writes at the source.
+- Delta audio re-download on refresh — deferred: metadata (text/gloss/structure) is the stale
+  class observed; re-recorded clips stream+cache on first online play and wholesale regeneration
+  rides the content_version lane. Revisit if re-recording churn shows up offline.
+**Search width:** 4 options, one frame-breaker (DB triggers instead of any client-side freshness
+accounting).
+**Decided by:** agent under the project brief "cache freshness: structural self-invalidation";
+verified by unit tests + live e2e (doctored stale-vintage IndexedDB entries self-refreshed on
+online boot against the real DB).

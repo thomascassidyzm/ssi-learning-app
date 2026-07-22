@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
+# Last Updated: 2026-07-22 (structural cache freshness: trigger-maintained courses.content_stamp read in the existing boot query; stale script/listening caches self-refresh in background when online — see content_freshness_stamp)
+# Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
 # Prev: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
 # Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
@@ -335,6 +336,45 @@ spec audio_caching_architecture:
         fully-usable (all-or-nothing write). Tested in
         listeningMetaCache.test.ts (fake-indexeddb, incl. the useListeningPods
         offline fallback both ways).
+
+    content_freshness_stamp:
+      files: >
+        supabase/migrations/20260722_course_content_stamp.sql,
+        packages/player-vue/src/composables/useScriptCache.ts
+        (checkContentVersion), listeningMetaCache.ts
+        (refreshListeningMetaIfStale)
+      purpose: >
+        Structural self-invalidation for the metadata caches. Content fixed in
+        the DB used to be served stale from devices for MONTHS (the ita
+        'come'='how' gloss: fixed 2026-03-12, still shown 2026-07-22) because
+        invalidation was a hand-bumped version string (META_VERSION /
+        SCRIPT_VERSION) nobody remembers to move.
+      mechanism: >
+        courses.content_stamp (timestamptz) is TRIGGER-maintained — any
+        insert/update/delete on course_seeds, course_legos,
+        course_practice_phrases, course_audio, listening_pod_sentences or
+        lego_introductions moves it (debounced to one bump per transaction;
+        exception-safe so stamping can never break a content write).
+        checkContentVersion's existing boot query selects it alongside
+        content_version (no new request). Each cache entry records the stamp
+        it was built from; mismatch while ONLINE → the script cache entry is
+        dropped (regenerates on the very next walk; its offline LEASE is
+        rescued and re-attached — entitlement state, not script state) and
+        the listening bundle refetches in the background. Entries with no
+        stamp (pre-mechanism devices) are stale-once, which retroactively
+        healed every stale device in the wild.
+      offline: >
+        No stamp is obtainable offline (the courses query fails) → nothing
+        invalidates. A stale cache OFFLINE is correct behaviour; staleness
+        only matters once online. META_VERSION/SCRIPT_VERSION remain as the
+        schema-SHAPE escape hatch (key format changes), no longer the content
+        freshness mechanism. content_version (hand-bumped semver) keeps its
+        heavier role: audio regeneration → full clear incl. SW audio cache.
+      tested: >
+        useScriptCache.contentStamp.test.ts + listeningMetaCache.test.ts
+        (refresh/no-op/offline/lease-rescue), and live e2e
+        e2e/repro-stale-cache-refresh.mjs (doctored stale-vintage IndexedDB
+        entries structurally refreshed on online boot against the real DB).
 
     belt_pill_offline_clarity:
       file: "packages/player-vue/src/components/ProgressModal.vue"

@@ -21,6 +21,7 @@ import {
   fetchAndCacheListeningMeta,
   getCachedListeningMeta,
   collectListeningMetaAudioIds,
+  refreshListeningMetaIfStale,
 } from './listeningMetaCache'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
 
@@ -49,6 +50,7 @@ class FakeQuery {
   order() { return this }
   range() { return this }
   limit() { return this }
+  maybeSingle() { return this }
   then(resolve: (r: RouteResult) => void, reject?: (e: unknown) => void) {
     try {
       const route = this.routes[this.table]
@@ -103,6 +105,7 @@ const SEED_ROWS = [
 ]
 
 const happyClient = makeFakeClient({
+  courses: () => ({ data: { content_stamp: 'stamp-1' } as any, error: null }),
   listening_pod_sentences: () => ({ data: POD_ROWS, error: null }),
   course_audio: (q) => {
     if (q.inFilter?.column === 'id') {
@@ -165,6 +168,54 @@ describe('fetchAndCacheListeningMeta', () => {
     const meta = await fetchAndCacheListeningMeta(failAll, 'fra_for_eng')
     expect(meta).toBeNull()
     expect(await getCachedListeningMeta('fra_for_eng')).toBeNull()
+  })
+
+  it('records the course content_stamp as the entry vintage', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const cached = await getCachedListeningMeta('ita_for_eng')
+    expect(cached!.contentStamp).toBe('stamp-1')
+  })
+})
+
+describe('refreshListeningMetaIfStale (structural freshness)', () => {
+  it('no-ops when nothing was ever downloaded', async () => {
+    expect(await refreshListeningMetaIfStale(happyClient, 'never_dl', 'stamp-9')).toBe(false)
+    expect(await getCachedListeningMeta('never_dl')).toBeNull()
+  })
+
+  it('no-ops when the cached vintage matches the live stamp', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    expect(await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', 'stamp-1')).toBe(false)
+  })
+
+  it('no-ops without a live stamp (offline / pre-migration server)', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    expect(await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', null)).toBe(false)
+    expect(await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', undefined)).toBe(false)
+  })
+
+  it('refetches the bundle in the background when the stamp moved — including for pre-stamp entries', async () => {
+    // Seed a STALE entry: old glosses, no contentStamp (a pre-stamp device).
+    await fetchAndCacheListeningMeta(makeFakeClient({
+      courses: () => ({ data: null, error: null }), // pre-migration: no stamp
+      listening_pod_sentences: () => ({
+        data: [{ ...POD_ROWS[0], known_text: 'STALE OLD GLOSS' }], error: null,
+      }),
+      course_audio: () => ({ data: [], error: null }),
+      course_seeds: () => ({ data: [], error: null }),
+      course_legos: () => ({ data: [], error: null }),
+    }), 'ita_for_eng')
+    const stale = await getCachedListeningMeta('ita_for_eng')
+    expect(stale!.contentStamp).toBeUndefined()
+    expect(stale!.podRows[0].known_text).toBe('STALE OLD GLOSS')
+
+    // Online boot: live stamp exists → background refresh replaces the entry.
+    expect(await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', 'stamp-1')).toBe(true)
+    await vi.waitFor(async () => {
+      const fresh = await getCachedListeningMeta('ita_for_eng')
+      expect(fresh!.contentStamp).toBe('stamp-1')
+      expect(fresh!.podRows[0].known_text).toBe('Hi. How are you?')
+    })
   })
 })
 

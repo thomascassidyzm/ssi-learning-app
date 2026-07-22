@@ -12,6 +12,7 @@ import { ref, type Ref } from 'vue'
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfflineLease } from '../config/offlineLease'
+import { refreshListeningMetaIfStale } from './listeningMetaCache'
 
 // Cache configuration
 // Scripts live in IndexedDB. localStorage's ~5MB cap overflowed on big
@@ -110,6 +111,11 @@ export interface CachedScript {
   loadedLegos?: number // For CourseExplorer pagination
   scriptOffset?: number // Track the starting offset (completedRounds at generation time)
   contentVersion?: string // courses.content_version — used to detect audio regeneration
+  /** courses.content_stamp at write time — the content vintage this script was
+   *  generated from. Trigger-maintained in the DB; compared on online boot by
+   *  checkContentVersion. Absent (pre-stamp entry, or written while offline)
+   *  → treated as stale once on the next online boot. */
+  contentStamp?: string
   // The audio-aware main-loop extent from the generateScript run that produced
   // this cache (its mainLoopRoundCount = count of distinct playable main-loop
   // rounds). Persisted so a warm cache-fast-path hydration single-sources the
@@ -154,13 +160,28 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
   }
 }
 
+// Live content stamps observed this JS session (set by checkContentVersion's
+// boot query) — setCachedScript stamps new entries from here so callers don't
+// have to thread the stamp through. Empty while offline: the entry lands
+// stamp-less and is treated as stale once on the next ONLINE boot, which is
+// the safe direction.
+const liveContentStamps = new Map<string, string>()
+
+// Leases rescued from a stamp-invalidated entry, re-attached on the next
+// write. The offline lease is ENTITLEMENT state, not script state — dropping
+// a stale script must never lock someone's offline download.
+const rescuedLeases = new Map<string, Pick<CachedScript, 'offlineLeases' | 'offlineLease'>>()
+
 export const setCachedScript = async (
   courseCode: string,
   data: Omit<CachedScript, 'courseCode' | 'cachedAt'>
 ): Promise<void> => {
   try {
+    const rescued = rescuedLeases.get(courseCode)
     const fullData: CachedScript = {
       courseCode,
+      contentStamp: liveContentStamps.get(courseCode),
+      ...(data.offlineLeases || data.offlineLease ? {} : rescued),
       ...data,
       cachedAt: Date.now(),
       // audio UUIDs live in audioRefs per item — drop the redundant map
@@ -174,6 +195,7 @@ export const setCachedScript = async (
     const plain = JSON.parse(JSON.stringify(fullData)) as CachedScript
     const db = await scriptDb()
     await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
+    if (rescued) rescuedLeases.delete(courseCode)
     console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
     // IndexedDB has GBs of room, so this should be rare (quota pressure only).
@@ -301,12 +323,23 @@ export const resetCacheState = async (): Promise<void> => {
 // ============================================================================
 
 /**
- * Check if course content_version has changed since last load.
- * If it has, clear the script cache and Service Worker audio cache so
- * stale audio (e.g. old TTS voice) doesn't persist.
+ * Course content freshness check — ONE tiny courses query, two lanes:
  *
- * Call this early — before getCachedScript or audio playback.
- * Returns true if the cache was invalidated.
+ *  1. content_version (hand-bumped semver, "audio regenerated"): change →
+ *     clear the script cache AND the Service Worker audio cache so stale
+ *     audio (e.g. old TTS voice) doesn't persist. Unchanged behaviour.
+ *
+ *  2. content_stamp (trigger-maintained, moves on ANY learner-visible content
+ *     write — see migration 20260722_course_content_stamp.sql): change →
+ *     drop this course's script cache entry (regenerates from live data on
+ *     the very next load, which on the eager-preload path is immediately
+ *     after this check) and background-refresh the listening metadata bundle
+ *     if one was downloaded. Audio caches untouched — audio is content-
+ *     addressed by id, so text/structure fixes never require re-clearing it.
+ *
+ * Offline (query fails) → no invalidation: a stale cache offline is correct;
+ * staleness only matters once online. Call this early — before
+ * getCachedScript or audio playback. Returns true if anything was invalidated.
  */
 export const checkContentVersion = async (
   supabase: SupabaseClient,
@@ -318,13 +351,42 @@ export const checkContentVersion = async (
 
     const { data: course, error } = await supabase
       .from('courses')
-      .select('content_version')
+      .select('content_version, content_stamp')
       .eq('course_code', courseCode)
       .single()
 
     if (error || !course?.content_version) return false
 
     const currentVersion = course.content_version
+    const liveStamp = (course as { content_stamp?: string }).content_stamp
+    let invalidated = false
+
+    if (liveStamp) {
+      liveContentStamps.set(courseCode, liveStamp)
+      // Listening metadata bundle: background refresh, never blocks anything.
+      void refreshListeningMetaIfStale(supabase, courseCode, liveStamp).catch(() => {})
+      // Script cache: entry built from an older content vintage → drop it so
+      // the next generation walk (moments later on the boot path) rebuilds
+      // from live data. Entries with no stamp are pre-stamp or offline-written
+      // → stale once, which retroactively heals every device cached before
+      // the stamp existed (the months-stale ita gloss class).
+      try {
+        const cached = await getCachedScript(courseCode)
+        if (cached && cached.contentStamp !== liveStamp) {
+          console.log(`[ScriptCache] Content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — dropping script cache for ${courseCode}`)
+          // Rescue the offline lease (entitlement state) so the regenerated
+          // entry re-attaches it — a content fix must never lock a download.
+          if (cached.offlineLeases || cached.offlineLease) {
+            rescuedLeases.set(courseCode, {
+              offlineLeases: cached.offlineLeases,
+              offlineLease: cached.offlineLease,
+            })
+          }
+          await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode))
+          invalidated = true
+        }
+      } catch { /* cache unreadable — nothing to invalidate */ }
+    }
 
     if (storedVersion && storedVersion !== currentVersion) {
       console.log(`[ScriptCache] Content version changed: ${storedVersion} → ${currentVersion} — clearing caches`)
@@ -349,7 +411,7 @@ export const checkContentVersion = async (
       localStorage.setItem(versionKey, currentVersion)
     }
 
-    return false
+    return invalidated
   } catch (err) {
     // Offline or Supabase unavailable — use cached data, don't invalidate
     return false

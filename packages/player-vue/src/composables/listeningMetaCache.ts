@@ -98,6 +98,12 @@ export interface CachedBookend {
 export interface CachedListeningMeta {
   courseCode: string
   cachedAt: number
+  /** courses.content_stamp at fetch time — the content vintage this entry was
+   *  built from. Trigger-maintained in the DB (any learner-visible content
+   *  write moves it), compared on online boot by refreshListeningMetaIfStale.
+   *  Absent on entries written before the stamp existed → treated as stale
+   *  once (which retroactively heals every pre-stamp device). */
+  contentStamp?: string
   /** listening_pod_sentences rows for `${course}:pod-0`, in global_order.
    *  Empty array = the course genuinely has no pod (a valid, downloaded
    *  state) — entry ABSENT means "never downloaded". */
@@ -221,7 +227,7 @@ const fetchAndCacheListeningMetaOnce = async (
 ): Promise<CachedListeningMeta | null> => {
   try {
     const podId = `${courseCode}:pod-0`
-    const [podsResult, bookendsResult] = await Promise.all([
+    const [podsResult, bookendsResult, stampResult] = await Promise.all([
       client
         .from('listening_pod_sentences')
         .select(POD_ROW_COLUMNS)
@@ -232,6 +238,11 @@ const fetchAndCacheListeningMetaOnce = async (
         .select('role, text, id, duration_ms')
         .eq('course_code', courseCode)
         .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
+      client
+        .from('courses')
+        .select('content_stamp')
+        .eq('course_code', courseCode)
+        .maybeSingle(),
     ])
     if (podsResult.error) throw new Error(`listening_pod_sentences: ${podsResult.error.message}`)
     if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
@@ -295,9 +306,15 @@ const fetchAndCacheListeningMetaOnce = async (
       .limit(10000)
     if (catErr) throw new Error(`course_legos: ${catErr.message}`)
 
+    // Stamp is best-effort: a failed stamp read must not drop the whole
+    // bundle — the entry just lands stamp-less and refreshes next online boot.
+    const contentStamp =
+      (stampResult.data as { content_stamp?: string } | null)?.content_stamp ?? undefined
+
     const meta: CachedListeningMeta = {
       courseCode,
       cachedAt: Date.now(),
+      contentStamp,
       podRows,
       clipTexts,
       bookends: (bookendsResult.data || []) as CachedBookend[],
@@ -311,6 +328,38 @@ const fetchAndCacheListeningMetaOnce = async (
     console.warn('[ListeningMeta] fetch failed (nothing cached):', (err as any)?.message ?? err)
     return null
   }
+}
+
+/**
+ * Structural freshness: if a cached listening bundle exists and its content
+ * vintage differs from the course's live content_stamp, refetch the whole
+ * bundle in the background. Called on online boot (checkContentVersion) with
+ * the stamp it already fetched — no extra request. Never blocks play, never
+ * touches anything when offline (the caller only has a stamp when the courses
+ * query succeeded), and a failed refresh keeps the old entry (stale beats
+ * empty) and retries next boot because the old stamp survives.
+ *
+ * Scope: refreshes METADATA (text, glosses, structure, audio-id references) —
+ * the stale class that persisted for months. It does not re-run the audio
+ * download: a re-recorded clip's new id streams (and caches) on first online
+ * play, and wholesale audio regeneration still rides the content_version
+ * full-clear lane in checkContentVersion.
+ *
+ * Returns true if a refresh was started.
+ */
+export const refreshListeningMetaIfStale = async (
+  client: SupabaseClient,
+  courseCode: string,
+  liveStamp: string | null | undefined,
+): Promise<boolean> => {
+  if (!liveStamp) return false
+  const cached = await getCachedListeningMeta(courseCode)
+  if (!cached) return false // never downloaded — nothing to keep fresh
+  if (cached.contentStamp === liveStamp) return false
+  console.log('[ListeningMeta] content stamp moved',
+    `(${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — refreshing bundle`)
+  void fetchAndCacheListeningMeta(client, courseCode)
+  return true
 }
 
 /**
