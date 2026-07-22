@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 
 // jsdom has no real layout, so scrollIntoView doesn't exist — the component
@@ -92,5 +93,40 @@ describe('TeleprompterScroll', () => {
     })
     expect(wrapper.find('.custom-row').exists()).toBe(true)
     expect(wrapper.find('.phrase-target').exists()).toBe(false)
+  })
+
+  it('pins the current row at anchorFraction of the container height (conveyor-belt anchor, not a raw scrollIntoView centre)', async () => {
+    // jsdom has no real layout — stub the metrics scrollCurrentIntoView reads
+    // so the scroll target's arithmetic is verifiable.
+    const scrollToSpy = vi.fn()
+    const originalScrollTo = Element.prototype.scrollTo
+    const originalOffsetTop = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop')
+    const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
+    Element.prototype.scrollTo = scrollToSpy
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) { return this.classList?.contains('current') ? 400 : 0 },
+    })
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 100 })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 900 })
+
+    try {
+      const wrapper = mount(TeleprompterScroll, {
+        props: { lines: makeLines(5), currentIndex: 1, anchorFraction: 0.33 },
+      })
+      scrollToSpy.mockClear() // drop the onMounted call, assert only the index-change call
+      await wrapper.setProps({ currentIndex: 2 })
+      await nextTick()
+      await nextTick()
+
+      // targetTop = current.offsetTop(400) + offsetHeight/2(50) - clientHeight*anchor(900*0.33=297) = 153
+      expect(scrollToSpy).toHaveBeenCalledWith({ top: 153, behavior: 'smooth' })
+    } finally {
+      Element.prototype.scrollTo = originalScrollTo
+      if (originalOffsetTop) Object.defineProperty(HTMLElement.prototype, 'offsetTop', originalOffsetTop)
+      if (originalOffsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalOffsetHeight)
+      if (originalClientHeight) Object.defineProperty(HTMLElement.prototype, 'clientHeight', originalClientHeight)
+    }
   })
 })

@@ -29,7 +29,7 @@ import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { usePodListeningReminder } from '../composables/usePodListeningReminder'
-import { podPlayShowsTurnText } from '@ssi/core/pods'
+import { podPlayShowsTurnText, podLapPlayedSentenceIndices, podLapDisplayRange } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
@@ -3367,21 +3367,42 @@ const playingPodLapAudio = ref(false)
 // PodTurnDisplay's "which sentence is lit" — the SAME object driving the
 // audio call, never a separate text lookup (2026-07-14 whole-turn display).
 const currentPodPlay = ref<PodPlay | null>(null)
-// Full flat pod sentence list — the backing data for the whole-dialogue
-// scroll display (PodTurnDisplay). Empty until a course/learner resolves it.
-const podScrollSentences = computed(() => (podScheduler ? podScheduler.podSentences.value : []))
-// The currently-sounding sentence's GLOBAL index into podScrollSentences.
-// Null while nothing is lit yet (e.g. during the intro bookend), also null
-// for Layer-1 listening-cup plays segued through this same pod-lap pipeline
-// (product rule 2026-07-22): Layer-1 seed plays are audio-only, never text —
-// only genuine Layer-2 pod sentences resolve a position to show. Also null
-// if the index falls outside the current sentence list (defensive — a
-// mid-flight course/learner switch shouldn't ever show a stale position).
+// The IN-FLIGHT lap's full play list — set at the top of playPodLap, cleared
+// when it ends. Scopes the teleprompter to what this lap ACTUALLY plays
+// (Tom 2026-07-22: "the last thing we want is the whole dialogue... the
+// played phrases are the content") rather than the pod's entire sentence list.
+const currentPodLapPlays = ref<PodPlay[] | null>(null)
+// Distinct 0-based sentence indices this lap sounds (Layer-1 segued plays
+// excluded — see podPlayShowsTurnText).
+const podLapSentenceIndices = computed(() =>
+  currentPodLapPlays.value ? podLapPlayedSentenceIndices(currentPodLapPlays.value) : [],
+)
+// The full pod sentence list, sliced down to exactly this lap's played
+// sentences plus at most one dimmed neighbour each side for cheap context.
+// Falls back to the full list when no lap is in flight (inert — PodTurnDisplay
+// only renders while playingPodLapAudio && currentPodTurn are both truthy).
+const podScrollRange = computed(() =>
+  podLapDisplayRange(podScheduler ? podScheduler.podSentences.value.length : 0, podLapSentenceIndices.value),
+)
+const podScrollSentences = computed(() => {
+  const all = podScheduler ? podScheduler.podSentences.value : []
+  const range = podScrollRange.value
+  return range ? all.slice(range.start, range.end + 1) : all
+})
+// The currently-sounding sentence's LOCAL index into podScrollSentences
+// (already offset by the display window's start). Null while nothing is lit
+// yet (e.g. during the intro bookend), also null for Layer-1 listening-cup
+// plays segued through this same pod-lap pipeline (product rule 2026-07-22):
+// Layer-1 seed plays are audio-only, never text — only genuine Layer-2 pod
+// sentences resolve a position to show. Also null if the index falls outside
+// the current window (defensive — a mid-flight course/learner switch
+// shouldn't ever show a stale position).
 const currentPodTurn = computed(() => {
   if (!podScheduler || !podPlayShowsTurnText(currentPodPlay.value)) return null
   const idx0 = currentPodPlay.value!.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
-  if (idx0 < 0 || idx0 >= podScrollSentences.value.length) return null
-  return { activeIndex: idx0 }
+  const localIdx = idx0 - (podScrollRange.value?.start ?? 0)
+  if (localIdx < 0 || localIdx >= podScrollSentences.value.length) return null
+  return { activeIndex: localIdx }
 })
 // Pod listening reminder — a ONE-SHOT transient ("just listen, like
 // birdsong") shown as each pod lap starts, then faded out. Replaces the old
@@ -4150,6 +4171,9 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
+  // Set BEFORE any audio starts so the teleprompter's scoped window (see
+  // podScrollRange) is correct from the very first play of the lap.
+  currentPodLapPlays.value = lap.plays
 
   const courseId = encodeURIComponent(courseCode.value)
   const audioUrlFor = (id: string) => `/api/audio/${id}?courseId=${courseId}`
@@ -4262,6 +4286,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   } finally {
     playingPodLapAudio.value = false
     currentPodPlay.value = null
+    currentPodLapPlays.value = null
     logEvent('pod_lap_end', {
       podRound: lap.podRound,
       cancelled: podLapCancelled.value,
@@ -13399,7 +13424,11 @@ defineExpose({
               <p v-else-if="inListeningContext && !(playingPodLapAudio && currentPodTurn)" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">{{ displayedKnownText }}</p>
+              <!-- Falls through here whenever playingPodLapAudio && currentPodTurn —
+                   PodTurnDisplay already shows the turn's own text, so render
+                   nothing rather than the NEXT round's LEGO text (the stale
+                   "phrase pill" bug, Tom 2026-07-22). -->
+              <p v-else-if="!(playingPodLapAudio && currentPodTurn)" class="hero-known">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
@@ -13927,7 +13956,13 @@ defineExpose({
              screen reader vocalizing prompts every cycle, as it would
              conflict with the pronunciation audio that is the actual
              lesson. AT users can navigate to this region manually. -->
-        <div class="pane-text-known">
+        <!-- Hidden for the whole pod interlude (playingPodLapAudio) — this is
+             the NEXT round's LEGO/phrase text, completely out of context
+             while a pod lap or L1 cup is sounding (the stale "phrase pill"
+             bug, Tom 2026-07-22). Sits at control-pane's z-index 15, above
+             both hero-text-pane (10) and PodTurnDisplay (3), so left
+             unguarded it visibly floated over the pod dialogue. -->
+        <div v-if="!playingPodLapAudio" class="pane-text-known">
           <p v-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
             {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>

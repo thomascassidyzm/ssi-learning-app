@@ -84,7 +84,8 @@ const topPadding = computed(() =>
     <TeleprompterScroll
       :lines="lines"
       :current-index="activeIndex ?? -1"
-      :pad-block-vh="10"
+      :pad-block-vh="35"
+      :anchor-fraction="0.33"
     />
   </div>
 </template>

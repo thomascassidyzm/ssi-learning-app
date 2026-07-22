@@ -40,8 +40,15 @@ const props = withDefaults(defineProps<{
    *  content only — a `#line` slot override controls its own gloss). */
   showGloss?: boolean
   /** Vertical breathing room (vh) above/below the list so the first/last
-   *  row can still scroll to center. */
+   *  row can still reach the anchor position. */
   padBlockVh?: number
+  /** Where the current row is pinned, as a fraction of the container's
+   *  height from its top (0 = top, 0.5 = centre, 1 = bottom). Default is
+   *  centre; PodTurnDisplay anchors to the upper third so the current line
+   *  reads as fixed while other lines move past it, conveyor-belt style,
+   *  rather than a highlight jumping down an otherwise static page
+   *  (Tom 2026-07-22). */
+  anchorFraction?: number
   /** Clickable rows emitting `select` — off by default (main-flow pod
    *  display is a passive teleprompter; ListeningOverlay opts in). */
   interactive?: boolean
@@ -50,6 +57,7 @@ const props = withDefaults(defineProps<{
   windowSize: 7,
   showGloss: true,
   padBlockVh: 25,
+  anchorFraction: 0.5,
   interactive: false,
 })
 
@@ -74,9 +82,18 @@ const visibleLines = computed(() => {
   })
 })
 
+// Pins the current row's centre at anchorFraction of the container's height,
+// rather than relying on scrollIntoView's fixed 'center' — a plain
+// scrollIntoView only reaches true centre when there's exactly half a
+// container's worth of blank space on each side (padBlockVh), so short lists
+// or a non-centre anchor would drift. Computing the offset directly keeps the
+// anchor position consistent regardless of list length or anchorFraction.
 const scrollCurrentIntoView = () => {
-  const el = rootEl.value?.querySelector('.phrase-row.current')
-  el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const container = rootEl.value
+  const current = container?.querySelector('.phrase-row.current') as HTMLElement | null | undefined
+  if (!container || !current) return
+  const targetTop = current.offsetTop + current.offsetHeight / 2 - container.clientHeight * props.anchorFraction
+  container.scrollTo({ top: targetTop, behavior: 'smooth' })
 }
 
 watch(() => props.currentIndex, async () => {
@@ -166,12 +183,14 @@ const handleRowClick = (displayIndex: number) => {
 }
 
 .phrase-row.past {
-  opacity: 0.25;
+  /* Legible-but-secondary (Tom 2026-07-22: was watermark-faint against the
+     sketch background) — still clearly de-emphasised next to .current's 1. */
+  opacity: 0.55;
   transform: scale(0.92) translateY(-2px);
 }
 
 .phrase-row.future {
-  opacity: 0.45;
+  opacity: 0.75;
   transform: scale(0.96);
 }
 

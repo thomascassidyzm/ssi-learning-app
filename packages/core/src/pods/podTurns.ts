@@ -52,3 +52,41 @@ export function turnSpanForIndex(spans: readonly PodTurnSpan[], index: number): 
 export function podPlayShowsTurnText(play: { isLayer1?: boolean } | null | undefined): boolean {
   return !!play && !play.isLayer1
 }
+
+/**
+ * Distinct, ordered 0-based sentence indices a lap's plays actually sound —
+ * the teleprompter's scoping key (Tom 2026-07-22: "the display needs to know
+ * WHICH phrases are in each POD... the last thing we want is the whole
+ * dialogue"). A sentence with multiple plays (e.g. stage ['ps','trans','ps'])
+ * contributes its index once. Layer-1 segued plays are excluded — they index
+ * a different catalogue (see podPlayShowsTurnText).
+ */
+export function podLapPlayedSentenceIndices(
+  plays: readonly { sentenceIdx: number; isLayer1?: boolean }[],
+): number[] {
+  const set = new Set<number>()
+  for (const p of plays) {
+    if (podPlayShowsTurnText(p)) set.add(p.sentenceIdx - 1)
+  }
+  return Array.from(set).sort((a, b) => a - b)
+}
+
+/**
+ * The [start, end] (inclusive, 0-based) slice of the FULL sentence list a pod
+ * lap's teleprompter should render: exactly the sentences this lap plays,
+ * widened by at most one dimmed neighbour on each side for cheap, natural
+ * context — never the whole dialogue (Tom 2026-07-22). Null when nothing is
+ * playing yet (no window to show).
+ */
+export function podLapDisplayRange(
+  totalSentences: number,
+  playedIndices: readonly number[],
+): { start: number; end: number } | null {
+  if (totalSentences <= 0 || playedIndices.length === 0) return null
+  const lo = Math.min(...playedIndices)
+  const hi = Math.max(...playedIndices)
+  return {
+    start: Math.max(0, lo - 1),
+    end: Math.min(totalSentences - 1, hi + 1),
+  }
+}
