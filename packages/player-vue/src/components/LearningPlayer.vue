@@ -4397,6 +4397,14 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   // checked above this so a still-loading scheduler never triggers a forced
   // pre-pause with nothing to land.
   if (forcePodPreviewCheat && !podPreviewFired) return true
+  // ?l1=1 preview cheat: while it's still waiting for its own shot, a
+  // same-boundary REAL pod fire must not pre-empt it — pod's normal
+  // "pods pre-empt both" priority would otherwise starve the L1 preview
+  // forever at any position where real pod cadence has already activated
+  // (default roundInterval=1 means pod is then due EVERY boundary). Never
+  // suppresses the pod PREVIEW cheat itself — if both flags are set,
+  // ?pod=1 still wins (existing precedence, checked above).
+  if (!forcePodPreviewCheat && forceLayer1PreviewCheat && !l1PreviewFired) return false
   if (isInfPlayActive.value) {
     const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
@@ -4570,10 +4578,20 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // the force to literally the first boundary silently burned the one shot
   // before any content existed to play (fixed 2026-07-22).
   const l1PreviewForced = forceLayer1PreviewCheat && !l1PreviewFired
+  // ?pod=1 preview cheat: block L1 from firing standalone while pod's own
+  // shot is still pending, even in the narrow window before podScheduler
+  // finishes initializing — podFiresThisBoundary alone can't cover that
+  // window (podCadenceFiresAtRound returns false until isInitialized), and
+  // without this an L1 lap could win a boundary that pod was armed for,
+  // exactly the "got L1 material instead of a pod" field report. Requires
+  // podScheduler to exist so a genuinely broken/absent scheduler (cheat can
+  // never fire regardless) doesn't deadlock L1 forever.
+  const podPreviewPending = forcePodPreviewCheat && !podPreviewFired && !!podScheduler
   const l1FiresThisBoundary = !!l1Scheduler
     && l1Scheduler.isInitialized.value
     && currentMode.value !== 'infplay'
     && !podFiresThisBoundary
+    && !podPreviewPending
     && (l1PreviewForced || l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1))
   // L1 now fires EVERY clean non-pod boundary (30-cup model), so suppressing
   // encouragements next to it would starve them entirely. The old "don't butt a
@@ -4675,8 +4693,13 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         // seeds → pod → single outro bookend (Tom 2026-06-16, "just segue them").
         // The standalone L1 block below is gated on !pod so it won't also fire.
         // Skipped in INF PLAY (L1 doesn't run there) — pod plays alone, as before.
+        // ALSO skipped while ?pod=1's own forced fire is in flight
+        // (podPreviewPending) — a real L1 cup segued onto the front made a
+        // clean pod-only preview read as "L1 material, dialogues after"
+        // (field report). The preview should show a PURE pod lap; segue
+        // resumes normally once the cheat has fired its one shot.
         let lapToPlay = lap
-        if (l1Scheduler && l1Scheduler.isInitialized.value && currentMode.value !== 'infplay') {
+        if (!podPreviewPending && l1Scheduler && l1Scheduler.isInitialized.value && currentMode.value !== 'infplay') {
           const l1Cup = l1Scheduler.nextLap((completedRoundIndex || 0) + 1)
           if (l1Cup && l1Cup.plays.length > 0) {
             const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
