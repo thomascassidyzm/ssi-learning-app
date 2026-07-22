@@ -28,6 +28,7 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { usePodListeningReminder } from '../composables/usePodListeningReminder'
 import { computeTurnSpans, turnSpanForIndex, podPlayShowsTurnText } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
@@ -3352,6 +3353,15 @@ const currentPodTurn = computed(() => {
     activeIndex: idx0 - span.start,
   }
 })
+// Pod listening reminder — a ONE-SHOT transient ("just listen, like
+// birdsong") shown as each pod lap starts, then faded out. Replaces the old
+// persistent hero-hint-label for pods (2026-07-22): that panel could sit on
+// screen for the whole lap and, being z-index 10 above PodTurnDisplay's 3,
+// covered the dialogue tiles on long pods. The audio's own spoken "now just
+// listen for a while" intro already carries the instruction, so the visual
+// only needs to remind, not persist. Keyed off playingPodLapAudio (set true
+// at the top of every playPodLap call) so it fires once per lap.
+const { visible: podReminderVisible } = usePodListeningReminder(playingPodLapAudio)
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
@@ -13242,15 +13252,48 @@ defineExpose({
       :active-index="currentPodTurn.activeIndex"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
       :show-romanization="showRomanization"
+      :reminder-top-inset="podReminderVisible ? 56 : 0"
     />
+
+    <!-- Pod listening reminder — ONE-SHOT transient, fades in as the pod lap
+         starts, holds ~4s, fades out. Sits in the top safe-area band that
+         PodTurnDisplay always keeps clear (reminderTopInset above widens
+         that band while this is visible), so it never competes with the
+         dialogue tiles at any dialogue length or screen size. The audio's
+         own spoken "now just listen for a while" intro carries the same
+         instruction, so once this fades the small pulsing dot below is the
+         only ongoing cue — never a persistent panel. -->
+    <Transition name="pod-reminder-fade">
+      <div
+        v-if="podReminderVisible && playingPodLapAudio"
+        class="pod-listening-reminder"
+        role="status"
+        aria-live="polite"
+      >
+        {{ passiveListeningHint }}
+      </div>
+    </Transition>
+
+    <!-- Ambient listening-mode cue — small, always-present while a pod lap
+         is playing, replacing the old persistent hint panel once it fades. -->
+    <div v-if="playingPodLapAudio && !podReminderVisible" class="pod-listening-ambient" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M12 3a7 7 0 0 0-7 7v5a2 2 0 0 0 2 2h1v-6H6v-1a6 6 0 0 1 12 0v1h-2v6h1a2 2 0 0 0 2-2v-5a7 7 0 0 0-7-7z"/>
+      </svg>
+    </div>
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
-        <!-- Inline learning hint label -->
-        <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
+        <!-- Inline learning hint label. Suppressed during pod listening
+             (playingPodLapAudio && currentPodTurn) — the dedicated
+             pod-listening-reminder transient above owns that instruction
+             now; this panel used to persist for the whole lap and, sitting
+             above PodTurnDisplay (z-index 10 vs 3), covered the dialogue
+             tiles on long pods (2026-07-22). -->
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection && !(playingPodLapAudio && currentPodTurn)" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -15947,6 +15990,68 @@ defineExpose({
   width: 12px;
   height: 12px;
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* ============ POD LISTENING REMINDER (transient, once per pod lap) ============ */
+/* Sits in the top safe-area band PodTurnDisplay always keeps clear (see its
+   reminderTopInset prop) — z-index between PodTurnDisplay (3) and the hero
+   glass pane (10) so it never competes with either. */
+.pod-listening-reminder {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  z-index: 6;
+  margin: 0 auto;
+  max-width: 26rem;
+  padding: 0.6rem 1rem;
+  background: rgba(20, 20, 24, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+.pod-reminder-fade-enter-active,
+.pod-reminder-fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.pod-reminder-fade-enter-from,
+.pod-reminder-fade-leave-to {
+  opacity: 0;
+}
+
+/* Small always-on cue while a pod lap plays, once the transient has faded —
+   tiny enough that it can never obscure the dialogue tiles. */
+.pod-listening-ambient {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  animation: pod-ambient-pulse 2.4s ease-in-out infinite;
+}
+
+.pod-listening-ambient svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes pod-ambient-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
 }
 
 /* Speaking state — subtle glow on the hero-glass itself */

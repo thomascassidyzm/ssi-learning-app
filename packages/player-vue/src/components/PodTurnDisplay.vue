@@ -30,6 +30,11 @@ const props = defineProps<{
   activeIndex: number | null
   targetLang?: string
   showRomanization?: boolean
+  /** Extra top clearance (px) to reserve while the transient pod-start
+   *  reminder banner is showing, so its text never overlaps the turn tiles
+   *  regardless of dialogue length or screen size. 0 once the reminder has
+   *  faded (the normal top padding already clears the app chrome). */
+  reminderTopInset?: number
 }>()
 
 /** One LegoBlock per atom_map entry (spoken kinds only), in target-sentence
@@ -55,10 +60,14 @@ const rows = computed(() =>
     isActive: i === props.activeIndex,
   })),
 )
+
+const topPadding = computed(() =>
+  `calc(env(safe-area-inset-top, 0px) + ${90 + (props.reminderTopInset || 0)}px)`,
+)
 </script>
 
 <template>
-  <div class="pod-turn-display">
+  <div class="pod-turn-display" :style="{ paddingTop: topPadding }">
     <div
       v-for="row in rows"
       :key="row.sentence.sentence_id || row.sentence.global_order"
@@ -87,7 +96,8 @@ const rows = computed(() =>
   align-items: center;
   justify-content: center;
   gap: 1.25rem;
-  padding: calc(env(safe-area-inset-top, 0px) + 90px) 1rem calc(env(safe-area-inset-bottom, 0px) + 110px);
+  padding: 0 1rem calc(env(safe-area-inset-bottom, 0px) + 110px);
+  transition: padding-top 0.3s ease;
   pointer-events: none;
   z-index: 3;
   overflow: hidden;
