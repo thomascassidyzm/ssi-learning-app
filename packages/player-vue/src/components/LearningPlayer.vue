@@ -29,7 +29,7 @@ import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { usePodListeningReminder } from '../composables/usePodListeningReminder'
-import { computeTurnSpans, turnSpanForIndex, podPlayShowsTurnText } from '@ssi/core/pods'
+import { podPlayShowsTurnText } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
@@ -3334,24 +3334,21 @@ const playingPodLapAudio = ref(false)
 // PodTurnDisplay's "which sentence is lit" — the SAME object driving the
 // audio call, never a separate text lookup (2026-07-14 whole-turn display).
 const currentPodPlay = ref<PodPlay | null>(null)
-// Turn spans over the pod's flat sentence list, recomputed whenever the
-// scheduler's sentence list changes (course/learner switch). Pure structure,
-// independent of which sentences a given lap actually plays.
-const podTurnSpans = computed(() => (podScheduler ? computeTurnSpans(podScheduler.podSentences.value) : []))
-// The turn containing the currently-sounding sentence, sliced for display.
-// Null while nothing is lit yet (e.g. during the intro bookend). Also null
+// Full flat pod sentence list — the backing data for the whole-dialogue
+// scroll display (PodTurnDisplay). Empty until a course/learner resolves it.
+const podScrollSentences = computed(() => (podScheduler ? podScheduler.podSentences.value : []))
+// The currently-sounding sentence's GLOBAL index into podScrollSentences.
+// Null while nothing is lit yet (e.g. during the intro bookend), also null
 // for Layer-1 listening-cup plays segued through this same pod-lap pipeline
 // (product rule 2026-07-22): Layer-1 seed plays are audio-only, never text —
-// only genuine Layer-2 pod sentences resolve a turn to show.
+// only genuine Layer-2 pod sentences resolve a position to show. Also null
+// if the index falls outside the current sentence list (defensive — a
+// mid-flight course/learner switch shouldn't ever show a stale position).
 const currentPodTurn = computed(() => {
   if (!podScheduler || !podPlayShowsTurnText(currentPodPlay.value)) return null
   const idx0 = currentPodPlay.value!.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
-  const span = turnSpanForIndex(podTurnSpans.value, idx0)
-  if (!span) return null
-  return {
-    sentences: podScheduler.podSentences.value.slice(span.start, span.end + 1),
-    activeIndex: idx0 - span.start,
-  }
+  if (idx0 < 0 || idx0 >= podScrollSentences.value.length) return null
+  return { activeIndex: idx0 }
 })
 // Pod listening reminder — a ONE-SHOT transient ("just listen, like
 // birdsong") shown as each pod lap starts, then faded out. Replaces the old
@@ -13241,17 +13238,15 @@ defineExpose({
     />
 
     <!-- Listening Pod moment (Layer 2, HISE-interleaved): the whole dialogue
-         turn currently in play, each sentence a LEGO-tile breakdown, the
-         sounding one lit. Always visible for the duration of the pod lap —
-         no VOICE_2 reveal-gating (that rule governs the SPEAKING cycle
-         above, not pod listening). Replaces Stage-0's audio breakdown
-         ladder (retired 2026-07-14, Tom + Aran). -->
+         scrolling Spotify/karaoke-style (2026-07-22, product owner decision
+         — replaces the 2026-07-14 LEGO-tile whole-turn ladder), the sounding
+         sentence at full prominence. Always visible for the duration of the
+         pod lap — no VOICE_2 reveal-gating (that rule governs the SPEAKING
+         cycle above, not pod listening). -->
     <PodTurnDisplay
       v-if="playingPodLapAudio && currentPodTurn"
-      :sentences="currentPodTurn.sentences"
+      :sentences="podScrollSentences"
       :active-index="currentPodTurn.activeIndex"
-      :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
-      :show-romanization="showRomanization"
       :reminder-top-inset="podReminderVisible ? 56 : 0"
     />
 

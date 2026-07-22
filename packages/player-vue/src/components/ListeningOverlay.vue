@@ -8,6 +8,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
+import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
@@ -2182,38 +2183,23 @@ watch(
          chain that loading/error states form. -->
     <div
       v-if="!isLoading && !error && (view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene))"
-      class="teleprompter"
+      class="teleprompter-shell"
     >
-      <div class="phrase-list">
-        <template v-for="(phrase, i) in visiblePhrases" :key="phrase.id">
-          <!-- Belt boundary marker: rendered between phrases whose beltIndex
-               differs from the previous visible phrase. Only meaningful in
-               ordered mode — shuffled would put a header between almost
-               every row, which is noise. -->
-          <div
-            v-if="mode === 'ordered' && shouldShowBeltHeader(i)"
-            class="belt-header"
-          >
-            <span class="belt-pip" :style="{ background: phrase.beltColor }"></span>
-            <span class="belt-name">{{ phrase.beltName }}</span>
-          </div>
-
-          <div
-            class="phrase-row"
-            :class="{
-              current: phrase.isCurrent,
-              past: phrase.isPast,
-              future: !phrase.isCurrent && !phrase.isPast
-            }"
-            @click.stop="handlePhraseClick(phrase.displayIndex)"
-          >
-            <!-- Small ordinal + belt pip header, anchored top of the row.
-                 Tiny, subtle — supplies the "where am I in the course"
-                 signal without competing with the phrase text. -->
-            <div v-if="phrase.legoOrdinal" class="phrase-meta">
-              <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
-              <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
-            </div>
+      <!-- Dialogues (pods): the shared Spotify/karaoke scroll display —
+           TeleprompterScroll, the SAME component main-flow's pod turn
+           display uses (extracted 2026-07-22), so both surfaces share one
+           implementation. Belt/ordinal chrome never applies to pod scenes
+           (legoOrdinal/beltIndex are always unset on pod-scene rows), so
+           only the speaker-chip + fusion-strip/gloss-pair current-row
+           treatment carries over, via the #line slot. -->
+      <div v-if="view === 'pods'" class="teleprompter">
+        <TeleprompterScroll
+          :lines="availablePhrases"
+          :current-index="currentIndex"
+          interactive
+          @select="handlePhraseClick"
+        >
+          <template #line="{ line: phrase, isCurrent }">
             <!-- Dialogue speaker chip — the conversation colouring made
                  visible. Same character = same colour across the whole pod;
                  two characters in the same scene never share a colour. -->
@@ -2224,7 +2210,7 @@ watch(
                  the sentence at its current rung — separate strips that go
                  in turn, one per chunk, each playing t·k·t·t. The sounding
                  strip is lit; the rest wait quietly. -->
-            <template v-if="phrase.isCurrent && fusionStripsFor(phrase)">
+            <template v-if="isCurrent && fusionStripsFor(phrase)">
               <div
                 v-for="(strip, si) in fusionStripsFor(phrase)"
                 :key="si"
@@ -2239,7 +2225,7 @@ watch(
                  by sentence (aligned from per-sentence data + faithful-canon
                  sentence splitting) so long turns stay matchable. Other rows
                  keep the plain paragraph. Gloss honours the eye toggle. -->
-            <template v-else-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
+            <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div class="phrase-target">{{ pair.target }}</div>
                 <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
@@ -2247,16 +2233,55 @@ watch(
             </template>
             <template v-else>
               <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
             </template>
-          </div>
-        </template>
+          </template>
+        </TeleprompterScroll>
       </div>
 
-      <!-- Play/Pause indicator -->
-      <div v-if="!(view === 'pods' && selectedScene)" class="playback-hint" :class="{ playing: isPlaying }">
-        <span v-if="isPlaying">Tap to pause</span>
-        <span v-else>Tap to play</span>
+      <!-- Core / All: belt headers + ordinal chips, plain paragraph rows. -->
+      <div v-else class="teleprompter">
+        <div class="phrase-list">
+          <template v-for="(phrase, i) in visiblePhrases" :key="phrase.id">
+            <!-- Belt boundary marker: rendered between phrases whose beltIndex
+                 differs from the previous visible phrase. Only meaningful in
+                 ordered mode — shuffled would put a header between almost
+                 every row, which is noise. -->
+            <div
+              v-if="mode === 'ordered' && shouldShowBeltHeader(i)"
+              class="belt-header"
+            >
+              <span class="belt-pip" :style="{ background: phrase.beltColor }"></span>
+              <span class="belt-name">{{ phrase.beltName }}</span>
+            </div>
+
+            <div
+              class="phrase-row"
+              :class="{
+                current: phrase.isCurrent,
+                past: phrase.isPast,
+                future: !phrase.isCurrent && !phrase.isPast
+              }"
+              @click.stop="handlePhraseClick(phrase.displayIndex)"
+            >
+              <!-- Small ordinal + belt pip header, anchored top of the row.
+                   Tiny, subtle — supplies the "where am I in the course"
+                   signal without competing with the phrase text. -->
+              <div v-if="phrase.legoOrdinal" class="phrase-meta">
+                <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
+                <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
+              </div>
+              <div class="phrase-target">{{ phrase.targetText }}</div>
+              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Play/Pause indicator -->
+        <div class="playback-hint" :class="{ playing: isPlaying }">
+          <span v-if="isPlaying">Tap to pause</span>
+          <span v-else>Tap to play</span>
+        </div>
       </div>
 
       <!-- Paused state, dialogue scenes: a soft glyph floats over the
@@ -2495,6 +2520,18 @@ watch(
 }
 
 /* Teleprompter */
+/* Outer flex slot for the active teleprompter branch (Dialogues via
+ * TeleprompterScroll, or Core/All's own markup below) — only one ever
+ * renders at a time. min-height: 0 lets the branch's own overflow-y:auto
+ * actually scroll instead of the shell growing to fit its content (the
+ * classic nested-flex-with-overflow gotcha). */
+.teleprompter-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .teleprompter {
   flex: 1;
   display: flex;
@@ -2503,6 +2540,7 @@ watch(
   padding: 0 1rem;
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
