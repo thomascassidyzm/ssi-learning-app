@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Anyone Can Teach — SSi Methodology</title>
+<meta name="description" content="A working paper on the removal of the requirement for the teacher to be the expert." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* Palette lifted verbatim from packages/player-vue/src/styles/design-tokens.css [data-theme="mist"] */
+  :root {
+    --bg-primary: #e8e3dd;
+    --bg-card: #ffffff;
+    --bg-card-hover: #faf9f8;
+    --text-primary: #2C2622;
+    --text-secondary: #4A4440;
+    --text-muted: #8A8078;
+    --text-faint: #b0a89f;
+    --border-subtle: rgba(0, 0, 0, 0.10);
+    --border-medium: rgba(0, 0, 0, 0.14);
+    --ssi-red: #c23a3a;
+    --ssi-red-dark: #9a2e2e;
+    --ssi-gold: #d4a853;
+    --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(44, 38, 34, 0.07);
+    --shadow-md: 0 2px 6px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
+    --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'Spline Sans Mono', ui-monospace, SFMono-Regular, monospace;
+    --measure: 34rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--serif);
+    font-size: 19px;
+    line-height: 1.65;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-left, 0px)) 14px max(18px, env(safe-area-inset-right, 0px));
+    background: rgba(232, 227, 221, 0.86);
+    backdrop-filter: blur(12px) saturate(1.3);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+  .brand .mark {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--ssi-red); color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--sans); font-weight: 700; font-size: 13px;
+    flex: none;
+  }
+  .brand b { color: var(--ssi-red); font-weight: 600; }
+  .eyebrow-nav {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* ---------- layout ---------- */
+  main { position: relative; }
+  .wrap {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 0 clamp(20px, 6vw, 28px);
+  }
+  section { padding: clamp(30px, 6vw, 56px) 0; }
+  section + section { border-top: 1px solid var(--border-subtle); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(48px, 9vw, 92px) 0 clamp(28px, 5vw, 44px); }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ssi-red);
+    display: block;
+    margin-bottom: 20px;
+  }
+  h1.title {
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+    font-size: clamp(36px, 8vw, 58px);
+    margin: 0 0 18px;
+    color: var(--text-primary);
+  }
+  .subtitle {
+    font-style: italic;
+    font-size: clamp(19px, 2.4vw, 22px);
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0 0 28px;
+    max-width: 32rem;
+  }
+  .status-note {
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+  }
+  .status-note b { color: var(--text-secondary); font-weight: 600; }
+
+  /* ---------- canonical callout ---------- */
+  .canon-note {
+    font-family: var(--sans);
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border-left: 3px solid var(--ssi-red);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-sm);
+    margin-top: 24px;
+  }
+  .canon-note b { color: var(--text-primary); }
+  .canon-note code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: rgba(0,0,0,0.05);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ---------- headings ---------- */
+  h2 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(24px, 4vw, 30px);
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    margin: 0 0 22px;
+    padding-top: 4px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ssi-red);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 8px;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: clamp(17px, 2.6vw, 19px);
+    letter-spacing: -0.005em;
+    color: var(--text-primary);
+    margin: 34px 0 14px;
+  }
+  h3:first-child { margin-top: 0; }
+
+  /* ---------- body text ---------- */
+  p { margin: 0 0 20px; color: var(--text-secondary); }
+  p:last-child { margin-bottom: 0; }
+  strong { color: var(--text-primary); font-weight: 600; }
+  em { color: var(--text-primary); }
+  a { color: var(--ssi-red-dark); text-decoration-color: rgba(194, 58, 58, 0.35); text-underline-offset: 2px; }
+  a:hover { color: var(--ssi-red); text-decoration-color: var(--ssi-red); }
+
+  ul.list, ol.list {
+    margin: 0 0 20px;
+    padding-left: 0;
+    list-style: none;
+  }
+  ul.list li, ol.list li {
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+  }
+  ul.list li::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 0.65em;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ssi-gold);
+  }
+  ol.list { counter-reset: item; }
+  ol.list li { counter-increment: item; }
+  ol.list li::before {
+    content: counter(item);
+    position: absolute;
+    left: 0;
+    top: -0.05em;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ssi-red);
+    width: 20px;
+  }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--border-medium);
+    margin: clamp(28px, 5vw, 44px) 0;
+  }
+
+  .footnote {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  /* ---------- provenance appendix ---------- */
+  .appendix {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: clamp(22px, 4vw, 30px);
+    box-shadow: var(--shadow-sm);
+  }
+  .appendix h2 { margin-bottom: 18px; }
+  .appendix ul.list li { color: var(--text-secondary); font-size: 17.5px; }
+  .appendix ul.list li strong { color: var(--text-primary); }
+
+  /* ---------- footer ---------- */
+  footer {
+    padding: clamp(30px, 6vw, 48px) 0 calc(40px + env(safe-area-inset-bottom, 0px));
+    text-align: center;
+  }
+  footer p {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 480px) {
+    body { font-size: 17.5px; }
+    .eyebrow-nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <a class="brand" href="/">
+      <span class="mark">S</span>
+      <span>Say<b>Something</b>in</span>
+    </a>
+    <span class="eyebrow-nav">SSi Methodology</span>
+  </div>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <span class="eyebrow">Working Paper</span>
+        <h1 class="title">Anyone Can Teach</h1>
+        <p class="subtitle">A working paper on the removal of the requirement for the teacher to be the expert.</p>
+        <p class="status-note"><b>Status:</b> Draft for Tom's edit — recompiled 2026-07-22 from the 2023 ACT white paper, the current SSi methodology corpus, and the Zenjin 2026 architecture; revised same day to ground the learning-science claims in <em>Distinction Physics</em>, Module 4: Learning. First-articulation honest: claims are stated plainly with their evidence, and the places where the evidence has moved since 2023 are marked, not smoothed over.</p>
+        <p class="canon-note"><b>Canonical home of the ACT thesis.</b> This document is the source of record for the ACT argument — the claim that a subject engine which self-sequences, self-paces, and self-assesses lets the human teaching role decompose into presence, psychological safety, and alongsideness, independent of subject expertise. The thesis is deliberately general: SSi (language) is the first instance, Zenjin (maths) the second, and any future subject engine that meets the three properties in §IV inherits the argument. Companion docs — <code>tutor-insights.md</code> (the shipped ACT tutor attention lane) and <code>metrics-architecture.md</code> (the difficulty × execution assessment layer referenced below) — implement pieces of what this paper argues for; read this one first for the why.</p>
+      </div>
+    </section>
+
+    <section id="i-thesis">
+      <div class="wrap">
+        <h2><span class="num">I.</span>The thesis</h2>
+        <p>Every conventional model of teaching bundles two different jobs into one person: knowing the subject, and being present with the learner. We have spent a century treating the first as the hard part — building teacher training, certification, and pay scales around subject expertise — and treating the second as something that comes free with the first.</p>
+        <p>Anyone Can Teach is the claim that this bundle can be taken apart. When the expertise lives in the engine — when the software knows the subject, sequences it, paces it, and assesses progress against it — the human role decomposes into what actually requires a human: presence, psychological safety, and alongsideness. None of those three requires the human to know the subject. All three are things software cannot supply.</p>
+        <p>This is not a claim that teachers don't matter. It is the opposite: it is a claim about what teachers are actually for. A teacher whose Welsh is weaker than the app's Welsh is not a compromised Welsh teacher — she is a fully equipped one, because the app was never going to need her Welsh, and the children were always going to need her.</p>
+        <p>The claim was first tested in language learning, because that is where SSi built its engine. But nothing in the argument is about language. The argument is about what a subject engine must be able to do for the human requirement to drop away — and it turns out that list is short, checkable, and now demonstrably buildable in a second subject. Section IV states the list; Zenjin, a maths engine built on the same principle, is the second instance.</p>
+      </div>
+    </section>
+
+    <section id="ii-engine">
+      <div class="wrap">
+        <h2><span class="num">II.</span>Where the expertise goes: the engine</h2>
+        <p>For ACT to be more than a slogan, the engine has to genuinely absorb the three jobs that used to justify the expert at the front of the room.</p>
+        <p>There is now a theoretical account of why those jobs are absorbable at all: <em>Distinction Physics</em>, Module 4: Learning (<a href="https://distinction-physics.vercel.app/treatise/module-4" target="_blank" rel="noopener">distinction-physics.vercel.app/treatise/module-4</a>). From two axioms — distinctions cost energy, and learners run on finite energy budgets — every learning trajectory carries an action, the total resource cost of the path from zero to competence, and a pedagogy is nothing more or less than a prescription of that trajectory: which distinctions are introduced when, which are reinforced, which migrate to automatic circuits (§4.2). The move that matters for ACT is in §4.2.6: unlike physics, nothing in learning automatically selects the least-action path. It has to be <em>chosen</em> — by a pedagogy designer, or by long empirical selection pressure on what survives. Teaching expertise, on this account, just <em>is</em> trajectory choice — and a trajectory choice, unlike presence, can be made once, written down, and compiled. That is the claim underneath everything in this section. One honesty note carried over from the treatise itself: Module 4 treats SSi as the phenomenon to be <em>explained</em>, not as proof of the theory — the design rules came first and the framework interprets them after the fact, with most of its claims explicitly tagged as interpretation rather than derivation. Citing it here explains why the methods work; it does not independently certify them.</p>
+
+        <h3>Sequencing</h3>
+        <p>The engine knows what comes next. In SSi's method, seventeen years of curriculum craft is compiled into the course itself: material is ordered by conversational impact rather than corpus frequency, front-loading the rare-but-pivotal phrases that get a learner <em>into</em> a conversation, where competence is actually finessed. Grammar is never explained; it is inferred from engineered overlap between items. Module 4 says why both halves of that are right: the overlap is chunking — hierarchical tiling that lets the learner hold a growing production range with fewer actively maintained distinctions (§4.4) — and the refusal to explain keeps the learner's limited energy on the production circuits themselves rather than on a meta-linguistic grammar module that would later have to be dismantled (§4.2.3, and note the treatise's own explanandum in §4.0: SSi learners reliably produce grammar they cannot articulate). The sequencing decisions an expert teacher would make live-in-the-room are made once, by the course author, for everyone — and they are made better, because they are made with population data rather than one classroom's worth of intuition.</p>
+
+        <h3>Pacing</h3>
+        <p>The learner owns the big dials — skip forward, skip back, speed up — and the engine does the finesse underneath: shaving milliseconds off a pause when the last five responses were quick, scheduling a struggled-with item to return slightly sooner. The return-scheduling is not a heuristic that happens to work; it is the spacing effect, and Module 4 gives its mechanism: a distinction left alone partially decays, and re-drawing a fuzzy boundary encodes it more durably than merely holding a sharp one — the effort of recovery is the point, not a cost to be avoided (§4.6). The design principle is that the learner should never feel the adaptation, like a good accompanist following a soloist. Crucially, the default lean is to consolidate strengths rather than drill weaknesses — a hard item is usually blocked by a thin surrounding map, not by lack of exposure to itself — which is precisely the judgment call a non-expert facilitator could never make and now never has to.</p>
+
+        <h3>Assessment</h3>
+        <p>The 2023 paper described waveform analysis — response time, sample length, prosody, vector-space distance between the learner's response and the expected one — as a calibrated indicator of spoken competence. That line of work is now a full architecture. Every learner has a coordinate on a two-axis plane: <em>difficulty</em> — where they are in the course, trivially objective — and <em>execution</em> — how closely their spoken response matches the model voice, measured by classical signal processing of pitch contour, rhythm, and spectral shape. No speech recognition anywhere in the pipeline: speech recognition is poor for the long-tail languages SSi serves, biased against exactly the non-native accents we teach, and it measures the wrong thing — whether a machine can guess your words, rather than whether you sound like someone who can speak the language.</p>
+        <p>Two properties of this assessment layer matter for the ACT argument specifically. First, it needs no expert judge: the signal comes from the learner's own performance against the model, continuously, invisibly, during ordinary practice — no test days, no marking, no examiner. Second, it measures things a human expert in the room largely couldn't: the headline signal is not the learner's level but the <em>curvature</em> of their trajectory — the moment a trend turns — which is what catches a quiet stall weeks before it would be visible to anyone watching. The engine even measures how accurately learners judge their own performance, by correlating their in-cycle confidence behaviour with their measured execution — distinguishing the overconfident learner from the underconfident one, who need opposite interventions.</p>
+        <p>When those three jobs are done by the engine, the person in the room is released to do the jobs the engine cannot.</p>
+      </div>
+    </section>
+
+    <section id="iii-evidence">
+      <div class="wrap">
+        <h2><span class="num">III.</span>The evidence</h2>
+
+        <h3>The 2023 pilots</h3>
+        <p>The founding demonstration was deliberately extreme. In April 2023 in Sri Lanka, Tom Cassidy — a non-native Welsh speaker who learned the language through SSi — taught Welsh to Tamil student teachers in a single day, without using Welsh in the instruction. Welsh was chosen precisely because it was maximally foreign to the room: no cognates, no exposure, no reason for anyone present to have a head start. The app was the tutor; the human pressed play and learned alongside. By the end of the day the students were producing Welsh, and their astonishment at their own production is on film — a six-minute documentary with student testimonials is on YouTube.</p>
+        <p>The point of the demonstration is easy to miss under the charm of the story. If the teacher's expertise had been load-bearing anywhere in the system, this session was designed to fail. It didn't fail. Everything the room needed from Tom — energy, safety, the visible willingness to struggle alongside — was subject-independent.</p>
+        <p>Around that demonstration sat a body of pilot work with The Tea Leaf Trust: five pilot programmes across Weligama, Nuwara Eliya, Colombo, and Kegalle District, 159 participants, with 153 reviews averaging NPS 9.2; a teacher-training workshop with 155 responses at NPS 9.1; and a dedicated ACT pilot with 25 trainee teachers at NPS 9.5. In Wales, school-based trials ran through the 2022–23 academic year alongside a partnership with the National Centre for Learning Welsh, with consistent pilot feedback that teacher workload dropped while the learning experience improved — the teacher's role having shifted to initiating the session, closing it, and holding the room in between.</p>
+
+        <h3>The honest update on the numbers</h3>
+        <p>The 2023 paper claimed B1-level Welsh within 60 hours of in-app instruction. The claim SSi now stands behind, from seventeen years of observation across thousands of learners, is: roughly <strong>30 hours</strong> to confident entry into conversation, and roughly <strong>100 hours</strong> to genuine B1-level conversational ability. These are population averages, not promises to individuals, and the variance is real. The 2023 figure should be read as early-optimistic; the 30/100 anchors are the ones with two decades of observation behind them, and they are the ones this paper carries forward. At ten minutes a day — the recommended classroom dose — 100 hours is roughly three academic years rather than two. The thesis is untouched; the timetable is honest now.</p>
+        <p>The assessment claim has been updated in the other direction — it got stronger. Rather than mapping to CEFR by algorithmic fiat, the current architecture <em>discovers</em> levels from the population: clusters in the difficulty-execution plane, anchored by the 30/100-hour internal milestones and calibrated against a small external sample of learners with known CEFR scores. The output is never a hard level — always a best-fit band with explicit confidence — and never a certification claim: it measures speaking-production fluency plus course coverage, and says so. The 2026–27 school pilots in Wales and Ireland are the calibration engine for this: each pilot pairs a learner's internal coordinate with the school's own CEFR-aligned judgment.</p>
+
+        <h3>What SSi has learned since: the class is a learner</h3>
+        <p>The most consequential post-2023 development for ACT is a reframe of what a classroom running the method actually is. When a class plays together — one teacher's device, one speaker, thirty voices responding at once — there is no way to attribute the collective audio to individual pupils, and SSi refuses to pretend otherwise. Instead, <strong>the class itself is treated as a first-class learner</strong>: it has a position in the course, a coverage rate, a record of what it has done, exactly as an individual learner does. The teacher pulls up any of their classes the way a tutor pulls up a learner.</p>
+        <p>Three things follow, all of which strengthen ACT:</p>
+        <ul class="list">
+          <li><strong>The measure of a class is coverage over wall-clock time</strong> — the rate of advance through the programme in calendar terms — not hours accumulated. A confident facilitator who says "you've got this — straight on to the next new thing," often, with the class keeping up, shows up as a fast, healthy curve. A performance lens would misread that skipping as missing data; the coverage lens reads it as the mastery signal it is. This matters for ACT because it is a metric a non-expert can both produce and understand.</li>
+          <li><strong>Teacher churn is invisible to the curve.</strong> Because progress belongs to the durable class and accrues across every session regardless of who drove it, a class can change teacher, share two, take a supply cover, or lose one entirely without breaking its record. In a world where the facilitator is not the expert, facilitators become genuinely substitutable — and the data model now reflects that.</li>
+          <li><strong>Individual attention comes from solo practice, honestly labelled.</strong> Per-pupil signals come only from homework done on the pupil's own device, never inferred from the collective classroom microphone. Where a pupil has no homework data, the system says exactly that — "keeping up in class, but we can't tell how she's actually speaking" — which is itself the teacher's lever. The facilitator doesn't assess; the facilitator notices who needs noticing, and the engine tells them.</li>
+        </ul>
+
+        <h3>The ACT tutor, live in the product</h3>
+        <p>In 2023 ACT was a programme. In 2026 it is a surface in the shipped product. At the foot of the course library in the SSi learner app<a href="#fn1">¹</a>, every ordinary learner — anyone who is not already a tutor or attached to a school — sees a quiet card-free invitation: <em>"Teach with SaySomethingin — Anyone can teach: share the language you're learning."</em> One tap starts the path from learner to tutor. There is no qualification gate, because the thesis says there is nothing to gate on: the tutor's job is presence, and the engine's job is everything else.</p>
+        <p>Behind that door, the tutor gets the attention lane: a short triage list of their learners, default-sorted by a rule-based attention score — who's gone quiet, whose execution has dropped, who's skipping back repeatedly — with a calibration chip per learner (overconfident / underconfident / well-calibrated) that shapes the <em>kind</em> of help to offer, and suggested actions in a try / investigate / celebrate grammar. Three names bubble up; the tutor acts; done. This is what supervision looks like when the engine holds the expertise: the human is pointed at the humans who need a human, with a hint about what kind of human moment is called for.</p>
+      </div>
+    </section>
+
+    <section id="iv-generalisation">
+      <div class="wrap">
+        <h2><span class="num">IV.</span>The generalisation: what any subject engine needs</h2>
+        <p>Strip the language-specific detail away and the ACT requirement on an engine is three properties:</p>
+        <ol class="list">
+          <li><strong>Self-sequencing.</strong> The curriculum, and the expertise embedded in its ordering, is compiled into the content itself. Nobody in the room decides what comes next.</li>
+          <li><strong>Self-pacing.</strong> The learner holds the coarse controls; the engine does the fine adaptation; the facilitator holds neither.</li>
+          <li><strong>Self-assessing.</strong> Progress signal is extracted from the learner's ordinary performance, continuously, without an expert judge — and rendered legibly enough that a non-expert facilitator, and the learner themselves, can act on it.</li>
+        </ol>
+        <p>Where all three hold, the expert can leave the room and nothing pedagogical is lost. What must then be <em>added back</em> is the human layer: someone who starts the session, holds it safe, and — this is the part that keeps proving itself — learns alongside. Module 4 shows why this layer is load-bearing rather than decorative. The whole variational machinery runs on one gate: the learner actually attempting production while still imperfect — BUILD phrases force automatization <em>during</em> novelty, which is where the method's efficiency comes from (§4.2.3), and imperfection tolerance is one of the observed phenomena the treatise sets out to explain (§4.0). A learner who won't risk output never starts the migration. The engine can compile the trajectory, but it cannot make a child willing to walk it in front of thirty peers; keeping that production gate open is precisely the facilitator's job, and it is subject-independent. Alongsideness is not a nice-to-have. It democratises the room, converts the authority figure into an ally, gives the facilitator first-hand feel for exactly where the material bites, and removes the psychological barrier that a fluent expert unavoidably erects between themselves and a struggling beginner. In Sri Lanka it was the alongsideness, as much as the app, that the students talked about.</p>
+
+        <h3>Zenjin: the second instance</h3>
+        <p>Zenjin is a maths engine built on the same bet, stated even more starkly: <em>the engine has no opinion about what it teaches.</em> It sees atoms, a distinction ladder, a speed signal, and a spaced-repetition schedule; "double 76" is just data poured in, and the identical code that retires a doubling fact will retire a velocity fact or a fraction fact. Content is a parameter, not a part of the machine.</p>
+        <p>Check it against the three properties:</p>
+        <ul class="list">
+          <li><strong>Self-sequencing.</strong> The curriculum is a directed graph of distinctions — stable nodes, typed edges — with prerequisite and assembly relationships encoded. A dependent item cannot debut until its prerequisites are automatic. The pedagogy is compiled in, and it is opinionated in exactly the way an expert would be: it prioritises the multiplicative and proportional relationships — ratio, doubling and halving, fractions-of, percent-of — because human cognition is a ratio-detection system, and "12 is 1.5× larger than 8" runs with the grain of the mind in a way that number-line positioning does not. No classroom facilitator could hold that thesis, let alone apply it per-child per-minute. None has to.</li>
+          <li><strong>Self-pacing and self-assessing, fused.</strong> Zenjin's competence signal is <em>speed</em>: automaticity is the migration of a distinction to cheap neural circuitry, and that migration is directly measurable as fast, reliable response. This is Module 4's automatization account taken literally as an instrument: practice migrates a distinction from expensive prefrontal circuits to cheap automatic ones — a metabolic saving of 30–50% in the motor-learning studies the treatise imports — so response speed is a direct read-out of where in that migration the distinction currently sits (§4.5). Zenjin doesn't measure something correlated with learning; it measures the energy state that Module 4 says learning <em>is</em>. An item counts as automatic only when it clears a speed-and-reliability gate, and climbing the distinction ladder — distractors narrowing from absurdly wide to genuine near-miss — is literally what unlocks the next material. Assessment, pacing, and progression are one signal. As with SSi's prosody axis, no expert judge appears anywhere in the loop.</li>
+        </ul>
+        <p>So the ACT consequence transfers whole: a parent who froze out of maths at eleven, a primary teacher who dreads the numeracy hour, a volunteer in a homework club — each can sit down next to a child, press play, and be exactly the teacher the system needs. And the alongsideness dividend may be <em>larger</em> in maths than in language, because maths is the subject where adult shame is deepest and where a grown-up visibly finding "double 76" hard-then-easy is the most powerful permission a child can receive.</p>
+        <p>Two engines, two subjects, one shared shape: a memory-formation system that drives items to automaticity against a spaced schedule, measures competence from performance itself, and compiles the expert's judgment into the content graph. The bet is that this shape is general — that the measurable world's subjects can each get an engine, and every engine that meets the three properties gets ACT for free. Module 4 is why the bet is principled rather than hopeful: the two axioms it runs on mention no subject — distinctions cost energy and budgets are finite whether the distinction is a Welsh mutation or a doubling fact. Within language, this already shows up as typological robustness — the same method holding across Welsh, Spanish, Japanese, and Irish, with the same production signature confirmed across the treatise's two audited sprints (§4.0, §4.2.5.1). The extension to maths is the same wager placed across domains instead of across languages, and Zenjin is its first result.</p>
+      </div>
+    </section>
+
+    <section id="v-implications">
+      <div class="wrap">
+        <h2><span class="num">V.</span>Implications</h2>
+        <p><strong>Teacher supply stops being the bottleneck.</strong> Cymraeg 2050 needs a million Welsh speakers and there will never be enough Welsh-speaking teachers to produce them through the conventional bundle; that arithmetic was the original motivation for ACT, and it generalises to every shortage subject — maths and physics teachers above all. ACT changes the constraint from "how many experts can we train and deploy?" to "how many rooms can we make safe and warm?" — a constraint every school already knows how to satisfy, with the staff it already has. Scarce genuine experts are then spent where expertise actually pays: authoring and refining the engines, reading the population-level signal, and handling the exceptional cases the triage surfaces.</p>
+        <p><strong>A tutor economy becomes possible.</strong> When the qualification to tutor is presence rather than credentials, the supply of tutors is the supply of enthusiastic learners a few weeks ahead of their students — which the product itself continuously produces. The card-free path in the learner app is the seed of this: learner today, tutor next month, with the engine carrying the pedagogy and the attention lane carrying the supervision. Tutoring becomes something the learning community does for itself, at a price point institutional tutoring can never reach, in languages and subjects the institutional market never serves.</p>
+        <p><strong>Schools change shape, gently.</strong> Nothing in ACT asks a school to restructure. Ten minutes a day, the form teacher presses play, and the coverage curve accrues to the class whoever is standing at the front. What changes is subtler: assessment becomes a continuous, always-on progress indicator rather than an exam event — honestly bounded, never a certification — and the leadership questions become legible in a way they have never been: which classes are advancing, at what rate, at what cost in minutes. The teacher's professional contribution is redefined upward, not downward: from content delivery, which the engine does better, to the creation of the conditions under which thirty children will risk making noises in a language they didn't know yesterday — which no engine will ever do.</p>
+        <p><strong>The deepest implication is the honest one.</strong> ACT does not claim software replaces teachers. It claims we have been mis-describing what teachers do. The expertise was always the transferable part — that's why it could be written down, trained, examined, and now compiled. The presence was always the human part. ACT is the engineering programme that finishes the separation, and the evidence so far — Sri Lanka, the Welsh trials, the shipped tutor surface, and now a second engine in a second subject — says the separation holds.</p>
+      </div>
+    </section>
+
+    <section id="footnote">
+      <div class="wrap">
+        <p class="footnote" id="fn1">¹ The 2023 paper calls the tutor "AutoMagic™"; the product is now simply the SSi learner app, and the tutoring behaviour described here is the shipped app, not a branded module.</p>
+      </div>
+    </section>
+
+    <section id="appendix">
+      <div class="wrap">
+        <div class="appendix">
+          <h2 style="margin-bottom:18px;">Appendix: provenance</h2>
+          <ul class="list">
+            <li><strong>2023 white paper</strong> — Sri Lanka pilots (159 participants, NPS 9.1–9.5), the Tamil-student-teachers demonstration, Welsh schools trials 2022–23, alongsideness, waveform assessment, the 60-hours-to-B1 claim (superseded — see §III).</li>
+            <li><strong>SSi methodology corpus, 2026</strong> — the metrics architecture (difficulty × execution, no-ASR prosody measurement, curvature-not-level, calibration signal, CEFR-via-calibration and the 30/100-hour anchors); the teaching-insights framework (attention vs coverage, the class as a first-class learner, the ACT tutor attention lane); the shipped "Anyone can teach" tutoring path in the learner app.</li>
+            <li><strong>Zenjin 2026</strong> — engine-first architecture (content is a parameter), ratio-detection pedagogy, automaticity-as-speed, the distinction ladder as the live competence gate; validated against real play sessions.</li>
+            <li><strong>Distinction Physics, Module 4: Learning</strong> (<a href="https://distinction-physics.vercel.app/treatise/module-4" target="_blank" rel="noopener">distinction-physics.vercel.app/treatise/module-4</a>) — the theoretical foundation cited throughout: the action functional over learning trajectories and pedagogy as trajectory choice (§4.2, §4.2.6); chunking (§4.4); automatization and its metabolic signature (§4.5); forgetting and the spacing effect (§4.6); the sprint audits (§4.2.5.1). Cited with its own epistemic discipline intact: the action functional is derived from the axioms; the identification of the SSi/Zenjin design rules with least-action pedagogy is interpreted, and the treatise names its falsification conditions (§4.2.5).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>SaySomethingin — Methodology</p>
+  </footer>
+
+</body>
+</html>
