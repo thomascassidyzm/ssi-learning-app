@@ -108,6 +108,14 @@ export interface PodPlay {
    *  out of the sentence's Take G render). Absent → play the whole clip. */
   startMs?: number
   endMs?: number
+  /** True iff this play was sourced from the Layer-1 listening-cup wheel
+   *  (useLayer1Scheduler's seed sandwiches) rather than a genuine Layer-2
+   *  pod sentence, and is being played through the shared pod-lap pipeline
+   *  (LearningPlayer's playPodLap). Layer-1 plays index into the seed
+   *  catalogue, not podScheduler's sentence list, so PodTurnDisplay must
+   *  never resolve a turn for them (product rule 2026-07-22: Layer-1 seed
+   *  plays are audio-only, no display text; Layer-2 pods always show text). */
+  isLayer1?: boolean
 }
 
 /** Warn-once-per-stage guard for the trailing-known defensive close, so a

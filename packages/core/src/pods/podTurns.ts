@@ -39,3 +39,16 @@ export function computeTurnSpans(sentences: readonly GluedRow[]): PodTurnSpan[] 
 export function turnSpanForIndex(spans: readonly PodTurnSpan[], index: number): PodTurnSpan | null {
   return spans.find((s) => index >= s.start && index <= s.end) ?? null
 }
+
+/**
+ * Governs whole-turn display text per exercise layer (product rule,
+ * 2026-07-22, Tom/Aran): Layer-1 listening-cup seed plays — segued through
+ * the shared pod-lap pipeline (LearningPlayer's playPodLap) — are audio-only,
+ * never text. Layer-2 pod sentences always resolve a turn and show text.
+ * `play.sentenceIdx` indexes the L1 seed catalogue, not podScheduler's
+ * sentence list, so without this guard `turnSpanForIndex` can coincidentally
+ * resolve a span and render the WRONG pod sentence's text during an L1 cup.
+ */
+export function podPlayShowsTurnText(play: { isLayer1?: boolean } | null | undefined): boolean {
+  return !!play && !play.isLayer1
+}

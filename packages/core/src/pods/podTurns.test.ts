@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeTurnSpans, turnSpanForIndex } from './podTurns'
+import { computeTurnSpans, turnSpanForIndex, podPlayShowsTurnText } from './podTurns'
 
 describe('computeTurnSpans', () => {
   it('a single sentence with no glue is its own turn', () => {
@@ -50,5 +50,21 @@ describe('turnSpanForIndex', () => {
 
   it('returns null for an out-of-range index', () => {
     expect(turnSpanForIndex(spans, 99)).toBeNull()
+  })
+})
+
+describe('podPlayShowsTurnText', () => {
+  it('shows text for a genuine Layer-2 pod play', () => {
+    expect(podPlayShowsTurnText({ isLayer1: false })).toBe(true)
+    expect(podPlayShowsTurnText({})).toBe(true)
+  })
+
+  it('suppresses text for a Layer-1 listening-cup seed play', () => {
+    expect(podPlayShowsTurnText({ isLayer1: true })).toBe(false)
+  })
+
+  it('suppresses text when there is no current play', () => {
+    expect(podPlayShowsTurnText(null)).toBe(false)
+    expect(podPlayShowsTurnText(undefined)).toBe(false)
   })
 })

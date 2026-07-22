@@ -28,7 +28,7 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
-import { computeTurnSpans, turnSpanForIndex } from '@ssi/core/pods'
+import { computeTurnSpans, turnSpanForIndex, podPlayShowsTurnText } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
@@ -3338,10 +3338,13 @@ const currentPodPlay = ref<PodPlay | null>(null)
 // independent of which sentences a given lap actually plays.
 const podTurnSpans = computed(() => (podScheduler ? computeTurnSpans(podScheduler.podSentences.value) : []))
 // The turn containing the currently-sounding sentence, sliced for display.
-// Null while nothing is lit yet (e.g. during the intro bookend).
+// Null while nothing is lit yet (e.g. during the intro bookend). Also null
+// for Layer-1 listening-cup plays segued through this same pod-lap pipeline
+// (product rule 2026-07-22): Layer-1 seed plays are audio-only, never text —
+// only genuine Layer-2 pod sentences resolve a turn to show.
 const currentPodTurn = computed(() => {
-  if (!podScheduler || !currentPodPlay.value) return null
-  const idx0 = currentPodPlay.value.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
+  if (!podScheduler || !podPlayShowsTurnText(currentPodPlay.value)) return null
+  const idx0 = currentPodPlay.value!.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
   const span = turnSpanForIndex(podTurnSpans.value, idx0)
   if (!span) return null
   return {
@@ -4563,6 +4566,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
               text: p.text,
               playbackSpeed: p.playbackSpeed,
               glueToNextChunk: false,
+              isLayer1: true,
             }))
             lapToPlay = { ...lap, plays: [...l1AsPodPlays, ...lap.plays] }
             console.log(`[LearningPlayer] Seguing L1 cup ${l1Cup.cupIndex} (${l1Cup.bucketSize} seeds) into pod lap ${lap.podRound}`)
@@ -4679,6 +4683,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           text: p.text,
           playbackSpeed: p.playbackSpeed,
           glueToNextChunk: false,
+          isLayer1: true,
         })),
       }
       await playPodLap(l1AsPodLap, false) // L1 has no ratchet — nothing to persist.
