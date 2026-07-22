@@ -21,7 +21,10 @@ import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Bump to invalidate — part of the key, old entries orphan and re-download.
-const META_VERSION = 'v1'
+// v2 (2026-07-22): devices cached before the 2026-03 ita gloss corrections were
+// still serving stale glosses ("come" → "to come"); manual bump pending
+// structural updated_at-based invalidation.
+const META_VERSION = 'v2'
 const META_DB_NAME = 'ssi-listening-meta'
 const META_STORE = 'meta'
 
