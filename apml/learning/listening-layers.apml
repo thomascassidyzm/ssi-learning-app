@@ -81,6 +81,28 @@
 # the scheduler and were deleted outright (see @ssi/core/pods/index.ts header
 # for the fuller account).
 #
+# UPDATE (2026-07-23, Tom): Layer-2 pod INTAKE is by COHORT, not by single
+# sentence. Each lap debuts a cohort of 2-3 sentences that together form a
+# coherent piece of dialogue — an exchange, never an orphan line. Cohorts are
+# pure structure over the flattened sentence list (@ssi/core/pods/
+# podCohorts.ts): TURNS (maximal speaker-aware glue_to_next chains) pack
+# greedily up to 3 sentences; a turn is never split mid-thought unless it
+# alone exceeds 3 (then balanced chunks); a cohort never straddles a
+# scene_number boundary — a new scene starts a new cohort even if that leaves
+# a cohort of 1-2. STAGE COHESION: all sentences introduced in the same lap
+# stay at the SAME stage forever — alive counting is per cohort (cohort c's
+# alive = cohort-round - c + 1), and the shared two-doors drill counter lifts
+# a cohort only as far as its least-drilled member. The pod stays ONE
+# organism: laps still replay the full accumulated content with no explicit
+# scene pauses or markers — the cohort unit itself is the punctuation.
+# Ratchet migration: course_enrollments.completed_pod_rounds keeps its
+# historical unit (sentences covered); each completed lap now snaps it to the
+# debuted cohort's end boundary (or +1 once all cohorts are in, so eternal
+# aging never freezes). Live learners migrate in place — no reset, no
+# write-time transform, old/new clients interoperate on the same row.
+# ?pod=1 / ?podview=1 previews compose whole cohorts (previews feel like
+# actual dialogue); ?podview Next/Prev steps cohort-by-cohort.
+#
 # The body of this spec below is preserved for historical context.
 # =============================================================================
 

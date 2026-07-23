@@ -15,6 +15,8 @@ interface MockState {
   bookends: any[]
   enrollment: { pod_activation_round: number | null; completed_pod_rounds: number } | null
   enrollmentUpdates: Array<Record<string, any>>
+  /** learner_pod_state rows for the two-doors exposure counter (optional). */
+  podState?: Array<{ sentence_id: string; exposures: number }>
 }
 
 function makeMockSupabase(state: MockState) {
@@ -49,12 +51,16 @@ function makeMockSupabase(state: MockState) {
         if (table === 'course_audio') {
           return Promise.resolve({ data: state.bookends, error: null }).then(cb)
         }
+        if (table === 'learner_pod_state') {
+          return Promise.resolve({ data: state.podState ?? [], error: null }).then(cb)
+        }
         return Promise.resolve({ data: null, error: null }).then(cb)
       },
     }
     return chain
   }
-  return { from: builder } as any
+  // .schema() is what PodStateStore chains through before .from().
+  return { from: builder, schema: () => ({ from: builder }) } as any
 }
 
 const podSentence = (i: number) => ({
@@ -187,7 +193,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at Phase 0: ps,trans,ps (no explainer audio → translation fallback)', async () => {
+  it('first lap (ratchet=0 → podRound=1) debuts the whole first COHORT at Phase 0 (cohort intake, Tom 2026-07-23)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -197,13 +203,15 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    // Stage 1 ("Phase 0", Tom 2026-06-10) playlist is ['ps','explainer','ps'] —
-    // explainer INSTEAD of translation. This fixture sentence has no
-    // explainer_audio_id (fully-repeat line / vocab coda upstream), so the
-    // explainer slot falls back to the TRANSLATION → ['ps','trans','ps'].
+    // The three unglued one-line fixtures pack into ONE cohort of 3 — the
+    // lap debuts an exchange, not an orphan line. Each sentence plays its
+    // full Stage-1 pattern before the next: ['ps','explainer','ps'] with no
+    // explainer_audio_id falls back to the TRANSLATION → ['ps','trans','ps'].
     // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
-    expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
+    expect(lap!.plays.map(p => p.playRole)).toEqual(
+      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3])
+    expect(lap!.plays.every(p => p.stage === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
     expect(lap!.outro?.id).toBe('outro-1')
@@ -239,8 +247,15 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(s1.find(p => p.playRole === 'explainer')).toBeUndefined()
   })
 
-  it('second lap (ratchet=1 → podRound=2) covers sentences 1 and 2 both in stage 1', async () => {
-    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 1 }
+  it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
+    // Two glued pairs → cohorts [s1+s2], [s3+s4]. Ratchet = 2 sentences
+    // covered (cohort 1 completed) → round 2: cohort 1 alive=2 (still
+    // stage 1, Phase-0 lasts 2 rounds), cohort 2 debuts at alive=1.
+    state.podSentences = [
+      { ...podSentence(1), glue_to_next: true }, podSentence(2),
+      { ...podSentence(3), glue_to_next: true }, podSentence(4),
+    ]
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -248,8 +263,72 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
+    expect(lap!.podRound).toBe(2)
     const idxs = new Set(lap!.plays.map(p => p.sentenceIdx))
-    expect(idxs).toEqual(new Set([1, 2]))
+    expect(idxs).toEqual(new Set([1, 2, 3, 4]))
+    // Cohort-mates always share a stage.
+    const stageOf = (idx: number) => new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))
+    expect(stageOf(1)).toEqual(stageOf(2))
+    expect(stageOf(3)).toEqual(stageOf(4))
+  })
+
+  it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
+    state.podSentences = [
+      { ...podSentence(1), glue_to_next: true }, podSentence(2),
+      { ...podSentence(3), glue_to_next: true }, podSentence(4),
+    ]
+    // 4 sentences covered = cohorts 1+2 completed → round 3: cohort 1
+    // alive=3 (stage 2 under Phase-0's 2-round duration), cohort 2 alive=2
+    // (stage 1). No third cohort exists — intake caps, aging continues.
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect(lap!.podRound).toBe(3)
+    const stages = (idx: number) => [...new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))]
+    expect(stages(1)).toEqual([2])
+    expect(stages(2)).toEqual([2])
+    expect(stages(3)).toEqual([1])
+    expect(stages(4)).toEqual([1])
+  })
+
+  it('two-doors lift raises a cohort only as far as its LEAST-drilled member (cohesion beats drill-ahead)', async () => {
+    // One cohort of two glued sentences. Sentence p1 was drilled hard in
+    // Listening Drill (exposures 10); p2 never (no row). The cohort must NOT
+    // fast-forward to p1's ladder position — both serve at the same stage,
+    // lifted only by min(stored)+1 = 1 → derived alive 1 wins → stage 1.
+    state.podSentences = [
+      { ...podSentence(1), id: 'p1', glue_to_next: true },
+      { ...podSentence(2), id: 'p2' },
+    ]
+    state.podState = [{ sentence_id: 'p1', exposures: 10 }]
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 0 }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect([...new Set(lap!.plays.map(p => p.stage))]).toEqual([1])
+    // Both drilled: min lift = 5+1 = 6 → whole cohort serves at alive 6
+    // together (stage 3 under durations {1:2, 2:3}).
+    state.podState = [
+      { sentence_id: 'p1', exposures: 10 },
+      { sentence_id: 'p2', exposures: 5 },
+    ]
+    const s2 = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s2.initialize()
+    const lap2 = s2.nextLap()
+    expect([...new Set(lap2!.plays.map(p => p.stage))]).toEqual([3])
   })
 
   it('omits trans plays when sentence has no known_audio_id', async () => {
@@ -350,22 +429,25 @@ describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)',
     expect(s.nextLapPreviewFallback()).toBeNull()
   })
 
-  it('finds a playable sentence when the ratchet-windowed slice has nothing (sentence 1 missing audio)', async () => {
-    // Ratchet is fresh (podRound=1 → activeCount=1) so nextLap() only ever
-    // looks at sentence 1 — which has no target_audio_id here. Real cadence
-    // and the plain preview cheat would both stay stuck forever; the
-    // fallback must reach past the window to sentence 2.
+  it('finds a playable COHORT when the ratchet-windowed slice has nothing (whole first cohort missing audio)', async () => {
+    // Ratchet is fresh (round 1 → cohort 1 only) and the entire first cohort
+    // (three unglued lines pack to one cohort of 3) has no target audio.
+    // Real cadence and the plain preview cheat would both stay stuck
+    // forever; the fallback must reach past the window to cohort 2.
     state.podSentences = [
       { ...podSentence(1), target_audio_id: null },
-      podSentence(2),
-      podSentence(3),
+      { ...podSentence(2), target_audio_id: null },
+      { ...podSentence(3), target_audio_id: null },
+      podSentence(4),
+      podSentence(5),
     ]
     const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
     await s.initialize()
     expect(s.nextLap()).toBeNull() // confirms the windowed path is genuinely stuck
     const lap = s.nextLapPreviewFallback()
     expect(lap).not.toBeNull()
-    expect(lap!.plays.every(p => p.sentenceIdx === 2)).toBe(true)
+    // The whole second cohort previews — an exchange, like a real lap.
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 5, 5, 5])
   })
 
   it('searches outward from the ratchet cursor, reaching the farthest sentence only when nothing closer is playable', async () => {
@@ -491,9 +573,10 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     // simulate "user skipped" — caller does NOT invoke markLapCompleted
     expect(s.completedPodRounds.value).toBe(3)
     expect(state.enrollmentUpdates).toEqual([])
-    // next lap is still keyed off podRound = 4 (3 + 1)
+    // Next lap is still keyed off the same ratchet: both sentences form one
+    // cohort (started) and the ratchet is 1 past its end → cohort-round 3.
     const lap = s.nextLap()
-    expect(lap!.podRound).toBe(4)
+    expect(lap!.podRound).toBe(3)
   })
 
   it('skipAhead bumps counter by N without playing', async () => {
@@ -533,7 +616,9 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     })
     await s.initialize()
     await s.markLapCompleted()
-    expect(s.completedPodRounds.value).toBe(1) // in-memory
+    // In-memory: completing the first lap covers the whole first cohort
+    // (both fixture sentences), so the sentence-unit ratchet lands on 2.
+    expect(s.completedPodRounds.value).toBe(2)
     expect(state.enrollmentUpdates).toEqual([])
   })
 })

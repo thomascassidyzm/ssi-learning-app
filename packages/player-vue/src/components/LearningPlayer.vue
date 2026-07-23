@@ -4369,8 +4369,9 @@ const startPodPreviewLap = (index: number): void => {
     const completed = await playPodLap(lap, false)
     if (myGeneration !== podPreviewGeneration) return // superseded mid-lap by Next/Prev
     if (completed && podPreviewMode) {
-      const total = podScheduler.podSentences.value.length || 1
-      startPodPreviewLap((index + 1) % total)
+      // Advance a whole COHORT (the preview lap plays one exchange, so the
+      // next lap should be the next exchange, not a sibling sentence).
+      startPodPreviewLap(podScheduler.previewCohortStep(index, 1))
     }
   })()
 }
@@ -4378,14 +4379,12 @@ const startPodPreviewLap = (index: number): void => {
 const podPreviewNext = (): void => {
   if (!podScheduler) return
   podLapCancelled.value = true
-  const total = podScheduler.podSentences.value.length || 1
-  startPodPreviewLap((podPreviewIndex.value + 1) % total)
+  startPodPreviewLap(podScheduler.previewCohortStep(podPreviewIndex.value, 1))
 }
 const podPreviewPrev = (): void => {
   if (!podScheduler) return
   podLapCancelled.value = true
-  const total = podScheduler.podSentences.value.length || 1
-  startPodPreviewLap((podPreviewIndex.value - 1 + total) % total)
+  startPodPreviewLap(podScheduler.previewCohortStep(podPreviewIndex.value, -1))
 }
 
 /**

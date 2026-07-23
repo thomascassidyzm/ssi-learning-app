@@ -12,8 +12,14 @@
  * New model — Listening Pods are an independent track with their own
  * ratchet counter (`course_enrollments.completed_pod_rounds`):
  *
- *   • Pod-round in stage maths = `completed_pod_rounds + 1`
- *   • Each completed lap → counter += 1
+ *   • The counter's unit is SENTENCES covered (its historical value — one
+ *     legacy lap introduced one sentence — so live learners migrate in
+ *     place, no reset, no write-time transform)
+ *   • Intake is by COHORT (2-3 sentence exchanges, Tom 2026-07-23): each
+ *     lap debuts one cohort; pod-round in stage maths = the cohort-round
+ *     derived via podCohortRoundFor(cohorts, counter)
+ *   • Each completed lap → counter snaps to the debuted cohort's end
+ *     boundary (or +1 once all cohorts are in, so aging never freezes)
  *   • Skipped lap → counter unchanged → same content next session
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
@@ -35,6 +41,11 @@ import {
   ROLE_SPEED,
   isTargetRole,
   buildMainStage,
+  buildPodCohorts,
+  podCohortOrdinalForIndex,
+  podCohortRoundFor,
+  podRatchetAfterLap,
+  type PodCohort,
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
@@ -163,6 +174,7 @@ const POD_ACTIVATION_CAP = 5
 interface RawPodRow {
   id: string
   global_order: number
+  scene_number?: number | null
   speaker: string | null
   target_text: string
   known_text: string
@@ -252,6 +264,7 @@ export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
         // Shared two-doors counter key — same convention the overlay uses.
         sentence_id: row.id || null,
         global_order: row.global_order,
+        scene_number: row.scene_number ?? null,
         target_text: row.target_text,
         known_text: row.known_text,
         target_audio_id: row.target_audio_id ?? null,
@@ -269,6 +282,7 @@ export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
         expanded.push({
           sentence_id: row.id ? `${row.id}:s${k}` : null,
           global_order: row.global_order + k * 0.001,
+          scene_number: row.scene_number ?? null,
           target_text: u.targetText,
           known_text: u.knownText,
           target_audio_id: u.targetAudioId,
@@ -306,7 +320,8 @@ export interface BookendAudio {
 // PodPlay now lives in ./podStageComposition (re-exported above).
 
 export interface PodLap {
-  /** Pod-round number this lap represents (= completed_pod_rounds + 1). */
+  /** Cohort-round this lap represents (podCohortRoundFor of the ratchet):
+   *  round N debuts cohort N and is the stage-aging clock. */
   podRound: number
   /** Bookend to play before the lap. Null if not generated for this course. */
   intro: BookendAudio | null
@@ -398,7 +413,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         () => Promise.all([
           supabase
             .from('listening_pod_sentences')
-            .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
+            .select('id, global_order, scene_number, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
             .eq('pod_id', `${courseCode}:pod-0`)
             .order('global_order', { ascending: true }),
           supabase
@@ -562,6 +577,22 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   // Main-stage composition lives in ./podStageComposition (buildMainStage).
 
+  // ── Cohort intake (Tom 2026-07-23) ────────────────────────────────────────
+  // Each lap introduces a COHORT of 2-3 sentences forming a coherent exchange
+  // (never straddling a scene), and every sentence introduced together stays
+  // at the SAME stage forever — alive counting is per cohort, not per
+  // sentence index. The partition is pure structure over podSentences
+  // (@ssi/core/pods podCohorts.ts); memoised on the array identity so it
+  // recomputes only when a course (re)load swaps the sentence list.
+  let cohortsCache: { rows: SchedulerPodRow[]; cohorts: PodCohort[] } | null = null
+  const getCohorts = (): PodCohort[] => {
+    const rows = podSentences.value
+    if (!cohortsCache || cohortsCache.rows !== rows) {
+      cohortsCache = { rows, cohorts: buildPodCohorts(rows) }
+    }
+    return cohortsCache.cohorts
+  }
+
   // Snapshot the live stage config — stagePlaylist keys are strings in JSON,
   // numbers in the default; normalise via `String(stage)` lookup. totalStages
   // is derived from the actual key count so admins can add or remove stages
@@ -590,41 +621,52 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const nextLap = (): PodLap | null => {
     if (podSentences.value.length === 0) return null
 
-    const podRound = completedPodRounds.value + 1
-    const TOTAL = podSentences.value.length
-    const activeCount = Math.min(podRound, TOTAL)
-    if (activeCount < 1) return null
+    const cohorts = getCohorts()
+    if (cohorts.length === 0) return null
+    // `completedPodRounds` stores SENTENCES covered (its historical unit —
+    // one legacy lap introduced one sentence). The cohort-round derives from
+    // it: round N introduces cohort N and is the stage-aging clock. Legacy
+    // mid-cohort values count their started cohort; values past the end keep
+    // aging +1 per lap (see podCohortRoundFor).
+    const podRound = podCohortRoundFor(cohorts, completedPodRounds.value)
+    const activeCohorts = Math.min(podRound, cohorts.length)
 
     const { stagePlaylistMap, stageDuration, stageDurationsMap, totalStages } = resolveStageConfig()
 
     const plays: PodPlay[] = []
     pendingExposures = []
-    for (let i = 1; i <= activeCount; i++) {
-      const sentence = podSentences.value[i - 1]
-      if (!sentence.target_audio_id) continue
+    for (let c = 1; c <= activeCohorts; c++) {
+      const cohort = cohorts[c - 1]
+      const members = podSentences.value.slice(cohort.start, cohort.start + cohort.size)
 
-      // Effective view: the derived lap-ladder position, lifted by the shared
-      // two-doors counter when Listening Drill has taken this sentence
-      // further (exposures = views COMPLETED → serve view = exposures + 1).
-      // Intake stays ratchet-driven (activeCount above) — drilling ahead
-      // never pulls a sentence into laps early, it just enters wiser.
+      // STAGE COHESION (Tom 2026-07-23): the cohort moves through the DK
+      // sequence as ONE unit — every member serves the same alive count.
+      // Derived position is the cohort's lap-ladder age; the shared two-doors
+      // counter (Listening Drill) can still lift the WHOLE cohort, but only
+      // as far as its least-drilled member (min), so drilling one line never
+      // fast-forwards its cohort-mates past their early stages. Intake stays
+      // ratchet-driven — drilling ahead never pulls a cohort into laps early.
       //
-      // No audio breakdown ladder prepends this any more (Stage-0 retired
-      // 2026-07-14, Tom + Aran — the breakdown is now the ALWAYS-VISIBLE
-      // LEGO-tile display podTurnDisplay builds from atom_map, not audio
-      // reps). Every sentence enters straight at Stage 1 on its first view.
-      const derivedAlive = podRound - i + 1
-      const stored = sentence.sentence_id ? podExposures.get(sentence.sentence_id) : undefined
-      const alive = Math.max(derivedAlive, (stored ?? 0) + 1)
+      // Every cohort enters straight at Stage 1 on its first view (Stage-0
+      // retired 2026-07-14 — the breakdown is the always-visible LEGO-tile
+      // display podTurnDisplay builds from atom_map, not audio reps).
+      const derivedAlive = podRound - c + 1
+      const storedLift = Math.min(...members.map((m) =>
+        (m.sentence_id ? (podExposures.get(m.sentence_id) ?? 0) : 0) + 1))
+      const alive = Math.max(derivedAlive, storedLift)
 
       const stageInfo = podStageFor(1, alive, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue
-      // Whole-sentence stage composition (explainer→trans fallback, end-on-target
-      // invariant, glue) is the shared builder — same code the Progression walk runs.
-      plays.push(...buildMainStage(sentence, stageInfo.stage, i, playlist))
-      if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
+      for (let k = 0; k < members.length; k++) {
+        const sentence = members[k]
+        if (!sentence.target_audio_id) continue
+        // Whole-sentence stage composition (explainer→trans fallback,
+        // end-on-target invariant, glue) is the shared builder.
+        plays.push(...buildMainStage(sentence, stageInfo.stage, cohort.start + k + 1, playlist))
+        if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
+      }
     }
     if (plays.length === 0) return null
 
@@ -653,35 +695,44 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    *
    * `startIndex` (0-based into podSentences) overrides the ratchet cursor —
    * the ?podview=1 instant preview's Next/Prev nav uses this to compose the
-   * lap for a specific sentence, still falling back outward from that index
-   * if it itself doesn't compose (missing audio, empty buildMainStage).
+   * lap for a specific COHORT (the one containing that sentence), still
+   * falling back outward cohort-by-cohort if it doesn't compose (missing
+   * audio, empty buildMainStage). Previewing whole cohorts makes the preview
+   * feel like actual dialogue — the same exchange a real lap would debut.
    */
   const nextLapPreviewFallback = (startIndex?: number): PodLap | null => {
     const TOTAL = podSentences.value.length
     if (TOTAL === 0) return null
+    const cohorts = getCohorts()
+    if (cohorts.length === 0) return null
     const { stagePlaylistMap } = resolveStageConfig()
     const playlist = stagePlaylistMap[1] || stagePlaylistMap['1']
     if (!playlist) return null
 
-    // Search outward from the ratchet cursor (nearest to "current position")
-    // so the preview shows content close to where the learner actually is,
-    // falling back to the whole course only if that immediate neighbourhood
-    // has nothing playable.
-    const cursor = Math.max(0, Math.min(startIndex ?? completedPodRounds.value, TOTAL - 1))
+    // Search outward from the cohort under the cursor (nearest to "current
+    // position") so the preview shows content close to where the learner
+    // actually is, falling back to the whole course only if that immediate
+    // neighbourhood has nothing playable.
+    const cursorSentence = Math.max(0, Math.min(startIndex ?? completedPodRounds.value, TOTAL - 1))
+    const cursor = Math.max(0, podCohortOrdinalForIndex(cohorts, cursorSentence))
     const order: number[] = [cursor]
-    for (let d = 1; d < TOTAL; d++) {
+    for (let d = 1; d < cohorts.length; d++) {
       if (cursor - d >= 0) order.push(cursor - d)
-      if (cursor + d < TOTAL) order.push(cursor + d)
+      if (cursor + d < cohorts.length) order.push(cursor + d)
     }
 
-    for (const idx of order) {
-      const sentence = podSentences.value[idx]
-      if (!sentence.target_audio_id) continue
-      const plays = buildMainStage(sentence, 1, idx + 1, playlist)
+    for (const ci of order) {
+      const cohort = cohorts[ci]
+      const plays: PodPlay[] = []
+      for (let k = 0; k < cohort.size; k++) {
+        const sentence = podSentences.value[cohort.start + k]
+        if (!sentence.target_audio_id) continue
+        plays.push(...buildMainStage(sentence, 1, cohort.start + k + 1, playlist))
+      }
       if (plays.length === 0) continue
       const hasBookends = !!(introAudio.value && outroAudio.value)
       return {
-        podRound: completedPodRounds.value + 1,
+        podRound: podCohortRoundFor(cohorts, completedPodRounds.value),
         intro: hasBookends ? introAudio.value : null,
         plays,
         outro: hasBookends ? outroAudio.value : null,
@@ -691,11 +742,29 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
-   * Advance the ratchet by 1. Call this only after the user has played the
-   * lap to completion — skipped laps must NOT call this.
+   * ?podview=1 nav helper: the start sentence-index of the cohort adjacent
+   * (dir = ±1) to the one containing `index`, wrapping at the ends — so
+   * Next/Prev step whole exchanges, matching what each preview lap plays.
+   */
+  const previewCohortStep = (index: number, dir: 1 | -1): number => {
+    const cohorts = getCohorts()
+    if (cohorts.length === 0) return 0
+    const clamped = Math.max(0, Math.min(index, podSentences.value.length - 1))
+    const cur = Math.max(0, podCohortOrdinalForIndex(cohorts, clamped))
+    const next = (cur + dir + cohorts.length) % cohorts.length
+    return cohorts[next].start
+  }
+
+  /**
+   * Advance the ratchet past the cohort this lap introduced. Call this only
+   * after the user has played the lap to completion — skipped laps must NOT
+   * call this. The stored unit stays SENTENCES covered (so legacy values and
+   * old clients interoperate on the same enrollment row); completing a lap
+   * snaps to the introduced cohort's end boundary, or ticks +1 once every
+   * cohort is in (eternal aging).
    */
   const markLapCompleted = async (): Promise<void> => {
-    completedPodRounds.value += 1
+    completedPodRounds.value = podRatchetAfterLap(getCohorts(), completedPodRounds.value)
     deferredPodPending.value = false
     await persistRatchet()
     await flushExposures()
@@ -741,7 +810,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    */
   const skipAhead = async (n: number = 1): Promise<void> => {
     if (n <= 0) return
-    completedPodRounds.value += n
+    const cohorts = getCohorts()
+    for (let i = 0; i < n; i++) {
+      completedPodRounds.value = podRatchetAfterLap(cohorts, completedPodRounds.value)
+    }
     deferredPodPending.value = false
     await persistRatchet()
   }
@@ -810,6 +882,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     shouldFireLapAt,
     nextLap,
     nextLapPreviewFallback,
+    previewCohortStep,
     prefetchLap,
     deferLap,
     markLapCompleted,

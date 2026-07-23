@@ -78,6 +78,10 @@ export interface PodSentenceRow {
   atom_map?: AtomMapEntry[] | null
   /** Speaker label (used to compute speaker-aware gaps). Optional. */
   speaker?: string | null
+  /** Scene the sentence belongs to — cohort intake never straddles a scene
+   *  boundary (podCohorts.ts). Optional: rows cached before 2026-07-23 lack
+   *  it, which just means no scene guard for that snapshot. */
+  scene_number?: number | null
 }
 
 export interface PodPlay {

@@ -77,14 +77,17 @@ describe('PodTurnDisplay — whole-dialogue scroll (2026-07-22)', () => {
   })
 
   it('midway through an accumulating lap, ALL prior played sentences stay visible above the current one', () => {
-    // The build-up is the whole point of pod dialogues: lap N plays sentences
-    // 1..N of ONE conversation (scheduler accumulation), and while sentence k
-    // is sounding, sentences 1..k-1 must still be on screen as dimmed "past"
-    // rows — not just the current turn. Wire the display exactly as
-    // LearningPlayer does: lap plays → played indices → display window slice.
+    // The build-up is the whole point of pod dialogues: lap N plays cohorts
+    // 1..N of ONE conversation (scheduler accumulation over 2-3 sentence
+    // exchanges, Tom 2026-07-23), and while sentence k is sounding, every
+    // already-played sentence — across ALL prior cohorts — must still be on
+    // screen as dimmed "past" rows, not just the current turn. Wire the
+    // display exactly as LearningPlayer does: lap plays → played indices →
+    // display window slice.
     const all = Array.from({ length: 6 }, (_, i) => row({ global_order: i + 1 }))
-    // Lap for podRound=4: sentences 1..4 each contribute plays (stage reps
-    // dedupe), midway = sentence 3 (1-based) currently sounding.
+    // Lap for cohort-round 2: cohort 1 (sentences 1-2) replays, cohort 2
+    // (sentences 3-4) debuts (stage reps dedupe); midway = sentence 3
+    // (1-based, first line of the NEW cohort) currently sounding.
     const lapPlays = [1, 1, 2, 2, 3, 3, 4].map((sentenceIdx) => ({ sentenceIdx }))
     const played = podLapPlayedSentenceIndices(lapPlays)
     expect(played).toEqual([0, 1, 2, 3])
