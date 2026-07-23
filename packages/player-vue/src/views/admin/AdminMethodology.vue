@@ -50,6 +50,14 @@ const papers: Paper[] = [
     status: 'Draft — for discussion',
   },
   {
+    title: 'How We Listen',
+    blurb:
+      'The marketing briefing for the listening layers: seed cups between rounds (audio-only), scene-based pods with the growing teleprompter, and why the visual chrome stays out of the way. The learner-facing story of the listening experience.',
+    href: '/methodology/how-we-listen.html',
+    tag: 'Briefing',
+    status: 'Draft — for discussion',
+  },
+  {
     title: 'Anyone Can Teach',
     blurb:
       'The claim that a self-sequencing, self-pacing, self-assessing engine lets the human teaching role decompose into presence, psychological safety, and alongsideness — independent of subject expertise. Sri Lanka 2023, the honest 30/100-hour update, the class as a first-class learner, and Zenjin as the second instance.',
