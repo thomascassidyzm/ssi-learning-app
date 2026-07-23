@@ -1454,7 +1454,11 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
             mainLoopCount,
           )
           if (refreshed.length > totalLoaded) {
-            const newRounds = refreshed.slice(totalLoaded) as any
+            // Diff by roundNumber against the engine's truth — slice(totalLoaded)
+            // assumes the loaded rounds are `refreshed`'s head, which breaks
+            // whenever the queue is a window at the cursor (same shear as the
+            // expandScript bug, fixed 2026-07-23).
+            const newRounds = refreshed.filter((r) => !simplePlayer.hasRound(r.roundNumber)) as any
             simplePlayer.appendRounds(newRounds)
             loadedRounds.value = refreshed as any
             // Warm up the new rounds' audio too.
@@ -1471,11 +1475,13 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
         )
-        // Diff against what SimplePlayer already has and append only
-        // the new tail. appendRounds dedupes by roundNumber so even a
-        // full-list pass is safe — but slicing keeps it cheap.
+        // Diff by roundNumber against the engine's truth. Never
+        // slice(totalLoaded): the loaded rounds are a window at the resume
+        // cursor, not `refreshed`'s head — slicing here dropped the early
+        // rounds and sheared every index-keyed read (same bug family as the
+        // expandScript fix, 2026-07-23).
         if (refreshed.length > totalLoaded) {
-          simplePlayer.appendRounds(refreshed.slice(totalLoaded) as any)
+          simplePlayer.appendRounds(refreshed.filter((r) => !simplePlayer.hasRound(r.roundNumber)) as any)
           loadedRounds.value = refreshed as any
         }
       })
