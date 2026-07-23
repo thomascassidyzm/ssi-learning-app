@@ -13530,22 +13530,27 @@ defineExpose({
       </svg>
     </div>
 
-    <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
-    <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
+    <!-- Hero-Centric Text Labels - Floating above/below the hero node.
+         Hidden for the WHOLE of any listening lap (L2 pod or L1 cup — both
+         run through playPodLap): during a lap the only permitted text
+         surface is PodTurnDisplay's teleprompter, plus the transient
+         pod-listening-reminder and the ambient dot (2026-07-23, product
+         owner report: the empty glass card rendered as a bare white pill on
+         top of the reminder banner, and the birdsong pedagogy line showed as
+         a THIRD stacked surface during the intro bookend). Layer-1 cups are
+         audio-only by product rule, so they lose nothing either. v-show, not
+         v-if — the ResizeObserver above binds to this element once at mount
+         and must survive the lap. -->
+    <div v-show="!playingPodLapAudio" ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
-        <!-- Inline learning hint label. Suppressed for the WHOLE pod lap
-             (playingPodLapAudio alone, not also gated on currentPodTurn) —
-             the dedicated pod-listening-reminder transient (then the small
-             ambient dot) owns that instruction for the entire lap, including
-             the intro-bookend window before the teleprompter resolves its
-             first turn. Gating on currentPodTurn too left that window
-             showing BOTH cues at once — the duplicate cue bug (2026-07-22
-             follow-up). This panel used to persist for the whole lap and,
-             sitting above PodTurnDisplay (z-index 10 vs 3), covered the
-             dialogue tiles on long pods (2026-07-22). -->
-        <div v-if="showLearningHint && !isIntroPhase && !showInterjection && !playingPodLapAudio" class="hero-hint-label">
+        <!-- Inline learning hint label. Lap suppression now lives on the
+             hero-text-pane's own v-if (the whole pane is hidden while
+             playingPodLapAudio) — the pod-listening-reminder transient
+             (then the small ambient dot) owns that instruction for the
+             entire lap. -->
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -13602,22 +13607,13 @@ defineExpose({
               <p v-else-if="bufferingPromptVisible" class="hero-known loading-text preparing-text">
                 {{ bufferingPromptMessage }}<span class="loading-cursor">▌</span>
               </p>
-              <!-- Suppressed while PodTurnDisplay is actively showing the turn's
-                   own LEGO-tile text (playingPodLapAudio && currentPodTurn) — this
-                   glass pane sits at the top of the screen (z-index 10, above
-                   PodTurnDisplay's 3) and a wrapped two-line message here was
-                   tall enough to cover PodTurnDisplay's top turn row when a
-                   section had a lot of text. The tiles already show what to
-                   do; this line is redundant there and only needed when no
-                   turn display is on screen (the main-cycle listening types). -->
-              <p v-else-if="inListeningContext && !(playingPodLapAudio && currentPodTurn)" class="hero-known listening-pedagogy">
+              <!-- Main-cycle listening types only (listen_intro / listening /
+                   listen_outro cycles) — pod/L1 laps never reach here, the
+                   whole hero-text-pane is hidden while playingPodLapAudio. -->
+              <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <!-- Falls through here whenever playingPodLapAudio && currentPodTurn —
-                   PodTurnDisplay already shows the turn's own text, so render
-                   nothing rather than the NEXT round's LEGO text (the stale
-                   "phrase pill" bug, Tom 2026-07-22). -->
-              <p v-else-if="!(playingPodLapAudio && currentPodTurn)" class="hero-known">{{ displayedKnownText }}</p>
+              <p v-else class="hero-known">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>

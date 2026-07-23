@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PodTurnDisplay from './PodTurnDisplay.vue'
+import { podLapPlayedSentenceIndices, podLapDisplayRange } from '@ssi/core/pods'
 import type { PodSentenceRow } from '../composables/usePodLapScheduler'
 
 Element.prototype.scrollIntoView = vi.fn()
@@ -73,5 +74,38 @@ describe('PodTurnDisplay — whole-dialogue scroll (2026-07-22)', () => {
     const wrapper = mount(PodTurnDisplay, { props: { sentences, activeIndex: 1 } })
     const current = wrapper.find('.phrase-row.current')
     expect(current.find('.phrase-known').text()).toBe('known 2')
+  })
+
+  it('midway through an accumulating lap, ALL prior played sentences stay visible above the current one', () => {
+    // The build-up is the whole point of pod dialogues: lap N plays sentences
+    // 1..N of ONE conversation (scheduler accumulation), and while sentence k
+    // is sounding, sentences 1..k-1 must still be on screen as dimmed "past"
+    // rows — not just the current turn. Wire the display exactly as
+    // LearningPlayer does: lap plays → played indices → display window slice.
+    const all = Array.from({ length: 6 }, (_, i) => row({ global_order: i + 1 }))
+    // Lap for podRound=4: sentences 1..4 each contribute plays (stage reps
+    // dedupe), midway = sentence 3 (1-based) currently sounding.
+    const lapPlays = [1, 1, 2, 2, 3, 3, 4].map((sentenceIdx) => ({ sentenceIdx }))
+    const played = podLapPlayedSentenceIndices(lapPlays)
+    expect(played).toEqual([0, 1, 2, 3])
+    const range = podLapDisplayRange(all.length, played)!
+    expect(range).toEqual({ start: 0, end: 3 })
+    const windowed = all.slice(range.start, range.end + 1)
+    const currentLocal = 2 // sentence 3, 0-based within the window
+
+    const wrapper = mount(PodTurnDisplay, { props: { sentences: windowed, activeIndex: currentLocal } })
+    const rows = wrapper.findAll('.phrase-row')
+    const texts = rows.map((r) => r.find('.phrase-target').text())
+    // Every previously played sentence renders above the current one…
+    expect(texts).toContain('target 1')
+    expect(texts).toContain('target 2')
+    expect(wrapper.findAll('.phrase-row.past').map((r) => r.find('.phrase-target').text()))
+      .toEqual(['target 1', 'target 2'])
+    // …the current one is lit…
+    expect(wrapper.find('.phrase-row.current .phrase-target').text()).toBe('target 3')
+    // …and nothing OUTSIDE the lap's played window leaks in (sentences 5-6
+    // exist in the pod but this lap never sounds them).
+    expect(texts).not.toContain('target 5')
+    expect(texts).not.toContain('target 6')
   })
 })

@@ -869,6 +869,15 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.21:
+    date: "2026-07-23"
+    title: "Pod-lap chrome cleanup — hero text pane hidden for the whole lap (one text surface rule)"
+    changes:
+      - "During ANY listening lap played through playPodLap (Layer-2 pod or Layer-1 cup), exactly ONE text surface may exist: PodTurnDisplay's TeleprompterScroll dialogue display (L2 only — L1 is audio-only), plus the one-shot transient pod-listening-reminder banner (~4s, then fades) and the small ambient listening dot. The entire hero-text-pane (hero-glass card, inline hint label, listening-pedagogy line, phase strip, guest Save-Progress nudge) is now v-show-gated on !playingPodLapAudio."
+      - "Fixes the three-stacked-surfaces report (product owner, 2026-07-23, staging via the in-app preview triggers): (1) the hero-glass card rendered as an EMPTY white pill during sentence plays — all its inner branches were correctly suppressed but the card shell itself never hid, and it sat at z-index 10 ON TOP of the reminder banner; (2) the passive-listening 'like birdsong' pedagogy line filled the card as a big text panel whenever currentPodTurn was null (every lap's intro bookend; the whole lap in ?podview single-sentence previews between sentences); (3) both stacked with the grey reminder pill showing the same instruction."
+      - "v-show (not v-if) because the pane's ResizeObserver (heroPaneBottom measurement for LegoAssembly clearance) binds to the element once at mount and must survive laps. The now-dead per-branch playingPodLapAudio guards inside the pane (hint label, listening-pedagogy, displayedKnownText stale-pill guard) were simplified away — suppression lives at the pane level."
+      - "Main-cycle listening types (listen_intro / listening / listen_outro cycles, playingPodLapAudio=false) keep the pedagogy line in the hero card — unchanged. Preview-cheat note: ?podview composes each sentence as its own single-sentence lap, so the transient reminder re-fires per sentence and no build-up accumulation is shown — a preview artifact, not the real lap shape (nextLap plays sentences 1..N accumulating)."
+
   v2.1.20:
     date: "2026-07-14"
     title: "Kill Stage 0 in main-flow pods — replaced with an always-visible whole-turn LEGO-tile display, reusing the LegoAssembly engine (founders' decision, Tom + Aran)"
@@ -1005,6 +1014,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-06-16
+## GENERATED: 2026-01-18 — Last updated: 2026-07-23
 ## APML v2.1.0
 ## ============================================================================
