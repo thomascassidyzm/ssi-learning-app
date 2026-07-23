@@ -99,6 +99,21 @@ spec player_conductor_architecture:
     being initialized — a safe no-op otherwise, same graceful-degradation
     shape as the rest of the pod/L1 stack.
 
+  dev_preview_instant_pod: |
+    ?podview=1 (dev/staging only, same envLabel gate — 2026-07-23): unlike
+    ?pod=1 above (still waits for a round boundary), hijacks every play tap
+    in handleResume straight into startPodPreviewLap — no round boundary,
+    no main-loop round ever plays. Composes via
+    podScheduler.nextLapPreviewFallback(index) (falling back to nextLap()),
+    plays through the same playPodLap used by every other pod path (no
+    parallel renderer), and auto-advances to the next sentence on natural
+    completion. A generation counter serialises Next/Prev taps
+    (podPreviewNext/podPreviewPrev in LearningPlayer.vue) against the
+    in-flight lap so cancelling mid-lap (podLapCancelled) never races two
+    concurrent playPodLap calls. nextLapPreviewFallback gained an optional
+    startIndex param (usePodLapScheduler.ts) so Next/Prev can request a
+    specific sentence instead of always the ratchet cursor.
+
   open_follow_ups: |
     - Full loadedRounds/cachedRounds mirror deletion: ~90 read/write touch
       points in LearningPlayer.vue, several with genuinely distinct

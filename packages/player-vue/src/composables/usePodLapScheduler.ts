@@ -650,8 +650,13 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    * demonstrate the format when the course has ANY pod content, independent
    * of the learner's ratchet position. Returns null only when the course's
    * pod content is empty or entirely unplayable.
+   *
+   * `startIndex` (0-based into podSentences) overrides the ratchet cursor —
+   * the ?podview=1 instant preview's Next/Prev nav uses this to compose the
+   * lap for a specific sentence, still falling back outward from that index
+   * if it itself doesn't compose (missing audio, empty buildMainStage).
    */
-  const nextLapPreviewFallback = (): PodLap | null => {
+  const nextLapPreviewFallback = (startIndex?: number): PodLap | null => {
     const TOTAL = podSentences.value.length
     if (TOTAL === 0) return null
     const { stagePlaylistMap } = resolveStageConfig()
@@ -662,7 +667,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     // so the preview shows content close to where the learner actually is,
     // falling back to the whole course only if that immediate neighbourhood
     // has nothing playable.
-    const cursor = Math.max(0, Math.min(completedPodRounds.value, TOTAL - 1))
+    const cursor = Math.max(0, Math.min(startIndex ?? completedPodRounds.value, TOTAL - 1))
     const order: number[] = [cursor]
     for (let d = 1; d < TOTAL; d++) {
       if (cursor - d >= 0) order.push(cursor - d)

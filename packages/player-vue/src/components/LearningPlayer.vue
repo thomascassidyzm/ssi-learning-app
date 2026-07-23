@@ -1268,6 +1268,16 @@ const forcePodPreviewCheat = (() => {
     return !!envLabel.value && p.has('pod')
   } catch { return false }
 })()
+// ?podview=1: instant pod preview — hijacks every play tap (handleResume)
+// into a direct pod-lap loop via startPodPreviewLap, bypassing the main
+// round pipeline entirely instead of waiting for a round boundary like
+// ?pod=1 above. Same dev/staging-only envLabel gate.
+const podPreviewMode = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return !!envLabel.value && p.has('podview')
+  } catch { return false }
+})()
 let podPreviewFired = false
 let l1PreviewFired = false
 // console.warn, not .log — production/staging/dev-alias builds strip
@@ -1278,6 +1288,7 @@ let l1PreviewFired = false
 // (content/timing problem) — see the FIRED warns at the actual play sites.
 if (forcePodPreviewCheat) console.warn('[LearningPlayer] ?pod=1 preview cheat ARMED — forcing at the first boundary that can produce a lap')
 if (forceLayer1PreviewCheat) console.warn('[LearningPlayer] ?l1=1 preview cheat ARMED — forcing at the first boundary that can produce a lap')
+if (podPreviewMode) console.warn('[LearningPlayer] ?podview=1 instant pod preview ARMED — next play tap starts a pod lap directly')
 
 // The orange ↻ reset button is a DEV-only rapid-iteration tool — too loud for
 // the staging soak build the external team sees. The env BADGE still shows on
@@ -4327,6 +4338,62 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   }
 }
 
+// ============================================
+// ?podview=1 INSTANT POD PREVIEW
+// Direct pod-lap loop through the REAL playPodLap pipeline above — no
+// round boundaries, no mocks. handleResume hijacks every play tap into
+// startPodPreviewLap instead of the main round flow (see podPreviewMode).
+// ============================================
+// 0-based index into podScheduler.podSentences — which sentence the
+// preview is currently on. Next/Prev nudge this; a completed lap
+// auto-advances it so the preview keeps demonstrating fresh content.
+const podPreviewIndex = ref(0)
+// Generation counter: a Next/Prev tap bumps this so an in-flight lap's
+// auto-advance (below) recognises it's been superseded and doesn't also
+// recurse — without this, cancelling mid-lap and requesting a new index
+// could race two playPodLap calls mutating the same currentPodPlay ref.
+let podPreviewGeneration = 0
+// The in-flight run's promise, so a superseding call can wait for the
+// cancelled lap to actually finish (playPodLap's finally block) before
+// composing and playing the next one — never two concurrent playPodLap calls.
+let podPreviewRunning: Promise<void> | null = null
+
+const startPodPreviewLap = (index: number): void => {
+  const myGeneration = ++podPreviewGeneration
+  podPreviewIndex.value = index
+  const previousRun = podPreviewRunning
+  podPreviewRunning = (async () => {
+    if (previousRun) await previousRun.catch(() => undefined)
+    if (myGeneration !== podPreviewGeneration || !podScheduler) return
+    if (!podScheduler.isInitialized.value) await podScheduler.initialize()
+    if (myGeneration !== podPreviewGeneration) return
+    const lap = podScheduler.nextLapPreviewFallback(index) ?? podScheduler.nextLap()
+    if (!lap) {
+      console.warn('[podview] no playable pod content for this course')
+      return
+    }
+    const completed = await playPodLap(lap, false)
+    if (myGeneration !== podPreviewGeneration) return // superseded mid-lap by Next/Prev
+    if (completed && podPreviewMode) {
+      const total = podScheduler.podSentences.value.length || 1
+      startPodPreviewLap((index + 1) % total)
+    }
+  })()
+}
+
+const podPreviewNext = (): void => {
+  if (!podScheduler) return
+  podLapCancelled.value = true
+  const total = podScheduler.podSentences.value.length || 1
+  startPodPreviewLap((podPreviewIndex.value + 1) % total)
+}
+const podPreviewPrev = (): void => {
+  if (!podScheduler) return
+  podLapCancelled.value = true
+  const total = podScheduler.podSentences.value.length || 1
+  startPodPreviewLap((podPreviewIndex.value - 1 + total) % total)
+}
+
 /**
  * Update belt progress based on current position in course
  * Belts are POSITION-based, not completion-based
@@ -6901,6 +6968,15 @@ const handleResume = async () => {
   // explicit stop / session-complete / unmount.
   audioEngaged.value = true
   sessionEnded.value = false
+
+  // ?podview=1 instant pod preview: every tap drives the pod-lap loop
+  // directly (startPodPreviewLap), never the main round pipeline below.
+  if (podPreviewMode) {
+    hasEverStarted.value = true
+    localStorage.setItem('ssi-has-played', 'true')
+    startPodPreviewLap(podPreviewIndex.value)
+    return
+  }
 
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
@@ -10721,12 +10797,23 @@ const expandScript = async (): Promise<number> => {
     // boundary in step with the freshly-generated script.
     if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
     if (expandedRounds.length > loadedCount) {
-      const newRounds = expandedRounds.slice(loadedCount)
+      // Diff by roundNumber against the ENGINE's truth — never slice(loadedCount).
+      // On the instant-playback resume path the loaded rounds are a WINDOW AT
+      // THE CURSOR (e.g. rounds 8-9), not the head of the regenerated array:
+      // slicing chopped off rounds 1-2 instead of the already-loaded ones, so
+      // the engine's queue was missing two early rounds while the loadedRounds
+      // mirror had all of them — every index-keyed read (currentRound, cursor
+      // saves, salient-gloss fallback) then named a round exactly that many
+      // steps EARLY. Proven live 2026-07-23: engine playing round 8 (S0003L01
+      // 'come'/'how') while the cursor wrote S0002L01 — and with the shear
+      // landing near an English-gloss neighbour, an Italian homograph like
+      // 'come' displayed the WRONG LEGO's known text ('to come').
+      const newRounds = expandedRounds.filter((r: any) => !simplePlayer.hasRound(r.roundNumber))
       // Keep cachedRounds in sync where other consumers read from it.
       cachedRounds.value = expandedRounds as any
-      // Feed the new rounds to simplePlayer. appendRounds dedupes by
-      // roundNumber so any overlap (loadSeedIfNeeded may have already
-      // added some main-loop rounds) is handled cleanly.
+      // Feed the new rounds to simplePlayer. appendRounds inserts sorted by
+      // roundNumber and shifts the engine's roundIndex for rounds landing
+      // before the playing one, so engine array and mirror stay aligned.
       simplePlayer.appendRounds(newRounds as any)
       console.log(`[LearningPlayer] Expanded script: ${loadedCount} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
       // Chain INF PLAY audio warm-up onto every expansion. Per Tom
@@ -13412,6 +13499,15 @@ defineExpose({
       :active-index="currentPodTurn.activeIndex"
       :reminder-top-inset="podReminderVisible ? 130 : 0"
     />
+
+    <!-- ?podview=1 instant preview nav — jump to a different pod sentence
+         without waiting for the current lap to finish. Cancels the in-flight
+         lap (podPreviewNext/Prev) and composes the neighbour via
+         nextLapPreviewFallback. Dev/staging-only, same gate as the cheat. -->
+    <div v-if="podPreviewMode" class="pod-preview-nav" role="group" aria-label="Pod preview navigation">
+      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewPrev" aria-label="Previous pod sentence">‹ Prev</button>
+      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewNext" aria-label="Next pod sentence">Next ›</button>
+    </div>
 
     <!-- Pod listening reminder — ONE-SHOT transient, fades in as the pod lap
          starts, holds ~4s, fades out. Sits in the top safe-area band that
@@ -16228,6 +16324,32 @@ defineExpose({
 @keyframes pod-ambient-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.85; }
+}
+
+.pod-preview-nav {
+  /* Right edge, vertically centered — every other edge is contested (top:
+     reminder banner + guest-progress-nudge; bottom: BottomNav at z-index
+     3000, which swallows clicks on anything placed there at a lower
+     z-index). This band is clear regardless of reminder/guest-nudge state. */
+  position: absolute;
+  top: 50%;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: auto;
+}
+
+.pod-preview-nav__btn {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 /* Speaking state — subtle glow on the hero-glass itself */
