@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>The Two Layers of Listening — SSi Methodology</title>
+<meta name="description" content="Listening is not a side dish in the SSi method. Two layers do two different jobs: keeping what you can already say warm, and acquiring what you can't yet." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+    --wide: 60rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* ---------- nav ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(194,58,58,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  /* ---------- layout ---------- */
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(52px, 10vw, 116px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 78px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- typography ---------- */
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+  h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .small { font-size: 16px; color: var(--ink-2); }
+  a.inline { color: var(--red-deep); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  /* ---------- cards ---------- */
+  .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+  @media (max-width: 640px) { .cards2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+  .card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+  .card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  /* ---------- arc bars ---------- */
+  .arc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; margin: 28px 0; font-family: var(--mono); font-size: 13px; }
+  .arc .row { display: grid; grid-template-columns: minmax(72px, 120px) 1fr; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .arc .row:last-child { margin-bottom: 0; }
+  .arc .label { color: var(--ink-2); letter-spacing: 0.02em; }
+  .arc .bar { height: 14px; border-radius: 7px; background: var(--paper-2); overflow: hidden; display: flex; }
+  .arc .bar i { display: block; height: 100%; background: var(--red); opacity: 0.82; }
+  .arc .legend { margin-top: 16px; display: flex; gap: 18px; color: var(--ink-3); font-size: 11.5px; letter-spacing: 0.04em; }
+  .arc .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+
+  .next { background: linear-gradient(180deg, rgba(194,58,58,0.05), rgba(194,58,58,0.02)); border: 1px solid rgba(194,58,58,0.18); border-radius: 18px; padding: clamp(22px, 4vw, 32px); margin: 30px 0 0; }
+  .next .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 10px; }
+  .next p { margin: 0; font-size: 17px; }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/methodology/" class="backlink" aria-label="All methodology papers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All papers
+  </a>
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Public explainer</span>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Listening</span>
+      <h1>Two layers,<br /><em>two different jobs.</em></h1>
+      <p class="lede">Listening is not a side dish in the SSi method. It does two distinct jobs, and they must never be confused: <strong>keeping warm what you can already say</strong>, and <strong>acquiring what you can't yet</strong>.</p>
+      <div class="meta-row">
+        <span><b>Status:</b> both layers live in the app</span>
+        <span><b>Read:</b> ~4 minutes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. THE INSIGHT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">01 · The insight</span>
+      <h2>After the drilling stops, the ears take over</h2>
+      <p class="dek">Once a phrase has been through the full production mill, you don't need to keep drilling it. You need to keep hearing it.</p>
+
+      <p>The core of the SSi method is production: you hear a prompt in your own language, and you say the answer in the new one, out loud, before the model voice does. Every phrase gets pushed through that cycle on a spaced schedule that stretches out over time — harder-won repetitions, further and further apart — until the schedule runs dry.</p>
+
+      <p>The question is what happens then. The conventional answer is "review": haul the phrase back and drill it again, forever. Our observation, from years of building and using these courses ourselves, is that this is wasted effort. <strong>Once something has been thoroughly produced, listening alone is enough to keep the memory alive.</strong> The active work built the connection; passive exposure maintains it — at a fraction of the cognitive cost.</p>
+
+      <p>That single observation splits listening into two layers:</p>
+
+      <div class="cards2">
+        <div class="card">
+          <span class="k">Layer 1 · Reactivation</span>
+          <h4>Keep it warm</h4>
+          <p>Replays of sentences you have already learned to produce. No prompts, no pressure — just the sound, keeping the listening channel warm on material you've stopped actively practising. A little dose at the end of every round of practice.</p>
+        </div>
+        <div class="card">
+          <span class="k">Layer 2 · Acquisition</span>
+          <h4>Stretch beyond</h4>
+          <p>Conversational listening — natural, podcast-style material that deliberately goes <em>beyond</em> what you've been taught. As long as it's comprehensible, exposure to new language drives acquisition directly. This is not revision; it's how you grow.</p>
+        </div>
+      </div>
+
+      <p>The Layer 2 point deserves stressing, because it runs against the instinct of most course design: acquisition listening does <strong>not</strong> need to be restricted to vocabulary you already know. Comprehensibility is the gate, not coverage. If you can follow it, it's feeding you.</p>
+    </div>
+  </section>
+
+  <!-- 2. CAPACITY VS EFFORT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">02 · The deeper pattern</span>
+      <h2>Productive capacity vs productive effort</h2>
+      <p class="dek">There is a tipping point in every learner's journey, and the method's balance shifts with it.</p>
+
+      <p>This came out of our own founder's experience learning Irish with the method. Early on, heavy production work is exactly right — you are building <em>productive capacity</em>, the raw ability to open your mouth and have the language come out. But once that capacity exists, you no longer need intensive <em>productive effort</em> with every new item. The machinery is built; new material starts to stick from exposure alone.</p>
+
+      <p class="pull">Once you can produce, you don't need to sweat every new phrase into existence. <em>Wider listening becomes the key.</em></p>
+
+      <p>The exact tipping point varies from learner to learner, but the shape is universal, and it means the method's balance is not fixed — it's an arc:</p>
+
+      <div class="arc" role="img" aria-label="As a learner progresses, the balance shifts from mostly speaking practice to mostly listening">
+        <div class="row"><span class="label">Early</span><div class="bar"><i style="width:80%"></i></div></div>
+        <div class="row"><span class="label">Middle</span><div class="bar"><i style="width:60%"></i></div></div>
+        <div class="row"><span class="label">Later</span><div class="bar"><i style="width:30%"></i></div></div>
+        <div class="row"><span class="label">Advanced</span><div class="bar"><i style="width:15%"></i></div></div>
+        <div class="legend"><span><span class="sw" style="background:var(--red);opacity:.82"></span>speaking practice</span><span><span class="sw" style="background:var(--paper-2)"></span>listening</span></div>
+      </div>
+
+      <p>For an advanced learner, listening isn't maintenance on the side of the real work. <strong>It is the primary acquisition channel.</strong> The prompt-and-response engine that carried you from zero hands the baton to your own ears.</p>
+    </div>
+  </section>
+
+  <!-- 3. NO TEXT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">03 · A deliberate absence</span>
+      <h2>No text on the screen</h2>
+      <p class="dek">The most requested feature we will keep refusing.</p>
+
+      <p>During listening, the app shows you nothing to read. This is not an oversight. Reading along <em>feels</em> helpful because it removes effort — and removing that effort is precisely what slows acquisition down. Your eyes will happily do the work your ears were supposed to be training. People love to remove effort, and take longer to acquire the language as the price.</p>
+
+      <p>It's the same principle that runs through the whole player: the screen is theatre; <strong>the ears do the work</strong>. In the practice cycle, you never see the target text until after you've spoken. In listening, you never see it at all.</p>
+    </div>
+  </section>
+
+  <!-- NEXT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">Go deeper</span>
+      <h2>How Layer 1 actually runs</h2>
+      <div class="next">
+        <span class="k">Companion paper</span>
+        <p>The reactivation layer runs as a wheel of thirty little "cups" of listening, one poured at the end of every round — each sentence wrapped in a comprehensible-input sandwich. The full design, including the wrong turns we took on the way, is in <a class="inline" href="/methodology/listening-cups.html">Little and Often: the 30-Cup Wheel</a>.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · The Two Layers of Listening — public methodology explainer<br />
+    Part of the open SSi methodology series · <a class="inline" href="/methodology/">all papers</a><br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>

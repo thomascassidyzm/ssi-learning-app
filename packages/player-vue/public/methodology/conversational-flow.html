@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Hitting the Ground Running in Conversation #1 — SSi Methodology</title>
+<meta name="description" content="An open question we're working on: by day 45 a learner has the ingredients for their first conversation. What's missing isn't vocabulary — it's rehearsed flows for running a live conversation." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(194,58,58,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  .hero { padding: clamp(52px, 10vw, 116px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 78px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+  h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .small { font-size: 16px; color: var(--ink-2); }
+  a.inline { color: var(--red-deep); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+  @media (max-width: 640px) { .cards2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+  .card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+  .card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  .dialogue { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px 26px; margin: 28px 0; }
+  .dialogue .turn { margin-bottom: 14px; }
+  .dialogue .turn:last-child { margin-bottom: 0; }
+  .dialogue .who { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 3px; }
+  .dialogue .say { font-family: var(--display); font-size: 19px; }
+
+  .openq { background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; margin: 30px 0; }
+  .openq .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 12px; }
+  .openq p, .openq li { font-size: 16.5px; }
+  .openq p:last-child { margin-bottom: 0; }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/methodology/" class="backlink" aria-label="All methodology papers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All papers
+  </a>
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Open thinking — deliberately unfinished</span>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">An open question</span>
+      <h1>Hitting the ground running in <em>conversation&nbsp;#1.</em></h1>
+      <p class="lede">By day 45, a learner has the ingredients for their first real conversation — and won't crash on the pleasantries. The gap we've found is subtler: <strong>not missing words, but missing flows</strong>. This page is thinking in progress, published before it's finished, because that's how the method has always been built.</p>
+      <div class="meta-row">
+        <span><b>Status:</b> open design question — not yet built</span>
+        <span><b>Read:</b> ~4 minutes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. THE OBSERVATION -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">01 · The observation</span>
+      <h2>Day 45 of Croatian</h2>
+      <p class="dek">The best test data we have is ourselves. One of our founders learns a new language with the method every couple of years, from zero, and reports from the inside.</p>
+
+      <p>Forty-five days into Croatian, the report was precise. The functional blocks were cold-solid: name, greetings, "nice to meet you", the on-ramp material a first conversation opens with. Listening practice had drilled them; no crash coming there.</p>
+
+      <p>The felt gap was the moment <em>inside</em> the conversation — the live scramble of <em>"okay, what can I say… I'm going to go for it… I'm not sure… I want… I can't remember."</em> Every ingredient needed for that moment was already in the course. What was missing was the rehearsed experience of <strong>running</strong> a conversation with them: managing it, steering it, surviving its wobbles — rather than completing one prompt–response cycle at a time.</p>
+
+      <p class="pull">The gap isn't in the <em>ingredients</em>. It's in the <em>flows</em>.</p>
+
+      <p>Worth saying plainly: this is not make-or-break. The first real conversation does enormous heavy lifting all by itself — two hours in-country and a learner at this stage will be doing really well by the end of them. This is about arriving at that conversation already warmed up. Cherries on the cake — but real cherries.</p>
+    </div>
+  </section>
+
+  <!-- 2. THE CANDIDATE MECHANISMS -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">02 · Candidate mechanisms</span>
+      <h2>Two ideas on the table</h2>
+      <p class="dek">Neither is settled. Both are the kind of thing the method can test properly, so we will.</p>
+
+      <h3>Conversational connective tissue</h3>
+      <p>Today's practice runs prompts as independent cycles. The idea: pair them, so the learner rehearses the <em>glue</em> of a conversation — stall-handling, topic-offering, keeping a turn alive — not just the answers. For example:</p>
+
+      <div class="dialogue">
+        <div class="turn"><span class="who">You</span><span class="say">"Now we've started talking — I'm not sure what to say."</span></div>
+        <div class="turn"><span class="who">Them</span><span class="say">"It's okay, take your time. Would you like to talk about fish?"</span></div>
+      </div>
+
+      <p>That exchange teaches nothing new lexically. What it rehearses is the <strong>move</strong>: being stuck, saying so in the language, and being handed a way forward. Learners who have practised being stuck don't freeze when it happens for real.</p>
+
+      <h3>Prompts in the target language — with three right answers</h3>
+      <p>The engine knows exactly what a learner has covered. So by a few hours in, it can ask a question <em>in the target language</em> that the learner will recognise — because they've drilled answers to it many times. The snag is that a real question has no single right answer. The resolution we like: don't pretend it does. The learner says <em>something</em> — and then hears <em>"you could have said any of these three"</em>, and those three model answers become a listening exercise. The attempt and the feedback loop into each other.</p>
+    </div>
+  </section>
+
+  <!-- 3. THE UNRESOLVED CUT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">03 · What's genuinely unresolved</span>
+      <h2>Where does the fix live?</h2>
+      <p class="dek">The honest state of the thinking, stated as a fork.</p>
+
+      <div class="cards2">
+        <div class="card">
+          <span class="k">Locus A</span>
+          <h4>In the speaking practice</h4>
+          <p>Prime for conversation inside the prompt cycles themselves — paired prompts, connective tissue, target-language questions.</p>
+        </div>
+        <div class="card">
+          <span class="k">Locus B</span>
+          <h4>In the listening</h4>
+          <p>Escalate the conversational listening material toward full model flows — hear whole conversations being <em>run</em>, wobbles and all, before you run one.</p>
+        </div>
+      </div>
+
+      <p>There's a third suspicion behind both: the course material carries plenty of what the <em>learner</em> says, and rather less of what the <em>other person</em> says — the questions they'll ask you, the encouragement they'll offer, the way they'll hand you a topic. Any full answer probably grows that side too.</p>
+
+      <div class="openq">
+        <span class="k">How this gets resolved</span>
+        <p>Not by theorising. The method's instrument for questions like this is the intensive self-test: a founder takes a brand-new language into a compressed run, and the design question rides along as something to <em>observe</em>, not argue about. This question is queued for exactly that. Until then it stays deliberately unformed — publishing it in this state is the point. An approach that only shows its finished answers isn't showing you its method.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · Hitting the Ground Running — public methodology think-piece<br />
+    Part of the open SSi methodology series · <a class="inline" href="/methodology/">all papers</a><br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>

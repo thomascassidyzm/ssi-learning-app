@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Little and Often: the 30-Cup Wheel — SSi Methodology</title>
+<meta name="description" content="How SSi's maintenance listening works: thirty little cups of listening, one poured at the end of every round, each sentence wrapped in a comprehensible-input sandwich." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(194,58,58,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  .hero { padding: clamp(52px, 10vw, 116px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 78px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+  h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .small { font-size: 16px; color: var(--ink-2); }
+  a.inline { color: var(--red-deep); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+  @media (max-width: 720px) { .cards3 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+  .card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+  .card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  /* sandwich diagram */
+  .sandwich { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px; margin: 28px 0; }
+  .sandwich .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .sandwich .slots { grid-template-columns: 1fr 1fr; } }
+  .sandwich .slot { border: 1px solid var(--line); border-radius: 10px; padding: 14px 12px; text-align: center; }
+  .sandwich .slot.known { background: rgba(var(--gold), 0.12); }
+  .sandwich .slot .r { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 6px; }
+  .sandwich .slot b { font-family: var(--display); font-size: 17px; }
+  .sandwich .slot .sp { font-family: var(--mono); font-size: 11.5px; color: var(--red); display: block; margin-top: 6px; }
+  .sandwich .cap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-top: 14px; letter-spacing: 0.03em; }
+
+  .story { background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; margin: 30px 0; }
+  .story .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 12px; }
+  .story p { font-size: 17px; }
+  .story p:last-child { margin-bottom: 0; }
+
+  .next { background: linear-gradient(180deg, rgba(194,58,58,0.05), rgba(194,58,58,0.02)); border: 1px solid rgba(194,58,58,0.18); border-radius: 18px; padding: clamp(22px, 4vw, 32px); margin: 30px 0 0; }
+  .next .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 10px; }
+  .next p { margin: 0; font-size: 17px; }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/methodology/" class="backlink" aria-label="All methodology papers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All papers
+  </a>
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Public explainer</span>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Listening · Layer 1</span>
+      <h1>Little and often:<br /><em>the 30-cup wheel.</em></h1>
+      <p class="lede">Maintenance listening used to arrive as a rare ten-minute block. Now it arrives as <strong>a minute at the end of every round</strong> — thirty little cups of listening on a wheel, one poured each round, each sentence served in a sandwich that carries its own meaning.</p>
+      <div class="meta-row">
+        <span><b>Status:</b> live in the app</span>
+        <span><b>Read:</b> ~4 minutes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. THE WHEEL -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">01 · The shape</span>
+      <h2>Thirty cups, one pour per round</h2>
+      <p class="dek">A dose small enough to never feel like an interruption, frequent enough to never let the material go cold.</p>
+
+      <p>Picture thirty cups on a wheel. At the end of every round of speaking practice, one cup is poured: roughly a minute of listening. Over thirty rounds the wheel turns full circle, then starts again. That's the whole rhythm — <strong>little and often</strong>, woven into the practice itself, instead of an occasional listening session you have to remember to do.</p>
+
+      <p>What goes in the cups? Sentences you have already fully met — every part of them introduced and produced. The cups fill gradually as you advance:</p>
+
+      <ul class="clean">
+        <li>Nothing fires until you've met your first thirty sentences. Listening earns its place; it never front-runs the speaking.</li>
+        <li>From there, every further thirty sentences you're introduced to adds one sentence to every cup — the doses grow as your repertoire grows.</li>
+        <li>The wheel tops out at twenty sentences per cup. On a long course, the listening layer deliberately maintains the foundational material; the newest sentences are still being carried by active practice and don't need it yet.</li>
+      </ul>
+
+      <p>And when a course ends — no new material arriving — the wheel simply keeps turning over what it holds. Steady background maintenance, forever. That's not a limitation; it's the design. Fluency in what you know beats a fading acquaintance with more.</p>
+    </div>
+  </section>
+
+  <!-- 2. THE SANDWICH -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">02 · The serving</span>
+      <h2>The comprehensible-input sandwich</h2>
+      <p class="dek">Every sentence in the cup plays four times — and the second play is the one doing the quiet heavy lifting.</p>
+
+      <div class="sandwich" role="img" aria-label="Four plays per sentence: target language, then your own language, then target again, then target at double speed">
+        <div class="slots">
+          <div class="slot"><span class="r">1 · target</span><b>Hear it</b><span class="sp">1× · voice one</span></div>
+          <div class="slot known"><span class="r">2 · your language</span><b>Hear its meaning</b><span class="sp">1×</span></div>
+          <div class="slot"><span class="r">3 · target</span><b>Hear it, understood</b><span class="sp">1× · voice two</span></div>
+          <div class="slot"><span class="r">4 · target</span><b>Stretch</b><span class="sp">2× speed</span></div>
+        </div>
+        <p class="cap">One sandwich per sentence, in cup order. No text on screen at any point.</p>
+      </div>
+
+      <p>Hear the sentence. Hear what it <em>means</em>, in your own language. Hear the sentence again — now understood. Then once more at double speed, a stretch rep that pulls your ear ahead of comfortable. The middle slot is what makes the input <strong>comprehensible</strong>: without it, a replayed sentence is just sound; with it, every replay lands as meaning.</p>
+
+      <p class="pull">The 2× play isn't showing off. Train the ear faster than real life, and real life starts to sound <em>slow</em>.</p>
+    </div>
+  </section>
+
+  <!-- 3. THE WRONG TURNS -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">03 · Working in the open</span>
+      <h2>Why the meaning came back</h2>
+      <p class="dek">We publish the wrong turns too, because the wrong turns are where the design earns its shape.</p>
+
+      <div class="story">
+        <span class="k">What actually happened</span>
+        <p>The cup went through several target-only designs first: a decay ladder where each sentence sped up as it aged; a flat once-slow-once-fast pour; then a slow-only version, on the theory that fast replays without scaffolding were just fast noise.</p>
+        <p>Road-testing showed the real problem was deeper than speed. A sentence pulled out of its conversation has no surrounding flow to infer meaning from — so pure target-language replays, at <em>any</em> speed, teach nothing once the memory has faded even slightly. The fix wasn't a speed. It was restoring the meaning: the sandwich, with your own language in the middle. The moment that slot came back, the whole layer started doing its job.</p>
+      </div>
+
+      <p>One refinement is still arriving: the sentences in each cup are being regrouped into <strong>authored clusters</strong> — linguistically curated sets, chosen by a human course author so that each cup quietly reinforces a pattern rather than being an arbitrary handful. The wheel runs today with a sensible automatic grouping; the authored clusters slot in as they're written, course by course.</p>
+    </div>
+  </section>
+
+  <!-- NEXT -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">Go wider</span>
+      <h2>Where this fits</h2>
+      <div class="next">
+        <span class="k">Companion paper</span>
+        <p>The 30-cup wheel is Layer 1 of a two-layer listening design — the <em>reactivation</em> layer. Layer 2 is acquisition: conversational listening that deliberately goes beyond what you've been taught. The two-layer argument, and why listening becomes the primary channel for advanced learners, is in <a class="inline" href="/methodology/listening-layers.html">The Two Layers of Listening</a>.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · Little and Often: the 30-Cup Wheel — public methodology explainer<br />
+    Part of the open SSi methodology series · <a class="inline" href="/methodology/">all papers</a><br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>
