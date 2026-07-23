@@ -578,8 +578,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   // Main-stage composition lives in ./podStageComposition (buildMainStage).
 
   // ── Cohort intake (Tom 2026-07-23) ────────────────────────────────────────
-  // Each lap introduces a COHORT of 2-3 sentences forming a coherent exchange
-  // (never straddling a scene), and every sentence introduced together stays
+  // Each lap introduces a COHORT — one ENTIRE scene (scene_number group,
+  // ruling of 2026-07-23 afternoon) — and every sentence introduced together stays
   // at the SAME stage forever — alive counting is per cohort, not per
   // sentence index. The partition is pure structure over podSentences
   // (@ssi/core/pods podCohorts.ts); memoised on the array identity so it

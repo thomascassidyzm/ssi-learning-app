@@ -1,21 +1,21 @@
 /**
  * podCohorts.ts — group a pod's flat, ordered sentence list into intake
- * COHORTS: the 2-3 sentence chunks a lap introduces together (product ruling,
- * Tom 2026-07-23). A lap no longer debuts one orphan line — it debuts a
- * coherent piece of dialogue (an exchange), and every sentence introduced in
- * the same lap stays at the SAME stage as its cohort-mates forever (stage
- * cohesion: the cohort moves through the DK sequence as one unit).
+ * COHORTS: the chunk of dialogue a lap introduces together. Product ruling
+ * (Tom 2026-07-23 afternoon): a cohort is one ENTIRE scene (scene_number
+ * group). The earlier 2-3 sentence greedy packing split adjacency pairs —
+ * a cohort could end on the question and deliver the reply next lap — so
+ * the cap and all turn-splitting logic are gone. Scenes are authored to
+ * start simple, so early cohorts are naturally small.
  *
- * Cohort formation uses the structure that exists in the data:
- *   • TURNS — maximal glue_to_next chains (computed speaker-aware by
- *     flattenPodRows: split siblings always glue, same-speaker paragraphs
- *     glue, a speaker change breathes). A turn is never split mid-thought
- *     unless it alone exceeds the cohort cap (then it splits into balanced
- *     chunks of ≤3 — unavoidable).
- *   • SCENES — a cohort never straddles a scene_number boundary; a new scene
- *     starts a new cohort even if that leaves a cohort of 1-2.
- *   • PACKING — consecutive turns within a scene pack greedily up to 3
- *     sentences (a 1-line turn + its 1-2 line reply = an adjacency pair).
+ * Every sentence introduced in the same lap stays at the SAME stage as its
+ * cohort-mates forever (stage cohesion: the cohort moves through the DK
+ * sequence as one unit). The partition stays PURE — it depends only on the
+ * course content, never on learner state, so every client derives the
+ * identical cohorts from the same rows.
+ *
+ * Rows with a missing scene_number (legacy cached content) never force a
+ * break: they join the scene run in progress, and an all-null list is one
+ * cohort.
  *
  * The pod stays ONE organism: laps still replay the full accumulated content
  * with no explicit scene markers — the cohort unit itself is the punctuation.
@@ -27,70 +27,42 @@
  */
 
 export interface PodCohortRow {
-  glue_to_next?: boolean | null
   scene_number?: number | null
 }
 
 export interface PodCohort {
   /** 0-based start index into the sentence array. */
   start: number
-  /** Number of sentences (1-3; 1 only when the data forces it). */
+  /** Number of sentences in the scene. */
   size: number
 }
-
-/** Max sentences per cohort (the ruling's "2-3"). */
-export const POD_COHORT_MAX = 3
 
 /** Same-scene test: rows with a missing scene_number never force a break. */
 const sameScene = (a: number | null | undefined, b: number | null | undefined): boolean =>
   a == null || b == null || a === b
 
-/** Split an oversized turn into balanced chunks of ≤POD_COHORT_MAX
- *  (4 → 2+2, 5 → 3+2, 7 → 3+2+2). */
-const balancedChunks = (n: number): number[] => {
-  const k = Math.ceil(n / POD_COHORT_MAX)
-  const base = Math.floor(n / k)
-  const rem = n % k
-  return Array.from({ length: k }, (_, i) => base + (i < rem ? 1 : 0))
-}
-
 /**
- * Compute the cohort partition over an ordered sentence list. Pure — the
- * partition depends only on the course content, never on learner state, so
- * every client derives the identical cohorts from the same rows.
+ * Compute the cohort partition over an ordered sentence list: one cohort per
+ * scene (maximal run of rows whose scene_number agrees, nulls joining the
+ * run in progress).
  */
 export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
-  // 1. Turns: maximal glue chains that never cross a scene boundary.
-  const turns: Array<{ start: number; size: number; scene: number | null }> = []
-  let start = 0
-  for (let i = 0; i < rows.length; i++) {
-    const next = rows[i + 1]
-    const chains = !!rows[i].glue_to_next && !!next &&
-      sameScene(rows[i].scene_number, next.scene_number)
-    if (!chains) {
-      turns.push({ start, size: i - start + 1, scene: rows[start].scene_number ?? null })
-      start = i + 1
-    }
-  }
-
-  // 2. Pack turns into cohorts of ≤3 sentences, scenes never straddled.
   const cohorts: PodCohort[] = []
-  let cur: { start: number; size: number; scene: number | null } | null = null
-  let cursor = 0
-  const flush = () => { if (cur) { cohorts.push({ start: cur.start, size: cur.size }); cur = null } }
-  for (const turn of turns) {
-    cursor = turn.start
-    for (const size of balancedChunks(turn.size)) {
-      if (cur && cur.scene === turn.scene && cur.size + size <= POD_COHORT_MAX) {
-        cur.size += size
-      } else {
-        flush()
-        cur = { start: cursor, size, scene: turn.scene }
-      }
-      cursor += size
+  let start = 0
+  // Scene identity of the current run — the last non-null scene_number seen,
+  // so a null row bridges rather than resets (…1, null, 1… stays one scene,
+  // …1, null, 2… breaks at the 2).
+  let scene: number | null = null
+  for (let i = 0; i < rows.length; i++) {
+    const sc = rows[i].scene_number ?? null
+    if (i > start && !sameScene(scene, sc)) {
+      cohorts.push({ start, size: i - start })
+      start = i
     }
+    if (sc != null) scene = sc
+    else if (i === start) scene = null
   }
-  flush()
+  if (rows.length > start) cohorts.push({ start, size: rows.length - start })
   return cohorts
 }
 

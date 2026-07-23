@@ -19,7 +19,7 @@
   omit it and the default target+known+speaker-chip rendering applies.
 -->
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 
 export interface TeleprompterLine {
   id: string | number
@@ -88,19 +88,49 @@ const visibleLines = computed(() => {
 // container's worth of blank space on each side (padBlockVh), so short lists
 // or a non-centre anchor would drift. Computing the offset directly keeps the
 // anchor position consistent regardless of list length or anchorFraction.
-const scrollCurrentIntoView = () => {
+//
+// offsetTop is measured from the offsetParent, so .teleprompter itself must
+// be positioned (position: relative below) — when it wasn't, the nearest
+// positioned ancestor was the CALLER's absolutely-positioned wrapper and the
+// wrapper's top PADDING inflated every offset, over-scrolling the current row
+// clean under the app's top chrome (2026-07-23 staging report: teleprompter
+// obscured by the belt pill).
+const scrollCurrentIntoView = (behavior: ScrollBehavior = 'smooth') => {
   const container = rootEl.value
   const current = container?.querySelector('.phrase-row.current') as HTMLElement | null | undefined
   if (!container || !current) return
   const targetTop = current.offsetTop + current.offsetHeight / 2 - container.clientHeight * props.anchorFraction
-  container.scrollTo({ top: targetTop, behavior: 'smooth' })
+  container.scrollTo({ top: targetTop, behavior })
 }
 
 watch(() => props.currentIndex, async () => {
   await nextTick()
   scrollCurrentIntoView()
 })
-onMounted(() => { void nextTick(scrollCurrentIntoView) })
+// First anchor is INSTANT and runs before the browser paints (mounted +
+// nextTick both flush pre-paint): the very first visible frame already has
+// the current row at its anchor. With the old smooth first scroll the row
+// painted at scrollTop 0 — low on the bare background — then visibly slid
+// ~400px into place, reading as "text renders, then the card pops in"
+// (2026-07-23 staging report).
+onMounted(() => { void nextTick(() => scrollCurrentIntoView('auto')) })
+
+// Re-anchor (instantly, frame-by-frame) whenever the container resizes —
+// e.g. PodTurnDisplay's reminder-band padding collapsing when the transient
+// reminder fades. Without this the anchor was computed against the old
+// height and the rows drifted upward, stranded until the next line change.
+let resizeObserver: ResizeObserver | null = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined' || !rootEl.value) return
+  let first = true
+  resizeObserver = new ResizeObserver(() => {
+    // The observer fires once on observe() — skip it, mount already anchored.
+    if (first) { first = false; return }
+    scrollCurrentIntoView('auto')
+  })
+  resizeObserver.observe(rootEl.value)
+})
+onBeforeUnmount(() => { resizeObserver?.disconnect(); resizeObserver = null })
 
 const handleRowClick = (displayIndex: number) => {
   if (props.interactive) emit('select', displayIndex)
@@ -136,6 +166,10 @@ const handleRowClick = (displayIndex: number) => {
 
 <style scoped>
 .teleprompter {
+  /* Positioned so it is its own offsetParent: scrollCurrentIntoView's
+     offsetTop maths must be relative to THIS scroll container, not a padded
+     positioned ancestor (see the anchoring comment in <script>). */
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;

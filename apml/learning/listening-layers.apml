@@ -82,14 +82,15 @@
 # for the fuller account).
 #
 # UPDATE (2026-07-23, Tom): Layer-2 pod INTAKE is by COHORT, not by single
-# sentence. Each lap debuts a cohort of 2-3 sentences that together form a
-# coherent piece of dialogue — an exchange, never an orphan line. Cohorts are
-# pure structure over the flattened sentence list (@ssi/core/pods/
-# podCohorts.ts): TURNS (maximal speaker-aware glue_to_next chains) pack
-# greedily up to 3 sentences; a turn is never split mid-thought unless it
-# alone exceeds 3 (then balanced chunks); a cohort never straddles a
-# scene_number boundary — a new scene starts a new cohort even if that leaves
-# a cohort of 1-2. STAGE COHESION: all sentences introduced in the same lap
+# sentence. Each lap debuts a cohort that is one ENTIRE SCENE (scene_number
+# group — afternoon ruling, replacing the morning's 2-3 sentence greedy
+# packing, which split an adjacency pair across laps: the question landed one
+# lap, its reply the next). Scenes are authored to start simple, so early
+# cohorts are naturally small. Cohorts are pure structure over the flattened
+# sentence list (@ssi/core/pods/podCohorts.ts): one cohort per maximal run of
+# rows sharing a scene_number; rows with a missing scene_number (legacy
+# cached content) never force a break — they join the run in progress, and an
+# all-null list is one cohort. STAGE COHESION: all sentences introduced in the same lap
 # stay at the SAME stage forever — alive counting is per cohort (cohort c's
 # alive = cohort-round - c + 1), and the shared two-doors drill counter lifts
 # a cohort only as far as its least-drilled member. The pod stays ONE

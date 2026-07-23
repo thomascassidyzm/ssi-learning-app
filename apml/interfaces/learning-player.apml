@@ -869,6 +869,14 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.22:
+    date: "2026-07-23"
+    title: "Pod round 2 — scene-as-cohort, teleprompter positioned in the free zone, mount jank removed (product owner staging feedback, afternoon)"
+    changes:
+      - "COHORT = WHOLE SCENE: buildPodCohorts (@ssi/core/pods/podCohorts.ts) now partitions the pod's sentence list one-cohort-per-scene_number run, replacing the morning's 2-3 sentence greedy turn-packing (which split an adjacency pair: a cohort ended on the question, the reply arrived next lap). POD_COHORT_MAX, turn-chaining and balanced-chunk splitting deleted. Missing scene_number rows (legacy cache) join the run in progress; all-null = one cohort. Pure partition, scene walls, per-cohort stage cohesion, min-drill lift, and the sentence-unit ratchet migration semantics all unchanged."
+      - "TELEPROMPTER POSITION: PodTurnDisplay's top padding was a hardcoded 90px that under-shot the real header band (~96px + safe area), AND TeleprompterScroll's scrollCurrentIntoView measured current.offsetTop against the wrong origin — .teleprompter wasn't positioned, so offsets ran from PodTurnDisplay's absolutely-positioned, heavily-padded box, over-scrolling the current card clean under the belt pill. Fixed: .teleprompter is now position:relative (its own offsetParent), top padding = var(--header-total) + var(--hero-gap), bottom = var(--nav-total) + 2×hero-gap, and the anchor moved 0.33 → 0.5 (current line vertically centred in the free zone between top chrome and bottom controls — owner ruling; 0.33 was tuned against the broken full-screen container)."
+      - "MOUNT JANK: card and text were always atomic in the DOM (verified frame-by-frame via headless probe) — the pop-in was positional: the first paint happened at scrollTop 0 (row low on the bare background), then the smooth corrective scroll visibly slid it ~400px into place. First anchor is now INSTANT (behavior:'auto', pre-paint in mounted+nextTick) so frame one is already in place; line-to-line changes stay smooth. A ResizeObserver re-anchors instantly through container resizes (e.g. the reminder-band padding collapsing when the transient fades — previously the rows drifted upward and stayed stranded until the next line change)."
+
   v2.1.21:
     date: "2026-07-23"
     title: "Pod-lap chrome cleanup — hero text pane hidden for the whole lap (one text surface rule)"

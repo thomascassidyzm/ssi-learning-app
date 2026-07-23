@@ -203,8 +203,9 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    // The three unglued one-line fixtures pack into ONE cohort of 3 — the
-    // lap debuts an exchange, not an orphan line. Each sentence plays its
+    // The three fixtures share a scene (no scene_number = one scene) → ONE
+    // cohort of 3: the lap debuts the whole scene, not an orphan line
+    // (scene-as-cohort ruling, Tom 2026-07-23 afternoon). Each sentence plays its
     // full Stage-1 pattern before the next: ['ps','explainer','ps'] with no
     // explainer_audio_id falls back to the TRANSLATION → ['ps','trans','ps'].
     // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
@@ -248,12 +249,13 @@ describe('usePodLapScheduler — nextLap composition', () => {
   })
 
   it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
-    // Two glued pairs → cohorts [s1+s2], [s3+s4]. Ratchet = 2 sentences
-    // covered (cohort 1 completed) → round 2: cohort 1 alive=2 (still
-    // stage 1, Phase-0 lasts 2 rounds), cohort 2 debuts at alive=1.
+    // Two SCENES of two sentences → cohorts [s1+s2], [s3+s4] (scene-as-
+    // cohort). Ratchet = 2 sentences covered (cohort 1 completed) → round 2:
+    // cohort 1 alive=2 (still stage 1, Phase-0 lasts 2 rounds), cohort 2
+    // debuts at alive=1.
     state.podSentences = [
-      { ...podSentence(1), glue_to_next: true }, podSentence(2),
-      { ...podSentence(3), glue_to_next: true }, podSentence(4),
+      { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
+      { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
     ]
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
     const s = usePodLapScheduler({
@@ -274,10 +276,10 @@ describe('usePodLapScheduler — nextLap composition', () => {
 
   it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
     state.podSentences = [
-      { ...podSentence(1), glue_to_next: true }, podSentence(2),
-      { ...podSentence(3), glue_to_next: true }, podSentence(4),
+      { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
+      { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
     ]
-    // 4 sentences covered = cohorts 1+2 completed → round 3: cohort 1
+    // 4 sentences covered = cohorts (scenes) 1+2 completed → round 3: cohort 1
     // alive=3 (stage 2 under Phase-0's 2-round duration), cohort 2 alive=2
     // (stage 1). No third cohort exists — intake caps, aging continues.
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
@@ -431,15 +433,15 @@ describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)',
 
   it('finds a playable COHORT when the ratchet-windowed slice has nothing (whole first cohort missing audio)', async () => {
     // Ratchet is fresh (round 1 → cohort 1 only) and the entire first cohort
-    // (three unglued lines pack to one cohort of 3) has no target audio.
-    // Real cadence and the plain preview cheat would both stay stuck
-    // forever; the fallback must reach past the window to cohort 2.
+    // (scene 1, three lines) has no target audio. Real cadence and the plain
+    // preview cheat would both stay stuck forever; the fallback must reach
+    // past the window to cohort 2 (scene 2).
     state.podSentences = [
-      { ...podSentence(1), target_audio_id: null },
-      { ...podSentence(2), target_audio_id: null },
-      { ...podSentence(3), target_audio_id: null },
-      podSentence(4),
-      podSentence(5),
+      { ...podSentence(1), target_audio_id: null, scene_number: 1 },
+      { ...podSentence(2), target_audio_id: null, scene_number: 1 },
+      { ...podSentence(3), target_audio_id: null, scene_number: 1 },
+      { ...podSentence(4), scene_number: 2 },
+      { ...podSentence(5), scene_number: 2 },
     ]
     const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
     await s.initialize()

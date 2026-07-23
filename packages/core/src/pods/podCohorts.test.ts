@@ -7,67 +7,51 @@ import {
   type PodCohortRow,
 } from './podCohorts'
 
-/** Row shorthand: g = glue_to_next, sc = scene_number. */
-const r = (g: boolean, sc: number | null = 1): PodCohortRow => ({ glue_to_next: g, scene_number: sc })
+/** Row shorthand: sc = scene_number. */
+const r = (sc: number | null = 1): PodCohortRow => ({ scene_number: sc })
 
-describe('buildPodCohorts — cohort formation', () => {
-  it('packs consecutive single-line turns into cohorts of up to 3 (an exchange, not orphans)', () => {
-    // Six unglued lines, one scene: A/B/A/B/A/B one-liners.
-    const rows = Array.from({ length: 6 }, () => r(false))
+describe('buildPodCohorts — one cohort per SCENE (Tom 2026-07-23)', () => {
+  it('a whole scene is one cohort, however many sentences it holds', () => {
+    // One scene of six lines: no cap, no splitting — the exchange stays whole.
+    const rows = Array.from({ length: 6 }, () => r(1))
+    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 6 }])
+  })
+
+  it('partitions at every scene boundary, sizes as authored', () => {
+    // Scene 1 (2 lines), scene 2 (4 lines), scene 3 (1 line).
+    const rows = [r(1), r(1), r(2), r(2), r(2), r(2), r(3)]
     expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 3 },
-      { start: 3, size: 3 },
+      { start: 0, size: 2 },
+      { start: 2, size: 4 },
+      { start: 6, size: 1 },
     ])
   })
 
-  it('keeps an adjacency pair together: 1-line turn + 2-line reply = one cohort', () => {
-    // Turn A (1 sentence), turn B (2 glued sentences), turn C (1 sentence).
-    const rows = [r(false), r(true), r(false), r(false)]
+  it('an adjacency pair can never straddle a lap: question and reply share a scene → one cohort', () => {
+    const rows = [r(1), r(1), r(1), r(1)]
+    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 4 }])
+  })
+
+  it('a one-line scene is a cohort of 1', () => {
+    const rows = [r(1), r(2), r(2)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 1 },
+      { start: 1, size: 2 },
+    ])
+  })
+
+  it('missing scene_number never forces a break (legacy cached rows → one cohort)', () => {
+    const rows = [r(null), r(null), r(null)]
+    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
+  })
+
+  it('a null row bridges its scene run rather than resetting it', () => {
+    // …scene 1, null, scene 1… is one scene; the later scene 2 still breaks.
+    const rows = [r(1), r(null), r(1), r(2)]
     expect(buildPodCohorts(rows)).toEqual([
       { start: 0, size: 3 },
       { start: 3, size: 1 },
     ])
-  })
-
-  it('never splits a 2-3 sentence turn mid-thought to fill a cohort', () => {
-    // Turn A (1), turn B (3 glued): B cannot join A without splitting → A
-    // stands alone (a cohort of 1, data-forced), B is its own cohort.
-    const rows = [r(false), r(true), r(true), r(false)]
-    expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 1 },
-      { start: 1, size: 3 },
-    ])
-  })
-
-  it('splits an oversized glued turn into balanced chunks of ≤3 (5 → 3+2, never 3+1+1)', () => {
-    const rows = [r(true), r(true), r(true), r(true), r(false)]
-    expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 3 },
-      { start: 3, size: 2 },
-    ])
-  })
-
-  it('a scene boundary always starts a new cohort, even leaving a cohort of 1', () => {
-    // Scene 1 has one line; scene 2 has two lines. Without the scene guard
-    // they would pack into one cohort of 3.
-    const rows = [r(false, 1), r(false, 2), r(false, 2)]
-    expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 1 },
-      { start: 1, size: 2 },
-    ])
-  })
-
-  it('a glue chain is cut at a scene boundary (bad data guard)', () => {
-    const rows = [r(true, 1), r(true, 2), r(false, 2)]
-    expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 1 },
-      { start: 1, size: 2 },
-    ])
-  })
-
-  it('missing scene_number never forces a break (legacy cached rows)', () => {
-    const rows = [r(false, null), r(false, null), r(false, null)]
-    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
   })
 
   it('empty input → no cohorts', () => {

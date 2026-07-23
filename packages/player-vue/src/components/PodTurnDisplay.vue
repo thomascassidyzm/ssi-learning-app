@@ -74,18 +74,29 @@ const lines = computed<TeleprompterLine[]>(() =>
   }),
 )
 
+// Top clearance = the player's REAL header band (--header-total: brand row +
+// belt pill + safe area, from LearningPlayer's construction grid) + one
+// rhythm unit of breathing room — not a hardcoded guess. The old fixed 90px
+// under-shot the ~96px+safe-area header, so the teleprompter's top rows sat
+// under the belt pill (2026-07-23 staging report). Fallback mirrors the
+// mobile grid sum for the (never-expected) case of rendering outside .player.
 const topPadding = computed(() =>
-  `calc(env(safe-area-inset-top, 0px) + ${90 + (props.reminderTopInset || 0)}px)`,
+  `calc(var(--header-total, calc(env(safe-area-inset-top, 0px) + 96px)) + var(--hero-gap, 20px) + ${props.reminderTopInset || 0}px)`,
 )
 </script>
 
 <template>
   <div class="pod-turn-display" :style="{ paddingTop: topPadding }">
+    <!-- Anchor = 0.5: the current line sits vertically CENTRED in the free
+         zone between top chrome and bottom controls (product ruling
+         2026-07-23, replacing the 2026-07-22 upper-third anchor — that was
+         tuned when the container mistakenly started at the screen top). The
+         pinned-anchor conveyor behaviour itself is unchanged. -->
     <TeleprompterScroll
       :lines="lines"
       :current-index="activeIndex ?? -1"
       :pad-block-vh="35"
-      :anchor-fraction="0.33"
+      :anchor-fraction="0.5"
     />
   </div>
 </template>
@@ -96,7 +107,10 @@ const topPadding = computed(() =>
   inset: 0;
   padding-right: 1rem;
   padding-left: 1rem;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+  /* Bottom clearance = bottom nav band (--nav-total includes the home-
+     indicator safe area) + two rhythm units (the ambient listening dot
+     lives in that band) — same honest-sum approach as the top padding. */
+  padding-bottom: calc(var(--nav-total, calc(env(safe-area-inset-bottom, 0px) + 80px)) + 2 * var(--hero-gap, 20px));
   transition: padding-top 0.3s ease;
   pointer-events: none;
   z-index: 3;
