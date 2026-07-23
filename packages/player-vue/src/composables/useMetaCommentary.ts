@@ -18,6 +18,7 @@ import {
   MetaCommentaryService,
   createMetaCommentaryService,
   type MetaCommentaryAudio,
+  type EncouragementTaperConfig,
 } from '../services/MetaCommentaryService'
 
 export interface UseMetaCommentaryOptions {
@@ -150,6 +151,22 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     isPlayingCommentary.value = false
   }
 
+  /** Re-key the service when learner identity resolves/changes after setup
+   *  (guest → signed-in, play-as-class). See MetaCommentaryService.setLearnerId. */
+  const setLearnerId = (id: string | null | undefined) => {
+    if (id) service.value?.setLearnerId(id)
+  }
+
+  /** Push live taper config (algorithm_config 'meta_commentary'). */
+  const setEncouragementTaper = (cfg: EncouragementTaperConfig | null | undefined) => {
+    service.value?.setEncouragementTaper(cfg)
+  }
+
+  /** Push current experience (seed number of the playing position). */
+  const setExperienceSeeds = (seeds: number) => {
+    service.value?.setExperienceSeeds(seeds)
+  }
+
   /**
    * Force next commentary (for testing)
    */
@@ -188,6 +205,9 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     shouldPlayWelcome,
     getWelcomeAudio,
     onRoundComplete,
+    setLearnerId,
+    setEncouragementTaper,
+    setExperienceSeeds,
     startCommentaryPlayback,
     finishCommentaryPlayback,
     forceNextCommentary,

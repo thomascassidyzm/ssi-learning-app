@@ -379,6 +379,7 @@ const {
   scriptShapeConfig,
   resumeConfig,
   adaptationV2Config,
+  metaCommentaryConfig,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -3310,6 +3311,16 @@ const metaCommentary = courseDataProvider.value
 // Track if we're currently playing commentary audio
 const playingCommentaryAudio = ref(false)
 
+// Exposure state follows the REAL learner identity. The service is
+// constructed with a setup-time snapshot of learnerId, which can still be the
+// guest/demo fallback while auth resolves (or change on play-as-class entry).
+// Without re-keying, instruction progress lands under a guest localStorage
+// key and never syncs to the server — so a wiped device replays every science
+// bit. Re-key whenever the identity settles or changes.
+watch(learnerId, (id) => {
+  if (id) metaCommentary?.setLearnerId(id)
+})
+
 // ============================================
 // LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
 // Replaces the old script-baked pod emission. Fires between rounds when
@@ -4685,6 +4696,11 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // untouched. Tom 2026-05-29.
   if (metaCommentary && !beltJustEarned.value && currentMode.value !== 'infplay') {
     const cyclesInRound = completedRound?.cycles?.length ?? 0
+    // Push the live taper knobs + current experience (seed of the round just
+    // played) so the encouragement taper sees where the learner actually is.
+    metaCommentary.setEncouragementTaper(metaCommentaryConfig.value?.encouragementTaper)
+    const experienceSeed = getSeedFromLegoId(completedRound?.legoId ?? completedLegoId ?? null)
+    if (experienceSeed != null) metaCommentary.setExperienceSeeds(experienceSeed)
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,

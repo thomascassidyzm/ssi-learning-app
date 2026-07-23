@@ -1,0 +1,87 @@
+-- ============================================================================
+-- GATED — DO NOT AUTO-APPLY. Data backfill, not schema. Run via the canary
+-- runbook (supabase/secfix-toolkit/): dry-run the SELECT first, snapshot
+-- counts, apply in one txn, verify, COMMIT iff green.
+-- (File suffixed `.gated` so migration tooling never picks it up by accident;
+-- rename to .sql only inside the canary run.)
+-- ============================================================================
+--
+-- Backfill learner_meta_commentary_state (per-learner "which science bits have
+-- I heard") for learners whose exposure predates the server-side table
+-- (2026-07-01, migration 20260701_learner_meta_commentary_state.sql).
+--
+-- Before that table, exposure lived ONLY in localStorage
+-- (`ssi_commentary_global_<learnerId>`) — wiped by `?reset=1`, storage
+-- eviction, or a new device — so long-standing learners were reset to
+-- instruction 0 and the once-ever science bits REPLAYED. This backfill
+-- restores their server truth from two evidence tiers, furthest-wins:
+--
+--   Tier 1 (telemetry): player_events `commentary_start` with
+--     payload->>'type' = 'instruction' — one event per instruction actually
+--     played. COUNT(DISTINCT payload->>'textPreview') per learner ≈ how many
+--     distinct bits they heard. learner id = COALESCE(learner_id, user_id)
+--     (dual-write since 20260619; older rows carry only user_id, which holds
+--     the learner pk — verified 2026-06-10).
+--
+--   Tier 2 (practice time): instructions fire ~1 per 10 minutes of active
+--     play, so SUM(course_enrollments.total_practice_minutes)/10 estimates
+--     bits heard, capped at the nominal sequence length (30).
+--
+-- Rule (executable spec + unit tests:
+-- packages/player-vue/src/services/commentaryBackfillSpec.ts):
+--   index    = GREATEST(existing, telemetry_count, LEAST(minutes/10, 30))
+--   complete = existing_complete OR index >= 30
+-- Learners with no evidence in either tier get NO row — genuinely new
+-- learners start at 0 as designed ("do NOT restart everyone" cuts the other
+-- way too: don't invent rows for people with no history).
+--
+-- Idempotent: re-running can only ratchet forward (GREATEST/OR).
+
+BEGIN;
+
+WITH telemetry AS (
+    SELECT COALESCE(learner_id, user_id) AS learner_id,
+           COUNT(DISTINCT payload->>'textPreview') AS heard_count
+    FROM public.player_events
+    WHERE event_type = 'commentary_start'
+      AND payload->>'type' = 'instruction'
+      AND COALESCE(learner_id, user_id) IS NOT NULL
+    GROUP BY COALESCE(learner_id, user_id)
+),
+practice AS (
+    SELECT learner_id,
+           SUM(total_practice_minutes) AS total_minutes
+    FROM public.course_enrollments
+    GROUP BY learner_id
+),
+evidence AS (
+    SELECT l.id AS learner_id,
+           COALESCE(t.heard_count, 0) AS telemetry_count,
+           LEAST(FLOOR(COALESCE(p.total_minutes, 0) / 10.0)::int, 30) AS minutes_estimate
+    FROM public.learners l
+    LEFT JOIN telemetry t ON t.learner_id = l.id
+    LEFT JOIN practice  p ON p.learner_id = l.id
+    WHERE COALESCE(t.heard_count, 0) > 0
+       OR COALESCE(p.total_minutes, 0) >= 30
+)
+INSERT INTO public.learner_meta_commentary_state
+    (learner_id, instruction_index, instructions_complete, updated_at)
+SELECT learner_id,
+       GREATEST(telemetry_count, minutes_estimate),
+       GREATEST(telemetry_count, minutes_estimate) >= 30,
+       now()
+FROM evidence
+ON CONFLICT (learner_id) DO UPDATE SET
+    instruction_index = GREATEST(
+        learner_meta_commentary_state.instruction_index,
+        EXCLUDED.instruction_index),
+    instructions_complete = learner_meta_commentary_state.instructions_complete
+        OR EXCLUDED.instructions_complete,
+    updated_at = now();
+
+-- Canary checks before COMMIT:
+--   SELECT count(*) FROM learner_meta_commentary_state;              -- rows after
+--   SELECT count(*) FROM learner_meta_commentary_state WHERE instructions_complete; -- veterans marked done
+--   Spot-check Tom's own learner row: index should be >= 30 / complete.
+
+COMMIT;
