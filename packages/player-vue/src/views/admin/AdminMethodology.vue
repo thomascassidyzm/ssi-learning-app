@@ -49,6 +49,14 @@ const papers: Paper[] = [
     tag: 'Interactive · position paper',
     status: 'Draft — for discussion',
   },
+  {
+    title: 'Anyone Can Teach',
+    blurb:
+      'The claim that a self-sequencing, self-pacing, self-assessing engine lets the human teaching role decompose into presence, psychological safety, and alongsideness — independent of subject expertise. Sri Lanka 2023, the honest 30/100-hour update, the class as a first-class learner, and Zenjin as the second instance.',
+    href: '/methodology/anyone-can-teach.html',
+    tag: 'Working paper',
+    status: 'Draft — for Tom\'s edit',
+  },
 ]
 </script>
 
