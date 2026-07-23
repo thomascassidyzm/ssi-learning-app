@@ -1,6 +1,6 @@
 # APML v1.0.0 - PlayerConductor (SimplePlayer transition ownership)
 # SSI Learning App
-# Last Updated: 2026-07-21
+# Last Updated: 2026-07-23
 
 spec player_conductor_architecture:
   version: "1.0.0"
@@ -50,11 +50,17 @@ spec player_conductor_architecture:
     ended: "Set on the engine's session_complete event."
     interlude(kind, resumeTo): |
       Transient. Brackets an async interlude (commentary / pod lap / L1
-      cup) around a pause. The body (fn passed to runInterlude) keeps its
-      OWN internal pause()/resume() decisions — including deliberately
-      landing paused (e.g. learner pressed stop mid-lap) — trusted on
-      SUCCESS. Only on FAILURE (thrown error or the timeout bound) does
-      the conductor force a fallback: resume if resumeTo was 'playing'.
+      cup). The conductor does NOT pause the engine on entry — the body
+      (fn passed to runInterlude) owns the pause decision entirely,
+      because a round-boundary body may find NOTHING due (no commentary/
+      pod/L1) and playback must flow straight into the next round. (An
+      eager entry pause + trust-the-body-on-success stranded the player
+      paused at every plain boundary — the 2026-07-23 staging stall.)
+      The body keeps its OWN internal pause()/resume() decisions —
+      including deliberately landing paused (e.g. learner pressed stop
+      mid-lap) — trusted on SUCCESS. Only on FAILURE (thrown error or the
+      timeout bound) does the conductor force a fallback: resume if
+      resumeTo was 'playing' and the engine is paused.
       Serialized: a second interlude/seek queues behind an in-flight one.
     seeking(intent): |
       Transient. Brackets an async seek (skip/jump prep — e.g. prefetching

@@ -72,11 +72,13 @@ export interface UseSimplePlayerReturn {
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
-  /** Bracket an async interlude (commentary / pod lap / L1 cup) around a
-   * pause — see PlayerConductor.runInterlude. The body keeps its own
-   * internal pause()/resume() decisions (including deliberately landing
-   * paused); only a thrown error or the timeout bound forces a fallback
-   * resume, so a stranded player is structurally impossible. */
+  /** Bracket an async interlude (commentary / pod lap / L1 cup) — see
+   * PlayerConductor.runInterlude. The conductor never pauses on entry;
+   * the body owns the pause decision entirely (a no-interlude boundary
+   * must flow straight into the next round) and keeps its own internal
+   * pause()/resume() decisions (including deliberately landing paused);
+   * only a thrown error or the timeout bound forces a fallback resume,
+   * so a stranded player is structurally impossible. */
   runInterlude: (kind: string, fn: () => Promise<void>, opts?: RunOptions) => Promise<void>
   /** Bracket an async seek (skip/jump prep) around a pause — see
    * PlayerConductor.runSeek. Captures pre-seek play intent in the state

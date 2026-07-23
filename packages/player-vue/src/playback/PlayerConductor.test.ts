@@ -104,19 +104,28 @@ describe('PlayerConductor — runInterlude', () => {
     expect(conductor.currentState).toEqual({ kind: 'playing' })
   })
 
-  it('pauses the engine on entry when it was playing', async () => {
+  it('does NOT pause on entry — the body owns the pause decision (no-interlude boundary keeps playing)', async () => {
+    // Regression (staging 2026-07-23): runInterlude used to eagerly pause on
+    // entry while trusting the body to land on success. A round-boundary body
+    // that found NO interlude due (no commentary/pod/L1) played nothing and
+    // made no landing decision — so every plain boundary stranded the player
+    // paused until a manual tap. The body must find the engine still playing
+    // and, if it does nothing, the landing must be 'playing'.
     const { engine } = makeFakeEngine()
     const conductor = new PlayerConductor(engine, { devGuard: false })
     conductor.request((e) => e.play())
     vi.mocked(engine.pause).mockClear()
 
-    let pausedDuringBody = false
-    await conductor.runInterlude('commentary', async () => {
-      pausedDuringBody = !engine.currentState.isPlaying
+    let playingDuringBody = false
+    await conductor.runInterlude('round-boundary', async () => {
+      playingDuringBody = engine.currentState.isPlaying
+      // No interlude due — body does nothing.
     })
 
-    expect(pausedDuringBody).toBe(true)
-    expect(engine.pause).toHaveBeenCalled()
+    expect(playingDuringBody).toBe(true)
+    expect(engine.pause).not.toHaveBeenCalled()
+    expect(engine.currentState.isPlaying).toBe(true)
+    expect(conductor.currentState).toEqual({ kind: 'playing' })
   })
 
   it('on thrown error, falls back to resuming (the ed738a0f contract) — never stranded', async () => {
@@ -125,6 +134,9 @@ describe('PlayerConductor — runInterlude', () => {
     conductor.request((e) => e.play())
 
     await conductor.runInterlude('pod-lap', async () => {
+      // Body paused for its lap (as playPodLap does), then blew up before
+      // it could resume — the conductor must land it back playing.
+      conductor.request((e) => e.pause())
       throw new Error('scheduler.nextLap() blew up on unexpected data')
     })
 
@@ -153,7 +165,11 @@ describe('PlayerConductor — runInterlude', () => {
       conductor.request((e) => e.play())
 
       const hang = new Promise<void>(() => {}) // never resolves
-      const p = conductor.runInterlude('pod-lap', () => hang, { timeoutMs: 5000 })
+      const p = conductor.runInterlude('pod-lap', () => {
+        // Body paused for its lap, then hung forever without resuming.
+        conductor.request((e) => e.pause())
+        return hang
+      }, { timeoutMs: 5000 })
 
       await vi.advanceTimersByTimeAsync(5001)
       await p

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SimplePlayer, type AudioFailedEvent, type Round } from './SimplePlayer'
+import { PlayerConductor, type ConductorEngine } from './PlayerConductor'
 
 // The background-safe PAUSE clip is a self-contained silent WAV data: URI
 // (see buildSilentWavDataUri in SimplePlayer.ts). It's module-private, but it's
@@ -1003,5 +1004,160 @@ describe('SimplePlayer — skip actions', () => {
 
     expect(mockAudio.pause).toHaveBeenCalled()
     expect(player.currentState.roundIndex).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Round-boundary interlude regression (staging stall, 2026-07-23).
+//
+// LearningPlayer wraps handleRoundBoundaryBody in conductor.runInterlude
+// ('round-boundary') on EVERY round completion. runInterlude used to pause
+// the engine eagerly on entry while trusting the body to decide its own
+// landing on success — but the body's plain no-interlude path (no commentary,
+// no pod, no L1 cup due) plays nothing and makes no landing decision, so
+// every ordinary boundary stranded the player paused until a manual tap
+// (telemetry: round_complete → next round's first audio_play logs → silence
+// → manual tap_play ~7s later replaying the SAME cycleId).
+//
+// These tests wire a REAL SimplePlayer to a REAL PlayerConductor (the same
+// pairing useSimplePlayer.initialize() creates) and drive an actual round
+// boundary through the audio element's 'ended' events, asserting the next
+// round's first cycle reaches playing state without user input — both when
+// no interlude is due and when one is.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer + PlayerConductor — round boundary continues into the next round', () => {
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  // startPhase awaits resolveUrl before touching audio.src — flush a few
+  // microtask turns so assertions see the post-await state.
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 6; i++) await Promise.resolve()
+  }
+
+  // Drive the current cycle to completion: prompt 'ended' → (pause 0) →
+  // voice1 'ended' → voice2 'ended' → advanceCycle → advanceRound.
+  // makeRound bakes pauseDuration:0, so pause is skipped entirely.
+  const completeCurrentCycle = async (): Promise<void> => {
+    mockAudio._endedHandler!() // prompt (known) ends → voice1
+    await flush()
+    mockAudio._endedHandler!() // voice1 ends → voice2
+    await flush()
+    mockAudio._endedHandler!() // voice2 ends → next cycle / next round
+    await flush()
+  }
+
+  function makeDistinctRound(legoId: string, knownUrl: string): Round {
+    const r = makeRound(legoId)
+    r.cycles[0].known.audioUrl = knownUrl
+    return r
+  }
+
+  it('no interlude due: playback flows into the next round without user input', async () => {
+    const rounds = [
+      makeDistinctRound('S0001L01', 'https://example.com/r1-known.mp3'),
+      makeDistinctRound('S0001L02', 'https://example.com/r2-known.mp3'),
+    ]
+    const player = new SimplePlayer(rounds)
+    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
+
+    // Mirror LearningPlayer's onRoundCompleted: fire-and-forget interlude
+    // wrapper whose body finds nothing due and does nothing.
+    const interludes: Array<Promise<void>> = []
+    player.on('round_completed', () => {
+      interludes.push(conductor.runInterlude('round-boundary', async () => {
+        // No commentary, no pod, no L1 — nothing due at this boundary.
+      }))
+    })
+
+    conductor.request((e) => e.play())
+    await flush()
+    expect(mockAudio.src).toBe('https://example.com/r1-known.mp3')
+
+    await completeCurrentCycle()
+    await Promise.all(interludes)
+    await flush()
+
+    // The next round's first cycle must actually be playing — no stall.
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.isPlaying).toBe(true)
+    expect(player.currentState.phase).toBe('prompt')
+    expect(mockAudio.src).toBe('https://example.com/r2-known.mp3')
+    expect(conductor.currentState).toEqual({ kind: 'playing' })
+  })
+
+  it('interlude due: lap plays (paused), then the next round\'s first cycle reaches playing state', async () => {
+    const rounds = [
+      makeDistinctRound('S0001L01', 'https://example.com/r1-known.mp3'),
+      makeDistinctRound('S0001L02', 'https://example.com/r2-known.mp3'),
+    ]
+    const player = new SimplePlayer(rounds)
+    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
+
+    let engineWasPausedDuringLap = false
+    const interludes: Array<Promise<void>> = []
+    player.on('round_completed', () => {
+      // Mirror the pod path: synchronous pre-pause in the round_completed
+      // listener (beats the race with advanceRound starting the next
+      // prompt), then the interlude body plays its lap and resumes.
+      conductor.request((e) => e.pause())
+      interludes.push(conductor.runInterlude('round-boundary', async () => {
+        engineWasPausedDuringLap = !player.currentState.isPlaying
+        await Promise.resolve() // the lap's async audio playback
+        conductor.request((e) => e.resume())
+      }))
+    })
+
+    conductor.request((e) => e.play())
+    await flush()
+    await completeCurrentCycle()
+    await Promise.all(interludes)
+    await flush()
+
+    expect(engineWasPausedDuringLap).toBe(true)
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.isPlaying).toBe(true)
+    expect(player.currentState.phase).toBe('prompt')
+    expect(mockAudio.src).toBe('https://example.com/r2-known.mp3')
+    expect(conductor.currentState).toEqual({ kind: 'playing' })
+  })
+
+  it('interlude due, learner stops mid-lap: stays paused (no forced resume on success)', async () => {
+    const rounds = [
+      makeDistinctRound('S0001L01', 'https://example.com/r1-known.mp3'),
+      makeDistinctRound('S0001L02', 'https://example.com/r2-known.mp3'),
+    ]
+    const player = new SimplePlayer(rounds)
+    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
+
+    const interludes: Array<Promise<void>> = []
+    player.on('round_completed', () => {
+      conductor.request((e) => e.pause())
+      interludes.push(conductor.runInterlude('round-boundary', async () => {
+        // Learner pressed stop during the lap — the body deliberately
+        // lands paused (userStoppedDuringLap path). The conductor must
+        // respect that on success, not force a resume.
+        await Promise.resolve()
+      }))
+    })
+
+    conductor.request((e) => e.play())
+    await flush()
+    await completeCurrentCycle()
+    await Promise.all(interludes)
+    await flush()
+
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
   })
 })

@@ -216,9 +216,16 @@ export class PlayerConductor {
   }
 
   /**
-   * Bracket an async interlude (commentary / pod lap / L1 cup) around a
-   * pause. `fn` keeps its existing internal pause()/resume() logic
-   * unchanged (those route through request() and no-op against the
+   * Bracket an async interlude (commentary / pod lap / L1 cup). The
+   * conductor does NOT pause the engine on entry — `fn` owns the pause
+   * decision entirely, because an interlude body may legitimately decide
+   * NOTHING is due (a plain round boundary with no commentary/pod/L1) and
+   * playback must flow straight into the next round. An eager pause here
+   * combined with "the body decides its own landing on success" stranded
+   * the player paused at every no-interlude boundary (the 2026-07-23
+   * staging stall): the body played nothing, made no landing decision,
+   * and nobody resumed. `fn` keeps its existing internal pause()/resume()
+   * logic unchanged (those route through request() and no-op against the
    * top-level state while we're in this interlude) — it decides its own
    * landing on SUCCESS, including deliberately staying paused (e.g. the
    * learner pressed stop mid-lap). Only on FAILURE (thrown error or the
@@ -233,7 +240,6 @@ export class PlayerConductor {
     return this.enqueue(async () => {
       const resumeTo: PlayIntent = this.engine.currentState.isPlaying ? 'playing' : 'userPaused'
       this.setState({ kind: 'interlude', interludeKind: kind, resumeTo })
-      if (resumeTo === 'playing') this.callEngine((e) => e.pause())
       let failed = false
       try {
         await withTimeout(fn(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, `interlude:${kind}`)
