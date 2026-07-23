@@ -193,7 +193,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) debuts the whole first COHORT at Phase 0 (cohort intake, Tom 2026-07-23)', async () => {
+  it('first lap (ratchet=0 → podRound=1) debuts the opening EXCHANGE at Phase 0 (scene walls, exchange debuts — Tom 2026-07-24)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -203,15 +203,16 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    // The three fixtures share a scene (no scene_number = one scene) → ONE
-    // cohort of 3: the lap debuts the whole scene, not an orphan line
-    // (scene-as-cohort ruling, Tom 2026-07-23 afternoon). Each sentence plays its
-    // full Stage-1 pattern before the next: ['ps','explainer','ps'] with no
+    // The three fixtures share a scene (no scene_number = one scene) and have
+    // no glue/speaker info, so each is its own turn → the opening exchange is
+    // turns 1+2 (sentences 1-2); sentence 3 waits for the next lap (exchange
+    // ramp within the scene, Tom 2026-07-24). Each sentence plays its full
+    // Stage-1 pattern before the next: ['ps','explainer','ps'] with no
     // explainer_audio_id falls back to the TRANSLATION → ['ps','trans','ps'].
     // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
     expect(lap!.plays.map(p => p.playRole)).toEqual(
-      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3])
+      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
     expect(lap!.plays.every(p => p.stage === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
@@ -249,8 +250,9 @@ describe('usePodLapScheduler — nextLap composition', () => {
   })
 
   it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
-    // Two SCENES of two sentences → cohorts [s1+s2], [s3+s4] (scene-as-
-    // cohort). Ratchet = 2 sentences covered (cohort 1 completed) → round 2:
+    // Two SCENES of two sentences → cohorts [s1+s2], [s3+s4] (each scene is
+    // one two-turn exchange; the wall keeps them apart). Ratchet = 2
+    // sentences covered (cohort 1 completed) → round 2:
     // cohort 1 alive=2 (still stage 1, Phase-0 lasts 2 rounds), cohort 2
     // debuts at alive=1.
     state.podSentences = [

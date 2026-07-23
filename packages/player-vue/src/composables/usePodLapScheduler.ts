@@ -15,9 +15,10 @@
  *   • The counter's unit is SENTENCES covered (its historical value — one
  *     legacy lap introduced one sentence — so live learners migrate in
  *     place, no reset, no write-time transform)
- *   • Intake is by COHORT (2-3 sentence exchanges, Tom 2026-07-23): each
- *     lap debuts one cohort; pod-round in stage maths = the cohort-round
- *     derived via podCohortRoundFor(cohorts, counter)
+ *   • Intake is by COHORT — one EXCHANGE (a speaker turn plus its reply),
+ *     scenes as walls (Tom 2026-07-24): each lap debuts one cohort;
+ *     pod-round in stage maths = the cohort-round derived via
+ *     podCohortRoundFor(cohorts, counter)
  *   • Each completed lap → counter snaps to the debuted cohort's end
  *     boundary (or +1 once all cohorts are in, so aging never freezes)
  *   • Skipped lap → counter unchanged → same content next session
@@ -577,13 +578,17 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   // Main-stage composition lives in ./podStageComposition (buildMainStage).
 
-  // ── Cohort intake (Tom 2026-07-23) ────────────────────────────────────────
-  // Each lap introduces a COHORT — one ENTIRE scene (scene_number group,
-  // ruling of 2026-07-23 afternoon) — and every sentence introduced together stays
-  // at the SAME stage forever — alive counting is per cohort, not per
-  // sentence index. The partition is pure structure over podSentences
-  // (@ssi/core/pods podCohorts.ts); memoised on the array identity so it
-  // recomputes only when a course (re)load swaps the sentence list.
+  // ── Cohort intake (Tom 2026-07-24: scene walls, exchange debuts) ──────────
+  // Each lap introduces a COHORT — one EXCHANGE (a speaker turn plus its
+  // reply, turns = glue_to_next runs), never crossing a scene boundary: a new
+  // scene debuts by its opening exchange and each later lap extends the SAME
+  // scene by its next exchange until it completes (supersedes the 2026-07-23
+  // whole-scene-per-lap model — scenes 6+ run 27-36 sentences, ~110+ plays in
+  // one debut lap). Every sentence introduced together stays at the SAME
+  // stage forever — alive counting is per cohort, not per sentence index. The
+  // partition is pure structure over podSentences (@ssi/core/pods
+  // podCohorts.ts); memoised on the array identity so it recomputes only when
+  // a course (re)load swaps the sentence list.
   let cohortsCache: { rows: SchedulerPodRow[]; cohorts: PodCohort[] } | null = null
   const getCohorts = (): PodCohort[] => {
     const rows = podSentences.value

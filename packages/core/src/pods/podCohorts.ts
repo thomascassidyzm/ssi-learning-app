@@ -1,21 +1,35 @@
 /**
  * podCohorts.ts — group a pod's flat, ordered sentence list into intake
  * COHORTS: the chunk of dialogue a lap introduces together. Product ruling
- * (Tom 2026-07-23 afternoon): a cohort is one ENTIRE scene (scene_number
- * group). The earlier 2-3 sentence greedy packing split adjacency pairs —
- * a cohort could end on the question and deliver the reply next lap — so
- * the cap and all turn-splitting logic are gone. Scenes are authored to
- * start simple, so early cohorts are naturally small.
+ * (Tom 2026-07-24, superseding the 2026-07-23 whole-scene-per-lap ruling):
+ * the SCENE stays the wall, but a scene DEBUTS BY EXCHANGE within it. An
+ * EXCHANGE is a speaker turn plus its reply — two consecutive turns, where a
+ * turn is a maximal run of sentences connected by `glue_to_next` (computed
+ * speaker-aware by flattenPodRows; same definition as podTurns.ts's display
+ * spans). The first lap of a new scene introduces its opening exchange; each
+ * subsequent lap extends the SAME scene by its next exchange until the scene
+ * is complete; only then does the next scene begin. An adjacency pair can
+ * never straddle a lap: a pair IS two consecutive turns, and turns pair off
+ * in order — a scene with an odd turn count leaves its closing turn (e.g. a
+ * narrator coda) as its own cohort.
+ *
+ * Why not whole-scene cohorts (the 2026-07-23 model): measured on
+ * ita_for_eng:pod-0, scenes 6+ run 17-36 sentences — a whole-scene debut
+ * there is ~110+ plays in one lap, and Tom's staging test found even scene 1
+ * (8 sentences) too much for a first exposure.
  *
  * Every sentence introduced in the same lap stays at the SAME stage as its
- * cohort-mates forever (stage cohesion: the cohort moves through the DK
- * sequence as one unit). The partition stays PURE — it depends only on the
- * course content, never on learner state, so every client derives the
- * identical cohorts from the same rows.
+ * cohort-mates forever (stage cohesion: the exchange-cohort moves through the
+ * DK sequence as one unit; the shared two-doors drill counter lifts a cohort
+ * only as far as its least-drilled member). The partition stays PURE — it
+ * depends only on the course content, never on learner state, so every client
+ * derives the identical cohorts from the same rows.
  *
  * Rows with a missing scene_number (legacy cached content) never force a
- * break: they join the scene run in progress, and an all-null list is one
- * cohort.
+ * scene break: they join the scene run in progress, and an all-null list is
+ * partitioned by exchange alone. Rows with no glue/speaker info (legacy
+ * cache) each read as their own turn, so they pair off two sentences at a
+ * time — small, safe cohorts.
  *
  * The pod stays ONE organism: laps still replay the full accumulated content
  * with no explicit scene markers — the cohort unit itself is the punctuation.
@@ -28,12 +42,16 @@
 
 export interface PodCohortRow {
   scene_number?: number | null
+  /** True iff this row's natural utterance continues into the next row —
+   *  speaker-aware when the rows came through flattenPodRows. Missing/null
+   *  reads as a turn boundary (legacy cache → 2-sentence exchanges). */
+  glue_to_next?: boolean | null
 }
 
 export interface PodCohort {
   /** 0-based start index into the sentence array. */
   start: number
-  /** Number of sentences in the scene. */
+  /** Number of sentences in the exchange. */
   size: number
 }
 
@@ -42,27 +60,49 @@ const sameScene = (a: number | null | undefined, b: number | null | undefined): 
   a == null || b == null || a === b
 
 /**
- * Compute the cohort partition over an ordered sentence list: one cohort per
- * scene (maximal run of rows whose scene_number agrees, nulls joining the
- * run in progress).
+ * Compute the cohort partition over an ordered sentence list: scenes are the
+ * walls (maximal run of rows whose scene_number agrees, nulls joining the run
+ * in progress); within each scene, turns (maximal glue_to_next runs) pair off
+ * in order into EXCHANGES — each cohort is one exchange, a trailing lone turn
+ * standing alone.
  */
 export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
-  const cohorts: PodCohort[] = []
+  // Pass 1 — scene runs (the walls). Scene identity of the current run is the
+  // last non-null scene_number seen, so a null row bridges rather than resets
+  // (…1, null, 1… stays one scene, …1, null, 2… breaks at the 2).
+  const sceneRuns: Array<{ start: number; end: number }> = []
   let start = 0
-  // Scene identity of the current run — the last non-null scene_number seen,
-  // so a null row bridges rather than resets (…1, null, 1… stays one scene,
-  // …1, null, 2… breaks at the 2).
   let scene: number | null = null
   for (let i = 0; i < rows.length; i++) {
     const sc = rows[i].scene_number ?? null
     if (i > start && !sameScene(scene, sc)) {
-      cohorts.push({ start, size: i - start })
+      sceneRuns.push({ start, end: i })
       start = i
     }
     if (sc != null) scene = sc
     else if (i === start) scene = null
   }
-  if (rows.length > start) cohorts.push({ start, size: rows.length - start })
+  if (rows.length > start) sceneRuns.push({ start, end: rows.length })
+
+  // Pass 2 — within each scene, split into turns (a turn ends at each row
+  // whose glue_to_next is falsy; the scene wall always ends a turn), then
+  // pair consecutive turns into exchanges.
+  const cohorts: PodCohort[] = []
+  for (const run of sceneRuns) {
+    const turnStarts: number[] = []
+    let turnStart = run.start
+    for (let i = run.start; i < run.end; i++) {
+      if (!rows[i].glue_to_next || i === run.end - 1) {
+        turnStarts.push(turnStart)
+        turnStart = i + 1
+      }
+    }
+    for (let t = 0; t < turnStarts.length; t += 2) {
+      const exStart = turnStarts[t]
+      const exEnd = t + 2 < turnStarts.length ? turnStarts[t + 2] : run.end
+      cohorts.push({ start: exStart, size: exEnd - exStart })
+    }
+  }
   return cohorts
 }
 

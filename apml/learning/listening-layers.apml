@@ -81,28 +81,41 @@
 # the scheduler and were deleted outright (see @ssi/core/pods/index.ts header
 # for the fuller account).
 #
-# UPDATE (2026-07-23, Tom): Layer-2 pod INTAKE is by COHORT, not by single
-# sentence. Each lap debuts a cohort that is one ENTIRE SCENE (scene_number
-# group — afternoon ruling, replacing the morning's 2-3 sentence greedy
-# packing, which split an adjacency pair across laps: the question landed one
-# lap, its reply the next). Scenes are authored to start simple, so early
-# cohorts are naturally small. Cohorts are pure structure over the flattened
-# sentence list (@ssi/core/pods/podCohorts.ts): one cohort per maximal run of
-# rows sharing a scene_number; rows with a missing scene_number (legacy
-# cached content) never force a break — they join the run in progress, and an
-# all-null list is one cohort. STAGE COHESION: all sentences introduced in the same lap
-# stay at the SAME stage forever — alive counting is per cohort (cohort c's
-# alive = cohort-round - c + 1), and the shared two-doors drill counter lifts
-# a cohort only as far as its least-drilled member. The pod stays ONE
-# organism: laps still replay the full accumulated content with no explicit
-# scene pauses or markers — the cohort unit itself is the punctuation.
+# UPDATE (2026-07-24, Tom — supersedes the 2026-07-23 whole-scene-per-lap
+# ruling): Layer-2 pod INTAKE is by COHORT, where a cohort is one EXCHANGE and
+# the SCENE is the wall. An EXCHANGE is a speaker turn plus its reply — two
+# consecutive turns, a turn being a maximal glue_to_next run (flattenPodRows
+# computes glue speaker-aware; same unit as podTurns.ts's display spans). The
+# first lap of a new scene introduces its opening exchange; each subsequent
+# lap extends the SAME scene by its next exchange until the scene completes;
+# only then does the next scene begin its debut. An adjacency pair can never
+# straddle a lap (a pair IS two consecutive turns, and turns pair off in
+# order); a scene with an odd turn count leaves its closing turn — e.g. a
+# narrator coda — as its own cohort. Why the supersession: measured on
+# ita_for_eng:pod-0, scenes 6+ run 17-36 sentences (~110+ plays for a
+# whole-scene debut lap), and the owner's staging test found even scene 1's
+# 8-sentence debut too much for a first exposure. Cohorts remain pure
+# structure over the flattened sentence list (@ssi/core/pods/podCohorts.ts):
+# rows with a missing scene_number (legacy cached content) never force a
+# scene break — they join the run in progress; rows with no glue/speaker info
+# each read as their own turn and pair off two sentences at a time. STAGE
+# COHESION: all sentences introduced in the same lap stay at the SAME stage
+# forever — alive counting is per exchange-cohort (cohort c's alive =
+# cohort-round - c + 1), and the shared two-doors drill counter lifts a
+# cohort only as far as its least-drilled member. The pod stays ONE organism:
+# laps still replay the full accumulated content with no explicit scene
+# pauses or markers — the cohort unit itself is the punctuation.
 # Ratchet migration: course_enrollments.completed_pod_rounds keeps its
-# historical unit (sentences covered); each completed lap now snaps it to the
+# historical unit (sentences covered); each completed lap snaps it to the
 # debuted cohort's end boundary (or +1 once all cohorts are in, so eternal
 # aging never freezes). Live learners migrate in place — no reset, no
-# write-time transform, old/new clients interoperate on the same row.
+# write-time transform, old/new clients interoperate on the same row; a
+# learner who completed whole-scene laps under the 2026-07-23 model holds a
+# scene-boundary sentence count, which reads at exchange granularity as "all
+# of that scene's exchanges started" — replays age correctly and the next
+# lap debuts the following exchange (read-time mapping, podCohortRoundFor).
 # ?pod=1 / ?podview=1 previews compose whole cohorts (previews feel like
-# actual dialogue); ?podview Next/Prev steps cohort-by-cohort.
+# actual dialogue); ?podview Next/Prev steps cohort-by-cohort (exchanges).
 #
 # The body of this spec below is preserved for historical context.
 # =============================================================================

@@ -869,6 +869,12 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.23:
+    date: "2026-07-24"
+    title: "Pod intake ramp — scene debuts by EXCHANGE within scene walls (owner ruling, supersedes scene-as-cohort)"
+    changes:
+      - "COHORT = EXCHANGE, SCENE = WALL: buildPodCohorts (@ssi/core/pods/podCohorts.ts) now partitions each scene_number run into exchanges — a speaker turn plus its reply, where a turn is a maximal glue_to_next run (the same speaker-aware unit flattenPodRows computes and podTurns.ts displays). First lap of a new scene debuts its opening exchange; each later lap extends the SAME scene by its next exchange until the scene completes, then the next scene begins. Adjacency pairs still never straddle a lap (an exchange IS two consecutive turns, paired in order); an odd turn count leaves the closing turn (narrator coda) as its own cohort. Motivation: measured on ita_for_eng:pod-0 scenes 6+ run 17-36 sentences (~110+ plays for a whole-scene debut lap) and the owner found even scene 1's 8-sentence debut too much at first exposure. Stage cohesion (min-drill lift included), pure partition, and the sentence-unit ratchet read-time migration all unchanged — live learners' scene-boundary counters read as 'that scene's exchanges all started', no reset."
+
   v2.1.22:
     date: "2026-07-23"
     title: "Pod round 2 — scene-as-cohort, teleprompter positioned in the free zone, mount jank removed (product owner staging feedback, afternoon)"

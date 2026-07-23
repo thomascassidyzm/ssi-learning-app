@@ -7,50 +7,117 @@ import {
   type PodCohortRow,
 } from './podCohorts'
 
-/** Row shorthand: sc = scene_number. */
-const r = (sc: number | null = 1): PodCohortRow => ({ scene_number: sc })
+/** Row shorthand: sc = scene_number, glue = glue_to_next (continues into the
+ *  next row — i.e. NOT the last sentence of its turn). */
+const r = (sc: number | null = 1, glue = false): PodCohortRow => ({
+  scene_number: sc,
+  glue_to_next: glue,
+})
 
-describe('buildPodCohorts — one cohort per SCENE (Tom 2026-07-23)', () => {
-  it('a whole scene is one cohort, however many sentences it holds', () => {
-    // One scene of six lines: no cap, no splitting — the exchange stays whole.
-    const rows = Array.from({ length: 6 }, () => r(1))
-    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 6 }])
+describe('buildPodCohorts — scene walls, exchange debuts (Tom 2026-07-24)', () => {
+  it('an exchange is a turn plus its reply: two single-sentence turns pair into one cohort', () => {
+    // Q + A, one scene → one exchange.
+    const rows = [r(1), r(1)]
+    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 2 }])
   })
 
-  it('partitions at every scene boundary, sizes as authored', () => {
-    // Scene 1 (2 lines), scene 2 (4 lines), scene 3 (1 line).
-    const rows = [r(1), r(1), r(2), r(2), r(2), r(2), r(3)]
+  it('multi-sentence turns stay whole: glue runs are the turn unit', () => {
+    // Turn A = 2 glued sentences, turn B = 1 → one exchange of 3.
+    const rows = [r(1, true), r(1), r(1)]
+    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
+  })
+
+  it('a scene ramps exchange by exchange: four turns → two cohorts, in order', () => {
+    // Q1 A1 Q2 A2 in one scene → exchanges (Q1,A1), (Q2,A2).
+    const rows = [r(1), r(1), r(1), r(1)]
     expect(buildPodCohorts(rows)).toEqual([
       { start: 0, size: 2 },
-      { start: 2, size: 4 },
-      { start: 6, size: 1 },
+      { start: 2, size: 2 },
     ])
   })
 
-  it('an adjacency pair can never straddle a lap: question and reply share a scene → one cohort', () => {
-    const rows = [r(1), r(1), r(1), r(1)]
-    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 4 }])
-  })
-
-  it('a one-line scene is a cohort of 1', () => {
-    const rows = [r(1), r(2), r(2)]
+  it('an adjacency pair never straddles a lap: pairing is turn-aligned, never mid-turn', () => {
+    // Turns of sizes 1, 2, 1 → exchange 1 = turns 1+2 (3 sentences),
+    // exchange 2 = the lone closing turn.
+    const rows = [r(1), r(1, true), r(1), r(1)]
     expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 1 },
-      { start: 1, size: 2 },
+      { start: 0, size: 3 },
+      { start: 3, size: 1 },
     ])
   })
 
-  it('missing scene_number never forces a break (legacy cached rows → one cohort)', () => {
+  it('an odd turn count leaves the closing turn (narrator coda) as its own cohort', () => {
+    const rows = [r(1), r(1), r(1)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
+    ])
+  })
+
+  it('SCENE IS THE WALL: an exchange never spans a scene boundary', () => {
+    // Scene 1 has three turns (lone coda), scene 2 has two — the coda never
+    // pairs with scene 2's opener.
+    const rows = [r(1), r(1), r(1), r(2), r(2)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
+      { start: 3, size: 2 },
+    ])
+  })
+
+  it('a scene completes before the next scene debuts (cohorts stay in sentence order)', () => {
+    // Scene 1 (4 turns) then scene 2 (2 turns): cohorts 1-2 are scene 1's
+    // exchanges, cohort 3 is scene 2's — round N debuts cohort N, so scene 2
+    // starts only after scene 1 is fully introduced.
+    const rows = [r(1), r(1), r(1), r(1), r(2), r(2)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 2 },
+      { start: 4, size: 2 },
+    ])
+  })
+
+  it('glue_to_next on a scene-final row does not leak the turn across the wall', () => {
+    // Row 1 claims glue into row 2, but row 2 is a new scene — the wall wins.
+    const rows = [r(1), r(1, true), r(2)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
+    ])
+  })
+
+  it('a one-turn scene is a cohort of 1 turn (however many glued sentences)', () => {
+    const rows = [r(1, true), r(1, true), r(1), r(2)]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 3 },
+      { start: 3, size: 1 },
+    ])
+  })
+
+  it('missing scene_number never forces a scene break (legacy cached rows)', () => {
+    // All-null scene, no glue info → single-sentence turns pairing off in twos.
     const rows = [r(null), r(null), r(null)]
-    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
+    ])
   })
 
   it('a null row bridges its scene run rather than resetting it', () => {
     // …scene 1, null, scene 1… is one scene; the later scene 2 still breaks.
     const rows = [r(1), r(null), r(1), r(2)]
     expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 3 },
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
       { start: 3, size: 1 },
+    ])
+  })
+
+  it('rows with no glue info pair off two sentences at a time (legacy-safe small cohorts)', () => {
+    const rows: PodCohortRow[] = [{ scene_number: 1 }, { scene_number: 1 }, { scene_number: 1 }, { scene_number: 1 }]
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 2 },
     ])
   })
 
@@ -109,5 +176,19 @@ describe('podCohortRoundFor / podRatchetAfterLap — sentence-unit ratchet', () 
 
   it('no cohorts → plain +1 tick', () => {
     expect(podRatchetAfterLap([], 4)).toBe(5)
+  })
+
+  it('scene-cohort → exchange-cohort migration: a stored scene-boundary value maps to the right exchange round, no reset', () => {
+    // Yesterday's client completed scene 1 (4 sentences, two exchanges) as
+    // one lap → stored=4. Under the exchange partition [2,2,2] that reads as
+    // 2 cohorts started → round 3: scene 1 replays one step older, and the
+    // next lap debuts exchange 3.
+    const exchanges = [
+      { start: 0, size: 2 },
+      { start: 2, size: 2 },
+      { start: 4, size: 2 },
+    ]
+    expect(podCohortRoundFor(exchanges, 4)).toBe(3)
+    expect(podRatchetAfterLap(exchanges, 4)).toBe(6)
   })
 })
