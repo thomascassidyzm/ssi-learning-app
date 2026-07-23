@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Measuring What Fluency Actually Is — SSi Methodology</title>
+<meta name="description" content="Seventeen years of observation, a two-axis picture, trajectories read by their curvature, and levels discovered from the population rather than imposed — SSi's measurement philosophy." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(194,58,58,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  .hero { padding: clamp(52px, 10vw, 116px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 78px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+  h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .small { font-size: 16px; color: var(--ink-2); }
+  a.inline { color: var(--red-deep); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+  @media (max-width: 720px) { .cards3 { grid-template-columns: 1fr; } }
+  .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+  @media (max-width: 640px) { .cards2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+  .card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+  .card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  .anchors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+  @media (max-width: 640px) { .anchors { grid-template-columns: 1fr; } }
+  .anchors .card { text-align: center; padding: 26px 22px; }
+  .anchors .big { font-family: var(--display); font-weight: 700; font-size: clamp(40px, 6vw, 56px); line-height: 1; color: var(--red); }
+  .anchors .card p { margin-top: 10px; }
+
+  .honest { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: clamp(24px, 4vw, 40px); margin: 28px 0; }
+  .honest ul.clean li { margin-bottom: 16px; }
+  .honest ul.clean li b { font-weight: 600; }
+  .honest ul.clean li::before { content: "✓"; color: var(--red); font-weight: 600; }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/methodology/" class="backlink" aria-label="All methodology papers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All papers
+  </a>
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Public explainer</span>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Measurement</span>
+      <h1>Measuring what fluency <em>actually is.</em></h1>
+      <p class="lede">Most platforms measure whatever is easiest to count. We start from the other end: <strong>what is fluency, what does seventeen years of observation already tell us, and what's the most honest claim the data supports?</strong> — then measure exactly that, and nothing more convenient.</p>
+      <div class="meta-row">
+        <span><b>Companion:</b> How We Listen (the microphone-level story)</span>
+        <span><b>Read:</b> ~5 minutes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. THE ANCHORS -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">01 · The ground truth</span>
+      <h2>Two numbers, seventeen years in the making</h2>
+      <p class="dek">Before any clever instrumentation, the method already has empirical anchors most platforms would kill for.</p>
+
+      <div class="anchors">
+        <div class="card">
+          <span class="big">~30<span style="font-size:0.45em"> hrs</span></span>
+          <p>of in-app practice, and learners are confidently getting <em>into</em> conversations. Not fluent — but the barrier to speaking has dropped.</p>
+        </div>
+        <div class="card">
+          <span class="big">~100<span style="font-size:0.45em"> hrs</span></span>
+          <p>and they're genuinely conversational, at roughly B1 level — extended exchanges, unfamiliar topics, recovering from mistakes.</p>
+        </div>
+      </div>
+
+      <p>These are population averages observed across thousands of learners since 2009 — never promises to individuals; the variance is real. But they are ground truth that needs no external validation, and everything else in the measurement architecture is built to add what these flat averages lack: <strong>individual resolution</strong>. Is <em>this</em> learner ahead of the curve or quietly stalling? The average can't say. The architecture can.</p>
+
+      <p>Why the method produces these numbers at all: a learner who already speaks one language isn't missing a map of how language works — they have grammar, meaning, pragmatics already. What they're missing is the <strong>automatic memories</strong> connecting what they mean to how the new language says it. The SSi cycle is a high-throughput factory for exactly those memories, and the hours-to-conversation figures are simply how long the factory takes at our intensity.</p>
+    </div>
+  </section>
+
+  <!-- 2. THE PICTURE -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">02 · The picture</span>
+      <h2>A coordinate, read as a curve</h2>
+      <p class="dek">Every learner is a point on a two-axis plane — and the point matters far less than its trajectory.</p>
+
+      <p>The two axes, borrowed loosely from Olympic diving: <strong>difficulty</strong> — how far into the course you are, objective, no judgement — and <strong>execution</strong> — how closely your spoken responses match the model voice, heard as shape (timing, melody, rhythm), never as transcribed words. Far along and executing well: fluent. Far along, executing poorly: clicking through. Early but executing beautifully: thorough. Early and struggling: exactly who a teacher should go to first.</p>
+
+      <p>The same coordinate can be read three ways, carrying very different amounts of information:</p>
+
+      <div class="cards3">
+        <div class="card">
+          <span class="k">Level</span>
+          <h4>Where you are</h4>
+          <p>Mostly context. A learner who consistently takes 2.5× the model's length, steadily, saying things nicely, is simply where they are. No alarm.</p>
+        </div>
+        <div class="card">
+          <span class="k">Velocity</span>
+          <h4>Where you're heading</h4>
+          <p>A mild signal — trending up or down. By the time velocity has visibly changed sign, the turn already happened.</p>
+        </div>
+        <div class="card">
+          <span class="k">Acceleration</span>
+          <h4>The trend of the trend</h4>
+          <p>The headline. The moment a trajectory starts to <em>bend</em> — often before the learner has consciously registered they're struggling.</p>
+        </div>
+      </div>
+
+      <p>There's a quiet piece of mathematics doing the work here. Differentiate any signal twice and two things vanish automatically: the constant level, and any steady slope. What survives is only the <em>inflection</em> — the moment the trend itself turns. So a stable-but-slow learner reads as exactly zero — no alarm, correctly, with no per-learner baseline to estimate — while a learner drifting from 2.5× to 4× over a handful of cycles lights up immediately. If 4× then settles as the new normal, the alarm falls silent again on its own.</p>
+
+      <p class="pull">The level is context. <em>The acceleration is the alarm.</em></p>
+    </div>
+  </section>
+
+  <!-- 3. NO PROXIES -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">03 · The discipline</span>
+      <h2>Measure the objective, never a convenient proxy</h2>
+      <p class="dek">Every off-the-shelf measure mismeasures exactly what makes the method work.</p>
+
+      <p>The objective is <strong>confident interaction</strong> — as understandable as possible, as quickly as possible. Held against that, the standard tools all point the wrong way:</p>
+
+      <ul class="clean">
+        <li><strong>Speech recognition</strong> scores whether a machine can guess your words. Fluency is timing, melody and rhythm — and speech recognition is weakest on the long-tail languages we care most about, and biased against exactly the non-native voices we teach. We never use it. (The full argument lives in <a class="inline" href="/methodology/how-we-listen.html">How We Listen</a>.)</li>
+        <li><strong>Word-frequency lists</strong> rank the wrong material. The phrases that get you <em>into</em> a conversation and keep you there — "I'm not sure how to say…", "can you say that again?" — are rare in any corpus and priceless in the mouth. Our courses front-load by conversational impact, not frequency, which is why the ordering of a course is itself expert judgement, compiled.</li>
+        <li><strong>Test scores</strong> measure a day's performance. We measure the practice itself, continuously and invisibly — no test days, no marking, no examiner needed.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. DISCOVERED LEVELS -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">04 · Levels</span>
+      <h2>Discovered from the population, not imposed on it</h2>
+      <p class="dek">What "what level am I?" gets as an answer — and what it never will.</p>
+
+      <p>Formal frameworks like CEFR assert levels from theory. We go the other way: as learners spanning beginner to fluent accumulate on the difficulty-and-execution plane, clusters emerge — and our own 30-hour and 100-hour anchors, plus a small sample of learners with known external scores, let us label those clusters after the fact. School pilots pair a learner's internal coordinate with the school's own assessment judgement; if the two agree, the method is doubly validated, and if they disagree, we've learned something worth knowing. Either result is a win, which is what makes it honest measurement rather than marketing.</p>
+
+      <div class="honest">
+        <ul class="clean">
+          <li><b>Never a hard level.</b> Always a best-fit band with explicit confidence: "your speaking patterns are most similar to learners around B1, and confidence will tighten as you practise."</li>
+          <li><b>Never a certificate.</b> We measure speaking-production fluency plus course coverage, and we say so. A formal assessment measures four skills; we won't claim the other three.</li>
+          <li><b>Always "speaking-pattern similarity".</b> That's the most the data honestly supports, so it's the most we'll ever say.</li>
+        </ul>
+      </div>
+
+      <p class="small">Why publish the measurement philosophy at all? Because the methodology has never been a trade secret, and a system that grades people owes them an explanation of the ruler. Being the organisation that explains its work is worth more than the mystique of not explaining it.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · Measuring What Fluency Actually Is — public methodology explainer<br />
+    Part of the open SSi methodology series · <a class="inline" href="/methodology/">all papers</a><br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>

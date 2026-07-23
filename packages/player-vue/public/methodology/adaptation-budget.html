@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>The Invisible Accompanist — SSi Methodology</title>
+<meta name="description" content="How SSi adapts to each learner: you own the big dials, the engine does millisecond finesse you never feel — and when something is hard, the answer is usually to consolidate around it, not drill it." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(194,58,58,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  .hero { padding: clamp(52px, 10vw, 116px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 78px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+  h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  .small { font-size: 16px; color: var(--ink-2); }
+  a.inline { color: var(--red-deep); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+  @media (max-width: 720px) { .cards3 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+  .card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+  .card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+  .channel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px 26px; margin: 28px 0; font-family: var(--mono); font-size: 13px; }
+  .channel .wall { color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
+  .channel .lane { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 16px 0; margin: 10px 0; text-align: center; font-family: var(--display); font-size: 19px; color: var(--ink); }
+  .channel .lane em { color: var(--red); }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/methodology/" class="backlink" aria-label="All methodology papers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    All papers
+  </a>
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Public explainer</span>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Adaptation</span>
+      <h1>The invisible <em>accompanist.</em></h1>
+      <p class="lede">You own the big dials — skip forward, skip back, speed up. The engine does the finesse underneath, at a scale you'd never bother with manually: <strong>and if it's working, you never feel it.</strong> Like a good accompanist following a soloist, the soloist just feels in flow.</p>
+      <div class="meta-row">
+        <span><b>Status:</b> design position, engine rolling out in stages</span>
+        <span><b>Read:</b> ~4 minutes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. THE DIVISION -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">01 · The division of labour</span>
+      <h2>Your judgement is the major dial</h2>
+      <p class="dek">Adaptive systems usually fight the learner for control. Ours refuses to.</p>
+
+      <p>The learner already owns the big decisions in the player. Skip forward means "too easy". Skip back means "let me hear that again". Those manual controls do the heavy lifting, and the engine never competes with them — a learner's own judgement about their learning is data to respect, not noise to override.</p>
+
+      <p>What the engine does is everything you <em>couldn't be bothered</em> to do: shave a fraction of a second off a pause when your last five responses came quickly, bring a phrase you struggled with back slightly sooner, give a phrase you've clearly got a little more air. Millisecond-scale finesse, continuously, invisibly.</p>
+
+      <p class="pull">And a hard line with it: anything you'd <em>notice</em> — reordering the course, surfacing a remedial track — is never done silently. It goes to a human, as a suggestion. <em>The engine's silent powers are bounded to the imperceptible.</em></p>
+    </div>
+  </section>
+
+  <!-- 2. THE CHANNEL -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">02 · The objective</span>
+      <h2>The channel between drowning and bored</h2>
+      <p class="dek">What the finesse is actually for.</p>
+
+      <div class="channel" role="img" aria-label="A lane between two walls: too hard above, too easy below">
+        <div class="wall">the drown wall — too hard → brittle memorisation, giving up</div>
+        <div class="lane">keep the learner <em>here</em>, where progress is fastest</div>
+        <div class="wall">the bored wall — too easy → attention drifts, sessions stop</div>
+      </div>
+
+      <p>Both walls end the same way — the learner leaves — but they need opposite nudges, and the trick is nudging <em>early</em>. The engine watches the trend of each learner's responses and acts the moment a trend starts to bend, before a developing struggle becomes a crash and before coasting becomes boredom. By the time either is obvious, you're late. (Why the <em>bend</em> is the earliest honest signal is the curvature argument in <a class="inline" href="/methodology/measuring-fluency.html">Measuring What Fluency Actually Is</a>.)</p>
+    </div>
+  </section>
+
+  <!-- 3. THE BUDGET -->
+  <section>
+    <div class="wrap">
+      <span class="sec-num">03 · The lean</span>
+      <h2>Consolidate, defer, drill — in that order</h2>
+      <p class="dek">Against the drill-your-weakness instinct of most education software.</p>
+
+      <p>A practice session is a finite budget. When something turns out to be hard for you, the engine has three ways to spend the next slice of it:</p>
+
+      <div class="cards3">
+        <div class="card">
+          <span class="k">Default</span>
+          <h4>Consolidate</h4>
+          <p>Reinforce what you're already good at around the hard thing — thicken the map it has to land in.</p>
+        </div>
+        <div class="card">
+          <span class="k">Usually</span>
+          <h4>Defer</h4>
+          <p>Rest the hard item and let the spaced-repetition schedule bring it back — deferral is timing, never abandonment.</p>
+        </div>
+        <div class="card">
+          <span class="k">Rarely</span>
+          <h4>Drill</h4>
+          <p>Push the hard item directly — reserved for the structurally critical few that block everything downstream.</p>
+        </div>
+      </div>
+
+      <p>The lean runs against the mainstream instinct, so here is the reasoning plainly. <strong>A hard item is usually blocked by a thin surrounding map, not by lack of exposure to itself.</strong> Grinding it in isolation buys brittle memorisation and pushes you at the drown wall. Consolidating strengths keeps you confidently in the session, and fills in the surroundings — so when the deferred item returns on its schedule, it tends to land almost for free.</p>
+
+      <p>Which items resist deferral? Not the frequent ones — the <em>early</em> ones. Our courses are sequenced by conversational impact, so how early something was introduced is itself the record of how critical it is. A hard phrase from the early layers gets held onto even if it's rare in any corpus, because it's part of what unlocks conversation itself.</p>
+
+      <h3>And it's falsifiable</h3>
+      <p>Because the measurement layer captures everything the adaptation does, the consolidate-lean is a testable bet, not a creed: as learner and school-pilot data accumulate, we can check whether defer-and-consolidate actually beats drill-the-weakness for rate of progress. Seventeen years of the method working says it will. The architecture gets to check its own pedagogy rather than assert it — and if the data ever disagrees, the data wins.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · The Invisible Accompanist — public methodology explainer<br />
+    Part of the open SSi methodology series · <a class="inline" href="/methodology/">all papers</a><br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>
