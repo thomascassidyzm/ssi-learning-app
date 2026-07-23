@@ -65,6 +65,62 @@ const papers: Paper[] = [
     tag: 'Working paper',
     status: 'Draft — for Tom\'s edit',
   },
+  {
+    title: 'The public methodology index',
+    blurb:
+      'The public front door for the explainer series — every published page listed with one-line hooks. No sign-in, no gates: being explicit about the approach is a feature. Share this link.',
+    href: '/methodology/',
+    tag: 'Public · index',
+    status: 'Live',
+  },
+  {
+    title: 'Measuring What Fluency Actually Is',
+    blurb:
+      'The measurement philosophy for a public reader: the 30/100-hour anchors, the difficulty × execution coordinate read as a curve (level / velocity / acceleration), measure-the-objective-not-a-proxy, and levels discovered from the population — never a hard level, never a certificate.',
+    href: '/methodology/measuring-fluency.html',
+    tag: 'Public · explainer',
+    status: 'Live',
+  },
+  {
+    title: 'The Invisible Accompanist',
+    blurb:
+      'Adaptation for a public reader: the learner owns the big dials, the engine does imperceptible finesse, the drown/bored channel, and the consolidate / defer / drill budget with its falsifiable consolidate-lean.',
+    href: '/methodology/adaptation-budget.html',
+    tag: 'Public · explainer',
+    status: 'Live',
+  },
+  {
+    title: 'The Two Layers of Listening',
+    blurb:
+      'Reactivation vs acquisition — listening keeps produced material warm and, past the productive-capacity tipping point, becomes the primary acquisition channel. Includes the no-text-on-screen position.',
+    href: '/methodology/listening-layers.html',
+    tag: 'Public · explainer',
+    status: 'Live',
+  },
+  {
+    title: 'Little and Often: the 30-Cup Wheel',
+    blurb:
+      'Layer 1 as shipped, for a public reader: thirty cups, one poured per round, the comprehensible-input sandwich (target → known → target → target at 2×), and the road-test story of why the known slot came back.',
+    href: '/methodology/listening-cups.html',
+    tag: 'Public · explainer',
+    status: 'Live',
+  },
+  {
+    title: 'The Class Is a Learner',
+    blurb:
+      'Attention vs coverage for a public reader: the class as a first-class learner (coverage, rate, dosage, efficiency; skip-ahead legible as mastery; teacher churn invisible), and the homework-only honesty rules for per-pupil reads.',
+    href: '/methodology/attention-and-coverage.html',
+    tag: 'Public · explainer',
+    status: 'Live',
+  },
+  {
+    title: 'Hitting the Ground Running in Conversation #1',
+    blurb:
+      'The day-45 observation published as open thinking: the gap is practice flows, not ingredients — conversational connective tissue, target-language prompts with three right answers, and the unresolved locus question.',
+    href: '/methodology/conversational-flow.html',
+    tag: 'Public · think-piece',
+    status: 'Live — deliberately unfinished',
+  },
 ]
 </script>
 

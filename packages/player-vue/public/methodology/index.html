@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>The SSi Methodology, in the Open</title>
+<meta name="description" content="How SaySomethingin works and why — the method's papers and explainers, published for anyone to read. No sign-in, no secrets: explaining our work is the point." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #e8e3dd;
+    --paper-2:      #e0dbd5;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #c23a3a;
+    --red-deep:     #9a2e2e;
+    --gold:         212, 168, 83;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --wide: 62rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(232, 227, 221, 0.85);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topbar .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
+  @media (max-width: 560px) { .topbar .tag { display: none; } }
+
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--wide); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+
+  .hero { padding: clamp(52px, 9vw, 104px) 0 clamp(30px, 5vw, 50px); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(38px, 6.5vw, 72px); margin: 0 0 22px; max-width: 16ch;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 36rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px; padding: clamp(10px, 2vw, 20px) 0 clamp(50px, 8vw, 90px);
+  }
+  a.paper {
+    display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 24px 26px 20px; text-decoration: none; color: inherit;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  a.paper:hover { transform: translateY(-2px); border-color: rgba(194,58,58,0.3); box-shadow: 0 8px 28px rgba(44,38,34,0.08); }
+  .paper .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); margin-bottom: 12px; }
+  .paper h2 { font-family: var(--display); font-weight: 700; font-size: clamp(22px, 2.6vw, 27px); line-height: 1.12; letter-spacing: -0.01em; margin: 0 0 10px; }
+  .paper p { font-size: 15.5px; line-height: 1.55; color: var(--ink-2); margin: 0 0 18px; flex: 1; }
+  .paper .cta { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--red-deep); letter-spacing: 0.02em; }
+  .paper:hover .cta svg { transform: translateX(3px); }
+  .paper .cta svg { transition: transform 160ms ease; }
+
+  .note { padding: 0 0 clamp(50px, 8vw, 80px); }
+  .note .inner { background: var(--paper-2); border: 1px solid var(--line); border-radius: 16px; padding: clamp(22px, 4vw, 34px); max-width: 44rem; }
+  .note .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 10px; }
+  .note p { margin: 0; font-size: 16.5px; color: var(--ink-2); }
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  footer { padding: 40px 0 calc(48px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-soft); }
+  footer .wrap { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="mark">S</span> <span>SaySomething<b>in</b> · Methodology</span></div>
+  <span class="tag">Public · no sign-in, no secrets</span>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">The open methodology</span>
+      <h1>How it works, <em>in the open.</em></h1>
+      <p class="lede">The SSi method has never been a trade secret. These papers explain what the app does and why — including the open questions and the wrong turns. <strong>Being the organisation that explains its work is worth more than the mystique of not explaining it.</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap grid">
+
+      <a class="paper" href="/methodology/anyone-can-teach.html">
+        <span class="k">Working paper · The founding claim</span>
+        <h2>Anyone Can Teach</h2>
+        <p>When the expertise lives in the engine, the human teaching role decomposes into presence, safety, and alongsideness — independent of subject knowledge. Sri Lanka 2023, the honest numbers, and the second subject.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/how-we-listen.html">
+        <span class="k">Explainer · Listening to you</span>
+        <h2>How We Listen</h2>
+        <p>Like a music teacher, not a transcriber: the app never writes down a word you say. No speech recognition, ever — timing, melody and rhythm instead, and a trust position you can check.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/measuring-fluency.html">
+        <span class="k">Explainer · Measurement</span>
+        <h2>Measuring What Fluency Actually Is</h2>
+        <p>Two numbers seventeen years in the making, a coordinate read as a curve, and levels discovered from the population rather than imposed on it — with the honest ceiling on what we'll ever claim.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/adaptation-budget.html">
+        <span class="k">Explainer · Adaptation</span>
+        <h2>The Invisible Accompanist</h2>
+        <p>You own the big dials; the engine does millisecond finesse you never feel. And when something's hard, the answer is usually to consolidate around it — not drill it. A falsifiable bet, stated plainly.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/listening-layers.html">
+        <span class="k">Explainer · Listening</span>
+        <h2>The Two Layers of Listening</h2>
+        <p>Keeping warm what you can already say, and acquiring what you can't yet — two jobs that must never be confused, and why listening becomes the primary channel for advanced learners.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/listening-cups.html">
+        <span class="k">Explainer · Listening, layer 1</span>
+        <h2>Little and Often: the 30-Cup Wheel</h2>
+        <p>A minute of listening at the end of every round, each sentence served in a comprehensible-input sandwich — including the wrong turns that taught us why the meaning had to come back.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/attention-and-coverage.html">
+        <span class="k">Explainer · Teaching insight</span>
+        <h2>The Class Is a Learner</h2>
+        <p>A learner who plays alone needs watching; a class that plays together is itself a learner — track it like one. Two lanes of teaching insight, and the honesty rules that keep them honest.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="paper" href="/methodology/conversational-flow.html">
+        <span class="k">Open thinking · Deliberately unfinished</span>
+        <h2>Hitting the Ground Running in Conversation #1</h2>
+        <p>By day 45 you have the ingredients and won't crash on the pleasantries. The gap is the flows — the rehearsed experience of running a live conversation. An open question, published before it's answered.</p>
+        <span class="cta">Read <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="note">
+    <div class="wrap">
+      <div class="inner">
+        <span class="k">Why publish this?</span>
+        <p>Because the method is anchored in seventeen years of observation, not in secrecy — on average, learners get confidently into conversations after roughly <strong>30 hours</strong> of practice and reach genuinely conversational ability around <strong>100</strong>. Population averages, never individual promises. Everything above is how we're adding individual resolution to a method that already demonstrably works — <strong>rough but honest, by design</strong>, open questions included.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SaySomethingin · The open methodology series<br />
+    saysomethingin.app · Questions to the founders<br />
+    2026-07 · Rough but honest, by design
+  </div>
+</footer>
+
+</body>
+</html>

@@ -17,6 +17,27 @@
 | [flexible-grouping.md](./flexible-grouping.md) | Think-piece (2026-06-14) | The open design area from tutor-insights §5/§7 — the layer **above** the class. **Belonging is singular+hard** (a class's `school_id` FK); **grouping is plural+soft** (year/department/faculty/key-stage/house/cohort/chain, overlapping) → expressed as time-bounded relationship tags (the same primitive as students/teachers, one level up), **not** the rigid `groups` path-tree. A leader's scope = a predicate over those tags (school-leader = the FK, needs zero grouping rows; dept/year scope added when a school asks). Roll-up = the coverage board at a higher `GROUP BY`; sovereignty k-floor carries up unchanged. Consumer-first / earn-it; doesn't block the teacher↔class migration |
 | [adaptation-budget.md](./adaptation-budget.md) | Think-piece (2026-06-13) | The M2 controller design — how the curvature engine (B1, shipped) drives a finite-session **consolidate / defer / drill** budget. Control objective = damp local acceleration before a struggle crashes; criticality = **introduction order** (not frequency); return = the **Fibonacci SR** schedule; levers = pause multiplier + rep count (invisible per Principle 1); visible actions go to a `surface_to_human` queue, never silent. Honest dependency: **C is not start-now** — the next code step toward it is **B4** (curvature per unit) + persisted Layer 1, not the controller itself. §8 open questions for Tom/Aran |
 
+## Public explainer pages (owner ruling 2026-07-24: public statics, no gates)
+
+Curated founder-voiced renderings live at `packages/player-vue/public/methodology/*.html`,
+indexed at `/methodology/` (public index.html). Concepts only — schemas, migrations,
+build plans and security posture are never ported. Mapping:
+
+| Source doc | Public page |
+|---|---|
+| anyone-can-teach.md | `anyone-can-teach.html` |
+| metrics-architecture.md §5–7 | `how-we-listen.html` |
+| metrics-architecture.md (principles, anchors, CEFR honesty) | `measuring-fluency.html` |
+| adaptation-budget.md | `adaptation-budget.html` |
+| listening-layers.md (surviving concepts) | `listening-layers.html` |
+| layer1-listening-cups.md | `listening-cups.html` |
+| tutor-insights.md §1–4 (concepts) | `attention-and-coverage.html` |
+| conversational-flow-priming.md | `conversational-flow.html` |
+
+Not published (internal by nature): class-first-class-citizen.md, flexible-grouping.md,
+metrics-implementation-plan.md, build-plan-*, insight-engine-build-plan.md; borderline
+(awaiting owner call): insight-engine.md, admin-insights.md.
+
 ## Adding New Methodology
 
 When capturing methodology insights:
