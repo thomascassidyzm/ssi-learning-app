@@ -64,6 +64,45 @@ const BASE_INTERVAL_MINUTES = 10
 const BASE_INTERVAL_CYCLES = Math.round(BASE_INTERVAL_MINUTES * CYCLES_PER_MINUTE)
 const INTERVAL_JITTER = 0.3
 
+/**
+ * Encouragement taper (owner ruling 2026-07-24): random encouragements are
+ * welcome early but patronising for an experienced learner — they dial DOWN
+ * with experience and switch fully OFF past a threshold. Experience is the
+ * seed number of the learner's current position (belt thresholds are
+ * seed-denominated; default off-point = 8, the first belt equivalent —
+ * Yellow). Instructions (the once-ever science bits) are never tapered.
+ * Admin-tunable via algorithm_config key 'meta_commentary'.
+ */
+export interface EncouragementTaperConfig {
+  /** Seed position where the taper starts (full frequency below this). */
+  taperStartSeeds: number
+  /** Seed position at/past which encouragements are fully off. */
+  offAtSeeds: number
+}
+
+export const DEFAULT_ENCOURAGEMENT_TAPER: EncouragementTaperConfig = {
+  taperStartSeeds: 0,
+  offAtSeeds: 8,
+}
+
+/**
+ * Multiplier applied to the encouragement fire interval for a learner at
+ * `seeds`. 1 below the taper start, growing smoothly (1/(1-p)) through the
+ * taper zone, Infinity (= off) at/past `offAtSeeds`. Pure — unit-tested.
+ */
+export function encouragementIntervalMultiplier(
+  seeds: number,
+  cfg: EncouragementTaperConfig = DEFAULT_ENCOURAGEMENT_TAPER,
+): number {
+  const start = Math.max(0, cfg.taperStartSeeds)
+  const off = cfg.offAtSeeds
+  if (off <= start) return seeds >= off ? Infinity : 1 // degenerate config: hard cutoff
+  const p = (seeds - start) / (off - start)
+  if (p <= 0) return 1
+  if (p >= 1) return Infinity
+  return 1 / (1 - p)
+}
+
 export class MetaCommentaryService {
   private provider: CourseDataProvider
   private courseId: string
@@ -81,6 +120,11 @@ export class MetaCommentaryService {
   // the clock over, which is fine: encouragements aren't progress).
   private cyclesSinceLastFire = 0
   private nextFireAtCycles = 0 // 0 → rolled lazily on first round
+
+  // Encouragement taper inputs — pushed by the caller (LearningPlayer) from
+  // algorithm_config + the current playing position. Session-scoped.
+  private taper: EncouragementTaperConfig = DEFAULT_ENCOURAGEMENT_TAPER
+  private experienceSeeds = 0
 
   // Encouragement rotation (session-scoped): a shuffled cursor through the
   // pool so each is heard once per lap before any repeat, and the cursor
@@ -197,7 +241,21 @@ export class MetaCommentaryService {
     this.cyclesSinceLastFire += Math.max(0, cyclesInRound)
 
     if (!canFire) return null
-    if (!this.forceFire && this.cyclesSinceLastFire < this.nextFireAtCycles) return null
+    if (!this.forceFire) {
+      // Once past the instruction sequence, the next fire would be an
+      // encouragement — apply the experience taper: the required interval
+      // stretches through the taper zone and goes infinite (off) past the
+      // threshold. Instructions are never tapered — the science bits play at
+      // the base cadence until the sequence is done. forceFire (dev cheat)
+      // bypasses the taper so the display stays testable.
+      const inEncouragementPhase = this.forceEncouragementsOnly ||
+        this.globalState.instructionsComplete ||
+        this.globalState.instructionIndex >= this.instructions.length
+      const required = inEncouragementPhase
+        ? this.nextFireAtCycles * encouragementIntervalMultiplier(this.experienceSeeds, this.taper)
+        : this.nextFireAtCycles
+      if (!Number.isFinite(required) || this.cyclesSinceLastFire < required) return null
+    }
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
@@ -265,6 +323,43 @@ export class MetaCommentaryService {
       : -1
     if (n > 1 && a[0] === prevLast) { [a[0], a[1]] = [a[1], a[0]] }
     return a
+  }
+
+  /** Push the live taper config (from algorithm_config 'meta_commentary'). */
+  setEncouragementTaper(cfg: EncouragementTaperConfig | null | undefined): void {
+    this.taper = cfg ?? DEFAULT_ENCOURAGEMENT_TAPER
+  }
+
+  /** Push the learner's current experience (seed number of the playing
+   *  position) — drives the encouragement taper. */
+  setExperienceSeeds(seeds: number): void {
+    this.experienceSeeds = Math.max(0, seeds || 0)
+  }
+
+  /**
+   * Re-key the service when the learner identity changes after construction
+   * (guest → signed-in resolves async, and play-as-class swaps ids). Without
+   * this the service stays pinned to the setup-time snapshot: exposure state
+   * lands under a guest/demo localStorage key and — since a non-UUID id fails
+   * canSync — NEVER reaches the server, so a wiped device replays every
+   * science bit. Carries any progress made under the old identity forward
+   * (furthest-progress merge), then adopts/pushes the server truth.
+   */
+  setLearnerId(newLearnerId: string): void {
+    if (!newLearnerId || newLearnerId === this.learnerId) return
+    const carried = this.globalState
+    this.learnerId = newLearnerId
+    this.globalState = this.getDefaultGlobalState()
+    this.loadGlobalState()
+    this.globalState = {
+      instructionIndex: Math.max(this.globalState.instructionIndex, carried.instructionIndex),
+      instructionsComplete: this.globalState.instructionsComplete || carried.instructionsComplete,
+    }
+    // Cache locally only — do NOT mirror to the server yet: the server row may
+    // be AHEAD of this device, and an eager upsert would clobber it down.
+    // syncFromServer max-merges and pushes up only if the server is behind.
+    try { localStorage.setItem(this.getGlobalStorageKey(), JSON.stringify(this.globalState)) } catch { /* ignore */ }
+    void this.syncFromServer()
   }
 
   /** Caller compatibility — invoked by the player after playback finishes. */

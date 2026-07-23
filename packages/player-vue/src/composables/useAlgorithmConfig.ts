@@ -13,6 +13,10 @@
 import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
+import {
+  type EncouragementTaperConfig,
+  DEFAULT_ENCOURAGEMENT_TAPER,
+} from '../services/MetaCommentaryService'
 
 // Type definitions for algorithm configs
 export interface ModeConfig {
@@ -130,6 +134,18 @@ export interface ListeningModeConfig {
   podActivationRound?: number
 }
 
+/**
+ * Meta-commentary knobs — DB row `algorithm_config` key='meta_commentary'.
+ * Encouragement taper (owner ruling 2026-07-24): random encouragements dial
+ * down with learner experience and switch fully off past a threshold. Seeds
+ * are the experience unit (belt thresholds are seed-denominated); the default
+ * off-point 8 = the first belt equivalent (Yellow). Instructions (the
+ * once-ever science bits) are never tapered.
+ */
+export interface MetaCommentaryConfig {
+  encouragementTaper: EncouragementTaperConfig
+}
+
 export interface AlgorithmConfigs {
   normal_mode: ModeConfig
   turbo_boost: ModeConfig
@@ -139,7 +155,8 @@ export interface AlgorithmConfigs {
   resume: ResumeConfig
   stage0: Stage0Config
   adaptation_v2: AdaptationV2Config
-  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config
+  meta_commentary: MetaCommentaryConfig
+  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config | MetaCommentaryConfig
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -291,6 +308,10 @@ const DEFAULT_ADAPTATION_V2: AdaptationV2Config = {
   weights: { duration: 0.5, peaks: 0.3, shape: 0.2 },
 }
 
+const DEFAULT_META_COMMENTARY: MetaCommentaryConfig = {
+  encouragementTaper: DEFAULT_ENCOURAGEMENT_TAPER,
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -306,6 +327,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     resume: DEFAULT_RESUME,
     stage0: DEFAULT_STAGE0,
     adaptation_v2: DEFAULT_ADAPTATION_V2,
+    meta_commentary: DEFAULT_META_COMMENTARY,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -362,6 +384,14 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
             bounds: { ...DEFAULT_ADAPTATION_V2.bounds, ...(loaded.adaptation_v2?.bounds || {}) },
             weights: { ...DEFAULT_ADAPTATION_V2.weights, ...(loaded.adaptation_v2?.weights || {}) },
           },
+          meta_commentary: {
+            ...DEFAULT_META_COMMENTARY,
+            ...(loaded.meta_commentary || {}),
+            encouragementTaper: {
+              ...DEFAULT_META_COMMENTARY.encouragementTaper,
+              ...(loaded.meta_commentary?.encouragementTaper || {}),
+            },
+          },
         }
 
         // Update cache
@@ -388,9 +418,10 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
   const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
   const adaptationV2Config = computed(() => configs.value.adaptation_v2 as AdaptationV2Config)
+  const metaCommentaryConfig = computed(() => configs.value.meta_commentary as MetaCommentaryConfig)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config | MetaCommentaryConfig | null => {
     return configs.value[key] || null
   }
 
@@ -419,6 +450,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     resumeConfig,
     stage0Config,
     adaptationV2Config,
+    metaCommentaryConfig,
     getConfig,
     calculatePause,
     invalidateCache,
@@ -430,5 +462,6 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     DEFAULT_SCRIPT_SHAPE,
     DEFAULT_RESUME,
     DEFAULT_ADAPTATION_V2,
+    DEFAULT_META_COMMENTARY,
   }
 }

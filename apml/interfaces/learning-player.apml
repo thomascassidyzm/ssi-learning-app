@@ -761,6 +761,8 @@ COMPOSABLES:
     purpose: "Manage intro messages and encouragements"
     source: "packages/player-vue/src/composables/useMetaCommentary.ts"
     invariant: "Encouragements are a variable-interval reward: ~every 10 min of ACTIVE play (cycles played, not wall-clock — pauses don't count), jittered ±30% so they're unpredictable, and ALWAYS dropped between two speaking rounds (just-finished round not listening, next round not listening, no pod lap firing at this boundary). onRoundComplete is called every round to accumulate active time but only returns commentary when the caller's canFire (clean boundary) is set, so the timer lands on the next clean boundary. The listening schedule is untouched — the encouragement is the flexible guest. Also prevents the next-round intro overlapping a lap (the resume()/pause() race)."
+    exposure: "Once-ever science bits (owner ruling 2026-07-24): instruction exposure is per-learner SERVER state (learner_meta_commentary_state, own-row RLS; localStorage is only a fast/offline mirror) — a wiped device recovers from the server and never replays a heard bit. The service re-keys via setLearnerId when the real learner id resolves after setup (guest→signed-in, play-as-class), carrying guest progress forward by furthest-wins merge. Backfill for pre-2026-07 learners: gated migration 20260724_backfill_meta_commentary_exposure.sql.gated (spec + tests in services/commentaryBackfillSpec.ts)."
+    taper: "Encouragement taper (owner ruling 2026-07-24): random encouragements dial down with experience and switch fully OFF past a threshold — the fire interval is multiplied by 1/(1-p) through the taper zone (p = position through it), Infinity beyond. Experience = seed number of the round just played; default window 0→8 seeds (first belt equivalent). Admin-tunable via algorithm_config key 'meta_commentary' ({encouragementTaper:{taperStartSeeds,offAtSeeds}}). Instructions are never tapered; the ?fc dev cheat bypasses the taper."
 
   useBeltProgress:
     purpose: "Track belt progression with localStorage + Supabase sync"
@@ -1028,6 +1030,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-07-23
+## GENERATED: 2026-01-18 — Last updated: 2026-07-24
 ## APML v2.1.0
 ## ============================================================================
