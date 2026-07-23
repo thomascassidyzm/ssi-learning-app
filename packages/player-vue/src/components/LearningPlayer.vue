@@ -46,6 +46,7 @@ import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/ada
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
+import { envLabel } from '../composables/usePreviewTriggers'
 import { useClassAwareProgressStore, type ClassContextForProgress } from '../composables/schools/useClassProgressStore'
 import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
@@ -1227,16 +1228,9 @@ const audioFailedBanner = simplePlayer.audioFailed
 
 // Environment label shown inline next to the logo. Hostname-based so it
 // can't drift from reality (no env var plumbing). null on production.
-const envLabel = computed<string | null>(() => {
-  if (typeof window === 'undefined') return null
-  const host = window.location.hostname
-  const isProduction = host === 'saysomethingin.app'
-    || host === 'www.saysomethingin.app'
-    || host === 'app.saysomethingin.com'
-  if (isProduction) return null
-  if (host.startsWith('staging.') || host.includes('-staging')) return 'STAGING'
-  return 'DEV'
-})
+// envLabel (dev/staging/production host classifier) now lives in
+// usePreviewTriggers.ts — shared with the in-app preview-trigger buttons in
+// TesterFeedback's panel so both gate on the exact same hostname rule.
 
 // Dev cheat flags (?l1=1 / ?pod=1): read once, gated on envLabel (same
 // dev/staging-only host check that gates showDevReset — never production).

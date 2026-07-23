@@ -8,8 +8,19 @@
 import { ref, computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
+import { envLabel, triggerPreviewCheat, type PreviewTriggerParam } from '@/composables/usePreviewTriggers'
 
 const { isTester, isSsiAdmin } = useUserRole()
+
+// Listening-layer preview triggers (?l1=1 / ?pod=1 / ?podview=1) — same
+// dev/staging-only gate as the query params themselves (see
+// usePreviewTriggers.ts), on top of this widget's own tester/admin gate.
+const showPreviewTriggers = computed(() => !!envLabel.value)
+const previewTriggers: { param: PreviewTriggerParam; label: string }[] = [
+  { param: 'l1', label: 'Layer-1 cup' },
+  { param: 'pod', label: 'Pod (main flow)' },
+  { param: 'podview', label: 'Pod view' },
+]
 
 const router = useRouter()
 const route = useRoute()
@@ -359,6 +370,22 @@ async function submitFeedback() {
               <p v-if="screenshotError" class="feedback-screenshot-error">{{ screenshotError }}</p>
             </div>
 
+            <!-- Preview triggers (dev/staging only) -->
+            <div v-if="showPreviewTriggers" class="feedback-preview-group">
+              <p class="feedback-preview-label">Preview</p>
+              <div class="feedback-preview-pills">
+                <button
+                  v-for="trigger in previewTriggers"
+                  :key="trigger.param"
+                  type="button"
+                  class="feedback-preview-pill"
+                  @click="triggerPreviewCheat(trigger.param)"
+                >
+                  {{ trigger.label }}
+                </button>
+              </div>
+            </div>
+
             <!-- Auto-captured info -->
             <div class="feedback-meta">
               <span class="feedback-chip">{{ currentRoute }}</span>
@@ -641,6 +668,44 @@ async function submitFeedback() {
   margin: 0;
   font-size: 12px;
   color: #e04040;
+}
+
+/* Preview triggers */
+.feedback-preview-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-preview-label {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #666);
+}
+
+.feedback-preview-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.feedback-preview-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border, #2a2a4a);
+  background: transparent;
+  color: var(--color-text-muted, #888);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feedback-preview-pill:hover {
+  border-color: #2d9cdb;
+  color: var(--color-text, #e0e0e0);
+  background: rgba(45, 156, 219, 0.1);
 }
 
 /* Meta chips */
