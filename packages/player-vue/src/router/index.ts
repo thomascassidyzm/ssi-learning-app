@@ -460,12 +460,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Measuring progress', description: 'Methodology papers and demos' },
       },
       {
-        path: 'methodology/how-we-listen',
-        name: 'admin-how-we-listen',
-        component: () => import('@/views/admin/AdminHowWeListen.vue'),
-        meta: { title: 'How We Listen', description: 'Founder briefing for Nick/marketing — behavioural listening methodology' },
-      },
-      {
         path: 'insights',
         name: 'admin-insights',
         component: () => import('@/insight/InsightsView.vue'),

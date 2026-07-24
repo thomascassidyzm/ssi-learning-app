@@ -306,7 +306,7 @@ export const MISSIONS: MissionDefinition[] = [
     },
     closing: {
       note: 'That’s the one. Nothing dramatic — a student slipping quietly while the class average looks fine. You noticed. That’s the whole skill.',
-      link: { label: 'How we listen', href: '/methodology/listening-layers.html' },
+      link: { label: 'How we listen', href: '/methodology/how-we-listen.html' },
     },
     setup: setupFindStrugglingStudent,
   },
