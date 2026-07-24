@@ -1,6 +1,6 @@
 # APML Interface: Guided Missions
 # SSI Learning App
-# Version: 0.1.0 (2026-07-24) — prototype: engine + one mission ("find the struggling student")
+# Version: 0.2.0 (2026-07-24) — mission retargeted to THE VIEW's canon node surface (owner styling ruling 2026-07-24: legacy dashboard style deprecated in demos/missions)
 # Status: Shipped to dev, dev/staging-gated (disabled on the production apex)
 
 ## ============================================================================
@@ -11,7 +11,7 @@ SPECIFICATION:
   name: "Guided Missions"
   purpose: "Not a tooltip tour — a guided MISSION in demo mode. The dashboard poses a real task against demo data in the REAL UI, recognises when the user has done it, and celebrates quietly. Learn by doing, never by being lectured."
   source: "packages/player-vue/src/missions/"
-  surface: "/schools (any route) via ?mission=<id> deep link, or the 'Try a mission' affordance on the teacher dashboard (DashboardView teacher branch)"
+  surface: "/schools (any route) via ?mission=<id> deep link, or the 'Try a mission' affordance on the teacher dashboard (DashboardView teacher branch). Deep links relocate to the mission's startRoute on activation."
   gating: "missionsEnabled(): everywhere except saysomethingin.app / www.saysomethingin.app (dev + staging + localhost on)"
 
 DESIGN_PHILOSOPHY:
@@ -20,7 +20,8 @@ DESIGN_PHILOSOPHY:
     - "Completion is recognised purely from route arrival (path + query match) — zero hooks inside views."
     - "Silence is the default: at most ONE nudge, only after idle time (no navigation), phrased as a hint never an answer."
     - "The card is small, collapsible, fixed bottom-LEFT (schools tables carry row actions on the right edge — never cover the click the mission waits for), and never blocks the UI."
-    - "Demo world is in-memory only (isDemoMode + primed composable refs); exit = full reload, so the real world always comes back."
+    - "Demo world is in-memory only (isDemoMode + primed composable refs + the mission org-API interceptor); exit = full reload, so the real world always comes back."
+    - "Missions run on CANON surfaces only (owner ruling 2026-07-24): THE VIEW's node surface (/schools/org/:id), never the legacy flat-table dashboard."
 
 ## ============================================================================
 ## MISSION-AS-DATA CONTRACT (types.ts)
@@ -30,11 +31,11 @@ MISSION_DEFINITION:
   id: "string — deep-link key (?mission=<id>)"
   title: "string"
   brief: "the task, Script-voiced: invitational, never patronising"
-  startRoute: "where an affordance start drops the user (deep links stay where they land)"
+  startRoute: "the mission's stage; affordance starts push it, deep links replace to it on activation"
   completion: "{ path, query? } — route that counts as done; ALL query params must match"
   nudge: "{ afterMs, text }? — one max, armed/re-armed on every navigation, shown once"
   closing: "{ note, link? } — one warm sentence + optional methodology link"
-  setup: "() => void — arranges the demo world (persona + isDemoMode + primed data refs)"
+  setup: "() => void — arranges the demo world (persona + isDemoMode + primed data refs + installMissionOrgApi)"
 
 ## ============================================================================
 ## ENGINE (useMission.ts — module singleton)
@@ -43,12 +44,22 @@ MISSION_DEFINITION:
 LIFECYCLE:
   deep_link:
     step_1: "prepareMissionFromRoute(to) — called from the /schools beforeEnter guard. ONLY primes the role cache (initialize(null,'teacher') when no school role) so the guard doesn't bounce a role-less visitor, and parks the mission id."
-    step_2: "activatePendingMission(router) — called from SchoolsContainer setup AFTER setSchoolsClient() and BEFORE the loadFromAuth watch, so (a) the mission's setup() can touch the schools composables and (b) a real session sees _scopeSource:'demo' and no-ops instead of overwriting the persona."
+    step_2: "activatePendingMission(router) — called from SchoolsContainer setup AFTER setSchoolsClient() and BEFORE the loadFromAuth watch, so (a) the mission's setup() can touch the schools composables and (b) a real session sees _scopeSource:'demo' and no-ops instead of overwriting the persona. Then router.replace(startRoute) unless already on its path — the mission's stage is the canon node surface, wherever the deep link landed."
   affordance: "startMission(id, router) — DashboardView teacher branch, ghost button, only while status==='idle'."
   completion: "router.afterEach: completion-route match → complete(); any OTHER navigation counts as meaningful progress and re-arms the single nudge timer."
-  exit: "exitMission() — removes the role cache ONLY if the engine wrote it, then full-reload to '/' (demo state is in-memory only)."
+  exit: "exitMission() — removes the role cache ONLY if the engine wrote it, then full-reload to '/' (demo state + fetch interceptor are in-memory only)."
 
 STATES: "idle → active → complete (module refs consumed by MissionCard.vue)"
+
+## ============================================================================
+## DEMO ORG API (demoOrgApi.ts — the canon-surface seam)
+## ============================================================================
+
+MISSION_ORG_API:
+  why: "THE VIEW's node surface is server-backed only (/api/groups/:id/home, rate-compare, invites). Rather than instrument the canon views with a demo branch, the mission serves the SAME endpoints in-memory."
+  how: "installMissionOrgApi(world) wraps window.fetch once per mission; GETs for /api/groups/demo-mission-*/(home|rate-compare|invites) return synthetic JSON in the server's exact shapes; everything else passes through. Non-GET → 400 'Not available in this demo'. Reload (mission exit) discards the wrapper."
+  honesty: "rate-compare payloads report insufficientData (2 classes < kFloor 5) — THE LENS never shows a fabricated comparison, matching the real server's k-floor doctrine."
+  student_row_links: "NodeChildrenList student rows honour a payload-supplied `to` (mission world only — the real server never sends one; production student rows stay static per the founder's no-learner-page ruling 2026-07-19)."
 
 ## ============================================================================
 ## COMPONENTS / WIRING
@@ -56,12 +67,13 @@ STATES: "idle → active → complete (module refs consumed by MissionCard.vue)"
 
 FILES:
   types: "packages/player-vue/src/missions/types.ts"
-  registry: "packages/player-vue/src/missions/definitions.ts — MISSIONS[] + missionById()"
+  registry: "packages/player-vue/src/missions/definitions.ts — MISSIONS[] + missionById() + the org-world payload builders"
   engine: "packages/player-vue/src/missions/useMission.ts"
+  org_api: "packages/player-vue/src/missions/demoOrgApi.ts — mission-scoped fetch interceptor for the canon node surface"
   card: "packages/player-vue/src/missions/MissionCard.vue — mounted once in SchoolsContainer; renders nothing when idle; collapsible pill; safe-area bottom inset per the standing rule"
   router_hook: "packages/player-vue/src/router/index.ts — /schools beforeEnter calls prepareMissionFromRoute(to) first"
-  demo_seam: "packages/player-vue/src/insight/TeacherInsightsView.vue — authMissing && isDemoMode shows an honest demo note instead of the dead-end 'Sign in' card"
-  e2e: "packages/player-vue/e2e/mission-find-struggling.mjs — 12 checks incl. negative (unrelated navigation must not complete)"
+  row_link_seam: "packages/player-vue/src/components/admin/NodeChildrenList.vue — student rows use payload `to` when present (null from the real server)"
+  e2e: "packages/player-vue/e2e/mission-find-struggling.mjs — canon-surface run incl. negative checks (healthy student / unrelated navigation must not complete)"
 
 ## ============================================================================
 ## MISSION: find-struggling-student
@@ -69,7 +81,9 @@ FILES:
 
 FIND_STRUGGLING_STUDENT:
   brief: "One of your students is quietly struggling. Find them."
-  world: "Teacher Eleri Vaughan @ Harbour View Primary; Year 6 Spanish (7) + Year 5 French (5). Seren Williams: 6 seeds vs class avg ~22 (StudentsView deriveHealth < 0.5×avg → the ONLY 'needs attention' dot), last active 3d ago (still turning up — quietly adrift), 0.8h/wk."
-  completion: "/schools/analytics with scope=learner & learner=demo-mission-seren — i.e. the Students-tab 'View →' on HER row"
+  world: "Teacher Eleri Vaughan @ Harbour View Primary; Year 6 Spanish (7 students, class has played together to seed 22 — orange belt) + Year 5 French (5, all healthy). Seren Williams: 6 seeds / 12 LEGOs vs class avg ~22 seeds (node home health rule < 0.5×avg → the ONLY 'needs attention' row, and the lone WHITE belt in the distribution), near-flat sparkline (9m this wk), last active 3d ago — still turning up, quietly adrift."
+  stage: "/schools/org/demo-mission-school?lens=classes — the school node home, All-classes lens up (canon: WHERE-YOU-ARE rail, red mono kickers, stat tiles, class rows). Class rows open the class node homes with CLASS PRACTICE / COURSE JOURNEY / BELT DISTRIBUTION / PRACTICE MIN-STUDENT-WEEK cards and the flat student rows."
+  completion: "/schools/org/demo-mission-class-y6 with student=demo-mission-seren — i.e. clicking HER row on the canon class node home"
   nudge_45s: "Averages are good at hiding people. Somewhere there's a view that shows every student, one line each."
   closing_link: "/methodology/how-we-listen.html"
+  known_limit: "See-insights (THE LENS) on the mission nodes renders the honest below-k-floor state when signed in; signed OUT it shows NodeRateEngine's session-expired card (getToken null short-circuits before the interceptor can serve it). Not on the mission's critical path."

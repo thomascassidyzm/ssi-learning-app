@@ -59,7 +59,13 @@ export function activatePendingMission(router: Router): void {
   if (!pendingMissionId || status.value !== 'idle') return
   const def = missionById(pendingMissionId)
   pendingMissionId = null
-  if (def) activate(def, router)
+  if (!def) return
+  activate(def, router)
+  // A deep link can arrive on any /schools route; the mission's own stage is
+  // its startRoute (the canon node surface) — move there unless already on it.
+  if (router.currentRoute.value.path !== def.startRoute.split('?')[0]) {
+    router.replace(def.startRoute).catch(() => {})
+  }
 }
 
 /** Direct start from an affordance (e.g. "Try a mission" on the teacher dashboard). */

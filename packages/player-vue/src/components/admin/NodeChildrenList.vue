@@ -146,7 +146,10 @@ const rows = computed<Row[]>(() => {
         { value: s.legos_mastered ?? 0, word: 'LEGOs' },
         { value: `${s.practice_hours}h`, word: 'practised' },
       ],
-      to: null,
+      // Payload-supplied only (guided missions): the real server never sends
+      // a student link — there is no individual learner page (founder ruling
+      // 2026-07-19), so production rows stay static.
+      to: s.to ?? null,
       journey: { done: s.legos_mastered ?? 0, total: Math.max(s.journey_total ?? 0, s.legos_mastered ?? 0) },
       spark: { minutes: s.last7_minutes ?? [], week_minutes: s.week_minutes ?? 0 },
     }))
