@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, watch, onMounted } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
@@ -541,8 +541,13 @@ const isSignedIn = computed(() => auth?.user?.value != null)
 const userEmail = computed(() => auth?.user?.value?.email || '')
 const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
 
-// Roles from DB (learners.platform_role)
-const { isSsiAdmin: isAdmin, isTester } = useUserRole()
+// Roles from DB (learners.platform_role) — shared cache with the router
+// guards (useUserRole), kept authoritative by useAuth on sign-in. Was
+// previously a hand-rolled `learners` query + local SCHOOL_ROLES list that
+// had drifted from useUserRole's own role list (missing 'tutor' — a tutor
+// account never saw the Dashboards section at all).
+const { isSsiAdmin: isAdmin, isTester, hasSchoolRole } = useUserRole()
+const hasAdminRole = isAdmin
 
 const { open: openAuth } = useAuthModal()
 const router = useRouter()
@@ -551,35 +556,6 @@ const router = useRouter()
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as any).standalone === true
 
-// School role check
-const SCHOOL_ROLES = ['teacher', 'school_admin', 'govt_admin']
-const educationalRole = ref<string | null>(null)
-const platformRole = ref<string | null>(null)
-const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROLES.includes(educationalRole.value))
-const hasAdminRole = computed(() => platformRole.value === 'ssi_admin')
-
-watch(isSignedIn, async (signedIn) => {
-  // Key on the auth uid only — learners.user_id holds auth.uid()::text; the
-  // learnerId fallback queried the wrong identity and (under RLS) returned
-  // nothing, leaving roles null for everyone.
-  if (signedIn && supabase?.value && auth?.userId?.value) {
-    try {
-      const { data } = await supabase.value
-        .from('learners')
-        .select('educational_role, platform_role')
-        .eq('user_id', auth.userId.value)
-        .single()
-      educationalRole.value = data?.educational_role || null
-      platformRole.value = data?.platform_role || null
-    } catch {
-      educationalRole.value = null
-      platformRole.value = null
-    }
-  } else {
-    educationalRole.value = null
-    platformRole.value = null
-  }
-}, { immediate: true })
 
 // Join school/class via invite code
 const { validateCode, redeemCode, pendingCode, clearPendingCode } = useInviteCode()
