@@ -1,0 +1,75 @@
+# APML Interface: Guided Missions
+# SSI Learning App
+# Version: 0.1.0 (2026-07-24) — prototype: engine + one mission ("find the struggling student")
+# Status: Shipped to dev, dev/staging-gated (disabled on the production apex)
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Guided Missions"
+  purpose: "Not a tooltip tour — a guided MISSION in demo mode. The dashboard poses a real task against demo data in the REAL UI, recognises when the user has done it, and celebrates quietly. Learn by doing, never by being lectured."
+  source: "packages/player-vue/src/missions/"
+  surface: "/schools (any route) via ?mission=<id> deep link, or the 'Try a mission' affordance on the teacher dashboard (DashboardView teacher branch)"
+  gating: "missionsEnabled(): everywhere except saysomethingin.app / www.saysomethingin.app (dev + staging + localhost on)"
+
+DESIGN_PHILOSOPHY:
+  one_line: "Missions are DATA; the engine watches the ROUTE; the UI never gets instrumented."
+  principles:
+    - "Completion is recognised purely from route arrival (path + query match) — zero hooks inside views."
+    - "Silence is the default: at most ONE nudge, only after idle time (no navigation), phrased as a hint never an answer."
+    - "The card is small, collapsible, fixed bottom-LEFT (schools tables carry row actions on the right edge — never cover the click the mission waits for), and never blocks the UI."
+    - "Demo world is in-memory only (isDemoMode + primed composable refs); exit = full reload, so the real world always comes back."
+
+## ============================================================================
+## MISSION-AS-DATA CONTRACT (types.ts)
+## ============================================================================
+
+MISSION_DEFINITION:
+  id: "string — deep-link key (?mission=<id>)"
+  title: "string"
+  brief: "the task, Script-voiced: invitational, never patronising"
+  startRoute: "where an affordance start drops the user (deep links stay where they land)"
+  completion: "{ path, query? } — route that counts as done; ALL query params must match"
+  nudge: "{ afterMs, text }? — one max, armed/re-armed on every navigation, shown once"
+  closing: "{ note, link? } — one warm sentence + optional methodology link"
+  setup: "() => void — arranges the demo world (persona + isDemoMode + primed data refs)"
+
+## ============================================================================
+## ENGINE (useMission.ts — module singleton)
+## ============================================================================
+
+LIFECYCLE:
+  deep_link:
+    step_1: "prepareMissionFromRoute(to) — called from the /schools beforeEnter guard. ONLY primes the role cache (initialize(null,'teacher') when no school role) so the guard doesn't bounce a role-less visitor, and parks the mission id."
+    step_2: "activatePendingMission(router) — called from SchoolsContainer setup AFTER setSchoolsClient() and BEFORE the loadFromAuth watch, so (a) the mission's setup() can touch the schools composables and (b) a real session sees _scopeSource:'demo' and no-ops instead of overwriting the persona."
+  affordance: "startMission(id, router) — DashboardView teacher branch, ghost button, only while status==='idle'."
+  completion: "router.afterEach: completion-route match → complete(); any OTHER navigation counts as meaningful progress and re-arms the single nudge timer."
+  exit: "exitMission() — removes the role cache ONLY if the engine wrote it, then full-reload to '/' (demo state is in-memory only)."
+
+STATES: "idle → active → complete (module refs consumed by MissionCard.vue)"
+
+## ============================================================================
+## COMPONENTS / WIRING
+## ============================================================================
+
+FILES:
+  types: "packages/player-vue/src/missions/types.ts"
+  registry: "packages/player-vue/src/missions/definitions.ts — MISSIONS[] + missionById()"
+  engine: "packages/player-vue/src/missions/useMission.ts"
+  card: "packages/player-vue/src/missions/MissionCard.vue — mounted once in SchoolsContainer; renders nothing when idle; collapsible pill; safe-area bottom inset per the standing rule"
+  router_hook: "packages/player-vue/src/router/index.ts — /schools beforeEnter calls prepareMissionFromRoute(to) first"
+  demo_seam: "packages/player-vue/src/insight/TeacherInsightsView.vue — authMissing && isDemoMode shows an honest demo note instead of the dead-end 'Sign in' card"
+  e2e: "packages/player-vue/e2e/mission-find-struggling.mjs — 12 checks incl. negative (unrelated navigation must not complete)"
+
+## ============================================================================
+## MISSION: find-struggling-student
+## ============================================================================
+
+FIND_STRUGGLING_STUDENT:
+  brief: "One of your students is quietly struggling. Find them."
+  world: "Teacher Eleri Vaughan @ Harbour View Primary; Year 6 Spanish (7) + Year 5 French (5). Seren Williams: 6 seeds vs class avg ~22 (StudentsView deriveHealth < 0.5×avg → the ONLY 'needs attention' dot), last active 3d ago (still turning up — quietly adrift), 0.8h/wk."
+  completion: "/schools/analytics with scope=learner & learner=demo-mission-seren — i.e. the Students-tab 'View →' on HER row"
+  nudge_45s: "Averages are good at hiding people. Somewhere there's a view that shows every student, one line each."
+  closing_link: "/methodology/how-we-listen.html"

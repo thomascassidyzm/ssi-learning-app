@@ -17,6 +17,8 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
+import MissionCard from '@/missions/MissionCard.vue'
+import { activatePendingMission } from '@/missions/useMission'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -33,6 +35,13 @@ const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 const { canAccessSchools, isSsiAdmin, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
+
+// Guided-mission deep link, second half (see prepareMissionFromRoute in the
+// router): the schools client bridge is set above, so the mission's demo
+// world (persona + primed data refs) can be arranged now — and it MUST be
+// before the loadFromAuth watch below runs, so a real session sees the demo
+// persona and no-ops instead of overwriting it.
+activatePendingMission(router)
 
 // Load the school context for the real authenticated user — the schools
 // composables scope their queries off this.
@@ -601,6 +610,9 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 
     <!-- Unified Auth Modal (for invite code flows) -->
     <SignInModal @success="handleAuthSuccess" />
+
+    <!-- Guided mission card — renders nothing unless a mission is running -->
+    <MissionCard />
   </div>
 </template>
 

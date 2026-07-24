@@ -2,6 +2,7 @@ import { watch } from 'vue'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
+import { prepareMissionFromRoute } from '@/missions/useMission'
 
 // Breadcrumb for the LAST management surface a user was on (`teach` | `schools`).
 // Solo tutors have no `educational_role`, so the role cache can't tell a tutor
@@ -95,7 +96,12 @@ const routes: RouteRecordRaw[] = [
     // child route — it's async (loads platform_status), and a router guard can't
     // resolve it synchronously, so the container is the right place. This guard
     // just makes sure the role cache is restored first (no flash of wrong state).
-    beforeEnter: (_to, _from, next) => {
+    beforeEnter: (to, _from, next) => {
+      // Guided-mission deep link (?mission=<id>, dev/staging-gated): primes the
+      // demo persona's role cache BEFORE the checks below so the mission's
+      // signed-out visitor isn't bounced. The demo world itself is arranged in
+      // SchoolsContainer setup (activatePendingMission), after setSchoolsClient.
+      prepareMissionFromRoute(to)
       const { canAccessAdmin, hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
       restoreFromCache()
       // ssi_admins have their OWN schools surface (/admin/schools read-views) and

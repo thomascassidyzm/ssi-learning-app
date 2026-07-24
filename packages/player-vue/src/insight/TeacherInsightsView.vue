@@ -25,6 +25,7 @@ import NodeRateEngine from './NodeRateEngine.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import { getSchoolsClient } from '@/composables/schools/client'
+import { isDemoMode } from '@/composables/demo/demoMode'
 import '@/styles/schools-tokens.css'
 
 // When `embedded`, this view renders INSIDE the schools shell (SchoolsContainer
@@ -162,6 +163,15 @@ const requestedLearnerName = computed(() => {
     <!-- ── Honest states before there's anything to show ── -->
     <div v-if="isLoadingContext" class="tiv-status-card">
       <p>Loading your classes…</p>
+    </div>
+    <!-- Demo mode (guided missions): no session, but "sign in" would be a
+         dead end here — say honestly what this view is and isn't yet. -->
+    <div v-else-if="authMissing && isDemoMode" class="tiv-status-card">
+      <p v-if="isLearnerDeepLink && requestedLearnerName">
+        Opened for <strong>{{ requestedLearnerName }}</strong> — per-learner rate insights are still
+        being wired up. In the live app, this is where their pace would sit against the class.
+      </p>
+      <p v-else>Demo mode — live class rates need a signed-in teacher.</p>
     </div>
     <div v-else-if="authMissing" class="tiv-status-card">
       <p>Sign in to see your class's rate.</p>

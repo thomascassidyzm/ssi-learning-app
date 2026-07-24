@@ -16,10 +16,21 @@ import { getLanguageName } from '@/composables/useI18n'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import { missionsEnabled, startMission, useMission } from '@/missions/useMission'
 
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+
+// Guided missions (dev/staging-gated prototype): quiet ghost affordance next
+// to the teacher greeting while no mission is running.
+const { status: missionStatus } = useMission()
+const showMissionAffordance = computed(
+  () => missionsEnabled() && !isAdminView && missionStatus.value === 'idle',
+)
+function handleTryMission() {
+  startMission('find-struggling-student', router)
+}
 
 // THE VIEW (docs/THE-VIEW.md): a group/region leader's landing IS their top
 // node's home — the same recursive node surface the admin sees, server-scoped
@@ -364,6 +375,9 @@ async function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
+          <button v-if="showMissionAffordance" type="button" class="btn-ghost" @click="handleTryMission">
+            Try a mission
+          </button>
           <router-link v-if="!isAdminView" to="/schools/classes" class="btn-ghost">+ Create class</router-link>
         </template>
       </Greeting>
