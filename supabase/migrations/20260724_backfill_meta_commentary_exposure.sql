@@ -1,9 +1,11 @@
 -- ============================================================================
--- GATED — DO NOT AUTO-APPLY. Data backfill, not schema. Run via the canary
--- runbook (supabase/secfix-toolkit/): dry-run the SELECT first, snapshot
--- counts, apply in one txn, verify, COMMIT iff green.
--- (File suffixed `.gated` so migration tooling never picks it up by accident;
--- rename to .sql only inside the canary run.)
+-- APPLIED live 2026-07-24 via canary run (secfix-toolkit/
+-- canary_backfill_meta_commentary_exposure.cjs — 10/10 assertions green,
+-- dry-run then --commit). Result: 88 → 749 rows (+661 backfilled), 17
+-- existing rows upgraded, 2 → 503 instructions_complete. No downgrades,
+-- owner row protected, RLS posture unchanged, idempotency verified in-txn,
+-- app read path replayed as authenticated. Do NOT re-apply (idempotent, but
+-- it's done). Data-only — schema.sql unaffected.
 -- ============================================================================
 --
 -- Backfill learner_meta_commentary_state (per-learner "which science bits have
