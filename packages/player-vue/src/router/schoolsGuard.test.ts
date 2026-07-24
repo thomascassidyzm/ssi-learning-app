@@ -90,12 +90,13 @@ describe('/schools route guard', () => {
   })
 })
 
-// Exercises the real '/' beforeEnter guard (index.ts:57) — staff home is the
-// dashboard, not the bare player (owner ruling 2026-07-16). This is the fast
-// path (a role already cached in this browser); App.vue's post-auth-init
-// redirect covers the fresh-browser case (no cache yet), which a router-only
-// test can't reach since it never runs auth.initialize().
-describe('/ (bare player) route guard — staff redirect', () => {
+// Exercises the real '/' route (index.ts) — owner ruling 2026-07-24:
+// EVERYONE lands in the player by default, regardless of role. /schools is
+// somewhere you deliberately navigate to. This supersedes the 2026-07-16
+// "staff home is the dashboard" ruling (and its earlier, once-reverted
+// attempt at this exact fix, ca88e0a8) — '/' now carries no role-based
+// redirect at all.
+describe('/ (bare player) route — no role-based redirect', () => {
   beforeEach(async () => {
     localStorage.clear()
     sessionStorage.clear()
@@ -103,38 +104,51 @@ describe('/ (bare player) route guard — staff redirect', () => {
     await router.push('/schools')
   })
 
-  it('redirects a school-role user straight to /schools', async () => {
+  it('a school-role user stays on the player at /', async () => {
     useUserRole().initialize(null, 'teacher')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('redirects a tutor straight to /schools too — one shell for all teachers', async () => {
+  it('a tutor stays on the player at / too', async () => {
     useUserRole().initialize(null, 'tutor')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('redirects govt_admin too', async () => {
+  it('a govt_admin stays on the player at /', async () => {
     useUserRole().initialize(null, 'govt_admin')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('does not redirect a plain learner (no school role)', async () => {
+  it('a plain learner (no school role) stays on the player', async () => {
     useUserRole().initialize(null, null)
     await router.push('/')
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('does not redirect a student (school role, but not staff)', async () => {
+  it('a student (school role, but not staff) stays on the player', async () => {
     useUserRole().initialize(null, 'student')
     await router.push('/')
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('does not bounce on an uninitialized role cache — defers rather than guessing', async () => {
+  it('an uninitialized role cache stays on the player too', async () => {
     await router.push('/')
     expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+
+  it('a school-role user can still navigate to /schools directly (deep link)', async () => {
+    useUserRole().initialize(null, 'school_admin')
+    await router.push('/')
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+  })
+
+  it('refreshing while on /schools does not bounce to the player', async () => {
+    useUserRole().initialize(null, 'teacher')
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
   })
 })

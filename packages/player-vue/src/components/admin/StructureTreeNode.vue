@@ -7,9 +7,10 @@
 // itself — label-not-type (I3): no behaviour branches on label beyond
 // choosing an icon/word and showing the commercial badge when present.
 import { computed, inject, nextTick, ref } from 'vue'
-import type { StructureApi, StructureNode } from './structureApi'
+import type { StructureApi, StructureNode, StructureQuickFilter } from './structureApi'
+import { structureNodeIsVisible } from './structureApi'
 
-type QuickFilter = 'all' | 'groups' | 'schools' | 'trial' | 'paid' | 'demo'
+type QuickFilter = StructureQuickFilter
 
 const props = withDefaults(defineProps<{
   node: StructureNode
@@ -31,25 +32,11 @@ const api = inject<StructureApi>('structureApi')!
 // Groups vs Schools is STRUCTURAL (commercial attachment presence) — never
 // the label string (I3). Trial vs Paid mirrors the binary entitlement model
 // (§1.11): "paid" = has a commercial attachment and isn't on trial.
-function selfMatches(n: StructureNode): boolean {
-  const q = props.search.trim().toLowerCase()
-  if (q && !n.name.toLowerCase().includes(q)) return false
-  switch (props.quickFilter) {
-    case 'groups': if (n.commercial) return false; break
-    case 'schools': if (!n.commercial) return false; break
-    case 'trial': if (n.commercial?.platformStatus !== 'trial') return false; break
-    case 'paid': if (!n.commercial || n.commercial.platformStatus === 'trial') return false; break
-    case 'demo': if (!n.is_demo) return false; break
-  }
-  return true
-}
-function isVisible(n: StructureNode): boolean {
-  if (selfMatches(n)) return true
-  return n.children.some(isVisible)
-}
-
 const visibleChildren = computed(() =>
-  props.node.children.filter(isVisible).slice().sort((a, b) => a.name.localeCompare(b.name))
+  props.node.children
+    .filter((n) => structureNodeIsVisible(n, props.search, props.quickFilter))
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
 )
 const isTruncated = computed(() => props.node.rollup.childGroupCount > 0 && props.node.children.length === 0)
 

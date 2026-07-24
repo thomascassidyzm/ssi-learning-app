@@ -19,6 +19,7 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
+import { structureNodeIsVisible } from '@/components/admin/structureApi'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
 
 const router = useRouter()
@@ -126,6 +127,16 @@ const tablePageCount = computed(() => Math.max(1, Math.ceil(tableTotal.value / t
 // root rows carry it only when the forest mixes labels at the top level;
 // each node makes the same call for its own children.
 const rootLabelsMixed = computed(() => new Set(treeRoots.value.map((r) => r.label)).size > 1)
+
+// Search/quick-filter must also apply at the FOREST's own top level, not
+// just to descendants — most organisations are roots with no parent, so
+// filtering only inside StructureTreeNode's children (the bug: search box
+// did nothing) never touched the common case. Uses the same predicate as
+// each node's own child filtering, so a match anywhere down a root's
+// subtree keeps that root's ancestor path visible.
+const visibleTreeRoots = computed(() =>
+  treeRoots.value.filter((r) => structureNodeIsVisible(r, search.value, quickFilter.value))
+)
 
 let searchDebounce: ReturnType<typeof setTimeout> | undefined
 watch(search, () => {
@@ -406,7 +417,7 @@ onMounted(() => { void refresh() })
           <div v-if="isLoadingTree" class="structure-empty">Loading…</div>
           <div v-else class="structure-tree">
             <StructureTreeNode
-              v-for="root in treeRoots"
+              v-for="root in visibleTreeRoots"
               :key="root.id"
               :node="root"
               :depth="0"
@@ -417,6 +428,10 @@ onMounted(() => { void refresh() })
             <div v-if="treeRoots.length === 0" class="structure-empty">
               <strong>No organisations yet</strong>
               <p>Add one above.</p>
+            </div>
+            <div v-else-if="visibleTreeRoots.length === 0" class="structure-empty">
+              <strong>No matches</strong>
+              <p>Try a different search or filter.</p>
             </div>
           </div>
         </template>

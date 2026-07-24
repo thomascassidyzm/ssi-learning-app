@@ -203,6 +203,52 @@ describe('AdminStructure — shared search + filter chips', () => {
     expect(call![0]).toContain('status=trial')
   })
 
+  it('filters the tree lens to matching root-level orgs client-side (bug: search did nothing in Tree — root nodes were never filtered, only their children)', async () => {
+    setupFetch({
+      '/api/groups/tree': {
+        roots: [
+          makeNode({ id: 'group-a', name: 'Ysgol Cas-gwent Chepstow School' }),
+          makeNode({ id: 'group-b', name: 'Ysgol Y Traeth' }),
+          makeNode({ id: 'group-c', name: 'Gwynedd' }),
+        ],
+      },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    expect(wrapper.text()).toContain('Ysgol Y Traeth')
+    expect(wrapper.text()).toContain('Gwynedd')
+
+    await wrapper.find('.structure-search-input').setValue('chepstow')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ysgol Cas-gwent Chepstow School')
+    expect(wrapper.text()).not.toContain('Ysgol Y Traeth')
+    expect(wrapper.text()).not.toContain('Gwynedd')
+  })
+
+  it('keeps ancestor context when a deep descendant matches the tree search', async () => {
+    setupFetch({
+      '/api/groups/tree': {
+        roots: [
+          makeNode({
+            id: 'group-a', name: 'Wales',
+            rollup: { childGroupCount: 1, teacherCount: 0, classCount: 0, learnerCount: 0 },
+            children: [makeNode({ id: 'group-b', name: 'Ysgol Cas-gwent Chepstow School' })],
+          }),
+          makeNode({ id: 'group-c', name: 'Unrelated Org' }),
+        ],
+      },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    await wrapper.find('.structure-search-input').setValue('chepstow')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Wales')
+    expect(wrapper.text()).toContain('Ysgol Cas-gwent Chepstow School')
+    expect(wrapper.text()).not.toContain('Unrelated Org')
+  })
+
   it('the Schools chip re-fetches the table lens with the bucket param', async () => {
     setupFetch({
       '/api/groups/tree': { roots: [] },
