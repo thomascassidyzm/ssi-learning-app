@@ -26,7 +26,6 @@ build plans and security posture are never ported. Mapping:
 | Source doc | Public page |
 |---|---|
 | anyone-can-teach.md | `anyone-can-teach.html` |
-| metrics-architecture.md §5–7 | `how-we-listen.html` |
 | metrics-architecture.md (principles, anchors, CEFR honesty) | `measuring-fluency.html` |
 | adaptation-budget.md | `adaptation-budget.html` |
 | listening-layers.md (surviving concepts) | `listening-layers.html` |
@@ -37,6 +36,12 @@ build plans and security posture are never ported. Mapping:
 Not published (internal by nature): class-first-class-citizen.md, flexible-grouping.md,
 metrics-implementation-plan.md, build-plan-*, insight-engine-build-plan.md; borderline
 (awaiting owner call): insight-engine.md, admin-insights.md.
+
+**Exception (owner ruling 2026-07-24, later same day):** `metrics-architecture.md §5–7`
+("How We Listen") is raw marketing briefing material for Nick, not yet ready to be
+public. It lives admin-gated in the SPA at `AdminHowWeListen.vue`
+(`/admin/methodology/how-we-listen`, ssi_admin only via the `/admin` router guard),
+**not** as a public static under `public/methodology/`.
 
 ## Adding New Methodology
 

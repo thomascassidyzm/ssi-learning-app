@@ -53,8 +53,8 @@ const papers: Paper[] = [
     title: 'How We Listen',
     blurb:
       'The marketing briefing for the listening layers: seed cups between rounds (audio-only), scene-based pods with the growing teleprompter, and why the visual chrome stays out of the way. The learner-facing story of the listening experience.',
-    href: '/methodology/how-we-listen.html',
-    tag: 'Briefing',
+    href: '/admin/methodology/how-we-listen',
+    tag: 'Briefing · admin-only',
     status: 'Draft — for discussion',
   },
   {

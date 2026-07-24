@@ -1,0 +1,280 @@
+<script setup lang="ts">
+/**
+ * AdminHowWeListen — "How We Listen" founder briefing for Nick/marketing.
+ *
+ * Admin-gated port of the former public static page
+ * (public/methodology/how-we-listen.html, commit 2d6a3eb0). Content is
+ * byte-faithful in meaning; markup ported to a Vue SFC and reachable only
+ * inside the admin SPA, where the /admin router guard enforces ssi_admin.
+ */
+</script>
+
+<template>
+  <div class="how-we-listen">
+    <RouterLink to="/admin/methodology" class="backlink">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      All papers
+    </RouterLink>
+    <span class="admin-tag">Founder briefing — rough but honest · admin only</span>
+
+    <main>
+      <!-- HERO -->
+      <section class="hero">
+        <span class="eyebrow">How we listen</span>
+        <h1>Like a music teacher, <em>not a transcriber.</em></h1>
+        <p class="lede">The SSi app never writes down a word you say. <strong>No speech recognition, no transcription — ever.</strong> That's not a missing feature. It's the whole philosophy, and it's a privacy stance. What the app listens to is the <strong>shape</strong> of your speech: when you speak, the melody, the rhythm.</p>
+        <div class="meta-row">
+          <span><b>Audience:</b> Nick + marketing</span>
+          <span><b>Status:</b> founder briefing, rough but honest</span>
+          <span><b>Read:</b> ~4 minutes</span>
+        </div>
+      </section>
+
+      <!-- 1. THE SHAPE OF SPEECH -->
+      <section>
+        <span class="sec-num">01 · The idea</span>
+        <h2>We hear the shape, not the words</h2>
+        <p class="dek">A good music teacher doesn't need the sheet music written out to hear whether you've got the tune.</p>
+
+        <p>Every other language app that "listens" runs your voice through speech recognition and grades you on whether a machine could guess your words. We think that measures the wrong thing. Speech recognition is poor for the languages we care most about — Welsh, Manx, Irish, Cornish, the long tail the big platforms ignore — and it's biased against exactly the people learning them: non-native speakers finding their voice.</p>
+
+        <p>More fundamentally: fluency isn't "a phone could transcribe you." Fluency is timing, melody, and rhythm. All of that can be heard directly from the sound itself, using classical signal processing — no AI guessing, no transcript, no record of what you said. Three things:</p>
+
+        <div class="cards3">
+          <div class="card">
+            <span class="k">Timing</span>
+            <h4>When you speak</h4>
+            <p>Every practice cycle has a pause where you say the phrase aloud. How quickly and confidently you fill that pause is the most honest signal there is — and it needs no microphone analysis at all to start.</p>
+          </div>
+          <div class="card">
+            <span class="k">Melody</span>
+            <h4>The tune of it</h4>
+            <p>The rise and fall of your pitch, compared to the model voice's contour. Matched <em>elastically</em> — if you say it slower than the model but the tune is right, that's a match. We match the tune, not the stopwatch.</p>
+          </div>
+          <div class="card">
+            <span class="k">Rhythm</span>
+            <h4>Stress and flow</h4>
+            <p>Where the energy of the phrase lands — which syllables carry the weight, where you hesitate, whether it flows. Say "good morning" with the stress in the wrong place and the shape gives it away, no words needed.</p>
+          </div>
+        </div>
+
+        <p class="pull">The app listens the way a music teacher does — it hears whether you've <em>got the tune</em>, without ever writing down a note you played.</p>
+      </section>
+
+      <!-- 2. TWO AXES -->
+      <section>
+        <span class="sec-num">02 · The picture</span>
+        <h2>Difficulty × execution</h2>
+        <p class="dek">Borrowed from Olympic diving: how hard was the dive, and how cleanly did you land it?</p>
+
+        <p>Every learner sits at a point on a simple two-axis picture. <strong>Difficulty</strong> is how far into the course you are — objective, no judgement involved. <strong>Execution</strong> is how closely your spoken responses match the model voice — the shape-of-speech listening above. A diver's score is difficulty times execution; a learner's picture is the same shape. Far along and executing well: fluent. Far along but executing poorly: clicking through. Early but executing beautifully: being thorough. Early and struggling: that's exactly who a teacher should go to first.</p>
+
+        <p>But the point matters less than the <strong>curve</strong>. Where you are today is mostly just where you are — a learner who's steady-but-slow is fine, and the app treats them as fine. What the app actually watches is the <em>trend of the trend</em>: the moment your trajectory starts to bend. A learner who suddenly starts taking three times as long to respond lights up — often before they've consciously registered that they're struggling. That's the earliest honest warning a teacher can get.</p>
+
+        <p class="pull">The app notices your curve bending <em>before you feel it</em>.</p>
+      </section>
+
+      <!-- 3. CALIBRATION -->
+      <section>
+        <span class="sec-num">03 · The insight nobody else has</span>
+        <h2>Do you know how good you are?</h2>
+        <p class="dek">Comparing what learners believe with what they do.</p>
+
+        <p>The player lets learners skip ahead when they feel confident — "I've got this, play the answer." Every one of those skips is a tiny moment of self-assessment. Put that confidence signal next to the execution signal and you get something genuinely rare: a measure of how accurately a learner <em>judges their own speaking</em>.</p>
+
+        <div class="quad">
+          <div class="card"><span class="k">Confident + executing well</span><h4>Well-calibrated</h4><p>Trust their judgement. Let them fly.</p></div>
+          <div class="card"><span class="k">Confident + executing poorly</span><h4>Overconfident</h4><p>Needs gentle reality-checking and slightly harder material.</p></div>
+          <div class="card"><span class="k">Cautious + executing well</span><h4>Underconfident</h4><p>Needs reassurance — they're better than they think, and can be stretched.</p></div>
+          <div class="card"><span class="k">Cautious + executing poorly</span><h4>Appropriately careful</h4><p>Staying with what they know. Support, don't push.</p></div>
+        </div>
+
+        <p>Overconfident and underconfident learners can have <strong>identical scores</strong> — and need opposite coaching. Most platforms can't tell them apart. Ours can, because the confidence stream flows from how learners naturally use the player, not from quizzes or self-report forms.</p>
+      </section>
+
+      <!-- 4. TRUST -->
+      <section>
+        <span class="sec-num">04 · The trust position</span>
+        <h2>What we will never do</h2>
+        <p class="dek">This is the part to say loudly, because it's true and it's checkable.</p>
+
+        <div class="trust">
+          <ul class="clean">
+            <li><b>No transcription, ever.</b> The app never converts your voice into words. There is no transcript to store, leak, or mine — by architecture, not by policy promise.</li>
+            <li><b>Your voice signal comes only from your own device, and only if you opt in.</b> Individual speech analysis is off until a learner turns it on, and it's computed on the device — what leaves is a handful of numbers describing the shape, not the sound.</li>
+            <li><b>Classroom audio is only ever analysed as a class.</b> Twenty voices repeating together are treated as one collective signal. It is never attributed to an individual child — we don't pretend that's possible, and we wouldn't want it to be.</li>
+            <li><b>The methodology is deliberately public.</b> How we listen, what we compute, and why — published for anyone to read. We think being the organisation that explains its work is worth more than a trade secret.</li>
+            <li><b>Fluency output is always "speaking-pattern similarity" with a confidence range.</b> Never a certificate, never a hard grade. "Your speaking patterns are most similar to learners around B1, and confidence will tighten as you practise" — that's the most we'll ever claim, because it's the most the data honestly supports.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 5. HOW IT WILL FEEL -->
+      <section>
+        <span class="sec-num">05 · How the learner will feel it — coming</span>
+        <h2>Warmth, not numbers</h2>
+        <p class="dek">The design intent for the learner-facing experience. Marked plainly: this is planned, not shipped.</p>
+
+        <p>Practice must never feel like a test. So in-session, the plan is no scores, no per-phrase verdicts, no red crosses — nothing that interrupts. When responses are landing, the app's accent colour quietly warms. That's it. You feel it going well the way you feel a conversation going well.</p>
+
+        <ul class="clean">
+          <li><strong>In session:</strong> warmth, not numbers. The colour warms when you're landing responses. Never a per-phrase judgement, never an interruption.</li>
+          <li><strong>Session end:</strong> one honest trend sentence — "your responses came noticeably quicker this week than last."</li>
+          <li><strong>Weekly:</strong> a picture of your speaking that sharpens the more you practise, with its confidence shown honestly.</li>
+        </ul>
+
+        <p class="pull">The ears do the work; the screen only ever <em>confirms</em>.</p>
+      </section>
+
+      <!-- FOR NICK -->
+      <section>
+        <span class="sec-num">Pull quotes</span>
+        <h2>Lines you can lift verbatim</h2>
+        <div class="lift">
+          <span class="k">For Nick — take these as written</span>
+          <blockquote>"The app listens like a music teacher, not a transcriber. It never writes down a word you say."</blockquote>
+          <blockquote>"We match the tune, not the stopwatch."</blockquote>
+          <blockquote>"It notices your curve bending before you feel it."</blockquote>
+          <blockquote>"The ears do the work; the screen only ever confirms."</blockquote>
+        </div>
+      </section>
+
+      <!-- 6. HONESTY FOOTER -->
+      <section>
+        <span class="sec-num">06 · Where the line is today</span>
+        <h2>Live now vs rolling out</h2>
+        <p class="dek">Marketing needs to know exactly what can be claimed in the present tense.</p>
+
+        <div class="status">
+          <div class="card">
+            <span class="k live">● Live today</span>
+            <h4>Timing &amp; confidence</h4>
+            <p>The behavioural listening layer is running for every learner now: response timing in the pause, the confidence-skip stream, and the calibration signal built from them. No microphone analysis needed — this all flows from how learners use the player.</p>
+          </div>
+          <div class="card">
+            <span class="k soon">○ Rolling out</span>
+            <h4>Melody &amp; rhythm</h4>
+            <p>Full pitch-contour and rhythm scoring — the music-teacher ear in full — ships behind explicit opt-in, and grows as learners choose to turn it on. Speak about it as where we're going and how it works, not as what every learner has today.</p>
+          </div>
+        </div>
+
+        <p class="small">One more thing worth knowing when writing about us: the method itself is anchored in seventeen years of observation — on average, learners get confidently into conversations after roughly 30 hours of practice, and reach genuinely conversational ability around 100. Those are population averages, never individual promises. The listening layer described here is what adds the individual resolution to a method that already demonstrably works.</p>
+      </section>
+    </main>
+
+    <footer>
+      SaySomethingin · How We Listen — founder briefing, admin-only ·
+      <RouterLink to="/admin/methodology">all papers</RouterLink><br />
+      Ground truth: docs/methodology/metrics-architecture.md · Questions to Tom<br />
+      2026-07 · Rough but honest, by design
+    </footer>
+  </div>
+</template>
+
+<style scoped>
+.how-we-listen {
+  --paper:        #e8e3dd;
+  --card:         #ffffff;
+  --ink:          #2C2622;
+  --ink-2:        #5b534c;
+  --ink-3:        #8A8078;
+  --line:         rgba(44, 38, 34, 0.12);
+  --line-soft:    rgba(44, 38, 34, 0.07);
+  --red:          #c23a3a;
+  --gold:         212, 168, 83;
+  --display: 'Arsenal', Georgia, serif;
+  --body: 'Newsreader', Georgia, serif;
+  --mono: var(--font-mono, 'Spline Sans Mono', monospace);
+  --measure: 38rem;
+
+  margin: -32px -32px 0;
+  padding: 18px clamp(18px, 5vw, 64px) 0;
+  background: var(--paper);
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 12%, rgba(194, 58, 58, 0.05), transparent 55%);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.62;
+  max-width: none;
+}
+
+.backlink {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-2);
+  text-decoration: none; padding: 6px 12px 6px 9px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card);
+}
+.admin-tag {
+  float: right;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3);
+  line-height: 32px;
+}
+
+main { max-width: var(--measure); margin: 0 auto; padding: 0 0 40px; }
+section { padding: clamp(38px, 6.5vw, 80px) 0; border-top: 1px solid var(--line-soft); }
+section:first-of-type { border-top: none; }
+
+.hero { padding: clamp(40px, 8vw, 90px) 0 clamp(34px, 6vw, 58px); border-top: none; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); display: inline-block; margin-bottom: 22px; }
+.hero h1 { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04; font-size: clamp(34px, 6vw, 64px); margin: 0 0 22px; }
+.hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+.lede { font-size: clamp(20px, 2.6vw, 24px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+.lede strong { color: var(--ink); font-weight: 500; }
+.meta-row { margin-top: 34px; display: flex; gap: 24px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3); }
+.meta-row span b { color: var(--ink); font-weight: 600; }
+
+h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08; font-size: clamp(27px, 4.2vw, 42px); margin: 0 0 6px; }
+.sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display: block; margin-bottom: 14px; }
+.dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 28px; max-width: 32rem; }
+h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; font-size: clamp(20px, 3vw, 25px); margin: 32px 0 10px; }
+p { margin: 0 0 20px; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+.small { font-size: 16px; color: var(--ink-2); }
+
+.pull {
+  font-family: var(--display); font-size: clamp(23px, 3.4vw, 31px); line-height: 1.28;
+  color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 32px 0;
+  font-weight: 400;
+}
+.pull em { color: var(--red); font-style: italic; }
+
+ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+.cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+@media (max-width: 720px) { .cards3 { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.card .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+.card h4 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 8px 0 6px; }
+.card p { font-size: 16px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+
+.quad { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 28px 0; }
+@media (max-width: 560px) { .quad { grid-template-columns: 1fr; } }
+.quad .card h4 { font-size: 19px; margin-top: 6px; }
+.quad .card .k { color: var(--ink-3); }
+
+.trust { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: clamp(24px, 4vw, 40px); margin: 28px 0; }
+.trust ul.clean li { margin-bottom: 16px; }
+.trust ul.clean li b { font-weight: 600; }
+.trust ul.clean li::before { content: "✓"; color: var(--red); font-weight: 600; }
+
+.lift { background: linear-gradient(180deg, rgba(194,58,58,0.05), rgba(194,58,58,0.02)); border: 1px solid rgba(194,58,58,0.18); border-radius: 18px; padding: clamp(22px, 4vw, 36px); margin: 30px 0; }
+.lift .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--red); display: block; margin-bottom: 16px; }
+.lift blockquote { margin: 0 0 16px; font-family: var(--display); font-size: clamp(20px, 3vw, 26px); line-height: 1.3; }
+.lift blockquote:last-child { margin-bottom: 0; }
+
+.status { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+@media (max-width: 640px) { .status { grid-template-columns: 1fr; } }
+.status .card .k.live { color: #3a9e60; }
+.status .card .k.soon { color: var(--ink-3); }
+
+footer {
+  padding: 40px 0 48px; border-top: 1px solid var(--line-soft);
+  font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; line-height: 1.9;
+}
+footer a { color: inherit; }
+</style>
