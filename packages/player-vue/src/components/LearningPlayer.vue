@@ -23,7 +23,7 @@ const SessionComplete = defineAsyncComponent(() => import('./SessionComplete.vue
 const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton.vue'))
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
-import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
+import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
 import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
@@ -5607,6 +5607,9 @@ const COURSE_AWAKENING_TEMPLATES = [
 ]
 
 const getRandomAwakeningMessage = () => {
+  // Honest state: a blocking script regeneration is the wait — say so
+  // (warm, not technical) instead of a generic atmospheric line.
+  if (isRegeneratingScript.value) return scriptUpdatingMessage()
   // Prefer course-specific copy when we have the target language name
   // (resolves the moment the active course is set, which happens at
   // route-mount well before loading completes).
@@ -5639,6 +5642,124 @@ const setLoadingStage = (stage) => {
     } else {
       typeLoadingMessage(getRandomAwakeningMessage())
     }
+  }
+}
+
+// ============================================
+// SCRIPT FRESHNESS — SWR + honest states (founder ruling 2026-07-27)
+// ============================================
+// "It should never really be 20 seconds; even when a course is updating it
+// doesn't need to refresh the whole cache instantly."
+//
+//  - STALE-WHILE-REVALIDATE: a content_stamp move no longer drops the cached
+//    script (see useScriptCache.checkContentVersion). This session hydrates
+//    from the stale cache instantly; runSwrRevalidation regenerates on idle
+//    and writes the fresh script for the NEXT session. The live queue is
+//    never touched mid-session — corrections land one session later.
+//  - HONEST STATES: any unavoidable blocking regeneration types
+//    "Updating your course…" on the awakening screen; after a background
+//    revalidation completes, the NEXT session shows a small transient
+//    "Your course was updated" notice.
+
+// Which path produced this mount's playable rounds — emitted on cold_start so
+// the SWR/progressive win is verifiable in player_events.
+//   'cache'       warm cache, current vintage
+//   'swr'         stale cache served immediately, background revalidation
+//   'progressive' /cycles (or /infplay-cycles) bootstrap — playhead segment
+//   'infplay_cache' deterministic INF-PLAY tail hydrated from cache
+//   'full'        blocking full-course walk (legacy fallback — should be rare)
+let coldScriptPath: string | null = null
+
+// Content vintage of the IN-MEMORY rounds (cachedRounds/live queue).
+// undefined = live vintage (walk-generated this session); a string/null = the
+// rounds were hydrated from a cache entry carrying that stamp (null =
+// pre-stamp entry). Queue-derived cache writes (offline download persists)
+// pass this through so an SWR session never mis-stamps old rounds as fresh.
+let sessionScriptVintage: string | null | undefined = undefined
+// Spread into setCachedScript data for writes derived from the live queue.
+const queueVintageStampField = (): { contentStamp?: string } =>
+  sessionScriptVintage === undefined ? {} : { contentStamp: sessionScriptVintage ?? undefined }
+
+// True while a BLOCKING script regeneration is on the visible critical path
+// (legacy full-walk fallback / course switch with no cache). Drives the
+// honest "Updating your course…" awakening copy — no silent stalls.
+const isRegeneratingScript = ref(false)
+const scriptUpdatingMessage = () => {
+  const langName = getLanguageName(courseTargetLang.value)
+  return langName && langName !== courseTargetLang.value
+    ? `Updating your ${langName} course…`
+    : 'Updating your course…'
+}
+const beginBlockingRegenNotice = () => {
+  isRegeneratingScript.value = true
+  if (loadingStage.value !== 'ready') typeLoadingMessage(scriptUpdatingMessage())
+}
+const endBlockingRegenNotice = () => { isRegeneratingScript.value = false }
+
+// "Your course was updated" — set when a background revalidation lands,
+// consumed (as a small transient notice) on the next player open. Invisible
+// maintenance becomes visible care.
+const courseUpdatedNoticeKey = (code: string) => `ssi-course-updated:${code}`
+const showCourseUpdatedNotice = ref(false)
+const maybeShowCourseUpdatedNotice = () => {
+  try {
+    const key = courseUpdatedNoticeKey(courseCode.value)
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key)
+      showCourseUpdatedNotice.value = true
+      setTimeout(() => { showCourseUpdatedNotice.value = false }, 6000)
+    }
+  } catch { /* localStorage unavailable — skip the nicety */ }
+}
+
+// Background revalidation: full walk on idle, cache write only (live stamp),
+// live queue untouched. Single-flight per course per session.
+const swrRevalidatedCourses = new Set<string>()
+const scheduleSwrRevalidation = () => {
+  const code = courseCode.value
+  if (!code || swrRevalidatedCourses.has(code)) return
+  swrRevalidatedCourses.add(code)
+  scheduleIdleTask(() => { void runSwrRevalidation(code) }, 5000)
+}
+const runSwrRevalidation = async (code: string) => {
+  try {
+    // Wait for the boot freshness check to settle (it's fired before the
+    // player mounts; this is belt-and-braces for slow connections).
+    await awaitFreshnessCheck(code)
+    const staleness = getScriptStaleness(code)
+    if (!staleness || code !== courseCode.value) return
+    const t0 = Date.now()
+    console.log(`[ScriptCache] SWR revalidation: regenerating ${code} in background (${staleness.cachedStamp ?? 'pre-stamp'} → ${staleness.liveStamp})`)
+    const result = await generateScript()
+    if (code !== courseCode.value || !result?.items?.length) return
+    const freshRounds = toSimpleRoundsWithComponents(result.items) as any[]
+    if (freshRounds.length === 0) return
+    // Default stamp = live vintage → this write clears the staleness and the
+    // NEXT session hydrates fresh from the cache fast-path.
+    await setCachedScript(code, {
+      rounds: freshRounds,
+      totalSeeds: freshRounds.length,
+      totalLegos: freshRounds.length,
+      totalCycles: result.cycleCount,
+      estimatedMinutes: Math.round(result.cycleCount * 0.2),
+      audioMapObj: {},
+      courseWelcome: cachedCourseWelcome.value || undefined,
+      mainLoopRoundCount: result.mainLoopRoundCount,
+    })
+    try { localStorage.setItem(courseUpdatedNoticeKey(code), '1') } catch { /* noop */ }
+    logEvent('script_revalidated', {
+      courseCode: code,
+      ms: Date.now() - t0,
+      rounds: freshRounds.length,
+      fromStamp: staleness.cachedStamp,
+      toStamp: staleness.liveStamp,
+    })
+    console.log(`[ScriptCache] SWR revalidation complete for ${code} in ${Date.now() - t0}ms — fresh script applies next session`)
+  } catch (err) {
+    // Non-fatal by design: the stale script keeps playing; staleness stands
+    // and the next online session retries.
+    swrRevalidatedCourses.delete(code)
+    console.warn('[ScriptCache] SWR revalidation failed (non-fatal, will retry next session):', err)
   }
 }
 
@@ -9139,6 +9260,7 @@ async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
       if (fullRounds.length > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         cachedRounds.value = fullRounds
+        sessionScriptVintage = undefined // fresh walk → live vintage
         rounds = fullRounds
         firstInfIdx = rounds.findIndex(isInfPlayRound)
       }
@@ -10136,6 +10258,9 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
         // Carry the live audio-aware boundary into the offline cold-reopen cache
         // (set by the handoff that ran before this deliberate download).
         mainLoopRoundCount: liveMainLoopRoundCount.value ?? undefined,
+        // Queue-derived write: stamp with the rounds' own vintage so an SWR
+        // session never mis-labels an older script as fresh.
+        ...queueVintageStampField(),
       })
       console.log(`[Offline] Persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
     }
@@ -10597,6 +10722,8 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
         estimatedMinutes: Math.round(totalCycles * 0.2),
         audioMapObj: {},
         courseWelcome: cachedCourseWelcome.value || undefined,
+        // Queue-derived write: stamp with the rounds' own vintage (see above).
+        ...queueVintageStampField(),
       })
       console.log(`[Offline] INF PLAY: persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
     }
@@ -11364,16 +11491,24 @@ onMounted(async () => {
         // INF PLAY learners still pay the small bootstrap cost; the
         // payoff is variety.
         //
-        // Stale-content safety: useEagerScriptPreload calls
-        // checkContentVersion before LearningPlayer mounts. If the
-        // course's content_version bumped, the cache is already
-        // cleared by the time we get here, so a hit means we're on
-        // current content. Tom 2026-05-25.
+        // Stale-content safety: checkContentVersion runs before
+        // LearningPlayer mounts. A content_version bump (audio regenerated)
+        // still clears the cache outright, so a hit is never on stale AUDIO.
+        // A content_stamp move (text/structure fix) deliberately does NOT
+        // clear — SWR (founder ruling 2026-07-27): serve the stale script
+        // this session, revalidate in the background, fresh next session.
         if (inferEnrollmentMode === 'main') {
           try {
             const cachedScript = await getCachedScript(courseCode.value)
             if (cachedScript && cachedScript.rounds.length > 0) {
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
+              // SWR: this hydration deliberately serves even a STALE-stamped
+              // entry (checkContentVersion no longer drops it) — play now,
+              // revalidate in the background, fresh script next session.
+              sessionScriptVintage = cachedScript.contentStamp ?? null
+              const staleNow = getScriptStaleness(courseCode.value)
+              coldScriptPath = staleNow ? 'swr' : 'cache'
+              scheduleSwrRevalidation()
               cachedRounds.value = cachedScript.rounds
               // Single-source the boundary on the audio-aware count baked into
               // the cache when it was written from a full generateScript. Caches
@@ -11485,8 +11620,6 @@ onMounted(async () => {
             // exactly the courses a heavy learner flips between.
             let fullRounds: any[] | null = null
             let builtMainLoopCount = 0
-            let builtCycleCount = 0
-            let wasFreshBuild = false
             try {
               const cachedInf = await getCachedScript(courseCode.value)
               if (
@@ -11497,18 +11630,27 @@ onMounted(async () => {
                 fullRounds = cachedInf.rounds as any[]
                 builtMainLoopCount = cachedInf.mainLoopRoundCount
                 if (cachedInf.courseWelcome) cachedCourseWelcome.value = cachedInf.courseWelcome
+                // SWR: a stale-stamped entry still hydrates (play now,
+                // revalidate on idle, fresh tail next session).
+                sessionScriptVintage = cachedInf.contentStamp ?? null
+                coldScriptPath = getScriptStaleness(courseCode.value) ? 'swr' : 'infplay_cache'
+                scheduleSwrRevalidation()
                 console.log(`[InstantPlayback] INF-PLAY cache fast-path: hydrating ${fullRounds.length} rounds`)
               }
             } catch (_cacheErr) {
-              /* cache is best-effort — fresh build below */
+              /* cache is best-effort — bootstrap fallback below */
             }
 
+            // NO usable cache → do NOT build the whole course before playing
+            // (founder ruling 2026-07-27: progressive, never block past
+            // readiness-to-start). Throw to the /infplay-cycles bootstrap
+            // below — playing within a couple of seconds — while the existing
+            // INF-PLAY idle warm builds + caches the deterministic tail for
+            // the next session. Trade (founder-accepted): this ONE session
+            // plays the per-session random sampling instead of the frozen
+            // deterministic stream; determinism resumes next open.
             if (!fullRounds) {
-              const infResult = await generateScript()
-              fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
-              builtMainLoopCount = infResult.mainLoopRoundCount
-              builtCycleCount = infResult.cycleCount
-              wasFreshBuild = true
+              throw new Error('No cached deterministic INF-PLAY script — starting from /infplay-cycles bootstrap')
             }
             // Single-source the boundary on the audio-aware count from the build
             // (or its cached equivalent) — set BEFORE the mainLoopBoundary()
@@ -11567,27 +11709,10 @@ onMounted(async () => {
                 if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
               }
             }
-            console.log(`[InstantPlayback] INF-PLAY resume: ${wasFreshBuild ? 'deterministic build' : 'cache hydration'}, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
-
-            // Persist the frozen build so the next resume of this course is a
-            // zero-walk cache hydration (mirrors the main-loop handoff's
-            // warm-start write; audio map stripped, audioRefs live on the
-            // items). Fire-and-forget — never delays ready-to-play.
-            if (wasFreshBuild) {
-              const roundsToCache = fullRounds
-              void setCachedScript(courseCode.value, {
-                rounds: roundsToCache,
-                totalSeeds: roundsToCache.length,
-                totalLegos: roundsToCache.length,
-                totalCycles: builtCycleCount,
-                estimatedMinutes: Math.round(builtCycleCount * 0.2),
-                audioMapObj: {},
-                courseWelcome: cachedCourseWelcome.value || undefined,
-                mainLoopRoundCount: builtMainLoopCount,
-              }).catch((cacheErr) => {
-                console.warn('[InstantPlayback] INF-PLAY setCachedScript failed (non-fatal):', cacheErr)
-              })
-            }
+            console.log(`[InstantPlayback] INF-PLAY resume: cache hydration, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
+            // (The uncached case no longer builds here — it bootstraps from
+            // /infplay-cycles below, and the INF-PLAY idle warm persists the
+            // deterministic build for the next session's zero-walk hydration.)
             positionInitialized.value = true
             dataReady = true
             return
@@ -11609,6 +11734,11 @@ onMounted(async () => {
             `firstCycle=${bootstrapResult.firstCycle.id}`,
             `mapVersion=${bootstrapResult.mapVersion}`,
           )
+          // Progressive start: the playhead segment came from /cycles (or
+          // /infplay-cycles); the full walk runs behind playback. The rounds
+          // are live-vintage (server-computed from current content).
+          coldScriptPath = 'progressive'
+          sessionScriptVintage = undefined
 
           // 2. (Removed) Tier 1 used to be a separate awaited fetch
           //    here. Bootstrap now grabs the whole first round in one
@@ -11803,6 +11933,7 @@ onMounted(async () => {
                   if (result.items.length === 0) return
                   mergeGeneratedRoundsIntoQueue(result.items)
                   cachedRounds.value = toSimpleRoundsWithComponents(result.items) as any[]
+                  sessionScriptVintage = undefined // fresh walk → live vintage
                   try {
                     await setCachedScript(courseCode.value, {
                       rounds: cachedRounds.value,
@@ -11868,6 +11999,7 @@ onMounted(async () => {
               // scope, not just the loaded window. This is text metadata — it does
               // not touch the live playback queue or its authored tiling.
               cachedRounds.value = fullRounds
+              sessionScriptVintage = undefined // fresh walk → live vintage
 
               // Guard: if the learner tapped ∞ during the walk, the live queue is
               // the deterministic INF-PLAY revival set — never repair/swap it (the
@@ -12160,6 +12292,14 @@ onMounted(async () => {
               ? { ...baseListeningConfig, podActivationRound: podActivationOverride }
               : baseListeningConfig
 
+            // Legacy fallback = a blocking full-course walk before play. Should
+            // be rare (instant-playback failure). Be honest about the wait and
+            // tag it in telemetry so erosion back onto this path is visible.
+            coldScriptPath = 'full'
+            sessionScriptVintage = undefined
+            beginBlockingRegenNotice()
+            try {
+
             if (isReturningUser && startingSeed > 0) {
               // Infinite-play detection — keyed on legoId, not round_index.
               // Round indices aren't stable across sessions (lazy loading
@@ -12212,6 +12352,10 @@ onMounted(async () => {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
               result = await generateScript(config)
               console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
+            }
+
+            } finally {
+              endBlockingRegenNotice()
             }
 
             if (result.items.length > 0) {
@@ -12421,6 +12565,10 @@ onMounted(async () => {
         cachedScript.rounds.slice(0, 3).forEach((r, i) => {
           console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
         })
+        // SWR: serve even a stale-stamped entry; revalidate in background.
+        sessionScriptVintage = cachedScript.contentStamp ?? null
+        coldScriptPath = getScriptStaleness(courseCode.value) ? 'swr' : 'cache'
+        scheduleSwrRevalidation()
         cachedRounds.value = cachedScript.rounds
         // Single-source the boundary on the cached audio-aware count when present
         // (undefined on pre-field caches → matview fallback, as before).
@@ -12604,9 +12752,18 @@ onMounted(async () => {
           console.log('[LearningPlayer] Generating script with offset:', startOffset,
             savedPosition ? `(from saved position, LEGO ${savedPosition.legoId})` : '(from belt progress)')
 
-          // Use real generateLearningScript + toSimpleRounds for legacy fallback
+          // Use real generateLearningScript + toSimpleRounds for legacy fallback.
+          // Blocking full walk before play — honest state + telemetry tag.
+          coldScriptPath = 'full'
+          sessionScriptVintage = undefined
+          beginBlockingRegenNotice()
           const endSeed = startOffset + INITIAL_ROUNDS
-          const result = await generateScript()
+          let result
+          try {
+            result = await generateScript()
+          } finally {
+            endBlockingRegenNotice()
+          }
           const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
           if (simpleRounds.length > 0) {
@@ -12709,6 +12866,11 @@ onMounted(async () => {
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   setLoadingStage('ready')
 
+  // A background revalidation completed on a previous open → show the small
+  // transient "Your course was updated" notice (invisible maintenance made
+  // visible, founder ruling 2026-07-27).
+  maybeShowCourseUpdatedNotice()
+
   // Cold-start budget instrumentation. performance.now() is measured from
   // navigation start, so it captures the FULL launch→ready cost (JS bundle
   // parse + auth/session restore + onMounted), while Date.now()-startTime
@@ -12744,6 +12906,7 @@ onMounted(async () => {
     mountedMs: isFreshLoad ? (boot.mountedMs ?? null) : null,     // nav → app.mount() done
     animFloorMs: MINIMUM_ANIMATION_MS,                 // deliberate splash floor (300 return / 2800 first-visit)
     warmAudioMs,                                        // time awaited on warmFirstKnownAudio (cold-audio cost; ~0 once prewarm-precached)
+    scriptPath: coldScriptPath,                        // which path produced the rounds: cache | swr | progressive | infplay_cache | full (null = never resolved)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
@@ -13068,6 +13231,10 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   if (cachedScript) {
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
+    // SWR: a stale-stamped entry still serves this session; background
+    // revalidation writes the fresh script for next time.
+    sessionScriptVintage = cachedScript.contentStamp ?? null
+    scheduleSwrRevalidation()
     cachedRounds.value = cachedScript.rounds
     // Single-source the new course's boundary on its cached audio-aware count
     // when present (undefined on pre-field caches → matview fallback).
@@ -13088,25 +13255,32 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // Network data loaded lazily when Progress screen is opened
 
-  // Generate rounds if no cache - prefer eager preload
+  // Generate rounds if no cache - prefer eager preload. Blocking full walk
+  // before play — honest "Updating your course…" state while it runs.
   if (cachedRounds.value.length === 0 && supabase?.value) {
     let freshResult
-    if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
-      console.log('[LearningPlayer] Awaiting eager preload for course switch:', newCourseCode)
-      freshResult = await eagerScript.scriptPromise.value
-    } else {
-      console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
-      const tc = turboConfig.value
-      freshResult = await generateSimpleScript(
-        supabase.value, newCourseCode, 50,
-        listeningConfig.value,
-        scriptShapeConfig.value,
-        { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
-      )
+    beginBlockingRegenNotice()
+    try {
+      if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
+        console.log('[LearningPlayer] Awaiting eager preload for course switch:', newCourseCode)
+        freshResult = await eagerScript.scriptPromise.value
+      } else {
+        console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
+        const tc = turboConfig.value
+        freshResult = await generateSimpleScript(
+          supabase.value, newCourseCode, 50,
+          listeningConfig.value,
+          scriptShapeConfig.value,
+          { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+        )
+      }
+    } finally {
+      endBlockingRegenNotice()
     }
     if (freshResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = freshResult.mainLoopRoundCount
     const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
+    sessionScriptVintage = undefined // fresh walk → live vintage
   }
 
   // Initialize for new course - legacy initOrchestrator removed
@@ -13118,6 +13292,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   void warmFirstKnownAudio()
   setLoadingStage('ready')
   isInitialized.value = true
+  maybeShowCourseUpdatedNotice()
 
   previousCourseCode = newCourseCode
   console.log('[LearningPlayer] Course change complete, ready to play')
@@ -14245,6 +14420,17 @@ defineExpose({
 
     <!-- Hidden ring container for position reference (used by network centering) -->
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
+
+    <!-- "Your course was updated" — transient notice after a background
+         revalidation landed on a previous open (founder ruling 2026-07-27:
+         invisible maintenance becomes visible care) -->
+    <Transition name="tip-fade">
+      <div v-if="showCourseUpdatedNotice" class="mode-tip course-updated-notice" @click="showCourseUpdatedNotice = false">
+        <div class="mode-tip__body">
+          <span class="mode-tip__label">Your course was updated</span>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Mode Discovery Tip (between rounds) -->
     <Transition name="tip-fade">
@@ -17231,6 +17417,12 @@ button.phase-segment:active:not(.is-active) {
   cursor: pointer;
   max-width: calc(100vw - 2rem);
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Transient "Your course was updated" notice — rides the mode-tip shell,
+   sits above the nav like the tip, tap anywhere to dismiss (auto-hides). */
+.course-updated-notice {
+  cursor: default;
 }
 
 .mode-tip__body {
