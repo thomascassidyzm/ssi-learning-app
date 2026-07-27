@@ -28,6 +28,7 @@ function makeChainable(table: string) {
     select: (cols: string, opts?: unknown) => { calls.push(['select', cols, opts]); return builder },
     insert: (obj: unknown) => { calls.push(['insert', obj]); recordWrite(table, 'insert', obj); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
     gte: (col: string, val: unknown) => { calls.push(['gte', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
@@ -162,5 +163,32 @@ describe('POST /api/code/validate', () => {
     expect(inserts.some((w) => w.payload.outcome === 'rate_limited_ip')).toBe(true)
     // No code detail leaked in the 429 body.
     expect(res._json.codeKind).toBeUndefined()
+  })
+
+  // Regression, live repro 2026-07-27 (IME demo pre-flight): this endpoint
+  // shares possession_mint_attempts with possession-redeem, which excludes
+  // successful personal-link sign-ins and its own refusals from the window.
+  // Counting them here 429'd a working leader link after ten legitimate
+  // clicks from one IP, and each retry re-armed the window.
+  it('per-IP window ignores personal sign-ins and its own refusals', async () => {
+    let countCalls: any[][] = []
+    responders.possession_mint_attempts = (calls) => {
+      if (calls.some((c) => c[0] === 'insert')) return { error: null }
+      countCalls = calls
+      return { count: 0, error: null }
+    }
+    responders.invite_code_validation = () => ({ data: null, error: null })
+    responders.entitlement_code_validation = () => ({ data: null, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'ABC-123' }, headers: { 'x-forwarded-for': '1.2.3.4' } }), res)
+
+    expect(res._status).toBe(200)
+    const excluded = countCalls.filter((c) => c[0] === 'neq').map((c) => c[2])
+    expect(excluded).toContain('personal_signin')
+    expect(excluded).toContain('rate_limited_ip')
+    expect(excluded).toContain('rate_limited_code')
+    // The enumeration signal itself is still counted — the throttle's purpose.
+    expect(excluded).not.toContain('validate_attempt')
   })
 })

@@ -151,10 +151,27 @@ export default async function handler(
     // elevated-role invite (teacher/school_admin/govt_admin) that the sibling
     // possession-redeem path turns into a session — i.e. school infiltration.
     // possession-redeem already throttles the same codes; this closes the gap.
+    //
+    // Two outcome classes are EXCLUDED from the count, for the same reasons
+    // possession-redeem excludes them (2026-07-20) — this endpoint shares that
+    // table, so it must share the rule or it re-opens the bug next door:
+    //   1. 'personal_signin' — a successful login on a personal link is not an
+    //      enumeration attempt. Counting it means ten legitimate link clicks
+    //      from one office/NAT lock everyone behind it out (live repro
+    //      2026-07-27: a founder-demo pre-flight 429'd its own leader link).
+    //   2. 'rate_limited_*' — the refusals themselves. Counting them makes a
+    //      block self-perpetuating: a client that retries keeps the window
+    //      permanently full, so the limit never drains. A limiter counts
+    //      actions, not its own refusals.
+    // 'validate_attempt' rows — the actual enumeration signal — still count,
+    // so the anti-sweep purpose above is untouched.
     const { count: ipCount } = await supabase
       .from('possession_mint_attempts')
       .select('id', { count: 'exact', head: true })
       .eq('ip_hash', ipHash)
+      .neq('outcome', 'personal_signin')
+      .neq('outcome', 'rate_limited_ip')
+      .neq('outcome', 'rate_limited_code')
       .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
 
     if ((ipCount ?? 0) >= PER_IP_LIMIT) {
