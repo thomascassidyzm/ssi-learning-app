@@ -1,0 +1,53 @@
+# APML Interface: Self-Explaining Dashboard (compiled explainer)
+# SSI Learning App
+# Version: 1.0.0 (2026-07-27) — v1 shipped: compiler CLI + pack, How-this-works, noticing invitations on node home
+# Status: Live on node home (admin + leader member mounts). Design doc: docs/self-explaining-dashboard.md
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Self-Explaining Dashboard"
+  purpose: "Docs, training, onboarding and feature-discovery as ONE act: the system explaining itself from live state, per persona. Compiled once (CLI, tokens at refresh time), rendered forever (static pack, zero runtime LLM)."
+  compiler: "tools/explainer/compile.mjs (+ rulings/*.md, rules.json — the hand-maintained DECISIONS)"
+  pack: "packages/player-vue/src/explainer/pack.json (versioned, bundled; human render docs/explainer-pack.md)"
+  runtime: "packages/player-vue/src/explainer/evaluateRules.ts + components/admin/{HowThisWorks,NoticingInvitations}.vue"
+  surface: "NodeHomeView.vue — admin mount (/admin/groups|schools|classes/:id) persona=admin; member mount (/schools/org/:id) persona=leader"
+  learner_level: "DELIBERATELY NOTHING — the player must need no explanation (founder ruling)"
+
+DESIGN_PHILOSOPHY:
+  one_line: "A compiler, not a stale cache and not a per-user concierge."
+  principles:
+    - "Decisions vs derivables: only rulings (persona prose) and rules (noticing conditions) are hand-maintained; the pack and its truth manifest regenerate."
+    - "DRIFT GATE: compile FAILS when an explanation names a verb the surface lost, or a rule reads a field home.ts stopped emitting — staleness becomes a build failure."
+    - "Noticing rules are pure data over stats the page ALREADY fetched — no new queries, no polling, no runtime model calls."
+    - "Invitations, not missions: gentle, dismissible (14d per rule×node, localStorage), never modal, max 3, deep links resolve member/admin-correct via nodeSurfacePaths."
+
+## ============================================================================
+## CONTRACTS
+## ============================================================================
+
+PACK_SHAPE:
+  version: "12-hex content hash"
+  truth: "verbs (parsed from NodeActionBar.vue + See insights), statWords (NodeHomeView), measures+windows (rate-compare.ts)"
+  explanations: "persona (admin|leader|school_admin|teacher) × kind (group|school|class) — markdown-lite (**bold** only)"
+  rules: "NoticingRule[] — shapes node | perChild | countWhere; conditions {path, op(eq|gt|lt|gte|lte|truthy|falsy), value}; cta targets insights | lens:classes | child-home | students"
+
+RULES_V1:
+  silent_class: "class practised before, zero sessions this week → insights"
+  quiet_subtree: "classes below, none practised this week → lens:classes"
+  school_no_teachers: "school child with zero teachers → that school's home (per child, cap 3)"
+  students_quiet_week: "previously-active students silent this week in an active class → in-page (students list)"
+
+KIND_RESOLUTION:
+  rule: "payload kind 'class' wins; else the node's OWN label decides (label-not-type — a school attachment never outvotes the label); unlabelled falls back to commercial/hasSchool"
+
+WIRING_STATUS:
+  wired: "admin, leader (NodeHomeView both mounts)"
+  authored_not_wired: "school_admin, teacher — wire when legacy /schools surfaces converge onto node home (THE-VIEW §4)"
+  telemetry_input: "v2 stub (--telemetry flag prints stub notice; no signal before its consumer)"
+
+TESTS:
+  unit: "src/explainer/evaluateRules.test.ts — evaluator ops, all four rules' fire paths, caps, persona/kind scoping, member links, pack integrity"
+  live: "src/explainer/verifyIme.live.test.ts (IME_LIVE=1, network) — redeems the IME leader personal link on deployed dev, walks the full IME subtree (~24 nodes), asserts every rule's fire/no-fire against the live values"

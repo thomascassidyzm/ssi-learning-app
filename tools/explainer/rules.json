@@ -1,0 +1,59 @@
+{
+  "comment": "Noticing rules — pure data, hand-maintained (the DECISIONS side). Evaluated client-side by packages/player-vue/src/explainer/evaluateRules.ts against the /api/groups/:id/home payload the page already fetched. The compiler validates every path against home.ts and every target against the runtime's semantic targets. Invitations, not missions.",
+  "rules": [
+    {
+      "id": "silent-class",
+      "shape": "node",
+      "kinds": ["class"],
+      "personas": ["admin", "leader"],
+      "when": [
+        { "path": "classPractice.totalSessions", "op": "gt", "value": 0 },
+        { "path": "classPractice.weekSessions", "op": "eq", "value": 0 }
+      ],
+      "invitation": "This class practises together, but not this week — worth a look at how the pace is holding?",
+      "cta": { "label": "See the pace", "target": "insights" }
+    },
+    {
+      "id": "quiet-subtree",
+      "shape": "node",
+      "kinds": ["group", "school"],
+      "personas": ["admin", "leader"],
+      "when": [
+        { "path": "classPractice.classCount", "op": "gt", "value": 0 },
+        { "path": "classPractice.sessions7d", "op": "eq", "value": 0 }
+      ],
+      "invitation": "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when.",
+      "cta": { "label": "See the classes", "target": "lens:classes" }
+    },
+    {
+      "id": "school-no-teachers",
+      "shape": "perChild",
+      "arrayPath": "children",
+      "kinds": ["group"],
+      "personas": ["admin", "leader"],
+      "itemWhen": [
+        { "path": "hasSchool", "op": "truthy" },
+        { "path": "rollup.teacherCount", "op": "eq", "value": 0 }
+      ],
+      "invitation": "{name} has no teachers yet — its teacher link gets them started.",
+      "cta": { "label": "Open {name}", "target": "child-home" }
+    },
+    {
+      "id": "students-quiet-week",
+      "shape": "countWhere",
+      "arrayPath": "students",
+      "kinds": ["class"],
+      "personas": ["admin", "leader"],
+      "itemWhen": [
+        { "path": "week_minutes", "op": "eq", "value": 0 },
+        { "path": "practice_hours", "op": "gt", "value": 0 }
+      ],
+      "min": 1,
+      "when": [
+        { "path": "classPractice.totalSessions", "op": "gt", "value": 0 }
+      ],
+      "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",
+      "cta": { "label": "See the students", "target": "students" }
+    }
+  ]
+}

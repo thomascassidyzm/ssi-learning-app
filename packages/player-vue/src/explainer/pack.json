@@ -1,0 +1,249 @@
+{
+  "version": "55774db2e2ad",
+  "generatedAt": "2026-07-27",
+  "truth": {
+    "verbs": [
+      {
+        "label": "Invite a person",
+        "adminOnly": false
+      },
+      {
+        "label": "Get a shareable link",
+        "adminOnly": false
+      },
+      {
+        "label": "Add a group",
+        "adminOnly": true
+      },
+      {
+        "label": "Add a school",
+        "adminOnly": true
+      },
+      {
+        "label": "Mint a demo org",
+        "adminOnly": true
+      },
+      {
+        "label": "Courses",
+        "adminOnly": true
+      },
+      {
+        "label": "Rename",
+        "adminOnly": true
+      },
+      {
+        "label": "Refresh demo activity",
+        "adminOnly": true
+      },
+      {
+        "label": "Delete",
+        "adminOnly": true
+      },
+      {
+        "label": "See insights",
+        "adminOnly": false
+      }
+    ],
+    "statWords": [
+      "Demo",
+      "Paid — all courses",
+      "Class sessions this week",
+      "Class practice",
+      "Students",
+      "Teachers",
+      "Classes practising this week",
+      "Learners"
+    ],
+    "measures": [
+      {
+        "value": "rate",
+        "label": "Rate of progress",
+        "unit": "LEGOs",
+        "per": "week",
+        "desc": "How fast new LEGOs are being learned, per week."
+      },
+      {
+        "value": "minutes_per_class",
+        "label": "Practice minutes per class",
+        "unit": "min",
+        "per": "week",
+        "desc": "How many minutes each class practises, per week on average."
+      },
+      {
+        "value": "hours_total",
+        "label": "Practice hours",
+        "unit": "hours",
+        "per": "",
+        "desc": "Total hours of practice in the selected period."
+      },
+      {
+        "value": "active_classes",
+        "label": "Active classes share",
+        "unit": "%",
+        "per": "",
+        "desc": "The share of classes that practised at least once in the selected period."
+      }
+    ],
+    "windows": [
+      {
+        "value": "today",
+        "label": "Today"
+      },
+      {
+        "value": "7d",
+        "label": "Last 7 days"
+      },
+      {
+        "value": "30d",
+        "label": "Last 30 days"
+      },
+      {
+        "value": "all",
+        "label": "All time"
+      }
+    ]
+  },
+  "explanations": {
+    "admin": {
+      "group": "Every page here is the same page. A **group** can hold groups, schools, teachers, classes and\nlearners — a school is just a group with billing attached, a programme or region is just a label.\nThe map on the left is the whole organisation: tap up, down or sideways and the page stays put.\n\nThe numbers are always **everyone below this** — this group and everything under it, counted\nonce. **Class practice** leads because classes practising together is the metric that matters in\na school; individual accounts are the bonus on top.\n\nThe buttons along the top act on this group. **Invite a person** makes a personal link that IS\ntheir login — email it and they're in, no sign-up, no password. **Get a shareable link** makes an\nopen link for a role — anyone who taps it joins here. **Mint a demo org** builds a working demo\nschool under this group in one gesture. **Courses** is one switch: a trial teaches one course, a\npaid group has every course. **See insights** compares this group's pace with the levels above it.\n**Add a group** and **Add a school** grow the tree; **Rename** and **Delete** reshape it — delete\nalways shows you exactly what would go before it goes. **Refresh demo activity** keeps a demo\norg's numbers looking freshly practised.",
+      "school": "A school is a group with billing attached — same page, same numbers, plus the trial-or-paid badge\nin the header. Its people are teachers; a teacher becomes real the moment they have a class.\n**Get a shareable link** here is how a school fills itself: one teacher link for the staffroom,\none learner link for the pupils. The links ledger at the bottom shows every way into this school\nand lets you switch any of them off.",
+      "class": "A class is a learner in its own right: it has its own course position, moved by the teacher\npressing **Play as class**. That shared journey is the headline; each student's own practice is\nthe layer below. The belt strip shows where the class sits on the course; each student row\ncarries their own belt, practice hours and last-active — a quiet flag marks anyone drifting.\n**See insights** compares this class's pace with its school and everywhere above it."
+    },
+    "leader": {
+      "group": "This is your organisation, one page per level. The map on the left runs from your top group down\nto every school and class — tap any name to look closer; the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Class practice** leads:\nclasses practising together is what a language programme lives on, so that's the number to watch.\nIndividual student practice sits underneath it as the bonus.\n\nYou can bring people in from right here. **Invite a person** makes a personal link that IS their\nlogin — email it to a school leader or teacher and they're in, nothing to set up. **Get a\nshareable link** makes an open link anyone can use to join this level in a given role. **See\ninsights** shows the pace here against the levels above, over the window you choose.",
+      "school": "Each school is the same page one level down: its teachers, their classes, and the same numbers\nscoped to just that school. A school comes alive through its links — one for teachers, one for\nlearners. If a school shows no teachers yet, sharing its teacher link is the whole job.",
+      "class": "A class page is where the teaching shows. The class travels the course **together** — that shared\nposition is the headline, moved every time its teacher runs a class session. Each student row\nunderneath carries their own pace, practice and last-active, with a quiet flag for anyone\ndrifting. **See insights** compares this class's pace fairly with its school and the levels above."
+    },
+    "school_admin": {
+      "school": "This is your school. Its life is teachers running classes: a teacher becomes real the moment they\nhave a class, and a class becomes real the moment it practises together. The teacher link brings\nstaff in — email it or share it in the staffroom; clicking it is the whole sign-up. The learner\nlink does the same for pupils.\n\n**Class practice** is the number to watch: it counts your classes practising together, which is\nwhat moves a whole class along the course at once. Individual practice at home is the bonus layer\non top, visible per student inside each class.",
+      "class": "Each class page shows the shared journey — how far the class has travelled together — and every\nstudent's own pace underneath. A quiet flag marks students drifting away from the class; that's\nan invitation to look, not an alarm."
+    },
+    "teacher": {
+      "class": "Your class is a learner in its own right: it has its own place on the course, and it moves when\nyou press **Play as class**. That shared journey is the headline — twenty minutes together moves\nthe whole class at once.\n\nEach student row shows their own practice: belt, hours, last time they practised. A quiet flag\nmarks anyone drifting — worth a word, not a worry. Your class link is how students join: share\nit once, they tap it, give a name, and they're in your class on your course."
+    }
+  },
+  "rules": [
+    {
+      "id": "silent-class",
+      "shape": "node",
+      "kinds": [
+        "class"
+      ],
+      "personas": [
+        "admin",
+        "leader"
+      ],
+      "when": [
+        {
+          "path": "classPractice.totalSessions",
+          "op": "gt",
+          "value": 0
+        },
+        {
+          "path": "classPractice.weekSessions",
+          "op": "eq",
+          "value": 0
+        }
+      ],
+      "invitation": "This class practises together, but not this week — worth a look at how the pace is holding?",
+      "cta": {
+        "label": "See the pace",
+        "target": "insights"
+      }
+    },
+    {
+      "id": "quiet-subtree",
+      "shape": "node",
+      "kinds": [
+        "group",
+        "school"
+      ],
+      "personas": [
+        "admin",
+        "leader"
+      ],
+      "when": [
+        {
+          "path": "classPractice.classCount",
+          "op": "gt",
+          "value": 0
+        },
+        {
+          "path": "classPractice.sessions7d",
+          "op": "eq",
+          "value": 0
+        }
+      ],
+      "invitation": "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when.",
+      "cta": {
+        "label": "See the classes",
+        "target": "lens:classes"
+      }
+    },
+    {
+      "id": "school-no-teachers",
+      "shape": "perChild",
+      "arrayPath": "children",
+      "kinds": [
+        "group"
+      ],
+      "personas": [
+        "admin",
+        "leader"
+      ],
+      "itemWhen": [
+        {
+          "path": "hasSchool",
+          "op": "truthy"
+        },
+        {
+          "path": "rollup.teacherCount",
+          "op": "eq",
+          "value": 0
+        }
+      ],
+      "invitation": "{name} has no teachers yet — its teacher link gets them started.",
+      "cta": {
+        "label": "Open {name}",
+        "target": "child-home"
+      }
+    },
+    {
+      "id": "students-quiet-week",
+      "shape": "countWhere",
+      "arrayPath": "students",
+      "kinds": [
+        "class"
+      ],
+      "personas": [
+        "admin",
+        "leader"
+      ],
+      "itemWhen": [
+        {
+          "path": "week_minutes",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "path": "practice_hours",
+          "op": "gt",
+          "value": 0
+        }
+      ],
+      "min": 1,
+      "when": [
+        {
+          "path": "classPractice.totalSessions",
+          "op": "gt",
+          "value": 0
+        }
+      ],
+      "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",
+      "cta": {
+        "label": "See the students",
+        "target": "students"
+      }
+    }
+  ]
+}

@@ -11,6 +11,9 @@ import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
+import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
+import { nodeKindOf } from '@/explainer/evaluateRules'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
@@ -260,6 +263,11 @@ const enrichedStudents = computed(() => {
   }))
 })
 
+// ─── The self-explaining dashboard (docs/self-explaining-dashboard.md):
+// persona is what the mount already knows; place is the payload's own kind. ───
+const explainerPersona = computed<'admin' | 'leader'>(() => (member.value ? 'leader' : 'admin'))
+const explainerKind = computed(() => nodeKindOf(home.value))
+
 // ─── Children payload for the list ───
 const listPayload = computed(() => {
   if (!home.value) return {}
@@ -333,6 +341,17 @@ const listPayload = computed(() => {
               <span class="stat-word">{{ s.word }}</span>
             </div>
           </div>
+
+          <!-- NOTICING INVITATIONS — the pack's rules over the payload just
+               loaded. Gentle, dismissible, never modal (self-explaining
+               dashboard §5). Hidden mid-switch: they'd be the old node's. -->
+          <NoticingInvitations
+            v-if="!switching && !isLoading && home.node"
+            :home="home"
+            :persona="explainerPersona"
+            :member="member"
+            :node-id="home.node.id"
+          />
 
           <!-- CLASS TEACHING CARDS — the density the old class page had
                (Course Journey · Belt distribution · practice benchmark),
@@ -427,6 +446,10 @@ const listPayload = computed(() => {
               </NodeChildrenList>
             </div>
           </section>
+
+          <!-- HOW THIS WORKS — the self-explaining dashboard's reference
+               entry: one quiet link, persona-scoped to exactly here. -->
+          <HowThisWorks :persona="explainerPersona" :kind="explainerKind" />
 
           <!-- WAYS IN — the link ledger (founder scope-add 2026-07-20):
                every link minted anywhere in this subtree, with copy /
