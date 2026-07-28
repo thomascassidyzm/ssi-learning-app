@@ -46,7 +46,10 @@ function bindAnchor(el: HTMLElement): void {
   anchorEl.value = el
   anchorTimedOut.value = false
   rect.value = el.getBoundingClientRect()
-  el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  // Oversized anchors (taller than the viewport) scroll to their top edge —
+  // block:'center' on a 5000px element lands mid-nowhere.
+  const oversize = rect.value.height > window.innerHeight * 0.7
+  el.scrollIntoView({ block: oversize ? 'start' : 'center', behavior: 'smooth' })
   const step = currentStep.value
   if (step?.advance.on === 'click') {
     detachClick()
@@ -125,19 +128,24 @@ const ringStyle = computed(() => {
 })
 
 const CARD_W = 340
+const CARD_H_EST = 190
 const cardStyle = computed(() => {
   const r = rect.value
   const vw = window.innerWidth
   const vh = window.innerHeight
   const w = Math.min(CARD_W, vw - 24)
-  if (!r || showingTerminal.value || anchorTimedOut.value) {
-    // Unanchored: quiet bottom-center card.
-    return { left: `${(vw - w) / 2}px`, bottom: '24px', width: `${w}px` }
-  }
+  const bottomCenter = { left: `${(vw - w) / 2}px`, bottom: '24px', width: `${w}px` }
+  if (!r || showingTerminal.value || anchorTimedOut.value) return bottomCenter
   const left = Math.max(12, Math.min(r.left, vw - w - 12))
   const below = r.bottom + PAD + 12
-  if (below + 180 < vh) return { left: `${left}px`, top: `${below}px`, width: `${w}px` }
-  return { left: `${left}px`, bottom: `${vh - r.top + PAD + 12}px`, width: `${w}px` }
+  if (below + CARD_H_EST < vh) return { left: `${left}px`, top: `${below}px`, width: `${w}px` }
+  const above = r.top - PAD - 12
+  if (above - CARD_H_EST > 0 && r.top <= vh) {
+    return { left: `${left}px`, bottom: `${vh - above}px`, width: `${w}px` }
+  }
+  // Anchor taller than the viewport or off-screen either side: the card must
+  // still be reachable — quiet bottom-center, ring marks the element.
+  return bottomCenter
 })
 
 // Markdown-lite: **bold** only, escaped first (same rule as HowThisWorks).

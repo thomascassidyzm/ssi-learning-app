@@ -125,8 +125,10 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
 </script>
 
 <template>
-  <section class="ways-in schools-card schools-card-pad" data-walk="ways-in-ledger">
-    <div class="ways-in-head">
+  <section class="ways-in schools-card schools-card-pad">
+    <!-- data-walk sits on the head, not the section — a subtree ledger can be
+         thousands of px tall, and a walk ring must fit in a viewport. -->
+    <div class="ways-in-head" data-walk="ways-in-ledger">
       <span class="schools-kicker">Ways in</span>
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length }} link{{ visible.length === 1 ? '' : 's' }}</span>
     </div>

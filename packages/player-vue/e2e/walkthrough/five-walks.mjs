@@ -175,9 +175,9 @@ async function finishWalk(p, walkId) {
   await p.locator('.verb-btn', { hasText: 'Overview' }).first().click().catch(() => {})
   await p.waitForTimeout(1500)
   // All-schools lens → open Sunrise Public School's node home
-  await p.locator('button, a', { hasText: 'All schools' }).first().click().catch(() => {})
+  await p.locator('.lens-chips .chip', { hasText: 'All schools' }).first().click().catch(() => {})
   await p.waitForTimeout(2000)
-  await p.locator('a, .child-row, tr', { hasText: 'Sunrise Public School' }).first().click()
+  await p.locator('.child-btn', { hasText: 'Sunrise Public School' }).first().click()
   await p.waitForTimeout(2500)
   await p.waitForSelector('.nh-stats, .stat-value', { timeout: 20000 }).catch(() => {})
   check('walk1: on a school node home', p.url().includes('/schools/org/'), p.url())
@@ -208,10 +208,8 @@ async function finishWalk(p, walkId) {
   const { ctx, page: p, mutations } = await newPage()
   await p.goto(TEACHER_URL, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForTimeout(4000)
-  // Land wherever the teacher surface puts us, then open the first class.
-  await p.locator('[role="row"], .class-row, .class-card, tr', { hasText: /Grade|Class/ }).first().click().catch(async () => {
-    await p.locator('a', { hasText: /Grade|Class/ }).first().click().catch(() => {})
-  })
+  // Land on the teacher dashboard, then open the first class row.
+  await p.locator('.row-clickable').first().click().catch(() => {})
   await p.waitForURL((u) => u.pathname.includes('/classes/'), { timeout: 20000 }).catch(() => {})
   await p.waitForSelector('.page-head-actions, .join-card', { timeout: 20000 }).catch(() => {})
   check('teacher: on class detail', p.url().includes('/classes/'), p.url())
