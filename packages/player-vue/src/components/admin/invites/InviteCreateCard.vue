@@ -33,7 +33,7 @@ const initialWho = computed(() => (typeof route.query.who === 'string' ? route.q
   <div class="schools-card create-panel">
     <div class="panel-head">
       <span class="schools-kicker">Create invite</span>
-      <div class="mode-toggle" role="tablist">
+      <div class="mode-toggle" role="tablist" data-walk="invites-mode-strip">
         <button
           type="button" role="tab" class="mode-btn"
           :class="{ 'is-active': mode === 'org' }"

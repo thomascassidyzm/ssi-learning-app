@@ -217,7 +217,7 @@ onMounted(async () => {
 
     <div class="field">
       <label class="schools-kicker">Who</label>
-      <select v-model="who" class="frost-select">
+      <select v-model="who" class="frost-select" data-walk="invites-org-who">
         <option v-if="isSsiAdmin || isGovtAdmin" value="leader">Group leader</option>
         <option value="school_admin_join">School admin — join existing</option>
         <option value="teacher">Teacher</option>
@@ -255,7 +255,7 @@ onMounted(async () => {
     </div>
 
     <div class="field-actions">
-      <button type="submit" class="btn-primary" :disabled="isSubmitting || !canSubmit">
+      <button type="submit" class="btn-primary" data-walk="invites-org-submit" :disabled="isSubmitting || !canSubmit">
         <svg v-if="!isSubmitting" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>

@@ -28,6 +28,9 @@ import { installConsoleDedup } from './utils/consoleDedup'
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
+// Walkthrough overlay — renders nothing until a walk is started by a user tap
+// (noticing invitation / How-this-works "Show me"); never auto-plays.
+const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOverlay.vue'))
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
@@ -673,6 +676,7 @@ onMounted(async () => {
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
+    <WalkOverlay />
     <CheckoutOverlay />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>

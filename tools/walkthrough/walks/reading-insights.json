@@ -1,0 +1,29 @@
+{
+  "id": "reading-insights",
+  "title": "Reading your insights",
+  "personas": ["admin", "leader", "school_admin"],
+  "place": { "route": "node-insights" },
+  "steps": [
+    {
+      "anchor": "insights-measure",
+      "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "insights-window",
+      "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "insights-compare",
+      "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "insights-overview",
+      "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+      "advance": { "on": "next" },
+      "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+    }
+  ]
+}

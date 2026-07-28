@@ -219,7 +219,7 @@ const metricDesc = computed(() => {
   <div class="nre">
     <!-- ── Controls ── -->
     <div v-if="engineState" class="nre-controls">
-      <div v-if="showWindowChips" class="nre-field">
+      <div v-if="showWindowChips" class="nre-field" data-walk="insights-window">
         <span class="nre-field-label">Window</span>
         <WindowChips v-model="windowModel" :options="windowOptions" aria-label="Time window" />
       </div>
@@ -233,16 +233,16 @@ const metricDesc = computed(() => {
         <p class="nre-fixed">{{ courseDisplayName(engineState.applied.course_code) }}</p>
       </div>
 
-      <label v-if="showMeasurePicker" class="nre-field nre-field-wide">
+      <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
         <span class="nre-field-label">Measure</span>
         <FrostSelect v-model="measureModel" :options="measureSelectOptions" aria-label="Measure" />
       </label>
-      <div v-else class="nre-field">
+      <div v-else class="nre-field" data-walk="insights-measure">
         <span class="nre-field-label">Measure</span>
         <p class="nre-fixed">Rate of progress (LEGOs / week)</p>
       </div>
 
-      <label class="nre-field nre-field-wide">
+      <label class="nre-field nre-field-wide" data-walk="insights-compare">
         <span class="nre-field-label">Compare to</span>
         <FrostSelect v-model="compareModel" :options="compareSelectOptions" aria-label="Compare to" />
       </label>

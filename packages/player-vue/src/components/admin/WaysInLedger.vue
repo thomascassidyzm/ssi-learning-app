@@ -125,7 +125,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
 </script>
 
 <template>
-  <section class="ways-in schools-card schools-card-pad">
+  <section class="ways-in schools-card schools-card-pad" data-walk="ways-in-ledger">
     <div class="ways-in-head">
       <span class="schools-kicker">Ways in</span>
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length }} link{{ visible.length === 1 ? '' : 's' }}</span>
@@ -179,9 +179,9 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
           <td><span class="status-pill" :class="`is-${l.status}`">{{ l.status }}</span></td>
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
-            <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" @click="copyLink(l)">{{ copiedCode === l.code ? 'Copied!' : 'Copy' }}</button>
-            <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'rotate')">Re-mint</button>
-            <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" @click="patch(l, 'revoke')">Revoke</button>
+            <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? 'Copied!' : 'Copy' }}</button>
+            <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">Re-mint</button>
+            <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">Revoke</button>
             <button v-else-if="l.status === 'revoked'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'reactivate')">Put back</button>
           </td>
         </tr>

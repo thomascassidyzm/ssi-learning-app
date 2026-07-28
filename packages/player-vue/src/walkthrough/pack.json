@@ -1,0 +1,217 @@
+{
+  "version": "a785aa0b7033",
+  "generatedAt": "2026-07-28",
+  "walks": [
+    {
+      "id": "invite-first-teacher",
+      "title": "Bring your first teacher in",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "school"
+        ]
+      },
+      "steps": [
+        {
+          "anchor": "verb-invite-person",
+          "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "invite-form-role",
+          "say": "Pick **Teacher** — the link carries the role with it, so whoever clicks it arrives as a teacher of this school.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invite-form-submit",
+          "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. Send it any way you like.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-ledger",
+          "say": "Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "invites-desk",
+      "title": "The invites desk",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "admin-invites"
+      },
+      "steps": [
+        {
+          "anchor": "invites-mode-strip",
+          "say": "Three ways to mint access, one form: **Into an organisation** (role links into the tree), **Direct access** (codes and magic links), **New demo org** (a full practice tree).",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invites-org-who",
+          "say": "**Who** silently changes what the submit button does: some options mint a FRESH link, others surface the STANDING link that already exists. Watch the button label switch as you change this.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invites-org-submit",
+          "say": "Every submit on this desk mints REAL access the moment you tap — a leaked leader link makes a stranger a group leader. This tour never taps it for you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invites-active-toggle",
+          "say": "This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists."
+        }
+      ]
+    },
+    {
+      "id": "reading-insights",
+      "title": "Reading your insights",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "steps": [
+        {
+          "anchor": "insights-measure",
+          "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-window",
+          "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-compare",
+          "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-overview",
+          "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+        }
+      ]
+    },
+    {
+      "id": "run-class-session",
+      "title": "Run your first class session",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "steps": [
+        {
+          "anchor": "class-join-link",
+          "say": "Students join with this link — share it and they sign up straight into this class.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-join-code",
+          "say": "Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-play",
+          "say": "**Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you."
+        }
+      ]
+    },
+    {
+      "id": "ways-in",
+      "title": "Ways in — who can get in, and how to change it",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "group",
+          "school"
+        ]
+      },
+      "steps": [
+        {
+          "anchor": "ways-in-ledger",
+          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-copy",
+          "say": "**Copy** re-shares the same live link — always safe, nothing changes.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-remint",
+          "say": "**Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-revoke",
+          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone."
+        }
+      ]
+    }
+  ]
+}

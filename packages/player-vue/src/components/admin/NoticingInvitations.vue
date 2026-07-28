@@ -7,6 +7,7 @@
 import { ref, computed } from 'vue'
 import pack from '@/explainer/pack.json'
 import { evaluateRules, type NoticingRule } from '@/explainer/evaluateRules'
+import { startWalk } from '@/walkthrough/useWalkthrough'
 
 const props = defineProps<{
   home: unknown
@@ -47,7 +48,8 @@ const invitations = computed(() => {
     <div v-for="inv in invitations" :key="inv.key" class="notice-card schools-card">
       <span class="notice-text">{{ inv.text }}</span>
       <span class="notice-actions">
-        <router-link v-if="inv.to" :to="inv.to" class="notice-cta">{{ inv.ctaLabel }}</router-link>
+        <button v-if="inv.walk" type="button" class="notice-cta notice-cta-walk" :data-walk-cta="inv.walk" @click="startWalk(inv.walk)">{{ inv.ctaLabel }}</button>
+        <router-link v-else-if="inv.to" :to="inv.to" class="notice-cta">{{ inv.ctaLabel }}</router-link>
         <button type="button" class="notice-dismiss" aria-label="Dismiss" @click="dismiss(inv.key)">×</button>
       </span>
     </div>
@@ -68,6 +70,7 @@ const invitations = computed(() => {
   text-decoration: none; white-space: nowrap;
 }
 .notice-cta:hover { text-decoration: underline; text-underline-offset: 3px; }
+.notice-cta-walk { background: none; border: none; cursor: pointer; padding: 0; font: inherit; font-size: var(--text-xs); font-weight: var(--font-semibold); }
 .notice-dismiss {
   background: none; border: none; cursor: pointer; padding: 0 4px; line-height: 1;
   font-size: 16px; color: var(--schools-fg-3, #8A8078);
