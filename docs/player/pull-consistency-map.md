@@ -136,7 +136,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
   one list but not the other silently freezes (or over-counts) the timer.
 - **Migration:** name the derived signal once (`isAnythingAudible` = the 5-flag OR),
   make `isAudioPlaying = isAnythingAudible || isPreparingToPlay`, gate the timer on
-  `isAnythingAudible`. Status: **QUEUED this tranche**.
+  `isAnythingAudible`. Status: **MIGRATED** (this tranche).
 
 ### M9. Belt `playingSeedNumber` — multi-writer push into useBeltProgress
 
