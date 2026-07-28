@@ -293,6 +293,7 @@ onMounted(fetchMessages)
             <span v-if="isSaving" class="spinner"></span>
             {{ isSaving ? 'Saving…' : 'Save' }}
           </button>
+          <span class="save-live-note">Save publishes — the send system reads this table live, there is no separate publish step.</span>
           <Transition name="fade">
             <span v-if="saveSuccess" class="save-ok">Saved</span>
           </Transition>
@@ -409,6 +410,7 @@ onMounted(fetchMessages)
 .frost-input:focus { outline: none; border-color: rgba(var(--tone-red, 194, 58, 58), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red, 194, 58, 58), 0.14); }
 
 .editor-actions { display: flex; align-items: center; gap: 12px; padding: var(--space-4, 16px) var(--space-6, 24px); border-top: 1px solid rgba(44, 38, 34, 0.06); }
+.save-live-note { font-size: var(--text-xs, 12px); color: var(--schools-fg-3, #8a8078); line-height: 1.5; max-width: 46ch; }
 .btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 10px 18px; font: inherit; font-size: var(--text-sm, 13px); font-weight: var(--font-semibold, 600);

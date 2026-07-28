@@ -167,8 +167,10 @@ async function createSubgroup(parentId: string, name: string): Promise<void> {
   }
 }
 
-type DeleteTargetKind = 'group'
-interface DeleteTarget { kind: DeleteTargetKind; id: string; name: string }
+type DeleteTargetKind = 'group' | 'purge'
+// For kind 'purge', `id` is the demo-org id and `groupId` (the org's tree
+// root) is what the impact preview is fetched against.
+interface DeleteTarget { kind: DeleteTargetKind; id: string; name: string; groupId?: string | null }
 interface DeleteImpact {
   classCount?: number
   schoolCount?: number
@@ -183,7 +185,8 @@ const deleteModalImpact = ref<DeleteImpact | null>(null)
 const deleteModalSubmitting = ref(false)
 const deleteModalError = ref('')
 
-const deleteModalTitle = computed(() => 'Delete group')
+const deleteModalTitle = computed(() =>
+  deleteModalTarget.value?.kind === 'purge' ? 'Purge demo org' : 'Delete group')
 const deleteModalImpactLines = computed(() => {
   const impact = deleteModalImpact.value
   if (!impact) return []
@@ -198,11 +201,15 @@ async function openDeleteModal(target: DeleteTarget): Promise<void> {
   deleteModalImpact.value = null
   deleteModalError.value = ''
   deleteModalOpen.value = true
+  // Impact is always fetched against a groups-tree node: the target itself
+  // for a group delete, the org's root group for a purge.
+  const impactGroupId = target.kind === 'purge' ? target.groupId : target.id
+  if (!impactGroupId) return
   try {
     const token = await getAuthToken()
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
-    const resp = await fetch(`/api/groups/${target.id}`, { method: 'GET', headers })
+    const resp = await fetch(`/api/groups/${impactGroupId}`, { method: 'GET', headers })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || 'Failed to load deletion impact')
     deleteModalImpact.value = data.impact
@@ -213,6 +220,19 @@ async function openDeleteModal(target: DeleteTarget): Promise<void> {
 
 function requestDeleteGroup(group: TreeGroup): void {
   void openDeleteModal({ kind: 'group', id: group.id, name: group.name })
+}
+
+// Purge is the most destructive verb on the surface (tree + learners +
+// progress, no undo). It used to be a reflex-clickable native confirm();
+// it now goes through the same impact-preview modal as group deletes,
+// escalating to type-the-name when the tree has real recorded activity.
+function requestPurgeOrg(org: DemoOrgRow): void {
+  void openDeleteModal({
+    kind: 'purge',
+    id: org.id,
+    name: org.metadata?.orgName || org.prospect_name,
+    groupId: org.group_id,
+  })
 }
 function closeDeleteModal(): void {
   if (deleteModalSubmitting.value) return
@@ -230,11 +250,21 @@ async function confirmDelete(typedName: string): Promise<void> {
   try {
     const token = await getAuthToken()
     if (!token) throw new Error('Not authenticated')
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-    const params = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
-    const resp = await fetch(`/api/groups/${target.id}${params}`, { method: 'DELETE', headers })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
+    if (target.kind === 'purge') {
+      const resp = await fetch('/api/admin/demo-schools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'purge', id: target.id }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to purge demo')
+    } else {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      const params = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
+      const resp = await fetch(`/api/groups/${target.id}${params}`, { method: 'DELETE', headers })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
+    }
     await fetchTreeGroups()
     await fetchOrgs()
     deleteModalOpen.value = false
@@ -283,8 +313,7 @@ async function refresh(): Promise<void> {
 
 defineExpose({ refresh })
 
-async function runAction(id: string, action: 'expire' | 'extend' | 'purge'): Promise<void> {
-  if (action === 'purge' && !confirm('Purge permanently deletes this demo — its group tree, learners, and progress data. This cannot be undone. Continue?')) return
+async function runAction(id: string, action: 'expire' | 'extend'): Promise<void> {
   error.value = null
   busyAction.value = `${action}:${id}`
   try {
@@ -297,7 +326,6 @@ async function runAction(id: string, action: 'expire' | 'extend' | 'purge'): Pro
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `Request failed: ${resp.status}`)
     await fetchOrgs()
-    if (action === 'purge') await fetchTreeGroups()
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to ${action} demo`
   } finally {
@@ -397,8 +425,8 @@ onMounted(() => {
                   <button
                     v-if="org.status === 'expired'"
                     class="row-action-text row-action-danger"
-                    :disabled="busyAction === `purge:${org.id}`"
-                    @click.stop="runAction(org.id, 'purge')"
+                    :disabled="deleteModalSubmitting"
+                    @click.stop="requestPurgeOrg(org)"
                   >Purge</button>
                 </td>
               </tr>
@@ -441,6 +469,7 @@ onMounted(() => {
       :target-name="deleteModalTarget?.name || ''"
       :impact-lines="deleteModalImpactLines"
       :require-typed-confirm="!!deleteModalImpact?.hasRealActivity"
+      :confirm-label="deleteModalTarget?.kind === 'purge' ? 'Purge' : 'Delete'"
       :submitting="deleteModalSubmitting"
       :error="deleteModalError"
       @close="closeDeleteModal"

@@ -17,6 +17,8 @@ const props = defineProps({
   requireTypedConfirm: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
   error: { type: String, default: '' },
+  // Verb on the danger button — e.g. "Purge" for the demo-org purge flow.
+  confirmLabel: { type: String, default: 'Delete' },
 })
 
 const emit = defineEmits(['close', 'confirm'])
@@ -97,7 +99,7 @@ function handleConfirm() {
             <button type="button" class="btn-cancel" :disabled="submitting" @click="handleClose">Cancel</button>
             <button type="button" class="btn-delete" :disabled="!canConfirm" @click="handleConfirm">
               <span v-if="submitting" class="btn-spinner"></span>
-              <span v-else>Delete</span>
+              <span v-else>{{ confirmLabel }}</span>
             </button>
           </footer>
         </div>
