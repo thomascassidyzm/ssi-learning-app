@@ -5547,12 +5547,21 @@ function clearInfPlayIntro(): void {
 // togglePlayback routes all of these to handlePause). The container PULLS
 // this via the template ref (no event hop): a consumer that attaches late
 // still reads the current truth, not a missed edge.
-const isAudioPlaying = computed(() =>
+// Every source that is actually SOUNDING right now (cycle engine OR pod lap
+// OR commentary OR welcome OR introduction). Named once (M8, pull-consistency
+// map) so the session timer and the transport signal share one definition —
+// the timer used to hand-OR its own copy of this list, and a future audio
+// source added to one list but not the other would silently freeze (or
+// over-count) the timer.
+const isAnythingAudible = computed(() =>
   isPlaying.value
   || playingPodLapAudio.value
   || playingCommentaryAudio.value
   || isPlayingWelcome.value
   || isPlayingIntroduction.value
+)
+const isAudioPlaying = computed(() =>
+  isAnythingAudible.value
   || isPreparingToPlay.value
 )
 // Window-level echo so components outside this tree (InstallBanner, the
@@ -13164,8 +13173,10 @@ onMounted(async () => {
   // Restore (or reset) the SITTING first, per the 5-min resume window.
   restoreSitting()
   sessionTimerInterval = setInterval(() => {
-    if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value
-      || isPlayingWelcome.value || isPlayingIntroduction.value) {
+    // Tick while anything is audible — same derived signal as the transport
+    // (minus the pre-audio preparing window, which shouldn't count as
+    // practice time). See isAnythingAudible (M8).
+    if (isAnythingAudible.value) {
       sessionSeconds.value++
       if (sessionSeconds.value % 5 === 0) saveSitting() // backstop for hard kills
     }
