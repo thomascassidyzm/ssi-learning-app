@@ -114,7 +114,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
   leaves BottomNav's mode button lying about the overlay.
 - **Migration:** expose derived `isListeningMode`/`isPronunciationMode` computeds on
   the player; container pulls via the template ref (the 878246ff pattern); delete both
-  events and all 7 emit sites. Status: **QUEUED this tranche**.
+  events and all 7 emit sites. Status: **MIGRATED** (this tranche).
 
 ### M6. `bufferingPromptVisible` — watcher mirror of `phase === 'buffering'`
 

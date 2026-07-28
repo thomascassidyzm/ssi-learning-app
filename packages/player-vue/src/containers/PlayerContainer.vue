@@ -92,13 +92,17 @@ const learningPlayerRef = ref(null)
 // re-render — there is no edge to miss.
 const isPlaying = computed(() => learningPlayerRef.value?.isAudioPlaying ?? false)
 
-// Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
-const isListeningMode = ref(false)
+// Mode overlay state (overlays live inside LearningPlayer; BottomNav needs
+// them here). PULLED via the template ref like isPlaying above — the old
+// @listeningModeChanged / @pronunciationModeChanged event mirrors required
+// every overlay write to remember its paired emit; a missed pairing left
+// BottomNav's mode button lying about the overlay. A computed reads the
+// overlay's current truth instead.
+const isListeningMode = computed(() => learningPlayerRef.value?.isListeningMode ?? false)
 
 // Driving mode state (tracked for BottomNav return arrow)
 
-// Pronunciation mode state
-const isPronunciationMode = ref(false)
+const isPronunciationMode = computed(() => learningPlayerRef.value?.isPronunciationMode ?? false)
 
 // Mode button visibility (controlled by Settings, stored in localStorage)
 const showListeningBtn = ref(false)
@@ -196,10 +200,9 @@ const handleSkip = () => {
 // (Play state is pulled from the player ref — see the isPlaying computed
 // above. The old @playStateChanged event mirror is gone by design.)
 
-// Handle listening mode state changes from LearningPlayer
-const handleListeningModeChanged = (listening) => {
-  isListeningMode.value = listening
-}
+// (Listening/pronunciation mode state is pulled from the player ref — the
+// old @listeningModeChanged / @pronunciationModeChanged event mirrors are
+// gone by design, same as play state.)
 
 // Handle exit listening mode from BottomNav (user navigated away)
 const handleExitListeningMode = () => {
@@ -213,11 +216,6 @@ const handleToggleListening = () => {
   if (learningPlayerRef.value?.handleListeningToggle) {
     learningPlayerRef.value.handleListeningToggle()
   }
-}
-
-// Handle pronunciation mode state changes from LearningPlayer
-const handlePronunciationModeChanged = (active) => {
-  isPronunciationMode.value = active
 }
 
 // Handle exit pronunciation mode from BottomNav
@@ -551,8 +549,6 @@ onMounted(() => {
       :previewLegoIndex="previewLegoIndex"
       :isVisible="currentScreen === 'player'"
       @close="handleGoHome"
-      @listeningModeChanged="handleListeningModeChanged"
-      @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
