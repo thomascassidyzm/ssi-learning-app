@@ -475,6 +475,10 @@ PULL_CONSISTENT_STATE:
     consumers: "showTargetText (voice-2 text reveal), phase-strip is-active classes, hero/control-pane classes, ring-progress gate, phaseEnteredAt metric."
     side_effects: "Speak-gap ring start stays an edge (it starts an animation) but keys off simplePlayer.phase directly."
     regression_test: "packages/player-vue/src/playback/phaseDisplaySync.test.ts"
+  currentCycle:
+    definition: "computed: simplePlayer.currentCycle mapped to the legacy display shape (text fields only — textNative deliberately dropped; romanised primary glyphs come from displayTiling); legacyCycle ref only while the engine has no cycle (pre-SimplePlayer path). The old edge-triggered sync watcher (hold-on-null) + legacy writer are deleted — the displayed text pair is a pure function of the same state that chooses the audio."
+    consumers: "currentPhrase (hero text), visibleTexts (QA reporting). Transient engine nulls fall through to '' where the displayedKnownText/TargetText hold-last-good latches (B5) keep the last real text."
+    regression_test: "packages/player-vue/src/playback/cycleTextSync.test.ts"
   mode_overlays:
     definition: "isListeningMode / isPronunciationMode = computeds over showListeningOverlay / showPronunciationOverlay, exposed via defineExpose; PlayerContainer pulls them via the template ref. The @listeningModeChanged / @pronunciationModeChanged event mirrors (7 emit sites) are deleted."
   buffering_prompt:

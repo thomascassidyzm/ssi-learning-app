@@ -2171,33 +2171,11 @@ watch(
   },
 )
 
-// Sync simplePlayer's current cycle to local currentCycle ref for text display
-// This watcher runs after currentCycle ref is defined (around line 1240)
-watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
-  console.log('[LearningPlayer] Cycle watcher triggered:', simpleCycle ? `"${simpleCycle.known?.text}" → "${simpleCycle.target?.text}"` : 'null')
-  if (!simpleCycle) return
-  // Map SimpleCycle format to legacy Cycle format for currentPhrase computed
-  // Only the text fields are needed for display
-  currentCycle.value = {
-    id: simpleCycle.id,
-    seedId: '',
-    legoId: simpleCycle.id.split('-')[0] || '',
-    type: 'practice',
-    known: {
-      text: simpleCycle.known.text,
-      audioId: '',
-      durationMs: 0,
-    },
-    target: {
-      text: simpleCycle.target.text,
-      voice1AudioId: '',
-      voice1DurationMs: 0,
-      voice2AudioId: '',
-      voice2DurationMs: 0,
-    },
-    pauseDurationMs: simpleCycle.pauseDuration || 6500,
-  } as any
-}, { immediate: true })
+// (The currentCycle sync watcher that lived here is gone by design — M1,
+// pull-consistency map. The displayed cycle now DERIVES from
+// simplePlayer.currentCycle in a computed further down, so the text the
+// learner reads and the audio the engine plays can never come from
+// different cycles.)
 
 // ============================================
 // LEGO ASSEMBLY VISUALISATION - magnetic block assembly during playback
@@ -5121,7 +5099,45 @@ const audioController = shallowRef(null)
 
 // Use new cycle playback composable
 const { state: cyclePlaybackState, playCycle, stop: stopCycle } = useCyclePlayback()
-const currentCycle = ref<Cycle | null>(null)
+// Legacy-path cycle — written ONLY by startCyclePlayback (the
+// pre-SimplePlayer useCyclePlayback system). Never written on the
+// round-based path.
+const legacyCycle = ref<Cycle | null>(null)
+// currentCycle = PULL-CONSISTENT derivation of the cycle the ENGINE is on
+// (M1, pull-consistency map — the TEXT/AUDIO pairing). The old design was a
+// writable ref synced by an edge-triggered watcher (holding its last value
+// on transient nulls) plus the legacy writer: a missed/reordered flush could
+// show cycle N's text while the audio played cycle N+1 — the zero-tolerance
+// schools bug class. Deriving from simplePlayer.currentCycle makes the
+// displayed pair a pure function of engine truth. The mapping mirrors the
+// old watcher's exactly (text fields only — textNative deliberately not
+// passed through; romanised-course primary glyphs come from displayTiling,
+// not this legacy shape). Transient engine nulls (mid queue-swap) fall
+// through to '' downstream, where the displayedKnownText/TargetText
+// hold-last-good latches (B5) keep the last real text on screen.
+const currentCycle = computed<Cycle | null>(() => {
+  const simpleCycle = simplePlayer.currentCycle.value
+  if (!simpleCycle) return legacyCycle.value
+  return {
+    id: simpleCycle.id,
+    seedId: '',
+    legoId: simpleCycle.id.split('-')[0] || '',
+    type: 'practice',
+    known: {
+      text: simpleCycle.known.text,
+      audioId: '',
+      durationMs: 0,
+    },
+    target: {
+      text: simpleCycle.target.text,
+      voice1AudioId: '',
+      voice1DurationMs: 0,
+      voice2AudioId: '',
+      voice2DurationMs: 0,
+    },
+    pauseDurationMs: simpleCycle.pauseDuration || 6500,
+  } as any
+})
 
 // Offline cache for IndexedDB-based audio caching
 // AudioController.audioSource is built from createAudioCacheSource over the
@@ -5211,9 +5227,10 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
   // Extract ScriptItem - either directly or from playable._scriptItem
   const scriptItem = itemOrPlayable._scriptItem || itemOrPlayable
 
-  // Convert ScriptItem to Cycle
+  // Convert ScriptItem to Cycle (legacy path — the derived currentCycle
+  // falls back to this only while the engine has no cycle of its own)
   const cycle = scriptItemToCycle(scriptItem)
-  currentCycle.value = cycle
+  legacyCycle.value = cycle
 
   // Create audio source resolver for this ScriptItem
   // Uses cached blobs if available, falls back to direct URL playback
