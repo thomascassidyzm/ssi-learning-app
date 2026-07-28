@@ -2,8 +2,19 @@
 
 *A design exploration, commissioned by Tom 2026-07-28 after the IME partner discussions. Thinking work, not a build — nothing here ships until Tom rules on it.*
 
-**Status:** exploration for the founder's read.
+**Status:** RULED — the founder read this and ruled 2026-07-28; the four rulings below are ratified decisions, the exploration text underneath is preserved as the reasoning record.
 **Author:** Fable (Claude), grounded in the live codebase 2026-07-28.
+
+---
+
+## THE RULINGS (founder, 2026-07-28) — ratified decisions
+
+1. **`cycle_prosody` logging: YES, start now.** One append-only telemetry event per speaking cycle (learner, phrase/LEGO identity, timestamp, latency, prosody numbers) into `player_events` — §5's Option 1, blessed. The longitudinal corpus starts accumulating immediately; retention-exempt. **Phase 1 build shipped on this branch — see §5 status.**
+2. **Listening priority list: INVISIBLE bias first.** Weak phrases quietly appear more often in the listening wheel; nothing announced. §3's option 1, blessed. A visible receipt (option 2) is a *maybe later*, not part of the build. Option 3 stays never.
+3. **VAD is an INDIVIDUAL instrument — class-level speaking metrics are dead.** Play-as-class is one device and twenty voices: there is no per-child data in it, and class trends would just measure who practises at home. Schools see **per-learner trajectories** (where homework capture exists); aggregates surface only as **honest counts** (e.g. how many learners have speaking capture on), never as class-level speaking-quality trends. §4's four class-level trend metrics are retired as designed.
+4. **The class traffic-light and the node-home declining-trend ideas are retired** accordingly. No traffic light anywhere — not for individuals (§2's argument, accepted) and not for classes (§4's salvage, now also dead). No declining-trend verdicts on node-home.
+
+*What survives of §4 under ruling 3: the per-learner trajectory surfaces (individual instrument), the honest-count aggregates, the data-coverage fact ("no homework speaking capture for X yet"), and the sovereignty/honesty rails. What dies: class-level participation/promptness/duration/rhythm trends, the server-side trend verdicts for classes, and the celebration rules built on them.*
 **Canon this sits under:** `docs/methodology/metrics-architecture.md` (Measuring Progress — the measurement model), `docs/adaptation/adaptation-v2-build-spec.md` (what the capture pipeline actually is), `docs/gamification-done-right.md` (the framing law), `docs/methodology/insight-engine.md` + `packages/player-vue/src/explainer/` (the delivery system for schools), `docs/methodology/layer1-listening-cups.md` (the listening machinery the priority list feeds).
 
 ---
@@ -107,6 +118,8 @@ This is the cheapest option, fully canon-aligned, zero framing risk — and it's
 
 ## 3. The listening priority list (the founder's favourite — and rightly)
 
+> **RULED 2026-07-28:** invisible bias (option 1) first; nothing announced. Receipt (option 2) maybe later. Option 3 never.
+
 The idea: phrases the learner isn't getting feed a personal listening queue. Weakness data converted into the method's own remedy — more listening, never repeat-speaking drills.
 
 This is the best idea in the commission because it's the only one where the VAD data *does* something for the learner rather than *says* something to them. It never violates (c) because the learner never sees the weakness — they just hear more of the right input. And it needs **no new activity type**, because the listening machinery it feeds already exists and already runs every round.
@@ -142,6 +155,8 @@ Pods are conversational content keyed by topic, not by LEGO, so per-phrase weakn
 ---
 
 ## 4. Schools: "actually generating understandable language" at class level
+
+> **RETIRED AS DESIGNED — founder ruling 3, 2026-07-28.** VAD is an individual instrument. Class-level speaking trends are dead: play-as-class is one device (no per-child signal), and homework-sourced class trends would only measure who practises at home. What replaces this section's proposal: **per-learner trajectories** for teachers where homework capture exists, plus **honest counts** as the only aggregate (capture adoption, learners-with-signal). The traffic-light salvage (last paragraph) and the class trend verdicts/celebration rules are retired with it. The section is preserved below as the reasoning record — its honesty rails (device-class discipline, no per-child deficits, test-cohort exclusion) still bind whatever per-learner surface gets designed later.
 
 ### What the data can honestly say — and the word it can't
 
@@ -191,6 +206,8 @@ For IME specifically: this surface is demonstrable *before* real capture exists 
 ---
 
 ## 5. The CEFR/IELTS anchor: park the claim, start the corpus
+
+> **RULED 2026-07-28: GO — Option 1 blessed, phase 1 built on this branch.** One `cycle_prosody` event per voiced speaking cycle now logs from `LearningPlayer.vue`'s cycle-complete path (VAD-consented learners only). What it carries **today**: cycle/LEGO/seed identity, the target-voice `audioId` (the join key into `course_audio_envelope`), `response_latency_ms`, `learner_duration_ms`, `duration_delta_ms`, the full learner-side envelope block (`peakCount`, `peakToMeanRatio`, `meanPeakWidthMs`, `sampleCount`, `weight`), `extractorVersion`, and capture-quality flags. Key build finding: the VAD computes the learner envelope **unconditionally** — `stage2_enabled` only gates the adaptation *consumer* — so the corpus is envelope-complete from day one, and the prosody-**match** measure becomes computable **retroactively for every accumulated row** the moment the dashboard-repo envelope pipeline (WP-7b) populates `course_audio_envelope`. No client change is needed to unlock it. Retention: `player_events` has no pruning today; if one is ever added, `cycle_prosody` rows are exempt (this line is the standing marker the ruling asked for).
 
 The claim stays parked — Measuring Progress §10 already sets the honest posture (speaking-pattern similarity, never certification, pilots as the calibration engine, 2027+ for the first confidence-weighted bands). Nothing in this commission changes that timeline. What this commission *can* change is whether the data that timeline needs **exists when it arrives**.
 
@@ -245,9 +262,9 @@ The quiet thread through all four: **adoption is the real first feature.** Every
 
 ---
 
-## Open questions for Tom
+## Open questions for Tom — ALL ANSWERED by the 2026-07-28 rulings
 
-1. **§2 verdict:** C-then-B as the learner surface, traffic light never for individuals — agree, or do you want the light anyway? If so, I'd want the third state to be "not enough signal", never red.
-2. **§3 visibility:** invisible bias (my rec) vs the session-end receipt — is the receipt worth the framing exposure?
-3. **§4 declines:** should a genuinely declining class trend appear on node-home at all, or only in the teacher's insights drill (my lean)?
-4. **§5 blessing:** one new `player_events` event type, `cycle_prosody`, quality-gated, retention-exempt — go?
+1. **§2 verdict:** traffic light retired everywhere (ruling 4). Learner surface sequencing (C-then-B) remains the standing recommendation, unruled — nothing learner-visible ships in phase 1.
+2. **§3 visibility:** invisible bias first (ruling 2). Receipt maybe later.
+3. **§4 declines:** moot — class-level speaking trends are dead entirely (ruling 3); node-home declining-trend retired (ruling 4).
+4. **§5 blessing:** GO (ruling 1) — built, see §5 status.
