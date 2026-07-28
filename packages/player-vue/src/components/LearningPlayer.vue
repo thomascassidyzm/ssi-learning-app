@@ -1606,13 +1606,11 @@ watchEffect(() => {
 // SIMPLE PLAYER EVENT SUBSCRIPTIONS
 // ============================================
 
-// Phase changes - update UI and trigger animations
-// Note: Phase mapping happens AFTER the local Phase constant is defined (around line 1429)
-// So we store phases here and apply them later in a watcher
-const pendingPhase = ref<string>('idle')
+// Phase-edge SIDE EFFECTS only (telemetry, VAD marks, transition flags).
+// The UI phase STATE no longer flows through here — currentPhase derives
+// from simplePlayer.phase directly (M2, pull-consistency map); the old
+// pendingPhase relay ref is gone.
 simplePlayer.onPhaseChanged((phase) => {
-  pendingPhase.value = phase
-
   // Handle phase-specific UI updates
   if (phase === 'prompt') {
     isTransitioningItem.value = false
@@ -5261,9 +5259,10 @@ const cyclePhaseToUiPhase = (phase: string) => {
   }
 }
 
-// Watch cycle playback state and update UI phase
+// Watch cycle playback state and update the LEGACY UI phase (pre-SimplePlayer
+// path only — the derived currentPhase ignores this whenever rounds are loaded)
 watch(() => cyclePlaybackState.value.phase, (phase) => {
-  currentPhase.value = cyclePhaseToUiPhase(phase)
+  legacyUiPhase.value = cyclePhaseToUiPhase(phase)
 })
 
 // Buffering-prompt dialog message — surfaces when the gate in
@@ -5312,20 +5311,12 @@ const clearSkipPrepDialog = () => {
   skipPrepMessage.value = ''
 }
 
-// Watch SimplePlayer phase and map to UI phase (using local Phase constant)
-watch(pendingPhase, (phase) => {
-  const phaseMap: Record<string, string> = {
-    'idle': Phase.PROMPT,
-    'intro': Phase.PROMPT,  // Intro uses prompt styling
-    'prompt': Phase.PROMPT,
-    'pause': Phase.SPEAK,
-    'voice1': Phase.VOICE_1,
-    'voice2': Phase.VOICE_2,
-  }
-  currentPhase.value = phaseMap[phase] ?? Phase.PROMPT
-
-  // Start ring animation when entering pause phase.
-  //
+// Start ring animation when the ENGINE enters its pause phase. Keyed off
+// simplePlayer.phase directly — this used to hang off the pendingPhase relay
+// (engine → onPhaseChanged callback → ref → watcher), an extra push hop the
+// derived currentPhase (M2) no longer needs. Starting an animation is a
+// legitimate edge reaction; the phase STATE itself is the computed below.
+watch(() => simplePlayer.phase.value, (phase) => {
   // Both the visible countdown and the SimplePlayer's setTimeout go through
   // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
   // affect both in lockstep. cfg is normalConfig or turboConfig — the live
@@ -5354,7 +5345,30 @@ watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
 })
 
 // State
-const currentPhase = ref(Phase.PROMPT)
+// Legacy-path UI phase — written ONLY by the pre-SimplePlayer cycle system
+// (the cyclePlaybackState watcher above + handleCycleEvent). The derived
+// currentPhase ignores it whenever rounds are loaded.
+const legacyUiPhase = ref(Phase.PROMPT)
+// currentPhase = PULL-CONSISTENT derivation of the engine's phase (M2,
+// pull-consistency map). The old design was a writable ref fed by a two-hop
+// relay (engine → onPhaseChanged callback → pendingPhase ref → watcher) plus
+// two legacy-path writers — the same shape as the pre-878246ff isPlaying
+// mirror. A missed hop froze the phase pill, the gap ring gate and the
+// voice-2 text while the audio moved on (Jonathan's staging symptoms). A
+// computed reads the engine's CURRENT phase — there is no edge to miss.
+const SIMPLE_PHASE_TO_UI: Record<string, string> = {
+  idle: Phase.PROMPT,
+  buffering: Phase.PROMPT, // dialog owns buffering UI; text pane keeps prompt styling
+  prompt: Phase.PROMPT,
+  pause: Phase.SPEAK,
+  voice1: Phase.VOICE_1,
+  voice2: Phase.VOICE_2,
+}
+const currentPhase = computed(() =>
+  useRoundBasedPlayback.value
+    ? (SIMPLE_PHASE_TO_UI[simplePlayer.phase.value] ?? Phase.PROMPT)
+    : legacyUiPhase.value
+)
 
 // A1 (metrics): stamp when the current cycle phase was entered, so a phase-pill
 // skip can record how long the learner sat in a phase before tapping. Watching
@@ -6887,7 +6901,7 @@ const handleCycleEvent = async (event) => {
           }
           break
       }
-      currentPhase.value = cyclePhaseToUiPhase(event.phase)
+      legacyUiPhase.value = cyclePhaseToUiPhase(event.phase)
       break
 
     case 'pause_started':

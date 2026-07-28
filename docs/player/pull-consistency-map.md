@@ -66,7 +66,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 - **Migration:** `currentPhase = computed()` mapping `simplePlayer.phase` directly when
   round-based playback is live, falling back to the legacy-pushed value otherwise. The
   ring-start side effect stays an edge (it starts an animation) but keys off
-  engine phase. Status: **QUEUED this tranche** (phaseDisplaySync.test.ts).
+  engine phase. Status: **MIGRATED** (this tranche; phaseDisplaySync.test.ts).
 
 ### M3. `currentRoundIndex` / `currentItemInRound` — the position mirrors
 
