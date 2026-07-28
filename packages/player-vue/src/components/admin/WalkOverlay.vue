@@ -8,7 +8,8 @@
 // pointer-events:none except the card itself).
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { useWalkthrough, ANCHOR_TIMEOUT_MS } from '@/walkthrough/useWalkthrough'
+import { useWalkthrough, ANCHOR_TIMEOUT_MS, effectiveAdvance } from '@/walkthrough/useWalkthrough'
+import { placeCard, isAnchorUsable, PAD } from '@/walkthrough/overlayPlacement'
 
 const { activeWalk, stepIndex, showingTerminal, currentStep, stopWalk, next, back } = useWalkthrough()
 const route = useRoute()
@@ -27,7 +28,7 @@ let timeoutTimer: ReturnType<typeof setTimeout> | null = null
 let clickTarget: HTMLElement | null = null
 
 function onAnchorClick(): void {
-  if (currentStep.value?.advance.on === 'click') next()
+  if (currentStep.value && effectiveAdvance(currentStep.value) === 'click') next()
 }
 
 function detachClick(): void {
@@ -51,13 +52,17 @@ function bindAnchor(el: HTMLElement): void {
   const oversize = rect.value.height > window.innerHeight * 0.7
   el.scrollIntoView({ block: oversize ? 'start' : 'center', behavior: 'smooth' })
   const step = currentStep.value
-  if (step?.advance.on === 'click') {
+  // effectiveAdvance, not the raw pack value: a click-advance on a
+  // destructive/minting anchor degrades to show-and-point even if a stale
+  // pack slipped past the compiler's denylist gate.
+  const mode = step ? effectiveAdvance(step) : 'next'
+  if (mode === 'click') {
     detachClick()
     clickTarget = el
     // Capture-phase listener: the element's own handler still runs — the
     // walk observes the user's real tap, it never intercepts or performs it.
     el.addEventListener('click', onAnchorClick, true)
-  } else if (step?.advance.on === 'visible') {
+  } else if (mode === 'visible') {
     // A "visible" step exists to wait for this element — it has now arrived.
     next()
   }
@@ -71,7 +76,12 @@ function resolveAnchor(): void {
   rect.value = null
   const step = currentStep.value
   if (!activeWalk.value || showingTerminal.value || !step) return
-  const find = () => document.querySelector<HTMLElement>(`[data-walk="${step.anchor}"]`)
+  // An element that exists but occupies no space (v-show off, hidden
+  // ancestor) is NOT a usable anchor — binding it would ring 0,0.
+  const find = () => {
+    const el = document.querySelector<HTMLElement>(`[data-walk="${step.anchor}"]`)
+    return el && isAnchorUsable(el.getBoundingClientRect()) ? el : null
+  }
   const now = find()
   if (now) { bindAnchor(now); return }
   pollTimer = setInterval(() => {
@@ -79,9 +89,15 @@ function resolveAnchor(): void {
     if (el) { clearTimers(); bindAnchor(el) }
   }, 150)
   timeoutTimer = setTimeout(() => {
-    // Never hang: show the step's text unanchored, Next always available.
-    clearTimers()
+    // Never hang: show the step's text unanchored, Next always available —
+    // but keep a slow poll going so a late-arriving anchor still re-binds.
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    timeoutTimer = null
     anchorTimedOut.value = true
+    pollTimer = setInterval(() => {
+      const el = find()
+      if (el) { clearTimers(); bindAnchor(el) }
+    }, 500)
   }, ANCHOR_TIMEOUT_MS)
 }
 
@@ -90,8 +106,13 @@ watch([activeWalk, stepIndex, showingTerminal], resolveAnchor, { immediate: true
 // Track the anchor's geometry while active (scroll, layout shifts, resize).
 let trackTimer: ReturnType<typeof setInterval> | null = null
 function retrack(): void {
-  if (anchorEl.value?.isConnected) rect.value = anchorEl.value.getBoundingClientRect()
-  else if (anchorEl.value) resolveAnchor() // element unmounted (e.g. form closed)
+  if (anchorEl.value?.isConnected) {
+    const r = anchorEl.value.getBoundingClientRect()
+    if (isAnchorUsable(r)) rect.value = r
+    else resolveAnchor() // element collapsed to zero size (hidden) — re-resolve
+  } else if (anchorEl.value) {
+    resolveAnchor() // element unmounted (e.g. form closed)
+  }
 }
 watch(activeWalk, (walk) => {
   if (walk && !trackTimer) {
@@ -115,7 +136,19 @@ onBeforeUnmount(() => {
 })
 
 // ─── Geometry ───
-const PAD = 6
+// env(safe-area-inset-top) isn't readable from JS directly — measure it once
+// per walk via a probe element (0 on desktop / non-notched devices).
+const safeTop = ref(0)
+function measureSafeTop(): number {
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:fixed;top:0;left:0;padding-top:env(safe-area-inset-top, 0px);visibility:hidden;pointer-events:none'
+  document.body.appendChild(probe)
+  const v = parseFloat(getComputedStyle(probe).paddingTop) || 0
+  probe.remove()
+  return v
+}
+watch(activeWalk, (walk) => { if (walk) safeTop.value = measureSafeTop() }, { immediate: true })
+
 const ringStyle = computed(() => {
   const r = rect.value
   if (!r) return null
@@ -127,25 +160,12 @@ const ringStyle = computed(() => {
   }
 })
 
-const CARD_W = 340
-const CARD_H_EST = 190
+// placeCard (walkthrough/overlayPlacement.ts) owns the numbers — including
+// the back-to-player invariant: the card never covers the top chrome where
+// the Learn escape lives, and bottom-center clears the home indicator.
 const cardStyle = computed(() => {
-  const r = rect.value
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const w = Math.min(CARD_W, vw - 24)
-  const bottomCenter = { left: `${(vw - w) / 2}px`, bottom: '24px', width: `${w}px` }
-  if (!r || showingTerminal.value || anchorTimedOut.value) return bottomCenter
-  const left = Math.max(12, Math.min(r.left, vw - w - 12))
-  const below = r.bottom + PAD + 12
-  if (below + CARD_H_EST < vh) return { left: `${left}px`, top: `${below}px`, width: `${w}px` }
-  const above = r.top - PAD - 12
-  if (above - CARD_H_EST > 0 && r.top <= vh) {
-    return { left: `${left}px`, bottom: `${vh - above}px`, width: `${w}px` }
-  }
-  // Anchor taller than the viewport or off-screen either side: the card must
-  // still be reachable — quiet bottom-center, ring marks the element.
-  return bottomCenter
+  const unanchored = !rect.value || showingTerminal.value || anchorTimedOut.value
+  return placeCard(unanchored ? null : rect.value, window.innerWidth, window.innerHeight, safeTop.value)
 })
 
 // Markdown-lite: **bold** only, escaped first (same rule as HowThisWorks).
@@ -158,7 +178,9 @@ const cardText = computed(() => {
   if (showingTerminal.value) return activeWalk.value?.steps[activeWalk.value.steps.length - 1]?.terminal ?? ''
   return currentStep.value?.say ?? ''
 })
-const isClickStep = computed(() => !showingTerminal.value && currentStep.value?.advance.on === 'click' && !anchorTimedOut.value)
+const isClickStep = computed(() =>
+  !showingTerminal.value && !anchorTimedOut.value &&
+  !!currentStep.value && effectiveAdvance(currentStep.value) === 'click')
 const isLastStep = computed(() => !!activeWalk.value && stepIndex.value === activeWalk.value.steps.length - 1)
 const nextLabel = computed(() => {
   if (showingTerminal.value) return 'Done'
