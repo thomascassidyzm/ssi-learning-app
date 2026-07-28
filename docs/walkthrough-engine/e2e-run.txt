@@ -1,0 +1,119 @@
+PASS — leader node home: nothing auto-plays on plain navigation :: attr=null cards=0
+PASS — offering: How-this-works carries "Show me — Ways in"
+PASS — ways-in step 0: active :: attr=ways-in:0
+PASS — ways-in step 0: anchor "ways-in-ledger" resolves in DOM
+PASS — ways-in step 0: pulse ring sits on the anchor
+PASS — ways-in step 0: card renders
+PASS — ways-in step 1: active :: attr=ways-in:1
+PASS — ways-in step 1: anchor "ways-in-copy" resolves in DOM
+PASS — ways-in step 1: pulse ring sits on the anchor
+PASS — ways-in step 1: card renders
+PASS — ways-in step 0: active :: attr=ways-in:0
+PASS — ways-in step 0: anchor "ways-in-ledger" resolves in DOM
+PASS — ways-in step 0: pulse ring sits on the anchor
+PASS — ways-in step 0: card renders
+PASS — ways-in step 1: active :: attr=ways-in:1
+PASS — ways-in step 1: anchor "ways-in-copy" resolves in DOM
+PASS — ways-in step 1: pulse ring sits on the anchor
+PASS — ways-in step 1: card renders
+PASS — ways-in step 2: active :: attr=ways-in:2
+PASS — ways-in step 2: anchor "ways-in-remint" resolves in DOM
+PASS — ways-in step 2: pulse ring sits on the anchor
+PASS — ways-in step 2: card renders
+PASS — ways-in step 3: active :: attr=ways-in:3
+PASS — ways-in step 3: anchor "ways-in-revoke" resolves in DOM
+PASS — ways-in step 3: pulse ring sits on the anchor
+PASS — ways-in step 3: card renders
+PASS — ways-in: terminal card reached :: attr=ways-in:3:done
+PASS — ways-in: completes and clears
+PASS — ways-in: zero mutating requests during walk
+PASS — leader insights: nothing auto-plays on plain navigation :: attr=null cards=0
+PASS — offering: insights page carries its Show-me link
+PASS — reading-insights step 0: active :: attr=reading-insights:0
+PASS — reading-insights step 0: anchor "insights-measure" resolves in DOM
+PASS — reading-insights step 0: pulse ring sits on the anchor
+PASS — reading-insights step 0: card renders
+PASS — reading-insights step 1: active :: attr=reading-insights:1
+PASS — reading-insights step 1: anchor "insights-window" resolves in DOM
+PASS — reading-insights step 1: pulse ring sits on the anchor
+PASS — reading-insights step 1: card renders
+PASS — reading-insights step 2: active :: attr=reading-insights:2
+PASS — reading-insights step 2: anchor "insights-compare" resolves in DOM
+PASS — reading-insights step 2: pulse ring sits on the anchor
+PASS — reading-insights step 2: card renders
+PASS — reading-insights step 3: active :: attr=reading-insights:3
+PASS — reading-insights step 3: anchor "insights-overview" resolves in DOM
+PASS — reading-insights step 3: pulse ring sits on the anchor
+PASS — reading-insights step 3: card renders
+PASS — reading-insights: terminal card reached :: attr=reading-insights:3:done
+PASS — reading-insights: completes and clears
+PASS — reading-insights: zero mutating requests during walk
+PASS — walk1: on a school node home :: https://ssi-learning-app-git-dev-zenjin.vercel.app/schools/org/741e9b6e-9542-4ac4-9d28-e29471ceaf41
+PASS — offering: school node home offers invite-first-teacher
+PASS — invite-first-teacher step 0: active :: attr=invite-first-teacher:0
+PASS — invite-first-teacher step 0: anchor "verb-invite-person" resolves in DOM
+PASS — invite-first-teacher step 0: pulse ring sits on the anchor
+PASS — invite-first-teacher step 0: card renders
+PASS — walk1 step 0: click step hides Next (user does the real thing)
+PASS — invite-first-teacher step 1: active :: attr=invite-first-teacher:1
+PASS — invite-first-teacher step 1: anchor "invite-form-role" resolves in DOM
+PASS — invite-first-teacher step 1: pulse ring sits on the anchor
+PASS — invite-first-teacher step 1: card renders
+PASS — invite-first-teacher step 2: active :: attr=invite-first-teacher:2
+PASS — invite-first-teacher step 2: anchor "invite-form-submit" resolves in DOM
+PASS — invite-first-teacher step 2: pulse ring sits on the anchor
+PASS — invite-first-teacher step 2: card renders
+PASS — invite-first-teacher step 3: active :: attr=invite-first-teacher:3
+PASS — invite-first-teacher step 3: anchor "ways-in-ledger" resolves in DOM
+PASS — invite-first-teacher step 3: pulse ring sits on the anchor
+PASS — invite-first-teacher step 3: card renders
+PASS — invite-first-teacher: terminal card reached :: attr=invite-first-teacher:3:done
+PASS — invite-first-teacher: completes and clears
+PASS — invite-first-teacher: zero mutating requests (nothing minted)
+PASS — teacher: on class detail :: https://ssi-learning-app-git-dev-zenjin.vercel.app/schools/classes/e2bbe2de-cada-4aed-908a-4b36d26ca95c
+PASS — class detail: nothing auto-plays on plain navigation :: attr=null cards=0
+PASS — offering: class detail offers run-class-session
+PASS — run-class-session step 0: active :: attr=run-class-session:0
+PASS — run-class-session step 0: anchor "class-join-link" resolves in DOM
+PASS — run-class-session step 0: pulse ring sits on the anchor
+PASS — run-class-session step 0: card renders
+PASS — run-class-session step 1: active :: attr=run-class-session:1
+PASS — run-class-session step 1: anchor "class-join-code" resolves in DOM
+PASS — run-class-session step 1: pulse ring sits on the anchor
+PASS — run-class-session step 1: card renders
+PASS — run-class-session step 0: active :: attr=run-class-session:0
+PASS — run-class-session step 0: anchor "class-join-link" resolves in DOM
+PASS — run-class-session step 0: pulse ring sits on the anchor
+PASS — run-class-session step 0: card renders
+PASS — run-class-session step 2: active :: attr=run-class-session:2
+PASS — run-class-session step 2: anchor "class-play" resolves in DOM
+PASS — run-class-session step 2: pulse ring sits on the anchor
+PASS — run-class-session step 2: card renders
+PASS — run-class-session: terminal card reached :: attr=run-class-session:2:done
+PASS — run-class-session: completes and clears
+PASS — run-class-session: no session started (URL unchanged) :: https://ssi-learning-app-git-dev-zenjin.vercel.app/schools/classes/e2bbe2de-cada-4aed-908a-4b36d26ca95c
+PASS — run-class-session: zero mutating requests during walk
+PASS — admin invites desk: nothing auto-plays on plain navigation :: attr=null cards=0
+PASS — offering: invites desk offers its walk
+PASS — invites-desk step 0: active :: attr=invites-desk:0
+PASS — invites-desk step 0: anchor "invites-mode-strip" resolves in DOM
+PASS — invites-desk step 0: pulse ring sits on the anchor
+PASS — invites-desk step 0: card renders
+PASS — invites-desk step 1: active :: attr=invites-desk:1
+PASS — invites-desk step 1: anchor "invites-org-who" resolves in DOM
+PASS — invites-desk step 1: pulse ring sits on the anchor
+PASS — invites-desk step 1: card renders
+PASS — invites-desk step 2: active :: attr=invites-desk:2
+PASS — invites-desk step 2: anchor "invites-org-submit" resolves in DOM
+PASS — invites-desk step 2: pulse ring sits on the anchor
+PASS — invites-desk step 2: card renders
+PASS — invites-desk step 3: active :: attr=invites-desk:3
+PASS — invites-desk step 3: anchor "invites-active-toggle" resolves in DOM
+PASS — invites-desk step 3: pulse ring sits on the anchor
+PASS — invites-desk step 3: card renders
+PASS — invites-desk: terminal card reached :: attr=invites-desk:3:done
+PASS — invites-desk: completes and clears
+PASS — invites-desk: zero mutating requests (nothing minted/toggled)
+note — noticing walk CTA not visible on this school (subtree rollup non-zero?)
+
+ALL GREEN

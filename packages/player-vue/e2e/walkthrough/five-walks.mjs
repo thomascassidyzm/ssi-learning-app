@@ -23,6 +23,10 @@ mkdirSync(OUT, { recursive: true })
 const LEADER_URL = `${BASE}/group/QJM-868` // IME Programme Leader (personal link = login)
 const TEACHER_URL = `${BASE}/redeem/ZKD-834` // IME Teacher, Sunrise Public School Pune
 
+// LEGS=A|B|C|AB… runs a subset (default all three) so a single persona can be
+// re-driven without paying for the other two.
+const LEGS = (process.env.LEGS || 'ABC').toUpperCase()
+
 let failures = 0
 const check = (label, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'} — ${label}${detail ? ` :: ${detail}` : ''}`)
@@ -118,7 +122,7 @@ async function finishWalk(p, walkId) {
 }
 
 // ════ A. LEADER (IME Programme Leader personal link) — walks 3, 4, 1 ════
-{
+if (LEGS.includes('A')) {
   const { ctx, page: p, mutations } = await newPage()
   await p.goto(LEADER_URL, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForURL((u) => u.pathname.startsWith('/schools/org/'), { timeout: 45000 })
@@ -204,12 +208,14 @@ async function finishWalk(p, walkId) {
 }
 
 // ════ B. TEACHER (IME Teacher personal link) — walk 2 on class detail ════
-{
+if (LEGS.includes('B')) {
   const { ctx, page: p, mutations } = await newPage()
   await p.goto(TEACHER_URL, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForTimeout(4000)
-  // Land on the teacher dashboard, then open the first class row.
-  await p.locator('.row-clickable').first().click().catch(() => {})
+  // Land on the teacher dashboard, then open the first class row. The class
+  // table renders each row as an anchor to the class detail route.
+  await p.waitForSelector('a[href*="/classes/"]', { timeout: 25000 }).catch(() => {})
+  await p.locator('a[href*="/classes/"]').first().click().catch(() => {})
   await p.waitForURL((u) => u.pathname.includes('/classes/'), { timeout: 20000 }).catch(() => {})
   await p.waitForSelector('.page-head-actions, .join-card', { timeout: 20000 }).catch(() => {})
   check('teacher: on class detail', p.url().includes('/classes/'), p.url())
@@ -236,7 +242,7 @@ async function finishWalk(p, walkId) {
 }
 
 // ════ C. SSI ADMIN (minted session) — walk 5 + noticing-invitation CTA ════
-{
+if (LEGS.includes('C')) {
   const { ctx, page: p, mutations } = await newPage({ admin: true })
   await p.goto(`${BASE}/admin/invites`, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForSelector('.mode-toggle', { timeout: 25000 })
