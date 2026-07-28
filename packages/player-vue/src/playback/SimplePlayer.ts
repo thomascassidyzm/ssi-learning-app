@@ -477,6 +477,19 @@ export class SimplePlayer {
   }
 
   /**
+   * Immutable snapshot of the live queue, in play order. The ONLY sanctioned
+   * way for UI layers to read the whole queue: reactive mirrors are assigned
+   * from this after each queue mutation (a PULL of engine truth), never
+   * rebuilt by re-implementing the insertion logic on the outside (a push
+   * mirror). The duplicated-algorithm mirror was the INF-PLAY text/audio
+   * shear bug class — see M4 in docs/player/pull-consistency-map.md.
+   * Shallow copy: Round objects are treated as immutable throughout.
+   */
+  get roundsSnapshot(): Round[] {
+    return [...this.rounds]
+  }
+
+  /**
    * Replace the runtime overrides. Used when LearningPlayer wants to
    * supply Turbo-aware callbacks after the player has been constructed,
    * e.g. once the algorithm config has loaded from Supabase.
