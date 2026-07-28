@@ -100,7 +100,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 - **Migration:** SimplePlayer exposes a `roundsSnapshot` getter; the composable
   assigns `roundsRef.value = player.roundsSnapshot` after every queue-mutating request
   instead of re-computing what the engine just did. Deletes all three duplicated
-  algorithms. Status: **QUEUED this tranche** (roundsQueueSync.test.ts).
+  algorithms. Status: **MIGRATED** (this tranche; roundsQueueSync.test.ts).
   (The component-level `loadedRounds` mirror remains — collapsing it into the
   composable's `roundsRef` is a follow-up; it currently has independent writers on the
   instant-playback path.)

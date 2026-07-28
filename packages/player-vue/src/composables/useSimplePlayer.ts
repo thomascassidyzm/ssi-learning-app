@@ -140,9 +140,12 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       }
     }
 
-    roundsRef.value = rounds
     player = new SimplePlayer(rounds, runtimeOverrides)
     conductor = new PlayerConductor(player)
+    // Pull the queue and state from the engine we just created — never
+    // assign from our own arguments/derivations (M4, pull-consistency map).
+    roundsRef.value = player.roundsSnapshot
+    internalState.value = player.currentState
 
     // Subscribe to state changes
     player.on('state_changed', (data) => {
@@ -334,99 +337,50 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
-   * Add rounds dynamically (for priority loading).
-   * Also updates roundsRef for reactive UI updates.
-   * IMPORTANT: Must use same insertion logic as SimplePlayer to keep arrays in sync!
+   * Pull the reactive queue from the engine's own array (M4,
+   * docs/player/pull-consistency-map.md). This replaced three hand-mirrored
+   * copies of SimplePlayer's insertion/splice algorithms — one per mutation
+   * method — each of which had to be kept bit-identical to the engine's or
+   * roundsRef sheared against the live queue (the INF-PLAY full-script
+   * handoff text/audio desync was exactly that shear). The engine mutates,
+   * we snapshot: the two arrays cannot disagree.
+   */
+  const syncRoundsFromEngine = () => {
+    if (player) roundsRef.value = player.roundsSnapshot
+  }
+
+  /**
+   * Add rounds dynamically (for priority loading). Ordering/dedupe by legoId
+   * — the engine owns that logic; see SimplePlayer.addRounds.
    */
   const addRounds = (newRounds: Round[]) => {
     if (!conductor || newRounds.length === 0) return
     conductor.request((e) => e.addRounds(newRounds))
-    // Mirror SimplePlayer's insertion logic exactly to keep arrays in sync
-    // Uses legoId (not roundNumber) for ordering and deduplication
-    const existingLegoIds = new Set(roundsRef.value.map(r => r.legoId))
-    const currentRounds = [...roundsRef.value]
-    for (const round of newRounds) {
-      if (existingLegoIds.has(round.legoId)) {
-        continue // Skip duplicate
-      }
-      const insertIndex = currentRounds.findIndex(r => r.legoId > round.legoId)
-      if (insertIndex === -1) {
-        currentRounds.push(round)
-      } else {
-        currentRounds.splice(insertIndex, 0, round)
-      }
-      existingLegoIds.add(round.legoId)
-    }
-    roundsRef.value = currentRounds
+    syncRoundsFromEngine()
   }
 
   /**
-   * Insert rounds keyed by roundNumber, with sorted insertion and
-   * dedupe-by-roundNumber. For infinite-play expansion where new
-   * rounds reuse existing legoIds (legoId dedupe in addRounds would
-   * either throw them away or, without dedupe, stack duplicates of
-   * any main-loop rounds also present in the regenerated script).
+   * Insert rounds keyed by roundNumber (infinite-play expansion, where new
+   * rounds reuse existing legoIds) — the engine owns the ordering/dedupe;
+   * see SimplePlayer.appendRounds.
    */
   const appendRounds = (newRounds: Round[]) => {
     if (!conductor || newRounds.length === 0) return
     conductor.request((e) => e.appendRounds(newRounds))
-    // Mirror SimplePlayer's roundNumber-keyed insertion into roundsRef
-    // so any consumer reading the reactive mirror sees the same order.
-    const existingRoundNumbers = new Set(roundsRef.value.map(r => r.roundNumber))
-    const currentRounds = [...roundsRef.value]
-    for (const round of newRounds) {
-      if (existingRoundNumbers.has(round.roundNumber)) continue
-      const insertIndex = currentRounds.findIndex(r => r.roundNumber > round.roundNumber)
-      if (insertIndex === -1) {
-        currentRounds.push(round)
-      } else {
-        currentRounds.splice(insertIndex, 0, round)
-      }
-      existingRoundNumbers.add(round.roundNumber)
-    }
-    roundsRef.value = currentRounds
+    syncRoundsFromEngine()
   }
 
   /**
-   * Replace every round after the current one with the given batch.
-   * Wraps SimplePlayer.replaceQueueFromCurrent and mirrors the same
-   * (kept, future) computation into roundsRef so reactive consumers
-   * (cachedRounds, legacy refs) see the new queue immediately.
-   *
-   * Use for the bootstrap → full-script handoff: bootstrap initializes
-   * the player from a small API window, full-script generation lands
-   * later and replaces the queue past the playing round with the
-   * locally-generated whole-course rounds.
+   * Replace every round after the current one with the given batch (the
+   * bootstrap → full-script handoff). The engine performs the splice AND
+   * any roundIndex shift atomically; we pull the resulting queue, so the
+   * displayed text can never sit N rounds ahead of the playing audio (the
+   * pre-M4 mirror bug).
    */
   const replaceQueueFromCurrent = (newRounds: Round[]) => {
     if (!conductor || newRounds.length === 0) return
-    // Capture the current round number BEFORE the engine splice — the engine
-    // emits state_changed during the call, bumping internalState.roundIndex by
-    // before.length, so reading it after would read a shifted index against
-    // the not-yet-rebuilt array (→ undefined → a bad full-replace).
-    const currentRoundNumber = roundsRef.value[internalState.value.roundIndex]?.roundNumber
     conductor.request((e) => e.replaceQueueFromCurrent(newRounds))
-    if (currentRoundNumber == null) {
-      roundsRef.value = [...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
-      return
-    }
-    const kept = roundsRef.value.filter(r => r.roundNumber <= currentRoundNumber)
-    const keptNumbers = new Set(kept.map(r => r.roundNumber))
-    // MIRROR SimplePlayer.replaceQueueFromCurrent EXACTLY: prepend the
-    // behind-rounds the queue is missing (deduped against kept) so roundsRef
-    // === engine.rounds = [...before, ...kept, ...future]. The engine already
-    // shifted roundIndex by before.length (via state_changed); we must NOT
-    // shift again — roundsRef just needs the `before` rounds present so the
-    // shifted index lands on the live cycle. Without this prepend, on the
-    // INF-PLAY full-script handoff the displayed text sat before.length rounds
-    // AHEAD of the playing audio — the text/audio desync.
-    const before = newRounds
-      .filter(r => r.roundNumber < currentRoundNumber && !keptNumbers.has(r.roundNumber))
-      .sort((a, b) => a.roundNumber - b.roundNumber)
-    const future = newRounds
-      .filter(r => r.roundNumber > currentRoundNumber)
-      .sort((a, b) => a.roundNumber - b.roundNumber)
-    roundsRef.value = [...before, ...kept, ...future]
+    syncRoundsFromEngine()
   }
 
   /**
