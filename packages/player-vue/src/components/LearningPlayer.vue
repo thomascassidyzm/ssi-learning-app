@@ -1343,7 +1343,17 @@ const visualLegoIdForRound = (round: any): string | null => {
 // We need writable refs because legacy code assigns to these directly
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
-const isPlaying = ref(false)
+// isPlaying = PULL-CONSISTENT derivation of the engine's own state — never a
+// writable mirror. The old design (a ref synced by an edge-triggered watcher
+// PLUS ~7 scattered manual assignments) could drift from the audio whenever a
+// manual write and a watcher flush interleaved (Jonathan's staging report
+// 2026-07-28: engine mid-cycle, transport showing PLAY / 0:00 / no gap ring /
+// no voice-2 text until the next round boundary happened to toggle the engine
+// and re-fire the watcher). A computed cannot miss an edge: it always reads
+// the engine's CURRENT state. Non-engine audio (welcome / introduction / pod
+// lap / commentary) and the pre-play preparing window are surfaced through
+// isAudioPlaying below — the transport-facing signal.
+const isPlaying = computed(() => simplePlayer.isPlaying.value)
 
 // Furthest round the learner has ever reached, with its lego companion.
 // Read once on resume; the trigger keeps the DB ceiling in sync as the
@@ -1502,9 +1512,8 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
   }
 })
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
-watch(() => simplePlayer.isPlaying.value, (playing) => {
-  isPlaying.value = playing
-})
+// (isPlaying is a computed deriving directly from simplePlayer — the old
+// edge-triggered mirror watcher that lived here is gone by design.)
 
 // Backwards compatibility aliases
 const effectiveRounds = loadedRounds
@@ -5359,6 +5368,17 @@ const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resett
 const isCycleTransitioning = ref(false) // Flag to prevent watcher from resetting isPlaying between cycles
 const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't started yet
 const preparingMessage = ref('') // Current "preparing" message being displayed
+// Declared here (not further down with their players) because isAudioPlaying
+// below reads them and watch registration evaluates its source getter
+// immediately — a later declaration would be a TDZ crash at setup.
+const isPlayingIntroduction = ref(false) // True when introduction audio is playing
+const isPlayingWelcome = ref(false) // True when welcome audio is playing
+// Pause intent raised while a first-play sequence is still awaiting its
+// preload/welcome. handleResume's first-play path checks it after every await
+// and bails before simplePlayer.play() — a stop tap during the preparing
+// window can therefore never be overtaken by audio it can't stop (the
+// 2026-06-09 double-tap bug, re-landed from the reverted d5243e42).
+const firstPlayPauseRequested = ref(false)
 
 // Messages shown while preparing to play (after pressing play button)
 const PREPARING_MESSAGES = computed(() => [
@@ -5487,14 +5507,22 @@ function clearInfPlayIntro(): void {
   }
 }
 
-// Emit play state changes to parent (for nav bar play/stop toggle).
-// Includes pod-lap and commentary audio so the big play/stop button keeps
-// reading "stop" while THOSE are playing — pressing it during a pod halts
-// everything (handled in togglePlayback below). Without this, the button
-// flips to play whenever simplePlayer pauses for a between-rounds lap,
-// which looks like nothing's happening even though pod audio is mid-air.
+// The TRANSPORT-facing play state (nav-bar play/stop button, resting-state
+// overlay). FOUNDER INVARIANT: the play button must NEVER read "play" while
+// anything is audibly playing — so this ORs EVERY audio source, not just the
+// cycle engine: pod laps, commentary, the course welcome, LEGO introductions,
+// plus the preparing window between a play tap and the first audible sound
+// (so the tap is reflected instantly and a second tap can abort it —
+// togglePlayback routes all of these to handlePause). The container PULLS
+// this via the template ref (no event hop): a consumer that attaches late
+// still reads the current truth, not a missed edge.
 const isAudioPlaying = computed(() =>
-  isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value
+  isPlaying.value
+  || playingPodLapAudio.value
+  || playingCommentaryAudio.value
+  || isPlayingWelcome.value
+  || isPlayingIntroduction.value
+  || isPreparingToPlay.value
 )
 watch(isAudioPlaying, (playing) => {
   emit('playStateChanged', playing)
@@ -5522,7 +5550,9 @@ function releaseWakeLock() {
   }
 }
 
-watch(isPlaying, (playing) => {
+// Wake lock follows ANY audible audio (cycle, pod, commentary, welcome,
+// intro) — the screen shouldn't sleep mid-pod any more than mid-cycle.
+watch(isAudioPlaying, (playing) => {
   if (playing) acquireWakeLock()
   else releaseWakeLock()
 })
@@ -5530,7 +5560,7 @@ watch(isPlaying, (playing) => {
 // Re-acquire wake lock when tab becomes visible again (browser releases it on tab switch)
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isPlaying.value && !wakeLock) {
+    if (document.visibilityState === 'visible' && isAudioPlaying.value && !wakeLock) {
       acquireWakeLock()
     }
   })
@@ -5552,7 +5582,10 @@ function setupMediaSession() {
 
   const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
     ['play', () => {
-      if (!isPlaying.value) simplePlayer.resume()
+      // Guard on the FULL audio signal — a lock-screen play tap while a
+      // welcome/pod/commentary is sounding must not resume the cycle
+      // engine over the top of it.
+      if (!isAudioPlaying.value) simplePlayer.resume()
     }],
     ['pause', () => {
       if (isPlaying.value) simplePlayer.pause()
@@ -5583,7 +5616,7 @@ function clearMediaSession() {
   }
 }
 
-watch(isPlaying, (playing) => {
+watch(isAudioPlaying, (playing) => {
   if ('mediaSession' in navigator) {
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
   }
@@ -5881,8 +5914,9 @@ const typeLoadingMessage = (message) => {
 }
 
 // Introduction playback state
+// (isPlayingIntroduction is declared early, next to isPreparingToPlay — see
+// the TDZ note there.)
 const playedIntroductions = ref(new Set()) // LEGOs that have had their intro played this session
-const isPlayingIntroduction = ref(false) // True when introduction audio is playing
 const introductionPhase = ref(false) // True during introduction phase (shows different UI)
 
 // ============================================
@@ -5922,8 +5956,9 @@ const currentPlayingPhraseIndex = ref(0)
 const nodePhraseItems = ref<any[]>([])
 
 // Welcome audio state (plays once on first course load)
+// (isPlayingWelcome is declared early, next to isPreparingToPlay — see the
+// TDZ note there.)
 const welcomeChecked = ref(false) // True after we've checked welcome status
-const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
 
@@ -7121,13 +7156,12 @@ const handleCycleEvent = async (event) => {
   }
 }
 
-// Tap on ring to toggle play/stop
+// Tap on ring to toggle play/stop — same dispatch as the nav-bar button so
+// the two controls can never disagree about what a tap means (the ring used
+// to branch on the cycle engine alone, which mis-routed taps during
+// welcome/preparing/pod audio).
 const handleRingTap = () => {
-  if (isPlaying.value) {
-    handlePause()
-  } else {
-    handleResume()
-  }
+  togglePlayback()
 }
 
 const handlePause = () => {
@@ -7153,12 +7187,18 @@ const handlePause = () => {
     skipWelcome()
   }
 
+  // Signal any in-flight first-play sequence (awaiting its preload/welcome)
+  // to abort before it reaches simplePlayer.play() — see
+  // firstPlayPauseRequested. Clearing the preparing state also flips the
+  // derived isAudioPlaying back to false immediately.
+  firstPlayPauseRequested.value = true
+  clearPreparingState()
+
   // Use SimplePlayer
   simplePlayer.pause()
-
-  // Always set isPlaying = false, even if simplePlayer wasn't playing yet
-  // (e.g. during welcome audio before cycle playback has started)
-  isPlaying.value = false
+  // isPlaying derives from the engine — pause() above (plus the skip
+  // welcome/introduction calls) makes every audio flag read false. No
+  // manual assignment: the derivation cannot desync.
 
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
@@ -7185,6 +7225,8 @@ const handleResume = async () => {
   // explicit stop / session-complete / unmount.
   audioEngaged.value = true
   sessionEnded.value = false
+  // Clear any stale pause-intent from a previous tap before we start awaiting.
+  firstPlayPauseRequested.value = false
 
   // ?podview=1 instant pod preview: every tap drives the pod-lap loop
   // directly (startPodPreviewLap), never the main round pipeline below.
@@ -7206,7 +7248,8 @@ const handleResume = async () => {
     if (pendingLapResume.value) {
       const lap = pendingLapResume.value
       pendingLapResume.value = null
-      isPlaying.value = true
+      // playPodLap sets playingPodLapAudio synchronously on entry, so the
+      // derived isAudioPlaying reads true immediately — no manual set.
       const completed = await playPodLap(lap, true)
       if (completed) {
         podScheduler?.markLapCompleted().catch((err) => {
@@ -7230,9 +7273,10 @@ const handleResume = async () => {
         }
       } else if (userStoppedDuringLap.value) {
         // Stopped again during the replayed lap — bookmark and stay paused.
+        // playPodLap has returned (its flag is false) and simplePlayer is
+        // paused, so the derived state already reads not-playing.
         userStoppedDuringLap.value = false
         pendingLapResume.value = lap
-        isPlaying.value = false
       } else {
         simplePlayer.resume()
       }
@@ -7244,20 +7288,32 @@ const handleResume = async () => {
 
   // FIRST PLAY — full initialization path
 
+  // Reflect the tap IMMEDIATELY: isPreparingToPlay flips the derived
+  // isAudioPlaying true (button reads stop, resting overlay hides) before
+  // any audio exists — and a stop tap during this window routes to
+  // handlePause, which raises firstPlayPauseRequested so we bail below.
+  startPreparingState()
+
   // Ensure audio for first 2 rounds is fully cached before starting
   // Better to wait 1-2s at startup than stall mid-playback
   if (loadedRounds.value.length > 0) {
-    startPreparingState()
     const currentIdx = simplePlayer.roundIndex.value ?? 0
     await preloadSimpleRoundAudio(loadedRounds.value, 2, currentIdx)
   }
 
-  // Mark as started and playing IMMEDIATELY so:
-  // 1. displayPhrases shows cycle text instead of "ready when you are"
-  // 2. PlayerRestingState overlay hides (it checks isPlaying)
+  // Mark as started so displayPhrases shows cycle text instead of
+  // "ready when you are". (The overlay/button read the derived state.)
   hasEverStarted.value = true
-  isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
+
+  // The learner stopped while we were preloading — honour it. Without this
+  // check the awaited gap above let a stop tap be overtaken by play():
+  // audio started while the button read "play" and could not stop it (the
+  // reverted d5243e42 bug, re-landed).
+  if (firstPlayPauseRequested.value) {
+    clearPreparingState()
+    return
+  }
 
   // First-ever course with a welcome: play it once, automatically, before
   // the cycle starts. The Play tap is the user gesture that lets it sound.
@@ -7266,6 +7322,12 @@ const handleResume = async () => {
   // banner. Tom 2026-06-02.
   if (welcomeBannerVisible.value) {
     await playCourseWelcome()
+    // Same guard after the welcome await: a stop during the welcome must
+    // not fall through into the first cycle.
+    if (firstPlayPauseRequested.value) {
+      clearPreparingState()
+      return
+    }
   }
   simplePlayer.play()
 }
@@ -10879,7 +10941,6 @@ const toggleOffline = async () => {
 const showPausedSummary = () => {
   stopCycle()
   simplePlayer.pause()
-  isPlaying.value = false
   audioEngaged.value = false
 
   // End belt progress session (saves session history for time estimates)
@@ -13071,7 +13132,8 @@ onMounted(async () => {
   // Restore (or reset) the SITTING first, per the 5-min resume window.
   restoreSitting()
   sessionTimerInterval = setInterval(() => {
-    if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value) {
+    if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value
+      || isPlayingWelcome.value || isPlayingIntroduction.value) {
       sessionSeconds.value++
       if (sessionSeconds.value % 5 === 0) saveSitting() // backstop for hard kills
     }
@@ -13086,8 +13148,7 @@ onMounted(async () => {
       handleResume()
     }, 100)
   } else {
-    isPlaying.value = false
-
+    // Not auto-starting: the derived isPlaying already reads false.
     // Welcome audio deferred until user taps Play (never autoplay before interaction)
   }
 
@@ -13381,6 +13442,21 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
 // Expose methods for parent component (PlayerContainer) to control playback
 const togglePlayback = () => {
+  // Ready-guard (re-landed from the reverted bf281cd1): a tap while the
+  // player is still awakening used to run handleResume CONCURRENTLY with
+  // onMounted's round-building/engine init — playback started
+  // half-initialised (Tom's 2026-06-08 repro: audio the pause button
+  // couldn't stop). Soft form: only swallow the tap when nothing is
+  // audible — if audio IS sounding, always let the tap through to stop it.
+  if (isAwakening.value && !isAudioPlaying.value) return
+  // Welcome / introduction / preparing window: the button reads "stop"
+  // (per isAudioPlaying) — a tap must PAUSE (handlePause skips the
+  // welcome/intro and raises firstPlayPauseRequested for any in-flight
+  // first-play await), never fall through to a second handleResume.
+  if (isPlayingWelcome.value || isPlayingIntroduction.value || isPreparingToPlay.value) {
+    handlePause()
+    return
+  }
   // If a pod lap or commentary is playing, the big button reads "stop"
   // (per isAudioPlaying). Pressing it should halt everything — the runtime
   // audio AND any auto-resume into the next round. Without this we'd
@@ -13476,6 +13552,10 @@ const isInListeningCycle = computed(() => {
 
 defineExpose({
   isPlaying,
+  // The transport-facing signal (cycle OR welcome/intro/pod/commentary OR
+  // preparing) — PlayerContainer PULLS this for the play/stop button and
+  // the resting overlay instead of mirroring an event edge.
+  isAudioPlaying,
   isAwakening,
   togglePlayback,
   handlePause,
@@ -13736,7 +13816,7 @@ defineExpose({
 
   <div
     class="player"
-    :class="[`belt-${playingBelt.name}`, { 'is-paused': !isPlaying }]"
+    :class="[`belt-${playingBelt.name}`, { 'is-paused': !isAudioPlaying }]"
     :style="{ ...beltCssVars, '--hero-pane-bottom': heroPaneBottom + 'px' }"
     v-show="!showSessionComplete"
   >
@@ -14386,14 +14466,14 @@ defineExpose({
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
     <section
       class="control-pane"
-      :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]"
+      :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isAudioPlaying }]"
       role="region"
       aria-label="Learning player"
     >
       <!-- Screen-reader announcer for play/pause state. VoiceOver / TalkBack
            pick up changes to this region without disturbing sighted UI. -->
       <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {{ isPlaying ? 'Playing' : 'Paused' }}
+        {{ isAudioPlaying ? 'Playing' : 'Paused' }}
       </div>
 
       <!-- Ink Spirit Rewards - Float upward from the text area -->
@@ -14442,7 +14522,7 @@ defineExpose({
         </div>
 
         <!-- Guest progress warning -->
-        <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isPlaying }" @click="openAuth()">
+        <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isAudioPlaying }" @click="openAuth()">
           <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
@@ -14485,7 +14565,7 @@ defineExpose({
            this is a visual hint. The "Playing / Paused" sr-only announcer
            above conveys state to assistive tech. -->
       <div
-        v-if="!isPlaying && !isPlayingWelcome"
+        v-if="!isAudioPlaying"
         class="pane-play-hint"
         :class="{ 'initial-start': !hasEverStarted }"
         :aria-label="hasEverStarted ? 'Paused — tap player to resume' : 'Tap player to start'"
@@ -14575,7 +14655,7 @@ defineExpose({
 
   <!-- Mode buttons moved to BottomNav for Android viewport sync -->
   <Transition name="fade">
-    <div v-if="isPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
+    <div v-if="isAudioPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
       <LanguageFlag :code="courseTargetLang" :size="32" class="course-identity-flag" />
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>
