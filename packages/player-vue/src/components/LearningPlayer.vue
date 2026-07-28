@@ -179,7 +179,7 @@ function scheduleIdleTask(fn: () => void, timeout = 2000): void {
  */
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
 interface VoiceSettings {
   voiceId?: string
@@ -5281,11 +5281,11 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
 // delay). On a fast cache resolve the dialog may flash for a few
 // ms before disappearing, but the phrase text is never exposed
 // prematurely, which is the principle that matters.
-const bufferingPromptVisible = ref(false)
+// Derived, not watcher-synced (M6, pull-consistency map): the dialog IS the
+// engine's buffering phase — a mirror ref could linger visible after a
+// missed edge; a computed cannot.
+const bufferingPromptVisible = computed(() => simplePlayer.phase.value === 'buffering')
 const bufferingPromptMessage = 'Just grabbing the next phrase…'
-watch(() => simplePlayer.phase.value, (phase) => {
-  bufferingPromptVisible.value = phase === 'buffering'
-})
 
 // Skip-prep dialog — same 200ms-threshold pattern as bufferingPromptVisible,
 // but at belt/round scope. When the learner taps `>` (round-skip) or `>>`
@@ -5524,11 +5524,12 @@ const isAudioPlaying = computed(() =>
   || isPlayingIntroduction.value
   || isPreparingToPlay.value
 )
+// Window-level echo so components outside this tree (InstallBanner, the
+// update-available banner) can gate "never interrupt an active cycle"
+// (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
+// (The @playStateChanged emit that used to live here died with 878246ff —
+// the container pulls isAudioPlaying via the template ref instead.)
 watch(isAudioPlaying, (playing) => {
-  emit('playStateChanged', playing)
-  // Window-level echo so components outside this tree (InstallBanner, the
-  // update-available banner) can gate "never interrupt an active cycle"
-  // (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
   window.dispatchEvent(new CustomEvent('ssi-play-state', { detail: { playing } }))
 })
 
