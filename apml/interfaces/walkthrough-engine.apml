@@ -1,0 +1,54 @@
+# Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
+# Last updated: 2026-07-28
+# Spec source: docs/walkthrough-engine-scout.md (founder-ratified build spec)
+
+vision: >
+  User-visible documentation is dead. Every schools/admin verb that earns one
+  gets a guided in-app walkthrough — the PWA install walker's genre (learner-
+  paced Next/Back, step dots, pulse-ring pointer) anchored to REAL elements by
+  reference. Walkthroughs are COMPILED artifacts: hand-authored JSON, drift-
+  gated against the live Vue source so a renamed button FAILS THE BUILD, not
+  the user. Zero runtime LLM calls.
+
+architecture:
+  authoring:
+    tools/walkthrough/walks/*.json: hand-authored walks (the DECISIONS)
+    schema: id, title, personas[], place{route,kinds?}, steps[{anchor, say, advance{on}, terminal?}]
+    advance_kinds:
+      next: explicit tap on the overlay's Next (default — pure show-and-point)
+      click: the anchored element's OWN click advances (overlay listens capture-phase, never intercepts, never performs)
+      visible: step waits for its anchor to appear, then auto-advances
+  compiler:
+    tools/walkthrough/lib.mjs: pure gates (unit-tested via player-vue vitest)
+    tools/walkthrough/compile.mjs: CLI — `--check` validates, default writes pack
+    gates:
+      - anchor existence: every step anchor must exist as data-walk="<id>" in packages/player-vue/src/**/*.vue (missing = FAIL; orphan = warning)
+      - persona visibility: a walk offered to member personas (leader/school_admin/teacher) must not anchor to an element behind v-if="!member" (FAIL)
+      - place validity: place.route must be in useWalkthrough.ts KNOWN_PLACES (lockstep, FAIL)
+      - offer lockstep: every walk:<id> CTA in tools/explainer/rules.json must name a pack walk; evaluateRules.ts must handle the 'walk:' prefix (FAIL)
+      - safety denylist: click-advance steps must never anchor destructive/minting verbs (delete/purge/entitlement/rotate/revoke/submit/grant/expire/play/toggle) (FAIL)
+    ci_wiring: src/walkthrough/compileGate.test.ts runs the CLI --check inside `pnpm --filter player-vue test` — the existing CI gates carry it
+  pack:
+    packages/player-vue/src/walkthrough/pack.json: compiled, bundled static (version = content hash)
+    docs/walkthrough-pack.md: human render, DO NOT EDIT
+  runtime:
+    packages/player-vue/src/walkthrough/useWalkthrough.ts: module-singleton state machine (startWalk/stopWalk/next/back, walksFor persona×place×kind); stamps <html data-walk-active="id:step[:done]"> for e2e assertion
+    packages/player-vue/src/components/admin/WalkOverlay.vue: the ONE overlay, mounted once in App.vue (async). Pulse-ring on the anchor rect, card with dots/Back/Next/Skip, unanchored fallback after 5s (never hangs), pointer-events none except the card (never a modal trap), walk ends on route change
+    packages/player-vue/src/components/admin/WalkOffer.vue: quiet "Show me — <title>" text links per persona×place
+
+offering_surfaces:  # invitations, not missions — NOTHING auto-plays, ever
+  noticing_invitations: rules.json CTA target 'walk:<id>' renders as a button (NoticingInvitations.vue) that starts the walk in place
+  how_this_works: HowThisWorks.vue card lists matching node-home walks as Show-me links
+  walk_offer_mounts: NodeInsightsView (node-insights), ClassDetail (class-detail, teacher only), AdminInvites (admin-invites)
+
+real_data_ruling: >
+  Walks run on the real page over real data. Show-and-point by default; click
+  steps only on safe/reversible verbs (compiler-enforced denylist); admins
+  rehearse write-heavy flows inside demo orgs.
+
+walks_v1:
+  - invite-first-teacher: node-home (school) — admin/leader/school_admin
+  - run-class-session: class-detail — teacher
+  - ways-in: node-home (group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap)
+  - reading-insights: node-insights — admin/leader/school_admin
+  - invites-desk: admin-invites — admin (show-and-point only)

@@ -360,7 +360,7 @@ function closeDelete(): void {
       <!-- Two link species, two verbs (founder-ruled 2026-07-20): a personal
            link for a known person, or a shareable link by role — the old
            learner-only "Get join link" folded into the shareable menu. -->
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" @click="toggle('person')">Invite a person</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
       <button v-if="!member && !node.commercial" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
@@ -375,7 +375,7 @@ function closeDelete(): void {
 
     <!-- Inline forms (one at a time) -->
     <div v-if="openForm === 'person'" class="verb-form">
-      <select v-model="personRole" class="frost-select">
+      <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
         <option value="teacher">Teacher</option>
         <option value="leader">Group leader</option>
         <option v-if="node.commercial" value="school_leader">School leader</option>
@@ -383,7 +383,7 @@ function closeDelete(): void {
       </select>
       <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
       <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
-      <button class="btn-primary-sm" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
+      <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
         {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
       </button>
     </div>

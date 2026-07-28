@@ -12,6 +12,7 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { getLanguageName } from '@/composables/useI18n'
@@ -423,7 +424,8 @@ const deleteImpactLines = computed(() => {
       </div>
 
       <div class="page-head-actions">
-        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" :disabled="!canLaunch" @click="handlePlay">
+        <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
+        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           Play as class
         </button>
@@ -551,18 +553,19 @@ const deleteImpactLines = computed(() => {
           <p class="join-help">
             Share this link — students click it, sign up, and land straight in the class.
           </p>
-          <InviteLinkField :url="classJoinLink" />
+          <div data-walk="class-join-link"><InviteLinkField :url="classJoinLink" /></div>
 
           <button
             v-if="!showCode"
             type="button"
             class="btn-text join-show-code"
+            data-walk="class-join-code"
             @click="showCode = true"
           >
             Show code instead
           </button>
           <template v-else>
-            <div class="join-code">{{ classData.join_code }}</div>
+            <div class="join-code" data-walk="class-join-code">{{ classData.join_code }}</div>
             <p class="join-help join-help-small">
               For writing on a whiteboard — students enter it at
               <strong>saysomethingin.com/redeem</strong>.

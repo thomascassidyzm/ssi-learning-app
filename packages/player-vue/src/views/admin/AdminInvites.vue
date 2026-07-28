@@ -7,6 +7,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import InviteCreateCard from '@/components/admin/invites/InviteCreateCard.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
 import DemoOrgsPanel from '@/components/admin/invites/DemoOrgsPanel.vue'
 import UnifiedInviteList from '@/components/admin/invites/UnifiedInviteList.vue'
 
@@ -34,6 +35,7 @@ function onCreated(): void {
           One primitive — who × where × what × limits; every link that lets someone in, real or demo.
         </p>
       </div>
+      <WalkOffer persona="admin" place="admin-invites" />
     </header>
 
     <InviteCreateCard @created="onCreated" />

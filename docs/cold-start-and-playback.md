@@ -22,6 +22,10 @@ All in `onMounted` (`LearningPlayer.vue`). "Ready" = `setLoadingStage('ready')` 
 
 **Resume is fast** because warm caches collapse bootstrap to ~0 network (localStorage round-map + cycles, IndexedDB WAV blobs) and the CACHE FAST PATH skips the network bootstrap entirely.
 
+### Script freshness: stale-while-revalidate (founder ruling 2026-07-27)
+
+A `courses.content_stamp` move (any learner-visible content fix) used to DROP the cached script, forcing the next open to regenerate the whole course before playing (~3s median, 20-24s observed on device). Now `checkContentVersion` only **marks** the entry stale (`getScriptStaleness`): the session hydrates from the stale cache instantly, `runSwrRevalidation` (LearningPlayer) regenerates on idle and writes the fresh script for the **next** session, which then shows a small transient "Your course was updated" notice. Corrections land one session later — accepted trade. A `content_version` bump (audio regenerated) still hard-clears. With no usable cache at all, start is progressive: the `/cycles` (or `/infplay-cycles`) bootstrap plays the playhead segment in ~1-2s and the full walk runs behind playback — the uncached deterministic INF-PLAY resume no longer builds synchronously (one session of random-sampled revival, deterministic again next open once the idle warm has cached the build). Any remaining blocking walk (legacy fallback only) types an honest "Updating your course…" on the awakening screen. `cold_start` telemetry carries `scriptPath` (`cache|swr|progressive|infplay_cache|full`); each background regeneration emits `script_revalidated`.
+
 ### Instrumentation
 On ready, the console logs `[ColdStart] launch→ready Xms total (incl. app-shell+auth) | Yms in onMounted | animFloor Z | returnUser`. `performance.now()` is from navigation start, so it captures the full budget (JS bundle parse + auth restore + onMounted); `Date.now()-startTime` isolates the onMounted portion. Compare with `[LearningPlayer] Data loading complete in …` to see whether data or the splash floor dominated.
 

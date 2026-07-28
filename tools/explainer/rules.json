@@ -26,6 +26,17 @@
       "cta": { "label": "See the classes", "target": "lens:classes" }
     },
     {
+      "id": "school-needs-first-teacher",
+      "shape": "node",
+      "kinds": ["school"],
+      "personas": ["admin", "leader"],
+      "when": [
+        { "path": "node.rollup.teacherCount", "op": "eq", "value": 0 }
+      ],
+      "invitation": "No teachers here yet — want a 30-second tour of bringing the first one in?",
+      "cta": { "label": "Show me", "target": "walk:invite-first-teacher" }
+    },
+    {
       "id": "school-no-teachers",
       "shape": "perChild",
       "arrayPath": "children",

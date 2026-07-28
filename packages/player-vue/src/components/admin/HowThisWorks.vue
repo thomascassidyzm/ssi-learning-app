@@ -5,8 +5,13 @@
 // Static data, zero requests, nothing opens uninvited.
 import { ref, computed } from 'vue'
 import pack from '@/explainer/pack.json'
+import { walksFor, startWalk } from '@/walkthrough/useWalkthrough'
 
 const props = defineProps<{ persona: 'admin' | 'leader'; kind: string }>()
+
+// Quiet per-persona×place "Show me" links into the walkthrough pack
+// (docs/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
+const walks = computed(() => walksFor(props.persona, 'node-home', props.kind))
 
 const open = ref(false)
 const text = computed<string | null>(() => {
@@ -36,6 +41,13 @@ const html = computed(() => {
         <span class="schools-kicker">How this works</span>
         <!-- eslint-disable-next-line vue/no-v-html — pack content is compiled repo data, escaped above -->
         <div class="htw-body" v-html="html"></div>
+        <div v-if="walks.length" class="htw-walks">
+          <button
+            v-for="w in walks" :key="w.id" type="button" class="htw-walk-link"
+            :data-walk-offer="w.id"
+            @click="startWalk(w.id)"
+          >Show me — {{ w.title }}</button>
+        </div>
       </div>
     </transition>
   </div>
@@ -58,6 +70,13 @@ const html = computed(() => {
 .htw-body :deep(p) { margin: 0 0 10px; }
 .htw-body :deep(p:last-child) { margin-bottom: 0; }
 .htw-body :deep(strong) { color: var(--ink-primary, #2C2622); font-weight: var(--font-semibold); }
+.htw-walks { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.htw-walk-link {
+  background: none; border: none; cursor: pointer; padding: 2px 0;
+  font: inherit; font-size: var(--text-xs); color: var(--schools-red, #DB1E17);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(219, 30, 23, 0.3);
+}
+.htw-walk-link:hover { text-decoration-color: currentColor; }
 .htw-fade-enter-active, .htw-fade-leave-active { transition: opacity 0.15s ease; }
 .htw-fade-enter-from, .htw-fade-leave-to { opacity: 0; }
 </style>

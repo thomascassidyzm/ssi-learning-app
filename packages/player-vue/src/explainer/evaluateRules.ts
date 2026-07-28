@@ -37,6 +37,8 @@ export interface Invitation {
   text: string
   ctaLabel: string
   to: string
+  /** Set when the CTA launches a walkthrough ('walk:<id>' target) instead of navigating. */
+  walk?: string
 }
 
 function get(obj: unknown, path: string): unknown {
@@ -119,14 +121,18 @@ export function evaluateRules(
   for (const rule of rules) {
     if (!rule.personas.includes(persona) || !rule.kinds.includes(kind)) continue
     if (!allHold(rule.when, home)) continue
+    // 'walk:<id>' CTAs launch an in-place walkthrough instead of navigating
+    // (the walkthrough compiler checks the id names a real walk — lockstep).
+    const walkId = rule.cta.target.startsWith('walk:') ? rule.cta.target.slice(5) : undefined
     if (rule.shape === 'node') {
-      const to = resolveTarget(rule.cta.target, home, member)
+      const to = walkId ? null : resolveTarget(rule.cta.target, home, member)
       out.push({
         key: rule.id,
         ruleId: rule.id,
         text: interpolate(rule.invitation, home),
         ctaLabel: interpolate(rule.cta.label, home),
         to: to ?? '',
+        ...(walkId ? { walk: walkId } : {}),
       })
     } else {
       const items = get(home, rule.arrayPath || '')
@@ -139,7 +145,8 @@ export function evaluateRules(
             ruleId: rule.id,
             text: interpolate(rule.invitation, home, matches.length),
             ctaLabel: interpolate(rule.cta.label, home, matches.length),
-            to: resolveTarget(rule.cta.target, home, member) ?? '',
+            to: walkId ? '' : resolveTarget(rule.cta.target, home, member) ?? '',
+            ...(walkId ? { walk: walkId } : {}),
           })
         }
       } else {
@@ -149,7 +156,8 @@ export function evaluateRules(
             ruleId: rule.id,
             text: interpolate(rule.invitation, item),
             ctaLabel: interpolate(rule.cta.label, item),
-            to: resolveTarget(rule.cta.target, home, member, item) ?? '',
+            to: walkId ? '' : resolveTarget(rule.cta.target, home, member, item) ?? '',
+            ...(walkId ? { walk: walkId } : {}),
           })
         }
       }

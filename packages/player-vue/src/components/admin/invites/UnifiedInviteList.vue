@@ -217,6 +217,7 @@ onMounted(fetchInvites)
             <button
               class="status-pill"
               :class="inv.isActive ? 'tone-green' : 'tone-muted'"
+              data-walk="invites-active-toggle"
               @click="toggleActive(inv)"
             >
               <span class="status-dot"></span>

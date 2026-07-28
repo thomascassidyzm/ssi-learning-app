@@ -1,0 +1,29 @@
+{
+  "id": "invites-desk",
+  "title": "The invites desk",
+  "personas": ["admin"],
+  "place": { "route": "admin-invites" },
+  "steps": [
+    {
+      "anchor": "invites-mode-strip",
+      "say": "Three ways to mint access, one form: **Into an organisation** (role links into the tree), **Direct access** (codes and magic links), **New demo org** (a full practice tree).",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "invites-org-who",
+      "say": "**Who** silently changes what the submit button does: some options mint a FRESH link, others surface the STANDING link that already exists. Watch the button label switch as you change this.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "invites-org-submit",
+      "say": "Every submit on this desk mints REAL access the moment you tap — a leaked leader link makes a stranger a group leader. This tour never taps it for you.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "invites-active-toggle",
+      "say": "This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.",
+      "advance": { "on": "next" },
+      "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists."
+    }
+  ]
+}

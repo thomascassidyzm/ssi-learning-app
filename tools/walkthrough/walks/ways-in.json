@@ -1,0 +1,29 @@
+{
+  "id": "ways-in",
+  "title": "Ways in — who can get in, and how to change it",
+  "personas": ["admin", "leader", "school_admin"],
+  "place": { "route": "node-home", "kinds": ["group", "school"] },
+  "steps": [
+    {
+      "anchor": "ways-in-ledger",
+      "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "ways-in-copy",
+      "say": "**Copy** re-shares the same live link — always safe, nothing changes.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "ways-in-remint",
+      "say": "**Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "ways-in-revoke",
+      "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.",
+      "advance": { "on": "next" },
+      "terminal": "The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone."
+    }
+  ]
+}

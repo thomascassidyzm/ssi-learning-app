@@ -18,6 +18,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
 import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 
@@ -125,8 +126,9 @@ const homeLink = computed(() => {
           </div>
           <div class="niv-side">
             <UpdatedStamp />
+            <WalkOffer :persona="member ? 'leader' : 'admin'" place="node-insights" />
             <div class="verbs">
-              <router-link :to="homeLink" class="verb-btn verb-btn-secondary">Overview</router-link>
+              <router-link :to="homeLink" class="verb-btn verb-btn-secondary" data-walk="insights-overview">Overview</router-link>
               <router-link v-if="!member" to="/admin/stats" class="verb-btn verb-btn-secondary">All boards</router-link>
             </div>
           </div>
