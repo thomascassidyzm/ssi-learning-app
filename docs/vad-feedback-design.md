@@ -22,7 +22,7 @@ One observation before anything else: these three constraints are not restrictio
 
 ## 1. Ground truth: what the VAD actually captures today
 
-Verified against the live code, not the docs (several docs describe earlier stages).
+Verified against the live code, not the docs (several docs describe earlier stages). Full trace with file:line evidence: `docs/the-view/voice-vad-capture-inventory.md`. Live DB row counts could not be checked from this environment — population claims below are code-inferred, flagged where uncertain.
 
 ### Per speaking opportunity (cycle), computed on the phone
 
@@ -33,14 +33,14 @@ Verified against the live code, not the docs (several docs describe earlier stag
 | `response_latency_ms` | gap from pause start to confirmed speech start |
 | `learner_duration_ms` | how long they spoke |
 | `duration_delta_ms` | vs the model clip |
-| `envelope` (WP-6, **live**) | `EnvelopeMetadata`: `durationMs`, `peakCount`, `peakToMeanRatio`, `meanPeakWidthMs`, `sampleCount` — syllable-scale envelope shape on a 20 ms grid |
+| `envelope` (WP-6 — coded + wired, **gated off** behind `stage2_enabled:false`) | `EnvelopeMetadata`: `durationMs`, `peakCount`, `peakToMeanRatio`, `meanPeakWidthMs`, `sampleCount` — syllable-scale envelope shape on a 20 ms grid |
 
 Raw audio and raw sample arrays never leave the device; only these derived numbers survive the cycle. That privacy invariant is load-bearing for everything below, especially schools.
 
 ### The comparison substrate
 
 - `course_audio_envelope` — model-voice envelope numbers per audio clip, one row per file, `extractor_version`-gated. Table and client batch-fetch exist (`useEnvelopeMetadataCache`); **population status needs confirming** — if the dashboard-repo pipeline (WP-7b) hasn't run over the mastered catalogue, the envelope-delta path silently no-ops per clip today. Whatever ships first below, backfilling this table is on its critical path.
-- The delta producer (`composables/useEnvelopeEvidence.ts`) is **wired live** in `LearningPlayer.vue` (~line 1715): per cycle with both sides present it emits one merged difficulty number into the evidence stream.
+- The delta producer (`composables/useEnvelopeEvidence.ts`) is wired into the cycle-complete path in `LearningPlayer.vue` (~line 1715) but sits behind the same `stage2_enabled:false` flag. So today the envelope side is **plumbed end-to-end and dark**: flipping the flag plus backfilling the model table turns it on with no further build. Adaptation v2 stage 1 (behavioural + latency evidence) runs live in shadow mode — computing and logging, applying nothing.
 
 ### What persists, and at what grain
 
@@ -48,7 +48,7 @@ Raw audio and raw sample arrays never leave the device; only these derived numbe
 |---|---|---|
 | `learner_lego_metrics` | per (learner, LEGO): mastery state, rolling mean latency, `recent_latency_samples` ring of 20, `evidence_series` ring of 20 (merged latency + behaviour + envelope difficulty) | **No — rings overwrite.** This is a *now* snapshot, by design (the adaptation engine wants curvature, not history) |
 | `player_events` | append-only, timestamped: `phase_skip` (with elapsed-in-phase), `lego_skip`, `tap_skip`, `belt_skip`, `turbo_toggle`, `audio_play`, `round_complete` | Yes — but **carries no envelope numbers** |
-| `response_metrics` / `spike_events` | per-response latency rows from the pre-SimplePlayer era | needs confirming whether the live path still writes them |
+| `response_metrics` / `spike_events` | per-response latency rows from the pre-SimplePlayer era | **dead code — confirmed**: the legacy write path never fires under SimplePlayer (`LearningPlayer.vue:1745-1760` guard) |
 
 **The headline gap:** the per-cycle envelope numbers are computed, used once for the adaptation delta, folded into a ring of 20, and then gone. Nothing anywhere links (learner, phrase, timestamp, envelope numbers) in an append-only record. This single fact drives §5 (the CEFR anchor) and shapes what §2–§4 can honestly claim.
 
@@ -231,7 +231,7 @@ No CEFR copy anywhere in the product now — not "on track for B1", not a percen
 
 ## 6. Sequencing: what to build first and why
 
-**0. Backfill `course_audio_envelope` + confirm the delta path end-to-end.** Prerequisite for everything; a pipeline run in the dashboard repo, not a product build.
+**0. Backfill `course_audio_envelope` (dashboard-repo pipeline run) + flip `stage2_enabled` on.** Prerequisite for everything, and cheap: the envelope path is already plumbed end-to-end and dark — this step is a pipeline run plus a config flag, not a product build.
 
 **1. The longitudinal capture (§5, Option 1).** Smallest diff in the whole commission — the numbers are already in hand at cycle end; this adds one `logEvent`. It has the highest cost-of-delay: corpus lost now is unrecoverable, and the 2027 pilot story depends on it. It also quietly powers everything else: the trajectory sentence, the schools trends, and the eventual study all read the same rows.
 
