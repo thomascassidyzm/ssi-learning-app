@@ -179,7 +179,7 @@ function scheduleIdleTask(fn: () => void, timeout = 2000): void {
  */
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
-const emit = defineEmits(['close', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'viewProgress', 'cycle-started'])
 
 interface VoiceSettings {
   voiceId?: string
@@ -9226,6 +9226,14 @@ const showListeningOverlay = ref(false) // Show listening mode overlay
 const listeningOverlayRef = ref<{ stepSentence: (delta: number) => void } | null>(null) // Overlay instance — bottom-nav ‹ › step through it
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
 
+// Derived mode signals (M5, pull-consistency map): PlayerContainer PULLS
+// these via the template ref for BottomNav/ModeTray. The old
+// @listeningModeChanged / @pronunciationModeChanged emit hops (7 sites, each
+// hand-paired with an overlay write) are gone — a consumer can no longer
+// believe a mode the overlay isn't actually in.
+const isListeningMode = computed(() => showListeningOverlay.value)
+const isPronunciationMode = computed(() => showPronunciationOverlay.value)
+
 /**
  * Bottom-nav ‹ › while the listening overlay is open: step the overlay's
  * active sentence instead of the main session's LEGO axis. Returns true
@@ -9630,13 +9638,11 @@ const handleListeningMode = () => {
   }
 
   showListeningOverlay.value = true
-  emit('listeningModeChanged', true)
 }
 
 // Close listening overlay and resume main player
 const handleCloseListening = () => {
   showListeningOverlay.value = false
-  emit('listeningModeChanged', false)
   // Don't auto-resume - user will tap to play when ready
 }
 
@@ -9645,7 +9651,6 @@ const handleCloseListening = () => {
 const exitListeningMode = () => {
   if (showListeningOverlay.value) {
     showListeningOverlay.value = false
-    emit('listeningModeChanged', false)
   }
   // Stop all audio immediately
   handlePause()
@@ -9660,18 +9665,15 @@ const handlePronunciationMode = () => {
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
   showPronunciationOverlay.value = true
-  emit('pronunciationModeChanged', true)
 }
 
 const handleClosePronunciation = () => {
   showPronunciationOverlay.value = false
-  emit('pronunciationModeChanged', false)
 }
 
 const exitPronunciationMode = () => {
   if (showPronunciationOverlay.value) {
     showPronunciationOverlay.value = false
-    emit('pronunciationModeChanged', false)
   }
   handlePause()
 }
@@ -9698,11 +9700,9 @@ const handleListeningToggle = () => {
 const exitAllModes = () => {
   if (showListeningOverlay.value) {
     showListeningOverlay.value = false
-    emit('listeningModeChanged', false)
   }
   if (showPronunciationOverlay.value) {
     showPronunciationOverlay.value = false
-    emit('pronunciationModeChanged', false)
   }
   handlePause()
 }
@@ -13567,6 +13567,9 @@ defineExpose({
   handleRoundBack,
   listeningStep,
   isInListeningCycle,
+  // Mode overlay truth (M5) — container/BottomNav pull these, no event hop.
+  isListeningMode,
+  isPronunciationMode,
   exitListeningMode,
   exitAllModes,
   unlockAudio,
