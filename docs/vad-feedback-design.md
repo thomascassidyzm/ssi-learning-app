@@ -52,7 +52,7 @@ Raw audio and raw sample arrays never leave the device; only these derived numbe
 
 **The headline gap:** the per-cycle envelope numbers are computed, used once for the adaptation delta, folded into a ring of 20, and then gone. Nothing anywhere links (learner, phrase, timestamp, envelope numbers) in an append-only record. This single fact drives §5 (the CEFR anchor) and shapes what §2–§4 can honestly claim.
 
-**The adoption fact:** the metrics-architecture inventory (May 2026) put VAD opt-in at effectively zero. Whatever we design, "no voice data for this learner/class" is the *common case* for a long while, not an edge case. Every surface below therefore has an honest-insufficiency mode as its default state, and growing opt-in (the Settings-as-discovery pattern, Measuring Progress §9) is silently the first feature of all of them.
+**The adoption fact:** the metrics-architecture inventory (May 2026) put VAD opt-in at effectively zero. Whatever we design, "no speaking data for this learner/class" is the *common case* for a long while, not an edge case. Every surface below therefore has an honest-insufficiency mode as its default state, and growing opt-in (the Settings-as-discovery pattern, Measuring Progress §9) is silently the first feature of all of them.
 
 ---
 
@@ -82,7 +82,7 @@ Post-session, show the 2–3 phrases where the learner's voice tracked the model
 
 ### Alternative B — the trajectory sentence (my recommendation for the headline)
 
-One sentence, only when earned, computed on rolling multi-session windows — never within one session:
+This shape already has a shipped precedent: SessionComplete's response-time line ("{x}% faster / steady") is exactly this grammar — movement vs your own past, stated once, no grade. B extends the family rather than inventing one. One sentence, only when earned, computed on rolling multi-session windows — never within one session:
 
 > "Your responses this week are coming in quicker than last week."
 > "Your rhythm on longer phrases is settling."
@@ -160,7 +160,7 @@ All four are **trajectory vs the class's own past** — never class vs class, ne
 
 ### Sample sizes and stability floors
 
-The calibration canon says ~30–50 cycles per learner before an individual signal stabilises. At class level the arithmetic is generous: 25 students × 2 sessions/week × ~60 speaking opportunities ≈ 3,000 voiced cycles/week *if capture is on*. Proposed floors, config-tunable: surface a class trend only with **≥8 learners contributing ≥30 quality-gated voiced cycles each in the window, windows of ≥2 weeks compared to ≥2 weeks**. Below the floor: the honest-insufficiency state the node surfaces already model well (the IME programme root does this today) — and crucially, the insufficiency copy is itself an *invitation to grow capture* ("voice signal isn't on for most of this class yet — here's what it unlocks"), which makes adoption the surface's own first job.
+The calibration canon says ~30–50 cycles per learner before an individual signal stabilises. At class level the arithmetic is generous: 25 students × 2 sessions/week × ~60 speaking opportunities ≈ 3,000 voiced cycles/week *if capture is on*. Proposed floors, config-tunable: surface a class trend only with **≥8 learners contributing ≥30 quality-gated voiced cycles each in the window, windows of ≥2 weeks compared to ≥2 weeks**. Below the floor: the honest-insufficiency state the node surfaces already model well (the IME programme root does this today) — and crucially, the insufficiency copy is itself an *invitation to grow capture* ("speaking signal isn’t on for most of this class yet — here's what it unlocks"), which makes adoption the surface's own first job.
 
 Two traps the canon has already named, restated because they will bite here:
 
@@ -169,7 +169,13 @@ Two traps the canon has already named, restated because they will bite here:
 
 ### Delivery: the noticing-invitations layer, exactly as built
 
-The mechanism (`explainer/evaluateRules.ts` + `pack.json`) evaluates declarative rules against the node-home payload the page has already fetched — zero new queries, zero model calls, invitations never missions. Extension is two steps, both small:
+The mechanism (`explainer/evaluateRules.ts` + `pack.json`) evaluates declarative rules against the node-home payload the page has already fetched — zero new queries, zero model calls, invitations never missions. Three canon facts pin how the extension must be shaped (canon brief: `docs/the-lens/ime-preflight/voice-vad-design-canon-brief.md`):
+
+- **The layer is leader/admin-only, node-home-only, by founder ruling** ("learner surface: nothing, ever"). This design complies: §2's learner surfaces deliberately do not ride it; only the class/school aggregates do.
+- **The rule schema can't express trends** — no field-vs-field comparison, no time-series shape. So the trend computation lives **server-side**: the payload carries a categorical verdict (`improving | steady | insufficient`), and the pack.json rule is a plain `eq` check. New metric = payload field + rule entry, exactly as the mechanism intends; no rule-engine change.
+- **"Voice" is a taken term** in the lens vocabulary (grammatical perspective on cards, pinned by e2e checks). The payload block and all copy here use **"speaking"**, never "voice", to avoid the collision.
+
+Extension is two steps, both small:
 
 1. **Payload:** add a `speaking` aggregate block to the node-home API response (participation rate, the three trends, sufficiency flags) — computed server-side on the same scope-resolution path as the existing measures.
 2. **Rules:** pack.json entries, celebration-framed, firing on improvement and on milestones only. Sketches:
@@ -229,13 +235,13 @@ No CEFR copy anywhere in the product now — not "on track for B1", not a percen
 
 **1. The longitudinal capture (§5, Option 1).** Smallest diff in the whole commission — the numbers are already in hand at cycle end; this adds one `logEvent`. It has the highest cost-of-delay: corpus lost now is unrecoverable, and the 2027 pilot story depends on it. It also quietly powers everything else: the trajectory sentence, the schools trends, and the eventual study all read the same rows.
 
-**2. The listening priority list (§3), invisible.** The founder's favourite, the best BSC story, zero framing risk, and it makes the VAD data *do* something for learners within weeks. Also the best adoption argument we'll ever have for the mic toggle: "with voice on, your listening quietly tunes itself to you" is a concrete, honest benefit — Settings-as-discovery finally has something real to point at.
+**2. The listening priority list (§3), invisible.** The founder's favourite, the best BSC story, zero framing risk, and it makes the VAD data *do* something for learners within weeks. Also the best adoption argument we'll ever have for the mic toggle: "with the mic on, your listening quietly tunes itself to you" is a concrete, honest benefit — Settings-as-discovery finally has something real to point at.
 
 **3. Schools speaking aggregates via noticing invitations (§4).** Ship with the honest-insufficiency state from day one (IME-demonstrable immediately); real trends light up as pilot capture grows. Rides entirely on rails that exist (node-home payload + pack.json).
 
 **4. The learner post-session surface (§2), last — C then B.** Wire envelope into the hidden points formula whenever convenient (it's invisible). The trajectory sentence waits until step 1's rows give it multi-week windows to be honest over. The closest-phrases reel is a fast-follow if Tom wants it.
 
-The quiet thread through all four: **adoption is the real first feature.** Every surface degrades honestly to "no voice data yet", and every step makes turning the mic on more obviously worth it. The traffic light, as floated, ships nowhere — but its instinct ships everywhere: coarse, honest, glanceable reads of a signal we were already capturing, placed only where the framing can never put a deficit next to a name.
+The quiet thread through all four: **adoption is the real first feature.** Every surface degrades honestly to "no speaking data yet", and every step makes turning the mic on more obviously worth it. The traffic light, as floated, ships nowhere — but its instinct ships everywhere: coarse, honest, glanceable reads of a signal we were already capturing, placed only where the framing can never put a deficit next to a name.
 
 ---
 
