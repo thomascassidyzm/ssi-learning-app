@@ -464,6 +464,23 @@ TRANSPORT_PLAY_STATE:
   regression_test: "packages/player-vue/src/playback/transportStateSync.test.ts (late-attach pull reads, same-tick toggle bursts, the mirror-wedging interleave). E2E: e2e/transport-first-cycle-walk.mjs (N fresh-profile cold starts asserting the invariant + gap bar + voice-2 text)."
 
 ## ============================================================================
+## PULL-CONSISTENT UI STATE (tranche 3, 2026-07-28)
+## Full mirror inventory + doctrine: docs/player/pull-consistency-map.md
+## ============================================================================
+
+PULL_CONSISTENT_STATE:
+  doctrine: "UI state that REPRESENTS engine state is DERIVED (computed reading engine truth), never a writable mirror (ref + edge-triggered watcher + scattered assignments + emit hops). Watchers remain legitimate as bridges to imperative sinks (wake lock, mediaSession, animations) and for genuine accumulators."
+  currentPhase:
+    definition: "computed: SIMPLE_PHASE_TO_UI[simplePlayer.phase] when rounds are loaded (idle/buffering→prompt, pause→speak, voice1/voice2→voice_1/voice_2); legacyUiPhase ref only on the pre-SimplePlayer path. The old two-hop relay (engine → onPhaseChanged → pendingPhase ref → watcher) plus two legacy writers is deleted."
+    consumers: "showTargetText (voice-2 text reveal), phase-strip is-active classes, hero/control-pane classes, ring-progress gate, phaseEnteredAt metric."
+    side_effects: "Speak-gap ring start stays an edge (it starts an animation) but keys off simplePlayer.phase directly."
+    regression_test: "packages/player-vue/src/playback/phaseDisplaySync.test.ts"
+  mode_overlays:
+    definition: "isListeningMode / isPronunciationMode = computeds over showListeningOverlay / showPronunciationOverlay, exposed via defineExpose; PlayerContainer pulls them via the template ref. The @listeningModeChanged / @pronunciationModeChanged event mirrors (7 emit sites) are deleted."
+  buffering_prompt:
+    definition: "bufferingPromptVisible = computed(() => simplePlayer.phase === 'buffering') — was a watcher-synced ref."
+
+## ============================================================================
 ## CONSTELLATION NETWORK INTEGRATION
 ## (STALE / ASPIRATIONAL — subsystem DELETED 2026-06-08; see constellation-network.apml)
 ## ============================================================================
