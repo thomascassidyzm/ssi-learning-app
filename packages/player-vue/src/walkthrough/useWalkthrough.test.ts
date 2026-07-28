@@ -1,7 +1,10 @@
 // Runtime state-machine tests — start/next/back/terminal/stop, offer
 // filtering, and the DOM breadcrumb the e2e harness asserts on.
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useWalkthrough, walksFor, walkById, startWalk, stopWalk } from './useWalkthrough'
+import {
+  useWalkthrough, walksFor, walkById, startWalk, stopWalk,
+  isDestructiveAnchor, effectiveAdvance, type WalkStep,
+} from './useWalkthrough'
 import pack from './pack.json'
 
 const w = useWalkthrough()
@@ -80,5 +83,50 @@ describe('state machine', () => {
     expect(w.activeWalk.value).toBeNull()
     expect(w.stepIndex.value).toBe(0)
     expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+  })
+
+  it('Esc ends the walk from any step (engine-level escape hatch)', () => {
+    startWalk('ways-in')
+    w.next()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.activeWalk.value).toBeNull()
+    expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+    // After the walk ends, Esc is unbound — no lingering listener effects.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.activeWalk.value).toBeNull()
+  })
+
+  it('other keys do not end the walk', () => {
+    startWalk('ways-in')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    expect(w.activeWalk.value?.id).toBe('ways-in')
+  })
+})
+
+describe('runtime destructive-verb mirror (stale-pack defence)', () => {
+  const step = (anchor: string, on: 'next' | 'click' | 'visible' = 'click'): WalkStep =>
+    ({ anchor, say: 'x', advance: { on } })
+
+  it('flags the denylisted verb families', () => {
+    for (const anchor of ['verb-delete', 'demo-purge', 'invite-form-submit', 'ways-in-remint', 'invites-active-toggle', 'class-play', 'entitlement-grant']) {
+      expect(isDestructiveAnchor(anchor), anchor).toBe(true)
+    }
+    expect(isDestructiveAnchor('ways-in-ledger')).toBe(false)
+    expect(isDestructiveAnchor('insights-measure')).toBe(false)
+  })
+
+  it('degrades click-advance on a destructive anchor to show-and-point', () => {
+    expect(effectiveAdvance(step('verb-delete', 'click'))).toBe('next')
+    expect(effectiveAdvance(step('verb-invite-person', 'click'))).toBe('click')
+    expect(effectiveAdvance(step('verb-delete', 'next'))).toBe('next')
+    expect(effectiveAdvance(step('some-form', 'visible'))).toBe('visible')
+  })
+
+  it('no step in the live pack click-advances a destructive anchor', () => {
+    for (const walk of pack.walks) {
+      for (const s of walk.steps) {
+        if (s.advance.on === 'click') expect(isDestructiveAnchor(s.anchor), `${walk.id}:${s.anchor}`).toBe(false)
+      }
+    }
   })
 })

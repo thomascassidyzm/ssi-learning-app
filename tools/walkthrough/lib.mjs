@@ -142,6 +142,46 @@ export function gateSafety(walks) {
   return { failures }
 }
 
+/**
+ * Gate 7 — never-auto-play, structurally. startWalk() in any .vue source may
+ * only appear inside an @click handler attribute: a walk starts from a user
+ * tap or not at all. A mounted-hook / watcher / query-param autostart shows
+ * up as a script-block or non-click call and FAILS the build.
+ */
+export function gateNoAutoPlay(vueFiles) {
+  const failures = []
+  for (const { path, src } of vueFiles) {
+    const calls = (src.match(/startWalk\s*\(/g) ?? []).length
+    if (!calls) continue
+    const inClick = (src.match(/@click(?:\.[a-z.]+)?="[^"]*startWalk\s*\([^"]*"/g) ?? []).length
+    if (calls !== inClick) {
+      failures.push(`AUTOPLAY: ${path} calls startWalk() outside an @click handler — walks must only ever start from a user tap`)
+    }
+  }
+  return { failures }
+}
+
+/**
+ * Gate 8 — runtime-denylist lockstep: useWalkthrough.ts carries a runtime
+ * mirror of DESTRUCTIVE_ANCHOR_PATTERNS (so a stale pack can't click-advance
+ * a destructive verb at runtime). Every build-time pattern must appear in the
+ * runtime list verbatim, or the mirror has drifted.
+ */
+export function gateRuntimeDenylist(runtimeSrc) {
+  const failures = []
+  const m = runtimeSrc.match(/DESTRUCTIVE_ANCHOR_PATTERNS\s*=\s*\[([^\]]*)\]/)
+  if (!m) {
+    return { failures: ['LOCKSTEP: useWalkthrough.ts no longer declares DESTRUCTIVE_ANCHOR_PATTERNS — the runtime safety mirror is gone'] }
+  }
+  const runtime = new Set([...m[1].matchAll(/\/(?:[^/\\\n]|\\.)+\/[a-z]*/g)].map((x) => x[0]))
+  for (const re of DESTRUCTIVE_ANCHOR_PATTERNS) {
+    if (!runtime.has(re.toString())) {
+      failures.push(`LOCKSTEP: runtime denylist in useWalkthrough.ts is missing ${re} — mirror it verbatim`)
+    }
+  }
+  return { failures }
+}
+
 /** Duplicate walk ids across files. */
 export function gateUniqueIds(walks) {
   const failures = []
@@ -171,5 +211,7 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
   failures.push(...gatePlaces(walks, runtimeSrc).failures)
   failures.push(...gateOffers(walks, rulesJson, evaluateRulesSrc).failures)
   failures.push(...gateSafety(walks).failures)
+  failures.push(...gateNoAutoPlay(vueFiles).failures)
+  failures.push(...gateRuntimeDenylist(runtimeSrc).failures)
   return { failures, warnings }
 }
