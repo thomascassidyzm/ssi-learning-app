@@ -2,6 +2,8 @@
 
 Read-only recon. All claims cite `file:line`. No code was modified.
 
+> **CORRECTION + SUPERSEDED IN PART (same day, VAD phase 1 build).** This inventory's claim that the latency feed into `useAdaptationEngine.recordCycle` was live under SimplePlayer was **wrong**: the VAD timing lifecycle (`startTimingCycle`/`markPhaseTransition`/`endTimingCycle`) was only driven by the legacy `handleCycleEvent` path, which SimplePlayer never routes through — `lastTimingResult` stayed null forever on the live path, so `recordCycle`'s `typeof latency === 'number'` guard never passed and **no latency or envelope evidence was ever produced in real sessions**, even for VAD-consented learners. The phase-1 build (branch `claude/vad-feedback-design`, 2026-07-28) wired the analyzer to `simplePlayer.onPhaseChanged`/`onCycleCompleted`, which both revives the stage-1 latency producer and adds the new append-only `cycle_prosody` event (per voiced cycle: identity + latency + learner-side envelope + target1 audioId as the `course_audio_envelope` join key). §4's "no persisted per-cycle record" conclusion is therefore no longer true as of that build.
+
 ---
 
 ## 0. Executive summary

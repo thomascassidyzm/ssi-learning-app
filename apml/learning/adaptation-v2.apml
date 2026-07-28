@@ -1,8 +1,31 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.5.0 (WP-0 + WP-1 + WP-2 + WP-3 + WP-4(lite) + WP-5 + WP-6 + WP-7a + WP-8)
-# Last updated: 2026-07-14
+# Version: 0.6.0 (WP-0..WP-8 + VAD phase 1: SimplePlayer timing wiring + cycle_prosody)
+# Last updated: 2026-07-28
+#
+# 2026-07-28 (VAD feedback phase 1, founder-ruled):
+# - GROUND-TRUTH CORRECTION to "Producer #1 LIVE" below: the latency producer's
+#   INPUT was dead on the live path until today. startTimingCycle /
+#   markPhaseTransition / endTimingCycle were only driven by the legacy
+#   handleCycleEvent path (CycleOrchestrator), which SimplePlayer never routes
+#   through — so lastTimingResult stayed null, recordCycle's latency guard never
+#   passed, and no latency (or envelope) evidence was ever produced in real
+#   sessions, even for VAD-consented learners. Fixed: simplePlayer.onPhaseChanged
+#   now drives the analyzer lifecycle (start at 'prompt' for speaking cycles —
+#   pauseDuration > 0 + legoId; PROMPT_END/PAUSE/VOICE_1/VOICE_2 marks; a window
+#   left open by a skip is reset at next prompt, never mis-attributed), and
+#   onCycleCompleted closes the window and captures the result.
+# - NEW telemetry event `cycle_prosody` (one per voiced speaking cycle, VAD
+#   consent only) into player_events via usePlayerLog: the append-only
+#   longitudinal row (learner, cycle/lego/seed identity, target1 audioId,
+#   response_latency_ms, learner_duration_ms, duration_delta_ms, quality flags,
+#   learner-side EnvelopeMetadata block, extractorVersion, playbackSpeed).
+#   The learner envelope is computed UNCONDITIONALLY by the VAD (stage2_enabled
+#   gates only the adaptation consumer), so the corpus is envelope-complete from
+#   day one; audioId joins to course_audio_envelope, making the prosody-match
+#   measure computable retroactively once WP-7b populates that table. Rows are
+#   retention-exempt by founder ruling (docs/vad-feedback-design.md §5).
 # Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6
 #              (design authority; packages/player-vue/public/docs/metrics-vision.html
 #              wins on conflict)
