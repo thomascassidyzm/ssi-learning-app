@@ -12,6 +12,9 @@ import {
   gatePlaces,
   gateOffers,
   gateSafety,
+  gateNoAutoPlay,
+  gateRuntimeDenylist,
+  DESTRUCTIVE_ANCHOR_PATTERNS,
   runGates,
 } from '../../../../tools/walkthrough/lib.mjs'
 
@@ -24,7 +27,10 @@ const walk = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-const RUNTIME_SRC = "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']"
+const RUNTIME_SRC = [
+  "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']",
+  `export const DESTRUCTIVE_ANCHOR_PATTERNS = [${DESTRUCTIVE_ANCHOR_PATTERNS.map((re: RegExp) => re.toString()).join(', ')}]`,
+].join('\n')
 const EVAL_SRC = "const walkId = rule.cta.target.startsWith('walk:') ? rule.cta.target.slice(5) : undefined"
 
 describe('validateWalkSchema', () => {
@@ -118,6 +124,40 @@ describe('gateSafety (destructive-verb denylist)', () => {
       const bad = walk({ steps: [{ anchor, say: 'x', advance: { on: 'click' } }] })
       expect(gateSafety([bad]).failures, anchor).toHaveLength(1)
     }
+  })
+})
+
+describe('gateNoAutoPlay (never-auto-play, structurally)', () => {
+  it('passes when every startWalk call sits inside an @click handler', () => {
+    const src = `<script setup>import { startWalk } from '@/walkthrough/useWalkthrough'</script>
+<template><button @click="startWalk(w.id)">Show me</button></template>`
+    expect(gateNoAutoPlay([{ path: 'src/Ok.vue', src }]).failures).toEqual([])
+  })
+  it('FAILS a script-block startWalk call (mounted-hook / autostart shape)', () => {
+    const src = `<script setup>import { startWalk } from '@/walkthrough/useWalkthrough'
+onMounted(() => startWalk('invite-first-teacher'))</script>
+<template><div /></template>`
+    const { failures } = gateNoAutoPlay([{ path: 'src/Bad.vue', src }])
+    expect(failures.some((f: string) => f.includes('AUTOPLAY'))).toBe(true)
+  })
+  it('ignores files that only import without calling', () => {
+    const src = `<script setup>import { walksFor } from '@/walkthrough/useWalkthrough'</script>`
+    expect(gateNoAutoPlay([{ path: 'src/NoCall.vue', src }]).failures).toEqual([])
+  })
+})
+
+describe('gateRuntimeDenylist (runtime safety mirror lockstep)', () => {
+  it('passes when the runtime mirrors every build-time pattern', () => {
+    expect(gateRuntimeDenylist(RUNTIME_SRC).failures).toEqual([])
+  })
+  it('fails when the runtime list drops a pattern', () => {
+    const dropped = RUNTIME_SRC.replace('/delete/i, ', '')
+    const { failures } = gateRuntimeDenylist(dropped)
+    expect(failures.some((f: string) => f.includes('/delete/i'))).toBe(true)
+  })
+  it('fails when the runtime mirror is gone entirely', () => {
+    const { failures } = gateRuntimeDenylist('export const nothing = 1')
+    expect(failures).toHaveLength(1)
   })
 })
 
