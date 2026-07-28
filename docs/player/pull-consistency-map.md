@@ -125,7 +125,9 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 
 - **Where:** `LearningPlayer.vue:5528` + `defineEmits` entry. 878246ff removed the
   container's listener but left the emitter. Dead code that reads like a live event
-  contract. Status: **QUEUED this tranche (removal)**.
+  contract. Status: **REMOVED** (this tranche). The window-level `ssi-play-state`
+  broadcast stays — it serves out-of-tree consumers (InstallBanner, update banner);
+  note it is itself edge-shaped for late attachers, logged for a future look.
 
 ### M8. Session-timer gate — hand-ORed duplicate of the audio signal
 

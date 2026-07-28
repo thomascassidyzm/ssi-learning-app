@@ -179,7 +179,7 @@ function scheduleIdleTask(fn: () => void, timeout = 2000): void {
  */
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
 interface VoiceSettings {
   voiceId?: string
@@ -5524,11 +5524,12 @@ const isAudioPlaying = computed(() =>
   || isPlayingIntroduction.value
   || isPreparingToPlay.value
 )
+// Window-level echo so components outside this tree (InstallBanner, the
+// update-available banner) can gate "never interrupt an active cycle"
+// (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
+// (The @playStateChanged emit that used to live here died with 878246ff —
+// the container pulls isAudioPlaying via the template ref instead.)
 watch(isAudioPlaying, (playing) => {
-  emit('playStateChanged', playing)
-  // Window-level echo so components outside this tree (InstallBanner, the
-  // update-available banner) can gate "never interrupt an active cycle"
-  // (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
   window.dispatchEvent(new CustomEvent('ssi-play-state', { detail: { playing } }))
 })
 
