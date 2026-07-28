@@ -7,6 +7,7 @@ import {
   DEFAULT_CONFIG,
   createVoiceActivityDetector,
   createSpeechTimingAnalyzer,
+  ENVELOPE_EXTRACTOR_CONSTANTS,
   type ProgressStore,
   type SessionStore,
 } from '@ssi/core'
@@ -1617,6 +1618,30 @@ simplePlayer.onPhaseChanged((phase) => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return
 
+  // ── VAD speech-timing lifecycle (SimplePlayer path) ──
+  // Before this wiring (2026-07-28) the analyzer was only driven by the
+  // legacy handleCycleEvent path, so under SimplePlayer no timing cycle
+  // ever ran: lastTimingResult stayed null, and the latency feed into
+  // adaptationEngine.recordCycle (and everything downstream, incl. the
+  // cycle_prosody event) was dead. Speaking cycles only — cycles with no
+  // pause (intro/listening) never open a timing window, and the analyzer
+  // silently ignores phase marks while inactive.
+  if (isAdaptationActive.value) {
+    if (phase === 'prompt') {
+      // A dangling window from a skipped cycle is discarded, never
+      // attributed to this one (mis-attribution would poison the corpus).
+      if (timingAnalyzer.value?.isAnalyzing()) timingAnalyzer.value.reset()
+      if ((cycle.pauseDuration ?? 0) > 0 && cycle.legoId) startTimingCycle()
+    } else if (phase === 'pause') {
+      markPhaseTransition('PROMPT_END')
+      markPhaseTransition('PAUSE')
+    } else if (phase === 'voice1') {
+      markPhaseTransition('VOICE_1')
+    } else if (phase === 'voice2') {
+      markPhaseTransition('VOICE_2')
+    }
+  }
+
   // Audio play — log the URL + role for any phase that actually plays
   // a file. Skips silent phases (pause, or listening cycles with
   // missing prompt/voice2).
@@ -1673,6 +1698,52 @@ simplePlayer.onCycleCompleted((cycle) => {
       learnerId: learnerId.value,
       courseCode: courseCode.value,
       legoIds: firedLegoIds,
+    })
+  }
+
+  // Close the VAD timing window for the cycle that just finished. Under
+  // SimplePlayer this is the ONLY place a window closes with a result, so
+  // cycleTiming is this cycle's own measurement by construction (a window
+  // left open by a skip is reset at the next prompt, never read here).
+  let cycleTiming = null
+  if (isAdaptationActive.value && timingAnalyzer.value?.isAnalyzing()) {
+    cycleTiming = endTimingCycle(cycle.target1DurationMs ?? 2000)
+  }
+
+  // cycle_prosody (VAD phase 1, founder ruling 2026-07-28): the append-only
+  // longitudinal row — learner + phrase identity + timestamp + latency +
+  // learner-side envelope — that nothing else persists (learner_lego_metrics
+  // is a ring of 20 that discards per-cycle identity). audioId is the join
+  // key into course_audio_envelope: once the model-envelope table is
+  // populated (dashboard-repo pipeline, WP-7b), the prosody-match measure is
+  // computable retroactively for every row logged here — independent of the
+  // stage2_enabled adaptation flag. Voiced speaking cycles only. If
+  // player_events ever gains a pruning window, cycle_prosody rows are exempt.
+  if (cycleTiming?.speech_detected && cycle.legoId && cycle.target?.text) {
+    const voice1Match = cycle.target?.voice1Url?.match(/\/api\/audio\/([^?/]+)/)
+    logEvent('cycle_prosody', {
+      cycleId: cycle.id,
+      cycleType: cycle.type ?? null,
+      legoId: cycle.legoId,
+      seedId: cycle.seedId ?? null,
+      audioId: voice1Match ? voice1Match[1] : null,
+      responseLatencyMs: cycleTiming.response_latency_ms,
+      learnerDurationMs: cycleTiming.learner_duration_ms,
+      durationDeltaMs: cycleTiming.duration_delta_ms,
+      startedDuringPrompt: cycleTiming.started_during_prompt,
+      stillSpeakingAtVoice1: cycleTiming.still_speaking_at_voice1,
+      envelope: cycleTiming.envelope
+        ? {
+            durationMs: cycleTiming.envelope.durationMs,
+            peakCount: cycleTiming.envelope.peakCount,
+            peakToMeanRatio: cycleTiming.envelope.peakToMeanRatio,
+            meanPeakWidthMs: cycleTiming.envelope.meanPeakWidthMs,
+            sampleCount: cycleTiming.envelope.sampleCount,
+            weight: cycleTiming.envelope.weight,
+          }
+        : null,
+      extractorVersion: ENVELOPE_EXTRACTOR_CONSTANTS.version,
+      playbackSpeed: cycle.playbackSpeed ?? 1.0,
     })
   }
 
