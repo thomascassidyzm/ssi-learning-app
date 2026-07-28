@@ -119,7 +119,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 ### M6. `bufferingPromptVisible` — watcher mirror of `phase === 'buffering'`
 
 - **Where:** `LearningPlayer.vue:5284-5288`.
-- **Migration:** one-line computed. Status: **QUEUED this tranche**.
+- **Migration:** one-line computed. Status: **MIGRATED** (this tranche).
 
 ### M7. Dead `playStateChanged` emit
 

@@ -5281,11 +5281,11 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
 // delay). On a fast cache resolve the dialog may flash for a few
 // ms before disappearing, but the phrase text is never exposed
 // prematurely, which is the principle that matters.
-const bufferingPromptVisible = ref(false)
+// Derived, not watcher-synced (M6, pull-consistency map): the dialog IS the
+// engine's buffering phase — a mirror ref could linger visible after a
+// missed edge; a computed cannot.
+const bufferingPromptVisible = computed(() => simplePlayer.phase.value === 'buffering')
 const bufferingPromptMessage = 'Just grabbing the next phrase…'
-watch(() => simplePlayer.phase.value, (phase) => {
-  bufferingPromptVisible.value = phase === 'buffering'
-})
 
 // Skip-prep dialog — same 200ms-threshold pattern as bufferingPromptVisible,
 // but at belt/round scope. When the learner taps `>` (round-skip) or `>>`
