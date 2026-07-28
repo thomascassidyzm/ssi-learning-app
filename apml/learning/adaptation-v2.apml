@@ -26,6 +26,17 @@
 #   day one; audioId joins to course_audio_envelope, making the prosody-match
 #   measure computable retroactively once WP-7b populates that table. Rows are
 #   retention-exempt by founder ruling (docs/vad-feedback-design.md §5).
+# - SCHEMA STEER (founder, mid-build 2026-07-28): the event logs INTERMEDIATE
+#   features, not just derived scalars — EnvelopeMetadata now carries an
+#   optional `contour` (smoothed linear envelope, peak-normalized 0-100 ints,
+#   ≤ CONTOUR_MAX_POINTS=128, bucket-averaged beyond; `contourGridMs` is the
+#   effective timebase) so future prosody metrics (DTW-style similarity,
+#   phrase-matched CEFR variance bands) recompute over historical rows.
+#   Additive output only: extraction constants and all existing derived
+#   numbers unchanged, extractor version stays 1. The event also carries
+#   speech_start/end, overlap flags, and peak/average energy dB. WP-7b note:
+#   when the dashboard-repo envelope job runs, it should store the MODEL-side
+#   contour too, or contour-vs-contour similarity has no model operand.
 # Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6
 #              (design authority; packages/player-vue/public/docs/metrics-vision.html
 #              wins on conflict)
