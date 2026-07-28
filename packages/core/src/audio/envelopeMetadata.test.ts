@@ -118,9 +118,46 @@ describe('extractEnvelopeMetadata', () => {
     const result = extractEnvelopeMetadata(samples, 900);
 
     expect(samples).toEqual(snapshot); // caller's array untouched
-    // The result object carries only the 6 derived scalar fields — no sample array.
+    // The result carries only derived fields — never the raw {t, db} sample array.
+    // (contour is a peak-normalized 0-100 int series on the ≥20ms grid, not raw samples.)
     expect(Object.keys(result).sort()).toEqual(
-      ['durationMs', 'meanPeakWidthMs', 'peakCount', 'peakToMeanRatio', 'sampleCount', 'weight'].sort()
+      ['contour', 'contourGridMs', 'durationMs', 'meanPeakWidthMs', 'peakCount', 'peakToMeanRatio', 'sampleCount', 'weight'].sort()
     );
+    expect(result.contour!.every((v) => Number.isInteger(v) && v >= 0 && v <= 100)).toBe(true);
+  });
+
+  it('emits a compact contour: ≤128 points, 0-100 ints, peak-normalized (max value 100)', () => {
+    const samples = gaussianBumps([150, 450, 750], { totalMs: 900 });
+    const result = extractEnvelopeMetadata(samples, 900);
+
+    expect(result.contour).toBeDefined();
+    expect(result.contour!.length).toBeLessThanOrEqual(128);
+    expect(Math.max(...result.contour!)).toBe(100);
+    expect(result.contour!.every((v) => Number.isInteger(v) && v >= 0 && v <= 100)).toBe(true);
+    // Uncapped utterance: contour is on the native grid, one point per grid sample.
+    expect(result.contour!.length).toBe(result.sampleCount);
+    expect(result.contourGridMs).toBeCloseTo(ENVELOPE_EXTRACTOR_CONSTANTS.gridMs, 5);
+  });
+
+  it('caps long utterances at 128 contour points via bucket averaging, widening contourGridMs', () => {
+    const centers = Array.from({ length: 8 }, (_, i) => 300 + i * 500);
+    const samples = gaussianBumps(centers, { totalMs: 4500 });
+    const result = extractEnvelopeMetadata(samples, 4500);
+
+    expect(result.sampleCount).toBeGreaterThan(128);
+    expect(result.contour!.length).toBe(128);
+    expect(result.contourGridMs!).toBeGreaterThan(ENVELOPE_EXTRACTOR_CONSTANTS.gridMs);
+    // Total span is preserved: points × ms-per-point ≈ native span.
+    expect(result.contour!.length * result.contourGridMs!).toBeCloseTo(
+      result.sampleCount * ENVELOPE_EXTRACTOR_CONSTANTS.gridMs, 5
+    );
+  });
+
+  it('omits the contour on a discarded capture (weight 0, too few grid points)', () => {
+    const samples: TimedEnergySample[] = [{ t: 0, db: -30 }, { t: 20, db: -28 }];
+    const result = extractEnvelopeMetadata(samples, 40);
+
+    expect(result.weight).toBe(0);
+    expect(result.contour).toBeUndefined();
   });
 });

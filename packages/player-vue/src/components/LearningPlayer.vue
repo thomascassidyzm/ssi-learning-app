@@ -1730,8 +1730,16 @@ simplePlayer.onCycleCompleted((cycle) => {
       responseLatencyMs: cycleTiming.response_latency_ms,
       learnerDurationMs: cycleTiming.learner_duration_ms,
       durationDeltaMs: cycleTiming.duration_delta_ms,
+      speechStartMs: cycleTiming.speech_start_ms,
+      speechEndMs: cycleTiming.speech_end_ms,
       startedDuringPrompt: cycleTiming.started_during_prompt,
       stillSpeakingAtVoice1: cycleTiming.still_speaking_at_voice1,
+      peakEnergyDb: cycleTiming.peak_energy_db,
+      averageEnergyDb: cycleTiming.average_energy_db,
+      // Intermediate features, not just derived scalars (founder steer
+      // 2026-07-28): the contour is the peak-normalized energy envelope the
+      // scalars are computed FROM, so any future prosody metric can be
+      // recomputed over historical rows. ~500 bytes at the 128-point cap.
       envelope: cycleTiming.envelope
         ? {
             durationMs: cycleTiming.envelope.durationMs,
@@ -1740,6 +1748,8 @@ simplePlayer.onCycleCompleted((cycle) => {
             meanPeakWidthMs: cycleTiming.envelope.meanPeakWidthMs,
             sampleCount: cycleTiming.envelope.sampleCount,
             weight: cycleTiming.envelope.weight,
+            contour: cycleTiming.envelope.contour ?? null,
+            contourGridMs: cycleTiming.envelope.contourGridMs ?? null,
           }
         : null,
       extractorVersion: ENVELOPE_EXTRACTOR_CONSTANTS.version,

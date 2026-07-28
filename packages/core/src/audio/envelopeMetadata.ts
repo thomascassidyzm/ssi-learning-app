@@ -57,6 +57,45 @@ export interface EnvelopeMetadata {
   sampleCount: number;
   /** Extraction confidence — 0 means "discard the cycle" (spec §5.1 step 7). */
   weight: number;
+  /**
+   * Compact prosody contour (founder steer 2026-07-28): the smoothed linear
+   * envelope, peak-normalized to 0–100 integers, ≤ CONTOUR_MAX_POINTS points
+   * (longer utterances are bucket-averaged down). This is the INTERMEDIATE
+   * feature the derived scalars above are computed from — stored so any
+   * future prosody metric (DTW-style contour similarity, variance bands) can
+   * be recomputed over historical cycles without re-capturing. Still only
+   * energy shape on a ≥20ms grid — no spectral/phonetic content, so the
+   * raw-audio-never-leaves-the-device invariant is unchanged.
+   * Absent when the capture was too sparse to grid (weight 0).
+   */
+  contour?: number[];
+  /** Effective ms per contour point (= gridMs when the utterance fits uncapped). */
+  contourGridMs?: number;
+}
+
+/** Telemetry-size cap for the contour: 128 points keeps native 20ms resolution up to ~2.6s. */
+export const CONTOUR_MAX_POINTS = 128;
+
+/** Peak-normalize and bucket-average the smoothed envelope down to ≤ maxPoints 0–100 ints. */
+function compactContour(
+  envelope: Float64Array,
+  gridMs: number,
+  maxPoints: number = CONTOUR_MAX_POINTS,
+): { contour: number[]; contourGridMs: number } {
+  const n = envelope.length;
+  const points = Math.min(n, maxPoints);
+  const contourGridMs = (n * gridMs) / points;
+  const max = Math.max(...envelope);
+  const contour = new Array<number>(points).fill(0);
+  if (max <= 0) return { contour, contourGridMs };
+  for (let p = 0; p < points; p++) {
+    const start = Math.floor((p * n) / points);
+    const end = Math.max(start + 1, Math.floor(((p + 1) * n) / points));
+    let sum = 0;
+    for (let i = start; i < end; i++) sum += envelope[i];
+    contour[p] = Math.round((sum / (end - start) / max) * 100);
+  }
+  return { contour, contourGridMs };
 }
 
 const emptyMetadata = (durationMs: number, sampleCount: number): EnvelopeMetadata => ({
@@ -193,6 +232,8 @@ export function extractEnvelopeMetadata(
   const widths = accepted.map((c) => widthAt(envelope, c.i, envelope[c.i] - c.prominence / 2) * gridMs);
   const meanPeakWidthMs = widths.length ? widths.reduce((a, b) => a + b, 0) / widths.length : 0;
 
+  const { contour, contourGridMs } = compactContour(envelope, gridMs);
+
   return {
     durationMs,
     peakCount: accepted.length,
@@ -200,5 +241,7 @@ export function extractEnvelopeMetadata(
     meanPeakWidthMs,
     sampleCount,
     weight: 1,
+    contour,
+    contourGridMs,
   };
 }
