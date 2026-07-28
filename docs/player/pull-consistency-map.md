@@ -48,7 +48,7 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 - **Migration:** derive: `currentCycle = computed(() => engine cycle when round-based
   playback is live, else legacyCycle ref)`. The legacy path keeps its own ref; the
   computed prefers engine truth whenever `useRoundBasedPlayback` (i.e. always, in the
-  live app). Status: **QUEUED this tranche** (cycleTextSync.test.ts).
+  live app). Status: **MIGRATED** (this tranche; cycleTextSync.test.ts).
 
 ### M2. `currentPhase` — the phase mirror (voice-2 text visibility, voice indicators, gap ring gate)
 
