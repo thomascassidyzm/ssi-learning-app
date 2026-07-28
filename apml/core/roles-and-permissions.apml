@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.2.2"
-  date: "2026-07-16"
+  version: "1.3.0"
+  date: "2026-07-28"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -926,10 +926,51 @@ migration RolesV1:
     - "20260118200005_seed_regions.sql"
 
 # =============================================================================
+# ADMIN DANGER-VERB GUARDS (2026-07-28)
+# =============================================================================
+
+principle DangerVerbGuards:
+  statement: "Every ssi_admin verb with real blast radius carries an inline guard at the point of action, proportionate to reversibility"
+  rationale: |
+    A walkthrough seen once doesn't protect the hundredth use. The guard lives
+    where the commit happens, states the blast radius in plain words, and its
+    friction scales with how reversible the verb is — a confirm step only on
+    genuinely destructive verbs, never on routine ones.
+  map: "docs/admin-danger-verbs.md — the full verb audit + guard per verb"
+
+  guards:
+    role_change:
+      where: "AdminUserDetail role editor (platform_role / educational_role)"
+      guard: "select stages, Apply commits — apply row states the exact change plus a blast-radius sentence when granting ssi_admin/god/govt_admin"
+      was: "committed on @change of the select"
+    signin_link_mint:
+      where: "AdminUserDetail sign-in link rescue"
+      guard: "guard copy BEFORE the mint (signs whoever clicks in AS the user); no confirm — the link is single-use and short-lived"
+    trial_skip:
+      where: "AdminUserDetail trial testing panel"
+      guard: "two-tap arm/confirm inline; reversible via Restore, so no modal"
+    bulk_allowlist_grant:
+      where: "EmailAllowlistForm allowlist"
+      guard: "two-phase submit — review step shows the exact parsed count + emails + 'lifetime, applies immediately to existing accounts' before the commit button"
+    demo_org_purge:
+      where: "DemoOrgsPanel"
+      guard: "ConfirmDeleteModal with real impact counts (fetched via the org's root group); typed-name confirm iff the tree has real recorded activity"
+      was: "native confirm()"
+    onboarding_save:
+      where: "AdminOnboardingView editor"
+      guard: "guard copy at the Save button — save publishes, the send system reads the table live"
+
+# =============================================================================
 # VERSION HISTORY
 # =============================================================================
 
 version_history:
+  v1.3.0:
+    date: "2026-07-28"
+    author: "Tom Cassidy & Claude"
+    changes:
+      - "Added DangerVerbGuards — inline guards + confirm steps on the ssi_admin danger verbs (role change staged behind Apply, bulk allowlist review step, purge impact modal, trial-skip arm/confirm, sign-in-link pre-mint copy, save-is-publish copy)"
+
   v1.2.1:
     date: "2026-05-28"
     author: "Tom Cassidy & Claude"
