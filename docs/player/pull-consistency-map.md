@@ -81,12 +81,22 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
   position display; aliases `effectiveRoundIndex`/`effectiveItemInRound`.
 - **Nuance:** the resume-path manual writes happen BEFORE the engine is initialized —
   they pre-seed the splash/resting display. A blind computed would read 0 until init.
-- **Migration:** split the two roles: a `preEngineResumeIndex` ref written only by the
-  resume paths, and `currentRoundIndex = computed(() => engine initialized ?
-  simplePlayer.roundIndex : preEngineResumeIndex)`. Same for the cycle index.
-  Status: **DEFERRED** — ~20 write sites across the resume labyrinth; needs its own
-  focused pass with the resume matrix (fresh/localStorage/DB/deep-link/preview ×
-  instant-playback/legacy) exercised. Highest-value next step after this tranche.
+- **Migration:** split the two roles: `preEngineRoundIndex`/`preEngineItemInRound`
+  refs written only by the pre-engine paths (legacy resume labyrinth, course-change
+  reset, preview seeding, legacy useCyclePlayback advancement — all of which run with
+  no engine), and `currentRoundIndex`/`currentItemInRound` = computeds preferring
+  engine truth once `simplePlayer.isInitialized` (new composable signal). Preview
+  seeding routes through `jumpToRound` when the engine already exists — post-init,
+  engine navigation is the only position writer (read-only computeds make scattered
+  writers a compile error). The roundIndex watcher survives as an effect bridge only
+  (persist + prefetch); the cycleIndex watcher is deleted. Two deliberate behaviour
+  notes: (a) savePositionToLocalStorage's itemInRound fallback now reads the engine
+  live — the mirror-lag it compensated for (Tom 2026-05-30) is structurally gone;
+  (b) during a course switch with a live old engine, the derived position shows the
+  old engine's index (not a reset 0) until the new course initializes — covered by
+  the 'awakening' loading stage, and engine truth is the honest display anyway.
+  Status: **MIGRATED** (tranche 4; roundPositionSync.test.ts). Dead
+  `effectiveRoundIndex`/`effectiveItemInRound` aliases deleted with it.
 
 ### M4. `roundsRef` — the QUEUE mirror with re-implemented engine algorithms
 

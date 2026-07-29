@@ -483,6 +483,11 @@ PULL_CONSISTENT_STATE:
     definition: "isListeningMode / isPronunciationMode = computeds over showListeningOverlay / showPronunciationOverlay, exposed via defineExpose; PlayerContainer pulls them via the template ref. The @listeningModeChanged / @pronunciationModeChanged event mirrors (7 emit sites) are deleted."
   buffering_prompt:
     definition: "bufferingPromptVisible = computed(() => simplePlayer.phase === 'buffering') — was a watcher-synced ref."
+  position:
+    definition: "currentRoundIndex / currentItemInRound = computeds: simplePlayer.roundIndex/cycleIndex once simplePlayer.isInitialized (new composable signal, set by initialize()), else preEngineRoundIndex/preEngineItemInRound — the single pre-engine resume intent. Writers of the intent: the legacy resume labyrinth (localStorage/DB/fresh-start/generate paths), course-change reset, preview seeding (which routes through jumpToRound instead when the engine already exists), and the legacy useCyclePlayback advancement (authoritative only on that engine-less path). The old writable mirrors (engine watchers + ~20 manual assignments) are deleted; post-init position writes are a compile error — position moves only via engine navigation (jumpToRound/jumpToSeed/jumpToLegoId/stepCycle)."
+    consumers: "currentRound (loadedRounds cross-index), sessionProgress, splash/resting position display, rolling-buffer cursors, session-timer/expansion watchers, debug overlay."
+    side_effects: "The simplePlayer.roundIndex watcher survives as an effect bridge only (DB cursor persist + instant-playback cursor push + tier-3/lookahead prefetch triggers); the cycleIndex mirror watcher is deleted outright. savePositionToLocalStorage's itemInRound fallback now reads the engine live (the mirror-lag it compensated for is structurally gone)."
+    regression_test: "packages/player-vue/src/playback/roundPositionSync.test.ts (pre-engine intent read, intent consumed at init, late-attach pull, post-init wedge-write inertness, same-tick jump burst, boundary walk)."
 
 ## ============================================================================
 ## CONSTELLATION NETWORK INTEGRATION

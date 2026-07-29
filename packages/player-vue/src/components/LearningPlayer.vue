@@ -1339,10 +1339,19 @@ const visualLegoIdForRound = (round: any): string | null => {
   return lastMainLoopLegoId.value || round.legoId || null
 }
 
-// Expose reactive state for UI - writable refs that sync with simplePlayer
-// We need writable refs because legacy code assigns to these directly
-const currentRoundIndex = ref(0)
-const currentItemInRound = ref(0)
+// M3 (pull-consistency map): position is DERIVED from the engine once it
+// exists — never a writable mirror synced by watchers. Before engine init the
+// position lives in a single pre-engine resume intent, written only by the
+// resume/preview/reset paths and the legacy useCyclePlayback system (which
+// never initializes the engine, so its manual advancement stays authoritative
+// on that path). After init, position derives from the engine only; the
+// read-only computeds make a scattered post-init writer a compile error.
+const preEngineRoundIndex = ref(0)
+const preEngineItemInRound = ref(0)
+const currentRoundIndex = computed(() =>
+  simplePlayer.isInitialized.value ? simplePlayer.roundIndex.value : preEngineRoundIndex.value)
+const currentItemInRound = computed(() =>
+  simplePlayer.isInitialized.value ? simplePlayer.cycleIndex.value : preEngineItemInRound.value)
 // isPlaying = PULL-CONSISTENT derivation of the engine's own state — never a
 // writable mirror. The old design (a ref synced by an edge-triggered watcher
 // PLUS ~7 scattered manual assignments) could drift from the audio whenever a
@@ -1421,9 +1430,9 @@ watch(
   { immediate: true }
 )
 
-// Sync state with simplePlayer
+// Effect bridge on the engine's round advance (position itself is derived
+// above — this watcher only drives imperative sinks: persistence + prefetch).
 watch(() => simplePlayer.roundIndex.value, (idx) => {
-  currentRoundIndex.value = idx
   // Persist the live cursor on every round advance, at cycle 0 (the
   // "position, not completion" model). The positionInitialized guard is
   // what prevents this from firing during the resume landing: the bootstrap
@@ -1511,15 +1520,13 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
     }
   }
 })
-watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
-// (isPlaying is a computed deriving directly from simplePlayer — the old
-// edge-triggered mirror watcher that lived here is gone by design.)
+// (isPlaying, currentRoundIndex and currentItemInRound are computeds deriving
+// directly from simplePlayer — the old edge-triggered mirror watchers that
+// lived here are gone by design.)
 
 // Backwards compatibility aliases
 const effectiveRounds = loadedRounds
 const cachedRounds = loadedRounds  // Legacy alias
-const effectiveRoundIndex = currentRoundIndex
-const effectiveItemInRound = currentItemInRound
 
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
@@ -6988,13 +6995,15 @@ const handleCycleEvent = async (event) => {
       // ROUND-BASED PROGRESSION
       // ============================================
       if (useRoundBasedPlayback.value) {
-        // Advance within current round
-        currentItemInRound.value++
+        // Advance within current round. Legacy useCyclePlayback path only:
+        // the engine is never initialized here, so the pre-engine refs ARE
+        // the position store and the derived computeds read them through.
+        preEngineItemInRound.value++
 
         // Check if round is complete
-        if (currentItemInRound.value >= currentRound.value.items.length) {
+        if (preEngineItemInRound.value >= currentRound.value.items.length) {
           const completedLegoId = currentRound.value.legoId
-          const completedRoundIndex = currentRoundIndex.value
+          const completedRoundIndex = preEngineRoundIndex.value
           console.log('[LearningPlayer] Round', completedRoundIndex, 'complete! LEGO:', completedLegoId)
 
           // Maintain the main-loop high-water for cursor substitution in
@@ -7013,15 +7022,15 @@ const handleCycleEvent = async (event) => {
           handleRoundBoundary(completedRoundIndex, completedLegoId)
 
           // Move to next round
-          currentRoundIndex.value++
-          currentItemInRound.value = 0
+          preEngineRoundIndex.value++
+          preEngineItemInRound.value = 0
 
           // The course never ends. If we've somehow run past the tail of
           // cachedRounds (proactive expansion at line 894 should have kept
           // us ahead), do an emergency expansion and re-check. Only fall
           // back to the summary screen if expansion genuinely can't
           // produce any more content (no LEGOs in the course at all).
-          if (currentRoundIndex.value >= cachedRounds.value.length) {
+          if (preEngineRoundIndex.value >= cachedRounds.value.length) {
             if (offlinePlaybackActive()) {
               // Offline can't expandScript (no network). Loop the cached
               // content instead so playback never ends. Tom 2026-05-25.
@@ -7031,14 +7040,14 @@ const handleCycleEvent = async (event) => {
               console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
               await expandScript()
             }
-            if (currentRoundIndex.value >= cachedRounds.value.length) {
+            if (preEngineRoundIndex.value >= cachedRounds.value.length) {
               console.error('[LearningPlayer] No more content — showing summary as last resort')
               showPausedSummary()
               return
             }
           }
 
-          console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
+          console.log('[LearningPlayer] Starting round', preEngineRoundIndex.value, 'LEGO:', cachedRounds.value[preEngineRoundIndex.value].legoId)
           // Round-boundary audio prefetch used to run a legacy
           // prefetchRoundAudio() helper here; streaming-first now
           // handles it via the per-cycle resolver (lands the playing
@@ -7047,7 +7056,7 @@ const handleCycleEvent = async (event) => {
         }
 
         // Get next script item and convert to playable
-        const nextScriptItem = currentRound.value?.items[currentItemInRound.value]
+        const nextScriptItem = currentRound.value?.items[preEngineItemInRound.value]
         if (!nextScriptItem) {
           console.warn('[LearningPlayer] No next script item found')
           return
@@ -7111,9 +7120,9 @@ const handleCycleEvent = async (event) => {
                 }
 
                 // Advance to next item in round
-                currentItemInRound.value++
+                preEngineItemInRound.value++
                 // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
-                const followingItem = currentRound.value?.items[currentItemInRound.value]
+                const followingItem = currentRound.value?.items[preEngineItemInRound.value]
                 if (followingItem && isPlaying.value) {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
                   if (followingPlayable) {
@@ -12790,16 +12799,18 @@ onMounted(async () => {
               const resumeRoundIndex = cachedScript.rounds.findIndex(r => r.legoId === localPosition.legoId)
 
               if (resumeRoundIndex >= 0) {
-                currentRoundIndex.value = resumeRoundIndex
-                currentItemInRound.value = localPosition.itemInRound ?? 0
+                // Pre-engine resume intent (M3): the engine doesn't exist on
+                // this legacy path, so the intent refs carry the position.
+                preEngineRoundIndex.value = resumeRoundIndex
+                preEngineItemInRound.value = localPosition.itemInRound ?? 0
                 // Clamp item index to valid range
                 const maxItem = cachedScript.rounds[resumeRoundIndex]?.items?.length ?? 1
-                if (currentItemInRound.value >= maxItem) {
-                  currentItemInRound.value = 0
+                if (preEngineItemInRound.value >= maxItem) {
+                  preEngineItemInRound.value = 0
                 }
 
                 // Also set currentPlayableItem so splash screen shows correct text
-                const resumeScriptItem = cachedScript.rounds[resumeRoundIndex]?.items?.[currentItemInRound.value]
+                const resumeScriptItem = cachedScript.rounds[resumeRoundIndex]?.items?.[preEngineItemInRound.value]
                 if (resumeScriptItem) {
                   const playable = await scriptItemToPlayableItem(resumeScriptItem)
                   if (playable) {
@@ -12807,7 +12818,7 @@ onMounted(async () => {
                   }
                 }
 
-                console.log('[LearningPlayer] Resumed at LEGO', localPosition.legoId, '→ round', resumeRoundIndex, 'item', currentItemInRound.value)
+                console.log('[LearningPlayer] Resumed at LEGO', localPosition.legoId, '→ round', resumeRoundIndex, 'item', preEngineItemInRound.value)
                 resumed = true
               } else {
                 console.log('[LearningPlayer] Saved LEGO', localPosition.legoId, 'not in cached rounds, will regenerate')
@@ -12830,8 +12841,8 @@ onMounted(async () => {
                   // round-restart and correct for any real return.
                   const resumeIndex = savedProgress.lastCompletedRoundIndex
                   if (resumeIndex < cachedScript.rounds.length) {
-                    currentRoundIndex.value = resumeIndex
-                    currentItemInRound.value = 0 // round start; per-cycle precision is the main path's job
+                    preEngineRoundIndex.value = resumeIndex
+                    preEngineItemInRound.value = 0 // round start; per-cycle precision is the main path's job
 
                     // Also set currentPlayableItem so splash screen shows correct text
                     const resumeScriptItem = cachedScript.rounds[resumeIndex]?.items?.[0]
@@ -12846,7 +12857,7 @@ onMounted(async () => {
                     resumed = true
                   } else {
                     console.log('[LearningPlayer] All rounds completed, starting fresh')
-                    currentRoundIndex.value = 0
+                    preEngineRoundIndex.value = 0
                   }
                 }
               } catch (err) {
@@ -12858,8 +12869,8 @@ onMounted(async () => {
             // This is the absolute fallback - player must ALWAYS have somewhere to go
             if (!resumed && cachedScript.rounds.length > 0) {
               // Explicitly set indices to beginning
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
 
               const firstItem = cachedScript.rounds[0]?.items?.[0]
               if (firstItem) {
@@ -12874,8 +12885,8 @@ onMounted(async () => {
             // Safety check: if we still have no playable item but have rounds, force set one
             if (!currentPlayableItem.value && cachedScript.rounds.length > 0) {
               console.warn('[LearningPlayer] Safety fallback: forcing position to round 0')
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
               const firstItem = cachedScript.rounds[0]?.items?.[0]
               if (firstItem) {
                 const playable = await scriptItemToPlayableItem(firstItem)
@@ -12958,20 +12969,20 @@ onMounted(async () => {
             if (savedPosition?.legoId) {
               const resumeRoundIndex = simpleRounds.findIndex(r => r.legoId === savedPosition.legoId)
               if (resumeRoundIndex >= 0) {
-                currentRoundIndex.value = resumeRoundIndex
-                currentItemInRound.value = savedPosition.itemInRound ?? 0
+                preEngineRoundIndex.value = resumeRoundIndex
+                preEngineItemInRound.value = savedPosition.itemInRound ?? 0
                 const maxItem = simpleRounds[resumeRoundIndex]?.cycles?.length ?? 1
-                if (currentItemInRound.value >= maxItem) {
-                  currentItemInRound.value = 0
+                if (preEngineItemInRound.value >= maxItem) {
+                  preEngineItemInRound.value = 0
                 }
                 console.log('[LearningPlayer] Resumed at LEGO', savedPosition.legoId, '→ round', resumeRoundIndex)
               } else {
-                currentRoundIndex.value = 0
-                currentItemInRound.value = 0
+                preEngineRoundIndex.value = 0
+                preEngineItemInRound.value = 0
               }
             } else {
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
             }
 
             positionInitialized.value = true
@@ -13132,9 +13143,16 @@ onMounted(async () => {
       // Cap to actual available rounds
       targetIndex = Math.min(targetIndex, cachedRounds.value.length - 1)
 
-      // Set playback position so hitting play continues from here
-      currentRoundIndex.value = targetIndex
-      currentItemInRound.value = 0
+      // Set playback position so hitting play continues from here. If the
+      // engine already exists, the position intent goes THROUGH it (jumpToRound
+      // is the one sanctioned post-init position writer); otherwise it's the
+      // pre-engine intent the derived position reads until init.
+      if (simplePlayer.isInitialized.value) {
+        simplePlayer.jumpToRound(targetIndex, 0)
+      } else {
+        preEngineRoundIndex.value = targetIndex
+        preEngineItemInRound.value = 0
+      }
 
       // Update belt to match preview position
       updateBeltForPosition(targetIndex)
@@ -13372,9 +13390,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     stopCycle()
   }
 
-  // 2. Reset all state
-  currentRoundIndex.value = 0
-  currentItemInRound.value = 0
+  // 2. Reset all state (pre-engine intent back to 0 for the new course; the
+  // new course's init path re-seeds the engine, and the 'awakening' loading
+  // stage covers the swap window)
+  preEngineRoundIndex.value = 0
+  preEngineItemInRound.value = 0
   cachedRounds.value = []
   // Drop the previous course's LIVE boundary — it's a bare number with no
   // course stamp, so a leftover value would mis-bound the new course until its
