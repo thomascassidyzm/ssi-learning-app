@@ -311,5 +311,9 @@ founder-confirmed in July. Stages 3–5 are independent and can run in parallel 
 
 *Decisions already confirmed and honoured: D1 seats = 6 including the payer; D2 annual £250 at
 launch (Tom, 2026-07-10). Open for Tom in this pack, each answerable in a word:
-§3 visibility depth (A / B / C — recommend **B**);
-§2.1 past_due grace — 7 days for both products, or keep today's cut-at-flip (recommend **grace**).*
+§3 visibility depth (A / B / C — recommend **B**).*
+
+*§2.1 past_due grace — **DECIDED (Tom, 2026-07-29): 7-day grace, one rule for both products, with
+automatic in-app reminders to the payer during the grace window.** Stage 5 scope updated accordingly:
+the grace implementation includes the reminder surface (payer sees "payment failed — fix by <date>"
+in-app; members see nothing until access actually pauses).*
