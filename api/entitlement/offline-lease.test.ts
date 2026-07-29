@@ -45,6 +45,7 @@ function makeChainable(table: string) {
     update: (o: unknown) => { calls.push(['update', o]); recordWrite(table, 'update', o); return builder },
     upsert: (o: unknown, opts: unknown) => { calls.push(['upsert', o, opts]); recordWrite(table, 'upsert', o); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
       if (respond) { const r = respond(calls); if (r !== undefined) return r }
