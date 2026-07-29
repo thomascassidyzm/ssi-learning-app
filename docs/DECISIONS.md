@@ -627,3 +627,33 @@ cost for every other user of the app; no new server surface, no third-party runt
   whole point of the flow (no manual URL retyping onto a kid's device).
 **Search width:** visible-options.
 **Decided by:** agent
+
+## 2026-07-29 — deploy sentinel: local cron watcher, version.json + GitHub deployments as deploy truth
+**Move:** Stage-1 post-deploy fallout watcher (`tools/deploy-sentinel/sentinel.mjs`) runs on
+watson-1 via user cron every 3 min. New main SHA (via `git ls-remote`) opens a 2h window: deploy
+confirmation = prod `/version.json` buildNumber reaching the pushed short SHA, cross-checked
+against the GitHub deployments API (`gh api …?environment=Production`) so a Vercel usage-cap
+block/build failure is reported DISTINCTLY ("deploy never went live") from app breakage.
+Telemetry = `player_events env=production` window volume vs same-clock-window median of the 4
+prior weeks (crater < 35% of median, judged only after ≥60 min and median ≥50 events). Probes =
+5 cheap GETs (shell, sw-config, courses, audio proxy, player-events OPTIONS), alert after 2
+consecutive failing ticks. Clean window → one done-board card; fallout → one needs-you card per
+failure class (needs-you pushes to devices).
+**Better:** Tom KNOWS a deploy is clean within 2h instead of waiting for user complaints; the
+Vercel-block failure mode (recently real) is a named, distinct alert.
+**Simpler:** zero app changes — `/version.json` already existed (vite stamps it for the update
+banner), `gh` is already authed, the boards already exist. One dependency-free Node file + a
+crontab line; no webhooks, no Vercel API token needed.
+**Cheaper (total):** a few HTTP GETs every 3 min; no new server surface, no new tables.
+**Searched & rejected:**
+- Vercel API polling with a token — rejected: no token exists on this VM, and the GitHub
+  deployments API (already authed via gh) carries the same production deploy state for free.
+- GitHub webhook → local listener — rejected: standing infra + exposure for what a 3-min poll
+  of `ls-remote` does adequately; deploy windows are 2h, 3-min latency is noise.
+- Writing a tagged synthetic event to prove player-events ingest — rejected: an OPTIONS probe
+  proves reachability without polluting production telemetry.
+**Search width:** visible-options.
+**Decided by:** agent (per brief's taste-safe defaults; thresholds flagged in report).
+**Open:** telemetry leg is INACTIVE until a Supabase service-role key lands on this VM
+(`~/.ssi-sentinel.env`) — the only keys present are anon-role, which RLS correctly blocks from
+player_events; worked around nothing, reported plainly.
