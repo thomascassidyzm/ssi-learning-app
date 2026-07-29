@@ -188,6 +188,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - Student £10/mo (via tutor): `pri_01kqq89qwnsd3qwxvyybsc6ey1`  → VITE_PADDLE_STUDENT_PRICE_MONTHLY
 - Student £5/mo (via school): `pri_01kv5wrc5cz17pwgeva4zk8s0r`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY
 - School platform = same £15/£150 Premium price at quantity>1 (no separate product). Confirm annual price allows qty>1.
+- SSi Family (product `pro_01kypr214jhj3nwmn1bz8h1q4s`, founder-created 07-29) MONTHLY £25: `pri_01kypr3nmr37sqaq9sb50m3xn2` → VITE_PADDLE_FAMILY_PRICE_MONTHLY; ANNUAL £250/yr: `pri_01kyprde1jk6jfqpc3an10kmqg` → VITE_PADDLE_FAMILY_PRICE_ANNUAL. Code fully wired (paddle.ts client + webhook PRICE_CATALOG reads the same two vars server-side) — setting BOTH vars in Vercel env IS the billing go-live switch; until then the paywall Family option hides and the webhook rejects family_plan cleanly.
 
 ## 📌 Paddle STUDENT price IDs (SSi Student product) — added annual 2026-06-17
 - Tutor student MONTHLY £10: `pri_01kqq89qwnsd3qwxvyybsc6ey1`  → VITE_PADDLE_STUDENT_PRICE_MONTHLY
