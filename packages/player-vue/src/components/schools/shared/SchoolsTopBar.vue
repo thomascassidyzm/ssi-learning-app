@@ -6,7 +6,15 @@ import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassConte
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
 
-type NavTab = { label: string; to: string; routeName?: string }
+type NavTab = {
+  label: string
+  to: string
+  routeName?: string
+  /** When set, the tab is active only if the route's ?lens matches too —
+   * distinguishes the Schools tab (node home, schools lens) from plain
+   * node-home navigation. */
+  lens?: string
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -28,6 +36,23 @@ const tabs = computed<NavTab[]>(() => {
   // under the pointer.
   if (!currentUser.value) return []
   if (isGovtAdmin.value) {
+    // THE VIEW (docs/THE-VIEW.md) is the ONE frame for hierarchy leaders —
+    // the tabs point at the node surface (node home with the schools lens +
+    // node insights), never the retired pre-hierarchy flat views. The old
+    // tab set landed a group leader on the flat All-schools list and a
+    // teacher-scoped Analytics that showed 'No classes yet' to a leader
+    // whose dashboard showed 23 practising classes (founder-found on prod,
+    // 2026-07-29).
+    const groupId = currentUser.value.group_id
+    if (groupId) {
+      return [
+        { label: 'Schools',  to: `/schools/org/${groupId}?lens=schools`, routeName: 'schools-node-home', lens: 'schools' },
+        { label: 'Insights', to: `/schools/org/${groupId}/insights`, routeName: 'schools-node-insights' },
+      ]
+    }
+    // Legacy leaders with no group (region_code-only govt_admin rows) have
+    // no node to scope to — they keep the flat views until migrated (same
+    // fallback DashboardView documents for its node-home redirect).
     return [
       { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },
       { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
@@ -63,7 +88,10 @@ const tabs = computed<NavTab[]>(() => {
 })
 
 function isActive(tab: NavTab): boolean {
-  if (tab.routeName && route.name === tab.routeName) return true
+  if (tab.routeName && route.name === tab.routeName) {
+    if (tab.lens !== undefined) return route.query.lens === tab.lens
+    return true
+  }
   // /schools/classes/:id should keep "Classes" tab highlighted
   if (tab.to === '/schools/classes' && route.path.startsWith('/schools/classes')) return true
   return false
