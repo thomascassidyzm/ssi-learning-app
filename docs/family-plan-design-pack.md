@@ -311,7 +311,12 @@ founder-confirmed in July. Stages 3–5 are independent and can run in parallel 
 
 *Decisions already confirmed and honoured: D1 seats = 6 including the payer; D2 annual £250 at
 launch (Tom, 2026-07-10). Open for Tom in this pack, each answerable in a word:
-§3 visibility depth (A / B / C — recommend **B**).*
+§3 visibility depth — **DECIDED (Tom, 2026-07-29): full dashboard.** The A/B/C ladder is superseded:
+"might be worth enabling the whole dashboard thing as it's a learning app and not a Spotify-type
+invasion-of-taste app." The payer sees each member's whole progress dashboard — the same shape as a
+teacher viewing a student. Implementation should reuse the existing schools per-student progress views
+(the `/schools/student-progress` machinery) surfaced through family endpoints, not a new parallel
+visibility layer.*
 
 *§2.1 past_due grace — **DECIDED (Tom, 2026-07-29): 7-day grace, one rule for both products, with
 automatic in-app reminders to the payer during the grace window.** Stage 5 scope updated accordingly:
