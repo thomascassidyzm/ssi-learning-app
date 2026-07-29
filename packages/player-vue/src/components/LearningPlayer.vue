@@ -5948,20 +5948,100 @@ const warmFirstKnownAudio = async (timeoutMs = 2000) => {
   }
 }
 
-// Typewriter effect for loading message
+// Typewriter effect for loading message.
+//
+// Two hazards this guards against (founder report 2026-07-29: "it gets to
+// something like 'getting your course da' and stalls with the word 'data'
+// incomplete, and then goes to 'Ready when you are'"):
+//
+//  1. OVERLAPPING LOOPS — a second typeLoadingMessage() call (course switch,
+//     beginBlockingRegenNotice) used to leave the first recursive timeout
+//     running, so two loops appended into the same ref and garbled the line.
+//     A pending timeout is now cleared, and a generation token retires any
+//     callback that survives the clear.
+//  2. MID-WORD CUT AT READY — the awakening <p> is v-if'd on isAwakening, so
+//     the instant loadingStage flips to 'ready' the partially-typed line is
+//     replaced by the resting copy. SWR-warm loads reach ready in ~800ms while
+//     a "Getting your Greek course ready..." line needs ~1.4s, so the cut
+//     landed mid-word almost every time. finishLoadingTypewriterFast() below
+//     completes the line before the flip.
 let typewriterTimeout = null
+let typewriterGeneration = 0
+// The message currently being typed + how far in we are, so the fast-finish
+// can complete it rather than guess.
+let typewriterMessage = ''
+let typewriterCharIndex = 0
+
+const stopLoadingTypewriter = () => {
+  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
+  typewriterGeneration++
+}
+
 const typeLoadingMessage = (message) => {
+  stopLoadingTypewriter()
+  const generation = typewriterGeneration
   currentLoadingMessage.value = ''
-  let charIndex = 0
+  typewriterMessage = message
+  typewriterCharIndex = 0
 
   const typeChar = () => {
-    if (charIndex < message.length) {
-      currentLoadingMessage.value += message[charIndex]
-      charIndex++
+    if (generation !== typewriterGeneration) return
+    if (typewriterCharIndex < message.length) {
+      currentLoadingMessage.value += message[typewriterCharIndex]
+      typewriterCharIndex++
       typewriterTimeout = setTimeout(typeChar, 40)
+    } else {
+      typewriterTimeout = null
     }
   }
   typeChar()
+}
+
+// Graceful end for the awakening line: if it's still mid-type when the course
+// is ready, finish it at an accelerated rate (never a mid-word freeze), then
+// hold a short beat so the completed line is readable. Bounded so a fast load
+// never pays more than ~FAST_FINISH_CAP_MS + HOLD_MS: if more characters remain
+// than the cap can type, the rest lands in one go rather than stretching ready.
+const TYPEWRITER_FAST_CHAR_MS = 12
+const TYPEWRITER_FAST_FINISH_CAP_MS = 240
+const TYPEWRITER_FINISH_HOLD_MS = 220
+const finishLoadingTypewriterFast = async () => {
+  const remaining = typewriterMessage.length - typewriterCharIndex
+  if (remaining <= 0) { stopLoadingTypewriter(); return }
+
+  stopLoadingTypewriter()
+  const generation = typewriterGeneration
+  const message = typewriterMessage
+  const budgetChars = Math.floor(TYPEWRITER_FAST_FINISH_CAP_MS / TYPEWRITER_FAST_CHAR_MS)
+
+  if (remaining > budgetChars) {
+    // Too much left to type even fast — complete it instantly.
+    currentLoadingMessage.value = message
+    typewriterCharIndex = message.length
+  } else {
+    await new Promise<void>((resolve) => {
+      const typeChar = () => {
+        if (generation !== typewriterGeneration) { resolve(); return }
+        if (typewriterCharIndex < message.length) {
+          currentLoadingMessage.value += message[typewriterCharIndex]
+          typewriterCharIndex++
+          typewriterTimeout = setTimeout(typeChar, TYPEWRITER_FAST_CHAR_MS)
+        } else {
+          typewriterTimeout = null
+          resolve()
+        }
+      }
+      typewriterTimeout = setTimeout(typeChar, TYPEWRITER_FAST_CHAR_MS)
+    })
+  }
+  if (generation !== typewriterGeneration) return
+  await new Promise((r) => setTimeout(r, TYPEWRITER_FINISH_HOLD_MS))
+}
+
+// The one way to leave the awakening screen: never cut the line mid-word.
+const goLoadingStageReady = async () => {
+  await finishLoadingTypewriterFast()
+  setLoadingStage('ready')
 }
 
 // Introduction playback state
@@ -13048,7 +13128,7 @@ onMounted(async () => {
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
   void warmFirstKnownAudio()
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
-  setLoadingStage('ready')
+  await goLoadingStageReady()
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -13275,7 +13355,7 @@ onUnmounted(() => {
   saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
-  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
+  stopLoadingTypewriter() // also retires any in-flight fast-finish generation
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
@@ -13485,7 +13565,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // awaited — blocking ready on it added ~600ms). Head-miss streams the first
   // clip if the learner taps before it's warm.
   void warmFirstKnownAudio()
-  setLoadingStage('ready')
+  await goLoadingStageReady()
   isInitialized.value = true
   maybeShowCourseUpdatedNotice()
 
