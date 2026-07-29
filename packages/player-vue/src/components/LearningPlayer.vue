@@ -6141,11 +6141,11 @@ const daysSinceLastPractice = computed(() => {
 })
 const restingWelcomeMessage = computed(() => {
   const days = daysSinceLastPractice.value
-  if (days === null) return t('resting.readyWhenYouAre', 'ready when you are')
-  if (days >= 30) return t('resting.returnAfter30', "welcome back. your brain remembers more than you think")
-  if (days >= 7) return t('resting.returnAfter7', "deep consolidation complete. you might surprise yourself")
-  if (days >= 3) return t('resting.returnAfter3', "your brain has been consolidating. let's see what stuck!")
-  return t('resting.readyWhenYouAre', 'ready when you are')
+  if (days === null) return t('resting.readyWhenYouAre', 'Ready when you are')
+  if (days >= 30) return t('resting.returnAfter30', "Welcome back. Your brain remembers more than you think.")
+  if (days >= 7) return t('resting.returnAfter7', "Deep consolidation complete. You might surprise yourself.")
+  if (days >= 3) return t('resting.returnAfter3', "Your brain has been consolidating. Let's see what stuck!")
+  return t('resting.readyWhenYouAre', 'Ready when you are')
 })
 
 // Smooth ring progress (0-100) - continuous animation
