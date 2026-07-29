@@ -488,6 +488,10 @@ PULL_CONSISTENT_STATE:
     consumers: "currentRound (loadedRounds cross-index), sessionProgress, splash/resting position display, rolling-buffer cursors, session-timer/expansion watchers, debug overlay."
     side_effects: "The simplePlayer.roundIndex watcher survives as an effect bridge only (DB cursor persist + instant-playback cursor push + tier-3/lookahead prefetch triggers); the cycleIndex mirror watcher is deleted outright. savePositionToLocalStorage's itemInRound fallback now reads the engine live (the mirror-lag it compensated for is structurally gone)."
     regression_test: "packages/player-vue/src/playback/roundPositionSync.test.ts (pre-engine intent read, intent consumed at init, late-attach pull, post-init wedge-write inertness, same-tick jump burst, boundary walk)."
+  belt_position:
+    definition: "beltAnchorSeed = computed: INF-PLAY active ? beltFreezeSeed : seed(visualLegoIdForRound(simplePlayer.currentRound)); ONE immediate watcher bridges it into useSharedBeltProgress.setPlayingPosition (cross-surface sink). The INF-PLAY belt freeze is an explicit intent: enterInfPlay / advanceInfPlayRound / infplay-back / enterInfPlayFromCache / both INF-PLAY resume paths write beltFreezeSeed = course-end seed; shape-only INF PLAY with no anchor (stripped rounds, guests) holds the last belt (null anchor writes nothing); exiting INF PLAY clears the freeze. The ~15 scattered setPlayingPosition pushes (incl. deriveBeltFromLandedRound + its 5 callers) are deleted. Pre-engine writers kept by design: the boot-time splash seed and updateBeltForPosition (engine-guarded: legacy boundaries + pre-engine preview only)."
+    consumers: "playingBelt / playingBeltProgress / courseProgress in useBeltProgress, belt pill colour + journey bar (beltCssVars keeps its own INF-PLAY red lock)."
+    regression_test: "packages/player-vue/src/playback/beltPositionSync.test.ts (main-loop follow through jump interleaves, INF-PLAY freeze no-bounce, guest/shape-only hold, exit unfreeze, late-attach immediate delivery, engine-agreement walk)."
 
 ## ============================================================================
 ## CONSTELLATION NETWORK INTEGRATION

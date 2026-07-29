@@ -155,11 +155,26 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 - **Risk:** medium — a missed push shows a stale belt colour/readout; self-heals on
   next round completion. Mitigated already: `deriveBeltFromLandedRound` deliberately
   reads `simplePlayer.currentRound` (engine truth) not the loadedRounds mirror.
-- **Migration:** derive playing position from `simplePlayer.currentRound` +
-  `visualLegoIdForRound` (the INF-PLAY anchor), with the INF-PLAY freeze kept. Blocked
-  on care: `useSharedBeltProgress` is shared across surfaces and the INF-PLAY belt is
-  deliberately NOT derived from the landed round. Status: **DEFERRED** — needs its own
-  pass with the INF-PLAY belt semantics in hand.
+- **Migration:** ONE derived anchor: `beltAnchorSeed = computed(() => isInfPlayActive
+  ? beltFreezeSeed : seed(visualLegoIdForRound(simplePlayer.currentRound)))`, bridged
+  into the shared composable by a single immediate watcher (cross-surface sink =
+  doctrine-approved effect bridge; `beltProgress` rides in the watch source so an
+  anchor landing before the composable exists is re-delivered). The INF-PLAY freeze
+  is kept as an explicit intent: entry/resume paths write `beltFreezeSeed` (course-end
+  seed) instead of pushing into the composable; shape-only INF-PLAY with no anchor
+  (audio-stripped rounds, guests without a ceiling) freezes with a null anchor → no
+  write → the belt HOLDS, exactly the old skip-the-write behaviour; leaving INF PLAY
+  clears the freeze. By the time of migration the push count had grown to ~15 sites —
+  round completion, `updateBeltForPosition`, `deriveBeltFromLandedRound` (+5 callers,
+  all deleted), 4 INF-PLAY entry/advance/back anchors, 5 resume paths, the deep-link
+  jump. Two writers remain by design, both pre-engine: the boot-time splash seed
+  (before any script exists) and `updateBeltForPosition`, now engine-guarded to serve
+  only legacy-path boundaries + pre-engine preview. Timing note: the belt now updates
+  when a round LANDS (becomes current) rather than when it completes — at a belt
+  threshold the colour flips as the new belt's first round starts, which is the more
+  truthful moment. Status: **MIGRATED** (tranche 4; beltPositionSync.test.ts —
+  main-loop follow, freeze no-bounce, guest hold, exit unfreeze, late-attach,
+  engine-agreement walk).
 
 ### M10. `instantPlayback.setCurrentLegoId` — cursor push into the prefetch service
 

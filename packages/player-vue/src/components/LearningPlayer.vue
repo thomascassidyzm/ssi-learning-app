@@ -1942,14 +1942,12 @@ simplePlayer.onRoundCompleted((round) => {
       // ∞ (beltCssVars red override) and visualLegoIdForRound falls back to the
       // random USE legoId for guests (no main-loop ceiling recorded), which is
       // exactly the cycle-to-cycle belt flip Tom flagged.
+      // (playingSeedNumber itself derives from the engine via beltAnchorSeed —
+      // M9 — so only the lego-id signal is pushed here.)
       if (!isInfPlayActive.value) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
-        }
-        if (visualLegoId && beltProgress.value?.setPlayingPosition) {
-          const seed = getSeedFromLegoId(visualLegoId)
-          if (seed !== null) beltProgress.value.setPlayingPosition(seed)
         }
       }
     }
@@ -3872,6 +3870,36 @@ const isInfPlayActive = computed(() =>
   || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
 )
 
+// M9 (pull-consistency map): the belt's playing position DERIVES from the
+// round the engine is on — never pushed from scattered sites. The INF-PLAY
+// belt freeze is a FEATURE and stays: entry/resume paths record their anchor
+// (the course-end seed) in beltFreezeSeed — an explicit freeze intent, not a
+// push into the composable — and the derivation pins to it while INF PLAY is
+// active. Rounds that merely LOOK like INF PLAY without an anchor recorded
+// (audio-stripped main-loop rounds; guests with no main-loop ceiling) freeze
+// with a null anchor → no write → the belt HOLDS its last value, exactly the
+// old skip-the-write behaviour. Leaving INF PLAY clears the freeze so the
+// belt follows the landed round again.
+const beltFreezeSeed = ref<number | null>(null)
+const beltAnchorSeed = computed<number | null>(() => {
+  if (isInfPlayActive.value) return beltFreezeSeed.value
+  const legoId = visualLegoIdForRound(simplePlayer.currentRound.value)
+  if (!legoId) return null
+  return getSeedFromLegoId(legoId)
+})
+// Effect bridge into the shared belt composable (a cross-surface sink,
+// set-call-shaped — the doctrine-approved watcher-on-derived-signal).
+// beltProgress rides in the watch source so an anchor that lands before the
+// composable exists is re-delivered once it does.
+// immediate: an anchor already valid when the bridge attaches (late attach)
+// must still be delivered — a change-only watcher would strand it.
+watch([beltAnchorSeed, beltProgress], ([seed]) => {
+  if (seed !== null && beltProgress.value?.setPlayingPosition) {
+    beltProgress.value.setPlayingPosition(seed)
+  }
+}, { immediate: true })
+watch(isInfPlayActive, (active) => { if (!active) beltFreezeSeed.value = null })
+
 const beltCssVars = computed(() => {
   // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
   // whole UI stays red regardless of which LEGO each random-USE phrase draws from
@@ -4487,40 +4515,15 @@ const podPreviewPrev = (): void => {
  */
 const updateBeltForPosition = (roundIndex) => {
   if (!beltProgress.value) return
+  // Once the engine exists the belt derives from it (beltAnchorSeed, M9) —
+  // this manual writer serves only the pre-engine paths (legacy playback
+  // boundaries, pre-engine preview seeding).
+  if (simplePlayer.isInitialized.value) return
   // Use the visual helper — for main-loop rounds returns round.legoId,
   // for infplay rounds returns lastMainLoopLegoId. Without this the
   // single-chevron skip during infplay made the belt bounce around as
   // each random USE legoId was treated as the new "position".
   const round = loadedRounds.value?.[roundIndex]
-  const legoId = visualLegoIdForRound(round)
-  if (!legoId) return
-  const seed = getSeedFromLegoId(legoId)
-  if (seed === null) return
-  beltProgress.value.setPlayingPosition(seed)
-}
-
-/**
- * Derive the belt READOUT from the round the engine has just LANDED on
- * (simplePlayer.currentRound), rather than from a parsed seed threshold.
- *
- * This is the single belt writer for belt-skip navigation: belt-skip moves
- * the cursor by LEGO id / round index, then calls this so the belt colour
- * follows the actual landed LEGO. Reading the engine's currentRound (not a
- * loadedRounds index) keeps it correct even when the component's
- * loadedRounds mirror lags the engine queue after an addRounds/regen.
- *
- * INF PLAY: the landed round's legoId is a random USE, so we anchor to the
- * last main-loop LEGO (visualLegoIdForRound) exactly like updateBeltForPosition.
- */
-const deriveBeltFromLandedRound = () => {
-  if (!beltProgress.value) return
-  // In INF PLAY the belt is the locked red ∞ — never derive it from the landed
-  // round (each revival round's legoId is a random USE that would flip the belt
-  // colour cycle-to-cycle). The accent comes from beltCssVars' red override.
-  // Exit paths flip OUT of INF PLAY (land on a main-loop round) before calling
-  // this, so the real belt colour resumes there.
-  if (isInfPlayActive.value) return
-  const round = simplePlayer.currentRound.value
   const legoId = visualLegoIdForRound(round)
   if (!legoId) return
   const seed = getSeedFromLegoId(legoId)
@@ -8269,7 +8272,7 @@ const handleSkip = async () => {
   // cache doesn't stutter, then stepCycle does the slot arithmetic +
   // jumpToRound (which preserves play state). Because the step may land in a
   // different round, the belt READOUT derives from the round the engine
-  // actually landed on (deriveBeltFromLandedRound) — never an independent
+  // actually landed on (beltAnchorSeed, M9) — never an independent
   // setPlayingPosition.
   console.log('[LearningPlayer] Using SimplePlayer stepCycle(+1) (cycle advance)')
   isSkipInProgress.value = true
@@ -8293,7 +8296,6 @@ const handleSkip = async () => {
     }
     await prepareAndJump(landingRoundIndex, 'Next cycle…', () => {
       simplePlayer.stepCycle(1)
-      deriveBeltFromLandedRound()
     })
   } finally {
     isSkipInProgress.value = false
@@ -8334,7 +8336,6 @@ const handleRevisit = async () => {
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
-  deriveBeltFromLandedRound()
 }
 
 /**
@@ -8499,12 +8500,10 @@ const enterInfPlay = async () => {
         // round 1's cycles + rounds 2..N in parallel-5. By the time
         // the first cycle finishes (~10s), the next cycles are cached.
         warmUpInfPlayRoundsBackground(cachedRounds.value as any, firstInfIdx)
-        // Anchor belt to the last main-loop seed (= top reachable belt
+        // Freeze the belt at the course-end seed (= top reachable belt
         // colour for this course). Otherwise the infplay round's random
         // USE legoId would set the visual to whichever LEGO it drew.
-        if (beltProgress.value) {
-          beltProgress.value.setPlayingPosition(courseEndSeed)
-        }
+        beltFreezeSeed.value = courseEndSeed
         await persistCursorAtCurrentRound()
         return
       }
@@ -8531,7 +8530,7 @@ const enterInfPlay = async () => {
             : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
-            if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+            beltFreezeSeed.value = courseEndSeed
             await persistCursorAtCurrentRound()
             return
           }
@@ -8556,7 +8555,7 @@ const enterInfPlay = async () => {
  *
  * Belt stays PINNED to the course's final belt (the infplay rounds carry a
  * random USE legoId that would otherwise bounce the belt indicator) — mirrors
- * enterInfPlay's setPlayingPosition(courseEndSeed) anchor. Bumps the
+ * enterInfPlay's beltFreezeSeed = courseEndSeed anchor. Bumps the
  * infplayRoundIndex readout (the central-pill "round N"), persists the cursor.
  *
  * If no revival rounds are loaded (offline / a course with none) we recycle
@@ -8598,7 +8597,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
       simplePlayer.jumpToRound(targetIdx)
       // Pin the belt to the final belt rather than deriving from the
       // revival round's random USE legoId (which would bounce the indicator).
-      if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+      beltFreezeSeed.value = courseEndSeed
     })
     // Advance the central-pill ∞ readout ("round N").
     infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
@@ -8619,7 +8618,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
  *
  * Position-keyed: lands on the next round's first LEGO via jumpToLegoId,
  * the belt READOUT then DERIVES from the landed round
- * (deriveBeltFromLandedRound) — no independent setPlayingPosition. If the
+ * (beltAnchorSeed, M9) — no independent setPlayingPosition. If the
  * next round isn't loaded yet, LOAD-then-resolve (never teleport).
  */
 const handleRoundForward = async () => {
@@ -8730,7 +8729,6 @@ const handleRoundForward = async () => {
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
       else simplePlayer.jumpToRound(targetIdx)
-      deriveBeltFromLandedRound()
     })
     await persistCursorAtCurrentRound()
   } finally {
@@ -8884,7 +8882,7 @@ const handleRoundBack = async () => {
         simplePlayer.jumpToRound(targetIdx)
         // Pin belt to the final belt — a revival round's random-USE legoId would
         // otherwise bounce the indicator (mirrors advanceInfPlayRound).
-        if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+        beltFreezeSeed.value = courseEndSeed
       })
       // Step the central-pill ∞ readout back (floor at 1).
       infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value - 1)
@@ -8916,7 +8914,6 @@ const handleRoundBack = async () => {
       } else {
         simplePlayer.jumpToRound(targetIdx, 0)
       }
-      deriveBeltFromLandedRound()
     })
 
     // Round-back is a revisit gesture — write the cursor so the resting-state
@@ -9046,7 +9043,6 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
       const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
       else simplePlayer.jumpToRound(resolvedTargetIdx)
-      deriveBeltFromLandedRound()
 
       // Belt-pill jump can land anywhere (forward or back) — persist cursor.
       // Optimistic UI: the learner has already landed on the target round;
@@ -10558,12 +10554,12 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
       console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
     }
   }
-  // Anchor the belt to the course's final content (top reachable belt) so
+  // Freeze the belt at the course's final content (top reachable belt) so
   // the display reads INF PLAY, not the empty belt we tried to skip to.
-  if (beltProgress.value) {
+  {
     const fin = courseFinalLegoRef.value?.legoId
     const finSeed = fin ? getSeedFromLegoId(fin) : null
-    if (finSeed != null) beltProgress.value.setPlayingPosition(finSeed)
+    if (finSeed != null) beltFreezeSeed.value = finSeed
   }
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
@@ -11474,10 +11470,10 @@ onMounted(async () => {
     try {
       await loadSeedIfNeeded(seedNumber)
       simplePlayer.jumpToSeed(seedNumber)
-      // Update belt progress to match the jumped position
+      // Belt position derives from the landed round (beltAnchorSeed, M9);
+      // only the lego-id signal is pushed here.
       const legoId = `S${String(seedNumber).padStart(4, '0')}L01`
       beltProgress.value?.setLastLegoId(legoId)
-      beltProgress.value?.setPlayingPosition(seedNumber)
     } catch (err) {
       console.warn('[LearningPlayer] Jump to seed failed:', err)
     }
@@ -11765,10 +11761,7 @@ onMounted(async () => {
                 if (beltProgress.value?.setLastLegoId) {
                   beltProgress.value.setLastLegoId(startedAtLegoId)
                 }
-                if (beltProgress.value?.setPlayingPosition) {
-                  const seed = getSeedFromLegoId(startedAtLegoId)
-                  if (seed !== null) beltProgress.value.setPlayingPosition(seed)
-                }
+                // (playingSeedNumber derives from the landed round — M9.)
               }
 
               positionInitialized.value = true
@@ -11896,9 +11889,9 @@ onMounted(async () => {
                 lastMainLoopLegoId.value = finalLegoId
               }
               if (beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(finalLegoId)
-              if (beltProgress.value?.setPlayingPosition) {
+              {
                 const finalSeed = getSeedFromLegoId(finalLegoId)
-                if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
+                if (finalSeed !== null) beltFreezeSeed.value = finalSeed
               }
             }
             console.log(`[InstantPlayback] INF-PLAY resume: cache hydration, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
@@ -12021,19 +12014,16 @@ onMounted(async () => {
                 lastMainLoopLegoId.value = finalLegoId
               }
               if (beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(finalLegoId)
-              if (beltProgress.value?.setPlayingPosition) {
+              {
                 const finalSeed = getSeedFromLegoId(finalLegoId)
-                if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
+                if (finalSeed !== null) beltFreezeSeed.value = finalSeed
               }
             }
           } else {
-            // Main loop: mirror the legacy path — belt follows the resumed LEGO.
+            // Main loop: belt position derives from the landed round (M9);
+            // only the lego-id signal is pushed here.
             if (startedAtLegoId && beltProgress.value?.setLastLegoId) {
               beltProgress.value.setLastLegoId(startedAtLegoId)
-            }
-            if (startedAtLegoId && beltProgress.value?.setPlayingPosition) {
-              const seed = getSeedFromLegoId(startedAtLegoId)
-              if (seed !== null) beltProgress.value.setPlayingPosition(seed)
             }
           }
 
@@ -12246,10 +12236,7 @@ onMounted(async () => {
                     simplePlayer.jumpToRound(trueIdx, trueCycle)
                     instantPlayback.setCurrentLegoId(trueLegoId ?? landedLegoId)
                     if (trueLegoId && beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(trueLegoId)
-                    if (trueLegoId && beltProgress.value?.setPlayingPosition) {
-                      const seed = getSeedFromLegoId(trueLegoId)
-                      if (seed !== null) beltProgress.value.setPlayingPosition(seed)
-                    }
+                    // (playingSeedNumber derives from the landed round — M9.)
                   }
                 } catch (repairErr) {
                   console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
@@ -12428,7 +12415,10 @@ onMounted(async () => {
               isReturningUser = startingSeed > 0 || !!freshHighestLego
             }
 
-            // Set playing belt to match starting position
+            // Set playing belt to match starting position. PRE-ENGINE seed
+            // (no script/engine exists yet at this point in boot) so the
+            // splash belt is right during loading; once the engine lands,
+            // the derived beltAnchorSeed (M9) takes over.
             if (startingSeed > 0) {
               beltProgress.value?.setPlayingPosition(startingSeed)
             }
