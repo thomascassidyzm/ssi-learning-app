@@ -210,10 +210,34 @@ assert the derived value CANNOT disagree with `player.currentState` / the engine
 rounds. Planned files this tranche: `phaseDisplaySync.test.ts`, `cycleTextSync.test.ts`,
 `roundsQueueSync.test.ts`.
 
-## What still needs a browser pass (deploys blocked 2026-07-28)
+## Browser verification (2026-07-29, deployed dev build 351214e)
 
-Unit/simulation coverage is thorough but the following want a real-device look once
-Vercel deploys resume: welcome→first-cycle text handoff (M1), phase pill + voice-2
-text through a full round (M2), listening/pronunciation mode button sync from
-BottomNav (M5), INF-PLAY queue handoff with the M4 snapshot pull, session timer
-across pod laps (M8).
+Tranche-4 probe (`e2e/pull-consistency-tranche4-probe.mjs`) — 12/12 PASS on the
+deployed dev alias, guest flow:
+- **M3 fresh cold start**: play persists a localStorage position (S0001L01).
+- **M3 cold localStorage resume**: reload lands on the SAME saved LEGO (no reset
+  to round 0), resumed playback shows real cycle text.
+- **M3 deep-link jump** (`ssi-jump-to-seed`, the ?seed=/CourseBrowser path): cursor
+  moved to seed 10 and back to seed 2, persisted correctly both ways.
+- **M9 belt follows jumps** both directions: white → yellow (#fcd34d) at seed 10,
+  back to white at seed 2 (pure derivation, no ratchet).
+- **M9 belt steady across pod-lap audio** (`?podview=1`): colour constant over a
+  10s sampled window while the lap played.
+
+INF-PLAY entry/freeze: attempted via a free course + course-end walk
+(`e2e/pull-consistency-t4-infplay-probe.mjs`). The belt derivation verified on
+the second course too (deep-link to seed 300 → brown #a8856c, correct). Entry
+itself proved unreachable for ANY guest on current dev content: premium courses
+paywall course-end (by design), and every free course has content only to
+S0300 against a 668-seed list — at that edge round-forward hits the
+"next round unavailable — staying put" fallback because neither the canonical
+round-map nor courseFinalLegoRef resolves on that path. Pre-existing behaviour
+(none of that branch changed this tranche), logged as an observation: on the
+300/668 courses forward-skip dead-ends at S0300 with no INF-PLAY offer. NOT
+browser-verified (needs a signed-in account / complete course): INF-PLAY
+entry+freeze, DB-cursor resume, INF-PLAY deterministic resume — all pinned by
+unit tests (roundPositionSync.test.ts, beltPositionSync.test.ts).
+
+Earlier (2026-07-28, deploys blocked that night, since verified by the tranche-3
+probe + this pass): M1 welcome→first-cycle handoff, M2 phase pill + voice-2 text,
+M5 mode buttons, M8 session timer.
