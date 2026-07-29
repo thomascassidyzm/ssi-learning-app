@@ -332,17 +332,75 @@ function beltTone(beltName: string): Tone | undefined {
   }
 }
 
-function handlePlatformRoleChange(event: Event) {
-  const value = (event.target as HTMLSelectElement).value || null
-  if (profile.value) {
-    updateUserRole(profile.value.id, 'platform_role', value, getAuthToken)
+// ─── Role editing — staged select + Apply ──────────────────────────
+// These selects used to commit on @change: one mis-tap granted or revoked
+// real platform/schools authz silently. The select now only STAGES a value;
+// nothing is written until Apply, which states the exact change first.
+const stagedPlatformRole = ref<string | null>(null)
+const stagedEducationalRole = ref<string | null>(null)
+const roleApplyBusy = ref(false)
+
+const platformRoleChanged = computed(() =>
+  stagedPlatformRole.value !== null && stagedPlatformRole.value !== (profile.value?.platform_role || ''))
+const educationalRoleChanged = computed(() =>
+  stagedEducationalRole.value !== null && stagedEducationalRole.value !== (profile.value?.educational_role || ''))
+const hasStagedRoleChange = computed(() => platformRoleChanged.value || educationalRoleChanged.value)
+
+function roleLabel(value: string | null | undefined): string {
+  return value || 'none'
+}
+
+const stagedRoleSummary = computed<string[]>(() => {
+  const lines: string[] = []
+  if (platformRoleChanged.value) {
+    lines.push(`Platform role: ${roleLabel(profile.value?.platform_role)} → ${roleLabel(stagedPlatformRole.value)}`)
   }
+  if (educationalRoleChanged.value) {
+    lines.push(`Educational role: ${roleLabel(profile.value?.educational_role)} → ${roleLabel(stagedEducationalRole.value)}`)
+  }
+  return lines
+})
+
+// One blast-radius sentence, only when the staged change grants real power.
+const stagedRoleWarning = computed<string | null>(() => {
+  if (platformRoleChanged.value && stagedPlatformRole.value === 'ssi_admin') {
+    return 'ssi_admin can see and change every user, school and course on the platform.'
+  }
+  if (educationalRoleChanged.value && (stagedEducationalRole.value === 'god' || stagedEducationalRole.value === 'govt_admin')) {
+    return `${stagedEducationalRole.value} grants dashboard access over every school in its scope.`
+  }
+  return null
+})
+
+function handlePlatformRoleChange(event: Event) {
+  stagedPlatformRole.value = (event.target as HTMLSelectElement).value
 }
 
 function handleEducationalRoleChange(event: Event) {
-  const value = (event.target as HTMLSelectElement).value || null
-  if (profile.value) {
-    updateUserRole(profile.value.id, 'educational_role', value, getAuthToken)
+  stagedEducationalRole.value = (event.target as HTMLSelectElement).value
+}
+
+function cancelRoleChange() {
+  stagedPlatformRole.value = null
+  stagedEducationalRole.value = null
+}
+
+async function applyRoleChange() {
+  if (!profile.value || !hasStagedRoleChange.value) return
+  roleApplyBusy.value = true
+  try {
+    if (platformRoleChanged.value) {
+      const ok = await updateUserRole(profile.value.id, 'platform_role', stagedPlatformRole.value || null, getAuthToken)
+      if (!ok) return
+      stagedPlatformRole.value = null
+    }
+    if (educationalRoleChanged.value) {
+      const ok = await updateUserRole(profile.value.id, 'educational_role', stagedEducationalRole.value || null, getAuthToken)
+      if (!ok) return
+      stagedEducationalRole.value = null
+    }
+  } finally {
+    roleApplyBusy.value = false
   }
 }
 
@@ -376,10 +434,17 @@ async function handleRevoke(entitlementId: string) {
 // ─── Trial testing (admin-only) ────────────────────────────────────
 // "Skip to end of trial" backdates this user's platform trial (school +
 // tutor) and course play-trial so the end-of-trial gates fire on their
-// next load. Restore pushes the windows back out. Reversible, DB-only.
+// next load. Restore pushes the windows back out. Reversible, DB-only —
+// so the guard is a two-tap arm/confirm, not a modal.
 const trialBusy = ref(false)
+const trialExpireArmed = ref(false)
 async function handleSetTrial(action: 'expire' | 'restore') {
   if (!profile.value) return
+  if (action === 'expire' && !trialExpireArmed.value) {
+    trialExpireArmed.value = true
+    return
+  }
+  trialExpireArmed.value = false
   trialBusy.value = true
   await setTrial(profile.value.id, profile.value.user_id, action, getAuthToken)
   trialBusy.value = false
@@ -479,7 +544,7 @@ async function handleCreateSigninLink() {
                 <label class="schools-kicker">Platform role</label>
                 <select
                   class="frost-select"
-                  :value="profile.platform_role || ''"
+                  :value="stagedPlatformRole ?? (profile.platform_role || '')"
                   @change="handlePlatformRoleChange"
                 >
                   <option value="">None</option>
@@ -490,7 +555,7 @@ async function handleCreateSigninLink() {
                 <label class="schools-kicker">Educational role</label>
                 <select
                   class="frost-select"
-                  :value="profile.educational_role || ''"
+                  :value="stagedEducationalRole ?? (profile.educational_role || '')"
                   @change="handleEducationalRoleChange"
                 >
                   <option value="">None</option>
@@ -512,8 +577,26 @@ async function handleCreateSigninLink() {
               >Failed</span>
             </div>
 
+            <!-- Staged role change — nothing is written until Apply -->
+            <div v-if="hasStagedRoleChange" class="role-apply-row">
+              <div class="role-apply-summary">
+                <span v-for="line in stagedRoleSummary" :key="line" class="role-apply-line">{{ line }}</span>
+                <span v-if="stagedRoleWarning" class="role-apply-warning">{{ stagedRoleWarning }}</span>
+              </div>
+              <div class="role-apply-actions">
+                <button class="btn-primary" :disabled="roleApplyBusy" @click="applyRoleChange">
+                  {{ roleApplyBusy ? 'Applying…' : 'Apply role change' }}
+                </button>
+                <button class="btn-ghost" :disabled="roleApplyBusy" @click="cancelRoleChange">Cancel</button>
+              </div>
+            </div>
+
             <!-- Sign-in link rescue — for users whose OTP email never arrives -->
             <div class="signin-link-block">
+              <p class="signin-link-preface">
+                Mints a live login link — whoever clicks it is signed in as
+                <strong>{{ profile.display_name || 'this user' }}</strong>. Treat it like their password.
+              </p>
               <button class="btn-ghost" :disabled="signinLinkBusy" @click="handleCreateSigninLink">
                 {{ signinLinkBusy ? 'Creating…' : 'Create sign-in link' }}
               </button>
@@ -711,11 +794,23 @@ async function handleCreateSigninLink() {
             Skip this account to the end of its trial (school + tutor platform
             trial and any course play-trial), or restore the windows. Reversible.
           </p>
+          <p v-if="trialExpireArmed" class="trial-arm-note">
+            Backdates {{ profile.display_name || 'this user' }}'s trial windows now — the
+            end-of-trial gates fire on their next load. Restore below puts them back.
+          </p>
           <div class="field-actions">
-            <button class="btn-primary" :disabled="trialBusy" @click="handleSetTrial('expire')">
-              {{ trialBusy ? 'Working…' : 'Skip to end of trial' }}
+            <button
+              class="btn-primary"
+              :class="{ 'btn-armed': trialExpireArmed }"
+              :disabled="trialBusy"
+              @click="handleSetTrial('expire')"
+            >
+              {{ trialBusy ? 'Working…' : (trialExpireArmed ? 'Confirm — end trial now' : 'Skip to end of trial') }}
             </button>
-            <button class="btn-ghost" :disabled="trialBusy" @click="handleSetTrial('restore')">
+            <button v-if="trialExpireArmed" class="btn-ghost" :disabled="trialBusy" @click="trialExpireArmed = false">
+              Cancel
+            </button>
+            <button v-else class="btn-ghost" :disabled="trialBusy" @click="handleSetTrial('restore')">
               Restore trial (+30 days)
             </button>
           </div>
@@ -1272,6 +1367,44 @@ async function handleCreateSigninLink() {
   background: rgba(var(--tone-red), 0.14);
 }
 
+/* Staged role change — the Apply step that replaced commit-on-select */
+.role-apply-row {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(var(--tone-red), 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--tone-red), 0.05);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.role-apply-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.role-apply-line {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--schools-fg);
+}
+
+.role-apply-warning {
+  font-size: var(--text-xs);
+  color: rgb(var(--tone-red));
+  line-height: 1.5;
+}
+
+.role-apply-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* ---------- Sign-in link rescue ---------- */
 .signin-link-block {
   margin-top: var(--space-4);
@@ -1290,7 +1423,8 @@ async function handleCreateSigninLink() {
   width: 100%;
 }
 
-.signin-link-caveat {
+.signin-link-caveat,
+.signin-link-preface {
   margin: 0;
   font-size: var(--text-xs);
   color: var(--schools-fg-3);
@@ -1475,6 +1609,18 @@ async function handleCreateSigninLink() {
   font-size: 0.85rem;
   color: var(--text-secondary, #64748b);
   line-height: 1.4;
+}
+
+.trial-arm-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgb(var(--tone-red));
+  line-height: 1.4;
+}
+
+.btn-armed {
+  background: var(--schools-red-deep, #a32e2e);
 }
 
 .trial-test-override {

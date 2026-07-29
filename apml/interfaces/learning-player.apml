@@ -446,6 +446,45 @@ PHASE_UI_STATES:
     network: "Full path animation (nodes + edges + labels)"
 
 ## ============================================================================
+## TRANSPORT PLAY-STATE (pull-consistent, 2026-07-28)
+## ============================================================================
+
+TRANSPORT_PLAY_STATE:
+  invariant: "The play button must NEVER be visible while any audio is playing (founder ruling, Jonathan's staging desync 2026-07-28)."
+  isPlaying:
+    definition: "computed(() => simplePlayer.isPlaying.value) — a PULL from the engine's current state. Never a writable ref, never synced by a watcher, never manually assigned."
+    consumers: "Cycle-scoped logic: speak-gap ring gate (ringProgress), session timer, VAD/adaptation gates, warm-burst-on-pause."
+  isAudioPlaying:
+    definition: "computed OR of isPlaying + playingPodLapAudio + playingCommentaryAudio + isPlayingWelcome + isPlayingIntroduction + isPreparingToPlay"
+    consumers: "The TRANSPORT-facing signal: BottomNav play/stop button (pulled by PlayerContainer via template ref — no event hop), PlayerRestingState overlay gate, wake lock, mediaSession playbackState, is-paused styling, sr-only announcer."
+  container_binding: "PlayerContainer.isPlaying = computed(() => learningPlayerRef.value?.isAudioPlaying ?? false). The old @playStateChanged event mirror was REMOVED — edge-triggered mirrors can miss/reorder an emission and show PLAY while the engine is mid-cycle until the next engine toggle re-syncs (the recurring 'reverse polarity' family: fd164f43 attempted this fix 2026-06-09 and was reverted same night in a promote de-risk; the disease then resurfaced on staging 3bfeb1d)."
+  tap_dispatch:
+    togglePlayback: "Single dispatch for BottomNav tap AND ring tap (handleRingTap delegates). Order: (1) awakening soft-guard — swallow taps while isAwakening UNLESS audio is sounding (re-landed bf281cd1); (2) welcome/introduction/preparing → handlePause; (3) pod/commentary → halt runtime audio; (4) engine playing → handlePause; else handleResume."
+    firstPlayPauseRequested: "Pause intent raised by handlePause while a first-play sequence is awaiting its preload/welcome; handleResume's first-play path re-checks it after EVERY await and bails before simplePlayer.play() (re-landed d5243e42 — a stop tap can never be overtaken by audio it can't stop)."
+  regression_test: "packages/player-vue/src/playback/transportStateSync.test.ts (late-attach pull reads, same-tick toggle bursts, the mirror-wedging interleave). E2E: e2e/transport-first-cycle-walk.mjs (N fresh-profile cold starts asserting the invariant + gap bar + voice-2 text)."
+
+## ============================================================================
+## PULL-CONSISTENT UI STATE (tranche 3, 2026-07-28)
+## Full mirror inventory + doctrine: docs/player/pull-consistency-map.md
+## ============================================================================
+
+PULL_CONSISTENT_STATE:
+  doctrine: "UI state that REPRESENTS engine state is DERIVED (computed reading engine truth), never a writable mirror (ref + edge-triggered watcher + scattered assignments + emit hops). Watchers remain legitimate as bridges to imperative sinks (wake lock, mediaSession, animations) and for genuine accumulators."
+  currentPhase:
+    definition: "computed: SIMPLE_PHASE_TO_UI[simplePlayer.phase] when rounds are loaded (idle/buffering→prompt, pause→speak, voice1/voice2→voice_1/voice_2); legacyUiPhase ref only on the pre-SimplePlayer path. The old two-hop relay (engine → onPhaseChanged → pendingPhase ref → watcher) plus two legacy writers is deleted."
+    consumers: "showTargetText (voice-2 text reveal), phase-strip is-active classes, hero/control-pane classes, ring-progress gate, phaseEnteredAt metric."
+    side_effects: "Speak-gap ring start stays an edge (it starts an animation) but keys off simplePlayer.phase directly."
+    regression_test: "packages/player-vue/src/playback/phaseDisplaySync.test.ts"
+  currentCycle:
+    definition: "computed: simplePlayer.currentCycle mapped to the legacy display shape (text fields only — textNative deliberately dropped; romanised primary glyphs come from displayTiling); legacyCycle ref only while the engine has no cycle (pre-SimplePlayer path). The old edge-triggered sync watcher (hold-on-null) + legacy writer are deleted — the displayed text pair is a pure function of the same state that chooses the audio."
+    consumers: "currentPhrase (hero text), visibleTexts (QA reporting). Transient engine nulls fall through to '' where the displayedKnownText/TargetText hold-last-good latches (B5) keep the last real text."
+    regression_test: "packages/player-vue/src/playback/cycleTextSync.test.ts"
+  mode_overlays:
+    definition: "isListeningMode / isPronunciationMode = computeds over showListeningOverlay / showPronunciationOverlay, exposed via defineExpose; PlayerContainer pulls them via the template ref. The @listeningModeChanged / @pronunciationModeChanged event mirrors (7 emit sites) are deleted."
+  buffering_prompt:
+    definition: "bufferingPromptVisible = computed(() => simplePlayer.phase === 'buffering') — was a watcher-synced ref."
+
+## ============================================================================
 ## CONSTELLATION NETWORK INTEGRATION
 ## (STALE / ASPIRATIONAL — subsystem DELETED 2026-06-08; see constellation-network.apml)
 ## ============================================================================
@@ -1030,6 +1069,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-07-24
+## GENERATED: 2026-01-18 — Last updated: 2026-07-28
 ## APML v2.1.0
 ## ============================================================================

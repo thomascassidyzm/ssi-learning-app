@@ -11,6 +11,7 @@ export { VoiceActivityDetector, createVoiceActivityDetector } from './VoiceActiv
 export {
   extractEnvelopeMetadata,
   ENVELOPE_EXTRACTOR_CONSTANTS,
+  CONTOUR_MAX_POINTS,
   type EnvelopeMetadata,
   type EnvelopeExtractorConstants,
   type TimedEnergySample,

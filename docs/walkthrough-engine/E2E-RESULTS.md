@@ -7,6 +7,10 @@ target `https://ssi-learning-app-git-dev-zenjin.vercel.app` (deployed dev build)
 All five walks driven end-to-end as the persona each actually belongs to, against the
 deployed build — not a local dev server, not a unit harness.
 
+**Re-verified on STAGING after promotion: 2026-07-28 08:30Z, `https://staging.saysomethingin.app`,
+116 PASS / 0 FAIL / same single note — `e2e-run-staging.txt`.** The screenshots in this
+directory are from the dev run; the staging run reproduced every assertion identically.
+
 ## What was asserted, per step
 
 | Assertion | Method |

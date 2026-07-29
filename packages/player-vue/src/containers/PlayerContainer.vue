@@ -80,17 +80,29 @@ const showLibrary = ref(false)
 const showExplorer = ref(false)
 const showCourseSelector = ref(false)
 
-// Player state - shared with nav bar for play/stop button
-const isPlaying = ref(false)
 const learningPlayerRef = ref(null)
 
-// Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
-const isListeningMode = ref(false)
+// Player state - shared with nav bar for play/stop button.
+// PULLED from the player's derived isAudioPlaying (cycle engine OR
+// welcome/intro/pod/commentary OR the preparing window), not mirrored from
+// an event. The old @playStateChanged mirror was edge-triggered: a missed
+// or reordered emission left the transport showing PLAY while audio was
+// audibly mid-cycle until the next engine toggle re-synced it (Jonathan's
+// staging report, 2026-07-28). A computed reads the current truth on every
+// re-render — there is no edge to miss.
+const isPlaying = computed(() => learningPlayerRef.value?.isAudioPlaying ?? false)
+
+// Mode overlay state (overlays live inside LearningPlayer; BottomNav needs
+// them here). PULLED via the template ref like isPlaying above — the old
+// @listeningModeChanged / @pronunciationModeChanged event mirrors required
+// every overlay write to remember its paired emit; a missed pairing left
+// BottomNav's mode button lying about the overlay. A computed reads the
+// overlay's current truth instead.
+const isListeningMode = computed(() => learningPlayerRef.value?.isListeningMode ?? false)
 
 // Driving mode state (tracked for BottomNav return arrow)
 
-// Pronunciation mode state
-const isPronunciationMode = ref(false)
+const isPronunciationMode = computed(() => learningPlayerRef.value?.isPronunciationMode ?? false)
 
 // Mode button visibility (controlled by Settings, stored in localStorage)
 const showListeningBtn = ref(false)
@@ -185,15 +197,12 @@ const handleSkip = () => {
 }
 
 
-// Handle play state changes from LearningPlayer
-const handlePlayStateChanged = (playing) => {
-  isPlaying.value = playing
-}
+// (Play state is pulled from the player ref — see the isPlaying computed
+// above. The old @playStateChanged event mirror is gone by design.)
 
-// Handle listening mode state changes from LearningPlayer
-const handleListeningModeChanged = (listening) => {
-  isListeningMode.value = listening
-}
+// (Listening/pronunciation mode state is pulled from the player ref — the
+// old @listeningModeChanged / @pronunciationModeChanged event mirrors are
+// gone by design, same as play state.)
 
 // Handle exit listening mode from BottomNav (user navigated away)
 const handleExitListeningMode = () => {
@@ -207,11 +216,6 @@ const handleToggleListening = () => {
   if (learningPlayerRef.value?.handleListeningToggle) {
     learningPlayerRef.value.handleListeningToggle()
   }
-}
-
-// Handle pronunciation mode state changes from LearningPlayer
-const handlePronunciationModeChanged = (active) => {
-  isPronunciationMode.value = active
 }
 
 // Handle exit pronunciation mode from BottomNav
@@ -545,9 +549,6 @@ onMounted(() => {
       :previewLegoIndex="previewLegoIndex"
       :isVisible="currentScreen === 'player'"
       @close="handleGoHome"
-      @playStateChanged="handlePlayStateChanged"
-      @listeningModeChanged="handleListeningModeChanged"
-      @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).

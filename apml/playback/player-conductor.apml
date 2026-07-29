@@ -1,6 +1,6 @@
 # APML v1.0.0 - PlayerConductor (SimplePlayer transition ownership)
 # SSI Learning App
-# Last Updated: 2026-07-23
+# Last Updated: 2026-07-28
 
 spec player_conductor_architecture:
   version: "1.0.0"
@@ -121,6 +121,13 @@ spec player_conductor_architecture:
     specific sentence instead of always the ratchet cursor.
 
   open_follow_ups: |
+    - DONE 2026-07-28 (tranche 3, M4): the COMPOSABLE-layer queue mirror is
+      gone — useSimplePlayer no longer re-implements addRounds/appendRounds/
+      replaceQueueFromCurrent insertion logic; it pulls
+      SimplePlayer.roundsSnapshot after each mutation (regression:
+      playback/roundsQueueSync.test.ts; inventory:
+      docs/player/pull-consistency-map.md). The COMPONENT-layer item below
+      remains open.
     - Full loadedRounds/cachedRounds mirror deletion: ~90 read/write touch
       points in LearningPlayer.vue, several with genuinely distinct
       semantics (live engine mirror vs. text-only metadata mirror vs.

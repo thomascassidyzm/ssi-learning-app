@@ -41,6 +41,27 @@ export interface Walk {
 
 export const ANCHOR_TIMEOUT_MS = 5000
 
+// Runtime mirror of the compiler's destructive-verb denylist (gate 6 in
+// tools/walkthrough/lib.mjs — lockstep-checked there, like KNOWN_PLACES).
+// The compiler refuses to BUILD a click-advance step on these; this mirror
+// means even a stale or hand-edited pack.json cannot make the overlay attach
+// a click-advance listener to a destructive/minting verb at runtime — the
+// step degrades to show-and-point (Next).
+export const DESTRUCTIVE_ANCHOR_PATTERNS = [
+  /delete/i, /purge/i, /entitlement/i, /remint/i, /re-mint/i, /rotate/i,
+  /revoke/i, /submit/i, /grant/i, /expire/i, /play/i, /toggle/i,
+]
+
+export function isDestructiveAnchor(anchorId: string): boolean {
+  return DESTRUCTIVE_ANCHOR_PATTERNS.some((re) => re.test(anchorId))
+}
+
+/** The advance mode the runtime will actually honour for a step. */
+export function effectiveAdvance(step: WalkStep): 'next' | 'click' | 'visible' {
+  if (step.advance.on === 'click' && isDestructiveAnchor(step.anchor)) return 'next'
+  return step.advance.on
+}
+
 const walks = (pack as { walks: Walk[] }).walks
 
 const activeWalk = ref<Walk | null>(null)
@@ -69,12 +90,19 @@ function stamp(): void {
   }
 }
 
+// Engine-level escape hatch: Esc always ends the walk — registered here (not
+// in the overlay) so it works even if the overlay's card is off-screen.
+function onEscape(e: KeyboardEvent): void {
+  if (e.key === 'Escape') stopWalk()
+}
+
 export function startWalk(id: string): boolean {
   const walk = walkById(id)
   if (!walk) return false
   activeWalk.value = walk
   stepIndex.value = 0
   showingTerminal.value = false
+  document.addEventListener('keydown', onEscape)
   stamp()
   return true
 }
@@ -83,6 +111,7 @@ export function stopWalk(): void {
   activeWalk.value = null
   stepIndex.value = 0
   showingTerminal.value = false
+  document.removeEventListener('keydown', onEscape)
   stamp()
 }
 
