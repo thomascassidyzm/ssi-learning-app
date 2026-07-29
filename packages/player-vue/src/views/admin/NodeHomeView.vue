@@ -14,6 +14,7 @@ import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
 import { nodeKindOf } from '@/explainer/evaluateRules'
+import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
@@ -26,7 +27,7 @@ import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
 const router = useRouter()
-const { getAuthToken } = useAdminClient()
+const { getClient, getAuthToken } = useAdminClient()
 
 // Member mount (/schools/org/:id — a leader inside the /schools shell) vs the
 // admin mount. Same page, same endpoint; the server scopes a leader to their
@@ -268,6 +269,27 @@ const enrichedStudents = computed(() => {
 const explainerPersona = computed<'admin' | 'leader'>(() => (member.value ? 'leader' : 'admin'))
 const explainerKind = computed(() => nodeKindOf(home.value))
 
+// ONE evaluation of the noticing rules feeds both surfaces: the on-page
+// invitation cards and the How-this-works panel + throb (founder ruling
+// 2026-07-29: How-this-works is the single surfacing point).
+const explainerNodeId = computed(() => String(home.value?.node?.id ?? ''))
+const { invitations, dismiss: dismissInvitation } = useNoticingInvitations({
+  home,
+  persona: explainerPersona,
+  member,
+  nodeId: explainerNodeId,
+})
+
+// Viewer identity for the throb's per-user seen state — the auth uid once the
+// session resolves; 'anon' until then (per-device, the accepted idiom here).
+const viewerId = ref('anon')
+void (async () => {
+  try {
+    const { data } = await getClient().auth.getSession()
+    if (data?.session?.user?.id) viewerId.value = data.session.user.id
+  } catch { /* keep 'anon' */ }
+})()
+
 // ─── Children payload for the list ───
 const listPayload = computed(() => {
   if (!home.value) return {}
@@ -347,10 +369,8 @@ const listPayload = computed(() => {
                dashboard §5). Hidden mid-switch: they'd be the old node's. -->
           <NoticingInvitations
             v-if="!switching && !isLoading && home.node"
-            :home="home"
-            :persona="explainerPersona"
-            :member="member"
-            :node-id="home.node.id"
+            :invitations="invitations"
+            @dismiss="dismissInvitation"
           />
 
           <!-- CLASS TEACHING CARDS — the density the old class page had
@@ -449,7 +469,13 @@ const listPayload = computed(() => {
 
           <!-- HOW THIS WORKS — the self-explaining dashboard's reference
                entry: one quiet link, persona-scoped to exactly here. -->
-          <HowThisWorks :persona="explainerPersona" :kind="explainerKind" />
+          <HowThisWorks
+            :persona="explainerPersona"
+            :kind="explainerKind"
+            :invitations="invitations"
+            :node-id="explainerNodeId"
+            :viewer-id="viewerId"
+          />
 
           <!-- WAYS IN — the link ledger (founder scope-add 2026-07-20):
                every link minted anywhere in this subtree, with copy /
