@@ -1,6 +1,6 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-07-19
+# Last Updated: 2026-07-30
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -58,11 +58,29 @@ spec lazy_loading_architecture:
 
     splash_floor: |
       Ready is gated by a DELIBERATE animation floor, not data:
-      `MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800` in LearningPlayer.vue.
-      Return users get a 300ms minimum splash; first-ever visitors get a
-      2800ms cinematic. When total-ready ≈ this floor, the floor is the gate.
+      `MINIMUM_ANIMATION_MS = skipCinematic ? 300 : 2800` in LearningPlayer.vue,
+      where `skipCinematic = isReturnUser || !isFreshLoad`. The 2800ms cinematic
+      plays ONLY on a genuine first-ever document load; return users AND every
+      in-app course switch (remount detected via __ssiBoot.mountedMs, same test
+      the cold_start telemetry uses) take the 300ms floor. Founder ruling
+      2026-07-30: a course switch must be READY in 2-3s — the cinematic never
+      replays on switch, even if an update/reset wiped the ssi-has-played flag.
       onMounted: `await Promise.all([loadAllData(), runAnimationTimeline()])`
-      then `warmFirstKnownAudio()` then `setLoadingStage('ready')`.
+      then `warmFirstKnownAudio()` (fired, not awaited) then
+      `setLoadingStage('ready')` then resolvePlayerReady() (releases the
+      ready-gated background work below).
+
+    ready_gated_background_work: |
+      READINESS = FIRST LEGO IDENTIFIED (founder ruling 2026-07-30). The
+      whole-course generateScript walk (both the main-loop handoff and the
+      INF-PLAY idle warm) and the community-contribution fetch each await
+      `playerReadySignal` — a promise resolved right after the loading stage
+      flips to 'ready' — BEFORE scheduling on idle. scheduleIdleTask alone was
+      not enough: its 2s ceiling let the walk's ~45 course-wide queries fire
+      during the switch window, starving the two critical fetches on narrow
+      mobile pipes (measured 4-9s to READY on-device, 2026-07-30 telemetry).
+      If the player unmounts before ready (rapid re-switch), the signal never
+      resolves and the stale mount's walk is skipped entirely.
 
     deferred_hydration_off_critical_path: |
       Belt progress, the adaptation engine, and Layer-1 listening hydration
@@ -331,7 +349,8 @@ spec lazy_loading_architecture:
            = 0 network via localStorage caches, cold = 2 tiny fetches) →
            build the player's rounds → apply saved cycle cursor.
          - runAnimationTimeline: enforce the splash floor
-           (MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800).
+           (MINIMUM_ANIMATION_MS = skipCinematic ? 300 : 2800; switches and
+           return users both take 300ms — see splash_floor).
       2. await warmFirstKnownAudio()
       3. setLoadingStage('ready')
       Off the critical path, concurrently (fire-and-forget): belt progress,
