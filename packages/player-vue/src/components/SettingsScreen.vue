@@ -1528,7 +1528,10 @@ const confirmReset = async () => {
         </span>
       </button>
 
-      <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
+      <!-- What's New — the release train's own notes, bundled at build time from
+           tools/release-train/notes/ (shipped ones only, never a draft), merged
+           with any admin-curated rows (see /admin/release-notes), which win their
+           ship day. useReleaseNotes owns the merge. -->
       <section v-if="releaseNotes.length > 0" class="section whats-new">
         <h3 class="section-title">{{ t('settings.whatsNew') }}</h3>
         <div class="card">

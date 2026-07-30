@@ -1,12 +1,29 @@
 # The weekly release train
 
-**Production ships once a week, Friday mornings, on Tom's explicit GO.**
+**Features ship once a week, Friday mornings, on Tom's explicit GO. Fixes ship the moment
+they're ready, any day, without release notes.**
+
 Founder ruling 2026-07-30, verbatim: *"wait on this - I want to ship to production on a weekly
-basis - Friday mornings."*
+basis - Friday mornings."* Amended 2026-07-31, verbatim: *"fixes go live immediately - at any
+point in the week - without release notes; whereas features, and/or minor fixes that are just
+better affordances stick to the weekly release train."*
+
+## Which lane is this? — the classification test
+
+> **Was something broken, or lying to the user?** → it's a **fix**. Ships now, no notes.
+> **Is something newly possible, or just nicer?** → it's a **feature or an affordance**. Rides the
+> train, gets notes.
+
+"Lying to the user" is deliberate and load-bearing: dishonest behaviour (a play button out of step
+with what's playing, a "Saved" that didn't save, a stale number presented as live) is breakage even
+when nothing crashed. Regressions are fixes by definition. A *minor* fix that is really a better
+affordance — nothing was broken, it's just improved — rides the train; the test is the state of the
+thing before the change, not the size of the diff.
 
 Nothing in this mechanism promotes anything by itself. A cron writes the *question*; Tom's word
 is the only trigger for the *answer*. `dev → staging` keeps its own rhythm (promote when green,
-per `CLAUDE.md`); this document is only about `staging → main`.
+per `CLAUDE.md`); this document is about `staging → main` (the train) and the `hotfix/**` fix lane
+that goes straight to `main`.
 
 ```
 Thu evening        Fri morning                Fri, next 2h
@@ -17,7 +34,34 @@ candidate report → Tom says GO or HOLD  →  promote.sh  →  deploy sentinel 
 ```
 
 **Tom never writes release notes separately.** They are drafted by Thursday's run and stamped
-final by Friday's promote — see *Release notes* below.
+final by Friday's promote — see *Release notes* below. **Fix-lane pushes carry no notes at all**;
+a fix restores behaviour the user was already promised, so there is nothing to announce.
+
+---
+
+## Any day — the fix lane
+
+A fix does not wait for Friday. It goes straight to production the moment it's ready, using the
+mechanism `CLAUDE.md` already describes — this is that lane, with a broader definition of what
+qualifies, not a second parallel mechanism:
+
+```bash
+git checkout -b hotfix/<desc> origin/main    # branch off main
+# fix, run the gates, PR or push to main
+# then back-merge into BOTH staging and dev so the fix survives the next promotion
+```
+
+- **Branch off `main`, land on `main`, back-merge into `staging` AND `dev`.** Skipping the
+  back-merge is the one way this lane can hurt you: `promote.sh` refuses to run when `main` is not
+  an ancestor of `staging`, so an un-back-merged hotfix blocks Friday's train until reconciled.
+- **No release notes, no notes file, no card.** The Thursday draft will not mention it; the
+  phrasebook gates would drop most fixes anyway, and a fix that *is* worth telling people about is
+  the exception Tom adds by hand to that week's draft.
+- **The gates still apply in full** (typecheck, tests, lint, api) — "immediately" is about the
+  calendar, not about the bar.
+- Everything else — features, and minor fixes that are really better affordances — stays on the
+  train below. When in doubt, ask which side of the classification test it falls on; if it's still
+  in doubt, it rides the train, because a week's wait costs less than an unannounced surprise.
 
 ---
 
@@ -159,7 +203,11 @@ node tools/release-train/release-notes.mjs --finalize --sha <staging sha> --coun
 
 ## After the push — fallout watch
 
-**Already covered. Do not build or run anything.** `tools/deploy-sentinel/sentinel.mjs` is cron'd
+**Already covered. Do not build or run anything.** This applies to **both lanes** — the sentinel
+watches *any* new `main` sha, so a Tuesday fix-lane push gets exactly the same 2-hour fallout watch
+as a Friday promote. Nothing extra to arm.
+
+`tools/deploy-sentinel/sentinel.mjs` is cron'd
 every 3 minutes on watson-1 and opens a 2-hour watch window on any new `main` sha: deploy-live
 check against `/version.json` cross-referenced with Vercel's deployment status, endpoint probes,
 and production `player_events` volume against a 4-week same-clock baseline. Fallout posts a loud
@@ -202,7 +250,9 @@ should be the exception rather than the rule.
 ## Why this shape
 
 - **Better** — production stops drifting a month behind staging, and every ship carries a written
-  candidate a founder can read on a phone in a minute instead of 130 commit subjects.
+  candidate a founder can read on a phone in a minute instead of 130 commit subjects. The fix lane
+  keeps breakage off the weekly clock: nobody lives with a broken thing until Friday because the
+  cadence exists.
 - **Simpler** — one cron writing a question, one script a human runs on an answer. No release
   manager, no branch ceremony, no new environment; post-ship watching reuses the sentinel that
   already exists.
