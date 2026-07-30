@@ -59,6 +59,9 @@ jobs:
       - name: API tests
         run: pnpm test:api
 
+      - name: Release-train tests
+        run: pnpm test:release-train
+
   merge-to-dev:
     needs: verify
     runs-on: ubuntu-latest

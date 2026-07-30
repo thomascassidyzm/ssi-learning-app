@@ -1,5 +1,6 @@
 /**
- * Release-notes gate tests — `node --test tools/release-train/` (no config, no deps).
+ * Release-notes gate tests — `pnpm test:release-train` (node's built-in runner, no config, no
+ * deps). The script names this file explicitly: CI runs node 20, which does not expand globs.
  *
  * These lock the ONE property the notes must never lose: they under-claim. Every case below is a
  * real commit subject from the 2026-07-30 candidate, so the fixtures stay honest.
