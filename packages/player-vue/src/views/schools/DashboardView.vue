@@ -375,8 +375,10 @@ async function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
+          <!-- "Guided look", never "mission" — mission framing is deprecated
+               in user-facing copy (founder ruling, 2026-07-30). -->
           <button v-if="showMissionAffordance" type="button" class="btn-ghost" @click="handleTryMission">
-            Try a mission
+            Take a guided look
           </button>
           <router-link v-if="!isAdminView" to="/schools/classes" class="btn-ghost">+ Create class</router-link>
         </template>

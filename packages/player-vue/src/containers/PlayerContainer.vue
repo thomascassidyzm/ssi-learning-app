@@ -435,12 +435,13 @@ const clearClassContext = () => {
 // Handle going home from player
 const handleGoHome = () => {
   if (classContext.value) {
-    // Return to whichever surface launched the class session — the tutor
-    // dashboard (/teach) or the schools classes list — so the teacher keeps
-    // their context instead of being dumped into the learner home.
+    // Return to the teacher's own dashboard — the tutor dashboard (/teach)
+    // or the schools dashboard — so the teacher keeps their context instead
+    // of being dumped into the learner home (founder ruling, 2026-07-30:
+    // ending a session hands the schools user back their dashboard).
     const launchedFromTeach = router.currentRoute.value.path.startsWith('/tutors/dashboard')
     clearClassContext()
-    router.push(launchedFromTeach ? '/tutors/dashboard' : '/schools/classes')
+    router.push(launchedFromTeach ? '/tutors/dashboard' : '/schools')
   } else {
     goHome()
   }

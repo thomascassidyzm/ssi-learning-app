@@ -55,7 +55,9 @@ const baseTabs: NavTab[] = [
   { name: 'teachers', path: '/schools/teachers', label: 'Teachers' },
   { name: 'students', path: '/schools/students', label: 'Students' },
   { name: 'classes', path: '/schools/classes', label: 'Classes' },
-  { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
+  // "Insights" is the one word for the Insight Engine door everywhere (the
+  // destination was already THE LENS's teacher wrapper).
+  { name: 'analytics', path: '/schools/analytics', label: 'Insights' },
 ]
 
 const tabs = computed(() => {
@@ -158,9 +160,10 @@ const closeMobileMenu = () => {
       <span class="logo-build mono">{{ buildNumber }}</span>
     </router-link>
 
-    <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so it
-         takes the centre of the bar as the dominant identity; the section tabs
-         are dropped to cut chrome. -->
+    <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT — a
+         slim chip in the bar. The section tabs STAY alongside it: the nav
+         persists on every screen a schools/tutor user reaches, including
+         inside the player (founder ruling, 2026-07-30). -->
     <PlayAsClassIdentity
       v-if="isPlayingAsClass"
       class="nav-play-as-class"
@@ -170,7 +173,7 @@ const closeMobileMenu = () => {
     />
 
     <!-- Navigation Tabs (desktop) -->
-    <div class="nav-tabs" role="tablist" v-else-if="tabs.length > 0">
+    <div class="nav-tabs" role="tablist" v-if="tabs.length > 0">
       <router-link
         v-for="tab in tabs"
         :key="tab.name"
@@ -184,8 +187,8 @@ const closeMobileMenu = () => {
     </div>
     <div v-else class="nav-tabs-spacer" aria-hidden="true"></div>
 
-    <!-- Mobile Menu Button -->
-    <button v-if="!isPlayingAsClass" class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
+    <!-- Mobile Menu Button (stays during a class session — the way home) -->
+    <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
       <svg v-if="!isMobileMenuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
         <line x1="4" y1="7" x2="20" y2="7"/>
         <line x1="4" y1="12" x2="20" y2="12"/>
