@@ -4,9 +4,14 @@
 // you-are-here lit, siblings one tap away, children below — the whole org
 // navigable up/down from any node without leaving the page. Same rail at
 // every level; this is the spine of THE VIEW.
-import { computed, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { groupHomePath, isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
+
+// Siblings-open state survives the rail remounting across sibling views of
+// the same node (Overview <-> Insights) — part of the WHERE-YOU-ARE
+// stability ruling (2026-07-30): the tree must not visibly reset on a hop.
+const siblingsOpenByNode = reactive(new Map<string, boolean>())
 
 export interface RailRef {
   id: string
@@ -30,7 +35,10 @@ const route = useRoute()
 // Member mount (leader inside /schools) vs admin mount — same rail, links
 // stay within the caller's own scope (see nodeSurfacePaths.ts).
 const member = computed(() => isMemberNodeSurface(route.path))
-const showSiblings = ref(false)
+const showSiblings = computed({
+  get: () => siblingsOpenByNode.get(props.node.id) ?? false,
+  set: (open: boolean) => { siblingsOpenByNode.set(props.node.id, open) },
+})
 
 function open(ref_: RailRef): void {
   router.push(groupHomePath(ref_.id, member.value))

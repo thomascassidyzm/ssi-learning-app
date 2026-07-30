@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-22 (structural cache freshness: trigger-maintained courses.content_stamp read in the existing boot query; stale script/listening caches self-refresh in background when online — see content_freshness_stamp)
+# Last Updated: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
+# Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
 # Prev: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
 # Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
@@ -357,12 +358,24 @@ spec audio_caching_architecture:
         exception-safe so stamping can never break a content write).
         checkContentVersion's existing boot query selects it alongside
         content_version (no new request). Each cache entry records the stamp
-        it was built from; mismatch while ONLINE → the script cache entry is
-        dropped (regenerates on the very next walk; its offline LEASE is
-        rescued and re-attached — entitlement state, not script state) and
-        the listening bundle refetches in the background. Entries with no
-        stamp (pre-mechanism devices) are stale-once, which retroactively
-        healed every stale device in the wild.
+        it was built from; mismatch while ONLINE → STALE-WHILE-REVALIDATE
+        (founder ruling 2026-07-27 — the earlier drop-and-regenerate blocked
+        first play behind a full-course walk, 20-24s observed on device):
+        the entry is KEPT and marked stale (getScriptStaleness); the session
+        plays the cached script immediately; LearningPlayer regenerates on
+        idle (runSwrRevalidation) and writes the fresh script + a
+        'Your course was updated' notice flag for the NEXT session.
+        Corrections land one session later — accepted trade. The offline
+        LEASE carries over any rewrite that brings no leases of its own
+        (setCachedScript read-before-write — entitlement state, not script
+        state). Queue-derived cache writes (offline-download persists) pass
+        the in-memory rounds' own vintage stamp so an SWR session never
+        mis-stamps old rounds as fresh; the listening bundle still refetches
+        in the background. Entries with no stamp (pre-mechanism devices) are
+        stale-once — now healed via the same non-blocking SWR path.
+        cold_start telemetry carries scriptPath
+        (cache|swr|progressive|infplay_cache|full) and script_revalidated
+        records each background regeneration.
       offline: >
         No stamp is obtainable offline (the courses query fails) → nothing
         invalidates. A stale cache OFFLINE is correct behaviour; staleness
@@ -371,10 +384,17 @@ spec audio_caching_architecture:
         freshness mechanism. content_version (hand-bumped semver) keeps its
         heavier role: audio regeneration → full clear incl. SW audio cache.
       tested: >
-        useScriptCache.contentStamp.test.ts + listeningMetaCache.test.ts
-        (refresh/no-op/offline/lease-rescue), and live e2e
+        useScriptCache.contentStamp.test.ts (SWR keep-and-mark-stale,
+        revalidation-write clears staleness, vintage-preserving write keeps
+        it, lease carry-over) + listeningMetaCache.test.ts, and live e2e
         e2e/repro-stale-cache-refresh.mjs (doctored stale-vintage IndexedDB
-        entries structurally refreshed on online boot against the real DB).
+        entries structurally refreshed on online boot against the real DB)
+        + e2e/swr-course-load-walk.mjs (deployed-build walk: cold boot is
+        progressive, doctored-stale reload plays from cache with
+        scriptPath='swr' + script_revalidated on the telemetry wire, next
+        open shows the course-updated notice — PASS vs the dev alias
+        2026-07-27: swr reload 2.9s vs the 20-24s blocking regen it
+        replaces; background revalidation 8.5s).
 
     belt_pill_offline_clarity:
       file: "packages/player-vue/src/components/ProgressModal.vue"
@@ -440,7 +460,7 @@ spec audio_caching_architecture:
       files:
         - "config/offlineLease.ts — LEASE_DAYS=30, computeExpiry, isLeaseValid, isClockTrustworthy, leaseStatus (+ 'revoked'), leaseShouldRevalidate, RENEW_AHEAD_MS/STALE_AFTER_MS/MIN_RENEW_INTERVAL_MS/VALIDATE_TIMEOUT_MS (pure, unit-tested in offlineLease.test.ts — 20 tests)"
         - "composables/useOfflineLease.ts — LAZY renew (gated; reconnect/6h-timer/deferred-boot-tick) + lock/unlock; consumes server per-course authority (shared singleton, wired once in App.vue)"
-        - "api/entitlement/offline-lease.ts — STATEFUL server authority over the offline_leases table: POST {courses[]} → per-course {leaseExpiresAt, isTrial, revoked, entitlementExpiresAt}; serverNow is the clock anchor; FALLS BACK to the old stateless shape if the table is absent"
+        - "api/entitlement/offline-lease.ts — STATEFUL server authority over the offline_leases table: POST {courses[]} → per-course {leaseExpiresAt, isTrial, revoked, entitlementExpiresAt}; serverNow is the clock anchor; FALLS BACK to the old stateless shape if the table is absent. Subscription read is FAMILY-AWARE (2026-07-29): resolveEffectiveSubscription (api/_utils/familyAccess.ts) — own row first, else a live family member resolves the owner's active 'SSi Family' row, so members' downloads RENEW like payers'"
         - "supabase/migrations/20260616_offline_leases.sql — offline_leases table (learner_id, course_code, expires_at, is_trial, revoked_at, …; unique(learner_id,course_code); RLS own-row select; APPLIED to shared DB)"
         - "useScriptCache.ts — lease stored on CachedScript.offlineLease (no new store); getOfflineLease/setOfflineLease/getAllOfflineLeases patch it in place"
       authority: >

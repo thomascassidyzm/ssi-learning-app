@@ -5,11 +5,16 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import SchoolsTopBar from './SchoolsTopBar.vue'
 
-// Founder ruling (2026-07-18): in play-as-class mode the ONE thing the bar must
-// say is WHICH CLASS is live — big, bold, unmissable — with the section tabs and
-// self-practice launcher dropped and the school demoted. A teacher running
-// back-to-back sessions on a projector/shared device otherwise can't tell 6S
-// from 6M.
+// Founder rulings, layered:
+// - 2026-07-18: in play-as-class mode the bar must say WHICH CLASS is live —
+//   a teacher running back-to-back sessions on a projector/shared device
+//   otherwise can't tell 6S from 6M.
+// - 2026-07-30: "once a schools dashboard user - every user facing screen
+//   should keep the schools dashboard top nav." The class identity is now a
+//   SLIM chip inside the bar and the section tabs STAY during a session (the
+//   old mode dropped them, which read as the player taking over). Only the
+//   self-practice Learn launcher is dropped; the standalone school label
+//   yields to the chip, which carries the school itself.
 describe('SchoolsTopBar — play-as-class identity', () => {
   const role = useUserRole()
   const ctx = useSchoolContext()
@@ -43,24 +48,27 @@ describe('SchoolsTopBar — play-as-class identity', () => {
     })
   }
 
-  it('renders the class name prominently and drops the section tabs while a class session is live', async () => {
+  it('renders the class name in the slim chip and KEEPS the section tabs while a class session is live', async () => {
     localStorage.setItem(
       'ssi-active-class',
       JSON.stringify({ id: 'class-6s', name: '6S', course_code: 'cym_for_eng' }),
     )
     const wrapper = await mountOnPlayRoute('class-6s')
 
-    // The class name renders as the dominant identity element…
+    // The class name renders in the playing-as chip…
     const className = wrapper.get('.pac-class')
     expect(className.text()).toBe('6S')
-    // …introduced as "Playing as" and demoting the school to a secondary line.
+    // …introduced as "Playing as", with the school demoted inside the chip.
     expect(wrapper.get('.pac-kicker').text().replace(/\s+/g, ' ')).toContain('Playing as')
     expect(wrapper.get('.pac-school').text()).toBe('Chepstow School')
 
-    // The section tabs and the school "context-name" label are dropped in the mode.
-    expect(wrapper.find('nav.tabs').exists()).toBe(false)
+    // The section tabs STAY — the schools nav persists inside the player
+    // (founder ruling, 2026-07-30). The standalone school label yields to
+    // the chip (which carries the school itself).
+    expect(wrapper.find('nav.tabs').exists()).toBe(true)
+    expect(wrapper.findAll('nav.tabs a').length).toBeGreaterThan(0)
     expect(wrapper.find('.context-name').exists()).toBe(false)
-    // The self-practice Learn launcher is dropped too.
+    // The self-practice Learn launcher is the one thing dropped mid-session.
     expect(wrapper.find('a.learn-btn').exists()).toBe(false)
 
     // Exit affordance stays obvious.
@@ -81,7 +89,7 @@ describe('SchoolsTopBar — play-as-class identity', () => {
     })
 
     expect(wrapper.find('.pac-class').exists()).toBe(false)
-    // Normal chrome restored: tabs + Learn button present.
+    // Normal chrome: tabs + Learn button present.
     expect(wrapper.find('nav.tabs').exists()).toBe(true)
     expect(wrapper.find('a.learn-btn').exists()).toBe(true)
   })

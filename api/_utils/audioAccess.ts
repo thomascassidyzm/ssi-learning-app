@@ -192,6 +192,14 @@ if (IS_PROD && !entitlementSecret) {
   )
 }
 
+// FAMILY-PLAN-SPEC.md §3 future-proofing note: the only mint site today is
+// api/try-link/validate.ts (link-based, no subscription read — unaffected).
+// Whenever a SUBSCRIBER mint site appears and ENTITLEMENT_ENFORCE=strict
+// arms, it must resolve entitlement via api/_utils/familyAccess.ts's
+// resolveEffectiveSubscription — same as every other entitlement-deciding
+// subscriptions reader — so a family member's audio doesn't fail-closed the
+// moment strict mode is live.
+
 /** Is this course premium (Big-10 target or Welsh)? Community/other → free. */
 export function isPremiumCourse(courseCode: string): boolean {
   if (!courseCode || courseCode.startsWith('community_')) return false

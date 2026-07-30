@@ -1,0 +1,53 @@
+# APML v2.0.0 - SSi Family Plan
+# SSI Learning App
+# Last Updated: 2026-07-29 (impl/family-plan landed on dev — the July 2026-07-10 build, rebased; design pack docs/family-plan-design-pack.md)
+# Source spec: FAMILY-PLAN-SPEC.md (repo root, founder-confirmed 2026-07-10: D1 seats=6 incl. payer, D2 annual £250)
+
+family_plan:
+  title: "SSi Family — one payer, up to 6 full learner identities"
+  status: "LANDED on dev 2026-07-29 (stage 1). Paddle product/price ids NOT yet created (founder sitting, stage 2) — checkout family option rejects cleanly until VITE_PADDLE_FAMILY_PRICE_MONTHLY/ANNUAL are set."
+
+  model: >
+    The family umbrella IS the payer's single subscriptions row
+    (plan_name = 'SSi Family', PLAN_PRECEDENCE rank 4, top). Members have NO
+    subscription row: every entitlement check resolves "own row first, else a
+    live family membership whose owner's 'SSi Family' row is active" via ONE
+    server-side resolver. Lapse / refund / cancel / re-buy compose from the
+    owner's row with zero fan-out writes. family_members is the ONLY new data
+    surface (tutor-shaped group, learner-id UUID keys, RLS ON zero policies,
+    service-role-only — deliberately NOT the schools org tables).
+
+  data:
+    family_members:
+      migration: "supabase/migrations/20260710_family_members.sql — RETROACTIVE record, hand-applied live 2026-07-10, DO NOT RE-APPLY"
+      columns: "id, owner_learner_id (FK learners), member_learner_id (FK learners, null until claimed), invited_email, is_child_account, status invited|active|removed, created_at, updated_at, removed_at"
+      invariants:
+        - "one live family per member: partial unique index family_members_one_family (member_learner_id) WHERE removed_at IS NULL"
+        - "invite dedupe per owner+email while live: family_members_invite_dedupe"
+        - "removal is a STAMP (removed_at + status='removed'), never a delete — seat frees, progress remains, re-add is one tap"
+
+  server:
+    resolver:
+      file: "api/_utils/familyAccess.ts"
+      exports: "resolveEffectiveSubscription(supabase, learnerId, columns) → {sub, viaFamily}; isEffectivelySubscribed"
+      rule: >
+        Own row wins whatever its status (preserves non-family behaviour
+        exactly; a member with their own Premium is additive, spec §2.4).
+        Family path requires: membership status='active' AND removed_at null
+        AND owner row plan_name='SSi Family' AND status='active' AND period
+        not lapsed.
+      wired_into: "api/_utils/courseAccess.ts, api/subscription/index.ts (virtual 'SSi Family (member)' plan name), api/me/subscription.ts, api/entitlement/offline-lease.ts (members' downloads renew like payers')"
+    membership_helpers:
+      file: "api/_utils/familyMembership.ts"
+      exports: "FAMILY_SEAT_CAP = 6 (adjustable constant, includes payer), seat counting, invite-attach"
+    endpoints: "api/family/ — index (owner view: roster+seats), invite, create-child (QR child account on a synthetic address, one-time sign-in link), signin-link (re-mint), remove, leave. All service-role, owner-authz in code (hierarchy authz = endpoints doctrine)."
+    claim_foldin: "api/access/claim.ts — a pending email invite attaches automatically at the invitee's normal OTP sign-in; the member never redeems anything"
+    webhook: "api/teacher/paddle-webhook.ts — customData kind:'family_plan', tier 'family' re-derived from the billed price id (spoof guard; unconfigured price rejects cleanly), handleFamilySubscription writes the ONE owner row"
+
+  client:
+    checkout: "useCheckout.ts + CheckoutOverlay.vue family option + lib/paddle.ts price-id env config (VITE_PADDLE_FAMILY_PRICE_MONTHLY/ANNUAL — env-only until stage 2)"
+    settings: "SettingsScreen.vue → FamilyManagementModal.vue + useFamilyManagement.ts — roster, invite by email, add-a-child QR (qrcode dep), remove/leave, covered-by-family branch"
+
+  tests: "51 cases: familyAccess (12) + familyMembership (9) + family-endpoints (11) + paddle-webhook-family (7) + access-claim-family-foldin (3) under packages/player-vue/src/__tests__/api/; useScriptCache.offlineLease (9, shipped earlier with the lease prerequisite)"
+
+  next_stages: "design pack §6: 2 Paddle products (founder) · 3 payer visibility (full member dashboard, reuse schools progress views — Tom 2026-07-29) · 4 two-product pricing surface + price-swap upgrade endpoint · 5 copy sweep + 7-day past_due grace w/ payer in-app reminders (Tom 2026-07-29) · 6 household walkthrough + promotion"

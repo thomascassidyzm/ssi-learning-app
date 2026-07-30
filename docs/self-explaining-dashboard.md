@@ -139,11 +139,21 @@ refresh protocol. No auto-refresh anywhere.
 ## 6. Runtime surfaces (existing idiom only)
 
 - **`HowThisWorks.vue`** — one quiet text link under the stats row ("How this works"). Tap →
-  an inline card (same `schools-card` grammar) with the persona×place explanation. Tap again →
-  closed. Nothing opens uninvited; state is not persisted (it's a reference, not a tour).
+  an inline card (same `schools-card` grammar) with the persona×place explanation, the current
+  noticing invitations (compact rows), and the persona×place walk offers ("Show me — …"). Tap
+  again → closed. Nothing opens uninvited. **This button is THE single surfacing point for
+  every invitation at this persona×place** (founder ruling 2026-07-29), so it carries a subtle
+  discoverability throb: a small soft-pulsing dot beside the link on a viewer's first visit,
+  re-arming when the noticing rules surface an invitation not seen since the panel was last
+  opened. Opening the panel disarms it and persists the seen state (`howThisWorksThrob.ts`,
+  localStorage keyed viewer × node, same idiom as dismissal). `prefers-reduced-motion` → no
+  animation, static dot. The throb never traps attention, never opens anything, never
+  auto-plays a walk.
 - **`NoticingInvitations.vue`** — gentle cards between stats and children list, one line each,
   in the existing banner/card idiom: the sentence, a small "Have a look" link, and a quiet
-  dismiss ×. Never modal, never blocking, never more than 3 at once.
+  dismiss ×. Never modal, never blocking, never more than 3 at once. Presentational since
+  2026-07-29: the evaluation + dismissal state live in `useNoticingInvitations.ts`, called once
+  by the page so the SAME invitation list feeds these cards and the How-this-works panel/throb.
 
 Both mount only in `NodeHomeView.vue` (admin + leader member mount) in v1.
 
@@ -160,4 +170,4 @@ Both mount only in `NodeHomeView.vue` (admin + leader member mount) in v1.
   IS the compile-time token spend; a fully automated `--agent` rewrite stage can come when the
   rulings churn often enough to earn it.
 
-*Last updated: 2026-07-27*
+*Last updated: 2026-07-29 (How-this-works = single surfacing point + discoverability throb)*

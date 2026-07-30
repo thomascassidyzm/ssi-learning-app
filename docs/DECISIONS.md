@@ -562,3 +562,161 @@ accounting).
 **Decided by:** agent under the project brief "cache freshness: structural self-invalidation";
 verified by unit tests + live e2e (doctored stale-vintage IndexedDB entries self-refreshed on
 online boot against the real DB).
+## 2026-07-10 — family_members table: revoked the grant-open default despite RLS already blocking it
+**Move:** Applied `family_members` (FAMILY-PLAN-SPEC.md §1) directly to the live DB — RLS ON, zero
+policies — then found Supabase's table-creation default had granted `ALL` to `anon` and
+`authenticated` alongside `service_role`. Ran a second REVOKE ALL FROM anon, authenticated pass
+before snapshotting, leaving only `postgres` (owner) and `service_role` with any privilege.
+**Better:** matches the explicit posture CLAUDE.md rule 7 requires ("never Supabase's grant-open
+default") and the pattern already established on `govt_admins`/`invite_codes` during the 2026-07-04
+grant-hygiene pass — this table now reads the same way on inspection as every other
+service-role-only table, not as an outlier that happens to be safe for a different reason.
+**Simpler:** one posture, enforced at both layers (RLS row-level + GRANT table-level) — a future
+reader checking "can anon touch this?" gets the same answer from either layer, instead of RLS being
+silently the only thing standing between the default grants and a leak.
+**Cheaper (total):** zero runtime cost; the REVOKE is one extra statement in a migration that's
+already being applied by hand.
+**Searched & rejected:**
+- Leave the default ALL grants in place since RLS-with-no-policies already denies every operation
+  for anon/authenticated regardless of table grants — rejected: correct today, but it's exactly the
+  "RLS already covers it" reasoning the rule exists to rule out; a future policy added carelessly
+  (or a `bypassrls` role) would then be riding on the loose grants with nobody having checked them.
+**Search width:** visible-options (the fix is the documented rule 7 pattern, not a novel design).
+**Decided by:** agent
+
+## 2026-07-10 — family plan resolver: two point-lookups instead of one PostgREST join
+**Move:** `resolveEffectiveSubscription` (FAMILY-PLAN-SPEC.md §3) implements the "own row OR
+family join" resolution as two sequential queries (family_members, then subscriptions) rather
+than the one-query embedded join the spec pseudocode sketches.
+**Better:** identical behaviour for every caller — the spec's predicate list (removed_at,
+status='active', plan_name='SSi Family', status='active', period-end freshness) is applied
+exactly, just as two round trips instead of one.
+**Simpler:** there is no direct FK from `family_members` to `subscriptions` (both reference
+`learners.id` independently), so PostgREST can't auto-embed one across the other without a
+manual join hint — the two-query version is the straight-line read anyone maintaining this file
+can follow without knowing PostgREST's embed-hint syntax.
+**Cheaper (total):** both queries hit an index already on the table (`family_members_one_family`
+on member_learner_id; subscriptions' own learner_id uniqueness) — two indexed point-lookups cost
+about the same as one join for a table this small, and the resolver only runs on the
+"no own row" branch (the common case — most learners aren't family members — never pays the
+second query at all).
+**Searched & rejected:**
+- A PostgREST embedded join via a manual FK hint / view — rejected: adds a schema object (a
+  view, or a synthetic FK) purely to satisfy a query-shape preference; the two-query version
+  needs neither and is exactly as correct.
+**Search width:** visible-options.
+**Decided by:** agent (spec pseudocode is a sketch of the LOGIC, not a mandated query shape —
+implementation detail per CLAUDE.md's altitude rule).
+
+## 2026-07-10 — family plan QR: added `qrcode` (client-side, lazy-loaded) rather than a hosted QR API
+**Move:** The create-child sign-in link (FAMILY-PLAN-SPEC.md §4.1(b)) renders as a QR code via
+the `qrcode` npm package, dynamically imported inside FamilyManagementModal.vue so it lazy-loads
+into its own chunk (verified in the production build — separate from the SettingsScreen bundle).
+**Better:** the alternative — a third-party "QR image" HTTP API (`data=<url>` query param) —
+would leak the bearer sign-in link (a credential granting full access to a child's account) to
+an external service's request logs. Client-side generation never sends the link anywhere.
+**Simpler:** one well-established, dependency-free-at-runtime library call
+(`QRCode.toDataURL(link)`) vs. building/hosting a QR endpoint ourselves.
+**Cheaper (total):** ~26KB gzipped, lazy-loaded only when a parent actually adds a child — zero
+cost for every other user of the app; no new server surface, no third-party runtime dependency.
+**Searched & rejected:**
+- A hosted third-party QR image API — rejected outright on the security leg, not a trade-off:
+  the payload here is a live magic-link credential, not public data.
+- No QR at all, link-only — rejected: spec explicitly calls for "one-time sign-in link, rendered
+  as link + QR" as the age-verification-sidestep UX; a parent scanning with a phone camera is the
+  whole point of the flow (no manual URL retyping onto a kid's device).
+**Search width:** visible-options.
+**Decided by:** agent
+
+## 2026-07-29 — deploy sentinel: local cron watcher, version.json + GitHub deployments as deploy truth
+**Move:** Stage-1 post-deploy fallout watcher (`tools/deploy-sentinel/sentinel.mjs`) runs on
+watson-1 via user cron every 3 min. New main SHA (via `git ls-remote`) opens a 2h window: deploy
+confirmation = prod `/version.json` buildNumber reaching the pushed short SHA, cross-checked
+against the GitHub deployments API (`gh api …?environment=Production`) so a Vercel usage-cap
+block/build failure is reported DISTINCTLY ("deploy never went live") from app breakage.
+Telemetry = `player_events env=production` window volume vs same-clock-window median of the 4
+prior weeks (crater < 35% of median, judged only after ≥60 min and median ≥50 events). Probes =
+5 cheap GETs (shell, sw-config, courses, audio proxy, player-events OPTIONS), alert after 2
+consecutive failing ticks. Clean window → one done-board card; fallout → one needs-you card per
+failure class (needs-you pushes to devices).
+**Better:** Tom KNOWS a deploy is clean within 2h instead of waiting for user complaints; the
+Vercel-block failure mode (recently real) is a named, distinct alert.
+**Simpler:** zero app changes — `/version.json` already existed (vite stamps it for the update
+banner), `gh` is already authed, the boards already exist. One dependency-free Node file + a
+crontab line; no webhooks, no Vercel API token needed.
+**Cheaper (total):** a few HTTP GETs every 3 min; no new server surface, no new tables.
+**Searched & rejected:**
+- Vercel API polling with a token — rejected: no token exists on this VM, and the GitHub
+  deployments API (already authed via gh) carries the same production deploy state for free.
+- GitHub webhook → local listener — rejected: standing infra + exposure for what a 3-min poll
+  of `ls-remote` does adequately; deploy windows are 2h, 3-min latency is noise.
+- Writing a tagged synthetic event to prove player-events ingest — rejected: an OPTIONS probe
+  proves reachability without polluting production telemetry.
+**Search width:** visible-options.
+**Decided by:** agent (per brief's taste-safe defaults; thresholds flagged in report).
+**Open:** telemetry leg is INACTIVE until a Supabase service-role key lands on this VM
+(`~/.ssi-sentinel.env`) — the only keys present are anon-role, which RLS correctly blocks from
+player_events; worked around nothing, reported plainly.
+
+## 2026-07-30 — course-switch READY: switches never replay the cinematic; whole-course walk waits for READY
+**Move:** Two scoped changes in `LearningPlayer.vue` under the founder ruling "READINESS = first
+LEGO identified, ≤2–3s on a course switch". (1) The 2800ms first-visit cinematic floor now keys
+on `skipCinematic = isReturnUser || !isFreshLoad` — an in-app remount (course switch, detected
+via `__ssiBoot.mountedMs`, the same test the cold_start telemetry already used) always takes the
+300ms floor, even when `ssi-has-played` has been wiped. (2) A `playerReadySignal` promise
+(resolved right after the loading stage flips to 'ready') now gates the whole-course
+`generateScript` walk (main-loop handoff AND INF-PLAY idle warm) plus the contribution fetch, so
+their ~45 course-wide queries can never compete with the switch's two critical fetches
+(round-map + first-round cycles).
+**Evidence:** the founder's own staging telemetry (iPhone, 01:32–01:45 UTC): every warm switch
+pinned at exactly ~2805ms (= the 2800 floor re-applied after a storage wipe); cold switches
+4.3–9.4s while the walk's flood shared the phone pipe with the bootstrap. Deployed-staging
+waterfalls (guest + minted signed-in tester session) confirmed the flood fires inside the READY
+window; on datacenter broadband it costs little (1.1–1.7s switches) — the phone numbers are the
+same waterfall paying real RTTs.
+**Better:** switch READY on-device drops from 2.8s-pinned / 4–9s-cold toward the bootstrap's own
+~1s; a stale mount's walk (rapid re-switch) is now skipped entirely instead of running for a
+course no longer shown.
+**Simpler:** no new state machine — one promise + an existing detection reused; floor and
+telemetry now share ONE isFreshLoad computation instead of two copies.
+**Cheaper (total):** strictly less network in the critical window; the walk still runs once,
+just after play is available.
+**Searched & rejected:** deferring every boot-time composable fetch (pods, journey, explorer
+legos) — invasive across an 18k-line file for ~8 small requests; revisit only if on-device
+numbers still miss the target. Priority hints/HTTP2 tuning — doesn't remove the contention,
+just reorders it.
+**Search width:** visible-options.
+**Decided by:** agent (BSC >90%; founder ruling supplied the target and the readiness definition).
+
+## 2026-07-30 — production ships weekly, Friday mornings, on an explicit GO
+**Ruling (founder, verbatim):** *"wait on this - I want to ship to production on a weekly basis -
+Friday mornings."* Said in answer to an offer to promote the open 130-commit `staging → main`
+backlog immediately. The answer was not "ship now" but "institute a cadence."
+**Move:** Built the mechanism, not the one-off ship. (1) `tools/release-train/candidate-report.mjs`
+— a Thursday 17:00 UTC cron on watson-1 that computes `origin/main..origin/staging`, condenses it
+to human headlines (process commits split out, substantive ones clustered by area), reads per-SHA
+CI verdicts from the Verify workflow history plus the staging head's combined status, flags open
+regressions and MAIN-gated items out of `WORKLIST.md`, commits the report to
+`tools/release-train/reports/<date>.md` from a throwaway worktree, and posts the needs-you card
+**"Friday ship: N commits ready — GO / HOLD"**. (2) `tools/release-train/promote.sh` — the Friday
+merge, run by a human on Tom's word, refusing without `--go` and refusing if `main` is not an
+ancestor of `staging`. (3) `docs/RELEASE-TRAIN.md`. (4) `verify.yml` now also runs on `staging` and
+`main` pushes, so the report reads a real verdict on the tree being promoted rather than inferring
+one; those runs gate nothing.
+**Explicitly NOT built:** anything that promotes on a timer. The trigger is Tom's sentence, every
+week, forever. Post-ship fallout watching is not duplicated either — `tools/deploy-sentinel/`
+already opens a 2h watch window on every `main` push.
+**Better:** production stops drifting a month behind staging; each ship carries a written
+candidate readable on a phone in a minute instead of 130 raw subject lines, with the items the
+promote *unblocks* (two parked migrations gated on code reaching `main`) named up front.
+**Simpler:** one cron writing a question, one script a human runs on the answer. No release
+manager, no new environment, no new watching layer.
+**Cheaper (total):** a `git log` and a handful of `gh` calls once a week; the promote is one merge.
+Nothing on the money path moves without a human sentence in front of it.
+**Searched & rejected:** promoting the backlog immediately (the founder's actual instruction was
+the opposite); a cron that promotes automatically with a veto window (inverts the ruling — GO must
+be affirmative); posting the full detail in the card body (the needs-you board takes text ≤300
+chars and a url, with no detail field — hence a committed report file the card links to);
+a second post-ship watcher (the sentinel already exists).
+**Search width:** visible-options.
+**Decided by:** founder (the cadence); agent for the mechanism's shape (BSC >90%).

@@ -135,6 +135,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'schools-dashboard',
+        // RETIRED for school-scoped school_admins (nav unification, third
+        // persona, 2026-07-30): SchoolsContainer redirects them to their
+        // school's node home (/schools/org/:schoolId). Stays live for
+        // teachers and legacy no-school school_admin rows.
         component: DashboardView,
         meta: {
           title: 'Dashboard',
@@ -144,6 +148,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'teachers',
         name: 'teachers',
+        // RETIRED for school-scoped school_admins (2026-07-30): teachers ARE
+        // the school node's children — SchoolsContainer redirects to the node
+        // home with the teachers lens. Live for legacy no-school rows.
         component: TeachersView,
         meta: {
           title: 'Teachers',
@@ -182,6 +189,10 @@ const routes: RouteRecordRaw[] = [
         name: 'analytics',
         // The teacher-scoped Rate-compare insight tool, embedded in the schools
         // shell (its own TopNav + full-viewport scroll suppressed via `embedded`).
+        // For a group-scoped govt_admin (2026-07-29) and a school-scoped
+        // school_admin (2026-07-30) this URL is retired — SchoolsContainer
+        // redirects it to their node's /schools/org/:id/insights (nav
+        // unification); it stays live for teachers.
         component: () => import('@/insight/TeacherInsightsView.vue'),
         props: { embedded: true },
         meta: {
@@ -201,6 +212,11 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'all',
         name: 'schools-list',
+        // RETIRED for group-scoped leaders (nav unification, 2026-07-29): the
+        // URL lives, the separate design dies — SchoolsContainer redirects a
+        // govt_admin with a group_id to the node home with the schools lens
+        // (mirrors the admin-group-schools redirect below). The flat list
+        // still mounts for legacy no-group govt_admin rows only.
         component: SchoolsView,
         meta: {
           title: 'Schools',

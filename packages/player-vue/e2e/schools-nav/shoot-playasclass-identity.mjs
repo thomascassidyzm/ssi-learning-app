@@ -1,8 +1,9 @@
 // Screenshot the play-as-class identity fix on the DEPLOYED dev build.
 // Founder critique (2026-07-18): play-as-class named the school + teacher +
-// section chrome, but never WHICH class is live. This shoots the after-state:
-// the class name is now the dominant identity in the top bar ("Playing as …"),
-// school demoted, tabs/Learn dropped, exit obvious — persistent above the player.
+// section chrome, but never WHICH class is live. Updated 2026-07-30 (founder:
+// the big banner was obtrusive; the nav must persist): the class identity is
+// now a SLIM chip inside the bar ("Playing as …"), school demoted, the
+// section tabs KEPT, Learn dropped, exit obvious — persistent above the player.
 //
 // Run: node shoot-playasclass-identity.mjs   (needs sessions.json from
 // mint-sessions.mjs; targets the dev alias unless BASE_URL is set).
@@ -42,7 +43,7 @@ async function shoot(role, viewport, tag) {
   const name = (await pac.textContent())?.trim()
   check(`${role}/${tag}: bar names the class`, !!name, name)
   check(`${role}/${tag}: exit affordance present`, await page.locator('.pac-exit').isVisible())
-  check(`${role}/${tag}: section tabs dropped`, (await page.locator('.schools-topbar nav.tabs').count()) === 0)
+  check(`${role}/${tag}: section tabs KEPT (nav persists in the player)`, (await page.locator('.schools-topbar nav.tabs').count()) === 1)
 
   // Let the player settle so the shot shows the bar sitting above a live player.
   await page.waitForSelector('.player-container', { timeout: 25000 }).catch(() => {})

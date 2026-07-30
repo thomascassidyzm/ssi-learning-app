@@ -167,21 +167,66 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
 // the safe direction.
 const liveContentStamps = new Map<string, string>()
 
-// Leases rescued from a stamp-invalidated entry, re-attached on the next
-// write. The offline lease is ENTITLEMENT state, not script state — dropping
-// a stale script must never lock someone's offline download.
-const rescuedLeases = new Map<string, Pick<CachedScript, 'offlineLeases' | 'offlineLease'>>()
+// ── SWR staleness registry (founder ruling 2026-07-27) ─────────────────────
+// A content_stamp mismatch no longer DROPS the cached script — the session
+// plays from the cached (stale) script immediately and the player revalidates
+// in the background; the fresh script applies from the next session.
+// Corrections landing one session later is the accepted trade.
+const staleScripts = new Map<string, { cachedStamp: string | null; liveStamp: string }>()
+// In-flight freshness checks, so a caller can wait for the verdict instead of
+// racing the boot query (awaitFreshnessCheck below).
+const inflightFreshnessChecks = new Map<string, Promise<boolean>>()
+
+/** Staleness verdict for a course's cached script this JS session, or null
+ *  when the cache is fresh / absent / not yet checked. Sync map read — call
+ *  awaitFreshnessCheck first if a check may still be in flight. */
+export const getScriptStaleness = (
+  courseCode: string,
+): { cachedStamp: string | null; liveStamp: string } | null =>
+  staleScripts.get(courseCode) ?? null
+
+/** Resolve once any in-flight checkContentVersion for this course settles
+ *  (no-op when none is running — e.g. offline, or the check already landed). */
+export const awaitFreshnessCheck = async (courseCode: string): Promise<void> => {
+  const inflight = inflightFreshnessChecks.get(courseCode)
+  if (inflight) { try { await inflight } catch { /* offline is fine */ } }
+}
+
+export const clearScriptStaleness = (courseCode: string): void => {
+  staleScripts.delete(courseCode)
+}
 
 export const setCachedScript = async (
   courseCode: string,
   data: Omit<CachedScript, 'courseCode' | 'cachedAt'>
 ): Promise<void> => {
   try {
-    const rescued = rescuedLeases.get(courseCode)
+    const db = await scriptDb()
+    // Preserve the offline lease across overwrites. The lease is ENTITLEMENT
+    // state, not script state — a script rewrite (background revalidation,
+    // full-script handoff, offline-download persist) must never lock someone's
+    // offline download. Callers that pass leases explicitly win; otherwise the
+    // existing entry's leases carry over.
+    let carriedLeases: Pick<CachedScript, 'offlineLeases' | 'offlineLease'> | undefined
+    if (!data.offlineLeases && !data.offlineLease) {
+      try {
+        const existing = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as CachedScript | undefined
+        if (existing?.offlineLeases || existing?.offlineLease) {
+          carriedLeases = {
+            offlineLeases: existing.offlineLeases,
+            offlineLease: existing.offlineLease,
+          }
+        }
+      } catch { /* best-effort — a fresh write without leases is still valid */ }
+    }
     const fullData: CachedScript = {
       courseCode,
+      // Default: stamp with the live content vintage observed this session.
+      // Callers writing rounds of an OLDER vintage (an SWR session persisting
+      // its in-memory queue, e.g. the offline-download script write) override
+      // via data.contentStamp so stale content is never mis-stamped as fresh.
       contentStamp: liveContentStamps.get(courseCode),
-      ...(data.offlineLeases || data.offlineLease ? {} : rescued),
+      ...carriedLeases,
       ...data,
       cachedAt: Date.now(),
       // audio UUIDs live in audioRefs per item — drop the redundant map
@@ -193,9 +238,12 @@ export const setCachedScript = async (
     // them, this doesn't. Round-trip to a plain object before the write.
     // CachedScript is pure data (no Dates/functions), so JSON is lossless here.
     const plain = JSON.parse(JSON.stringify(fullData)) as CachedScript
-    const db = await scriptDb()
     await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
-    if (rescued) rescuedLeases.delete(courseCode)
+    // A write at the live vintage IS the revalidation — the next session
+    // hydrates fresh. Vintage-preserving writes leave the staleness standing.
+    if (plain.contentStamp && plain.contentStamp === liveContentStamps.get(courseCode)) {
+      staleScripts.delete(courseCode)
+    }
     console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
     // IndexedDB has GBs of room, so this should be rare (quota pressure only).
@@ -311,6 +359,7 @@ export const resetCacheState = async (): Promise<void> => {
   try {
     const db = await scriptDb()
     await db.clear(SCRIPT_STORE)
+    staleScripts.clear()
     await caches.delete(AUDIO_CACHE_NAME)
     console.log('[ScriptCache] All caches cleared')
   } catch (err) {
@@ -331,17 +380,38 @@ export const resetCacheState = async (): Promise<void> => {
  *
  *  2. content_stamp (trigger-maintained, moves on ANY learner-visible content
  *     write — see migration 20260722_course_content_stamp.sql): change →
- *     drop this course's script cache entry (regenerates from live data on
- *     the very next load, which on the eager-preload path is immediately
- *     after this check) and background-refresh the listening metadata bundle
- *     if one was downloaded. Audio caches untouched — audio is content-
- *     addressed by id, so text/structure fixes never require re-clearing it.
+ *     STALE-WHILE-REVALIDATE (founder ruling 2026-07-27). The cached script
+ *     is NOT dropped — it's marked stale (getScriptStaleness) so this session
+ *     plays from it immediately while the player regenerates in the
+ *     background; the fresh script applies from the next session. Also
+ *     background-refresh the listening metadata bundle if one was downloaded.
+ *     Audio caches untouched — audio is content-addressed by id, so
+ *     text/structure fixes never require re-clearing it.
  *
  * Offline (query fails) → no invalidation: a stale cache offline is correct;
  * staleness only matters once online. Call this early — before
- * getCachedScript or audio playback. Returns true if anything was invalidated.
+ * getCachedScript or audio playback. Returns true if anything was cleared
+ * (version lane) or marked stale (stamp lane).
  */
-export const checkContentVersion = async (
+export const checkContentVersion = (
+  supabase: SupabaseClient,
+  courseCode: string
+): Promise<boolean> => {
+  // Register the in-flight check so awaitFreshnessCheck callers can wait for
+  // the verdict instead of racing the boot query.
+  const promise = doCheckContentVersion(supabase, courseCode)
+  inflightFreshnessChecks.set(courseCode, promise)
+  promise
+    .finally(() => {
+      if (inflightFreshnessChecks.get(courseCode) === promise) {
+        inflightFreshnessChecks.delete(courseCode)
+      }
+    })
+    .catch(() => { /* observers handle their own errors */ })
+  return promise
+}
+
+const doCheckContentVersion = async (
   supabase: SupabaseClient,
   courseCode: string
 ): Promise<boolean> => {
@@ -365,34 +435,32 @@ export const checkContentVersion = async (
       liveContentStamps.set(courseCode, liveStamp)
       // Listening metadata bundle: background refresh, never blocks anything.
       void refreshListeningMetaIfStale(supabase, courseCode, liveStamp).catch(() => {})
-      // Script cache: entry built from an older content vintage → drop it so
-      // the next generation walk (moments later on the boot path) rebuilds
-      // from live data. Entries with no stamp are pre-stamp or offline-written
-      // → stale once, which retroactively heals every device cached before
-      // the stamp existed (the months-stale ita gloss class).
+      // Script cache: entry built from an older content vintage → mark it
+      // STALE, never drop it (SWR, founder ruling 2026-07-27): this session
+      // plays the cached script immediately; the player revalidates in the
+      // background and the fresh script applies next session. Entries with no
+      // stamp are pre-stamp or offline-written → stale once, which
+      // retroactively heals every device cached before the stamp existed
+      // (the months-stale ita gloss class) without a blocking rebuild.
       try {
         const cached = await getCachedScript(courseCode)
         if (cached && cached.contentStamp !== liveStamp) {
-          console.log(`[ScriptCache] Content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — dropping script cache for ${courseCode}`)
-          // Rescue the offline lease (entitlement state) so the regenerated
-          // entry re-attaches it — a content fix must never lock a download.
-          if (cached.offlineLeases || cached.offlineLease) {
-            rescuedLeases.set(courseCode, {
-              offlineLeases: cached.offlineLeases,
-              offlineLease: cached.offlineLease,
-            })
-          }
-          await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode))
+          console.log(`[ScriptCache] Content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — marking ${courseCode} stale (SWR: play cached now, revalidate in background)`)
+          staleScripts.set(courseCode, { cachedStamp: cached.contentStamp ?? null, liveStamp })
           invalidated = true
+        } else {
+          staleScripts.delete(courseCode)
         }
-      } catch { /* cache unreadable — nothing to invalidate */ }
+      } catch { /* cache unreadable — nothing to mark */ }
     }
 
     if (storedVersion && storedVersion !== currentVersion) {
       console.log(`[ScriptCache] Content version changed: ${storedVersion} → ${currentVersion} — clearing caches`)
 
-      // Clear script cache for this course (now in IndexedDB)
+      // Clear script cache for this course (now in IndexedDB). The entry is
+      // gone, so there's nothing left to be stale.
       try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
+      staleScripts.delete(courseCode)
 
       // Clear Service Worker audio cache (CacheFirst entries with old UUIDs)
       try {

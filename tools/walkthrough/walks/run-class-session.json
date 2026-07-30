@@ -1,0 +1,24 @@
+{
+  "id": "run-class-session",
+  "title": "Run your first class session",
+  "personas": ["teacher"],
+  "place": { "route": "class-detail" },
+  "steps": [
+    {
+      "anchor": "class-join-link",
+      "say": "Students join with this link — share it and they sign up straight into this class.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-join-code",
+      "say": "Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-play",
+      "say": "**Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.",
+      "advance": { "on": "next" },
+      "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you."
+    }
+  ]
+}

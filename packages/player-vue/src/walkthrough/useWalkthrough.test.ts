@@ -1,0 +1,132 @@
+// Runtime state-machine tests — start/next/back/terminal/stop, offer
+// filtering, and the DOM breadcrumb the e2e harness asserts on.
+import { describe, it, expect, beforeEach } from 'vitest'
+import {
+  useWalkthrough, walksFor, walkById, startWalk, stopWalk,
+  isDestructiveAnchor, effectiveAdvance, type WalkStep,
+} from './useWalkthrough'
+import pack from './pack.json'
+
+const w = useWalkthrough()
+
+beforeEach(() => stopWalk())
+
+describe('pack shape', () => {
+  it('bundles the five founding walks', () => {
+    const ids = pack.walks.map((x) => x.id)
+    for (const id of ['invite-first-teacher', 'run-class-session', 'ways-in', 'reading-insights', 'invites-desk']) {
+      expect(ids).toContain(id)
+    }
+  })
+})
+
+describe('walksFor (offer filtering)', () => {
+  it('filters by persona × place × kind', () => {
+    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual(['run-class-session'])
+    expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
+    expect(walksFor('teacher', 'admin-invites')).toEqual([])
+    // node-home kinds: invite-first-teacher is school-only; ways-in covers groups too
+    const school = walksFor('leader', 'node-home', 'school').map((x) => x.id)
+    expect(school).toContain('invite-first-teacher')
+    expect(school).toContain('ways-in')
+    const group = walksFor('leader', 'node-home', 'group').map((x) => x.id)
+    expect(group).not.toContain('invite-first-teacher')
+    expect(group).toContain('ways-in')
+  })
+})
+
+describe('state machine', () => {
+  it('never auto-plays: no active walk until startWalk is called', () => {
+    expect(w.activeWalk.value).toBeNull()
+    expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+  })
+
+  it('startWalk on an unknown id is a no-op returning false', () => {
+    expect(startWalk('ghost')).toBe(false)
+    expect(w.activeWalk.value).toBeNull()
+  })
+
+  it('walks forward, back, into terminal, and out', () => {
+    expect(startWalk('ways-in')).toBe(true)
+    const steps = walkById('ways-in')!.steps
+    expect(w.stepIndex.value).toBe(0)
+    expect(document.documentElement.getAttribute('data-walk-active')).toBe('ways-in:0')
+
+    w.next()
+    expect(w.stepIndex.value).toBe(1)
+    w.back()
+    expect(w.stepIndex.value).toBe(0)
+    w.back() // at the start — stays
+    expect(w.stepIndex.value).toBe(0)
+
+    for (let i = 1; i < steps.length; i++) w.next()
+    expect(w.stepIndex.value).toBe(steps.length - 1)
+
+    w.next() // last step has terminal → terminal card, not exit
+    expect(w.showingTerminal.value).toBe(true)
+    expect(document.documentElement.getAttribute('data-walk-active')).toContain(':done')
+
+    w.back() // back out of terminal to the last step
+    expect(w.showingTerminal.value).toBe(false)
+    expect(w.stepIndex.value).toBe(steps.length - 1)
+
+    w.next()
+    w.next() // Done → walk ends
+    expect(w.activeWalk.value).toBeNull()
+    expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+  })
+
+  it('stopWalk clears state and breadcrumb from any point', () => {
+    startWalk('invites-desk')
+    w.next()
+    stopWalk()
+    expect(w.activeWalk.value).toBeNull()
+    expect(w.stepIndex.value).toBe(0)
+    expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+  })
+
+  it('Esc ends the walk from any step (engine-level escape hatch)', () => {
+    startWalk('ways-in')
+    w.next()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.activeWalk.value).toBeNull()
+    expect(document.documentElement.hasAttribute('data-walk-active')).toBe(false)
+    // After the walk ends, Esc is unbound — no lingering listener effects.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.activeWalk.value).toBeNull()
+  })
+
+  it('other keys do not end the walk', () => {
+    startWalk('ways-in')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    expect(w.activeWalk.value?.id).toBe('ways-in')
+  })
+})
+
+describe('runtime destructive-verb mirror (stale-pack defence)', () => {
+  const step = (anchor: string, on: 'next' | 'click' | 'visible' = 'click'): WalkStep =>
+    ({ anchor, say: 'x', advance: { on } })
+
+  it('flags the denylisted verb families', () => {
+    for (const anchor of ['verb-delete', 'demo-purge', 'invite-form-submit', 'ways-in-remint', 'invites-active-toggle', 'class-play', 'entitlement-grant']) {
+      expect(isDestructiveAnchor(anchor), anchor).toBe(true)
+    }
+    expect(isDestructiveAnchor('ways-in-ledger')).toBe(false)
+    expect(isDestructiveAnchor('insights-measure')).toBe(false)
+  })
+
+  it('degrades click-advance on a destructive anchor to show-and-point', () => {
+    expect(effectiveAdvance(step('verb-delete', 'click'))).toBe('next')
+    expect(effectiveAdvance(step('verb-invite-person', 'click'))).toBe('click')
+    expect(effectiveAdvance(step('verb-delete', 'next'))).toBe('next')
+    expect(effectiveAdvance(step('some-form', 'visible'))).toBe('visible')
+  })
+
+  it('no step in the live pack click-advances a destructive anchor', () => {
+    for (const walk of pack.walks) {
+      for (const s of walk.steps) {
+        if (s.advance.on === 'click') expect(isDestructiveAnchor(s.anchor), `${walk.id}:${s.anchor}`).toBe(false)
+      }
+    }
+  })
+})

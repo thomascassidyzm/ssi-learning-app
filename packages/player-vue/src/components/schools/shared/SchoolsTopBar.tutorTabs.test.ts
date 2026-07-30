@@ -30,7 +30,7 @@ describe('SchoolsTopBar — tutor tab set', () => {
     }
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const labels = wrapper.findAll('.tabs a, .tabs router-link').map((l) => l.text())
-    expect(labels).toEqual(['Dashboard', 'Students', 'Analytics'])
+    expect(labels).toEqual(['Dashboard', 'Students', 'Insights'])
   })
 
   it('a groupless tutor (educational_role tutor, no school_id) gets an Upgrade tab', async () => {
@@ -42,7 +42,7 @@ describe('SchoolsTopBar — tutor tab set', () => {
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const links = wrapper.findAll('.tabs a')
     const labels = links.map((l) => l.text())
-    expect(labels).toEqual(['Dashboard', 'Students', 'Analytics', 'Upgrade'])
+    expect(labels).toEqual(['Dashboard', 'Students', 'Insights', 'Upgrade'])
     const upgrade = links.find((l) => l.text() === 'Upgrade')
     expect(upgrade?.attributes('href')).toBe('/schools/upgrade')
   })

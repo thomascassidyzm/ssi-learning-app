@@ -1,6 +1,6 @@
 # Explanation pack — compiled render
 
-**Version `55774db2e2ad` · generated 2026-07-27 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
+**Version `9d72e7a83ceb` · generated 2026-07-28 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
 
 Truth manifest: 10 verbs (Invite a person · Get a shareable link · Add a group · Add a school · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · Class sessions this week · Class practice · Students · Teachers · Classes practising this week · Learners · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
 
@@ -105,5 +105,6 @@ it once, they tap it, give a name, and they're in your class on your course.
 
 - **silent-class** (node, class): "This class practises together, but not this week — worth a look at how the pace is holding?" → insights
 - **quiet-subtree** (node, group/school): "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when." → lens:classes
+- **school-needs-first-teacher** (node, school): "No teachers here yet — want a 30-second tour of bringing the first one in?" → walk:invite-first-teacher
 - **school-no-teachers** (perChild, group): "{name} has no teachers yet — its teacher link gets them started." → child-home
 - **students-quiet-week** (countWhere, class): "{count} of the students haven't practised on their own this week — the rows below show who." → students

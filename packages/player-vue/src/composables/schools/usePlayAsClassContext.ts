@@ -77,9 +77,12 @@ export function usePlayAsClassContext() {
   const className = computed(() => activeClass.value?.name || '')
 
   /**
-   * Leave the class session and return to where it was launched from. Clears the
-   * stored payload + ?class= query (mirrors PlayerContainer.clearClassContext) so
-   * a later self-practice launch on the same route can't rematch this class.
+   * Leave the class session and return home. Clears the stored payload +
+   * ?class= query (mirrors PlayerContainer.clearClassContext) so a later
+   * self-practice launch on the same route can't rematch this class.
+   * Schools users land on the schools DASHBOARD (/schools), tutors on theirs —
+   * ending a session must hand the teacher back their home surface, never
+   * strand them (founder ruling, 2026-07-30).
    */
   async function exitClassSession() {
     try {
@@ -88,7 +91,7 @@ export function usePlayAsClassContext() {
     } catch {
       /* storage may be unavailable — navigation below still exits the mode */
     }
-    const backTo = route.name === 'teach-play' ? '/tutors/dashboard' : '/schools/classes'
+    const backTo = route.name === 'teach-play' ? '/tutors/dashboard' : '/schools'
     activeClass.value = null
     await router.push(backTo)
   }

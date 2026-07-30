@@ -17,7 +17,7 @@
  * v2 (stubbed): --telemetry <file> feeds usage counts so explanations can
  * lean on evidence. Deliberately not built — no signal before its consumer.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -105,6 +105,14 @@ for (const persona of ['admin', 'leader']) {
 const rulesFile = JSON.parse(readFileSync(join(HERE, 'rules.json'), 'utf8'))
 const homeSrc = read('api/groups/[id]/home.ts')
 const KNOWN_TARGETS = ['insights', 'lens:classes', 'child-home', 'students']
+// 'walk:<id>' CTAs launch a walkthrough in place of navigation — valid iff
+// the id names a walk in tools/walkthrough/walks/ (the walkthrough compiler
+// checks the same lockstep from its side).
+const walkIds = new Set(
+  readdirSync(join(HERE, '..', 'walkthrough', 'walks'))
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => JSON.parse(readFileSync(join(HERE, '..', 'walkthrough', 'walks', f), 'utf8')).id),
+)
 const fieldOk = (path) => path.split('.').every((seg) => homeSrc.includes(seg))
 for (const rule of rulesFile.rules) {
   const paths = [
@@ -116,14 +124,16 @@ for (const rule of rulesFile.rules) {
   for (const p of paths) {
     if (!fieldOk(p)) failures.push(`DRIFT: rule "${rule.id}" reads "${p}" but home.ts no longer emits it`)
   }
-  if (!KNOWN_TARGETS.includes(rule.cta.target)) failures.push(`RULES: rule "${rule.id}" targets unknown "${rule.cta.target}"`)
+  if (rule.cta.target.startsWith('walk:')) {
+    if (!walkIds.has(rule.cta.target.slice(5))) failures.push(`RULES: rule "${rule.id}" targets ${rule.cta.target} but no such walk exists in tools/walkthrough/walks/`)
+  } else if (!KNOWN_TARGETS.includes(rule.cta.target)) failures.push(`RULES: rule "${rule.id}" targets unknown "${rule.cta.target}"`)
   if (!['node', 'perChild', 'countWhere'].includes(rule.shape)) failures.push(`RULES: rule "${rule.id}" has unknown shape "${rule.shape}"`)
 }
 
 // 3c. The runtime evaluator must know the same targets (lockstep check).
 try {
   const evalSrc = read('packages/player-vue/src/explainer/evaluateRules.ts')
-  for (const t of KNOWN_TARGETS) {
+  for (const t of [...KNOWN_TARGETS, 'walk:']) {
     if (!evalSrc.includes(`'${t}'`)) failures.push(`LOCKSTEP: evaluateRules.ts no longer handles target '${t}'`)
   }
 } catch {

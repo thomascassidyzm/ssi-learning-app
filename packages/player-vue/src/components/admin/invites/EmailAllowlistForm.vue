@@ -4,7 +4,7 @@
 // person, one magic link, ssi_admin only) plus the batch allowlist panel
 // (many emails, granted automatically at sign-in) — same underlying
 // entitlement mechanisms, both kept exactly as they behaved there.
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -160,6 +160,23 @@ async function fetchAllowlist(): Promise<void> {
   } catch (err) {
     console.warn('[EmailAllowlistForm] allowlist fetch error:', err)
   }
+}
+
+// Two-phase submit: this is the highest-blast-radius verb in the app (one tap
+// = silent lifetime access for every pasted email, applied instantly to
+// existing accounts). First submit opens a review of exactly what was parsed;
+// only the review's own button commits. Editing the paste box resets it.
+const isReviewingAllowlist = ref(false)
+watch(allowlistEmails, () => { isReviewingAllowlist.value = false })
+
+function reviewAllowlist(): void {
+  allowlistError.value = null
+  allowlistResult.value = null
+  if (parsedAllowlistEmails.value.length === 0) {
+    allowlistError.value = 'Enter at least one valid email'
+    return
+  }
+  isReviewingAllowlist.value = true
 }
 
 async function grantEmails(): Promise<void> {
@@ -319,7 +336,7 @@ onMounted(() => {
         <div v-if="allowlistError" class="banner banner-error">{{ allowlistError }}</div>
       </Transition>
 
-      <form class="allowlist-form" @submit.prevent="grantEmails">
+      <form class="allowlist-form" @submit.prevent="reviewAllowlist">
         <p class="allowlist-hint">
           Paste emails (one per line, or comma-separated). Those users get free
           access automatically when they sign in — no code to type. Already
@@ -354,15 +371,33 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="field-actions">
-          <button type="submit" class="btn-primary" :disabled="isGrantingEmails || parsedAllowlistEmails.length === 0">
-            <svg v-if="!isGrantingEmails" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            <span v-else class="spinner"></span>
-            {{ isGrantingEmails ? 'Granting…' : 'Grant access' }}
+        <div v-if="!isReviewingAllowlist" class="field-actions">
+          <button type="submit" class="btn-primary" :disabled="parsedAllowlistEmails.length === 0">
+            Review &amp; grant…
           </button>
+        </div>
+
+        <!-- Review step — the commit happens here, never on the first tap -->
+        <div v-else class="allowlist-review">
+          <p class="allowlist-review-headline">
+            Grants <strong>{{ parsedAllowlistEmails.length }}</strong>
+            email{{ parsedAllowlistEmails.length === 1 ? '' : 's' }}
+            {{ allowlistAccessType === 'full' ? 'full access to every course' : 'course access' }},
+            lifetime — and applies <strong>immediately</strong> to any of them
+            with an existing account.
+          </p>
+          <ul class="allowlist-review-list">
+            <li v-for="email in parsedAllowlistEmails" :key="email">{{ email }}</li>
+          </ul>
+          <div class="field-actions allowlist-review-actions">
+            <button type="button" class="btn-ghost" :disabled="isGrantingEmails" @click="isReviewingAllowlist = false">
+              Back to edit
+            </button>
+            <button type="button" class="btn-primary" :disabled="isGrantingEmails" @click="grantEmails">
+              <span v-if="isGrantingEmails" class="spinner"></span>
+              {{ isGrantingEmails ? 'Granting…' : `Grant to ${parsedAllowlistEmails.length} email${parsedAllowlistEmails.length === 1 ? '' : 's'}` }}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -531,6 +566,67 @@ onMounted(() => {
 .btn-primary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px 18px;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(44, 38, 34, 0.14);
+  background: transparent;
+  color: var(--schools-fg-2);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: rgba(44, 38, 34, 0.28);
+  color: var(--schools-fg);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.allowlist-review {
+  border: 1px solid rgba(var(--tone-red), 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--tone-red), 0.05);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.allowlist-review-headline {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--schools-fg);
+  line-height: 1.5;
+}
+
+.allowlist-review-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--schools-fg-2);
+}
+
+.allowlist-review-actions {
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: 0;
 }
 
 .spinner {

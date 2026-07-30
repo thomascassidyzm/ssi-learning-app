@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import NodeHomeView from './NodeHomeView.vue'
+import { clearNodeHomeCache } from '@/composables/admin/nodeHomeCache'
 
 const routeMock = reactive({ params: { id: 'programme' } as Record<string, any>, query: {} as Record<string, any> })
 const pushMock = vi.fn()
@@ -88,6 +89,7 @@ function setupFetch(payload: any) {
 }
 
 beforeEach(() => {
+  clearNodeHomeCache()
   vi.unstubAllGlobals()
   pushMock.mockClear()
   replaceMock.mockClear()
@@ -282,6 +284,27 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).not.toHaveBeenCalled()
     expect(wrapper.find('.child-detail').exists()).toBe(false)
   })
+  it('RAIL-STABILITY PIN (founder 2026-07-30): remounting with the node cached — the hop back from Insights — paints the full page synchronously, no loading screen, no rail flash', async () => {
+    setupFetch(nodePayload())
+    const first = mountView()
+    await flushPromises()
+    first.unmount()
+
+    // The hop back: the fresh fetch is still in flight — the cached payload
+    // must carry the whole first paint, rail included.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const wrapper = mountView()
+    await Promise.resolve()
+
+    expect(wrapper.find('.loading-spinner').exists()).toBe(false)
+    expect(wrapper.find('.rail-skel').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Where you are')
+    expect(wrapper.text()).toContain("you're here")
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+    // Stats render the still-correct cached values (same node, seconds old).
+    expect(wrapper.text()).toContain('266.4h')
+  })
+
   it('MEMBER-MOUNT PIN (/schools/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
     ;(routeMock as any).path = '/schools/org/programme'
     setupFetch(nodePayload())

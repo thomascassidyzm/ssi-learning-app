@@ -168,6 +168,27 @@
           if (btn) btn.addEventListener('click', fullHeal);
         }
 
+        // The "Updating the app…" screen must NEVER hang. Two ways it can
+        // (both observed on iOS standalone PWAs): a Cache API / SW-unregister
+        // promise that never settles, and a location.reload() that silently
+        // doesn't take. So: cleanup races a hard deadline, reload fires
+        // exactly once either way, and a wedge timer behind the reload
+        // escalates to a tap-to-relaunch button — the tap is a user gesture,
+        // which is exactly what unsticks a wedged webview.
+        // Constants mirrored in utils/bootHeal.ts (HEAL_DEADLINE_MS /
+        // RELOAD_WEDGE_MS) — keep in lockstep.
+        var HEAL_DEADLINE_MS = 4000;
+        var RELOAD_WEDGE_MS = 2500;
+
+        function showRelaunch() {
+          var el = document.getElementById('app');
+          if (!el) return;
+          el.className = 'ssi-boot-floor';
+          el.innerHTML = '<p>Update ready.</p><button type="button" id="ssi-relaunch-btn">Tap to relaunch</button>';
+          var btn = document.getElementById('ssi-relaunch-btn');
+          if (btn) btn.addEventListener('click', function () { window.location.reload(); });
+        }
+
         function fullHeal() {
           var unregister = ('serviceWorker' in navigator)
             ? navigator.serviceWorker.getRegistrations().then(function (regs) {
@@ -183,12 +204,24 @@
               })
             : Promise.resolve();
 
+          var reloaded = false;
+          function reloadOnce() {
+            if (reloaded) return;
+            reloaded = true;
+            setTimeout(showRelaunch, RELOAD_WEDGE_MS);
+            window.location.reload();
+          }
+
+          // Hard deadline: if cleanup promises hang, reload anyway — the
+          // next boot re-runs the ladder against whatever cleanup did land.
+          setTimeout(reloadOnce, HEAL_DEADLINE_MS);
+
           // IndexedDB (audio, progress) and localStorage are deliberately
           // never touched here — a boot failure can only come from
           // HTML/JS/CSS, which live exclusively in SW caches.
           Promise.all([unregister, clearCaches])
             .catch(function () { /* best-effort — reload regardless */ })
-            .then(function () { window.location.reload(); });
+            .then(reloadOnce);
         }
 
         function heal() {

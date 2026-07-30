@@ -5,15 +5,22 @@
  * courses.content_stamp is trigger-maintained in the DB (migration
  * 20260722_course_content_stamp.sql): any learner-visible content write moves
  * it. The client compares it against the vintage recorded on each cache
- * entry. Covers:
- *  1. stamp moved (incl. pre-stamp entries) → script cache entry dropped,
- *     listening bundle refresh dispatched.
- *  2. stamp unchanged → nothing invalidated.
- *  3. offline / query failure → nothing invalidated (stale-offline is
- *     correct behaviour).
- *  4. offline lease survives a stamp invalidation (entitlement state is
- *     rescued onto the regenerated entry).
- *  5. new entries are stamped with the live vintage seen at boot.
+ * entry.
+ *
+ * STALE-WHILE-REVALIDATE (founder ruling 2026-07-27): a stamp mismatch no
+ * longer DROPS the entry — the session plays from the cached script
+ * immediately and the player revalidates in the background; the fresh script
+ * applies from the next session. Covers:
+ *  1. stamp moved (incl. pre-stamp entries) → entry KEPT, marked stale
+ *     (getScriptStaleness), listening bundle refresh dispatched.
+ *  2. stamp unchanged → nothing stale.
+ *  3. offline / query failure → nothing stale (stale-offline is correct).
+ *  4. a live-vintage rewrite (the background revalidation) clears staleness;
+ *     a vintage-preserving rewrite (offline-download persist of the old
+ *     queue) leaves the staleness standing.
+ *  5. offline lease survives script rewrites (entitlement state carries over
+ *     when the new write brings no leases of its own).
+ *  6. new entries are stamped with the live vintage seen at boot.
  */
 
 import 'fake-indexeddb/auto'
@@ -27,6 +34,8 @@ import {
   checkContentVersion,
   getCachedScript,
   setCachedScript,
+  getScriptStaleness,
+  awaitFreshnessCheck,
   setOfflineLease,
   getOfflineLease,
   type CachedScript,
@@ -69,8 +78,8 @@ async function seedScript(code: string, extra: Partial<CachedScript> = {}): Prom
   } as any)
 }
 
-describe('checkContentVersion — content_stamp lane', () => {
-  it('drops a pre-stamp (months-stale) script entry when a live stamp exists', async () => {
+describe('checkContentVersion — content_stamp lane (SWR)', () => {
+  it('keeps a pre-stamp (months-stale) entry but marks it stale when a live stamp exists', async () => {
     const code = courseCode()
     await seedScript(code) // no contentStamp — a device cached before the mechanism
     expect(await getCachedScript(code)).not.toBeNull()
@@ -79,12 +88,17 @@ describe('checkContentVersion — content_stamp lane', () => {
       fakeClient({ content_version: '1.0.0', content_stamp: '2026-07-22T00:00:00Z' }), code)
 
     expect(invalidated).toBe(true)
-    expect(await getCachedScript(code)).toBeNull()
+    // SWR: the entry SURVIVES — this session plays from it.
+    expect(await getCachedScript(code)).not.toBeNull()
+    expect(getScriptStaleness(code)).toEqual({
+      cachedStamp: null,
+      liveStamp: '2026-07-22T00:00:00Z',
+    })
     expect(refreshListeningMetaIfStale).toHaveBeenCalledWith(
       expect.anything(), code, '2026-07-22T00:00:00Z')
   })
 
-  it('drops an entry whose vintage differs from the live stamp', async () => {
+  it('keeps-but-marks-stale an entry whose vintage differs from the live stamp', async () => {
     const code = courseCode()
     await seedScript(code, { contentStamp: 'old-stamp' } as any)
 
@@ -92,10 +106,11 @@ describe('checkContentVersion — content_stamp lane', () => {
       fakeClient({ content_version: '1.0.0', content_stamp: 'new-stamp' }), code)
 
     expect(invalidated).toBe(true)
-    expect(await getCachedScript(code)).toBeNull()
+    expect(await getCachedScript(code)).not.toBeNull()
+    expect(getScriptStaleness(code)).toEqual({ cachedStamp: 'old-stamp', liveStamp: 'new-stamp' })
   })
 
-  it('keeps an entry whose vintage matches the live stamp', async () => {
+  it('keeps an entry whose vintage matches the live stamp, with no staleness', async () => {
     const code = courseCode()
     // Boot once so the module learns the live stamp, then write the entry —
     // it inherits that stamp, mirroring the real generation flow.
@@ -109,27 +124,66 @@ describe('checkContentVersion — content_stamp lane', () => {
 
     expect(invalidated).toBe(false)
     expect(await getCachedScript(code)).not.toBeNull()
+    expect(getScriptStaleness(code)).toBeNull()
   })
 
-  it('never invalidates offline (query failure) — stale offline is correct', async () => {
+  it('never marks stale offline (query failure) — stale offline is correct', async () => {
     const code = courseCode()
     await seedScript(code) // stamp-less, would be "stale" if we could check
     const invalidated = await checkContentVersion(fakeClient(null, true), code)
     expect(invalidated).toBe(false)
     expect(await getCachedScript(code)).not.toBeNull()
+    expect(getScriptStaleness(code)).toBeNull()
   })
 
-  it('rescues the offline lease across a stamp invalidation', async () => {
+  it('awaitFreshnessCheck resolves after an in-flight check settles', async () => {
+    const code = courseCode()
+    await seedScript(code, { contentStamp: 'old-stamp' } as any)
+    // Fire without awaiting, then wait via the helper — the verdict must be in.
+    void checkContentVersion(
+      fakeClient({ content_version: '1.0.0', content_stamp: 'new-stamp' }), code)
+    await awaitFreshnessCheck(code)
+    expect(getScriptStaleness(code)).toEqual({ cachedStamp: 'old-stamp', liveStamp: 'new-stamp' })
+  })
+
+  it('a live-vintage rewrite (background revalidation) clears the staleness', async () => {
+    const code = courseCode()
+    await seedScript(code, { contentStamp: 'old-stamp' } as any)
+    await checkContentVersion(
+      fakeClient({ content_version: '1.0.0', content_stamp: 'new-stamp' }), code)
+    expect(getScriptStaleness(code)).not.toBeNull()
+
+    // The revalidation walk rewrites the entry; default stamping applies the
+    // live vintage learned at boot.
+    await seedScript(code)
+    expect((await getCachedScript(code))!.contentStamp).toBe('new-stamp')
+    expect(getScriptStaleness(code)).toBeNull()
+  })
+
+  it('a vintage-preserving rewrite (offline persist of the old queue) leaves staleness standing', async () => {
+    const code = courseCode()
+    await seedScript(code, { contentStamp: 'old-stamp' } as any)
+    await checkContentVersion(
+      fakeClient({ content_version: '1.0.0', content_stamp: 'new-stamp' }), code)
+
+    // An SWR session persisting its in-memory (old-vintage) queue passes the
+    // queue's own stamp — old rounds must never be mis-stamped as fresh.
+    await seedScript(code, { contentStamp: 'old-stamp' } as any)
+    expect((await getCachedScript(code))!.contentStamp).toBe('old-stamp')
+    expect(getScriptStaleness(code)).toEqual({ cachedStamp: 'old-stamp', liveStamp: 'new-stamp' })
+  })
+
+  it('the offline lease survives a script rewrite that brings no leases', async () => {
     const code = courseCode()
     await seedScript(code, { contentStamp: 'old-stamp' } as any)
     await setOfflineLease(code, 'user-A', makeLease())
 
     await checkContentVersion(
       fakeClient({ content_version: '1.0.0', content_stamp: 'new-stamp' }), code)
-    expect(await getCachedScript(code)).toBeNull() // entry gone…
+    expect(await getCachedScript(code)).not.toBeNull() // SWR: entry kept
 
-    await seedScript(code) // …the regeneration walk rewrites it…
-    const lease = await getOfflineLease(code, 'user-A') // …and the lease survived
+    await seedScript(code) // the background revalidation rewrites it…
+    const lease = await getOfflineLease(code, 'user-A') // …and the lease carried over
     expect(lease).not.toBeNull()
     expect(lease!.expiresAt).toBe(NOW + 30 * 86_400_000)
   })

@@ -6,15 +6,28 @@ import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassConte
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
 
-type NavTab = { label: string; to: string; routeName?: string }
+type NavTab = {
+  label: string
+  to: string
+  routeName?: string
+  /** When set, the tab is active only if the route's ?lens matches too —
+   * distinguishes the Schools tab (node home, schools lens) from plain
+   * node-home navigation. */
+  lens?: string
+}
 
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
 
-// Play-as-class: while a class session is live, the class name is the primary
-// identity in the bar (school/teacher demoted, section tabs + Learn launcher
-// dropped) so a teacher always knows WHICH class is on screen.
+// Play-as-class: while a class session is live, a SLIM in-nav chip names the
+// class (school demoted inside it) so a teacher always knows WHICH class is
+// on screen. The section tabs and hamburger STAY — the schools top nav
+// persists on every screen a schools user reaches, including inside the
+// player (founder ruling, 2026-07-30; the old mode dropped them and swelled
+// the bar, which read as the player "taking over"). Only the self-practice
+// Learn launcher is dropped: mid-class-session it's the one affordance that
+// would be actively confusing, and the chip's End session takes its place.
 const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
 
 const auth = inject<any>('auth', null)
@@ -28,6 +41,23 @@ const tabs = computed<NavTab[]>(() => {
   // under the pointer.
   if (!currentUser.value) return []
   if (isGovtAdmin.value) {
+    // THE VIEW (docs/THE-VIEW.md) is the ONE frame for hierarchy leaders —
+    // the tabs point at the node surface (node home with the schools lens +
+    // node insights), never the retired pre-hierarchy flat views. The old
+    // tab set landed a group leader on the flat All-schools list and a
+    // teacher-scoped Analytics that showed 'No classes yet' to a leader
+    // whose dashboard showed 23 practising classes (founder-found on prod,
+    // 2026-07-29).
+    const groupId = currentUser.value.group_id
+    if (groupId) {
+      return [
+        { label: 'Schools',  to: `/schools/org/${groupId}?lens=schools`, routeName: 'schools-node-home', lens: 'schools' },
+        { label: 'Insights', to: `/schools/org/${groupId}/insights`, routeName: 'schools-node-insights' },
+      ]
+    }
+    // Legacy leaders with no group (region_code-only govt_admin rows) have
+    // no node to scope to — they keep the flat views until migrated (same
+    // fallback DashboardView documents for its node-home redirect).
     return [
       { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },
       { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
@@ -36,12 +66,37 @@ const tabs = computed<NavTab[]>(() => {
   if (isSchoolAdmin.value) {
     // Settings lives in the user menu (account-shaped, not a daily
     // destination) — fewer tabs means the school name keeps its space.
+    //
+    // THE VIEW convergence, third persona (founder ruling, 2026-07-30: "it's
+    // better to have consistency - they should also have the hierarchical
+    // LHS WHERE YOU ARE menu"): a school leader's Dashboard IS their school's
+    // node home (/schools/org/:schoolId — the endpoint bridges the school id
+    // to its node), and Insights the node insights — same door govt_admin
+    // went through (2026-07-29). Teachers tab retired: teachers ARE the
+    // school node's children, and Invite teacher lives on the node's verb
+    // bar. Classes and Students stay flat for now — Play-as-Class and
+    // student management have no node-surface equivalent yet.
+    const schoolId = currentUser.value.school_id
+    if (schoolId) {
+      return [
+        { label: 'Dashboard', to: `/schools/org/${schoolId}`, routeName: 'schools-node-home' },
+        { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
+        { label: 'Students',  to: '/schools/students',  routeName: 'students' },
+        { label: 'Insights',  to: `/schools/org/${schoolId}/insights`, routeName: 'schools-node-insights' },
+        { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+      ]
+    }
+    // Legacy school_admin rows with no resolvable school keep the flat set
+    // (same fallback shape as the no-group govt_admin above).
     return [
       { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
       { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
       { label: 'Students',  to: '/schools/students',  routeName: 'students' },
       { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
-      { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
+      // "Insights" is the one word for the Insight Engine door everywhere
+      // (govt tabs, node "See insights") — the destination is already THE
+      // LENS's teacher wrapper, only the label was still the old generation.
+      { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
   }
@@ -54,7 +109,8 @@ const tabs = computed<NavTab[]>(() => {
   const teacherTabs: NavTab[] = [
     { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
     { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-    { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
+    // Same "Insights" unification as the school_admin set above.
+    { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
   ]
   if (!currentUser.value.school_id) {
     teacherTabs.push({ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' })
@@ -63,7 +119,10 @@ const tabs = computed<NavTab[]>(() => {
 })
 
 function isActive(tab: NavTab): boolean {
-  if (tab.routeName && route.name === tab.routeName) return true
+  if (tab.routeName && route.name === tab.routeName) {
+    if (tab.lens !== undefined) return route.query.lens === tab.lens
+    return true
+  }
   // /schools/classes/:id should keep "Classes" tab highlighted
   if (tab.to === '/schools/classes' && route.path.startsWith('/schools/classes')) return true
   return false
@@ -136,7 +195,6 @@ if (typeof document !== 'undefined') {
   <header class="schools-topbar">
     <div class="left">
       <button
-        v-if="!isPlayingAsClass"
         type="button"
         class="nav-toggle"
         aria-label="Menu"
@@ -155,9 +213,9 @@ if (typeof document !== 'undefined') {
         <span class="brand-tail">Schools</span>
       </router-link>
 
-      <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so
-           it becomes the dominant identity here (school demoted inside it), and
-           the section tabs + school label are dropped to cut chrome. -->
+      <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT —
+           a slim chip inside the bar (school demoted inside it), sitting where
+           the school label normally does. The tabs stay alongside it. -->
       <PlayAsClassIdentity
         v-if="isPlayingAsClass"
         :class-name="className"
@@ -167,10 +225,12 @@ if (typeof document !== 'undefined') {
 
       <!-- WHERE AM I: the school name is the identity of this surface — it
            stays visible at every width (truncating, full name in the
-           tooltip) instead of being a throwaway label that mobile hid. -->
+           tooltip) instead of being a throwaway label that mobile hid.
+           While playing-as, the chip above carries both class AND school, so
+           the standalone label yields its space to the chip. -->
       <span v-if="!isPlayingAsClass && schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
 
-      <nav v-if="!isPlayingAsClass" class="tabs" aria-label="Schools sections">
+      <nav class="tabs" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -181,7 +241,7 @@ if (typeof document !== 'undefined') {
         </router-link>
       </nav>
 
-      <nav v-if="mobileNavOpen && !isPlayingAsClass" class="mobile-nav" aria-label="Schools sections">
+      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"

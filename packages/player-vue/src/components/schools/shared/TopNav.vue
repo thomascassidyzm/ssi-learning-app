@@ -34,7 +34,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
-const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 const { canAccessAdmin, hasSchoolRole } = useUserRole()
 
 // Play-as-class: while a class session is live, the class name is the primary
@@ -55,7 +55,9 @@ const baseTabs: NavTab[] = [
   { name: 'teachers', path: '/schools/teachers', label: 'Teachers' },
   { name: 'students', path: '/schools/students', label: 'Students' },
   { name: 'classes', path: '/schools/classes', label: 'Classes' },
-  { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
+  // "Insights" is the one word for the Insight Engine door everywhere (the
+  // destination was already THE LENS's teacher wrapper).
+  { name: 'analytics', path: '/schools/analytics', label: 'Insights' },
 ]
 
 const tabs = computed(() => {
@@ -67,12 +69,32 @@ const tabs = computed(() => {
     return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]
   }
   if (isGovtAdmin.value) {
-    result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
+    // Nav unification (2026-07-29): a group-scoped leader's Schools door is
+    // THE VIEW's node home (schools lens), never the retired flat list. The
+    // flat /schools/all survives only for legacy no-group govt_admin rows.
+    const groupId = (selectedUser.value as any)?.group_id as string | undefined
+    result.push(groupId
+      ? { name: 'all-schools', path: `/schools/org/${groupId}?lens=schools`, label: 'Schools' }
+      : { name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
   // Show school-owner tabs for actual school roles, or when god is
   // actively impersonating a user with a school context.
   if (hasSchoolRole.value || selectedUser.value) {
-    result.push(...baseTabs)
+    // Third persona through THE VIEW's door (2026-07-30): a school leader's
+    // Dashboard/Teachers/Insights are the node surface for their school's
+    // node — same repoint as the govt_admin Schools entry above. Teachers
+    // and legacy no-school school_admin rows keep the flat set.
+    const schoolId = (selectedUser.value as any)?.school_id as string | undefined
+    if (isSchoolAdmin.value && schoolId) {
+      result.push(
+        { name: 'dashboard', path: `/schools/org/${schoolId}`, label: 'Dashboard' },
+        { name: 'students', path: '/schools/students', label: 'Students' },
+        { name: 'classes', path: '/schools/classes', label: 'Classes' },
+        { name: 'analytics', path: `/schools/org/${schoolId}/insights`, label: 'Insights' },
+      )
+    } else {
+      result.push(...baseTabs)
+    }
   }
   return result
 })
@@ -152,9 +174,10 @@ const closeMobileMenu = () => {
       <span class="logo-build mono">{{ buildNumber }}</span>
     </router-link>
 
-    <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so it
-         takes the centre of the bar as the dominant identity; the section tabs
-         are dropped to cut chrome. -->
+    <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT — a
+         slim chip in the bar. The section tabs STAY alongside it: the nav
+         persists on every screen a schools/tutor user reaches, including
+         inside the player (founder ruling, 2026-07-30). -->
     <PlayAsClassIdentity
       v-if="isPlayingAsClass"
       class="nav-play-as-class"
@@ -164,7 +187,7 @@ const closeMobileMenu = () => {
     />
 
     <!-- Navigation Tabs (desktop) -->
-    <div class="nav-tabs" role="tablist" v-else-if="tabs.length > 0">
+    <div class="nav-tabs" role="tablist" v-if="tabs.length > 0">
       <router-link
         v-for="tab in tabs"
         :key="tab.name"
@@ -178,8 +201,8 @@ const closeMobileMenu = () => {
     </div>
     <div v-else class="nav-tabs-spacer" aria-hidden="true"></div>
 
-    <!-- Mobile Menu Button -->
-    <button v-if="!isPlayingAsClass" class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
+    <!-- Mobile Menu Button (stays during a class session — the way home) -->
+    <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
       <svg v-if="!isMobileMenuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
         <line x1="4" y1="7" x2="20" y2="7"/>
         <line x1="4" y1="12" x2="20" y2="12"/>

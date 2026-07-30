@@ -35,16 +35,17 @@
  * is THE-MODEL.md §5 item 4/5 territory, another worker's lane. This endpoint
  * only mints the code; see the architect report for the flagged gap.
  *
- * Authz: ssi_admin/god, OR a govt_admin whose own governed group is `:id`
- * itself or a strict ancestor of it (schoolScope.isStrictDescendantGroup) —
+ * Authz: the shared node-surface resolver (groupTreeAuth) — ssi_admin/god,
+ * OR a leader whose own scope root (govt_admin: governed group; school_admin:
+ * their school's node) is `:id` itself or a strict ancestor of it —
  * "the leader of this node, or of a node above it, may invite into it."
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { generateCode } from '../../_utils/codeGen'
-import { isStrictDescendantGroup, ownSchoolIdForNode } from '../../_utils/schoolScope'
+import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTreeAuth'
+import { ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 import { provisionPersona } from '../../_utils/provisionPersona'
 
@@ -93,33 +94,18 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Authz: ssi_admin/god first; else a govt_admin governing this exact node
-  // or a strict ancestor of it.
-  let callerUserId: string
-  const adminResult = await verifyAdmin(req)
-  if (!('error' in adminResult)) {
-    callerUserId = adminResult.userId
-  } else {
-    const authResult = await verifyAuthToken(req)
-    if (!authResult.valid || !authResult.userId) {
-      res.status(401).json({ error: authResult.error || 'Unauthorized' })
-      return
-    }
-    const { data: govtAdmin } = await supabase
-      .from('govt_admins')
-      .select('group_id')
-      .eq('user_id', authResult.userId)
-      .maybeSingle()
-    const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
-    const governsNode = !!ownGroupId && (
-      ownGroupId === groupId || await isStrictDescendantGroup(supabase, ownGroupId, groupId)
-    )
-    if (!governsNode) {
-      res.status(403).json({ error: 'You do not govern this group' })
-      return
-    }
-    callerUserId = authResult.userId
+  // Authz: the shared node-surface resolver (groupTreeAuth) — ssi_admin/god
+  // sees everything; a govt_admin is scoped to their governed group's
+  // subtree; a school_admin to their own school's node (nav unification,
+  // 2026-07-30 — the member node home's invite verbs are how a school
+  // leader invites teachers now).
+  const caller = await resolveGroupTreeCaller(req, res, supabase)
+  if (!caller) return
+  if (!(await callerCanSeeGroup(supabase, caller, groupId))) {
+    res.status(403).json({ error: 'You do not govern this group' })
+    return
   }
+  const callerUserId = caller.userId
 
   // ─── Subtree scope resolution (shared by the ledger GET and PATCH) ───
   // Segment-safe path prefix (path 'a/b' matches 'a/b' and 'a/b/…', never
