@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.6"
+  version: "1.0.7"
   date: "2026-07-30"
   author: "Tom Cassidy"
   status: "draft"
@@ -858,6 +858,15 @@ interface TeacherDashboard:
       - "School name"
       - "Teacher name"
       - "Navigation tabs"
+
+    teacher_home:
+      description: "DashboardView teacher lane — CLASSES-FIRST (founder ruling 2026-07-30: 'teacher logs in - all their classes are what they see first with PAC buttons prominent'). The home page IS the 8:59am moment: one device, often projected; two taps from login to teaching."
+      order:
+        - "Greeting (guided-look + Create-class as quiet ghost actions)"
+        - "Classes — compact density: dense table with per-row Play-as-Class; detailed density: hero cards (auto-fit grid so fewer classes = bigger cards, 32px class name, full-width .pac-hero Play-as-Class button as THE primary affordance, bench + join code demoted to a quiet footer)"
+        - "Stats demoted to one quiet inline line under the classes (students · hours · sessions) — the old 4-tile stat-strip above the classes is gone for teachers (school_admin/govt lanes keep theirs)"
+      empty_state: "No classes → Create-class CTA carries the same hero prominence the Play button would have had (.empty-hero-cta)"
+      launch: "Play-as-Class buttons all route through usePlayAsClass.launchClassSession (class_play_mode below) — the redesign changed prominence/layout only, never launch mechanics"
 
     main_views:
       classes:
