@@ -18,9 +18,16 @@
  *      combined status (Vercel).
  *   4. Open regressions / ship-gates read out of WORKLIST.md by keyword heuristic — see
  *      SIGNALS below; the report always states the heuristic it used.
- *   5. Writes the full report to tools/release-train/reports/<date>.md, committed and pushed
- *      to dev from a THROWAWAY GIT WORKTREE (so a cron run can never touch whatever the live
- *      working tree is doing), and posts a needs-you card whose 🔗 opens that report.
+ *   5. Drafts the RELEASE NOTES for this candidate (release-notes.mjs — headlines only, in
+ *      user-facing language, under-claiming by construction) so Tom can eyeball and tweak them
+ *      before he says GO. Friday's promote stamps that same file final.
+ *   6. Writes the full report to tools/release-train/reports/<date>.md AND the draft notes to
+ *      tools/release-train/notes/<date>.md, committed and pushed to dev in ONE commit from a
+ *      THROWAWAY GIT WORKTREE (so a cron run can never touch whatever the live working tree is
+ *      doing), and posts a needs-you card whose 🔗 opens that report.
+ *
+ * The delta computation, area clustering and publish path live in lib.mjs and are shared with the
+ * notes generator — one pipeline, two renderings.
  *
  * The needs-you board takes text (300 chars) + url and has no detail field, which is why the
  * detail is a committed file rather than a card body.
@@ -33,118 +40,22 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, writeFileSync, appendFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tmpdir } from 'node:os'
+import {
+  REPO, GH_REPO, log, sh, candidate, condense, publish, postCard,
+} from './lib.mjs'
+import { buildNotes, render as renderNotes, NOTES_REL } from './release-notes.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const REPO = join(HERE, '..', '..')
 const REPORTS_DIR = join(HERE, 'reports')
-const LOG_FILE = process.env.RELEASE_TRAIN_LOG || '/tmp/ssi-release-train.log'
-
-const SURFACE = 'http://localhost:4317'
-// The ssi-learning-app project orchestrator channel — tapping the card opens this chat.
-const CONV_ID = '8f1c601c-51d0-4de3-8919-dc711e27fc38'
-const GH_REPO = 'thomascassidyzm/ssi-learning-app'
 const WORKLIST = join(REPO, 'WORKLIST.md')
 
 const argv = process.argv.slice(2)
 const DRY = argv.includes('--dry-run')
 const NO_POST = DRY || argv.includes('--no-post')
 const NO_PUSH = DRY || argv.includes('--no-push')
-
-const log = (msg) => {
-  const line = `${new Date().toISOString()} ${msg}`
-  console.error(line)
-  try { appendFileSync(LOG_FILE, line + '\n') } catch { /* logging is best-effort */ }
-}
-const sh = (cmd, args, opts = {}) =>
-  execFileSync(cmd, args, { encoding: 'utf8', timeout: 120000, cwd: REPO, ...opts }).trim()
-
-// ── 1. the candidate ────────────────────────────────────────────────────────
-
-function candidate() {
-  sh('git', ['fetch', 'origin', '--quiet', '--prune'])
-  const raw = sh('git', [
-    'log', '--format=%H\x1f%s\x1f%aI\x1f%an', 'origin/main..origin/staging', '--',
-  ])
-  const commits = raw ? raw.split('\n').map((l) => {
-    const [sha, subject, date, author] = l.split('\x1f')
-    return { sha, subject, date, author }
-  }) : []
-  return {
-    commits,
-    stagingSha: sh('git', ['rev-parse', 'origin/staging']),
-    mainSha: sh('git', ['rev-parse', 'origin/main']),
-    devAhead: Number(sh('git', ['rev-list', '--count', 'origin/staging..origin/dev'])),
-    lastPromote: (() => {
-      const d = sh('git', ['log', '-1', '--format=%aI', 'origin/main', '--'])
-      return d || null
-    })(),
-  }
-}
-
-// ── 2. condensation ─────────────────────────────────────────────────────────
-// Two passes. First, drop PROCESS commits — merges, worklist claim/finish lines, promote
-// records, deploy retriggers — which are ~40% of any range here and say nothing about what a
-// user gets. Then cluster what's left by AREA, taken from the conventional-commit scope
-// (`feat(walkthrough):`) when there is one, else matched off the subject text. Area names are
-// the ones this repo actually uses, so the bullets read like the worklist Tom already knows.
-
-const PROCESS_RE = [
-  /^Merge (remote-tracking )?branch/i,
-  /^Merge pull request/i,
-  /^worklist:/i,
-  /^promote:/i,
-  /^chore: retrigger/i,
-  /^decisions?:/i,
-]
-
-const AREAS = [
-  ['Schools & teachers', /\b(schools?|teacher|classes?|classroom|roster|pupil|student|govt|leader|invite|join code|setup)\b/i],
-  ['Player & playback', /\b(player|playback|cycle|audio|round|belt|session|transport|listening|pronunciation|cold[- ]start|swr|course[- ]switch|interlude|typewriter|awakening)\b/i],
-  ['Walkthrough & onboarding', /\b(walkthrough|onboard|explainer|how[- ]this[- ]works|guided)\b/i],
-  ['Family plan & billing', /\b(family|paddle|billing|subscription|paywall|entitlement|price)\b/i],
-  ['Insights & metrics', /\b(insight|metric|analytics|lens|rate[- ]compare|prosody|vad|adaptation|telemetry|player_events)\b/i],
-  ['Admin & internal tools', /\b(admin|sentinel|danger[- ]verb|codes|tooling)\b/i],
-  ['Infra, cache & offline', /\b(infra|cache|offline|service worker|\bsw\b|vercel|deploy|lockfile|migration|rls|grant)\b/i],
-]
-
-function areaOf(subject) {
-  const scope = subject.match(/^[a-z]+\(([^)]+)\):/i)?.[1] || ''
-  const hay = `${scope} ${subject}`
-  for (const [name, re] of AREAS) if (re.test(hay)) return name
-  return 'Other'
-}
-
-const kindOf = (s) =>
-  /^(docs?|apml)[:(]/i.test(s) ? 'docs'
-    : /^(test|e2e)[:(]/i.test(s) ? 'tests'
-      : /^fix[:(]/i.test(s) ? 'fix'
-        : 'change'
-
-function condense(commits) {
-  const process_ = commits.filter((c) => PROCESS_RE.some((re) => re.test(c.subject)))
-  const substantive = commits.filter((c) => !PROCESS_RE.some((re) => re.test(c.subject)))
-  const byArea = new Map()
-  for (const c of substantive) {
-    const a = areaOf(c.subject)
-    if (!byArea.has(a)) byArea.set(a, [])
-    byArea.get(a).push({ ...c, kind: kindOf(c.subject) })
-  }
-  // Biggest area first — that is the headline of the week.
-  const areas = [...byArea.entries()]
-    .map(([name, list]) => ({
-      name,
-      list,
-      // "code" = anything that isn't a docs or test commit; that count is what a founder cares
-      // about when judging risk, so it leads each area line.
-      code: list.filter((c) => c.kind !== 'docs' && c.kind !== 'tests').length,
-    }))
-    .sort((a, b) => b.code - a.code || b.list.length - a.list.length)
-  return { process_, substantive, areas }
-}
 
 // ── 3. CI health ────────────────────────────────────────────────────────────
 // verify.yml runs on claude/**, dev, staging, main and PRs. Runs are SHA-keyed, so for any
@@ -231,7 +142,7 @@ function worklistSignals() {
 
 // ── 5. render ───────────────────────────────────────────────────────────────
 
-function render(cand, cond, ci, signals, dateStr, extraNotes) {
+function render(cand, cond, ci, signals, dateStr, extraNotes, notes) {
   const L = []
   const n = cand.commits.length
   L.push(`# Friday ship candidate — ${dateStr}`)
@@ -243,6 +154,25 @@ function render(cand, cond, ci, signals, dateStr, extraNotes) {
   L.push(`- \`dev\` is ${cand.devAhead} commit(s) ahead of \`staging\` (not in this candidate)`)
   L.push(`- last production commit landed ${cand.lastPromote ? cand.lastPromote.slice(0, 10) : 'unknown'}`)
   L.push('')
+
+  // The founder-readable half first: the draft release notes for this exact candidate. The full
+  // notes file is committed alongside this report and is what Friday's promote stamps final.
+  if (notes) {
+    L.push('## Release notes (draft)')
+    L.push('')
+    if (!notes.areas.length) {
+      L.push('Nothing in this candidate translated confidently into a user-facing headline.')
+    } else {
+      for (const a of notes.areas) {
+        L.push(`**${a.name}**`)
+        for (const b of a.list) L.push(`- ${b.headline}`)
+        L.push('')
+      }
+      L.push(`Draft: [\`${NOTES_REL(dateStr)}\`](../notes/${dateStr}.md) — edit the bullets there before GO;`)
+      L.push('`promote.sh --go` stamps that file with the ship date and the promoted sha, keeping your edits.')
+    }
+    L.push('')
+  }
 
   L.push('## What ships')
   L.push('')
@@ -317,43 +247,6 @@ function render(cand, cond, ci, signals, dateStr, extraNotes) {
   return L.join('\n') + '\n'
 }
 
-// ── 6. publish ──────────────────────────────────────────────────────────────
-// The report is committed to dev from a throwaway worktree checked out of origin/dev, so this
-// never touches the live working tree (an agent may be mid-branch in it) and never needs it
-// clean. Failure to push is not fatal: the card falls back to the GitHub compare link.
-
-function publish(relPath, body) {
-  const wt = join(tmpdir(), `ssi-release-train-${process.pid}`)
-  try {
-    sh('git', ['worktree', 'add', '--detach', wt, 'origin/dev'])
-    const abs = join(wt, relPath)
-    mkdirSync(dirname(abs), { recursive: true })
-    writeFileSync(abs, body)
-    sh('git', ['add', '--', relPath], { cwd: wt })
-    const staged = sh('git', ['diff', '--cached', '--name-only'], { cwd: wt })
-    if (!staged) { log('report identical to the committed one — nothing to push'); return true }
-    sh('git', ['commit', '-m', `release-train: Friday ship candidate report ${relPath.split('/').pop().replace('.md', '')}`], { cwd: wt })
-    sh('git', ['push', 'origin', 'HEAD:dev'], { cwd: wt })
-    return true
-  } catch (e) {
-    log(`WARN could not publish report to dev: ${String(e.message || e).slice(0, 300)}`)
-    return false
-  } finally {
-    try { rmSync(wt, { recursive: true, force: true }) } catch { /* best effort */ }
-    try { sh('git', ['worktree', 'prune']) } catch { /* best effort */ }
-  }
-}
-
-async function postCard(text, url) {
-  const r = await fetch(`${SURFACE}/api/needs-you`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, conv_id: CONV_ID, url }),
-    signal: AbortSignal.timeout(15000),
-  })
-  return r.ok
-}
-
 // ── main ────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -370,18 +263,39 @@ async function main() {
   const ci = ciHealth(cand)
   const signals = worklistSignals()
 
+  // Draft the release notes off the SAME candidate and condensation — one delta computation,
+  // two renderings. A notes failure must never cost Tom the report, so it is caught.
+  let notes = null, notesBody = null
+  try {
+    notes = buildNotes(cand)
+    notesBody = renderNotes(cand, notes, { draftDate: dateStr })
+  } catch (e) {
+    log(`WARN could not draft release notes: ${String(e.message || e).slice(0, 200)}`)
+  }
+
   const extra = process.env.RELEASE_TRAIN_EXTRA_NOTES || ''
-  const body = render(cand, cond, ci, signals, dateStr, extra)
+  const body = render(cand, cond, ci, signals, dateStr, extra, notes)
   const relPath = `tools/release-train/reports/${dateStr}.md`
 
-  if (DRY) { process.stdout.write(body); return 0 }
+  if (DRY) {
+    process.stdout.write(body)
+    if (notesBody) process.stdout.write(`\n${'='.repeat(78)}\n${NOTES_REL(dateStr)}\n${'='.repeat(78)}\n\n${notesBody}`)
+    return 0
+  }
 
-  // Always keep a local copy, whether or not the push works.
+  // Always keep local copies, whether or not the push works.
   mkdirSync(REPORTS_DIR, { recursive: true })
   writeFileSync(join(REPORTS_DIR, `${dateStr}.md`), body)
+  if (notesBody) {
+    mkdirSync(join(HERE, 'notes'), { recursive: true })
+    writeFileSync(join(HERE, 'notes', `${dateStr}.md`), notesBody)
+  }
 
+  const files = [{ relPath, body }]
+  if (notesBody) files.push({ relPath: NOTES_REL(dateStr), body: notesBody })
   let url = `https://github.com/${GH_REPO}/compare/main...staging`
-  if (!NO_PUSH && publish(relPath, body)) {
+  if (!NO_PUSH && publish(files, `release-train: Friday ship candidate report ${dateStr}` +
+    (notesBody ? ' + draft release notes' : ''))) {
     url = `https://github.com/${GH_REPO}/blob/dev/${relPath}`
   }
 

@@ -63,3 +63,8 @@ jobs:
 
       - name: API tests
         run: pnpm test:api
+
+      # Release-train notes gates (node:test, no config, no deps). Cheap, and it is the guard on
+      # the one property the auto-generated release notes may never lose: they under-claim.
+      - name: Release-train tests
+        run: pnpm test:release-train

@@ -12,6 +12,10 @@
 # Works in a throwaway git worktree, so it never touches the live working tree (an agent may be
 # mid-branch in it) and never needs it clean.
 #
+# On --go this also stamps the week's RELEASE NOTES final (tools/release-train/notes/<date>.md):
+# ship date + promoted sha into Thursday's draft, hand edits preserved. Notes are committed to
+# dev, never to main.
+#
 # After the push: the deploy sentinel (tools/deploy-sentinel/, cron'd every 3 min on watson-1)
 # opens a 2h watch window on the new main sha automatically — deploy-live, endpoint probes and
 # production telemetry. Do not add a watch step here. Then post the done-board card as described
@@ -47,6 +51,7 @@ fi
 COUNT=$(git rev-list --count origin/main..origin/staging)
 echo "Candidate: $COUNT commit(s), $(git rev-parse --short origin/main)..$(git rev-parse --short origin/staging)"
 echo "Report:    tools/release-train/reports/  (latest Thursday candidate report)"
+echo "Notes:     tools/release-train/notes/    (draft release notes — edit the bullets before GO)"
 echo "Compare:   https://github.com/thomascassidyzm/ssi-learning-app/compare/main...staging"
 echo
 
@@ -69,7 +74,18 @@ git -C "$WT" push origin HEAD:main
 NEW=$(git -C "$WT" rev-parse --short HEAD)
 git branch -D _promote_main >/dev/null 2>&1 || true
 
+# Stamp the release notes final: ship date + promoted sha into Thursday's draft (tools/
+# release-train/notes/<draft date>.md), hand edits kept, draft-only coverage section stripped.
+# Committed to dev, never to main. A notes failure must not read as a failed promote — the
+# promote already happened by this line.
+if ! node "$REPO/tools/release-train/release-notes.mjs" \
+      --finalize --sha "$STAGING" --count "$COUNT"; then
+  echo "WARN: release notes were not stamped — run this by hand:"
+  echo "  node tools/release-train/release-notes.mjs --finalize --sha $STAGING --count $COUNT"
+fi
+
 echo
 echo "PROMOTED: main is now $NEW ($COUNT commits shipped)."
 echo "The deploy sentinel opens its 2h watch window within 3 minutes — nothing else to run."
+echo "Release notes are stamped final in tools/release-train/notes/ — use them for the done-board card."
 echo "Now post the done-board card (docs/RELEASE-TRAIN.md, 'Report the ship')."
