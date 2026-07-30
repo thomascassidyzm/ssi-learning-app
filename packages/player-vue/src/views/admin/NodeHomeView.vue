@@ -8,7 +8,9 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
+import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
@@ -36,7 +38,13 @@ const member = computed(() => isMemberNodeSurface(route.path))
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
-const home = ref<any | null>(null)
+// WHERE-YOU-ARE stability (founder finding 2026-07-30): hopping back from a
+// sibling view of the SAME node (Insights) seeds from nodeHomeCache, so the
+// page — rail included — paints synchronously with the values the sibling
+// fetched seconds ago, then the fresh fetch reconciles silently. Keyed by
+// route id + lens, so a different node or lens never shows cached values.
+const initialLens = typeof route.query.lens === 'string' ? route.query.lens : ''
+const home = ref<any | null>(cachedNodeHome(String(route.params.id || ''), initialLens))
 
 // ─── Layout stability across node switches (founder bug 2026-07-20: "3-4
 // up and down page wobbles" per rail switch). The rules while a load runs:
@@ -45,7 +53,7 @@ const home = ref<any | null>(null)
 //   boxes; the children list keeps its previous height via min-height.
 // · same-node refresh / lens change: identity+stats keep their (still
 //   correct) numbers — stale-while-refreshing; only the children body holds.
-const loadedId = ref('')
+const loadedId = ref(home.value ? String(route.params.id || '') : '')
 const switching = computed(() => isLoading.value && !!home.value && String(route.params.id || '') !== loadedId.value)
 const childrenBodyEl = ref<HTMLElement | null>(null)
 const childrenHoldPx = ref<number | null>(null)
@@ -96,9 +104,14 @@ async function fetchHome(): Promise<void> {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || 'Failed to load')
+    if (!resp.ok) {
+      // Access lost or node gone — a cached rail must not outlive it.
+      dropCachedNode(id)
+      throw new Error(data.error || 'Failed to load')
+    }
     home.value = data
     loadedId.value = id
+    cacheNodeHome(id, data, activeLens)
     markUpdated()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load'
@@ -125,6 +138,21 @@ watch(
   () => { void fetchHome() },
   { immediate: true },
 )
+
+// The rail's data source, in freshness order: this route id's loaded payload;
+// the cache (instant continuity hopping back from Insights, node switches to
+// already-visited nodes, and reload rehydration via sessionStorage); the
+// previous payload (continuity ruling: keep the old tree until arrival).
+// Null only on a genuinely cold first visit — the skeleton, never a text flash.
+const rail = computed(() => {
+  const id = String(route.params.id || '')
+  const h = home.value
+  const own = h?.node
+    ? { ancestors: h.ancestors || [], node: h.node, siblings: h.siblings || [], children: h.children || [], kind: h.kind }
+    : null
+  if (own && loadedId.value === id) return own
+  return cachedRail(id) || own
+})
 
 // ─── Identity ───
 const stateBadge = computed(() => {
@@ -301,26 +329,36 @@ const listPayload = computed(() => {
 
 <template>
   <div class="node-home">
-    <div v-if="isLoading && !home" class="node-loading">
+    <div v-if="isLoading && !home && !rail" class="node-loading">
       <div class="loading-spinner"></div>
       <p>Loading…</p>
     </div>
     <div v-else-if="error && !home" class="node-loading"><p>{{ error }}</p></div>
 
-    <template v-else-if="home">
+    <template v-else-if="home || rail">
       <div class="node-layout">
-        <!-- MAP RAIL -->
+        <!-- MAP RAIL — always the whole column; a cold load without cached
+             ancestry gets the quiet skeleton, never a text flash and never
+             the main pane sliding into this column. -->
         <aside class="rail-col schools-card">
           <NodeMapRail
-            :ancestors="home.ancestors || []"
-            :node="home.node"
-            :siblings="home.siblings || []"
-            :children="isClass ? [] : (home.children || [])"
-            :kind="home.kind"
+            v-if="rail"
+            :ancestors="(rail.ancestors as any) || []"
+            :node="rail.node"
+            :siblings="(rail.siblings as any) || []"
+            :children="rail.kind === 'class' ? [] : ((rail.children as any) || [])"
+            :kind="rail.kind"
           />
+          <NodeMapRailSkeleton v-else />
         </aside>
 
-        <div class="main-col">
+        <div v-if="!home" class="main-col">
+          <div class="node-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading…</p>
+          </div>
+        </div>
+        <div v-else class="main-col">
           <!-- IDENTITY HEADER -->
           <header ref="identityEl" class="identity" :style="switching && identityHoldPx ? { minHeight: `${identityHoldPx}px` } : undefined">
             <!-- While a different node loads, VALUES blank (never the old

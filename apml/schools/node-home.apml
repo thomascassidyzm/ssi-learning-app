@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-20 (member mount: /schools/org/:id — leaders land on THE VIEW)
+# Last updated: 2026-07-30 (WHERE-YOU-ARE rail stability across Overview <-> Insights)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 purpose: |
@@ -70,6 +70,30 @@ layout_stability:  # founder bug 2026-07-20 — "3-4 up and down page wobbles" p
   - the map rail keeps its previous tree until arrival (continuity ruling) and swaps once
   - probe: packages/player-vue/e2e/the-view/layout-stability-probe.mjs (CLS + section height
     timeline per switch, deployed build; target CLS/switch < 0.02 incl. input-adjacent shifts)
+
+rail_stability:  # founder finding 2026-07-30 — hopping Overview <-> Insights faked a full screen load
+  # NodeHomeView and NodeInsightsView are separate route components that each fetch
+  # /api/groups/:id/home; the hop used to remount the rail column empty (v-if on the
+  # payload) and re-fetch, flashing intermediate text in the WHERE-YOU-ARE column.
+  mechanism: composables/admin/nodeHomeCache.ts   # keyed cache, NOT a shared-layout route refactor
+  tiers:
+    - in-memory full payload, keyed route-id + lens (page lifetime): the sibling view
+      seeds it, so the next view paints the WHOLE page synchronously on a warm hop —
+      the remount is invisible; the fresh fetch reconciles silently in the background
+    - sessionStorage rail subset (ancestors/node/siblings/children/kind only), keyed
+      route-id: full page reload rehydrates the tree with no identity flash; stats and
+      rollups are never persisted — they come fresh or show a loading state
+  rules:
+    - the rail COLUMN always renders; a genuinely cold node (nothing cached) gets
+      NodeMapRailSkeleton.vue — quiet grey bars, never explainer text, and the main
+      pane never slides into the rail column
+    - honesty: cache keys on route id + lens so the wrong node/lens is never served;
+      a non-OK /home response drops the node's cache (a stale rail can't outlive
+      lost access); the background refetch always reconciles to fresh
+    - the rail's siblings-open toggle persists per node id across remounts
+      (module-level state in NodeMapRail.vue) — the tree never visibly resets on a hop
+  tests: NodeInsightsView.test.ts (warm-hop / cold-skeleton / honesty pins) +
+    NodeHomeView.test.ts RAIL-STABILITY PIN + nodeHomeCache.test.ts
 
 navigation_rules:  # THE-VIEW §2
   - clicking any node NAME anywhere in admin lands on that node's HOME
