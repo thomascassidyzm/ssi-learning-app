@@ -720,3 +720,31 @@ chars and a url, with no detail field — hence a committed report file the card
 a second post-ship watcher (the sentinel already exists).
 **Search width:** visible-options.
 **Decided by:** founder (the cadence); agent for the mechanism's shape (BSC >90%).
+
+## 2026-07-31 — two lanes: fixes ship immediately without notes, features ride the Friday train
+**Ruling (founder, verbatim):** *"fixes go live immediately - at any point in the week - without
+release notes; whereas features, and/or minor fixes that are just better affordances stick to the
+weekly release train."* An amendment to the 2026-07-30 weekly-cadence ruling, not a reversal of it.
+**The classification test, as documented:** *was something broken, or lying to the user?* → fix:
+ships now, any day, no notes. *Is something newly possible, or nicer?* → feature or affordance:
+rides the train, gets notes. "Lying to the user" is load-bearing — dishonest behaviour (a control
+out of step with reality, a false "Saved", a stale number presented as live) is breakage even when
+nothing crashed. Regressions are fixes by definition. The test is the **state of the thing before
+the change**, not the size of the diff: a small change to something that was merely *less good* is
+an affordance and waits for Friday.
+**Move:** amended `docs/RELEASE-TRAIN.md` — retitled the cadence to govern features/affordances,
+added the classification test up front and an "Any day — the fix lane" section, and stated
+explicitly that the deploy sentinel watches ALL `main` pushes, so a Tuesday fix gets the same
+2-hour fallout watch as a Friday promote.
+**Explicitly NOT built:** a second promotion mechanism. The fix lane **IS** `CLAUDE.md`'s existing
+`hotfix/<desc>`-off-`main` lane, back-merged into `staging` AND `dev` — the ruling widens *what
+qualifies*, it does not add machinery. No notes file, no card, no cron for the fix lane.
+**Better:** nobody lives with a broken or dishonest surface until Friday; the weekly cadence keeps
+its whole point (features arrive announced, in one readable batch) without holding fixes hostage.
+**Simpler:** one written test decides the lane, and the fix lane reuses a mechanism that already
+existed and was already documented; the sentinel needed zero change to cover it.
+**Cheaper (total):** zero new infrastructure. The only new ongoing cost is one judgement call per
+change, and the default when it's genuinely in doubt is the train — a week's wait costs less than
+an unannounced surprise.
+**Search width:** founder ruling (the policy); agent for the documentation shape only.
+**Decided by:** founder.
