@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNotes, finalizeBody } from './release-notes.mjs'
+import { buildNotes, finalizeBody, reconcile, renderFinal } from './release-notes.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -20,12 +20,21 @@ const headlines = (subjects) => {
   return [...n.features, ...n.fixes].map((b) => b.headline)
 }
 const empty = (n) => n.features.length === 0 && n.fixes.length === 0
+// A rendered draft body, as the Thursday run would have written it.
+const renderedDraft = (features, fixes) => [
+  '<!-- release-notes:header -->', '# Release notes — DRAFT for the next ship',
+  '<!-- /release-notes:header -->', '',
+  ...(features.length ? ["## What's new", '', ...features, ''] : []),
+  ...(fixes.length ? ['## Fixes', '', ...fixes, ''] : []),
+].join('\n')
 
 test('a user-facing round earns a headline in user-facing language', () => {
   const h = headlines(['course-switch READY in 2-3s: kill the cinematic floor on switches'])
   assert.equal(h.length, 1)
-  assert.match(h[0], /instant/i)
+  assert.match(h[0], /switching course/i)
   assert.doesNotMatch(h[0], /cinematic floor|READY in/i)
+  // Reworded 2026-07-31: the change lands READY in 2-3s, so "near-instant" over-claimed it.
+  assert.doesNotMatch(h[0], /instant/i)
 })
 
 test('process commits are never considered', () => {
@@ -166,4 +175,85 @@ test('finalize stamps the header, keeps hand edits, strips the draft section', (
   assert.match(final, /Tom typed this bullet himself/)
   assert.doesNotMatch(final, /DRAFT for the next ship/)
   assert.doesNotMatch(final, /Draft-only|dropped things/)
+})
+
+// ── the promoted diff is the source of truth (founder ruling 2026-07-31) ─────
+// Thursday's draft is a question asked a day early. Between the draft and the promote, staging
+// keeps moving — so the final notes are REGENERATED from what was actually promoted, and the
+// draft only contributes the bullets a human typed into it.
+
+test('a commit that shipped AFTER the draft still reaches the final notes', () => {
+  const draft = renderedDraft(['- Guided walkthroughs of the product, for learners, teachers and leaders.'], [])
+  const promoted = notesFor([
+    'feat(walkthrough): compiled walkthrough engine + first 5 walks',
+    'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
+  ])
+  const out = reconcile(draft, promoted)
+  assert.match(out.fixes.join('\n'), /Where-you-are stays put/)
+})
+
+test('a bullet for work that did NOT ship is dropped from the final notes', () => {
+  // The draft claimed a player fix; the promote carried the walkthrough round only, because the
+  // fix slipped to next week. An untouched draft is machine-only, so finalize discards it and
+  // regenerates — which is exactly how the false claim dies.
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const out = reconcile('', promoted)
+  assert.match(out.features.join('\n'), /Guided walkthroughs of the product/)
+  assert.equal(out.fixes.length, 0, 'a machine bullet for unshipped work must not survive')
+
+  // If Tom HAS edited that draft, his file is authoritative and a bullet we cannot prove is
+  // machine output is kept rather than silently deleted — conservative on purpose.
+  const edited = renderedDraft(
+    ['- Guided walkthroughs of the product, for learners, teachers and leaders.'],
+    ['- The play button no longer falls out of step with what is actually playing.'],
+  )
+  assert.equal(reconcile(edited, promoted).fixes.length, 1)
+})
+
+test("Tom's own bullet survives regeneration", () => {
+  const draft = renderedDraft(['- Tom typed this bullet himself.'], [])
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const out = reconcile(draft, promoted)
+  assert.deepEqual(out.handEdits, ['Tom typed this bullet himself.'])
+  assert.match(out.features.join('\n'), /Tom typed this bullet himself/)
+  assert.match(out.features.join('\n'), /Guided walkthroughs/)
+})
+
+test('a reworded phrasebook line replaces its old wording, never doubles it', () => {
+  const draft = renderedDraft(['- Switching course is near-instant — no more waiting through a loading sequence.'], [])
+  const promoted = notesFor(['course-switch READY in 2-3s: kill the cinematic floor on switches'])
+  // Machine-only drafts are discarded wholesale, which is how the rewording lands cleanly.
+  const out = reconcile('', promoted)
+  assert.equal(out.features.length, 1)
+  assert.doesNotMatch(out.features[0], /near-instant/)
+  // And even when the draft IS consulted, the near-twin is not carried as a hand edit twice.
+  assert.ok(reconcile(draft, promoted).features.length <= 2)
+})
+
+test('the final notes never carry the draft-only coverage section', () => {
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const final = renderFinal(reconcile('', promoted),
+    { shipDate: '2026-07-31', sha: 'c'.repeat(40), count: 150 })
+  assert.match(final, /shipped 2026-07-31/)
+  assert.match(final, /150 commits/)
+  assert.doesNotMatch(final, /Draft-only|DRAFT for the next ship/)
+})
+
+test('a user-visible fix whose subject reads as machinery is still announced', () => {
+  // Both of these were DROPPED as "names nothing a user can see" in the 2026-07-30 ship and had
+  // to be reconciled by hand. Phrasebook entries now cover the surfaces.
+  const h = headlines([
+    "fix stuck 'Updating the app' overlay: hard deadline + tap-to-relaunch on the heal path",
+    'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
+  ])
+  assert.match(h.join('\n'), /"Updating the app" screen can no longer get stuck/)
+  assert.match(h.join('\n'), /Where-you-are stays put/)
+  assert.doesNotMatch(h.join('\n'), /heal path|rehydrat|Overview <->/)
+})
+
+test('a fix that already went live on the fix lane is out of range, so out of the notes', () => {
+  // Nothing to filter: an immediate-lane fix is already an ancestor of main, so main..staging
+  // never contains it. This locks the property that the range IS the policy.
+  const promoted = notesFor([])
+  assert.equal(promoted.features.length + promoted.fixes.length, 0)
 })

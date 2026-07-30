@@ -748,3 +748,40 @@ change, and the default when it's genuinely in doubt is the train — a week's w
 an unannounced surprise.
 **Search width:** founder ruling (the policy); agent for the documentation shape only.
 **Decided by:** founder.
+
+## 2026-07-31 — release notes are regenerated from the promoted diff, not stamped from the draft
+**Ruling (founder, verbatim):** *"accuracy over elegance"* — said on finding the 2026-07-30 notes
+did not describe what actually shipped.
+**What was actually wrong (the reconciliation finding):** not machinery drift. Re-running the
+generator over the real promoted range (`becac1cc^1..becac1cc^2`, 150 commits) reproduced the
+shipped file byte-for-byte. Two things were wrong instead: (1) two genuinely user-visible fixes —
+the stuck "Updating the app" overlay and WHERE-YOU-ARE rail stability — were dropped by the
+generic path as *"names nothing a user can see"*, because their commit subjects read as machinery;
+(2) the course-switch bullet said "near-instant" for a change that lands READY in 2-3s, which is
+over-claiming, the one failure mode these notes may not have. Both fixed at the durable layer —
+two new phrasebook entries (surfaces, not one-offs) and a corrected phrasebook line — so the
+reconciled file is machine output, not a hand-patched one.
+**Move:** `candidate()` takes a range (default `origin/main..origin/staging`); `--finalize`
+REGENERATES the notes from the promoted range instead of stamping the draft; `promote.sh` passes
+`--base $MAIN --head $STAGING` (the only place that knows main's sha before the merge) and a
+hand-run finalize reads `main^1..main^2` off the promote merge commit.
+**Hand-edit preservation, made exact:** every machine commit to a notes file is prefixed
+`release-train:`, so "was this file touched by a human" is answerable from `git log` rather than
+guessed from text. Machine-only file → regenerate wholesale (which is how a reworded phrasebook
+line replaces its predecessor instead of doubling it). Human-touched file → keep any bullet we
+cannot prove the machine wrote.
+**Better:** the notes describe what shipped. A Thursday draft could previously miss everything
+merged to staging on Thursday night and Friday morning — which is exactly what happened: the ship
+was 150 commits against a draft written for 130.
+**Simpler:** deletes the concept of "the draft is the content, the promote is a rubber stamp" —
+one source of truth (the promoted diff) instead of two that drift. The immediate-fix lane needs no
+exclusion filter either: a hotfix already on `main` is not in `main..staging`, so the range IS the
+policy.
+**Cheaper (total):** one extra `git log` at promote time. No new inputs, no new files.
+**Searched & rejected:** marking machine bullets inline in the draft so finalize can tell them
+apart (plumbing in a file Tom reads and edits, and it would have to be stripped again for
+learners); reconstructing the draft's own range at finalize time to subtract it (needs a sha the
+draft does not record, for a case `git log` answers exactly); leaving the stamp-only flow and
+correcting notes by hand each week (the founder's complaint was precisely that).
+**Search width:** visible-options.
+**Decided by:** founder (accuracy over elegance); agent for the mechanism (BSC >90%).
