@@ -67,7 +67,7 @@ const sh = (cmd, args, opts = {}) =>
 function candidate() {
   sh('git', ['fetch', 'origin', '--quiet', '--prune'])
   const raw = sh('git', [
-    'log', '--format=%H\x1f%s\x1f%aI\x1f%an', 'origin/main..origin/staging',
+    'log', '--format=%H\x1f%s\x1f%aI\x1f%an', 'origin/main..origin/staging', '--',
   ])
   const commits = raw ? raw.split('\n').map((l) => {
     const [sha, subject, date, author] = l.split('\x1f')
@@ -79,7 +79,7 @@ function candidate() {
     mainSha: sh('git', ['rev-parse', 'origin/main']),
     devAhead: Number(sh('git', ['rev-list', '--count', 'origin/staging..origin/dev'])),
     lastPromote: (() => {
-      const d = sh('git', ['log', '-1', '--format=%aI', 'origin/main'])
+      const d = sh('git', ['log', '-1', '--format=%aI', 'origin/main', '--'])
       return d || null
     })(),
   }
