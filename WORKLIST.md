@@ -139,6 +139,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [~] @classes-first-fable 07-30 **Teacher home classes-first PAC redesign (founder ruling 07-30):** teacher logs in → classes ARE the page, Play-as-Class primary; stats/secondary demoted. Two taps from login to teaching.
 - [x] @deploy-sentinel-fable 07-29 **Deploy sentinel stage 1 — SHIPPED & LIVE on watson-1 cron**: post-main-push 2h fallout watch (deploy-live via `/version.json`+GitHub deployments API, prod endpoint probes, telemetry-crater check) → done board when clean, needs-you+push on fallout. `tools/deploy-sentinel/` (README has the crontab line); stage-2 error-beacon design note `docs/deploy-sentinel-error-beacon.md`. Telemetry leg inactive until a service-role key lands in `~/.ssi-sentinel.env` (only anon keys exist on the VM).
 
+- [x] @openloops-fable 07-30 **Open-loops register — the honest list of not-completely-solved threads across the estate (founder-seeded 7 + ~90 swept)** → `docs/OPEN-LOOPS.md`
+
 ## 🤔 Areas to think through   (open design — link the think-piece)
 
 - [x] @web 06-14 **Flexible grouping layer — THINK-PIECE WRITTEN (`e8e688d2`):** `docs/methodology/flexible-grouping.md`. Belonging singular+hard (`school_id` FK) vs grouping plural+soft (year/dept/faculty/key-stage/house/cohort/chain, overlapping time-bounded tags — same primitive as students/teachers, one level up; lean off the rigid `groups` path-tree). Leader scope = a predicate over those tags (school-leader needs zero grouping rows; dept/year added when a school asks). Roll-up = coverage board at a higher `GROUP BY`; k-floor sovereignty carries up. **Build is the consumer-first follow-on** (open Qs in §7). → `tutor-insights.md` §5
