@@ -1,15 +1,23 @@
 name: Verify (typecheck + tests)
 
 # Feedback-loop gate mandated by CLAUDE.md ("all feedback loops must pass
-# before commit"). Runs the four verification gates on every claude/** and
-# dev push and on pull requests. auto-merge-claude.yml gates its merge on an
-# identical set of gates via a needs:verify job so nothing lands on dev red.
+# before commit"). Runs the four verification gates on every claude/**, dev,
+# staging and main push and on pull requests. auto-merge-claude.yml gates its
+# merge on an identical set of gates via a needs:verify job so nothing lands
+# on dev red.
+#
+# staging/main are included so the weekly release train's Thursday candidate
+# report (tools/release-train/) can read a REAL verdict on the exact tree being
+# promoted, instead of inferring one from the branch commits were tested on.
+# These runs gate nothing — they are the promotion's evidence.
 
 on:
   push:
     branches:
       - 'claude/**'
       - dev
+      - staging
+      - main
   pull_request:
 
 permissions:
