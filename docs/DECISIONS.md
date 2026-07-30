@@ -657,3 +657,33 @@ crontab line; no webhooks, no Vercel API token needed.
 **Open:** telemetry leg is INACTIVE until a Supabase service-role key lands on this VM
 (`~/.ssi-sentinel.env`) — the only keys present are anon-role, which RLS correctly blocks from
 player_events; worked around nothing, reported plainly.
+
+## 2026-07-30 — course-switch READY: switches never replay the cinematic; whole-course walk waits for READY
+**Move:** Two scoped changes in `LearningPlayer.vue` under the founder ruling "READINESS = first
+LEGO identified, ≤2–3s on a course switch". (1) The 2800ms first-visit cinematic floor now keys
+on `skipCinematic = isReturnUser || !isFreshLoad` — an in-app remount (course switch, detected
+via `__ssiBoot.mountedMs`, the same test the cold_start telemetry already used) always takes the
+300ms floor, even when `ssi-has-played` has been wiped. (2) A `playerReadySignal` promise
+(resolved right after the loading stage flips to 'ready') now gates the whole-course
+`generateScript` walk (main-loop handoff AND INF-PLAY idle warm) plus the contribution fetch, so
+their ~45 course-wide queries can never compete with the switch's two critical fetches
+(round-map + first-round cycles).
+**Evidence:** the founder's own staging telemetry (iPhone, 01:32–01:45 UTC): every warm switch
+pinned at exactly ~2805ms (= the 2800 floor re-applied after a storage wipe); cold switches
+4.3–9.4s while the walk's flood shared the phone pipe with the bootstrap. Deployed-staging
+waterfalls (guest + minted signed-in tester session) confirmed the flood fires inside the READY
+window; on datacenter broadband it costs little (1.1–1.7s switches) — the phone numbers are the
+same waterfall paying real RTTs.
+**Better:** switch READY on-device drops from 2.8s-pinned / 4–9s-cold toward the bootstrap's own
+~1s; a stale mount's walk (rapid re-switch) is now skipped entirely instead of running for a
+course no longer shown.
+**Simpler:** no new state machine — one promise + an existing detection reused; floor and
+telemetry now share ONE isFreshLoad computation instead of two copies.
+**Cheaper (total):** strictly less network in the critical window; the walk still runs once,
+just after play is available.
+**Searched & rejected:** deferring every boot-time composable fetch (pods, journey, explorer
+legos) — invasive across an 18k-line file for ~8 small requests; revisit only if on-device
+numbers still miss the target. Priority hints/HTTP2 tuning — doesn't remove the contention,
+just reorders it.
+**Search width:** visible-options.
+**Decided by:** agent (BSC >90%; founder ruling supplied the target and the readiness definition).
