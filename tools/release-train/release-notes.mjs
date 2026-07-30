@@ -73,8 +73,11 @@ const PHRASEBOOK = [
   // [surface, qualifier, headline, kind, significance, area?]
   //   kind         'feature' (goes in the up-to-3) or 'fix' (goes in the fixes list)
   //   significance 3 = a user would notice and care · 2 = notable · 1 = minor/cosmetic
+  // Wording corrected 2026-07-31 in the reconciliation pass: the change killed the cinematic
+  // floor and lands READY in 2-3s. "Near-instant" over-claimed that, and over-claiming is the one
+  // failure mode these notes may not have.
   [/course[- ]switch/i, /ready|instant|floor|\d ?s\b/i,
-    'Switching course is near-instant — no more waiting through a loading sequence.',
+    'Switching course is quicker — it no longer waits through the full loading sequence.',
     'feature', 3],
   [/cold[- ]start|course load/i, /never blocks|swr|progressive|readiness/i,
     'The app starts as soon as it is ready to play, instead of waiting for a whole course to load.',
@@ -103,6 +106,15 @@ const PHRASEBOOK = [
     'Walkthrough & onboarding'],
   [/offline/i, /download(s|ing)?\b|for the plane|pack/i,
     'Offline downloads are more reliable.', 'fix', 2],
+  // Both added 2026-07-31 by the reconciliation of the 2026-07-30 ship: each names a real
+  // user-visible surface whose commit subject reads as machinery, so the generic path dropped it
+  // ("names nothing a user can see") and a true fix went unannounced. Surfaces, not one-offs:
+  // the update/relaunch screen and the where-you-are rail both recur.
+  [/updating the app|update overlay|relaunch/i, /stuck|deadline|heal|tap/i,
+    'The "Updating the app" screen can no longer get stuck — it gives up and offers a tap to relaunch.',
+    'fix', 3],
+  [/where[- ]you[- ]are|rail/i, /stab(le|ility)|surviv|flash|rehydrat|persist/i,
+    'Where-you-are stays put when you move between Overview and Insights.', 'fix', 2],
   [/typewriter|awakening/i, /mid-word|never cut/i,
     'Opening text is no longer cut off mid-word.', 'fix', 1],
   [/loading|resting/i, /sentence[- ]cas|copy/i,
@@ -325,7 +337,98 @@ export function render(cand, notes, { draftDate }) {
 }
 
 // ── finalize ────────────────────────────────────────────────────────────────
-// Replace the header block, strip the draft-only block, keep every hand-edited bullet.
+// FOUNDER RULING 2026-07-31, "accuracy over elegance": the final notes are REGENERATED from the
+// commits actually being promoted, not merely stamped from Thursday's draft. Thursday's draft is
+// a question asked a day early — staging keeps moving after it, so a stamped draft can describe a
+// ship that never happened and miss one that did. The promoted diff is the source of truth.
+//
+// Tom's hand-edited bullets still survive: a draft bullet the machine did not produce for the
+// promoted range is, by definition, one a human wrote, and it is carried into the final notes
+// after the machine's own. (A bullet the machine DID produce but budget-cut is recognised as
+// machine output and drops, so the founder's three-feature cap still holds.)
+
+/** Pull the `- ` bullets out of one `## ` section of a rendered notes body. */
+export function bulletsUnder(body, heading) {
+  const lines = (body || '').split('\n')
+  const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading}`.toLowerCase())
+  if (start === -1) return []
+  const out = []
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('## ')) break
+    const m = /^\s*-\s+(.*\S)\s*$/.exec(line)
+    if (m) out.push(m[1])
+  }
+  return out
+}
+
+/**
+ * Did a HUMAN touch this notes file, or only the machine? Every machine commit to a notes file is
+ * prefixed `release-train:` (both the drafting run and the finalising one), so anything else in
+ * the file's history is Tom editing bullets.
+ *
+ * This is the exact answer to "which bullets are hand-written", and it makes the common case
+ * clean: an untouched draft is discarded wholesale in favour of the promoted range, so a REWORDED
+ * phrasebook line replaces its predecessor instead of shipping alongside it.
+ */
+export function draftWasHandEdited(relPath) {
+  try {
+    const subjects = sh('git', ['log', '--format=%s', 'origin/dev', '--', relPath])
+    if (!subjects) return false
+    return subjects.split('\n').some((s) => !/^release[- ]train:/i.test(s.trim()))
+  } catch {
+    return true // can't tell → assume a human did, and keep their words
+  }
+}
+
+/**
+ * Machine bullets for the promoted range, plus any bullet in the draft the machine never wrote.
+ * Returns plain headline strings, features and fixes kept apart.
+ */
+export function reconcile(draftBody, notes) {
+  const machineVocabulary = (notes.bullets || []).map((b) => b.headline)
+  // Exact match is not enough: when a phrasebook line is REWORDED (the 2026-07-31 pass corrected
+  // "near-instant" to something the change actually delivered), the draft's old wording would
+  // otherwise read as hand-written and both would ship. Same near-twin test the bullet dedupe
+  // already uses, so a reworded line replaces its predecessor instead of doubling it.
+  const isMachine = (h) => machineVocabulary.some((m) => {
+    if (m === h) return true
+    const a = tokens(m), b = tokens(h)
+    const shared = [...b].filter((w) => a.has(w)).length
+    return shared / Math.max(1, Math.min(a.size, b.size)) >= 0.7
+  })
+  const handOnly = (heading) =>
+    bulletsUnder(draftBody, heading).filter((h) => !isMachine(h))
+  const merge = (machine, hand) => [...new Set([...machine.map((b) => b.headline), ...hand])]
+  return {
+    features: merge(notes.features, handOnly("What's new")),
+    fixes: merge(notes.fixes, handOnly('Fixes')),
+    handEdits: [...handOnly("What's new"), ...handOnly('Fixes')],
+  }
+}
+
+/** Render the finalised file from reconciled bullets — no draft-only block, ever. */
+export function renderFinal({ features, fixes }, { shipDate, sha, count }) {
+  const L = [header({ final: true, shipDate, sha, count }), '']
+  if (features.length) {
+    L.push('## What\'s new', '')
+    for (const h of features) L.push(`- ${h}`)
+    L.push('')
+  }
+  if (fixes.length) {
+    L.push('## Fixes', '')
+    for (const h of fixes) L.push(`- ${h}`)
+    L.push('')
+  }
+  if (!features.length && !fixes.length) {
+    L.push('## What\'s new', '')
+    L.push('Nothing in this ship translated confidently into a user-facing headline.', '')
+  }
+  return L.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '') + '\n'
+}
+
+// Legacy stamp-only path — kept for the case where the promoted range cannot be determined
+// (a hand-run finalize with no merge commit to read). Replaces the header block, strips the
+// draft-only block, keeps the body verbatim.
 
 export function finalizeBody(body, { shipDate, sha, count }) {
   const h = header({ final: true, shipDate, sha, count })
@@ -364,14 +467,32 @@ function latestDraftOnDev(upto) {
   return candidates.length ? candidates[candidates.length - 1] : null
 }
 
-async function main() {
-  const cand = candidate()
+/**
+ * The range that was actually promoted. promote.sh passes it explicitly (it knows main's sha
+ * before the merge); a hand-run finalize reads it off the promote merge commit at main's tip —
+ * first parent = main before the ship, second parent = the staging sha that was merged in.
+ */
+function promotedRange() {
+  const base = argOf('--base'), head = argOf('--head')
+  if (base && head) return { base, head }
+  try {
+    const parents = sh('git', ['rev-list', '--parents', '-n', '1', 'origin/main']).split(/\s+/)
+    if (parents.length === 3) return { base: parents[1], head: parents[2] }
+  } catch { /* fall through — stamp-only */ }
+  return null
+}
 
+async function main() {
   if (FINALIZE) {
-    // At finalize time staging has already been merged into main, so the candidate range is
-    // empty — the promoted sha and count come from the caller (promote.sh knows them).
-    const sha = argOf('--sha') || cand.stagingSha
-    const count = Number(argOf('--count') || 0) || undefined
+    // At finalize time staging is already merged into main, so `origin/main..origin/staging` is
+    // empty. The notes are regenerated from the range that was actually promoted (founder ruling
+    // 2026-07-31), with the sha and count from the caller — promote.sh knows both.
+    const range = promotedRange()
+    const cand = range
+      ? candidate(range)
+      : { commits: [], stagingSha: sh('git', ['rev-parse', 'origin/staging']) }
+    const sha = argOf('--sha') || (range ? cand.head : cand.stagingSha)
+    const count = Number(argOf('--count') || 0) || cand.commits.length || undefined
     const shipDate = argOf('--date') || today()
     const draftDate = argOf('--draft') || latestDraftOnDev(shipDate) || shipDate
     const rel = NOTES_REL(draftDate)
@@ -379,14 +500,24 @@ async function main() {
     if (!body && existsSync(join(NOTES_DIR, `${draftDate}.md`))) {
       body = readFileSync(join(NOTES_DIR, `${draftDate}.md`), 'utf8')
     }
-    if (!body) {
-      // No Thursday draft (cron missed, or a ship outside the train): draft from the range that
-      // was just promoted, so a ship never goes out without notes.
-      log(`no draft notes found for ${draftDate} — generating from main..staging`)
+    let final
+    if (range && cand.commits.length) {
       const notes = buildNotes(cand)
-      body = render(cand, notes, { draftDate })
+      const handEdited = draftWasHandEdited(rel)
+      if (!handEdited) log('finalize: draft is machine-only — regenerating it wholesale')
+      const bullets = reconcile(handEdited ? body : '', notes)
+      if (bullets.handEdits.length) {
+        log(`finalize: ${bullets.handEdits.length} hand-edited bullet(s) carried through`)
+      }
+      log(`finalize: regenerated from the promoted range ` +
+        `${cand.base.slice(0, 7)}..${cand.head.slice(0, 7)} (${cand.commits.length} commits)`)
+      final = renderFinal(bullets, { shipDate, sha, count })
+    } else {
+      // No determinable promoted range: stamp the draft rather than ship no notes at all.
+      log('finalize: promoted range unavailable — stamping the draft as-is')
+      if (!body) return log('no draft notes and no promoted range — nothing to finalise'), 0
+      final = finalizeBody(body, { shipDate, sha, count })
     }
-    const final = finalizeBody(body, { shipDate, sha, count: count ?? cand.commits.length })
     if (DRY) { process.stdout.write(final); return 0 }
     mkdirSync(NOTES_DIR, { recursive: true })
     writeFileSync(join(NOTES_DIR, `${draftDate}.md`), final)
@@ -399,6 +530,8 @@ async function main() {
     return 0
   }
 
+  // Thursday's draft: the open candidate, origin/main..origin/staging.
+  const cand = candidate()
   if (!cand.commits.length) { log('no candidate — no notes'); return 0 }
   const draftDate = argOf('--date') || today()
   const notes = buildNotes(cand)

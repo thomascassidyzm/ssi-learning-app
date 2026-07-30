@@ -273,6 +273,51 @@ async function fetchAllPracticePhrases(
   return { data: all, error: null }
 }
 
+// ————————————————————————————————————————————————————————————————————————
+// Cooperative yielding for the whole-course walk. The walk is idle-scheduled
+// the moment READY paints (LearningPlayer's ready-gated handoff), and its
+// build loops used to run as ONE synchronous task — measured as a 10.9s
+// main-thread block on a 4x-throttled CPU right after READY, which is the
+// post-READY input dead zone (founder 2026-07-30: READY must mean
+// INTERACTIVE, not painted). Yielding to the event loop between ~40ms slices
+// lets input events and rendering interleave with the walk; the walk still
+// completes long before its output is consumed (INF-PLAY boundary / warm
+// cache / resume repair).
+const WALK_SLICE_BUDGET_MS = 40
+
+export const yieldToEventLoop = (): Promise<void> => {
+  const sched = (globalThis as any).scheduler
+  if (sched && typeof sched.yield === 'function') {
+    // scheduler.yield(): continuation-priority resume, input runs first.
+    return sched.yield().catch(() => new Promise<void>((r) => setTimeout(r, 0)))
+  }
+  if (typeof MessageChannel !== 'undefined') {
+    // MessageChannel beats setTimeout's ~4ms nested-timer clamp; a fresh
+    // channel per yield so concurrent walks can never steal each other's wake.
+    return new Promise<void>((resolve) => {
+      const ch = new MessageChannel()
+      ch.port1.onmessage = () => { ch.port1.close(); resolve() }
+      ch.port2.postMessage(null)
+    })
+  }
+  return new Promise<void>((r) => setTimeout(r, 0))
+}
+
+/**
+ * Returns an awaitable tick: a no-op while the current slice is under
+ * budget, a real event-loop yield once it exceeds it. Sprinkled through the
+ * walk's hot loops so no single main-thread task outlives ~budgetMs.
+ */
+export const makeSliceYielder = (budgetMs: number = WALK_SLICE_BUDGET_MS): (() => Promise<void>) => {
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+  let sliceStart = now()
+  return async () => {
+    if (now() - sliceStart < budgetMs) return
+    await yieldToEventLoop()
+    sliceStart = now()
+  }
+}
+
 export async function generateLearningScript(
   supabase: SupabaseClient,
   courseCode: string,
@@ -398,6 +443,10 @@ export async function generateLearningScript(
           .limit(10000)
       : Promise.resolve({ data: [], error: null })
   ])
+
+  // All build loops below tick this — no single main-thread slice of the
+  // walk may exceed the budget (post-READY interactivity, founder 2026-07-30).
+  const yieldTick = makeSliceYielder()
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
@@ -629,6 +678,7 @@ export async function generateLearningScript(
   let phrasesSkippedForAudio = 0
   let particleSkips = 0
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
+    await yieldTick()
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
     const group = phrasesByLego.get(key)!
@@ -1046,6 +1096,7 @@ export async function generateLearningScript(
       .sort((a, b) => a.lego_index - b.lego_index)
 
     for (const lego of seedLegos) {
+      await yieldTick()
       roundNumber++
       const legoKey = `S${String(seedNum).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
       const seedId = `S${String(seedNum).padStart(4, '0')}`
@@ -1368,6 +1419,7 @@ export async function generateLearningScript(
   const revivalCap = mainLoopLastRound + infinitePlayLookahead
 
   while (roundNumber < revivalCap) {
+    await yieldTick()
     roundNumber++
     const usedPhrasesThisRound = new Set<string>()
     let cycleNum = 0
@@ -1532,6 +1584,7 @@ export async function generateLearningScript(
   // Decompose phrases into component LEGO IDs
   let decomposedCount = 0
   for (const item of items) {
+    await yieldTick()
     if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'component_practice' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') continue
     const components = decomposePhrase(item.targetText)
     if (components.length > 0) {
@@ -1550,6 +1603,7 @@ export async function generateLearningScript(
   let lastNonIntroItem: ScriptItem | null = null
 
   for (const item of items) {
+    await yieldTick()
     if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') {
       dedupedItems.push(item)
       continue

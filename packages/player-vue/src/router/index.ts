@@ -143,6 +143,10 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Dashboard',
           description: 'Overview of school learning activity',
+          // railFrame: SchoolsContainer wraps this flat view in the
+          // WHERE-YOU-ARE rail (founder ruling 2026-07-31: the rail is
+          // orientation — it never disappears; see useSchoolsRail.ts).
+          railFrame: true,
         },
       },
       {
@@ -155,6 +159,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Teachers',
           description: 'Manage teachers and their classes',
+          railFrame: true,
         },
       },
       {
@@ -164,6 +169,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Students',
           description: 'View and manage student progress',
+          railFrame: true,
         },
       },
       {
@@ -173,6 +179,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'My Classes',
           description: 'Manage classes and start learning sessions',
+          railFrame: true,
         },
       },
       {
@@ -182,6 +189,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Class Detail',
           description: 'View class roster and settings',
+          railFrame: true,
         },
       },
       {
@@ -198,6 +206,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Analytics',
           description: 'Your class vs the average — the Rate-compare insight tool',
+          railFrame: true,
         },
       },
       {
@@ -207,6 +216,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Settings',
           description: 'School and account settings',
+          railFrame: true,
         },
       },
       {

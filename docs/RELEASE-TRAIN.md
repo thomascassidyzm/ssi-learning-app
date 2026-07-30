@@ -154,9 +154,32 @@ coverage section for Tom to promote by hand; nothing is silently binned.
 ```
 Thursday   drafted alongside the candidate report, same commit, same push
            -> Tom edits the bullets in place if he wants to
-Friday     promote.sh --go stamps the SAME file: ship date + promoted sha,
-           hand edits preserved, the draft-only coverage section stripped
+Friday     promote.sh --go REGENERATES the same file from the range it just
+           promoted: ship date + promoted sha, hand edits preserved, the
+           draft-only coverage section stripped
 ```
+
+### The promoted diff is the source of truth
+
+**Founder ruling 2026-07-31, verbatim: *"accuracy over elegance."*** Thursday's draft is a
+question asked a day early — staging keeps moving after it — so the final notes are **regenerated
+from the commits actually being promoted**, not merely stamped from the draft. `promote.sh` is the
+only place that knows `main`'s sha *before* the merge, so it passes the range down
+(`--base $MAIN --head $STAGING`); a hand-run `--finalize` reads the same range off the promote
+merge commit at `main`'s tip (`main^1..main^2`).
+
+Two consequences worth knowing:
+
+- **Hand edits still survive.** A bullet in the draft that the machine did not write for the
+  promoted range is one Tom typed, and it is carried into the final notes. The test for "did a
+  human touch this file" is exact rather than textual: every machine commit to a notes file is
+  prefixed `release-train:`, so a file whose whole history is machine commits is regenerated
+  wholesale — which is also how a *reworded* phrasebook line replaces its predecessor instead of
+  shipping beside it. On a file Tom HAS edited, anything we cannot prove is machine output is kept
+  rather than silently deleted.
+- **The fix lane needs no filter.** A fix that went straight to `main` mid-week is already an
+  ancestor of `main`, so `main..staging` never contains it. Immediate-lane fixes stay out of the
+  release notes *by construction* — the range **is** the policy.
 
 The file keeps the **draft** date in its name so it pairs 1:1 with `reports/<date>.md`; the ship
 date lives inside the header. Finalising rewrites only the header block (between the
@@ -196,7 +219,8 @@ By hand:
 ```bash
 node tools/release-train/release-notes.mjs --dry-run    # print the draft, touch nothing
 node tools/release-train/release-notes.mjs              # draft, commit + push to dev
-node tools/release-train/release-notes.mjs --finalize --sha <staging sha> --count <n>
+node tools/release-train/release-notes.mjs --finalize --sha <staging sha> --count <n> \
+     [--base <pre-promote main sha> --head <promoted staging sha>]   # else read off main^1..main^2
 ```
 
 ---
