@@ -97,8 +97,13 @@ export async function checkKillSwitch(): Promise<boolean> {
       }
       killSwitchMessage.value = config.message || 'Updating the app — this page will reload in a moment.'
 
-      await unregisterAllServiceWorkers()
-      await clearAllCaches()
+      // Same never-hang rule as the boot watchdog (index.html / bootHeal.ts):
+      // on iOS these SW/Cache promises can never settle — the overlay is
+      // showing, so cleanup races a hard deadline and we reload regardless.
+      await Promise.race([
+        Promise.all([unregisterAllServiceWorkers(), clearAllCaches()]).catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 4000)),
+      ])
 
       try { sessionStorage.setItem(GUARD_KEY, '1') } catch { /* storage blocked */ }
 

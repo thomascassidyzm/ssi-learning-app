@@ -13,6 +13,19 @@
  * across the exact SW-unregister + cache-wipe this ladder performs. */
 export const PRESERVE_CACHE_NAMES = ['ssi-auth-handoff']
 
+/** Hard deadline on the heal's SW-unregister + cache-clear work. On iOS
+ * standalone PWAs those promises can simply never settle (observed in the
+ * founder's stuck "Updating the app…" field report, 2026-07-30) — the heal
+ * reloads when the FIRST of {cleanup done, this deadline} arrives. */
+export const HEAL_DEADLINE_MS = 4000
+
+/** How long after calling location.reload() the watchdog waits before
+ * concluding the reload silently didn't take (a known iOS-standalone wedge)
+ * and painting the "Update ready — tap to relaunch" button. The tap is a
+ * user gesture, which is exactly what unsticks a wedged webview. If the
+ * reload DID take, the page unloaded and this timer never fires. */
+export const RELOAD_WEDGE_MS = 2500
+
 export type HealDecision =
   | { action: 'heal'; nextAttempts: number }
   | { action: 'floor' }
