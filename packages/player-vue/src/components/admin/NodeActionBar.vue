@@ -374,29 +374,35 @@ function closeDelete(): void {
     </div>
 
     <!-- Inline forms (one at a time) -->
-    <div v-if="openForm === 'person'" class="verb-form">
-      <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
-        <option value="teacher">Teacher</option>
-        <option value="leader">Group leader</option>
-        <option v-if="node.commercial" value="school_leader">School leader</option>
-        <option value="student">Learner</option>
-      </select>
-      <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
-      <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
-      <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
-        {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
-      </button>
+    <div v-if="openForm === 'person'" class="verb-form-block">
+      <div class="verb-form">
+        <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
+          <option value="teacher">Teacher</option>
+          <option value="leader">Group leader</option>
+          <option v-if="node.commercial" value="school_leader">School leader</option>
+          <option value="student">Learner</option>
+        </select>
+        <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
+        <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
+        <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
+          {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
+        </button>
+      </div>
+      <p class="kind-hint">Named invite — goes straight in, no screens.</p>
     </div>
-    <div v-else-if="openForm === 'invite'" class="verb-form">
-      <select v-model="inviteRole" class="frost-select">
-        <option value="teacher">Teacher</option>
-        <option value="leader">Group leader</option>
-        <option v-if="node.commercial" value="school_leader">School leader</option>
-        <option value="student">Learner</option>
-      </select>
-      <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
-        {{ isInviting ? 'Creating…' : 'Create invite link' }}
-      </button>
+    <div v-else-if="openForm === 'invite'" class="verb-form-block">
+      <div class="verb-form">
+        <select v-model="inviteRole" class="frost-select">
+          <option value="teacher">Teacher</option>
+          <option value="leader">Group leader</option>
+          <option v-if="node.commercial" value="school_leader">School leader</option>
+          <option value="student">Learner</option>
+        </select>
+        <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
+          {{ isInviting ? 'Creating…' : 'Create invite link' }}
+        </button>
+      </div>
+      <p class="kind-hint">Shareable — new arrivals enter their name before they're in.</p>
     </div>
     <div v-else-if="openForm === 'group'" class="verb-form">
       <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup" />
@@ -469,6 +475,7 @@ function closeDelete(): void {
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .verb-form-block { display: block; }
+.kind-hint { margin: 6px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
 .frost-input, .frost-select {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);
   background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);
