@@ -142,6 +142,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [x] @deploy-sentinel-fable 07-29 **Deploy sentinel stage 1 — SHIPPED & LIVE on watson-1 cron**: post-main-push 2h fallout watch (deploy-live via `/version.json`+GitHub deployments API, prod endpoint probes, telemetry-crater check) → done board when clean, needs-you+push on fallout. `tools/deploy-sentinel/` (README has the crontab line); stage-2 error-beacon design note `docs/deploy-sentinel-error-beacon.md`. Telemetry leg inactive until a service-role key lands in `~/.ssi-sentinel.env` (only anon keys exist on the VM).
 
 - [x] @openloops-fable 07-30 **Open-loops register — the honest list of not-completely-solved threads across the estate (founder-seeded 7 + ~90 swept)** → `docs/OPEN-LOOPS.md`
+- [x] @rail-stability-fable 07-30 **WHERE-YOU-ARE rail stability Overview <-> Insights (founder staging finding 07-30: fake screen load + flashing text on the hop, especially TO Insights).** Keyed node-home cache (`composables/admin/nodeHomeCache.ts`: in-memory full payload per route-id+lens for warm hops; sessionStorage rail subset for reload rehydration) — warm hop paints the whole page incl. rail synchronously, fresh fetch reconciles silently; cold loads get a quiet rail skeleton (never text, main pane never slides into the rail column); non-OK /home drops the cache (stale rail can't outlive access); siblings-toggle survives remounts. → `apml/schools/node-home.apml` rail_stability
 
 ## 🤔 Areas to think through   (open design — link the think-piece)
 
