@@ -42,25 +42,44 @@ const isOpeningCheckout = ref(false)
 const checkoutError = ref('')
 const pendingCourseCode = ref<string | null>(null)
 const pendingAfterAuth = ref(false)
+const pendingPlan = ref<CheckoutPlan>('premium')
+const pendingBillingPeriod = ref<'monthly' | 'annual'>('monthly')
 // Drives the global CheckoutOverlay (App.vue). When true the overlay renders its
 // safe-area chrome + the inline Paddle host.
 const overlayOpen = ref(false)
+// Which plan is open, so CheckoutOverlay can show the right title ("SSi Premium"
+// vs "SSi Family") without re-deriving it from checkout internals.
+const overlayPlan = ref<CheckoutPlan>('premium')
+
+export type CheckoutPlan = 'premium' | 'family'
 
 export interface StartCheckoutOptions {
   /** Course the user was unlocking — carried through Paddle for attribution
-   *  and to drop them back into it after the success redirect. */
+   *  and to drop them back into it after the success redirect. Ignored for
+   *  the Family plan (checkout stays dumb — FAMILY-PLAN-SPEC.md §2.2). */
   courseCode?: string | null
+  /** Which product to open. Defaults to 'premium' (today's only option). */
+  plan?: CheckoutPlan
+  /** Family only — Premium checkout is monthly-only today. */
+  billingPeriod?: 'monthly' | 'annual'
 }
 
 export function useCheckout() {
   const supabase = inject<Ref<any>>('supabase', ref(null))
   const { open: openAuth } = useAuthModal()
 
-  async function openPaddleCheckout(courseCode?: string | null): Promise<void> {
+  async function openPaddleCheckout(
+    courseCode?: string | null,
+    plan: CheckoutPlan = 'premium',
+    billingPeriod: 'monthly' | 'annual' = 'monthly',
+  ): Promise<void> {
     if (isOpeningCheckout.value) return
-    const priceId = paddleConfig.teacherMonthlyPriceId // single Premium product
+    const priceId =
+      plan === 'family'
+        ? (billingPeriod === 'annual' ? paddleConfig.familyAnnualPriceId : paddleConfig.familyMonthlyPriceId)
+        : paddleConfig.teacherMonthlyPriceId
     if (!priceId) {
-      checkoutError.value = 'Premium price not configured'
+      checkoutError.value = plan === 'family' ? 'Family price not configured yet' : 'Premium price not configured'
       return
     }
     if (!supabase.value) {
@@ -77,20 +96,20 @@ export function useCheckout() {
         checkoutError.value = 'Sign in again to start checkout'
         return
       }
-      const code = courseCode || null
+      const code = plan === 'family' ? null : (courseCode || null) // Family checkout stays dumb (spec §2.2) — no course attribution
       // Show our safe-area overlay FIRST and let Vue paint its host element, so
       // the inline Paddle frame has a mount target.
+      overlayPlan.value = plan
       overlayOpen.value = true
       await nextTick()
       const paddle = await getPaddle()
       paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customer: { email },
-        customData: {
-          kind: 'premium',
-          supabase_user_id: userId,
-          ...(code ? { course: code } : {}),
-        },
+        customData:
+          plan === 'family'
+            ? { kind: 'family_plan', supabase_user_id: userId } // no other custom data — membership is managed by /api/family/* afterwards
+            : { kind: 'premium', supabase_user_id: userId, ...(code ? { course: code } : {}) },
         settings: {
           // INLINE into our overlay's host (not Paddle's own overlay, whose
           // close X can land under the iOS safe-area in a standalone PWA).
@@ -142,14 +161,18 @@ export function useCheckout() {
    */
   async function startCheckout(opts: StartCheckoutOptions = {}): Promise<void> {
     const courseCode = opts.courseCode ?? null
+    const plan = opts.plan ?? 'premium'
+    const billingPeriod = opts.billingPeriod ?? 'monthly'
     const isAuthed = await isSignedIn()
     if (!isAuthed) {
       pendingAfterAuth.value = true
       pendingCourseCode.value = courseCode
+      pendingPlan.value = plan
+      pendingBillingPeriod.value = billingPeriod
       openAuth()
       return
     }
-    await openPaddleCheckout(courseCode)
+    await openPaddleCheckout(courseCode, plan, billingPeriod)
   }
 
   async function isSignedIn(): Promise<boolean> {
@@ -170,14 +193,19 @@ export function useCheckout() {
     if (!pendingAfterAuth.value) return
     pendingAfterAuth.value = false
     const code = pendingCourseCode.value
+    const plan = pendingPlan.value
+    const billingPeriod = pendingBillingPeriod.value
     pendingCourseCode.value = null
-    await openPaddleCheckout(code)
+    pendingPlan.value = 'premium'
+    pendingBillingPeriod.value = 'monthly'
+    await openPaddleCheckout(code, plan, billingPeriod)
   }
 
   return {
     isOpeningCheckout,
     checkoutError,
     overlayOpen,
+    overlayPlan,
     startCheckout,
     completePendingCheckout,
     closeCheckout,

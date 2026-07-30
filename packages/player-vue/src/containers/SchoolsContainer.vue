@@ -326,6 +326,28 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
 
+// Nav unification (2026-07-29): the pre-hierarchy flat views are retired for
+// group-scoped leaders — old URLs live on, but land on THE VIEW. /schools/all
+// becomes the node home with the schools lens; /schools/analytics (the
+// teacher-scoped insight tool, a confidently-wrong 'No classes yet' for a
+// leader) becomes the node insights for their top node. Watch, not a
+// one-shot: loadFromAuth resolves the context async, so group_id can land
+// after a deep link mounts (same pattern as DashboardView's node redirect).
+// Legacy no-group govt_admin rows (region_code-only) keep the flat views.
+watch(
+  [() => ctx.currentUser.value, () => route.name],
+  ([user, routeName]) => {
+    const groupId = user?.group_id
+    if (!groupId || !ctx.isGovtAdmin.value) return
+    if (routeName === 'schools-list') {
+      void router.replace({ path: `/schools/org/${groupId}`, query: { lens: 'schools' } })
+    } else if (routeName === 'analytics') {
+      void router.replace(`/schools/org/${groupId}/insights`)
+    }
+  },
+  { immediate: true },
+)
+
 // Every schools page renders in place, scrolled to top. The router's global
 // scrollBehavior only scrolls the WINDOW — but this surface scrolls inside
 // .schools-container (overflow-y: auto), so a tab switch used to inherit the

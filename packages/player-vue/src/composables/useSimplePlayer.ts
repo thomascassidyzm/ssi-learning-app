@@ -16,6 +16,10 @@ import { PlayerConductor, type RunOptions } from '../playback/PlayerConductor'
 
 export interface UseSimplePlayerReturn {
   state: ComputedRef<PlaybackState>
+  /** True once initialize() has created a live engine. The M3 position
+   * derivation branches on this: before init, position comes from the
+   * pre-engine resume intent; after, from the engine only. */
+  isInitialized: ComputedRef<boolean>
   currentRound: ComputedRef<Round | null>
   currentCycle: ComputedRef<Cycle | null>
   phase: ComputedRef<Phase>
@@ -107,6 +111,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
   const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   const roundsRef = ref<Round[]>([])
+  const engineInitialized = ref(false)
 
   // Event callback storage
   const phaseCallbacks: Array<(phase: Phase) => void> = []
@@ -146,6 +151,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     // assign from our own arguments/derivations (M4, pull-consistency map).
     roundsRef.value = player.roundsSnapshot
     internalState.value = player.currentState
+    engineInitialized.value = true
 
     // Subscribe to state changes
     player.on('state_changed', (data) => {
@@ -176,6 +182,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   // Computed refs for reactive state
   const state = computed(() => internalState.value)
+  const isInitialized = computed(() => engineInitialized.value)
   const phase = computed(() => internalState.value.phase)
   const isPlaying = computed(() => internalState.value.isPlaying)
   const roundIndex = computed(() => internalState.value.roundIndex)
@@ -419,6 +426,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   return {
     state,
+    isInitialized,
     currentRound,
     currentCycle,
     phase,

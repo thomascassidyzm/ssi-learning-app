@@ -67,7 +67,13 @@ const tabs = computed(() => {
     return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]
   }
   if (isGovtAdmin.value) {
-    result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
+    // Nav unification (2026-07-29): a group-scoped leader's Schools door is
+    // THE VIEW's node home (schools lens), never the retired flat list. The
+    // flat /schools/all survives only for legacy no-group govt_admin rows.
+    const groupId = (selectedUser.value as any)?.group_id as string | undefined
+    result.push(groupId
+      ? { name: 'all-schools', path: `/schools/org/${groupId}?lens=schools`, label: 'Schools' }
+      : { name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
   // Show school-owner tabs for actual school roles, or when god is
   // actively impersonating a user with a school context.

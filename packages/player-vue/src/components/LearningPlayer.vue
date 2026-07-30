@@ -1339,10 +1339,19 @@ const visualLegoIdForRound = (round: any): string | null => {
   return lastMainLoopLegoId.value || round.legoId || null
 }
 
-// Expose reactive state for UI - writable refs that sync with simplePlayer
-// We need writable refs because legacy code assigns to these directly
-const currentRoundIndex = ref(0)
-const currentItemInRound = ref(0)
+// M3 (pull-consistency map): position is DERIVED from the engine once it
+// exists — never a writable mirror synced by watchers. Before engine init the
+// position lives in a single pre-engine resume intent, written only by the
+// resume/preview/reset paths and the legacy useCyclePlayback system (which
+// never initializes the engine, so its manual advancement stays authoritative
+// on that path). After init, position derives from the engine only; the
+// read-only computeds make a scattered post-init writer a compile error.
+const preEngineRoundIndex = ref(0)
+const preEngineItemInRound = ref(0)
+const currentRoundIndex = computed(() =>
+  simplePlayer.isInitialized.value ? simplePlayer.roundIndex.value : preEngineRoundIndex.value)
+const currentItemInRound = computed(() =>
+  simplePlayer.isInitialized.value ? simplePlayer.cycleIndex.value : preEngineItemInRound.value)
 // isPlaying = PULL-CONSISTENT derivation of the engine's own state — never a
 // writable mirror. The old design (a ref synced by an edge-triggered watcher
 // PLUS ~7 scattered manual assignments) could drift from the audio whenever a
@@ -1421,9 +1430,9 @@ watch(
   { immediate: true }
 )
 
-// Sync state with simplePlayer
+// Effect bridge on the engine's round advance (position itself is derived
+// above — this watcher only drives imperative sinks: persistence + prefetch).
 watch(() => simplePlayer.roundIndex.value, (idx) => {
-  currentRoundIndex.value = idx
   // Persist the live cursor on every round advance, at cycle 0 (the
   // "position, not completion" model). The positionInitialized guard is
   // what prevents this from firing during the resume landing: the bootstrap
@@ -1511,15 +1520,13 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
     }
   }
 })
-watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
-// (isPlaying is a computed deriving directly from simplePlayer — the old
-// edge-triggered mirror watcher that lived here is gone by design.)
+// (isPlaying, currentRoundIndex and currentItemInRound are computeds deriving
+// directly from simplePlayer — the old edge-triggered mirror watchers that
+// lived here are gone by design.)
 
 // Backwards compatibility aliases
 const effectiveRounds = loadedRounds
 const cachedRounds = loadedRounds  // Legacy alias
-const effectiveRoundIndex = currentRoundIndex
-const effectiveItemInRound = currentItemInRound
 
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
@@ -1935,14 +1942,12 @@ simplePlayer.onRoundCompleted((round) => {
       // ∞ (beltCssVars red override) and visualLegoIdForRound falls back to the
       // random USE legoId for guests (no main-loop ceiling recorded), which is
       // exactly the cycle-to-cycle belt flip Tom flagged.
+      // (playingSeedNumber itself derives from the engine via beltAnchorSeed —
+      // M9 — so only the lego-id signal is pushed here.)
       if (!isInfPlayActive.value) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
-        }
-        if (visualLegoId && beltProgress.value?.setPlayingPosition) {
-          const seed = getSeedFromLegoId(visualLegoId)
-          if (seed !== null) beltProgress.value.setPlayingPosition(seed)
         }
       }
     }
@@ -3865,6 +3870,36 @@ const isInfPlayActive = computed(() =>
   || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
 )
 
+// M9 (pull-consistency map): the belt's playing position DERIVES from the
+// round the engine is on — never pushed from scattered sites. The INF-PLAY
+// belt freeze is a FEATURE and stays: entry/resume paths record their anchor
+// (the course-end seed) in beltFreezeSeed — an explicit freeze intent, not a
+// push into the composable — and the derivation pins to it while INF PLAY is
+// active. Rounds that merely LOOK like INF PLAY without an anchor recorded
+// (audio-stripped main-loop rounds; guests with no main-loop ceiling) freeze
+// with a null anchor → no write → the belt HOLDS its last value, exactly the
+// old skip-the-write behaviour. Leaving INF PLAY clears the freeze so the
+// belt follows the landed round again.
+const beltFreezeSeed = ref<number | null>(null)
+const beltAnchorSeed = computed<number | null>(() => {
+  if (isInfPlayActive.value) return beltFreezeSeed.value
+  const legoId = visualLegoIdForRound(simplePlayer.currentRound.value)
+  if (!legoId) return null
+  return getSeedFromLegoId(legoId)
+})
+// Effect bridge into the shared belt composable (a cross-surface sink,
+// set-call-shaped — the doctrine-approved watcher-on-derived-signal).
+// beltProgress rides in the watch source so an anchor that lands before the
+// composable exists is re-delivered once it does.
+// immediate: an anchor already valid when the bridge attaches (late attach)
+// must still be delivered — a change-only watcher would strand it.
+watch([beltAnchorSeed, beltProgress], ([seed]) => {
+  if (seed !== null && beltProgress.value?.setPlayingPosition) {
+    beltProgress.value.setPlayingPosition(seed)
+  }
+}, { immediate: true })
+watch(isInfPlayActive, (active) => { if (!active) beltFreezeSeed.value = null })
+
 const beltCssVars = computed(() => {
   // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
   // whole UI stays red regardless of which LEGO each random-USE phrase draws from
@@ -4480,40 +4515,15 @@ const podPreviewPrev = (): void => {
  */
 const updateBeltForPosition = (roundIndex) => {
   if (!beltProgress.value) return
+  // Once the engine exists the belt derives from it (beltAnchorSeed, M9) —
+  // this manual writer serves only the pre-engine paths (legacy playback
+  // boundaries, pre-engine preview seeding).
+  if (simplePlayer.isInitialized.value) return
   // Use the visual helper — for main-loop rounds returns round.legoId,
   // for infplay rounds returns lastMainLoopLegoId. Without this the
   // single-chevron skip during infplay made the belt bounce around as
   // each random USE legoId was treated as the new "position".
   const round = loadedRounds.value?.[roundIndex]
-  const legoId = visualLegoIdForRound(round)
-  if (!legoId) return
-  const seed = getSeedFromLegoId(legoId)
-  if (seed === null) return
-  beltProgress.value.setPlayingPosition(seed)
-}
-
-/**
- * Derive the belt READOUT from the round the engine has just LANDED on
- * (simplePlayer.currentRound), rather than from a parsed seed threshold.
- *
- * This is the single belt writer for belt-skip navigation: belt-skip moves
- * the cursor by LEGO id / round index, then calls this so the belt colour
- * follows the actual landed LEGO. Reading the engine's currentRound (not a
- * loadedRounds index) keeps it correct even when the component's
- * loadedRounds mirror lags the engine queue after an addRounds/regen.
- *
- * INF PLAY: the landed round's legoId is a random USE, so we anchor to the
- * last main-loop LEGO (visualLegoIdForRound) exactly like updateBeltForPosition.
- */
-const deriveBeltFromLandedRound = () => {
-  if (!beltProgress.value) return
-  // In INF PLAY the belt is the locked red ∞ — never derive it from the landed
-  // round (each revival round's legoId is a random USE that would flip the belt
-  // colour cycle-to-cycle). The accent comes from beltCssVars' red override.
-  // Exit paths flip OUT of INF PLAY (land on a main-loop round) before calling
-  // this, so the real belt colour resumes there.
-  if (isInfPlayActive.value) return
-  const round = simplePlayer.currentRound.value
   const legoId = visualLegoIdForRound(round)
   if (!legoId) return
   const seed = getSeedFromLegoId(legoId)
@@ -5938,20 +5948,100 @@ const warmFirstKnownAudio = async (timeoutMs = 2000) => {
   }
 }
 
-// Typewriter effect for loading message
+// Typewriter effect for loading message.
+//
+// Two hazards this guards against (founder report 2026-07-29: "it gets to
+// something like 'getting your course da' and stalls with the word 'data'
+// incomplete, and then goes to 'Ready when you are'"):
+//
+//  1. OVERLAPPING LOOPS — a second typeLoadingMessage() call (course switch,
+//     beginBlockingRegenNotice) used to leave the first recursive timeout
+//     running, so two loops appended into the same ref and garbled the line.
+//     A pending timeout is now cleared, and a generation token retires any
+//     callback that survives the clear.
+//  2. MID-WORD CUT AT READY — the awakening <p> is v-if'd on isAwakening, so
+//     the instant loadingStage flips to 'ready' the partially-typed line is
+//     replaced by the resting copy. SWR-warm loads reach ready in ~800ms while
+//     a "Getting your Greek course ready..." line needs ~1.4s, so the cut
+//     landed mid-word almost every time. finishLoadingTypewriterFast() below
+//     completes the line before the flip.
 let typewriterTimeout = null
+let typewriterGeneration = 0
+// The message currently being typed + how far in we are, so the fast-finish
+// can complete it rather than guess.
+let typewriterMessage = ''
+let typewriterCharIndex = 0
+
+const stopLoadingTypewriter = () => {
+  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
+  typewriterGeneration++
+}
+
 const typeLoadingMessage = (message) => {
+  stopLoadingTypewriter()
+  const generation = typewriterGeneration
   currentLoadingMessage.value = ''
-  let charIndex = 0
+  typewriterMessage = message
+  typewriterCharIndex = 0
 
   const typeChar = () => {
-    if (charIndex < message.length) {
-      currentLoadingMessage.value += message[charIndex]
-      charIndex++
+    if (generation !== typewriterGeneration) return
+    if (typewriterCharIndex < message.length) {
+      currentLoadingMessage.value += message[typewriterCharIndex]
+      typewriterCharIndex++
       typewriterTimeout = setTimeout(typeChar, 40)
+    } else {
+      typewriterTimeout = null
     }
   }
   typeChar()
+}
+
+// Graceful end for the awakening line: if it's still mid-type when the course
+// is ready, finish it at an accelerated rate (never a mid-word freeze), then
+// hold a short beat so the completed line is readable. Bounded so a fast load
+// never pays more than ~FAST_FINISH_CAP_MS + HOLD_MS: if more characters remain
+// than the cap can type, the rest lands in one go rather than stretching ready.
+const TYPEWRITER_FAST_CHAR_MS = 12
+const TYPEWRITER_FAST_FINISH_CAP_MS = 240
+const TYPEWRITER_FINISH_HOLD_MS = 220
+const finishLoadingTypewriterFast = async () => {
+  const remaining = typewriterMessage.length - typewriterCharIndex
+  if (remaining <= 0) { stopLoadingTypewriter(); return }
+
+  stopLoadingTypewriter()
+  const generation = typewriterGeneration
+  const message = typewriterMessage
+  const budgetChars = Math.floor(TYPEWRITER_FAST_FINISH_CAP_MS / TYPEWRITER_FAST_CHAR_MS)
+
+  if (remaining > budgetChars) {
+    // Too much left to type even fast — complete it instantly.
+    currentLoadingMessage.value = message
+    typewriterCharIndex = message.length
+  } else {
+    await new Promise<void>((resolve) => {
+      const typeChar = () => {
+        if (generation !== typewriterGeneration) { resolve(); return }
+        if (typewriterCharIndex < message.length) {
+          currentLoadingMessage.value += message[typewriterCharIndex]
+          typewriterCharIndex++
+          typewriterTimeout = setTimeout(typeChar, TYPEWRITER_FAST_CHAR_MS)
+        } else {
+          typewriterTimeout = null
+          resolve()
+        }
+      }
+      typewriterTimeout = setTimeout(typeChar, TYPEWRITER_FAST_CHAR_MS)
+    })
+  }
+  if (generation !== typewriterGeneration) return
+  await new Promise((r) => setTimeout(r, TYPEWRITER_FINISH_HOLD_MS))
+}
+
+// The one way to leave the awakening screen: never cut the line mid-word.
+const goLoadingStageReady = async () => {
+  await finishLoadingTypewriterFast()
+  setLoadingStage('ready')
 }
 
 // Introduction playback state
@@ -6051,11 +6141,11 @@ const daysSinceLastPractice = computed(() => {
 })
 const restingWelcomeMessage = computed(() => {
   const days = daysSinceLastPractice.value
-  if (days === null) return t('resting.readyWhenYouAre', 'ready when you are')
-  if (days >= 30) return t('resting.returnAfter30', "welcome back. your brain remembers more than you think")
-  if (days >= 7) return t('resting.returnAfter7', "deep consolidation complete. you might surprise yourself")
-  if (days >= 3) return t('resting.returnAfter3', "your brain has been consolidating. let's see what stuck!")
-  return t('resting.readyWhenYouAre', 'ready when you are')
+  if (days === null) return t('resting.readyWhenYouAre', 'Ready when you are')
+  if (days >= 30) return t('resting.returnAfter30', "Welcome back. Your brain remembers more than you think.")
+  if (days >= 7) return t('resting.returnAfter7', "Deep consolidation complete. You might surprise yourself.")
+  if (days >= 3) return t('resting.returnAfter3', "Your brain has been consolidating. Let's see what stuck!")
+  return t('resting.readyWhenYouAre', 'Ready when you are')
 })
 
 // Smooth ring progress (0-100) - continuous animation
@@ -6988,13 +7078,15 @@ const handleCycleEvent = async (event) => {
       // ROUND-BASED PROGRESSION
       // ============================================
       if (useRoundBasedPlayback.value) {
-        // Advance within current round
-        currentItemInRound.value++
+        // Advance within current round. Legacy useCyclePlayback path only:
+        // the engine is never initialized here, so the pre-engine refs ARE
+        // the position store and the derived computeds read them through.
+        preEngineItemInRound.value++
 
         // Check if round is complete
-        if (currentItemInRound.value >= currentRound.value.items.length) {
+        if (preEngineItemInRound.value >= currentRound.value.items.length) {
           const completedLegoId = currentRound.value.legoId
-          const completedRoundIndex = currentRoundIndex.value
+          const completedRoundIndex = preEngineRoundIndex.value
           console.log('[LearningPlayer] Round', completedRoundIndex, 'complete! LEGO:', completedLegoId)
 
           // Maintain the main-loop high-water for cursor substitution in
@@ -7013,15 +7105,15 @@ const handleCycleEvent = async (event) => {
           handleRoundBoundary(completedRoundIndex, completedLegoId)
 
           // Move to next round
-          currentRoundIndex.value++
-          currentItemInRound.value = 0
+          preEngineRoundIndex.value++
+          preEngineItemInRound.value = 0
 
           // The course never ends. If we've somehow run past the tail of
           // cachedRounds (proactive expansion at line 894 should have kept
           // us ahead), do an emergency expansion and re-check. Only fall
           // back to the summary screen if expansion genuinely can't
           // produce any more content (no LEGOs in the course at all).
-          if (currentRoundIndex.value >= cachedRounds.value.length) {
+          if (preEngineRoundIndex.value >= cachedRounds.value.length) {
             if (offlinePlaybackActive()) {
               // Offline can't expandScript (no network). Loop the cached
               // content instead so playback never ends. Tom 2026-05-25.
@@ -7031,14 +7123,14 @@ const handleCycleEvent = async (event) => {
               console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
               await expandScript()
             }
-            if (currentRoundIndex.value >= cachedRounds.value.length) {
+            if (preEngineRoundIndex.value >= cachedRounds.value.length) {
               console.error('[LearningPlayer] No more content — showing summary as last resort')
               showPausedSummary()
               return
             }
           }
 
-          console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
+          console.log('[LearningPlayer] Starting round', preEngineRoundIndex.value, 'LEGO:', cachedRounds.value[preEngineRoundIndex.value].legoId)
           // Round-boundary audio prefetch used to run a legacy
           // prefetchRoundAudio() helper here; streaming-first now
           // handles it via the per-cycle resolver (lands the playing
@@ -7047,7 +7139,7 @@ const handleCycleEvent = async (event) => {
         }
 
         // Get next script item and convert to playable
-        const nextScriptItem = currentRound.value?.items[currentItemInRound.value]
+        const nextScriptItem = currentRound.value?.items[preEngineItemInRound.value]
         if (!nextScriptItem) {
           console.warn('[LearningPlayer] No next script item found')
           return
@@ -7111,9 +7203,9 @@ const handleCycleEvent = async (event) => {
                 }
 
                 // Advance to next item in round
-                currentItemInRound.value++
+                preEngineItemInRound.value++
                 // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
-                const followingItem = currentRound.value?.items[currentItemInRound.value]
+                const followingItem = currentRound.value?.items[preEngineItemInRound.value]
                 if (followingItem && isPlaying.value) {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
                   if (followingPlayable) {
@@ -8260,7 +8352,7 @@ const handleSkip = async () => {
   // cache doesn't stutter, then stepCycle does the slot arithmetic +
   // jumpToRound (which preserves play state). Because the step may land in a
   // different round, the belt READOUT derives from the round the engine
-  // actually landed on (deriveBeltFromLandedRound) — never an independent
+  // actually landed on (beltAnchorSeed, M9) — never an independent
   // setPlayingPosition.
   console.log('[LearningPlayer] Using SimplePlayer stepCycle(+1) (cycle advance)')
   isSkipInProgress.value = true
@@ -8284,7 +8376,6 @@ const handleSkip = async () => {
     }
     await prepareAndJump(landingRoundIndex, 'Next cycle…', () => {
       simplePlayer.stepCycle(1)
-      deriveBeltFromLandedRound()
     })
   } finally {
     isSkipInProgress.value = false
@@ -8325,7 +8416,6 @@ const handleRevisit = async () => {
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
-  deriveBeltFromLandedRound()
 }
 
 /**
@@ -8490,12 +8580,10 @@ const enterInfPlay = async () => {
         // round 1's cycles + rounds 2..N in parallel-5. By the time
         // the first cycle finishes (~10s), the next cycles are cached.
         warmUpInfPlayRoundsBackground(cachedRounds.value as any, firstInfIdx)
-        // Anchor belt to the last main-loop seed (= top reachable belt
+        // Freeze the belt at the course-end seed (= top reachable belt
         // colour for this course). Otherwise the infplay round's random
         // USE legoId would set the visual to whichever LEGO it drew.
-        if (beltProgress.value) {
-          beltProgress.value.setPlayingPosition(courseEndSeed)
-        }
+        beltFreezeSeed.value = courseEndSeed
         await persistCursorAtCurrentRound()
         return
       }
@@ -8522,7 +8610,7 @@ const enterInfPlay = async () => {
             : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
-            if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+            beltFreezeSeed.value = courseEndSeed
             await persistCursorAtCurrentRound()
             return
           }
@@ -8547,7 +8635,7 @@ const enterInfPlay = async () => {
  *
  * Belt stays PINNED to the course's final belt (the infplay rounds carry a
  * random USE legoId that would otherwise bounce the belt indicator) — mirrors
- * enterInfPlay's setPlayingPosition(courseEndSeed) anchor. Bumps the
+ * enterInfPlay's beltFreezeSeed = courseEndSeed anchor. Bumps the
  * infplayRoundIndex readout (the central-pill "round N"), persists the cursor.
  *
  * If no revival rounds are loaded (offline / a course with none) we recycle
@@ -8589,7 +8677,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
       simplePlayer.jumpToRound(targetIdx)
       // Pin the belt to the final belt rather than deriving from the
       // revival round's random USE legoId (which would bounce the indicator).
-      if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+      beltFreezeSeed.value = courseEndSeed
     })
     // Advance the central-pill ∞ readout ("round N").
     infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
@@ -8610,7 +8698,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
  *
  * Position-keyed: lands on the next round's first LEGO via jumpToLegoId,
  * the belt READOUT then DERIVES from the landed round
- * (deriveBeltFromLandedRound) — no independent setPlayingPosition. If the
+ * (beltAnchorSeed, M9) — no independent setPlayingPosition. If the
  * next round isn't loaded yet, LOAD-then-resolve (never teleport).
  */
 const handleRoundForward = async () => {
@@ -8721,7 +8809,6 @@ const handleRoundForward = async () => {
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
       else simplePlayer.jumpToRound(targetIdx)
-      deriveBeltFromLandedRound()
     })
     await persistCursorAtCurrentRound()
   } finally {
@@ -8875,7 +8962,7 @@ const handleRoundBack = async () => {
         simplePlayer.jumpToRound(targetIdx)
         // Pin belt to the final belt — a revival round's random-USE legoId would
         // otherwise bounce the indicator (mirrors advanceInfPlayRound).
-        if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+        beltFreezeSeed.value = courseEndSeed
       })
       // Step the central-pill ∞ readout back (floor at 1).
       infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value - 1)
@@ -8907,7 +8994,6 @@ const handleRoundBack = async () => {
       } else {
         simplePlayer.jumpToRound(targetIdx, 0)
       }
-      deriveBeltFromLandedRound()
     })
 
     // Round-back is a revisit gesture — write the cursor so the resting-state
@@ -9037,7 +9123,6 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
       const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
       else simplePlayer.jumpToRound(resolvedTargetIdx)
-      deriveBeltFromLandedRound()
 
       // Belt-pill jump can land anywhere (forward or back) — persist cursor.
       // Optimistic UI: the learner has already landed on the target round;
@@ -10549,12 +10634,12 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
       console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
     }
   }
-  // Anchor the belt to the course's final content (top reachable belt) so
+  // Freeze the belt at the course's final content (top reachable belt) so
   // the display reads INF PLAY, not the empty belt we tried to skip to.
-  if (beltProgress.value) {
+  {
     const fin = courseFinalLegoRef.value?.legoId
     const finSeed = fin ? getSeedFromLegoId(fin) : null
-    if (finSeed != null) beltProgress.value.setPlayingPosition(finSeed)
+    if (finSeed != null) beltFreezeSeed.value = finSeed
   }
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
@@ -11465,10 +11550,10 @@ onMounted(async () => {
     try {
       await loadSeedIfNeeded(seedNumber)
       simplePlayer.jumpToSeed(seedNumber)
-      // Update belt progress to match the jumped position
+      // Belt position derives from the landed round (beltAnchorSeed, M9);
+      // only the lego-id signal is pushed here.
       const legoId = `S${String(seedNumber).padStart(4, '0')}L01`
       beltProgress.value?.setLastLegoId(legoId)
-      beltProgress.value?.setPlayingPosition(seedNumber)
     } catch (err) {
       console.warn('[LearningPlayer] Jump to seed failed:', err)
     }
@@ -11756,10 +11841,7 @@ onMounted(async () => {
                 if (beltProgress.value?.setLastLegoId) {
                   beltProgress.value.setLastLegoId(startedAtLegoId)
                 }
-                if (beltProgress.value?.setPlayingPosition) {
-                  const seed = getSeedFromLegoId(startedAtLegoId)
-                  if (seed !== null) beltProgress.value.setPlayingPosition(seed)
-                }
+                // (playingSeedNumber derives from the landed round — M9.)
               }
 
               positionInitialized.value = true
@@ -11887,9 +11969,9 @@ onMounted(async () => {
                 lastMainLoopLegoId.value = finalLegoId
               }
               if (beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(finalLegoId)
-              if (beltProgress.value?.setPlayingPosition) {
+              {
                 const finalSeed = getSeedFromLegoId(finalLegoId)
-                if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
+                if (finalSeed !== null) beltFreezeSeed.value = finalSeed
               }
             }
             console.log(`[InstantPlayback] INF-PLAY resume: cache hydration, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
@@ -12012,19 +12094,16 @@ onMounted(async () => {
                 lastMainLoopLegoId.value = finalLegoId
               }
               if (beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(finalLegoId)
-              if (beltProgress.value?.setPlayingPosition) {
+              {
                 const finalSeed = getSeedFromLegoId(finalLegoId)
-                if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
+                if (finalSeed !== null) beltFreezeSeed.value = finalSeed
               }
             }
           } else {
-            // Main loop: mirror the legacy path — belt follows the resumed LEGO.
+            // Main loop: belt position derives from the landed round (M9);
+            // only the lego-id signal is pushed here.
             if (startedAtLegoId && beltProgress.value?.setLastLegoId) {
               beltProgress.value.setLastLegoId(startedAtLegoId)
-            }
-            if (startedAtLegoId && beltProgress.value?.setPlayingPosition) {
-              const seed = getSeedFromLegoId(startedAtLegoId)
-              if (seed !== null) beltProgress.value.setPlayingPosition(seed)
             }
           }
 
@@ -12237,10 +12316,7 @@ onMounted(async () => {
                     simplePlayer.jumpToRound(trueIdx, trueCycle)
                     instantPlayback.setCurrentLegoId(trueLegoId ?? landedLegoId)
                     if (trueLegoId && beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(trueLegoId)
-                    if (trueLegoId && beltProgress.value?.setPlayingPosition) {
-                      const seed = getSeedFromLegoId(trueLegoId)
-                      if (seed !== null) beltProgress.value.setPlayingPosition(seed)
-                    }
+                    // (playingSeedNumber derives from the landed round — M9.)
                   }
                 } catch (repairErr) {
                   console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
@@ -12419,7 +12495,10 @@ onMounted(async () => {
               isReturningUser = startingSeed > 0 || !!freshHighestLego
             }
 
-            // Set playing belt to match starting position
+            // Set playing belt to match starting position. PRE-ENGINE seed
+            // (no script/engine exists yet at this point in boot) so the
+            // splash belt is right during loading; once the engine lands,
+            // the derived beltAnchorSeed (M9) takes over.
             if (startingSeed > 0) {
               beltProgress.value?.setPlayingPosition(startingSeed)
             }
@@ -12790,16 +12869,18 @@ onMounted(async () => {
               const resumeRoundIndex = cachedScript.rounds.findIndex(r => r.legoId === localPosition.legoId)
 
               if (resumeRoundIndex >= 0) {
-                currentRoundIndex.value = resumeRoundIndex
-                currentItemInRound.value = localPosition.itemInRound ?? 0
+                // Pre-engine resume intent (M3): the engine doesn't exist on
+                // this legacy path, so the intent refs carry the position.
+                preEngineRoundIndex.value = resumeRoundIndex
+                preEngineItemInRound.value = localPosition.itemInRound ?? 0
                 // Clamp item index to valid range
                 const maxItem = cachedScript.rounds[resumeRoundIndex]?.items?.length ?? 1
-                if (currentItemInRound.value >= maxItem) {
-                  currentItemInRound.value = 0
+                if (preEngineItemInRound.value >= maxItem) {
+                  preEngineItemInRound.value = 0
                 }
 
                 // Also set currentPlayableItem so splash screen shows correct text
-                const resumeScriptItem = cachedScript.rounds[resumeRoundIndex]?.items?.[currentItemInRound.value]
+                const resumeScriptItem = cachedScript.rounds[resumeRoundIndex]?.items?.[preEngineItemInRound.value]
                 if (resumeScriptItem) {
                   const playable = await scriptItemToPlayableItem(resumeScriptItem)
                   if (playable) {
@@ -12807,7 +12888,7 @@ onMounted(async () => {
                   }
                 }
 
-                console.log('[LearningPlayer] Resumed at LEGO', localPosition.legoId, '→ round', resumeRoundIndex, 'item', currentItemInRound.value)
+                console.log('[LearningPlayer] Resumed at LEGO', localPosition.legoId, '→ round', resumeRoundIndex, 'item', preEngineItemInRound.value)
                 resumed = true
               } else {
                 console.log('[LearningPlayer] Saved LEGO', localPosition.legoId, 'not in cached rounds, will regenerate')
@@ -12830,8 +12911,8 @@ onMounted(async () => {
                   // round-restart and correct for any real return.
                   const resumeIndex = savedProgress.lastCompletedRoundIndex
                   if (resumeIndex < cachedScript.rounds.length) {
-                    currentRoundIndex.value = resumeIndex
-                    currentItemInRound.value = 0 // round start; per-cycle precision is the main path's job
+                    preEngineRoundIndex.value = resumeIndex
+                    preEngineItemInRound.value = 0 // round start; per-cycle precision is the main path's job
 
                     // Also set currentPlayableItem so splash screen shows correct text
                     const resumeScriptItem = cachedScript.rounds[resumeIndex]?.items?.[0]
@@ -12846,7 +12927,7 @@ onMounted(async () => {
                     resumed = true
                   } else {
                     console.log('[LearningPlayer] All rounds completed, starting fresh')
-                    currentRoundIndex.value = 0
+                    preEngineRoundIndex.value = 0
                   }
                 }
               } catch (err) {
@@ -12858,8 +12939,8 @@ onMounted(async () => {
             // This is the absolute fallback - player must ALWAYS have somewhere to go
             if (!resumed && cachedScript.rounds.length > 0) {
               // Explicitly set indices to beginning
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
 
               const firstItem = cachedScript.rounds[0]?.items?.[0]
               if (firstItem) {
@@ -12874,8 +12955,8 @@ onMounted(async () => {
             // Safety check: if we still have no playable item but have rounds, force set one
             if (!currentPlayableItem.value && cachedScript.rounds.length > 0) {
               console.warn('[LearningPlayer] Safety fallback: forcing position to round 0')
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
               const firstItem = cachedScript.rounds[0]?.items?.[0]
               if (firstItem) {
                 const playable = await scriptItemToPlayableItem(firstItem)
@@ -12958,20 +13039,20 @@ onMounted(async () => {
             if (savedPosition?.legoId) {
               const resumeRoundIndex = simpleRounds.findIndex(r => r.legoId === savedPosition.legoId)
               if (resumeRoundIndex >= 0) {
-                currentRoundIndex.value = resumeRoundIndex
-                currentItemInRound.value = savedPosition.itemInRound ?? 0
+                preEngineRoundIndex.value = resumeRoundIndex
+                preEngineItemInRound.value = savedPosition.itemInRound ?? 0
                 const maxItem = simpleRounds[resumeRoundIndex]?.cycles?.length ?? 1
-                if (currentItemInRound.value >= maxItem) {
-                  currentItemInRound.value = 0
+                if (preEngineItemInRound.value >= maxItem) {
+                  preEngineItemInRound.value = 0
                 }
                 console.log('[LearningPlayer] Resumed at LEGO', savedPosition.legoId, '→ round', resumeRoundIndex)
               } else {
-                currentRoundIndex.value = 0
-                currentItemInRound.value = 0
+                preEngineRoundIndex.value = 0
+                preEngineItemInRound.value = 0
               }
             } else {
-              currentRoundIndex.value = 0
-              currentItemInRound.value = 0
+              preEngineRoundIndex.value = 0
+              preEngineItemInRound.value = 0
             }
 
             positionInitialized.value = true
@@ -13047,7 +13128,7 @@ onMounted(async () => {
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
   void warmFirstKnownAudio()
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
-  setLoadingStage('ready')
+  await goLoadingStageReady()
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -13132,9 +13213,16 @@ onMounted(async () => {
       // Cap to actual available rounds
       targetIndex = Math.min(targetIndex, cachedRounds.value.length - 1)
 
-      // Set playback position so hitting play continues from here
-      currentRoundIndex.value = targetIndex
-      currentItemInRound.value = 0
+      // Set playback position so hitting play continues from here. If the
+      // engine already exists, the position intent goes THROUGH it (jumpToRound
+      // is the one sanctioned post-init position writer); otherwise it's the
+      // pre-engine intent the derived position reads until init.
+      if (simplePlayer.isInitialized.value) {
+        simplePlayer.jumpToRound(targetIndex, 0)
+      } else {
+        preEngineRoundIndex.value = targetIndex
+        preEngineItemInRound.value = 0
+      }
 
       // Update belt to match preview position
       updateBeltForPosition(targetIndex)
@@ -13267,7 +13355,7 @@ onUnmounted(() => {
   saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
-  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
+  stopLoadingTypewriter() // also retires any in-flight fast-finish generation
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
@@ -13372,9 +13460,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     stopCycle()
   }
 
-  // 2. Reset all state
-  currentRoundIndex.value = 0
-  currentItemInRound.value = 0
+  // 2. Reset all state (pre-engine intent back to 0 for the new course; the
+  // new course's init path re-seeds the engine, and the 'awakening' loading
+  // stage covers the swap window)
+  preEngineRoundIndex.value = 0
+  preEngineItemInRound.value = 0
   cachedRounds.value = []
   // Drop the previous course's LIVE boundary — it's a bare number with no
   // course stamp, so a leftover value would mis-bound the new course until its
@@ -13475,7 +13565,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // awaited — blocking ready on it added ~600ms). Head-miss streams the first
   // clip if the learner taps before it's warm.
   void warmFirstKnownAudio()
-  setLoadingStage('ready')
+  await goLoadingStageReady()
   isInitialized.value = true
   maybeShowCourseUpdatedNotice()
 

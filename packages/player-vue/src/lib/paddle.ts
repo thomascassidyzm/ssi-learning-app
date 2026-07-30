@@ -18,6 +18,13 @@
  *                                              ⚠️ Tom must create this price in Paddle + set the env.
  *   VITE_PADDLE_EXTRA_CLASS_MONTHLY   — pri_… (optional, future)
  *   VITE_PADDLE_EXTRA_CLASS_ANNUAL    — pri_… (optional, future)
+ *   VITE_PADDLE_FAMILY_PRICE_MONTHLY  — pri_… for £25/mo SSi Family (up to 6 accounts)
+ *   VITE_PADDLE_FAMILY_PRICE_ANNUAL   — pri_… for £250/yr SSi Family
+ *                                        ⚠️ NO FALLBACK — Tom creates this product by
+ *                                        hand (FAMILY-PLAN-SPEC.md §2.1); until both
+ *                                        env vars are set the Family paywall option
+ *                                        stays hidden (graceful, same pattern as the
+ *                                        annual-price-unset case above).
  *
  * Every value is trimmed at read — Vercel's env-var entry flow can capture
  * trailing newlines, and an untrimmed "pri_…\n" makes Paddle 400 with
@@ -71,6 +78,8 @@ export const paddleConfig = {
     trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
   extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
+  familyMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY as string | undefined),
+  familyAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_FAMILY_PRICE_ANNUAL as string | undefined),
 } as const
 
 let paddleInstance: Paddle | null = null

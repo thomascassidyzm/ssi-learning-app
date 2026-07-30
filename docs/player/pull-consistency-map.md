@@ -81,12 +81,22 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
   position display; aliases `effectiveRoundIndex`/`effectiveItemInRound`.
 - **Nuance:** the resume-path manual writes happen BEFORE the engine is initialized —
   they pre-seed the splash/resting display. A blind computed would read 0 until init.
-- **Migration:** split the two roles: a `preEngineResumeIndex` ref written only by the
-  resume paths, and `currentRoundIndex = computed(() => engine initialized ?
-  simplePlayer.roundIndex : preEngineResumeIndex)`. Same for the cycle index.
-  Status: **DEFERRED** — ~20 write sites across the resume labyrinth; needs its own
-  focused pass with the resume matrix (fresh/localStorage/DB/deep-link/preview ×
-  instant-playback/legacy) exercised. Highest-value next step after this tranche.
+- **Migration:** split the two roles: `preEngineRoundIndex`/`preEngineItemInRound`
+  refs written only by the pre-engine paths (legacy resume labyrinth, course-change
+  reset, preview seeding, legacy useCyclePlayback advancement — all of which run with
+  no engine), and `currentRoundIndex`/`currentItemInRound` = computeds preferring
+  engine truth once `simplePlayer.isInitialized` (new composable signal). Preview
+  seeding routes through `jumpToRound` when the engine already exists — post-init,
+  engine navigation is the only position writer (read-only computeds make scattered
+  writers a compile error). The roundIndex watcher survives as an effect bridge only
+  (persist + prefetch); the cycleIndex watcher is deleted. Two deliberate behaviour
+  notes: (a) savePositionToLocalStorage's itemInRound fallback now reads the engine
+  live — the mirror-lag it compensated for (Tom 2026-05-30) is structurally gone;
+  (b) during a course switch with a live old engine, the derived position shows the
+  old engine's index (not a reset 0) until the new course initializes — covered by
+  the 'awakening' loading stage, and engine truth is the honest display anyway.
+  Status: **MIGRATED** (tranche 4; roundPositionSync.test.ts). Dead
+  `effectiveRoundIndex`/`effectiveItemInRound` aliases deleted with it.
 
 ### M4. `roundsRef` — the QUEUE mirror with re-implemented engine algorithms
 
@@ -145,11 +155,26 @@ into the mirror — the multi-writer count is the risk metric (isPlaying had ~7)
 - **Risk:** medium — a missed push shows a stale belt colour/readout; self-heals on
   next round completion. Mitigated already: `deriveBeltFromLandedRound` deliberately
   reads `simplePlayer.currentRound` (engine truth) not the loadedRounds mirror.
-- **Migration:** derive playing position from `simplePlayer.currentRound` +
-  `visualLegoIdForRound` (the INF-PLAY anchor), with the INF-PLAY freeze kept. Blocked
-  on care: `useSharedBeltProgress` is shared across surfaces and the INF-PLAY belt is
-  deliberately NOT derived from the landed round. Status: **DEFERRED** — needs its own
-  pass with the INF-PLAY belt semantics in hand.
+- **Migration:** ONE derived anchor: `beltAnchorSeed = computed(() => isInfPlayActive
+  ? beltFreezeSeed : seed(visualLegoIdForRound(simplePlayer.currentRound)))`, bridged
+  into the shared composable by a single immediate watcher (cross-surface sink =
+  doctrine-approved effect bridge; `beltProgress` rides in the watch source so an
+  anchor landing before the composable exists is re-delivered). The INF-PLAY freeze
+  is kept as an explicit intent: entry/resume paths write `beltFreezeSeed` (course-end
+  seed) instead of pushing into the composable; shape-only INF-PLAY with no anchor
+  (audio-stripped rounds, guests without a ceiling) freezes with a null anchor → no
+  write → the belt HOLDS, exactly the old skip-the-write behaviour; leaving INF PLAY
+  clears the freeze. By the time of migration the push count had grown to ~15 sites —
+  round completion, `updateBeltForPosition`, `deriveBeltFromLandedRound` (+5 callers,
+  all deleted), 4 INF-PLAY entry/advance/back anchors, 5 resume paths, the deep-link
+  jump. Two writers remain by design, both pre-engine: the boot-time splash seed
+  (before any script exists) and `updateBeltForPosition`, now engine-guarded to serve
+  only legacy-path boundaries + pre-engine preview. Timing note: the belt now updates
+  when a round LANDS (becomes current) rather than when it completes — at a belt
+  threshold the colour flips as the new belt's first round starts, which is the more
+  truthful moment. Status: **MIGRATED** (tranche 4; beltPositionSync.test.ts —
+  main-loop follow, freeze no-bounce, guest hold, exit unfreeze, late-attach,
+  engine-agreement walk).
 
 ### M10. `instantPlayback.setCurrentLegoId` — cursor push into the prefetch service
 
@@ -185,10 +210,34 @@ assert the derived value CANNOT disagree with `player.currentState` / the engine
 rounds. Planned files this tranche: `phaseDisplaySync.test.ts`, `cycleTextSync.test.ts`,
 `roundsQueueSync.test.ts`.
 
-## What still needs a browser pass (deploys blocked 2026-07-28)
+## Browser verification (2026-07-29, deployed dev build 351214e)
 
-Unit/simulation coverage is thorough but the following want a real-device look once
-Vercel deploys resume: welcome→first-cycle text handoff (M1), phase pill + voice-2
-text through a full round (M2), listening/pronunciation mode button sync from
-BottomNav (M5), INF-PLAY queue handoff with the M4 snapshot pull, session timer
-across pod laps (M8).
+Tranche-4 probe (`e2e/pull-consistency-tranche4-probe.mjs`) — 12/12 PASS on the
+deployed dev alias, guest flow:
+- **M3 fresh cold start**: play persists a localStorage position (S0001L01).
+- **M3 cold localStorage resume**: reload lands on the SAME saved LEGO (no reset
+  to round 0), resumed playback shows real cycle text.
+- **M3 deep-link jump** (`ssi-jump-to-seed`, the ?seed=/CourseBrowser path): cursor
+  moved to seed 10 and back to seed 2, persisted correctly both ways.
+- **M9 belt follows jumps** both directions: white → yellow (#fcd34d) at seed 10,
+  back to white at seed 2 (pure derivation, no ratchet).
+- **M9 belt steady across pod-lap audio** (`?podview=1`): colour constant over a
+  10s sampled window while the lap played.
+
+INF-PLAY entry/freeze: attempted via a free course + course-end walk
+(`e2e/pull-consistency-t4-infplay-probe.mjs`). The belt derivation verified on
+the second course too (deep-link to seed 300 → brown #a8856c, correct). Entry
+itself proved unreachable for ANY guest on current dev content: premium courses
+paywall course-end (by design), and every free course has content only to
+S0300 against a 668-seed list — at that edge round-forward hits the
+"next round unavailable — staying put" fallback because neither the canonical
+round-map nor courseFinalLegoRef resolves on that path. Pre-existing behaviour
+(none of that branch changed this tranche), logged as an observation: on the
+300/668 courses forward-skip dead-ends at S0300 with no INF-PLAY offer. NOT
+browser-verified (needs a signed-in account / complete course): INF-PLAY
+entry+freeze, DB-cursor resume, INF-PLAY deterministic resume — all pinned by
+unit tests (roundPositionSync.test.ts, beltPositionSync.test.ts).
+
+Earlier (2026-07-28, deploys blocked that night, since verified by the tranche-3
+probe + this pass): M1 welcome→first-cycle handoff, M2 phase pill + voice-2 text,
+M5 mode buttons, M8 session timer.

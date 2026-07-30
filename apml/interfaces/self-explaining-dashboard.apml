@@ -1,6 +1,6 @@
 # APML Interface: Self-Explaining Dashboard (compiled explainer)
 # SSI Learning App
-# Version: 1.0.0 (2026-07-27) — v1 shipped: compiler CLI + pack, How-this-works, noticing invitations on node home
+# Version: 1.1.0 (2026-07-29) — How-this-works = single surfacing point (walks + invitations in the panel) with a discoverability throb
 # Status: Live on node home (admin + leader member mounts). Design doc: docs/self-explaining-dashboard.md
 
 ## ============================================================================
@@ -12,7 +12,7 @@ SPECIFICATION:
   purpose: "Docs, training, onboarding and feature-discovery as ONE act: the system explaining itself from live state, per persona. Compiled once (CLI, tokens at refresh time), rendered forever (static pack, zero runtime LLM)."
   compiler: "tools/explainer/compile.mjs (+ rulings/*.md, rules.json — the hand-maintained DECISIONS)"
   pack: "packages/player-vue/src/explainer/pack.json (versioned, bundled; human render docs/explainer-pack.md)"
-  runtime: "packages/player-vue/src/explainer/evaluateRules.ts + components/admin/{HowThisWorks,NoticingInvitations}.vue"
+  runtime: "packages/player-vue/src/explainer/evaluateRules.ts + useNoticingInvitations.ts (ONE evaluation per page) + components/admin/{HowThisWorks,NoticingInvitations}.vue"
   surface: "NodeHomeView.vue — admin mount (/admin/groups|schools|classes/:id) persona=admin; member mount (/schools/org/:id) persona=leader"
   learner_level: "DELIBERATELY NOTHING — the player must need no explanation (founder ruling)"
 
@@ -23,6 +23,15 @@ DESIGN_PHILOSOPHY:
     - "DRIFT GATE: compile FAILS when an explanation names a verb the surface lost, or a rule reads a field home.ts stopped emitting — staleness becomes a build failure."
     - "Noticing rules are pure data over stats the page ALREADY fetched — no new queries, no polling, no runtime model calls."
     - "Invitations, not missions: gentle, dismissible (14d per rule×node, localStorage), never modal, max 3, deep links resolve member/admin-correct via nodeSurfacePaths."
+    - "SINGLE SURFACING POINT (founder ruling 2026-07-29): the How-this-works button surfaces ANY invitation for the persona×place — its panel lists the explanation, the current noticing invitations (compact rows) and the walk offers."
+
+DISCOVERABILITY_THROB:
+  ruling: "founder 2026-07-29: 'glow/throb on first visit, throb again if the app thinks that somethings haven't been used/done yet — subtle so that it doesn't trap attention, but make it discoverable super easily'"
+  state: "src/explainer/howThisWorksThrob.ts — localStorage 'ssi-htw-seen', entries `${viewerId}:node-home:${nodeId}` = {seenAt, invKeys}, pruned 180d; viewerId = auth uid ('anon' until session resolves)"
+  arm: "first visit = viewer has NO seen entry for the surface; re-arm = current undismissed invitation set contains a key not recorded at the last panel open of this node"
+  disarm: "opening the panel = markSeen(current keys); dismissal shrinking the set never re-arms"
+  render: "6px soft-pulsing dot beside the link (2.6s opacity 0.35↔0.85) + link one shade darker; prefers-reduced-motion → static dot, no animation; never modal, never auto-plays (startWalk stays tap-only)"
+  tests: "src/explainer/howThisWorksThrob.test.ts"
 
 ## ============================================================================
 ## CONTRACTS
