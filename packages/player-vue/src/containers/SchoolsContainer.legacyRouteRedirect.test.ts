@@ -28,7 +28,20 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
   })
 
   it('fires only for group-scoped govt_admins — legacy no-group rows keep the flat views', () => {
-    expect(source).toMatch(/if \(!groupId \|\| !ctx\.isGovtAdmin\.value\) return/)
+    expect(source).toMatch(/if \(groupId && ctx\.isGovtAdmin\.value\)/)
+  })
+
+  // Third persona (2026-07-30): a school-scoped school_admin's retired flat
+  // URLs land on THE VIEW too — Dashboard on their school's node home,
+  // Teachers on the node home with the teachers lens, Analytics on the node
+  // insights. Teachers-the-role and legacy no-school rows are untouched.
+  it('redirects a school_admin\'s retired dashboard/teachers/analytics routes to the node surface', () => {
+    expect(source).toMatch(/if \(schoolId && ctx\.isSchoolAdmin\.value\)/)
+    expect(source).toMatch(/routeName === 'schools-dashboard'/)
+    expect(source).toMatch(/`\/schools\/org\/\$\{schoolId\}`/)
+    expect(source).toMatch(/routeName === 'teachers'/)
+    expect(source).toMatch(/path: `\/schools\/org\/\$\{schoolId\}`, query: \{ lens: 'teachers' \}/)
+    expect(source).toMatch(/`\/schools\/org\/\$\{schoolId\}\/insights`/)
   })
 
   it('is a watch on the resolving context, not a one-shot (group_id lands async after deep links)', () => {

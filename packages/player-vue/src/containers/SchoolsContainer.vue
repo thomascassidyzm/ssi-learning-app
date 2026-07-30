@@ -338,11 +338,30 @@ watch(
   [() => ctx.currentUser.value, () => route.name],
   ([user, routeName]) => {
     const groupId = user?.group_id
-    if (!groupId || !ctx.isGovtAdmin.value) return
-    if (routeName === 'schools-list') {
-      void router.replace({ path: `/schools/org/${groupId}`, query: { lens: 'schools' } })
-    } else if (routeName === 'analytics') {
-      void router.replace(`/schools/org/${groupId}/insights`)
+    if (groupId && ctx.isGovtAdmin.value) {
+      if (routeName === 'schools-list') {
+        void router.replace({ path: `/schools/org/${groupId}`, query: { lens: 'schools' } })
+      } else if (routeName === 'analytics') {
+        void router.replace(`/schools/org/${groupId}/insights`)
+      }
+      return
+    }
+    // Third persona through the same door (founder ruling, 2026-07-30): a
+    // school leader's Dashboard/Teachers/Insights land on THE VIEW — node
+    // home (teachers ARE its children) and node insights for their school's
+    // node. Classes and Students stay flat (Play-as-Class and student
+    // management have no node-surface equivalent yet). Teachers on these
+    // routes are untouched; legacy no-school school_admin rows keep the
+    // flat views.
+    const schoolId = user?.school_id
+    if (schoolId && ctx.isSchoolAdmin.value) {
+      if (routeName === 'schools-dashboard') {
+        void router.replace(`/schools/org/${schoolId}`)
+      } else if (routeName === 'teachers') {
+        void router.replace({ path: `/schools/org/${schoolId}`, query: { lens: 'teachers' } })
+      } else if (routeName === 'analytics') {
+        void router.replace(`/schools/org/${schoolId}/insights`)
+      }
     }
   },
   { immediate: true },
