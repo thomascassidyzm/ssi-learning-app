@@ -11486,7 +11486,29 @@ onMounted(async () => {
 
   const startTime = Date.now()
   const isReturnUser = localStorage.getItem('ssi-has-played') === 'true'
-  const MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800
+  // In-app course switch vs genuine document load. main.js stamps
+  // __ssiBoot.mountedMs once at app.mount(); a player mount starting ≥3s
+  // after it is a REMOUNT (course switch), not a fresh boot. Same detection
+  // the cold_start telemetry uses at the tail of this hook — computed once
+  // here so both the splash floor and the telemetry read one value.
+  const bootMarks = (typeof window !== 'undefined' && (window as any).__ssiBoot) || {}
+  const mountEntryPerfMs = typeof performance !== 'undefined' ? performance.now() : 0
+  const isFreshLoad = typeof bootMarks.mountedMs === 'number'
+    ? (mountEntryPerfMs - bootMarks.mountedMs) < 3000
+    : true
+  // The first-visit cinematic (2800ms) is for the first-ever boot only. A
+  // course SWITCH never replays it — founder ruling 2026-07-30: switch must
+  // be READY in 2–3s, and the learner's own telemetry showed every warm
+  // switch pinned at exactly the 2800ms floor after an update wiped the
+  // ssi-has-played flag. Return users and remounts both take the 300ms floor.
+  const skipCinematic = isReturnUser || !isFreshLoad
+  const MINIMUM_ANIMATION_MS = skipCinematic ? 300 : 2800
+
+  // Resolved the moment the loading stage flips to 'ready' (play available).
+  // Background work that competes with the switch's critical path for
+  // bandwidth (the whole-course walk) awaits this before scheduling.
+  let resolvePlayerReady: (() => void) | null = null
+  const playerReadySignal = new Promise<void>((resolve) => { resolvePlayerReady = resolve })
 
   // Global brand welcome moment — once per device, first-ever visit only.
   // See docs/first-boot-experience.md and useBrandWelcome.ts (asset swap point).
@@ -11502,10 +11524,11 @@ onMounted(async () => {
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
 
-  // Fetch contribution data (non-blocking — fire and forget)
+  // Fetch contribution data — display-only, so it waits for READY instead of
+  // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
     const learnerId = (auth as any)?.learnerId?.value || null
-    contribution.fetch(courseCode.value, learnerId).catch(() => {})
+    void playerReadySignal.then(() => contribution.fetch(courseCode.value, learnerId).catch(() => {}))
   }
 
   // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
@@ -12187,7 +12210,10 @@ onMounted(async () => {
           if (inferEnrollmentMode === 'infplay') {
             positionInitialized.value = true
             dataReady = true
-            scheduleIdleTask(() => {
+            // Ready-gated for the same reason as the main-loop handoff below:
+            // the walk's course-wide queries must not compete with the switch's
+            // critical path (founder ruling 2026-07-30).
+            void playerReadySignal.then(() => scheduleIdleTask(() => {
               void generateScript()
                 .then(async (result) => {
                   if (currentMode.value !== 'infplay') return
@@ -12214,7 +12240,7 @@ onMounted(async () => {
                 .catch((err) => {
                   console.warn('[InstantPlayback] INF-PLAY idle full-script warm failed, belt-skip will fall back to foreground regen:', err)
                 })
-            })
+            }))
             return
           }
 
@@ -12350,11 +12376,15 @@ onMounted(async () => {
               console.warn('[InstantPlayback] Full-script background gen failed, /cycles path remains the fallback:', err)
             })
 
-          // Fire the walk on idle so it can't contend with the bootstrap. The
-          // player is already interactive (dataReady set below) — the walk lands
-          // in the background well before the learner nears the INF-PLAY boundary
+          // Fire the walk only once the player is READY (founder ruling
+          // 2026-07-30: readiness = first LEGO identified; everything else
+          // streams behind it). scheduleIdleTask alone wasn't enough — its
+          // 2s ceiling let the walk's ~45 course-wide queries fire DURING the
+          // switch window, and on a phone pipe they starved the two critical
+          // fetches (measured 4–9s to READY on-device). The walk lands in the
+          // background well before the learner nears the INF-PLAY boundary
           // that consumes its output.
-          scheduleIdleTask(() => { void runFullScriptHandoff() })
+          void playerReadySignal.then(() => scheduleIdleTask(() => { void runFullScriptHandoff() }))
 
           // Mark position + data ready and skip the legacy load
           // entirely. The flag-on branch is now the only source of
@@ -13083,8 +13113,8 @@ onMounted(async () => {
   // Stage transitions happen on fixed timing for visual consistency
   // ============================================
   const runAnimationTimeline = async () => {
-    if (isReturnUser) {
-      // Return users: skip cinematic timeline, go straight to preparing
+    if (skipCinematic) {
+      // Return users + course switches: skip cinematic timeline, go straight to preparing
       setLoadingStage('preparing')
       const elapsed = Date.now() - startTime
       const remaining = Math.max(0, MINIMUM_ANIMATION_MS - elapsed)
@@ -13129,6 +13159,9 @@ onMounted(async () => {
   void warmFirstKnownAudio()
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   await goLoadingStageReady()
+  // Play is now available — release the ready-gated background work (the
+  // whole-course walk) so it can't have competed with the critical path.
+  resolvePlayerReady?.()
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -13151,11 +13184,10 @@ onMounted(async () => {
   // shortly after app.mount() on a fresh load, but much later on a switch
   // (= time the learner spent on the previous course). mountToReadyMs is the
   // always-valid per-mount cost (the real switch cost; floor-bound on a reload).
-  const boot = (typeof window !== 'undefined' && (window as any).__ssiBoot) || {}
-  const onMountedEntryMs = coldTotalMs - coldOnMountedMs
-  const isFreshLoad = typeof boot.mountedMs === 'number'
-    ? (onMountedEntryMs - boot.mountedMs) < 3000
-    : true
+  // isFreshLoad + bootMarks are computed ONCE at mount entry (top of this
+  // hook) — the same value also picks the splash floor, so floor and
+  // telemetry can never disagree about what kind of mount this was.
+  const boot = bootMarks
   console.log('[ColdStart]', isFreshLoad ? 'launch→ready' : 'switch→ready',
     isFreshLoad ? coldTotalMs : coldOnMountedMs, 'ms |',
     coldOnMountedMs, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | fresh', isFreshLoad, '| returnUser', isReturnUser)
