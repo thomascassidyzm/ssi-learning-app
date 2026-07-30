@@ -34,7 +34,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
-const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 const { canAccessAdmin, hasSchoolRole } = useUserRole()
 
 // Play-as-class: while a class session is live, the class name is the primary
@@ -80,7 +80,21 @@ const tabs = computed(() => {
   // Show school-owner tabs for actual school roles, or when god is
   // actively impersonating a user with a school context.
   if (hasSchoolRole.value || selectedUser.value) {
-    result.push(...baseTabs)
+    // Third persona through THE VIEW's door (2026-07-30): a school leader's
+    // Dashboard/Teachers/Insights are the node surface for their school's
+    // node — same repoint as the govt_admin Schools entry above. Teachers
+    // and legacy no-school school_admin rows keep the flat set.
+    const schoolId = (selectedUser.value as any)?.school_id as string | undefined
+    if (isSchoolAdmin.value && schoolId) {
+      result.push(
+        { name: 'dashboard', path: `/schools/org/${schoolId}`, label: 'Dashboard' },
+        { name: 'students', path: '/schools/students', label: 'Students' },
+        { name: 'classes', path: '/schools/classes', label: 'Classes' },
+        { name: 'analytics', path: `/schools/org/${schoolId}/insights`, label: 'Insights' },
+      )
+    } else {
+      result.push(...baseTabs)
+    }
   }
   return result
 })

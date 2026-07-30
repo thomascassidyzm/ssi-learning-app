@@ -687,3 +687,36 @@ numbers still miss the target. Priority hints/HTTP2 tuning — doesn't remove th
 just reorders it.
 **Search width:** visible-options.
 **Decided by:** agent (BSC >90%; founder ruling supplied the target and the readiness definition).
+
+## 2026-07-30 — production ships weekly, Friday mornings, on an explicit GO
+**Ruling (founder, verbatim):** *"wait on this - I want to ship to production on a weekly basis -
+Friday mornings."* Said in answer to an offer to promote the open 130-commit `staging → main`
+backlog immediately. The answer was not "ship now" but "institute a cadence."
+**Move:** Built the mechanism, not the one-off ship. (1) `tools/release-train/candidate-report.mjs`
+— a Thursday 17:00 UTC cron on watson-1 that computes `origin/main..origin/staging`, condenses it
+to human headlines (process commits split out, substantive ones clustered by area), reads per-SHA
+CI verdicts from the Verify workflow history plus the staging head's combined status, flags open
+regressions and MAIN-gated items out of `WORKLIST.md`, commits the report to
+`tools/release-train/reports/<date>.md` from a throwaway worktree, and posts the needs-you card
+**"Friday ship: N commits ready — GO / HOLD"**. (2) `tools/release-train/promote.sh` — the Friday
+merge, run by a human on Tom's word, refusing without `--go` and refusing if `main` is not an
+ancestor of `staging`. (3) `docs/RELEASE-TRAIN.md`. (4) `verify.yml` now also runs on `staging` and
+`main` pushes, so the report reads a real verdict on the tree being promoted rather than inferring
+one; those runs gate nothing.
+**Explicitly NOT built:** anything that promotes on a timer. The trigger is Tom's sentence, every
+week, forever. Post-ship fallout watching is not duplicated either — `tools/deploy-sentinel/`
+already opens a 2h watch window on every `main` push.
+**Better:** production stops drifting a month behind staging; each ship carries a written
+candidate readable on a phone in a minute instead of 130 raw subject lines, with the items the
+promote *unblocks* (two parked migrations gated on code reaching `main`) named up front.
+**Simpler:** one cron writing a question, one script a human runs on the answer. No release
+manager, no new environment, no new watching layer.
+**Cheaper (total):** a `git log` and a handful of `gh` calls once a week; the promote is one merge.
+Nothing on the money path moves without a human sentence in front of it.
+**Searched & rejected:** promoting the backlog immediately (the founder's actual instruction was
+the opposite); a cron that promotes automatically with a veto window (inverts the ruling — GO must
+be affirmative); posting the full detail in the card body (the needs-you board takes text ≤300
+chars and a url, with no detail field — hence a committed report file the card links to);
+a second post-ship watcher (the sentinel already exists).
+**Search width:** visible-options.
+**Decided by:** founder (the cadence); agent for the mechanism's shape (BSC >90%).

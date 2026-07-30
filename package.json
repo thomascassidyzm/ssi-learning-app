@@ -12,6 +12,7 @@
     "test": "pnpm -r test",
     "test:api": "vitest run -c vitest.api.config.ts",
     "typecheck:api": "tsc --noEmit -p tsconfig.api.json",
+    "test:release-train": "node --test tools/release-train/release-notes.test.mjs",
     "lint": "pnpm -r lint",
     "dev": "pnpm --filter player-vue dev",
     "clean": "pnpm -r clean"

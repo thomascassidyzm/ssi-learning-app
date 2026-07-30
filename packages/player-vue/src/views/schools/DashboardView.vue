@@ -384,24 +384,10 @@ async function handlePlayClass(cls: ClassInfo) {
         </template>
       </Greeting>
 
-      <div class="stat-strip">
-        <div class="stat-card">
-          <span class="arsenal stat-value">{{ teacherStats.students }}</span>
-          <span class="stat-label">Students</span>
-        </div>
-        <div class="stat-card">
-          <span class="arsenal stat-value">{{ teacherStats.hours }}h</span>
-          <span class="stat-label">Hours practised</span>
-        </div>
-        <div class="stat-card">
-          <span class="arsenal stat-value">{{ teacherStats.sessions }}</span>
-          <span class="stat-label">Sessions</span>
-        </div>
-        <div class="stat-card">
-          <span class="arsenal stat-value">{{ teacherStats.classes }}</span>
-          <span class="stat-label">Classes</span>
-        </div>
-      </div>
+      <!-- Classes-first (founder ruling 2026-07-30): the teacher's classes ARE
+           the page — Play-as-Class is the primary affordance, everything else
+           (stats, invites, guided look) is subordinate. Two taps from login
+           to teaching. -->
 
       <!-- Compact: dense table -->
       <div v-if="density === 'compact'" class="schools-card teacher-compact">
@@ -440,7 +426,7 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state">
           <p>No classes yet.</p>
-          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play empty-hero-cta">Create your first class</router-link>
         </div>
       </div>
 
@@ -464,14 +450,20 @@ async function handlePlayClass(cls: ClassInfo) {
             </div>
           </div>
 
+          <button
+            v-if="canPlayAsClass"
+            class="btn-play pac-hero"
+            @click="handlePlayClass(cls)"
+          >▶ Play as class</button>
+
           <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench">
             <div class="schools-kicker bench-kicker">Cycles · class vs school vs global</div>
             <Bench :data="benchFor(classReports.get(cls.id))!" unit="c" />
           </div>
 
           <div class="panel-footer">
+            <span class="schools-subtle">Join code</span>
             <span class="join-code">{{ cls.student_join_code }}</span>
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </article>
 
@@ -480,8 +472,18 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state full">
           <p>No classes yet — create one to get your students playing.</p>
-          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play empty-hero-cta">Create your first class</router-link>
         </div>
+      </div>
+
+      <!-- Stats, demoted: one quiet line under the classes (founder ruling
+           2026-07-30 — classes lead, numbers follow). -->
+      <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle">
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> students</span>
+        <span class="dot-sep">·</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> practised</span>
+        <span class="dot-sep">·</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.sessions }}</strong> sessions</span>
       </div>
     </template>
 
@@ -1021,9 +1023,12 @@ async function handlePlayClass(cls: ClassInfo) {
 .row-cta { text-align: right; }
 
 /* ---------- Teacher: detailed cards ---------- */
+/* auto-fit so one class stretches to a full-width hero card and three share
+   the row — the fewer classes a teacher has, the bigger each card (and its
+   Play button) renders. Reads well projected. */
 .class-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 18px;
 }
 .class-panel {
@@ -1041,9 +1046,11 @@ async function handlePlayClass(cls: ClassInfo) {
   font-weight: 600;
 }
 .panel-title-link { text-decoration: none; color: inherit; }
+.panel-title-link:hover .panel-title { color: var(--schools-red); }
+/* Projector-legible: the class name is what the room reads at 8:59am. */
 .panel-title {
-  font-size: 26px;
-  line-height: 1.1;
+  font-size: 32px;
+  line-height: 1.08;
   margin: 2px 0 6px;
 }
 .panel-meta {
@@ -1062,9 +1069,43 @@ async function handlePlayClass(cls: ClassInfo) {
 .panel-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-top: auto;
   padding-top: 10px;
+  font-size: 12px;
+}
+
+/* The primary affordance on the page: full-width, generous hit target,
+   sized to be read (and tapped) with the class watching. */
+.pac-hero {
+  justify-content: center;
+  width: 100%;
+  padding: 14px 20px 15px;
+  font-size: 17px;
+  border-radius: 10px;
+}
+
+/* ---------- Teacher: demoted stat line ---------- */
+.teacher-stat-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.stat-line-value {
+  font-size: 17px;
+  color: var(--schools-fg);
+  font-weight: 400;
+}
+
+/* Empty state: the Create-class CTA inherits the prominence the Play button
+   would have had — same clarity, same two-tap promise. */
+.empty-hero-cta {
+  font-size: 16px;
+  padding: 13px 26px 14px;
 }
 
 /* ---------- Empty state ---------- */
@@ -1241,7 +1282,6 @@ async function handlePlayClass(cls: ClassInfo) {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1024px) {
-  .class-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-grid { grid-template-columns: 1fr; }
   .stat-strip { grid-template-columns: repeat(2, 1fr); }
   .stat-strip--5 { grid-template-columns: repeat(3, 1fr); }

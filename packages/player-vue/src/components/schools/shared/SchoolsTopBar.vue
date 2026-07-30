@@ -66,6 +66,28 @@ const tabs = computed<NavTab[]>(() => {
   if (isSchoolAdmin.value) {
     // Settings lives in the user menu (account-shaped, not a daily
     // destination) — fewer tabs means the school name keeps its space.
+    //
+    // THE VIEW convergence, third persona (founder ruling, 2026-07-30: "it's
+    // better to have consistency - they should also have the hierarchical
+    // LHS WHERE YOU ARE menu"): a school leader's Dashboard IS their school's
+    // node home (/schools/org/:schoolId — the endpoint bridges the school id
+    // to its node), and Insights the node insights — same door govt_admin
+    // went through (2026-07-29). Teachers tab retired: teachers ARE the
+    // school node's children, and Invite teacher lives on the node's verb
+    // bar. Classes and Students stay flat for now — Play-as-Class and
+    // student management have no node-surface equivalent yet.
+    const schoolId = currentUser.value.school_id
+    if (schoolId) {
+      return [
+        { label: 'Dashboard', to: `/schools/org/${schoolId}`, routeName: 'schools-node-home' },
+        { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
+        { label: 'Students',  to: '/schools/students',  routeName: 'students' },
+        { label: 'Insights',  to: `/schools/org/${schoolId}/insights`, routeName: 'schools-node-insights' },
+        { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+      ]
+    }
+    // Legacy school_admin rows with no resolvable school keep the flat set
+    // (same fallback shape as the no-group govt_admin above).
     return [
       { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
       { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },

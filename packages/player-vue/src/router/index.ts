@@ -135,6 +135,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'schools-dashboard',
+        // RETIRED for school-scoped school_admins (nav unification, third
+        // persona, 2026-07-30): SchoolsContainer redirects them to their
+        // school's node home (/schools/org/:schoolId). Stays live for
+        // teachers and legacy no-school school_admin rows.
         component: DashboardView,
         meta: {
           title: 'Dashboard',
@@ -144,6 +148,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'teachers',
         name: 'teachers',
+        // RETIRED for school-scoped school_admins (2026-07-30): teachers ARE
+        // the school node's children — SchoolsContainer redirects to the node
+        // home with the teachers lens. Live for legacy no-school rows.
         component: TeachersView,
         meta: {
           title: 'Teachers',
@@ -182,9 +189,10 @@ const routes: RouteRecordRaw[] = [
         name: 'analytics',
         // The teacher-scoped Rate-compare insight tool, embedded in the schools
         // shell (its own TopNav + full-viewport scroll suppressed via `embedded`).
-        // For a group-scoped govt_admin this URL is retired — SchoolsContainer
-        // redirects it to /schools/org/:groupId/insights (nav unification,
-        // 2026-07-29); it stays live for teachers/school admins.
+        // For a group-scoped govt_admin (2026-07-29) and a school-scoped
+        // school_admin (2026-07-30) this URL is retired — SchoolsContainer
+        // redirects it to their node's /schools/org/:id/insights (nav
+        // unification); it stays live for teachers.
         component: () => import('@/insight/TeacherInsightsView.vue'),
         props: { embedded: true },
         meta: {

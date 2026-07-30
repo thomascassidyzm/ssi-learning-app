@@ -18,7 +18,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
 import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 
@@ -56,21 +58,47 @@ const state = ref<EngineState | null>(null)
 
 // ─── The node-home chrome: same rail + identity data, same endpoint the
 // node home reads. One light fetch per node; the org map doesn't churn, so
-// no refresh registration (the engine owns the refresh protocol here). ───
-const home = ref<any | null>(null)
+// no refresh registration (the engine owns the refresh protocol here).
+// WHERE-YOU-ARE stability (founder finding 2026-07-30): seed from
+// nodeHomeCache so the hop from node home paints the rail synchronously —
+// no vanish, no re-appear; the fetch reconciles silently in the background. ───
+// The cache keys on the ROUTE id (a school route's :id is the school id,
+// not the payload's node.id), so homeFor tracks which route id `home` holds.
+const home = ref<any | null>(cachedNodeHome(nodeId.value))
+const homeFor = ref(home.value ? nodeId.value : '')
 watch(nodeId, async (id) => {
-  home.value = null
+  home.value = cachedNodeHome(id)
+  homeFor.value = home.value ? id : ''
   if (!id) return
   try {
     const token = await getAuthToken()
     const resp = await fetch(`/api/groups/${id}/home`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-    if (resp.ok) home.value = await resp.json()
+    if (resp.ok) {
+      home.value = await resp.json()
+      homeFor.value = id
+      cacheNodeHome(id, home.value)
+    } else {
+      // Access lost or node gone — a cached rail must not outlive it.
+      dropCachedNode(id)
+      home.value = null
+      homeFor.value = ''
+    }
   } catch {
-    // rail degrades to nothing; the engine still renders
+    // Network hiccup: keep whatever we have; the engine still renders.
   }
 }, { immediate: true })
+
+// The rail renders from the freshest thing we hold: the full payload, else
+// the session's rail snapshot (reload rehydration), else the cold skeleton.
+const rail = computed(() => {
+  const h = home.value
+  if (h?.node && homeFor.value === nodeId.value) {
+    return { ancestors: h.ancestors || [], node: h.node, siblings: h.siblings || [], children: h.children || [], kind: h.kind }
+  }
+  return cachedRail(nodeId.value)
+})
 
 const isClass = computed(() =>
   home.value?.kind === 'class' || state.value?.node.kind === 'class')
@@ -83,7 +111,7 @@ const labelWord = computed(() => {
   if (n.commercial || n.hasSchool) return 'School'
   return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'
 })
-const title = computed(() => home.value?.node?.name || state.value?.node.name || '…')
+const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
 const subtitle = computed(() =>
   isClass.value
     ? 'How this class is moving, compared with the average you choose. Rate leads; position is just context.'
@@ -105,15 +133,19 @@ const homeLink = computed(() => {
 <template>
   <div class="niv">
     <div class="node-layout">
-      <!-- MAP RAIL — the same where-you-are spine as node home -->
-      <aside v-if="home" class="rail-col schools-card">
+      <!-- MAP RAIL — the same where-you-are spine as node home. The column
+           ALWAYS renders (the main pane must never jump into it); a genuine
+           cold load gets the quiet skeleton, never flashing text. -->
+      <aside class="rail-col schools-card">
         <NodeMapRail
-          :ancestors="home.ancestors || []"
-          :node="home.node"
-          :siblings="home.siblings || []"
-          :children="isClass ? [] : (home.children || [])"
-          :kind="home.kind"
+          v-if="rail"
+          :ancestors="(rail.ancestors as any) || []"
+          :node="rail.node"
+          :siblings="(rail.siblings as any) || []"
+          :children="rail.kind === 'class' || isClass ? [] : ((rail.children as any) || [])"
+          :kind="rail.kind"
         />
+        <NodeMapRailSkeleton v-else />
       </aside>
 
       <div class="main-col">
