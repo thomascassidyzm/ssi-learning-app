@@ -249,7 +249,9 @@ function render(cand, cond, ci, signals, dateStr, extraNotes) {
   L.push(`${cond.substantive.length} substantive commits, ${cond.process_.length} process commits`)
   L.push('(merges, worklist claims, promote records — no user-facing change).')
   L.push('')
-  for (const a of cond.areas) {
+  // Areas with no code commits are docs/tests only — worth a count, not a heading.
+  const docsOnly = cond.areas.filter((a) => a.code === 0)
+  for (const a of cond.areas.filter((a) => a.code > 0)) {
     const docs = a.list.length - a.code
     L.push(`### ${a.name} — ${a.code} code${docs ? ` + ${docs} docs/tests` : ''}`)
     for (const c of a.list.filter((x) => x.kind !== 'docs' && x.kind !== 'tests').slice(0, 6)) {
@@ -257,6 +259,10 @@ function render(cand, cond, ci, signals, dateStr, extraNotes) {
     }
     const rest = a.code - Math.min(a.code, 6)
     if (rest > 0) L.push(`- …and ${rest} more`)
+    L.push('')
+  }
+  if (docsOnly.length) {
+    L.push(`Docs/tests only, no code: ${docsOnly.map((a) => `${a.name} (${a.list.length})`).join(', ')}.`)
     L.push('')
   }
 
