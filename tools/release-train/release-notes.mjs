@@ -12,8 +12,12 @@
  *
  * WHAT THESE ARE NOT. Not a changelog. `CHANGELOG.md` is Tom's own prose, per promotion, and
  * stays hand-written; these notes are its headline skeleton and a shippable summary in their own
- * right. A handful of bullets in user/teacher-facing language — no commit hashes, no refactors,
- * no process commits.
+ * right.
+ *
+ * SHAPE — FOUNDER RULING (2026-07-30), superseding the original "a handful of bullets": UP TO 3
+ * most significant features FOR THE USERS, then the bug fixes. Significance is a per-surface
+ * judgement carried as a weight on each phrasebook entry, NOT commit count. All of it in
+ * user/teacher-facing language — no commit hashes, no refactors, no process commits.
  *
  * THE HONESTY RULE (the whole design, really): a commit earns a bullet only if it can be
  * translated CONFIDENTLY. Everything else is dropped, never guessed at. Three gates in order:
@@ -37,7 +41,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  candidate, condense, areaOf, kindOf, publish, readOnDev, log, sh, GH_REPO,
+  candidate, condense, areaOf, publish, readOnDev, log, sh, GH_REPO,
 } from './lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -66,34 +70,43 @@ const NOT_LIVE_VETO = /\b(stage \d|phase \d|shadow|behind (a )?flag|dark|groundw
 // user-facing surface appears; never add one to force a bullet for a single commit.
 
 const PHRASEBOOK = [
+  // [surface, qualifier, headline, kind, significance, area?]
+  //   kind         'feature' (goes in the up-to-3) or 'fix' (goes in the fixes list)
+  //   significance 3 = a user would notice and care · 2 = notable · 1 = minor/cosmetic
   [/course[- ]switch/i, /ready|instant|floor|\d ?s\b/i,
-    'Switching course is near-instant — no more waiting through a loading sequence.'],
+    'Switching course is near-instant — no more waiting through a loading sequence.',
+    'feature', 3],
   [/cold[- ]start|course load/i, /never blocks|swr|progressive|readiness/i,
-    'The app starts as soon as it is ready to play, instead of waiting for a whole course to load.'],
-  [/schools nav|nav unification/i, /view|unif|tabs|redirect/i,
-    'School leaders and admins land on the unified dashboard view, with the same navigation everywhere.'],
-  [/teacher surface|nav persists/i, /player|chip|exits|nav/i,
-    'Teachers keep their navigation inside the player, and finishing a session returns them to the schools home.'],
-  [/how[- ]this[- ]works|explainer/i, /surfacing|discoverab|throb|single/i,
-    '"How this works" now has one home, with a gentle nudge so it is easy to find.'],
-  [/transport|play[- ]state|play[- ]button/i, /desync|pull|sync/i,
-    'The play button no longer falls out of step with what is actually playing.'],
-  [/typewriter|awakening/i, /mid-word|never cut/i,
-    'Opening text is no longer cut off mid-word.'],
-  [/walkthrough/i, /guardrail|rails/i,
-    'Guided walkthroughs no longer collide with playback.', 'Walkthrough & onboarding'],
-  [/walkthrough/i, /engine|walks/i,
-    'Guided walkthroughs of the product, for learners, teachers and leaders.', 'Walkthrough & onboarding'],
-  [/danger[- ]verb/i, /guard/i,
-    'Destructive admin actions now confirm before they act.'],
-  [/loading|resting/i, /sentence[- ]cas|copy/i,
-    'Loading and resting messages read like sentences rather than labels.'],
+    'The app starts as soon as it is ready to play, instead of waiting for a whole course to load.',
+    'feature', 3],
   [/invite/i, /link|personal|capture|code/i,
-    'Invitations work as links, with a short code kept as the fallback.'],
-  [/offline/i, /download(s|ing)?\b|for the plane|pack/i,
-    'Offline downloads are more reliable.'],
+    'Invitations work as links, with a short code kept as the fallback.', 'feature', 3],
+  [/walkthrough/i, /engine|walks/i,
+    'Guided walkthroughs of the product, for learners, teachers and leaders.',
+    'feature', 3, 'Walkthrough & onboarding'],
+  [/schools nav|nav unification/i, /view|unif|tabs|redirect/i,
+    'School leaders and admins land on the unified dashboard view, with the same navigation everywhere.',
+    'feature', 3],
+  [/teacher surface|nav persists/i, /player|chip|exits|nav/i,
+    'Teachers keep their navigation inside the player, and finishing a session returns them to the schools home.',
+    'feature', 2],
+  [/how[- ]this[- ]works|explainer/i, /surfacing|discoverab|throb|single/i,
+    '"How this works" now has one home, with a gentle nudge so it is easy to find.', 'feature', 2],
   [/insight|analytics/i, /faster|cold|lens|wave/i,
-    'Insights load faster at every level of an organisation.'],
+    'Insights load faster at every level of an organisation.', 'feature', 2],
+  [/danger[- ]verb/i, /guard/i,
+    'Destructive admin actions now confirm before they act.', 'feature', 1],
+  [/transport|play[- ]state|play[- ]button/i, /desync|pull|sync/i,
+    'The play button no longer falls out of step with what is actually playing.', 'fix', 2],
+  [/walkthrough/i, /guardrail|rails/i,
+    'Guided walkthroughs no longer collide with playback.', 'fix', 2,
+    'Walkthrough & onboarding'],
+  [/offline/i, /download(s|ing)?\b|for the plane|pack/i,
+    'Offline downloads are more reliable.', 'fix', 2],
+  [/typewriter|awakening/i, /mid-word|never cut/i,
+    'Opening text is no longer cut off mid-word.', 'fix', 1],
+  [/loading|resting/i, /sentence[- ]cas|copy/i,
+    'Loading and resting messages read like sentences rather than labels.', 'fix', 1],
 ]
 
 // ── gate 3b: the generic path ───────────────────────────────────────────────
@@ -143,8 +156,10 @@ function translate(commit) {
   // recurring play-button desync"), and the phrasebook exists precisely to translate those.
   if (PLUMBING_VETO.test(s)) return { drop: 'plumbing commit (tests, mocks, notes, lockfiles)' }
 
-  for (const [surfaceRe, qualifierRe, headline, area] of PHRASEBOOK) {
-    if (surfaceRe.test(s) && qualifierRe.test(s)) return { headline, area, source: 'phrasebook' }
+  for (const [surfaceRe, qualifierRe, headline, kind, significance, area] of PHRASEBOOK) {
+    if (surfaceRe.test(s) && qualifierRe.test(s)) {
+      return { headline, kind, significance, area, source: 'phrasebook' }
+    }
   }
 
   const claim = claimOf(s)
@@ -154,9 +169,18 @@ function translate(commit) {
   return {
     headline: (claim.length > 130 ? claim.slice(0, 129).replace(/[\s,]+$/, '') + '…' : claim) +
       (/[.!?]$/.test(claim) ? '' : '.'),
+    // Corrective language in the subject is the only fix/feature signal a generic commit gives.
+    kind: FIX_SHAPE.test(s) ? 'fix' : 'feature',
+    // Significance 1: we could not translate this confidently, so it must never outrank a curated
+    // surface for one of the three feature slots. It still shows up in the fixes list in full.
+    significance: 1,
     source: 'generic',
   }
 }
+
+// A commit is corrective if it says so. `fix:` prefix, or the verbs this repo actually uses when
+// something was broken.
+const FIX_SHAPE = /^fix[:(]|\b(fix|fixes|fixed|fixing|kills?|killed|no longer|never again|stops?|repair|broken|desync|regression|stall|wedged|dead)\b/i
 
 // Rounds land as several commits; a phrasebook entry matched by three of them is one headline.
 // For generic bullets, collapse on significant-token overlap so near-duplicate subjects from the
@@ -180,8 +204,17 @@ function dedupe(bullets) {
   return kept
 }
 
-const MAX_PER_AREA = 3
-const MAX_BULLETS = 10
+// FOUNDER RULING (2026-07-30), supersedes "a handful of bullets": include UP TO 3 most
+// significant features FOR THE USERS, plus the bug fixes. So the shape is fixed — three feature
+// slots and a fixes list — and the only real question is what "most significant" means.
+//
+// It is NOT commit count. Significance is a per-SURFACE judgement, so it lives as a weight on the
+// phrasebook entry (3 = a user would notice and care, 1 = cosmetic) where it is made once and
+// reused every week. Generic bullets — the ones we could not translate confidently — always weigh
+// 1, so an unclear commit can never take a feature slot from a known surface. Features that miss
+// the cut are listed in the draft's coverage section, never silently binned.
+const MAX_FEATURES = 3
+const MAX_FIXES = 12
 
 export function buildNotes(cand) {
   const cond = condense(cand.commits)
@@ -190,33 +223,26 @@ export function buildNotes(cand) {
     const r = translate(c)
     if (r.drop) { dropped.push({ ...c, why: r.drop }); continue }
     bullets.push({
-      headline: r.headline, source: r.source, area: r.area || areaOf(c.subject),
-      kind: kindOf(c.subject), commits: 1, subject: c.subject,
+      headline: r.headline, source: r.source, kind: r.kind,
+      significance: r.significance, area: r.area || areaOf(c.subject),
+      commits: 1, subject: c.subject,
     })
   }
-  // Phrasebook wording beats generic wording when both describe the same round, so it dedupes first.
+  // Phrasebook wording beats generic wording when both describe the same round, so it dedupes
+  // first — the survivor keeps the curated kind, significance and wording.
   const ranked = [...bullets].sort((a, b) =>
     (a.source === 'phrasebook' ? 0 : 1) - (b.source === 'phrasebook' ? 0 : 1))
   const unique = dedupe(ranked)
 
-  const byArea = new Map()
-  for (const b of unique) {
-    if (!byArea.has(b.area)) byArea.set(b.area, [])
-    byArea.get(b.area).push(b)
+  const bySignificance = (a, b) => b.significance - a.significance || b.commits - a.commits
+  const allFeatures = unique.filter((b) => b.kind === 'feature').sort(bySignificance)
+  const allFixes = unique.filter((b) => b.kind === 'fix').sort(bySignificance)
+  return {
+    features: allFeatures.slice(0, MAX_FEATURES),
+    fixes: allFixes.slice(0, MAX_FIXES),
+    overflow: [...allFeatures.slice(MAX_FEATURES), ...allFixes.slice(MAX_FIXES)],
+    bullets: unique, dropped, cond,
   }
-  let budget = MAX_BULLETS
-  const areas = [...byArea.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([name, list]) => ({
-      name: name === 'Other' ? 'Everywhere else' : name, list: list.slice(0, MAX_PER_AREA),
-    }))
-    .map((a) => {
-      const list = a.list.slice(0, Math.max(0, budget))
-      budget -= list.length
-      return { ...a, list }
-    })
-    .filter((a) => a.list.length)
-  return { areas, bullets: unique, dropped, cond }
 }
 
 // ── render ──────────────────────────────────────────────────────────────────
@@ -236,9 +262,9 @@ function header({ final, draftDate, shipDate, sha, count }) {
       'Friday\'s promote stamps the header and leaves the text alone.')
   }
   L.push('')
-  L.push('Headlines only, and deliberately under-claiming: a commit that cannot be translated')
-  L.push('confidently into user-facing language is dropped rather than guessed at. Generated by')
-  L.push('`tools/release-train/release-notes.mjs`.')
+  L.push('Up to three headline features, then the fixes. Deliberately under-claiming: a commit')
+  L.push('that cannot be translated confidently into user-facing language is dropped rather than')
+  L.push('guessed at. Generated by `tools/release-train/release-notes.mjs`.')
   L.push(HEADER_CLOSE)
   return L.join('\n')
 }
@@ -248,29 +274,40 @@ export function render(cand, notes, { draftDate }) {
     final: false, draftDate, sha: cand.stagingSha, count: cand.commits.length,
   }), '']
 
-  if (!notes.areas.length) {
-    L.push('## Highlights')
+  if (!notes.features.length && !notes.fixes.length) {
+    L.push('## What\'s new')
     L.push('')
     L.push('Nothing in this candidate translated confidently into a user-facing headline —')
     L.push('it reads as an internal-only week. Write a bullet by hand if that is wrong.')
     L.push('')
-  } else {
-    L.push('## Highlights')
+  }
+  if (notes.features.length) {
+    L.push('## What\'s new')
     L.push('')
-    for (const a of notes.areas) {
-      L.push(`### ${a.name}`)
-      for (const b of a.list) L.push(`- ${b.headline}`)
-      L.push('')
-    }
+    for (const b of notes.features) L.push(`- ${b.headline}`)
+    L.push('')
+  }
+  if (notes.fixes.length) {
+    L.push('## Fixes')
+    L.push('')
+    for (const b of notes.fixes) L.push(`- ${b.headline}`)
+    L.push('')
   }
 
   L.push(DRAFT_OPEN)
   L.push('## Draft-only: coverage')
   L.push('')
-  L.push(`${notes.bullets.length} headline(s) survived translation from ${notes.cond.substantive.length}`)
-  L.push(`substantive commits (${notes.cond.process_.length} process commits never considered).`)
+  L.push(`${notes.features.length} feature headline(s) + ${notes.fixes.length} fix(es) from ` +
+    `${notes.cond.substantive.length} substantive commits ` +
+    `(${notes.cond.process_.length} process commits never considered).`)
   L.push('This section is stripped when the notes are finalised.')
   L.push('')
+  if (notes.overflow.length) {
+    L.push(`**Translated, but over the ${MAX_FEATURES}-feature / ${MAX_FIXES}-fix budget ` +
+      `(${notes.overflow.length}) — promote one by hand if it deserves a slot:**`)
+    for (const b of notes.overflow) L.push(`- ${b.kind}: ${b.headline}`)
+    L.push('')
+  }
   const byWhy = new Map()
   for (const d of notes.dropped) {
     if (!byWhy.has(d.why)) byWhy.set(d.why, [])
@@ -278,14 +315,8 @@ export function render(cand, notes, { draftDate }) {
   }
   for (const [why, subs] of [...byWhy.entries()].sort((a, b) => b[1].length - a[1].length)) {
     L.push(`**Dropped — ${why} (${subs.length}):**`)
-    for (const s of subs.slice(0, 8)) L.push(`- ${s.length > 120 ? s.slice(0, 119) + '…' : s}`)
+    for (const sub of subs.slice(0, 8)) L.push(`- ${sub.length > 120 ? sub.slice(0, 119) + '…' : sub}`)
     if (subs.length > 8) L.push(`- …and ${subs.length - 8} more`)
-    L.push('')
-  }
-  const spare = notes.bullets.filter((b) => !notes.areas.some((a) => a.list.includes(b)))
-  if (spare.length) {
-    L.push(`**Translated but over the ${MAX_BULLETS}-bullet budget (${spare.length}):**`)
-    for (const b of spare) L.push(`- ${b.headline}`)
     L.push('')
   }
   L.push(DRAFT_CLOSE)
@@ -379,7 +410,8 @@ async function main() {
     publish([{ relPath: NOTES_REL(draftDate), body }],
       `release-train: draft release notes ${draftDate}`)
   }
-  log(`draft release notes: ${notes.bullets.length} headlines, ${notes.dropped.length} dropped`)
+  log(`draft release notes: ${notes.features.length} features + ${notes.fixes.length} fixes, ` +
+    `${notes.overflow.length} over budget, ${notes.dropped.length} dropped`)
   return 0
 }
 

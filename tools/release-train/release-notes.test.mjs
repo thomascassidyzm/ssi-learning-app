@@ -14,7 +14,11 @@ const notesFor = (subjects) => buildNotes({
   commits: subjects.map(commit), stagingSha: 'c'.repeat(40), mainSha: 'b'.repeat(40),
   devAhead: 0, lastPromote: null,
 })
-const headlines = (subjects) => notesFor(subjects).areas.flatMap((a) => a.list.map((b) => b.headline))
+const headlines = (subjects) => {
+  const n = notesFor(subjects)
+  return [...n.features, ...n.fixes].map((b) => b.headline)
+}
+const empty = (n) => n.features.length === 0 && n.fixes.length === 0
 
 test('a user-facing round earns a headline in user-facing language', () => {
   const h = headlines(['course-switch READY in 2-3s: kill the cinematic floor on switches'])
@@ -32,7 +36,7 @@ test('process commits are never considered', () => {
     'chore: retrigger deploy with correct author identity',
   ]
   const n = notesFor(subjects)
-  assert.deepEqual(n.areas, [])
+  assert.ok(empty(n))
   assert.equal(n.dropped.length, 0, 'process commits are excluded upstream, not "dropped"')
   assert.equal(n.cond.process_.length, subjects.length)
 })
@@ -77,7 +81,7 @@ test('generic bullets carry no hashes, paths or section refs', () => {
 
 test('an untranslatable subject is dropped, never guessed at', () => {
   const n = notesFor(['fix(walkthrough): viewport-safe overlay on oversized anchors'])
-  assert.deepEqual(n.areas, [])
+  assert.ok(empty(n))
   assert.equal(n.dropped.length, 1)
   assert.ok(n.dropped[0].why, 'the draft says WHY it was dropped')
 })
@@ -90,12 +94,53 @@ test('a round shipped as several commits yields one headline', () => {
   assert.equal(h.length, 1)
 })
 
-test('the bullet budget holds and areas stay balanced', () => {
-  const n = notesFor(Array.from({ length: 40 }, (_, i) =>
-    `fix(player): the session screen shows the round number correctly, case ${i}`))
-  const total = n.areas.reduce((s, a) => s + a.list.length, 0)
-  assert.ok(total <= 10, `${total} bullets`)
-  for (const a of n.areas) assert.ok(a.list.length <= 3, a.name)
+// ── the founder-ruled shape: up to 3 features, then the fixes ────────────────
+
+test('at most three feature headlines, however many features shipped', () => {
+  const n = notesFor([
+    'course-switch READY in 2-3s: kill the cinematic floor',
+    'feat(cold-start): course load never blocks past readiness-to-start — SWR + progressive start',
+    'schools nav unification: govt_admin tabs land on THE VIEW',
+    'explainer: How-this-works becomes the single surfacing point, with a discoverability throb',
+    'schools teacher surface: nav persists in the player, slim playing-as chip',
+  ])
+  assert.equal(n.features.length, 3)
+  assert.equal(n.overflow.length, 2, 'the rest surface in the draft, never silently binned')
+})
+
+test('every fix is listed, not squeezed out by the feature cap', () => {
+  const n = notesFor([
+    'course-switch READY in 2-3s: kill the cinematic floor',
+    'fix(player): transport play-state is PULLED from the engine — kills the play-button desync',
+    'player: never cut the awakening typewriter mid-word',
+    'feat(walkthrough): playback guardrails — the ship-time rails worklist closed',
+    'copy: sentence-case the loading + resting messages',
+  ])
+  assert.equal(n.features.length, 1)
+  assert.equal(n.fixes.length, 4)
+  assert.equal(n.overflow.length, 0)
+})
+
+test('features are ordered by user significance, not commit count', () => {
+  // Two minor commits for a cosmetic surface must not outrank one significant surface.
+  const n = notesFor([
+    'copy: sentence-case the loading + resting messages',
+    'copy: sentence-case the loading + resting messages again',
+    'feat(admin): inline guards on the ssi_admin danger verbs',
+    'course-switch READY in 2-3s: kill the cinematic floor',
+  ])
+  assert.match(n.features[0].headline, /Switching course/)
+})
+
+test('an unclear commit can never take a feature slot from a known surface', () => {
+  const n = notesFor([
+    'schools: the class list now shows every student in the class',      // generic, weight 1
+    'course-switch READY in 2-3s: kill the cinematic floor',             // curated, weight 3
+    'invite: personal links replace the emailed code',                   // curated, weight 3
+    'schools nav unification: govt_admin tabs land on THE VIEW',         // curated, weight 3
+  ])
+  assert.equal(n.features.length, 3)
+  for (const f of n.features) assert.equal(f.source, 'phrasebook', f.headline)
 })
 
 test('finalize stamps the header, keeps hand edits, strips the draft section', () => {

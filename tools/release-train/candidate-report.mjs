@@ -160,12 +160,18 @@ function render(cand, cond, ci, signals, dateStr, extraNotes, notes) {
   if (notes) {
     L.push('## Release notes (draft)')
     L.push('')
-    if (!notes.areas.length) {
+    if (!notes.features.length && !notes.fixes.length) {
       L.push('Nothing in this candidate translated confidently into a user-facing headline.')
     } else {
-      for (const a of notes.areas) {
-        L.push(`**${a.name}**`)
-        for (const b of a.list) L.push(`- ${b.headline}`)
+      // Up to 3 features then the fixes — the founder-ruled shape (2026-07-30).
+      if (notes.features.length) {
+        L.push("**What's new**")
+        for (const b of notes.features) L.push(`- ${b.headline}`)
+        L.push('')
+      }
+      if (notes.fixes.length) {
+        L.push('**Fixes**')
+        for (const b of notes.fixes) L.push(`- ${b.headline}`)
         L.push('')
       }
       L.push(`Draft: [\`${NOTES_REL(dateStr)}\`](../notes/${dateStr}.md) — edit the bullets there before GO;`)
