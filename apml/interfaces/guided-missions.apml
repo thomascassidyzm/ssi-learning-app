@@ -1,6 +1,7 @@
 # APML Interface: Guided Missions
 # SSI Learning App
-# Version: 0.2.0 (2026-07-24) — mission retargeted to THE VIEW's canon node surface (owner styling ruling 2026-07-24: legacy dashboard style deprecated in demos/missions)
+# Version: 0.3.0 (2026-07-30) — user-facing wording de-missioned ('Guided look' / 'Take a guided look' / 'Back to dashboard' / 'Nicely spotted'; founder: mission framing is the old way of thinking) + exit lands on /schools, never '/' (the bare player stranded schools users). Internal names/route params keep 'mission'.
+# Prior: 0.2.0 (2026-07-24) — mission retargeted to THE VIEW's canon node surface (owner styling ruling: legacy dashboard style deprecated in demos/missions)
 # Status: Shipped to dev, dev/staging-gated (disabled on the production apex)
 
 ## ============================================================================
@@ -11,7 +12,7 @@ SPECIFICATION:
   name: "Guided Missions"
   purpose: "Not a tooltip tour — a guided MISSION in demo mode. The dashboard poses a real task against demo data in the REAL UI, recognises when the user has done it, and celebrates quietly. Learn by doing, never by being lectured."
   source: "packages/player-vue/src/missions/"
-  surface: "/schools (any route) via ?mission=<id> deep link, or the 'Try a mission' affordance on the teacher dashboard (DashboardView teacher branch). Deep links relocate to the mission's startRoute on activation."
+  surface: "/schools (any route) via ?mission=<id> deep link, or the 'Take a guided look' affordance (user-facing copy never says 'mission') on the teacher dashboard (DashboardView teacher branch). Deep links relocate to the mission's startRoute on activation."
   gating: "missionsEnabled(): everywhere except saysomethingin.app / www.saysomethingin.app (dev + staging + localhost on)"
 
 DESIGN_PHILOSOPHY:
@@ -47,7 +48,7 @@ LIFECYCLE:
     step_2: "activatePendingMission(router) — called from SchoolsContainer setup AFTER setSchoolsClient() and BEFORE the loadFromAuth watch, so (a) the mission's setup() can touch the schools composables and (b) a real session sees _scopeSource:'demo' and no-ops instead of overwriting the persona. Then router.replace(startRoute) unless already on its path — the mission's stage is the canon node surface, wherever the deep link landed."
   affordance: "startMission(id, router) — DashboardView teacher branch, ghost button, only while status==='idle'."
   completion: "router.afterEach: completion-route match → complete(); any OTHER navigation counts as meaningful progress and re-arms the single nudge timer."
-  exit: "exitMission() — removes the role cache ONLY if the engine wrote it, then full-reload to '/' (demo state + fetch interceptor are in-memory only)."
+  exit: "exitMission() — removes the role cache ONLY if the engine wrote it, then full-reload to '/schools' (demo state + fetch interceptor are in-memory only; /schools, not '/', so a schools user comes back out onto their dashboard — founder ruling 2026-07-30). Card buttons: 'Back to dashboard' while active, 'Done' after completion."
 
 STATES: "idle → active → complete (module refs consumed by MissionCard.vue)"
 

@@ -79,16 +79,23 @@ export function startMission(id: string, router: Router): void {
 }
 
 /**
- * Leave the mission (Done after completion, or End mission while active).
+ * Leave the mission (Done after completion, or Back to dashboard while active).
  * Full reload — isDemoMode and the fixture-primed data refs are in-memory
  * only, so a reload restores the real world; a role cache WE wrote is
  * removed so a signed-out visitor isn't left looking like a teacher.
+ *
+ * Lands on /schools, NOT '/': a schools user leaving the guided look must
+ * come back out onto their schools dashboard, never be dropped into the
+ * bare learner player with no schools nav (founder ruling, 2026-07-30 —
+ * "every user facing screen should keep the schools dashboard top nav").
+ * A visitor whose role cache we just removed gets the schools sign-in
+ * there, which is still the right door.
  */
 export function exitMission(): void {
   if (wroteRoleCache) {
     try { localStorage.removeItem('ssi-user-role') } catch { /* storage blocked */ }
   }
-  window.location.assign('/')
+  window.location.assign('/schools')
 }
 
 export function useMission() {

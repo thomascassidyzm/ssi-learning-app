@@ -50,7 +50,7 @@ await page.screenshot({ path: `${OUT}2-class-y5-canon.png` })
 // healthy student's row must NOT complete the mission
 await page.locator('.child-row', { hasText: 'Elin Thomas' }).locator('button.child-btn').click()
 await page.waitForTimeout(600)
-check('healthy student row does NOT complete', !/Mission complete/.test((await card.textContent().catch(() => '')) || ''), page.url())
+check('healthy student row does NOT complete', !/Nicely spotted/.test((await card.textContent().catch(() => '')) || ''), page.url())
 
 // 4. Back up the rail to the school, across to Year 6 Spanish
 await page.locator('.map-rail').getByText('Harbour View Primary').first().click()
@@ -67,13 +67,13 @@ await page.screenshot({ path: `${OUT}3-class-y6-canon.png` })
 // another healthy student's row on the target class — still no completion
 await page.locator('.child-row', { hasText: 'Osian Hughes' }).locator('button.child-btn').click()
 await page.waitForTimeout(600)
-check('healthy row on target class does NOT complete', !/Mission complete/.test((await card.textContent().catch(() => '')) || ''), page.url())
+check('healthy row on target class does NOT complete', !/Nicely spotted/.test((await card.textContent().catch(() => '')) || ''), page.url())
 
 // 5. The target student completes it
 await page.locator('.child-row', { hasText: 'Seren Williams' }).locator('button.child-btn').click()
 await page.waitForTimeout(600)
 const cardText = (await card.textContent().catch(() => '')) || ''
-check('mission completes on the target student', /Mission complete/.test(cardText), page.url())
+check('mission completes on the target student', /Nicely spotted/.test(cardText), page.url())
 check('closing note present', /You noticed/.test(cardText))
 check('methodology link present', await card.locator('a[href*="how-we-listen"]').count() === 1)
 await page.screenshot({ path: `${OUT}4-mission-complete.png` })

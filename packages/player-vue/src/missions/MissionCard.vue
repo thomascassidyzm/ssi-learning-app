@@ -10,21 +10,24 @@ const collapsed = ref(false)
 
 <template>
   <aside v-if="activeMission && status !== 'idle'" class="mission-card" :class="{ collapsed }" aria-live="polite">
+    <!-- User-facing wording is "guided look", never "mission" — mission framing
+         is deprecated in learner/teacher-facing copy (founder ruling,
+         2026-07-30). The module's internal names/route params stay. -->
     <button v-if="collapsed" type="button" class="mission-pill" @click="collapsed = false">
-      {{ status === 'complete' ? '✓' : '◦' }} Mission
+      {{ status === 'complete' ? '✓' : '◦' }} Guided look
     </button>
 
     <div v-else class="mission-body">
       <div class="mission-head">
-        <span class="mission-kicker">{{ status === 'complete' ? 'Mission complete' : 'Mission' }}</span>
-        <button type="button" class="mission-min" aria-label="Minimise mission card" @click="collapsed = true">–</button>
+        <span class="mission-kicker">{{ status === 'complete' ? 'Nicely spotted' : 'Guided look' }}</span>
+        <button type="button" class="mission-min" aria-label="Minimise guided look" @click="collapsed = true">–</button>
       </div>
 
       <template v-if="status === 'active'">
         <h3 class="mission-title">{{ activeMission.title }}</h3>
         <p class="mission-text">{{ activeMission.brief }}</p>
         <p v-if="nudgeVisible && activeMission.nudge" class="mission-nudge">{{ activeMission.nudge.text }}</p>
-        <button type="button" class="mission-exit" @click="exitMission">End mission</button>
+        <button type="button" class="mission-exit" @click="exitMission">Back to dashboard</button>
       </template>
 
       <template v-else>
