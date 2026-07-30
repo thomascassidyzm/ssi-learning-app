@@ -82,6 +82,26 @@ spec lazy_loading_architecture:
       If the player unmounts before ready (rapid re-switch), the signal never
       resolves and the stale mount's walk is skipped entirely.
 
+    cooperative_walk_slicing: |
+      READY MUST MEAN INTERACTIVE, NOT PAINTED (founder ruling 2026-07-30,
+      second round). Deferring the walk behind playerReadySignal fixed
+      time-to-READY but moved the cost to right AFTER the ready paint: the
+      walk's post-fetch build (phrase grouping, decomposition, round
+      emission, spaced-rep, dedupe) ran as ONE synchronous main-thread task —
+      measured 12.4-13.5s on a 4x-throttled CPU (~3s on a real phone),
+      starting ~0.6-1s after READY. Buttons painted live but taps landing in
+      that window were queued or swallowed (the founder's "painted into place
+      with the illusion of readiness"). Fix: generateLearningScript's hot
+      loops tick a slice yielder (makeSliceYielder, WALK_SLICE_BUDGET_MS =
+      40ms) that yields to the event loop — scheduler.yield() where
+      available, MessageChannel fallback — whenever the current slice
+      exceeds budget, so input and rendering interleave with the walk.
+      Measured after: max main-thread task in the 15s post-READY window
+      dropped from 13.5s to <100ms (4x throttle); tap-play-at-READY-paint
+      engages in ~200ms. Machine-checked by
+      e2e/post-ready-interactivity-probe.mjs (long-task profile + rapid-tap
+      via real CDP input at READY paint, against a deployed build).
+
     deferred_hydration_off_critical_path: |
       Belt progress, the adaptation engine, and Layer-1 listening hydration
       each cost a Supabase round-trip but NONE is needed for the first cycle,
