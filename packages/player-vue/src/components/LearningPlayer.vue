@@ -9913,12 +9913,30 @@ const ROLLING_SPAN_MS = 20 * 60 * 1000
 const BURST_SPAN_MS = 10 * 60 * 1000
 const offlineActive = ref(false)
 // Offline PLAYBACK engages on the explicit toggle OR whenever the device is
-// genuinely offline. offlineActive is an in-memory ref that resets to false on
-// any reload — and previews self-update the SW, which reloads — so airplane-mode
-// playback must NOT depend on the toggle surviving. (Tom 2026-05-28: 441 files
-// cached but none played, because offlineActive had reset after a reload, so the
-// player streamed /api/audio and every clip failed offline.) Download gates stay
-// on the explicit toggle — downloading is a deliberate, online action.
+// genuinely offline. The `!isOnline` disjunct is the airplane-mode backstop
+// (Tom 2026-05-28: 441 files cached but none played, because offlineActive had
+// reset after a reload, so the player streamed /api/audio and every clip failed
+// offline). Download gates stay on the explicit toggle — downloading is a
+// deliberate, online action.
+//
+// The SELECTION now also PERSISTS per course (Tom 2026-07-31: "once selected
+// … should ALWAYS ALWAYS ALWAYS actually play from the offline cache and
+// NEVER check for online status"). An in-memory-only toggle silently dropped
+// the learner back to streaming on any reload — and previews self-update the
+// SW, which reloads — leaving downloaded courses at the mercy of
+// navigator.onLine, which lies on weak signal/captive portals. Set on
+// download completion, cleared on explicit toggle-off; restored at mount
+// before first play. The lease lock still governs (premium design).
+const OFFLINE_MODE_KEY_PREFIX = 'ssi-offline-mode-'
+const persistedOfflineModeOn = (): boolean => {
+  try { return localStorage.getItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) === '1' } catch { return false }
+}
+const persistOfflineModeOn = (): void => {
+  try { localStorage.setItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value, '1') } catch { /* storage blocked — toggle still works this session */ }
+}
+const clearPersistedOfflineMode = (): void => {
+  try { localStorage.removeItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) } catch { /* ignore */ }
+}
 // 30-day offline lease (the "Spotify handshake"). The lease is granted at the
 // end of a deliberate download and slid forward by useOfflineLease's renewals.
 // When it expires (offline >30d or sub lapsed past the graceful tail) offline
@@ -10560,6 +10578,9 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Stamp the 30-day offline lease now the bytes + script are durably cached.
   // Clamp to an entitlement-code expiry so the lease can't outlive the code.
   await grantOfflineLeaseForCurrentCourse()
+  // The selection is now backed by real cached content — persist it so a
+  // reload/SW-update can't silently drop the learner back to streaming.
+  persistOfflineModeOn()
 
   if (offlineDlFailed.value > 0 || auxIncomplete) {
     // Stays on screen (no auto-hide) so the user knows to retry on better signal.
@@ -11022,6 +11043,8 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
 
   // Stamp the 30-day offline lease (same as the mid-course download).
   await grantOfflineLeaseForCurrentCourse()
+  // Persist the selection (same as the mid-course download).
+  persistOfflineModeOn()
 
   if (offlineDlFailed.value > 0 || auxIncomplete) {
     offlineDlState.value = 'error'
@@ -11050,8 +11073,10 @@ onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown
 
 const toggleOffline = async () => {
   if (offlineActive.value) {
-    // Already on → turn off: stop serving blobs, revoke, reset.
+    // Already on → turn off: stop serving blobs, revoke, reset. Explicit
+    // toggle-off is the ONLY thing that clears the persisted selection.
     offlineActive.value = false
+    clearPersistedOfflineMode()
     showOfflinePicker.value = false
     offlineDlState.value = 'idle'
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
@@ -11558,6 +11583,16 @@ onMounted(async () => {
   // when offline (the lock decision). Cheap IndexedDB read; awaited so the
   // fast-path below sees the correct offlineLeaseLocked value.
   await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
+  // Restore the learner's explicit offline-mode selection BEFORE first play.
+  // Once offline mode is chosen and the content downloaded, playback comes
+  // from the cache ALWAYS — never gated on connectivity guesswork
+  // (navigator.onLine lies on weak signal / captive portals). Only the
+  // explicit toggle-off or the lease lock changes this. (Tom 2026-07-31.)
+  if (persistedOfflineModeOn() && !offlineLeaseLocked.value) {
+    offlineActive.value = true
+    console.log('[LearningPlayer] Offline mode: restored ON (persisted selection)')
+  }
 
   // Load developer settings
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
