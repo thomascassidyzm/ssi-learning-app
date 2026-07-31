@@ -96,10 +96,16 @@ function computePlaybackSpeed(
   return Math.max(MIN_SPEED, Math.min(speed, base))
 }
 
-export function toSimpleRounds(
+/**
+ * Generator core shared by the sync and cooperative converters. Yields a
+ * checkpoint per round so the cooperative wrapper can hand the main thread
+ * back mid-conversion (post-READY interactivity, founder 2026-07-30) while
+ * the sync wrapper drains it in one pass, byte-identical to the old code.
+ */
+function* toSimpleRoundsGen(
   items: ScriptItem[],
-  targetSpeed: TargetSpeedConfig = {}
-): Round[] {
+  targetSpeed: TargetSpeedConfig
+): Generator<void, Round[], void> {
   // Group by roundNumber - each round is a complete learning unit
   // Items within a round share the same roundNumber, but may have different legoKeys
   // (e.g., spaced_rep items review older LEGOs but belong to the current round)
@@ -115,6 +121,7 @@ export function toSimpleRounds(
   const rounds: Round[] = []
 
   for (const [roundNum, roundItems] of byRound.entries()) {
+    yield
     // Find the intro item to get the primary LEGO for this round
     const introItem = roundItems.find(i => i.type === 'intro')
     const primaryLegoKey = introItem?.legoKey || roundItems[0]?.legoKey || ''
@@ -241,4 +248,34 @@ export function toSimpleRounds(
   rounds.sort((a, b) => a.roundNumber - b.roundNumber)
 
   return rounds
+}
+
+export function toSimpleRounds(
+  items: ScriptItem[],
+  targetSpeed: TargetSpeedConfig = {}
+): Round[] {
+  const gen = toSimpleRoundsGen(items, targetSpeed)
+  for (;;) {
+    const step = gen.next()
+    if (step.done) return step.value
+  }
+}
+
+/**
+ * Cooperative variant for the ready-gated deferred handoff: identical output
+ * to toSimpleRounds, but awaits `yieldTick` at each per-round checkpoint so
+ * a whole-course conversion can't hold the main thread past the tick's
+ * slice budget (see generateLearningScript's makeSliceYielder).
+ */
+export async function toSimpleRoundsCooperative(
+  items: ScriptItem[],
+  targetSpeed: TargetSpeedConfig = {},
+  yieldTick?: () => Promise<void>
+): Promise<Round[]> {
+  const gen = toSimpleRoundsGen(items, targetSpeed)
+  for (;;) {
+    const step = gen.next()
+    if (step.done) return step.value
+    if (yieldTick) await yieldTick()
+  }
 }
