@@ -186,6 +186,20 @@ principle IdentityCaptureNotGhosts:
     NodeActionBar picker: Group leader / School leader / Teacher / Learner.
     Classes are never invited; a class's student link lives on ClassDetail.
 
+principle CreateClassOneTap:
+  statement: "A create-class CTA opens the Create New Class modal in place — never a navigation to a second screen"
+
+  why: |
+    Founder demo finding 2026-07-31: the teacher dashboard's "+ Create
+    class" and "Create your first class" buttons navigated to My Classes,
+    whose own "+ New class" button then opened the modal — a two-hop dead
+    end. DashboardView now mounts the same CreateClassModal/
+    ClassCreatedModal flow TeacherDashboard has and every create CTA opens
+    it directly. My Classes keeps its own button and the ?create=1 deep
+    link for users who navigate there. Pinned by
+    DashboardView.createClassDirect.test.ts (source pin: no create CTA may
+    regress to a router-link).
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 
