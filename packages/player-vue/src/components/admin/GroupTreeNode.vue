@@ -23,6 +23,7 @@
  * instead — the group node IS the joinable thing, no separate entity type.
  */
 import { computed, inject, ref } from 'vue'
+import { sortByName } from '@/utils/alphaSort'
 
 interface Group {
   id: string
@@ -120,17 +121,25 @@ function hasMatchingDescendant(g: Group): boolean {
     .some((child) => groupMatchesText(child) || hasMatchingDescendant(child))
 }
 
+// Alphabetical (founder ruling 2026-07-30: same consistent order everywhere)
+// — this tree used to render children/schools in raw fetch order.
 const children = computed(() =>
-  props.allGroups
-    .filter((g) => g.parent_id === props.group.id)
-    .filter((g) => !props.search.trim() || groupMatchesText(g) || hasMatchingDescendant(g))
+  sortByName(
+    props.allGroups
+      .filter((g) => g.parent_id === props.group.id)
+      .filter((g) => !props.search.trim() || groupMatchesText(g) || hasMatchingDescendant(g)),
+    (g) => g.name,
+  )
 )
 // When searching and this group itself doesn't match, show only its matching
 // schools; otherwise all of them.
 const leafSchools = computed(() =>
-  props.allSchools
-    .filter((s) => s.group_id === props.group.id)
-    .filter((s) => !props.search.trim() || groupMatchesText(props.group) || textMatches(s.school_name))
+  sortByName(
+    props.allSchools
+      .filter((s) => s.group_id === props.group.id)
+      .filter((s) => !props.search.trim() || groupMatchesText(props.group) || textMatches(s.school_name)),
+    (s) => s.school_name,
+  )
 )
 
 const isSelected = (kind: 'group' | 'school', id: string): boolean =>
