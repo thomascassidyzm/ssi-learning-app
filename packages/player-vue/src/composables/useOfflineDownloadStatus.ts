@@ -12,7 +12,32 @@ import { ref, computed } from 'vue'
 // 'locked' = a 30-day offline lease expired and we couldn't re-validate online
 // (offline whole time / sub lapsed past the graceful tail). Bytes are preserved;
 // a reconnect re-validates and unlocks. Distinct from 'error' (download failed).
-export type OfflineDlState = 'idle' | 'preparing' | 'downloading' | 'complete' | 'error' | 'locked'
+// 'partial' = READY — nearly everything cached, a straggler tail still retrying
+// in the background. Offline is ON and playable; this is a green state, never a
+// dead-end (founder invariant 2026-07-31: always play what you have).
+export type OfflineDlState = 'idle' | 'preparing' | 'downloading' | 'complete' | 'partial' | 'error' | 'locked'
+
+// A course with at least this fraction cached is READY offline. Readiness is a
+// threshold, never complete==total: 9,732/9,742 is a playable course, and the
+// missing tail is retried in the background / skipped at play time.
+export const OFFLINE_READY_MIN_FRACTION = 0.98
+
+/**
+ * Decide the end-of-download status. Zero failures → complete. Anything
+ * missing but coverage at/above the threshold → partial (ready, green).
+ * Only genuinely-low coverage → error — and even then offline stays on and
+ * plays what it has; error is a progress report, not a gate.
+ */
+export function resolveOfflineDlOutcome(
+  done: number,
+  total: number,
+  failed: number,
+  auxIncomplete: boolean,
+): 'complete' | 'partial' | 'error' {
+  if (failed === 0 && !auxIncomplete) return 'complete'
+  const coverage = total > 0 ? done / total : 1
+  return coverage >= OFFLINE_READY_MIN_FRACTION ? 'partial' : 'error'
+}
 
 export const offlineDlState = ref<OfflineDlState>('idle')
 export const offlineDlDone = ref(0)     // audio files genuinely cached (successes only)
@@ -35,10 +60,11 @@ export const offlineDownloadActive = computed(
 )
 
 // % complete (0–100) while downloading; null while preparing (no total yet →
-// the ring spins indeterminately).
+// the ring spins indeterminately). Math.floor, never round: 9,732/9,742 must
+// read 99%, not claim 100% and then report a failure.
 export const offlineDownloadPct = computed(() =>
   offlineDlState.value === 'downloading' && offlineDlTotal.value > 0
-    ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100)
+    ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100)
     : null,
 )
 
@@ -60,13 +86,17 @@ export const offlineDownloadLabel = computed(() => {
     case 'preparing':
       return 'Preparing download…'
     case 'downloading': {
-      const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
+      const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
       return `Downloading… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
     }
     case 'complete':
       return 'Ready to play offline ✓'
+    case 'partial':
+      return offlineDlFailed.value > 0
+        ? `Ready offline (${offlineDlFailed.value} clips retrying)`
+        : 'Ready offline (extras still fetching)'
     case 'error':
-      return `Download incomplete — ${offlineDlFailed.value} failed, needs better signal`
+      return `Download incomplete — ${offlineDlDone.value}/${offlineDlTotal.value} cached, retrying in background`
     case 'locked':
       return 'Offline paused — reconnect to renew'
     default:
@@ -82,13 +112,17 @@ export const offlineDownloadHeadline = computed(() => {
     case 'preparing':
       return 'Preparing download…'
     case 'downloading': {
-      const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
+      const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
       return `Downloading… ${pct}%`
     }
     case 'complete':
       return 'Ready to play offline ✓'
+    case 'partial':
+      return offlineDlFailed.value > 0
+        ? `Ready offline ✓ (${offlineDlFailed.value} clips retrying)`
+        : 'Ready offline ✓ (extras still fetching)'
     case 'error':
-      return 'Download incomplete — needs better signal'
+      return 'Download incomplete — retrying in background'
     case 'locked':
       return 'Offline paused — reconnect to renew'
     default:

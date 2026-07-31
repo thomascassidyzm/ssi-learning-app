@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
+# Last Updated: 2026-07-31 (offline readiness is a THRESHOLD + straggler retry rounds — never a dead-end at 99.9%; see bulk_download_transport.straggler_rounds + progress.readiness_threshold)
+# Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
 # Prev: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
@@ -300,7 +301,15 @@ spec audio_caching_architecture:
         exactly one fresh-URL re-request for that id, then proxy fallback.
         withRetry (3 attempts, linear backoff) still covers genuinely
         transient errors on non-expired URLs.
-      tested: "bulkAudioDownload.test.ts — incl. JIT interleaving (no upfront resolution), 403→fresh-URL recovery without proxy fallback, and mid-chunk TTL-margin batch refresh via an injected clock"
+      straggler_rounds: >
+        A clip that exhausts its in-pass retries is NOT final: the run ends
+        with up to 3 straggler rounds — every still-missing id re-run as a
+        fresh pass (new presigned URLs, 2s/8s/20s backoff between rounds)
+        before anything is counted failed. bulkDownloadAudio returns
+        { completed, failedIds } so the caller can keep retrying the tail in
+        the background. Founder repro 2026-07-31: 10 of 9,742 transiently
+        failing must never conclude a download.
+      tested: "bulkAudioDownload.test.ts — incl. JIT interleaving (no upfront resolution), 403→fresh-URL recovery without proxy fallback, mid-chunk TTL-margin batch refresh via an injected clock, straggler rounds healing a transient tail, and the N-10-of-N permanently-dead shape completing with exact failedIds"
 
     listening_metadata_offline:
       file: "packages/player-vue/src/composables/listeningMetaCache.ts"
@@ -496,8 +505,19 @@ spec audio_caching_architecture:
       v1_caveat: "client lease still lives in IndexedDB, so a wipe BETWEEN downloads can reset locally — but the server row now re-locks it on the next validate (trial-used). Full client-trust removal would need a server-trusted clock on every play, out of scope."
 
     progress:
-      state: "offlineDlState: idle | preparing | downloading | complete | error | locked  (locked = lease paused, reconnect to renew)"
-      counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
+      state: "offlineDlState: idle | preparing | downloading | complete | partial | error | locked  (partial = READY, straggler tail retrying in background; locked = lease paused, reconnect to renew)"
+      counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done; pct uses Math.floor so 9732/9742 reads 99%, never a false 100%)"
+      readiness_threshold: >
+        resolveOfflineDlOutcome(done,total,failed,auxIncomplete): readiness is a
+        THRESHOLD (OFFLINE_READY_MIN_FRACTION = 0.98), never complete==total.
+        failed=0 → complete; coverage ≥ threshold → partial (green "Ready
+        offline (N clips retrying)", full green ring); below → error — whose
+        copy reports true counts and "retrying in background", never blames
+        signal. Both partial and error schedule a background straggler retry in
+        LearningPlayer (30s/2m/5m, fresh bulkDownloadAudio over the failedIds;
+        success promotes to complete). Offline stays ON and playable in every
+        outcome — the founder invariant (2026-07-31): always play what you
+        have, never an offline dead-end. Probe: e2e/offline-straggler-probe.mjs.
       shared_state: >
         useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
         Failed) + computeds (offlineDownloadVisible/Active/Pct/Label), written by
