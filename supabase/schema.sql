@@ -17,9 +17,8 @@
 -- PostgreSQL database dump
 --
 
-
 -- Dumped from database version 17.6
--- Dumped by pg_dump version 17.10 (Homebrew)
+-- Dumped by pg_dump version 17.5
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -513,10 +512,10 @@ $$;
 
 
 --
--- Name: analytics_class_sessions_scoped(uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: analytics_class_sessions_scoped(uuid[], integer, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer DEFAULT 90) RETURNS TABLE(class_id uuid, course_code text, start_lego_id text, end_lego_id text, start_ord integer, end_ord integer, duration_seconds integer, started_at timestamp with time zone)
+CREATE FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer DEFAULT 90, p_include_demo boolean DEFAULT false) RETURNS TABLE(class_id uuid, course_code text, start_lego_id text, end_lego_id text, start_ord integer, end_ord integer, duration_seconds integer, started_at timestamp with time zone)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -547,7 +546,9 @@ BEGIN
     LEFT JOIN public.schools sc ON sc.id = c.school_id
     WHERE s.class_id = ANY(p_class_ids)
       AND s.started_at >= now() - make_interval(days => GREATEST(p_days, 1))
-      AND COALESCE(sc.is_demo, false) = false   -- drop demo schools; keep NULL-school (ACT)
+      -- demo schools dropped by default; a caller inspecting a demo node
+      -- opts in explicitly. NULL-school (ACT) rows always kept.
+      AND (p_include_demo OR COALESCE(sc.is_demo, false) = false)
   )
   SELECT
     se.class_id,
@@ -4408,6 +4409,39 @@ BEGIN NEW.updated_at := now(); RETURN NEW; END $$;
 
 
 --
+-- Name: touch_course_content_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touch_course_content_stamp() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_course text;
+BEGIN
+  IF TG_TABLE_NAME = 'listening_pod_sentences' THEN
+    -- pod_id is '<course_code>:pod-<n>'
+    IF TG_OP = 'DELETE' THEN v_course := split_part(OLD.pod_id, ':', 1);
+    ELSE v_course := split_part(NEW.pod_id, ':', 1); END IF;
+  ELSE
+    IF TG_OP = 'DELETE' THEN v_course := OLD.course_code;
+    ELSE v_course := NEW.course_code; END IF;
+  END IF;
+  IF v_course IS NOT NULL AND v_course <> '' THEN
+    -- Debounce: now() is constant within a transaction, so only the first
+    -- row of a bulk write actually updates the courses row; every later row
+    -- in the same transaction is a no-op match (no row churn, no bloat).
+    UPDATE courses SET content_stamp = now()
+    WHERE course_code = v_course AND content_stamp IS DISTINCT FROM now();
+  END IF;
+  RETURN NULL; -- AFTER trigger, return value ignored
+EXCEPTION WHEN OTHERS THEN
+  -- Freshness stamping must NEVER break a content write.
+  RETURN NULL;
+END $$;
+
+
+--
 -- Name: touch_listening_pods_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6460,6 +6494,7 @@ CREATE TABLE public.courses (
     gender_prep_check_notes text,
     gender_prep_checked_at timestamp with time zone,
     version integer DEFAULT 1 NOT NULL,
+    content_stamp timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_course_code_format CHECK (((course_code ~ '^[a-z]{3}(_[a-z0-9]+)?_for_[a-z]{3}$'::text) OR (course_code = 'eng_template'::text))),
     CONSTRAINT courses_course_type_check CHECK ((course_type = ANY (ARRAY['official'::text, 'template'::text]))),
     CONSTRAINT courses_legacy_app_status_check CHECK ((legacy_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'released'::text]))),
@@ -11928,6 +11963,13 @@ CREATE TRIGGER course_audio_sync_duration AFTER INSERT OR UPDATE OF duration_ms 
 
 
 --
+-- Name: course_audio course_audio_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER course_audio_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.course_audio FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
+
+
+--
 -- Name: course_enrollments course_enrollments_ratchet_highest_round; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11956,6 +11998,13 @@ CREATE TRIGGER course_legos_pull_duration BEFORE INSERT OR UPDATE OF target1_aud
 
 
 --
+-- Name: course_legos course_legos_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER course_legos_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.course_legos FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
+
+
+--
 -- Name: course_legos course_legos_version_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11977,6 +12026,13 @@ CREATE TRIGGER course_practice_phrases_pull_duration BEFORE INSERT OR UPDATE OF 
 
 
 --
+-- Name: course_practice_phrases course_practice_phrases_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER course_practice_phrases_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.course_practice_phrases FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
+
+
+--
 -- Name: course_practice_phrases course_practice_phrases_version_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11988,6 +12044,13 @@ CREATE TRIGGER course_practice_phrases_version_trigger BEFORE UPDATE ON public.c
 --
 
 CREATE TRIGGER course_seeds_audit AFTER DELETE OR UPDATE ON public.course_seeds FOR EACH ROW EXECUTE FUNCTION public.audit_content_change();
+
+
+--
+-- Name: course_seeds course_seeds_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER course_seeds_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.course_seeds FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
 
 
 --
@@ -12033,10 +12096,24 @@ CREATE TRIGGER lego_introductions_audit AFTER DELETE OR UPDATE ON public.lego_in
 
 
 --
+-- Name: lego_introductions lego_introductions_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lego_introductions_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.lego_introductions FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
+
+
+--
 -- Name: listening_pod_sentences listening_pod_sentences_audit; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER listening_pod_sentences_audit AFTER DELETE OR UPDATE ON public.listening_pod_sentences FOR EACH ROW EXECUTE FUNCTION public.audit_content_change();
+
+
+--
+-- Name: listening_pod_sentences listening_pod_sentences_touch_content_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listening_pod_sentences_touch_content_stamp AFTER INSERT OR DELETE OR UPDATE ON public.listening_pod_sentences FOR EACH ROW EXECUTE FUNCTION public.touch_course_content_stamp();
 
 
 --
@@ -13352,7 +13429,7 @@ CREATE POLICY "Teachers can create student codes" ON public.invite_codes FOR INS
 
 CREATE POLICY "Users can delete own l1 state" ON public.learner_l1_state FOR DELETE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13361,7 +13438,7 @@ CREATE POLICY "Users can delete own l1 state" ON public.learner_l1_state FOR DEL
 
 CREATE POLICY "Users can delete own lego metrics" ON public.learner_lego_metrics FOR DELETE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13370,7 +13447,7 @@ CREATE POLICY "Users can delete own lego metrics" ON public.learner_lego_metrics
 
 CREATE POLICY "Users can delete own lego pairings" ON public.learner_lego_pairings FOR DELETE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13379,7 +13456,7 @@ CREATE POLICY "Users can delete own lego pairings" ON public.learner_lego_pairin
 
 CREATE POLICY "Users can delete own pod state" ON public.learner_pod_state FOR DELETE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13388,7 +13465,7 @@ CREATE POLICY "Users can delete own pod state" ON public.learner_pod_state FOR D
 
 CREATE POLICY "Users can insert own l1 state" ON public.learner_l1_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13397,7 +13474,7 @@ CREATE POLICY "Users can insert own l1 state" ON public.learner_l1_state FOR INS
 
 CREATE POLICY "Users can insert own lego metrics" ON public.learner_lego_metrics FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13406,7 +13483,7 @@ CREATE POLICY "Users can insert own lego metrics" ON public.learner_lego_metrics
 
 CREATE POLICY "Users can insert own lego pairings" ON public.learner_lego_pairings FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13415,7 +13492,7 @@ CREATE POLICY "Users can insert own lego pairings" ON public.learner_lego_pairin
 
 CREATE POLICY "Users can insert own meta commentary state" ON public.learner_meta_commentary_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13424,7 +13501,7 @@ CREATE POLICY "Users can insert own meta commentary state" ON public.learner_met
 
 CREATE POLICY "Users can insert own pod state" ON public.learner_pod_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13433,7 +13510,7 @@ CREATE POLICY "Users can insert own pod state" ON public.learner_pod_state FOR I
 
 CREATE POLICY "Users can insert own speaking opportunities" ON public.learner_speaking_opportunities FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13442,7 +13519,7 @@ CREATE POLICY "Users can insert own speaking opportunities" ON public.learner_sp
 
 CREATE POLICY "Users can update own l1 state" ON public.learner_l1_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13451,7 +13528,7 @@ CREATE POLICY "Users can update own l1 state" ON public.learner_l1_state FOR UPD
 
 CREATE POLICY "Users can update own lego metrics" ON public.learner_lego_metrics FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13460,7 +13537,7 @@ CREATE POLICY "Users can update own lego metrics" ON public.learner_lego_metrics
 
 CREATE POLICY "Users can update own lego pairings" ON public.learner_lego_pairings FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13469,7 +13546,7 @@ CREATE POLICY "Users can update own lego pairings" ON public.learner_lego_pairin
 
 CREATE POLICY "Users can update own meta commentary state" ON public.learner_meta_commentary_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13478,7 +13555,7 @@ CREATE POLICY "Users can update own meta commentary state" ON public.learner_met
 
 CREATE POLICY "Users can update own pod state" ON public.learner_pod_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13487,7 +13564,7 @@ CREATE POLICY "Users can update own pod state" ON public.learner_pod_state FOR U
 
 CREATE POLICY "Users can update own speaking opportunities" ON public.learner_speaking_opportunities FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13503,7 +13580,7 @@ CREATE POLICY "Users can view codes they created" ON public.invite_codes FOR SEL
 
 CREATE POLICY "Users can view own l1 state" ON public.learner_l1_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13512,7 +13589,7 @@ CREATE POLICY "Users can view own l1 state" ON public.learner_l1_state FOR SELEC
 
 CREATE POLICY "Users can view own lego metrics" ON public.learner_lego_metrics FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13521,7 +13598,7 @@ CREATE POLICY "Users can view own lego metrics" ON public.learner_lego_metrics F
 
 CREATE POLICY "Users can view own lego pairings" ON public.learner_lego_pairings FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13530,7 +13607,7 @@ CREATE POLICY "Users can view own lego pairings" ON public.learner_lego_pairings
 
 CREATE POLICY "Users can view own meta commentary state" ON public.learner_meta_commentary_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13539,7 +13616,7 @@ CREATE POLICY "Users can view own meta commentary state" ON public.learner_meta_
 
 CREATE POLICY "Users can view own pod state" ON public.learner_pod_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13548,7 +13625,7 @@ CREATE POLICY "Users can view own pod state" ON public.learner_pod_state FOR SEL
 
 CREATE POLICY "Users can view own speaking opportunities" ON public.learner_speaking_opportunities FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13564,7 +13641,7 @@ CREATE POLICY "Users can view own subscription" ON public.subscriptions FOR SELE
 
 CREATE POLICY "Users read own entitlements" ON public.user_entitlements FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -13636,7 +13713,7 @@ CREATE POLICY authenticated_read_course_audio_envelope ON public.course_audio_en
 -- Name: dashboard_users authenticated_read_own_dashboard_user; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY authenticated_read_own_dashboard_user ON public.dashboard_users FOR SELECT TO authenticated USING ((email = (auth.jwt() ->> 'email'::text)));
+CREATE POLICY authenticated_read_own_dashboard_user ON public.dashboard_users FOR SELECT TO authenticated USING ((email = (( SELECT auth.jwt() AS jwt) ->> 'email'::text)));
 
 
 --
@@ -13679,25 +13756,25 @@ ALTER TABLE public.class_sessions ENABLE ROW LEVEL SECURITY;
 -- Name: class_sessions class_sessions_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT TO authenticated USING (((teacher_user_id = (auth.uid())::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
+CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT TO authenticated USING (((teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
    FROM public.classes c
-  WHERE ((c.id = class_sessions.class_id) AND ((c.teacher_user_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
+  WHERE ((c.id = class_sessions.class_id) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (EXISTS ( SELECT 1
            FROM public.schools s
-          WHERE ((s.id = c.school_id) AND (s.admin_user_id = (auth.uid())::text))))))))));
+          WHERE ((s.id = c.school_id) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text))))))))));
 
 
 --
 -- Name: class_sessions class_sessions_teacher_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_teacher_insert ON public.class_sessions FOR INSERT TO authenticated WITH CHECK ((teacher_user_id = (auth.uid())::text));
+CREATE POLICY class_sessions_teacher_insert ON public.class_sessions FOR INSERT TO authenticated WITH CHECK ((teacher_user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
 -- Name: class_sessions class_sessions_teacher_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_teacher_update ON public.class_sessions FOR UPDATE TO authenticated USING ((teacher_user_id = (auth.uid())::text)) WITH CHECK ((teacher_user_id = (auth.uid())::text));
+CREATE POLICY class_sessions_teacher_update ON public.class_sessions FOR UPDATE TO authenticated USING ((teacher_user_id = (( SELECT auth.uid() AS uid))::text)) WITH CHECK ((teacher_user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -14199,28 +14276,28 @@ ALTER TABLE public.learners ENABLE ROW LEVEL SECURITY;
 -- Name: learners learners_delete_own; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY learners_delete_own ON public.learners FOR DELETE TO authenticated USING ((user_id = (auth.uid())::text));
+CREATE POLICY learners_delete_own ON public.learners FOR DELETE TO authenticated USING ((user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
 -- Name: learners learners_insert_self; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY learners_insert_self ON public.learners FOR INSERT TO authenticated WITH CHECK ((user_id = (auth.uid())::text));
+CREATE POLICY learners_insert_self ON public.learners FOR INSERT TO authenticated WITH CHECK ((user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
 -- Name: learners learners_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY learners_select ON public.learners FOR SELECT TO authenticated USING (((user_id = (auth.uid())::text) OR public.can_view_learner_data(id)));
+CREATE POLICY learners_select ON public.learners FOR SELECT TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.can_view_learner_data(id)));
 
 
 --
 -- Name: learners learners_update_own; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY learners_update_own ON public.learners FOR UPDATE TO authenticated USING ((user_id = (auth.uid())::text)) WITH CHECK ((user_id = (auth.uid())::text));
+CREATE POLICY learners_update_own ON public.learners FOR UPDATE TO authenticated USING ((user_id = (( SELECT auth.uid() AS uid))::text)) WITH CHECK ((user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -14275,7 +14352,7 @@ ALTER TABLE public.offline_leases ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY offline_leases_owner_select ON public.offline_leases FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -14445,7 +14522,7 @@ ALTER TABLE public.role_change_audit ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY role_change_audit_admin_read ON public.role_change_audit FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.learners l
-  WHERE ((l.user_id = (auth.uid())::text) AND ((l.platform_role = 'ssi_admin'::text) OR (l.educational_role = 'god'::text))))));
+  WHERE ((l.user_id = (( SELECT auth.uid() AS uid))::text) AND ((l.platform_role = 'ssi_admin'::text) OR (l.educational_role = 'god'::text))))));
 
 
 --
@@ -14699,7 +14776,7 @@ CREATE POLICY teacher_commissions_insert_admin ON public.teacher_commissions FOR
 CREATE POLICY teacher_commissions_select_own_or_admin ON public.teacher_commissions FOR SELECT USING (((teacher_id IN ( SELECT t.id
    FROM (public.teachers t
      JOIN public.learners l ON ((l.id = t.learner_id)))
-  WHERE (l.user_id = (auth.uid())::text))) OR public.is_ssi_admin()));
+  WHERE (l.user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
 
 --
@@ -14735,7 +14812,7 @@ CREATE POLICY teacher_referrals_insert_admin ON public.teacher_referrals FOR INS
 
 CREATE POLICY teacher_referrals_select_own_or_admin ON public.teacher_referrals FOR SELECT USING (((class_id IN ( SELECT classes.id
    FROM public.classes
-  WHERE (classes.teacher_user_id = (auth.uid())::text))) OR public.is_ssi_admin()));
+  WHERE (classes.teacher_user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
 
 --
@@ -14764,7 +14841,7 @@ CREATE POLICY teachers_delete_admin ON public.teachers FOR DELETE USING (public.
 
 CREATE POLICY teachers_insert_own ON public.teachers FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))));
 
 
 --
@@ -14773,7 +14850,7 @@ CREATE POLICY teachers_insert_own ON public.teachers FOR INSERT WITH CHECK ((lea
 
 CREATE POLICY teachers_select_own_or_admin ON public.teachers FOR SELECT USING (((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))) OR public.is_ssi_admin()));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
 
 --
@@ -14782,7 +14859,7 @@ CREATE POLICY teachers_select_own_or_admin ON public.teachers FOR SELECT USING (
 
 CREATE POLICY teachers_update_own_or_admin ON public.teachers FOR UPDATE USING (((learner_id IN ( SELECT learners.id
    FROM public.learners
-  WHERE (learners.user_id = (auth.uid())::text))) OR public.is_ssi_admin()));
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
 
 --
@@ -14860,36 +14937,36 @@ ALTER TABLE public.user_tags ENABLE ROW LEVEL SECURITY;
 -- Name: user_tags user_tags_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_tags_insert ON public.user_tags FOR INSERT TO authenticated WITH CHECK ((public.is_god_user() OR ((user_id = (auth.uid())::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text))));
+CREATE POLICY user_tags_insert ON public.user_tags FOR INSERT TO authenticated WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text))));
 
 
 --
 -- Name: user_tags user_tags_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_tags_select ON public.user_tags FOR SELECT TO authenticated USING (((user_id = (auth.uid())::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
+CREATE POLICY user_tags_select ON public.user_tags FOR SELECT TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
    FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (auth.uid())::text)))) OR (EXISTS ( SELECT 1
+  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
    FROM (public.classes c
      LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (auth.uid())::text) OR (s2.admin_user_id = (auth.uid())::text)))))));
+  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text)))))));
 
 
 --
 -- Name: user_tags user_tags_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_tags_update ON public.user_tags FOR UPDATE TO authenticated USING (((user_id = (auth.uid())::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
+CREATE POLICY user_tags_update ON public.user_tags FOR UPDATE TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
    FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (auth.uid())::text)))) OR (EXISTS ( SELECT 1
+  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
    FROM (public.classes c
      LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (auth.uid())::text) OR (s2.admin_user_id = (auth.uid())::text))))))) WITH CHECK ((public.is_god_user() OR ((user_id = (auth.uid())::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (EXISTS ( SELECT 1
+  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text))))))) WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (EXISTS ( SELECT 1
    FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (auth.uid())::text)))) OR (EXISTS ( SELECT 1
+  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
    FROM (public.classes c
      LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (auth.uid())::text) OR (s2.admin_user_id = (auth.uid())::text)))))));
+  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text)))))));
 
 
 --
@@ -15002,11 +15079,11 @@ GRANT ALL ON FUNCTION public.analytics_class_coverage(p_days integer) TO service
 
 
 --
--- Name: FUNCTION analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer, p_include_demo boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer, p_include_demo boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer, p_include_demo boolean) TO service_role;
 
 
 --
@@ -15830,6 +15907,15 @@ GRANT ALL ON FUNCTION public.tg_release_notes_touch_updated_at() TO service_role
 GRANT ALL ON FUNCTION public.touch_canonical_pod_scenarios() TO anon;
 GRANT ALL ON FUNCTION public.touch_canonical_pod_scenarios() TO authenticated;
 GRANT ALL ON FUNCTION public.touch_canonical_pod_scenarios() TO service_role;
+
+
+--
+-- Name: FUNCTION touch_course_content_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.touch_course_content_stamp() TO anon;
+GRANT ALL ON FUNCTION public.touch_course_content_stamp() TO authenticated;
+GRANT ALL ON FUNCTION public.touch_course_content_stamp() TO service_role;
 
 
 --
@@ -17066,5 +17152,4 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 --
 -- PostgreSQL database dump complete
 --
-
 
