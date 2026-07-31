@@ -23,6 +23,13 @@
  * network error) or a denied/failed individual id falls back to the existing
  * per-clip proxy path at its original, more conservative concurrency — bulk
  * download is never worse than before this change.
+ *
+ * A clip that still fails after its in-pass retries is NOT final: the run
+ * ends with straggler rounds — every still-missing id is re-run as a fresh
+ * pass (new presigned URLs, growing wait between rounds) several times
+ * before anything is counted failed. A transient tail (10 of 9,742 timing
+ * out in one moment) must never conclude a download — that was the founder
+ * 99.9%-then-dead-end report, 2026-07-31.
  */
 
 export interface BatchUrlsResult {
@@ -45,16 +52,38 @@ export interface BulkAudioDownloadDeps {
   isPlaying: () => boolean
   /** Clock override for tests; defaults to Date.now. */
   now?: () => number
+  /** Wait override for tests; defaults to setTimeout. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 export interface BulkAudioDownloadCounters {
   onDone: () => void
   onFailed: () => void
+  /**
+   * Entering a straggler round: the main pass is done and `remaining` clips
+   * are being re-fetched with fresh URLs after a backoff. Lets the UI name
+   * the phase honestly ("Finishing up — checking the last N clips") instead
+   * of sitting on a near-frozen percentage.
+   */
+  onStragglerRound?: (remaining: number) => void
+}
+
+export interface BulkDownloadResult {
+  /** False iff isCancelled() stopped the run early (mid-download toggle-off). */
+  completed: boolean
+  /** Ids still uncached after every straggler round; each was counted onFailed. */
+  failedIds: string[]
 }
 
 const BATCH_URL_CHUNK = 500
 const RETRY_ATTEMPTS = 3
 const RETRY_BASE_MS = 300
+
+// Extra whole passes over the still-missing tail before anything is counted
+// failed. Each round re-requests fresh presigned URLs, so an expired-URL tail
+// (long run outliving the 5-min TTL) heals here too.
+const STRAGGLER_ROUNDS = 3
+const STRAGGLER_BACKOFF_MS = [2_000, 8_000, 20_000]
 
 // Past this fraction of the presigned TTL, a URL is treated as expired:
 // re-request rather than burn retries on a guaranteed 403.
@@ -94,15 +123,48 @@ function looksLike403(err: unknown): boolean {
 }
 
 /**
- * Bulk-download `ids` into the persistent cache. Returns false if
+ * Bulk-download `ids` into the persistent cache. `completed` is false if
  * `deps.isCancelled()` stopped the run early (caller should treat this the
- * same as the old loop's mid-download cancellation), true once every id has
- * either landed or been counted failed via `counters`.
+ * same as the old loop's mid-download cancellation); once it's true, every id
+ * has either landed (onDone) or — only after every straggler round — been
+ * counted failed and reported in `failedIds` so the caller can keep retrying
+ * in the background.
  */
 export async function bulkDownloadAudio(
   ids: string[],
   deps: BulkAudioDownloadDeps,
   counters: BulkAudioDownloadCounters,
+): Promise<BulkDownloadResult> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+
+  let pending = ids
+  for (let round = 0; ; round++) {
+    const failed: string[] = []
+    const finished = await runDownloadPass(pending, deps, counters, failed)
+    if (!finished) return { completed: false, failedIds: failed }
+    if (failed.length === 0) return { completed: true, failedIds: [] }
+    if (round >= STRAGGLER_ROUNDS) {
+      for (let k = 0; k < failed.length; k++) counters.onFailed()
+      return { completed: true, failedIds: failed }
+    }
+    counters.onStragglerRound?.(failed.length)
+    await sleep(STRAGGLER_BACKOFF_MS[Math.min(round, STRAGGLER_BACKOFF_MS.length - 1)])
+    if (deps.isCancelled()) return { completed: false, failedIds: failed }
+    pending = failed
+  }
+}
+
+/**
+ * One full pass: direct-from-S3 with JIT presigned URLs, then the per-clip
+ * proxy fallback. Ids that land tick `counters.onDone()`; ids that exhaust
+ * this pass's retries are pushed to `failed` (NOT counted onFailed — the
+ * straggler loop above owns that). Returns false iff cancelled.
+ */
+async function runDownloadPass(
+  ids: string[],
+  deps: BulkAudioDownloadDeps,
+  counters: BulkAudioDownloadCounters,
+  failed: string[],
 ): Promise<boolean> {
   if (ids.length === 0) return true
 
@@ -217,7 +279,7 @@ export async function bulkDownloadAudio(
           await withRetry(() => deps.ensure(id))
           counters.onDone()
         } catch {
-          counters.onFailed()
+          failed.push(id)
         }
       }),
     )
@@ -226,13 +288,21 @@ export async function bulkDownloadAudio(
   return true
 }
 
-/** POST /api/audio/batch-urls for one chunk of ids. Null on any failure. */
+// Ceiling on one batch-urls POST. A hung request here freezes the whole run
+// before a single byte downloads — null (endpoint-down → proxy fallback) is
+// always better than waiting forever (founder stall, 2026-07-31).
+const BATCH_URLS_TIMEOUT_MS = 20_000
+
+/** POST /api/audio/batch-urls for one chunk of ids. Null on any failure or timeout. */
 export async function fetchBatchAudioUrls(ids: string[]): Promise<BatchUrlsResult | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), BATCH_URLS_TIMEOUT_MS)
   try {
     const res = await fetch('/api/audio/batch-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audioIds: ids }),
+      signal: controller.signal,
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -244,5 +314,7 @@ export async function fetchBatchAudioUrls(ids: string[]): Promise<BatchUrlsResul
     }
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }

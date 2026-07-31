@@ -176,9 +176,14 @@ const invalidateStaleCaches = () => {
       // ssi-auth-handoff carries the session across the iOS Safari → Home
       // Screen PWA boundary (see utils/authHandoff.ts) — wiping it on
       // deploy would silently break the install sign-in carry-over.
-      const PRESERVE = new Set(['workbox-precache-v2', 'ssi-audio-cache', 'ssi-auth-handoff'])
+      // PREFIX match, not exact: the real workbox precache is named
+      // "workbox-precache-v2-<origin>/", so the old exact-match Set deleted
+      // the ENTIRE app-shell precache on every deploy — leaving offline cold
+      // start on the browser "No internet" page until the next SW update
+      // reinstalled it (found 2026-07-31 chasing the always-play invariant).
+      const PRESERVE_PREFIXES = ['workbox-precache', 'ssi-audio-cache', 'ssi-auth-handoff']
       caches.keys().then(names => {
-        const cleared = names.filter(n => !PRESERVE.has(n))
+        const cleared = names.filter(n => !PRESERVE_PREFIXES.some(p => n.startsWith(p)))
         cleared.forEach(name => caches.delete(name))
         if (cleared.length > 0) {
           console.log(`[App] Cleared ${cleared.length} runtime caches:`, cleared)
@@ -379,26 +384,61 @@ const canAccessCourse = (course) => {
   return result.canAccess || result.canPreview
 }
 
+// Offline mirror of the courses catalogue. The catalogue query is the FIRST
+// network dependency of every boot — without a course row, activeCourse stays
+// null and the player never mounts, no matter how much audio/script is cached.
+// So every successful fetch writes the rows here, and an offline/failed boot
+// hydrates from this mirror instead of dead-ending (always-play invariant).
+const CATALOGUE_CACHE_KEY = 'ssi-courses-catalogue-v1'
+const readCatalogueCache = () => {
+  try {
+    const raw = localStorage.getItem(CATALOGUE_CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null
+  } catch (e) {
+    return null
+  }
+}
+const writeCatalogueCache = (rows) => {
+  try {
+    localStorage.setItem(CATALOGUE_CACHE_KEY, JSON.stringify(rows))
+  } catch (e) {
+    // Storage full/blocked — next online boot just refetches.
+  }
+}
+
 // Fetch enrolled courses from Supabase
 const fetchEnrolledCourses = async () => {
-  if (!supabaseClient.value) {
-    return
+  let data = null
+  if (supabaseClient.value) {
+    try {
+      // Get courses available for this app (live or beta)
+      // Status options: draft (hidden), beta (visible with badge), live (fully visible)
+      const res = await supabaseClient.value
+        .from('courses')
+        .select('*')
+        .in('new_app_status', ['live', 'beta'])
+        .order('display_name')
+      if (res.error) {
+        console.error('[App] Failed to fetch courses:', res.error)
+      } else {
+        data = res.data
+      }
+    } catch (err) {
+      console.error('[App] Error fetching enrolled courses:', err)
+    }
+  }
+
+  if (data && data.length > 0) {
+    writeCatalogueCache(data)
+  } else {
+    // Offline / query failed — serve the last known catalogue so the saved
+    // course resolves and the player boots into its cached-content paths.
+    data = readCatalogueCache()
+    if (data) console.log('[App] Courses catalogue hydrated from offline mirror:', data.length, 'courses')
   }
 
   try {
-    // Get courses available for this app (live or beta)
-    // Status options: draft (hidden), beta (visible with badge), live (fully visible)
-    const { data, error } = await supabaseClient.value
-      .from('courses')
-      .select('*')
-      .in('new_app_status', ['live', 'beta'])
-      .order('display_name')
-
-    if (error) {
-      console.error('[App] Failed to fetch courses:', error)
-      return
-    }
-
     // Set active course from: 1) localStorage, 2) first available
     if (data && data.length > 0) {
       // courses table now uses 'course_code' directly (renamed from 'code' 2026-01-18)
@@ -502,7 +542,7 @@ const fetchEnrolledCourses = async () => {
       }
     }
   } catch (err) {
-    console.error('[App] Error fetching enrolled courses:', err)
+    console.error('[App] Error resolving active course:', err)
   }
 }
 

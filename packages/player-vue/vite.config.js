@@ -62,6 +62,17 @@ export default defineConfig(({ mode }) => ({
       registerType: 'prompt',
 
       workbox: {
+        // Bundle the workbox runtime INTO sw.js. The default (false) emits a
+        // separate workbox-*.js pulled in through an async self.define shim —
+        // which registers the fetch/navigation handlers AFTER the SW's initial
+        // script evaluation. Chromium only reliably dispatches top-level
+        // navigations to handlers registered synchronously at first evaluation,
+        // so offline cold starts skipped the SW entirely and landed on the
+        // browser "No internet" page despite a full precache (2026-07-31,
+        // reproduced with a dead server + e2e/sw-offline-shell-probe.mjs).
+        // Inlining makes registration synchronous; offline nav serves the shell.
+        inlineWorkboxRuntime: true,
+
         // Precache the app SHELL only. globPatterns catches all built assets;
         // globIgnores then removes weight no learner needs on the critical path:
         //   - the eruda debug console (~500KB, only ever loaded via ?debug)
@@ -79,27 +90,26 @@ export default defineConfig(({ mode }) => ({
           '**/eruda-*.js',          // debug console, ?debug-only
           '**/Admin*.js',           // /admin surface chunks — never needed offline by learners
           '**/echarts-*.js',        // ~1MB charting lib, lazy-loaded only inside insight/admin boards
-          '**/schools-*.js',        // /schools surface, loaded on demand (never an offline learner path)
+          // schools-*.js is deliberately NOT ignored: the chunk graph hoists
+          // shared modules into it, making it a static dep of boot-path chunks
+          // (observed 2026-07-31: offline boot stalled loading schools-*.js).
+          // ~300KB precache cost buys a boot that always completes offline.
           '**/_schools-mockups/**', // static HTML mockups
           '**/paddle-review/**',    // Paddle verification artifact
           '**/design/**',           // design-doc mockups
           '**/board/**',            // one-off board reports, never an offline learner path
         ],
 
-        // Workbox' default navigation handler returns the cached index.html
-        // for *every* document navigation, which intercepts requests like
-        // /terms before they can hit Vercel's cross-origin rewrite. List the
-        // paths we want to bypass the SW so the rewrite to the marketing
-        // site actually runs. /api/* must also stay on the network.
-        navigateFallbackDenylist: [
-          /^\/methodology(\/|$)/,
-          /^\/paddle-review$/,
-          /^\/terms$/,
-          /^\/privacy$/,
-          /^\/refunds$/,
-          /^\/board\//,
-          /^\/api\//,
-        ],
+        // NO precache NavigationRoute. vite-plugin-pwa DEFAULTS navigateFallback
+        // to 'index.html', which registers a NavigationRoute bound to the
+        // precached shell FIRST — shadowing the NetworkFirst navigation route
+        // below (so fresh deploys never propagated through it) AND, observed
+        // 2026-07-31 with a dead server, failing offline navigations through to
+        // the network → the browser "No internet" page instead of the cached
+        // shell. One navigation route below owns the whole story instead:
+        // NetworkFirst online (fresh deploys propagate, /terms etc. reach
+        // Vercel's rewrites), precacheFallback offline (the shell ALWAYS loads).
+        navigateFallback: null,
 
         // Clear ALL runtime caches when a new SW activates.
         // This ensures stale audio/font caches never persist across deploys.
@@ -138,6 +148,11 @@ export default defineConfig(({ mode }) => ({
               cacheName: 'navigation-cache',
               networkTimeoutSeconds: 3,
               expiration: { maxEntries: 4 },
+              // Offline floor: when the network is gone AND navigation-cache
+              // has no entry (cold offline start), serve the precached shell.
+              // This is what makes "airplane-mode open the app" reach the
+              // player at all — the always-play invariant's first link.
+              precacheFallback: { fallbackURL: 'index.html' },
             },
           },
           {

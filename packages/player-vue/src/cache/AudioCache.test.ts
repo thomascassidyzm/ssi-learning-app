@@ -500,6 +500,59 @@ describe('AudioCache', () => {
   })
 
   // ==========================================================================
+  // FETCH TIMEOUT — a hung connection must never freeze the download forever
+  // (founder stall report 2026-07-31: no per-fetch timeout → one wedged fetch
+  // parked a dead promise in the in-flight map and every retry reused it)
+  // ==========================================================================
+
+  it('a hung fetch rejects after fetchTimeoutMs and the next ensure retries for real', async () => {
+    let call = 0
+    // First call hangs until aborted (as a real wedged connection would);
+    // second call succeeds normally.
+    const hangingFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      call++
+      if (call === 1) {
+        await new Promise<void>((_resolve, reject) => {
+          const signal = init?.signal
+          const onAbort = () => reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+          if (signal?.aborted) onAbort()
+          else signal?.addEventListener('abort', onAbort, { once: true })
+        })
+      }
+      return new Response(new Blob(['x'.repeat(32)], { type: 'audio/mpeg' }), { status: 200 })
+    })
+    globalThis.fetch = hangingFetch as unknown as typeof fetch
+
+    const timed = newCache({ fetchTimeoutMs: 50 })
+    await expect(timed.persistent.ensure('hung')).rejects.toThrow(/timed out/i)
+    expect(timed.persistent.has('hung')).toBe(false)
+
+    // The in-flight entry must be cleared: a retry fetches again and lands.
+    await timed.persistent.ensure('hung')
+    expect(hangingFetch).toHaveBeenCalledTimes(2)
+    expect(timed.persistent.has('hung')).toBe(true)
+  })
+
+  it('ensureFromUrl gets the same timeout (presigned S3 path)', async () => {
+    const hangingFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise<void>((_resolve, reject) => {
+        const signal = init?.signal
+        const onAbort = () => reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+        if (signal?.aborted) onAbort()
+        else signal?.addEventListener('abort', onAbort, { once: true })
+      })
+      return new Response(new Blob(['x'], { type: 'audio/mpeg' }), { status: 200 })
+    })
+    globalThis.fetch = hangingFetch as unknown as typeof fetch
+
+    const timed = newCache({ fetchTimeoutMs: 50 })
+    await expect(timed.persistent.ensureFromUrl('hung2', 'https://s3.example/presigned')).rejects.toThrow(
+      /timed out/i,
+    )
+    expect(timed.persistent.has('hung2')).toBe(false)
+  })
+
+  // ==========================================================================
   // EPHEMERAL — IDEMPOTENT RE-ACQUIRE
   // ==========================================================================
 

@@ -82,12 +82,14 @@ export class AudioCacheImpl implements AudioCache {
   private statsCache: { at: number; value: AudioCacheStats } | null = null
 
   private readonly audioUrl: (id: AudioId) => string
+  private readonly fetchTimeoutMs: number
 
   readonly persistent: PersistentNamespace
   readonly ephemeral: EphemeralNamespace
 
   constructor(options: CreateAudioCacheOptions = {}) {
     this.audioUrl = options.audioUrl ?? ((id) => `/api/audio/${id}`)
+    this.fetchTimeoutMs = options.fetchTimeoutMs ?? 30_000
 
     // Bind namespace facades to `this`.
     this.persistent = {
@@ -226,11 +228,33 @@ export class AudioCacheImpl implements AudioCache {
       this.ephemeralIds.delete(id)
     }
 
-    const res = await fetch(opts.url ?? this.audioUrl(id), opts.signal ? { signal: opts.signal } : undefined)
-    if (!res.ok) {
-      throw new Error(`AudioCache: fetch ${id} → ${res.status}`)
+    // Hard per-fetch timeout covering headers AND body. A hung connection
+    // otherwise never settles this promise, and since it lives in the
+    // in-flight de-dupe map every retry of the id gets the same dead promise
+    // — the silent bulk-download freeze (founder stall, 2026-07-31). The
+    // timeout converts the hang into a rejection the callers' retry paths
+    // already handle, and `.finally` clears the in-flight entry so the next
+    // attempt fetches for real.
+    const controller = new AbortController()
+    const timer = setTimeout(
+      () => controller.abort(new DOMException(`AudioCache: fetch ${id} timed out`, 'TimeoutError')),
+      this.fetchTimeoutMs,
+    )
+    const onOuterAbort = () => controller.abort(new DOMException('Aborted', 'AbortError'))
+    if (opts.signal?.aborted) onOuterAbort()
+    else opts.signal?.addEventListener('abort', onOuterAbort, { once: true })
+
+    let blob: Blob
+    try {
+      const res = await fetch(opts.url ?? this.audioUrl(id), { signal: controller.signal })
+      if (!res.ok) {
+        throw new Error(`AudioCache: fetch ${id} → ${res.status}`)
+      }
+      blob = await res.blob()
+    } finally {
+      clearTimeout(timer)
+      opts.signal?.removeEventListener('abort', onOuterAbort)
     }
-    const blob = await res.blob()
 
     if (opts.signal?.aborted) {
       // Caller already abandoned us; don't persist.
