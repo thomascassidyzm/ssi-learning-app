@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -9913,12 +9913,30 @@ const ROLLING_SPAN_MS = 20 * 60 * 1000
 const BURST_SPAN_MS = 10 * 60 * 1000
 const offlineActive = ref(false)
 // Offline PLAYBACK engages on the explicit toggle OR whenever the device is
-// genuinely offline. offlineActive is an in-memory ref that resets to false on
-// any reload — and previews self-update the SW, which reloads — so airplane-mode
-// playback must NOT depend on the toggle surviving. (Tom 2026-05-28: 441 files
-// cached but none played, because offlineActive had reset after a reload, so the
-// player streamed /api/audio and every clip failed offline.) Download gates stay
-// on the explicit toggle — downloading is a deliberate, online action.
+// genuinely offline. The `!isOnline` disjunct is the airplane-mode backstop
+// (Tom 2026-05-28: 441 files cached but none played, because offlineActive had
+// reset after a reload, so the player streamed /api/audio and every clip failed
+// offline). Download gates stay on the explicit toggle — downloading is a
+// deliberate, online action.
+//
+// The SELECTION now also PERSISTS per course (Tom 2026-07-31: "once selected
+// … should ALWAYS ALWAYS ALWAYS actually play from the offline cache and
+// NEVER check for online status"). An in-memory-only toggle silently dropped
+// the learner back to streaming on any reload — and previews self-update the
+// SW, which reloads — leaving downloaded courses at the mercy of
+// navigator.onLine, which lies on weak signal/captive portals. Set on
+// download completion, cleared on explicit toggle-off; restored at mount
+// before first play. The lease lock still governs (premium design).
+const OFFLINE_MODE_KEY_PREFIX = 'ssi-offline-mode-'
+const persistedOfflineModeOn = (): boolean => {
+  try { return localStorage.getItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) === '1' } catch { return false }
+}
+const persistOfflineModeOn = (): void => {
+  try { localStorage.setItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value, '1') } catch { /* storage blocked — toggle still works this session */ }
+}
+const clearPersistedOfflineMode = (): void => {
+  try { localStorage.removeItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) } catch { /* ignore */ }
+}
 // 30-day offline lease (the "Spotify handshake"). The lease is granted at the
 // end of a deliberate download and slid forward by useOfflineLease's renewals.
 // When it expires (offline >30d or sub lapsed past the graceful tail) offline
@@ -10500,6 +10518,7 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
+  offlineDlStragglers.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
   // Batches presigned S3 URLs and fetches bytes directly, falling back to the
@@ -10507,7 +10526,7 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // resolve. Counts ONLY genuine cache writes — a clip that still fails after
   // retries must NOT tick progress, else "Ready ✓" lies and offline plays
   // silence (the train test).
-  const completed = await bulkDownloadAudio(
+  const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
       fetchBatchUrls: fetchBatchAudioUrls,
@@ -10519,8 +10538,12 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
     {
       onDone: () => { offlineDlDone.value++ },
       onFailed: () => { offlineDlFailed.value++ },
+      // Straggler tail begins: name the phase honestly in the tray instead of
+      // sitting on a near-frozen 99% (founder tail-pacing report, 2026-07-31).
+      onStragglerRound: (remaining) => { offlineDlStragglers.value = remaining },
     },
   )
+  offlineDlStragglers.value = 0
   if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT (round structure) to IndexedDB, not just the audio.
@@ -10560,16 +10583,81 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Stamp the 30-day offline lease now the bytes + script are durably cached.
   // Clamp to an entitlement-code expiry so the lease can't outlive the code.
   await grantOfflineLeaseForCurrentCourse()
+  // The selection is now backed by real cached content — persist it so a
+  // reload/SW-update can't silently drop the learner back to streaming.
+  persistOfflineModeOn()
 
-  if (offlineDlFailed.value > 0 || auxIncomplete) {
-    // Stays on screen (no auto-hide) so the user knows to retry on better signal.
-    offlineDlState.value = 'error'
-    console.warn(`[Offline] incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
-  } else {
+  // Readiness is a threshold, never complete==total: 99.9% cached is a
+  // playable course. Stragglers keep retrying in the background and are
+  // skipped at play time if truly unfetchable — never a red dead-end for a
+  // course that plays (founder invariant, 2026-07-31).
+  const outcome = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, auxIncomplete)
+  if (outcome === 'complete') {
     offlineDlState.value = 'complete'
     console.log(`[Offline] complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
     setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  } else {
+    // partial (ready, green) or error (low coverage) — both stay on screen and
+    // both keep retrying the missing tail in the background.
+    offlineDlState.value = outcome
+    console.warn(`[Offline] ${outcome === 'partial' ? 'ready with stragglers' : 'incomplete'}: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
+    scheduleOfflineStragglerRetry(failedIds)
   }
+}
+
+// ── Background straggler retry ──────────────────────────────────────────────
+// A partial/error download keeps trying to land its missing clips at growing
+// delays (fresh presigned URLs each attempt, via bulkDownloadAudio's own
+// straggler rounds). Success flips the status to complete; offline stays ON
+// and playable throughout.
+const OFFLINE_BG_RETRY_DELAYS_MS = [30_000, 120_000, 300_000]
+let offlineBgRetryTimer: ReturnType<typeof setTimeout> | null = null
+const clearOfflineBgRetry = () => {
+  if (offlineBgRetryTimer) { clearTimeout(offlineBgRetryTimer); offlineBgRetryTimer = null }
+}
+onUnmounted(clearOfflineBgRetry)
+const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
+  if (missingIds.length === 0 || attempt >= OFFLINE_BG_RETRY_DELAYS_MS.length) return
+  clearOfflineBgRetry()
+  offlineBgRetryTimer = setTimeout(async () => {
+    offlineBgRetryTimer = null
+    // Only while the offline selection is still live and the status still
+    // shows a gap (a remount resets the shared refs to idle → no-op).
+    if (!offlineActive.value) return
+    if (offlineDlState.value !== 'partial' && offlineDlState.value !== 'error') return
+    const missing = missingIds.filter((id) => !audioCache.persistent.has(id))
+    const { completed, failedIds: stillMissing } = await bulkDownloadAudio(
+      missing,
+      {
+        fetchBatchUrls: fetchBatchAudioUrls,
+        ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+        ensure: (id) => audioCache.persistent.ensure(id),
+        isCancelled: () => !offlineActive.value,
+        isPlaying: () => isPlaying.value,
+      },
+      {
+        onDone: () => {
+          offlineDlDone.value++
+          offlineDlFailed.value = Math.max(0, offlineDlFailed.value - 1)
+        },
+        onFailed: () => {},  // already counted failed on the original run
+      },
+    )
+    if (!completed || !offlineActive.value) return
+    if (stillMissing.length === 0) {
+      offlineDlFailed.value = 0
+      offlineDlState.value = 'complete'
+      console.log('[Offline] stragglers landed in background — download complete')
+      setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+    } else {
+      // Coverage may have crossed the ready threshold — recompute so an
+      // 'error' can promote to 'partial' as clips land (never the reverse
+      // gets louder: failed only shrinks here).
+      offlineDlState.value = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, false) === 'error' ? 'error' : 'partial'
+      console.warn(`[Offline] background retry ${attempt + 1}: ${stillMissing.length} clips still missing`)
+      scheduleOfflineStragglerRetry(stillMissing, attempt + 1)
+    }
+  }, OFFLINE_BG_RETRY_DELAYS_MS[attempt])
 }
 
 // Offline infinite play. With no network we can't generate new rounds, so
@@ -10699,10 +10787,15 @@ interface OfflineEstBasis {
   total: number; start: number
   avgBytesPerFile: number; avgFilesPerRound: number
   lowSpace: boolean; ready: boolean
+  /** Missing files in the always-included listening/dialogues/commentary
+   *  bundle (whole-course by design, Tom 2026-07-08) — counted for real by
+   *  the truth pass below; 0 until it lands. */
+  auxMissing: number
 }
 const offlineEst = ref<OfflineEstBasis>({
   total: 0, start: 0,
   avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, lowSpace: false, ready: false,
+  auxMissing: 0,
 })
 
 // At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
@@ -10753,9 +10846,32 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     const sampleRounds = (cachedRounds.value || []).length
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
-    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true, auxMissing: 0 }
   } finally {
     offlineEstimating.value = false
+  }
+  // Truth pass (backgrounded — the picker shows the quick basis immediately and
+  // the numbers settle to the real manifest within seconds). The founder's 2%
+  // pick read "≈48 MB" while the real download was 9,742 files: the per-round
+  // heuristic can't see clip REUSE across rounds (reviews dedupe heavily) and
+  // omitted the always-included listening/dialogues bundle entirely. So price
+  // the download the way the download itself works: expand the script (same
+  // machinery, so collectRoundsAudioIds spans the true behind+ahead manifest,
+  // deduped) and count the aux bundle's genuinely-missing files. Cached-aware
+  // by construction — a re-download settles to ≈0.
+  if (!offlineSingleOption.value) {
+    void (async () => {
+      try {
+        let guard = 0
+        while (showOfflinePicker.value && guard++ < 8) {
+          const added = await expandScript()
+          if (added === 0) break
+        }
+        const { ids: auxIds } = await collectAuxiliaryAudioIds()
+        const auxMissing = auxIds.filter((id) => !audioCache.persistent.has(id)).length
+        offlineEst.value = { ...offlineEst.value, auxMissing }
+      } catch (e) { console.warn('[Offline] estimate truth pass failed (kept the quick basis):', e) }
+    })()
   }
 }
 
@@ -10769,17 +10885,27 @@ const offlineSelectedRounds = computed((): number => {
 // number). The old "% of device" was dropped: it divided by an iOS-unreliable
 // storage quota and read as a meaningless sliver. lowSpace surfaces a plain
 // warning only when the cache is genuinely near the cap.
-// The bundle ALWAYS includes the behind-position prefix (course start →
-// cursor) on top of the slider's ahead-span, so the estimate counts both —
-// otherwise a mid-course learner on a fresh device sees a number ~half the
-// real download.
+// Prices the TRUE manifest, split honestly (founder ruling 2026-07-31): the
+// slider's new-learning slice PLUS the automatic catch-up (behind-position
+// prefix + whole-course listening/dialogues bundle), counting only files not
+// already cached. Enumerates the same ids the download will fetch
+// (collectRoundsAudioIds over the truth-pass-expanded script + auxMissing),
+// so dedupe and cache state are exact — a re-download reads ≈0, and a
+// brown-belt learner's 2% pick reads "~X MB new + ~Y MB catch-up" instead of
+// pricing only the slice (the ~48 MB vs 9,742-file surprise).
 const offlineSelectedEstimate = computed(() => {
-  const { start, avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  const { avgBytesPerFile, lowSpace, ready, auxMissing } = offlineEst.value
   if (!ready) return { size: '', lowSpace: false }
-  const behindRounds = offlineAtTail.value ? 0 : Math.max(0, start)
-  const files = Math.round(avgFilesPerRound * (behindRounds + offlineSelectedRounds.value))
-  const mb = (files * avgBytesPerFile) / 1e6
-  return { size: `≈ ${formatMb(mb)}`, lowSpace }
+  const missing = (ids: string[]) => ids.filter((id) => !audioCache.persistent.has(id)).length
+  const behindMissing = missing(collectRoundsAudioIds(0))       // course start → cursor
+  const spanMissing = missing(collectRoundsAudioIds(offlineSelectedRounds.value))
+  const newMissing = Math.max(0, spanMissing - behindMissing)   // the slider's slice alone
+  const catchupMissing = behindMissing + auxMissing
+  const mb = (n: number) => (n * avgBytesPerFile) / 1e6
+  if (newMissing + catchupMissing === 0) return { size: 'Already downloaded ✓', lowSpace }
+  if (catchupMissing === 0) return { size: `≈ ${formatMb(mb(newMissing))}`, lowSpace }
+  if (newMissing === 0) return { size: `≈ ${formatMb(mb(catchupMissing))} catch-up`, lowSpace }
+  return { size: `≈ ${formatMb(mb(newMissing))} new + ${formatMb(mb(catchupMissing))} catch-up`, lowSpace }
 })
 
 // Course-depth bar (% of the WHOLE course): how far you've already come, then the
@@ -10978,9 +11104,10 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
+  offlineDlStragglers.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
-  const completed = await bulkDownloadAudio(
+  const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
       fetchBatchUrls: fetchBatchAudioUrls,
@@ -10992,8 +11119,11 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
     {
       onDone: () => { offlineDlDone.value++ },
       onFailed: () => { offlineDlFailed.value++ },
+      // Same honest tail-phase display as the mid-course download.
+      onStragglerRound: (remaining) => { offlineDlStragglers.value = remaining },
     },
   )
+  offlineDlStragglers.value = 0
   if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT for the cold-reopen fast-path — identical to
@@ -11022,14 +11152,20 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
 
   // Stamp the 30-day offline lease (same as the mid-course download).
   await grantOfflineLeaseForCurrentCourse()
+  // Persist the selection (same as the mid-course download).
+  persistOfflineModeOn()
 
-  if (offlineDlFailed.value > 0 || auxIncomplete) {
-    offlineDlState.value = 'error'
-    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
-  } else {
+  // Same threshold readiness as the mid-course download: never a red dead-end
+  // for a playable course; stragglers retry in the background.
+  const outcome = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, auxIncomplete)
+  if (outcome === 'complete') {
     offlineDlState.value = 'complete'
     console.log(`[Offline] INF PLAY complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
     setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  } else {
+    offlineDlState.value = outcome
+    console.warn(`[Offline] INF PLAY ${outcome === 'partial' ? 'ready with stragglers' : 'incomplete'}: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
+    scheduleOfflineStragglerRetry(failedIds)
   }
 }
 
@@ -11050,10 +11186,13 @@ onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown
 
 const toggleOffline = async () => {
   if (offlineActive.value) {
-    // Already on → turn off: stop serving blobs, revoke, reset.
+    // Already on → turn off: stop serving blobs, revoke, reset. Explicit
+    // toggle-off is the ONLY thing that clears the persisted selection.
     offlineActive.value = false
+    clearPersistedOfflineMode()
     showOfflinePicker.value = false
     offlineDlState.value = 'idle'
+    clearOfflineBgRetry()  // stop chasing stragglers for a de-selected offline
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
     console.log('[LearningPlayer] Offline mode: OFF — stream')
   } else {
@@ -11558,6 +11697,16 @@ onMounted(async () => {
   // when offline (the lock decision). Cheap IndexedDB read; awaited so the
   // fast-path below sees the correct offlineLeaseLocked value.
   await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
+  // Restore the learner's explicit offline-mode selection BEFORE first play.
+  // Once offline mode is chosen and the content downloaded, playback comes
+  // from the cache ALWAYS — never gated on connectivity guesswork
+  // (navigator.onLine lies on weak signal / captive portals). Only the
+  // explicit toggle-off or the lease lock changes this. (Tom 2026-07-31.)
+  if (persistedOfflineModeOn() && !offlineLeaseLocked.value) {
+    offlineActive.value = true
+    console.log('[LearningPlayer] Offline mode: restored ON (persisted selection)')
+  }
 
   // Load developer settings
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'

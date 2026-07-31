@@ -149,8 +149,18 @@ when every module fetch fails):
   An SW-controlled page that can't boot is precisely the wedge signature and has no innocent
   explanation.
 - **Fast path**: a window `error` listener (capture phase) for failed `<script>`/module loads
-  in the entry graph → heal immediately, don't wait.
-- **Slow path**: timer at 15s. `__SSI_BOOTED` not set → heal.
+  in the entry graph → heal immediately, don't wait. Two scope guards (2026-07-31, the
+  always-play invariant; pure twins in `utils/bootHeal.ts` — `shouldHealOnBootFailure`,
+  `isDeployFatalResourceUrl`):
+  - **Never while offline** (`!navigator.onLine`) — an airplane-mode resource failure is a
+    missing network, not a broken deploy, and the heal deletes the SW + precache: the only
+    thing that makes offline work. Pre-guard, an offline cold start served the precached
+    shell, the Google-Fonts stylesheet failed, the watchdog "healed", and the SW-less reload
+    landed on the browser "No internet" page with every cache gone.
+  - **Same-origin failures only** — the entry graph lives entirely on our origin (it's what
+    the SW precaches). Fonts/CDNs being down or ad-blocked must never nuke the install.
+- **Slow path**: timer at 15s. `__SSI_BOOTED` not set → heal — same offline guard: never
+  heal without a network to rebuild from.
 - **Heal ladder**, guarded by a `sessionStorage` attempt counter (max 2 auto-heals per session,
   so a genuinely-broken deploy can't reload-loop):
   1. *Attempt 1*: swap the spinner for a human message ("Updating the app…"), then unregister

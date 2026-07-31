@@ -238,17 +238,28 @@
         }
 
         // Fast path: a failed script/module load anywhere in the entry graph.
+        // Two guards (mirrored in utils/bootHeal.ts — shouldHealOnBootFailure
+        // + isDeployFatalResourceUrl):
+        //  - OFFLINE is a missing network, not a broken deploy. Healing
+        //    deletes the SW + precache — the only thing that makes the app
+        //    work offline — so an airplane-mode boot must never trip this.
+        //  - Only SAME-ORIGIN failures count. The entry graph lives on our
+        //    origin (it's what the SW precaches); Google Fonts being down or
+        //    ad-blocked must never nuke the install.
         window.addEventListener('error', function (evt) {
           if (window.__SSI_BOOTED) return;
+          if (!navigator.onLine) return;
           var target = evt && evt.target;
-          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
-            heal();
-          }
+          if (!target || (target.tagName !== 'SCRIPT' && target.tagName !== 'LINK')) return;
+          var url = target.src || target.href || '';
+          if (url.indexOf(window.location.origin + '/') !== 0) return;
+          heal();
         }, true);
 
-        // Slow path: mount never happened.
+        // Slow path: mount never happened. Same offline guard — never heal
+        // without a network to rebuild from.
         setTimeout(function () {
-          if (!window.__SSI_BOOTED) heal();
+          if (!window.__SSI_BOOTED && navigator.onLine) heal();
         }, 15000);
       })();
     </script>
