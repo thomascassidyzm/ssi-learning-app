@@ -10787,10 +10787,15 @@ interface OfflineEstBasis {
   total: number; start: number
   avgBytesPerFile: number; avgFilesPerRound: number
   lowSpace: boolean; ready: boolean
+  /** Missing files in the always-included listening/dialogues/commentary
+   *  bundle (whole-course by design, Tom 2026-07-08) — counted for real by
+   *  the truth pass below; 0 until it lands. */
+  auxMissing: number
 }
 const offlineEst = ref<OfflineEstBasis>({
   total: 0, start: 0,
   avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, lowSpace: false, ready: false,
+  auxMissing: 0,
 })
 
 // At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
@@ -10841,9 +10846,32 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     const sampleRounds = (cachedRounds.value || []).length
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
-    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true, auxMissing: 0 }
   } finally {
     offlineEstimating.value = false
+  }
+  // Truth pass (backgrounded — the picker shows the quick basis immediately and
+  // the numbers settle to the real manifest within seconds). The founder's 2%
+  // pick read "≈48 MB" while the real download was 9,742 files: the per-round
+  // heuristic can't see clip REUSE across rounds (reviews dedupe heavily) and
+  // omitted the always-included listening/dialogues bundle entirely. So price
+  // the download the way the download itself works: expand the script (same
+  // machinery, so collectRoundsAudioIds spans the true behind+ahead manifest,
+  // deduped) and count the aux bundle's genuinely-missing files. Cached-aware
+  // by construction — a re-download settles to ≈0.
+  if (!offlineSingleOption.value) {
+    void (async () => {
+      try {
+        let guard = 0
+        while (showOfflinePicker.value && guard++ < 8) {
+          const added = await expandScript()
+          if (added === 0) break
+        }
+        const { ids: auxIds } = await collectAuxiliaryAudioIds()
+        const auxMissing = auxIds.filter((id) => !audioCache.persistent.has(id)).length
+        offlineEst.value = { ...offlineEst.value, auxMissing }
+      } catch (e) { console.warn('[Offline] estimate truth pass failed (kept the quick basis):', e) }
+    })()
   }
 }
 
@@ -10857,17 +10885,27 @@ const offlineSelectedRounds = computed((): number => {
 // number). The old "% of device" was dropped: it divided by an iOS-unreliable
 // storage quota and read as a meaningless sliver. lowSpace surfaces a plain
 // warning only when the cache is genuinely near the cap.
-// The bundle ALWAYS includes the behind-position prefix (course start →
-// cursor) on top of the slider's ahead-span, so the estimate counts both —
-// otherwise a mid-course learner on a fresh device sees a number ~half the
-// real download.
+// Prices the TRUE manifest, split honestly (founder ruling 2026-07-31): the
+// slider's new-learning slice PLUS the automatic catch-up (behind-position
+// prefix + whole-course listening/dialogues bundle), counting only files not
+// already cached. Enumerates the same ids the download will fetch
+// (collectRoundsAudioIds over the truth-pass-expanded script + auxMissing),
+// so dedupe and cache state are exact — a re-download reads ≈0, and a
+// brown-belt learner's 2% pick reads "~X MB new + ~Y MB catch-up" instead of
+// pricing only the slice (the ~48 MB vs 9,742-file surprise).
 const offlineSelectedEstimate = computed(() => {
-  const { start, avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  const { avgBytesPerFile, lowSpace, ready, auxMissing } = offlineEst.value
   if (!ready) return { size: '', lowSpace: false }
-  const behindRounds = offlineAtTail.value ? 0 : Math.max(0, start)
-  const files = Math.round(avgFilesPerRound * (behindRounds + offlineSelectedRounds.value))
-  const mb = (files * avgBytesPerFile) / 1e6
-  return { size: `≈ ${formatMb(mb)}`, lowSpace }
+  const missing = (ids: string[]) => ids.filter((id) => !audioCache.persistent.has(id)).length
+  const behindMissing = missing(collectRoundsAudioIds(0))       // course start → cursor
+  const spanMissing = missing(collectRoundsAudioIds(offlineSelectedRounds.value))
+  const newMissing = Math.max(0, spanMissing - behindMissing)   // the slider's slice alone
+  const catchupMissing = behindMissing + auxMissing
+  const mb = (n: number) => (n * avgBytesPerFile) / 1e6
+  if (newMissing + catchupMissing === 0) return { size: 'Already downloaded ✓', lowSpace }
+  if (catchupMissing === 0) return { size: `≈ ${formatMb(mb(newMissing))}`, lowSpace }
+  if (newMissing === 0) return { size: `≈ ${formatMb(mb(catchupMissing))} catch-up`, lowSpace }
+  return { size: `≈ ${formatMb(mb(newMissing))} new + ${formatMb(mb(catchupMissing))} catch-up`, lowSpace }
 })
 
 // Course-depth bar (% of the WHOLE course): how far you've already come, then the

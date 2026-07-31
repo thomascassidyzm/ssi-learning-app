@@ -262,11 +262,22 @@ spec audio_caching_architecture:
         INF PLAY recycling lives. % is of the WHOLE course here (for honest depth).
 
     size_estimate:
-      shown_for_selected_notch: "≈MB and % of device storage (offlineSelectedEstimate); basis gathered once on open (offlineEst), derives synchronously as the slider moves"
+      shown_for_selected_notch: "≈MB, split '≈X MB new + Y MB catch-up' (offlineSelectedEstimate); quick basis on open, truth pass settles it within seconds"
       bytes_per_file: "avg from audioCache.stats() (persistent.bytes / count), fallback ~24KB"
-      files_projection: "avg files/round from loaded sample × rounds the notch covers"
+      files_projection: >
+        TRUE-manifest enumeration (founder ruling 2026-07-31 — the 2% pick
+        showed ≈48 MB while the real download was 9,742 files): a background
+        truth pass expands the script (same machinery as the download) and
+        counts the aux listening/dialogues bundle's missing files
+        (auxMissing). The readout then counts, per notch, exactly the ids the
+        download will fetch (collectRoundsAudioIds, deduped) that are NOT
+        already cached — split into 'new' (the slider's slice) and 'catch-up'
+        (behind-position prefix + aux bundle). Cached-aware by construction:
+        a re-download reads 'Already downloaded ✓'. The old avg-files/round ×
+        rounds heuristic is gone — it couldn't see cross-round clip reuse and
+        omitted the aux bundle entirely.
       device_quota: "navigator.storage.estimate() via audioCache.stats().quotaBytes"
-      accuracy: "best-effort, labelled '~'; self-refines as the cache grows"
+      accuracy: "best-effort, labelled '≈'; numbers may grow for a few seconds while the truth pass expands the script, then hold exact-at-estimate-time"
 
     key_functions:
       courseTotalRounds: "course length (main-loop), the % denominator"
