@@ -96,6 +96,12 @@ spec lazy_loading_architecture:
       40ms) that yields to the event loop — scheduler.yield() where
       available, MessageChannel fallback — whenever the current slice
       exceeds budget, so input and rendering interleave with the walk.
+      The handoff continuation is sliced the same way: the whole-course
+      Round[] conversion runs through toSimpleRoundsCooperative (generator
+      core shared with the sync toSimpleRounds; per-round checkpoints) via
+      LearningPlayer's toSimpleRoundsWithComponentsSliced, and the INF-PLAY
+      idle warm converts ONCE (mergeConvertedRoundsIntoQueue) instead of
+      twice back-to-back.
       Measured after: max main-thread task in the 15s post-READY window
       dropped from 13.5s to <100ms (4x throttle); tap-play-at-READY-paint
       engages in ~200ms. Machine-checked by
