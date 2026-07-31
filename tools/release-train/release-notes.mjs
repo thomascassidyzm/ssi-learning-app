@@ -143,6 +143,9 @@ const PHRASEBOOK = [
   [/loading|resting/i, /sentence[- ]cas|copy/i,
     'Loading and resting messages read like sentences rather than labels.',
     'fix', 1, undefined, 'player'],
+  [/teacher home|classes-first/i, /pac|primary|stats|class/i,
+    'The teacher home now leads with your classes, with a bigger Play-as-Class button.',
+    'feature', 2, undefined, 'schools'],
 ]
 
 // ── gate 3b: the generic path ───────────────────────────────────────────────
