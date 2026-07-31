@@ -7,7 +7,7 @@
  * as usePwaUpdate — so the status reaches the mode button without prop-drilling
  * through PlayerContainer → BottomNav → ModeTray.
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 // 'locked' = a 30-day offline lease expired and we couldn't re-validate online
 // (offline whole time / sub lapsed past the graceful tail). Bytes are preserved;
@@ -52,6 +52,48 @@ export const offlineDlFailed = ref(0)   // fetches that failed (e.g. bad network
 // no-prop-drill module-level pattern.
 export const offlineTrial = ref(false)
 
+// ── Liveness ────────────────────────────────────────────────────────────────
+// "Silently stuck forever" is itself a forbidden state (founder stall report,
+// 2026-07-31: progress froze at 91% with no display change). If no progress
+// event lands for OFFLINE_DL_STALL_MS while downloading, the display MUST
+// change — the stalled copy below shows real counts and says we're retrying.
+// The per-fetch timeouts (AudioCache / batch-urls) guarantee the machinery
+// unsticks itself within ~30s; this covers the gap and any hang class we
+// haven't met yet.
+export const OFFLINE_DL_STALL_MS = 20_000
+
+// Stamped by the watcher below on every progress event; compared against a
+// clock ref ticked by an interval that only runs while downloading.
+export const offlineDlLastProgressAt = ref(0)
+const stallClock = ref(0)
+/** Advance the stall clock (interval-driven; exported for tests). */
+export function tickOfflineDlStallClock(now: number = Date.now()) {
+  stallClock.value = now
+}
+
+watch([offlineDlState, offlineDlDone, offlineDlFailed, offlineDlTotal], () => {
+  // Any state change or counter tick is a progress event.
+  offlineDlLastProgressAt.value = Date.now()
+  stallClock.value = Date.now()
+})
+
+let stallTimer: ReturnType<typeof setInterval> | null = null
+watch(offlineDlState, (s) => {
+  if (s === 'downloading') {
+    if (!stallTimer) stallTimer = setInterval(() => tickOfflineDlStallClock(), 5_000)
+  } else if (stallTimer) {
+    clearInterval(stallTimer)
+    stallTimer = null
+  }
+})
+
+export const offlineDownloadStalled = computed(
+  () =>
+    offlineDlState.value === 'downloading' &&
+    offlineDlLastProgressAt.value > 0 &&
+    stallClock.value - offlineDlLastProgressAt.value >= OFFLINE_DL_STALL_MS,
+)
+
 // The ring is shown whenever a download isn't idle (preparing/downloading =
 // in-progress; complete/error = the brief result colour before it resets).
 export const offlineDownloadVisible = computed(() => offlineDlState.value !== 'idle')
@@ -87,7 +129,9 @@ export const offlineDownloadLabel = computed(() => {
       return 'Preparing download…'
     case 'downloading': {
       const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-      return `Downloading… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
+      return offlineDownloadStalled.value
+        ? `Stalled at ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value}) — retrying…`
+        : `Downloading… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
     }
     case 'complete':
       return 'Ready to play offline ✓'
@@ -113,7 +157,7 @@ export const offlineDownloadHeadline = computed(() => {
       return 'Preparing download…'
     case 'downloading': {
       const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-      return `Downloading… ${pct}%`
+      return offlineDownloadStalled.value ? `Stalled at ${pct}% — retrying…` : `Downloading… ${pct}%`
     }
     case 'complete':
       return 'Ready to play offline ✓'

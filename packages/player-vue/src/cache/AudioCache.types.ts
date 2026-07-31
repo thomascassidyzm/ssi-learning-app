@@ -203,4 +203,14 @@ export interface CreateAudioCacheOptions {
    * client state, localStorage, future caches).
    */
   maxQuotaFraction?: number
+
+  /**
+   * Hard ceiling on one audio fetch (headers + body), in ms. Default 30s.
+   * A fetch with no timeout can hang forever on a wedged connection; the
+   * hung promise then sits in the in-flight de-dupe map, so every retry of
+   * that id gets the SAME dead promise — the whole bulk download freezes at
+   * a fixed percentage (founder stall report, 2026-07-31). Timing out turns
+   * the hang into a rejection the retry/straggler machinery already handles.
+   */
+  fetchTimeoutMs?: number
 }

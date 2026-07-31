@@ -280,13 +280,21 @@ async function runDownloadPass(
   return true
 }
 
-/** POST /api/audio/batch-urls for one chunk of ids. Null on any failure. */
+// Ceiling on one batch-urls POST. A hung request here freezes the whole run
+// before a single byte downloads — null (endpoint-down → proxy fallback) is
+// always better than waiting forever (founder stall, 2026-07-31).
+const BATCH_URLS_TIMEOUT_MS = 20_000
+
+/** POST /api/audio/batch-urls for one chunk of ids. Null on any failure or timeout. */
 export async function fetchBatchAudioUrls(ids: string[]): Promise<BatchUrlsResult | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), BATCH_URLS_TIMEOUT_MS)
   try {
     const res = await fetch('/api/audio/batch-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audioIds: ids }),
+      signal: controller.signal,
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -298,5 +306,7 @@ export async function fetchBatchAudioUrls(ids: string[]): Promise<BatchUrlsResul
     }
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }

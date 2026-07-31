@@ -95,9 +95,12 @@ await page.locator('.mode-trigger').click({ timeout: 10000 }).catch(() => {})
 const offlineRow = page.locator('.tray-item', { hasText: /offline/i }).first()
 check('offline row visible in tray', await offlineRow.isVisible({ timeout: 8000 }).catch(() => false))
 await offlineRow.click().catch(() => {})
-const dlBtn = page.locator('.offline-depth-download').first()
-check('depth picker opened', await dlBtn.isVisible({ timeout: 8000 }).catch(() => false))
-await dlBtn.click().catch(() => {})
+// Depth picker (if it appears) — confirm with whatever download button exists;
+// some flows start the download straight from the toggle.
+for (const sel of ['.offline-depth-download', 'button:has-text("Download")']) {
+  const btn = page.locator(sel).first()
+  if (await btn.isVisible({ timeout: 4000 }).catch(() => false)) { await btn.click().catch(() => {}); break }
+}
 
 // ── wait for the download to settle (straggler rounds add ~30s of backoff) ──
 // Poll the tray's Offline row copy until it reads Ready (complete or partial).
@@ -109,11 +112,11 @@ const trayDesc = async () => {
 }
 let desc = ''
 let ready = false
-for (let i = 0; i < 75 && !ready; i++) {   // up to ~150s
+for (let i = 0; i < 240 && !ready; i++) {   // up to ~480s — a full-course download runs ~2.5-3min, straggler rounds add ~30s+
   await page.waitForTimeout(2000)
   desc = await trayDesc()
   ready = /Ready offline|Ready to play offline/i.test(desc)
-  if (i % 10 === 0) console.log(`t+${i * 2}s tray: ${desc.replace(/\s+/g, ' ').trim().slice(0, 120)}`)
+  if (i % 15 === 0) console.log(`t+${i * 2}s tray: ${desc.replace(/\s+/g, ' ').trim().slice(0, 120)}`)
 }
 await page.screenshot({ path: `${OUT}1-final-tray.png` })
 

@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-31 (offline readiness is a THRESHOLD + straggler retry rounds — never a dead-end at 99.9%; see bulk_download_transport.straggler_rounds + progress.readiness_threshold)
+# Last Updated: 2026-07-31 (stall-proofing: hard per-fetch timeouts everywhere in the download path + UI liveness rule — see bulk_download_transport.fetch_timeouts + progress.liveness. Earlier same day: readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
@@ -309,7 +309,19 @@ spec audio_caching_architecture:
         { completed, failedIds } so the caller can keep retrying the tail in
         the background. Founder repro 2026-07-31: 10 of 9,742 transiently
         failing must never conclude a download.
-      tested: "bulkAudioDownload.test.ts — incl. JIT interleaving (no upfront resolution), 403→fresh-URL recovery without proxy fallback, mid-chunk TTL-margin batch refresh via an injected clock, straggler rounds healing a transient tail, and the N-10-of-N permanently-dead shape completing with exact failedIds"
+      fetch_timeouts: >
+        Every network wait in the download path has a hard ceiling — a hung
+        fetch (wedged connection) otherwise never settles, freezing the whole
+        run at a fixed percentage with no display change (founder stall at
+        91%, 2026-07-31). AudioCache.doFetchAndStore aborts any audio fetch
+        (headers + body, presigned OR proxy) after fetchTimeoutMs (default
+        30s), which also clears the in-flight de-dupe entry so retries fetch
+        for real instead of reusing the dead promise; fetchBatchAudioUrls
+        aborts the batch-urls POST after 20s and returns null (proxy
+        fallback). A timeout is a rejection the existing retry/straggler
+        machinery already handles — a stall can cost at most ~30s, never
+        forever.
+      tested: "bulkAudioDownload.test.ts — incl. JIT interleaving (no upfront resolution), 403→fresh-URL recovery without proxy fallback, mid-chunk TTL-margin batch refresh via an injected clock, straggler rounds healing a transient tail, the N-10-of-N permanently-dead shape completing with exact failedIds, and a hanging batch-urls POST resolving null at the timeout; AudioCache.test.ts covers the hung-fetch timeout + inflight-cleared retry"
 
     listening_metadata_offline:
       file: "packages/player-vue/src/composables/listeningMetaCache.ts"
@@ -518,6 +530,14 @@ spec audio_caching_architecture:
         success promotes to complete). Offline stays ON and playable in every
         outcome — the founder invariant (2026-07-31): always play what you
         have, never an offline dead-end. Probe: e2e/offline-straggler-probe.mjs.
+      liveness: >
+        "Silently stuck forever" is a forbidden UI state: if no progress event
+        (state change or counter tick) lands for OFFLINE_DL_STALL_MS (20s)
+        while downloading, offlineDownloadStalled flips and the label/headline
+        change to "Stalled at N% (done/total) — retrying…" with real counts.
+        A 5s interval (running only while downloading) drives the stall clock;
+        the per-fetch timeouts guarantee the machinery itself unsticks within
+        ~30s, so the stalled copy is a bridge, never a resting state.
       shared_state: >
         useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
         Failed) + computeds (offlineDownloadVisible/Active/Pct/Label), written by
