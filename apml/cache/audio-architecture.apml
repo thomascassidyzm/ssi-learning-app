@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-31 (stall-proofing: hard per-fetch timeouts everywhere in the download path + UI liveness rule — see bulk_download_transport.fetch_timeouts + progress.liveness. Earlier same day: readiness THRESHOLD + straggler retry rounds)
+# Last Updated: 2026-07-31 (tail-pacing: straggler rounds announce themselves — "Finishing up — checking the last N clips…" via offlineDlStragglers. Earlier: stall-proofing: hard per-fetch timeouts everywhere in the download path + UI liveness rule — see bulk_download_transport.fetch_timeouts + progress.liveness. Earlier same day: readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
@@ -308,7 +308,12 @@ spec audio_caching_architecture:
         before anything is counted failed. bulkDownloadAudio returns
         { completed, failedIds } so the caller can keep retrying the tail in
         the background. Founder repro 2026-07-31: 10 of 9,742 transiently
-        failing must never conclude a download.
+        failing must never conclude a download. Each straggler round fires
+        counters.onStragglerRound(remaining) → offlineDlStragglers, so the
+        tray copy flips to "Finishing up — checking the last N clips…"
+        instead of sitting on a near-frozen 99% (founder tail-pacing
+        report, 2026-07-31); stalled copy still wins if progress truly
+        stops for 20s.
       fetch_timeouts: >
         Every network wait in the download path has a hard ceiling — a hung
         fetch (wedged connection) otherwise never settles, freezing the whole

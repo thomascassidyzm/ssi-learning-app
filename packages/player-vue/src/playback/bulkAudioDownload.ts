@@ -59,6 +59,13 @@ export interface BulkAudioDownloadDeps {
 export interface BulkAudioDownloadCounters {
   onDone: () => void
   onFailed: () => void
+  /**
+   * Entering a straggler round: the main pass is done and `remaining` clips
+   * are being re-fetched with fresh URLs after a backoff. Lets the UI name
+   * the phase honestly ("Finishing up — checking the last N clips") instead
+   * of sitting on a near-frozen percentage.
+   */
+  onStragglerRound?: (remaining: number) => void
 }
 
 export interface BulkDownloadResult {
@@ -140,6 +147,7 @@ export async function bulkDownloadAudio(
       for (let k = 0; k < failed.length; k++) counters.onFailed()
       return { completed: true, failedIds: failed }
     }
+    counters.onStragglerRound?.(failed.length)
     await sleep(STRAGGLER_BACKOFF_MS[Math.min(round, STRAGGLER_BACKOFF_MS.length - 1)])
     if (deps.isCancelled()) return { completed: false, failedIds: failed }
     pending = failed
