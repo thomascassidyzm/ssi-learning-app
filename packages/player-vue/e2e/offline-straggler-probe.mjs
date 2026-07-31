@@ -112,9 +112,11 @@ const trayDesc = async () => {
 }
 let desc = ''
 let ready = false
+let sawFinishing = false   // tail-pacing copy: straggler rounds must announce themselves
 for (let i = 0; i < 240 && !ready; i++) {   // up to ~480s — a full-course download runs ~2.5-3min, straggler rounds add ~30s+
   await page.waitForTimeout(2000)
   desc = await trayDesc()
+  if (/Finishing up/i.test(desc)) sawFinishing = true
   ready = /Ready offline|Ready to play offline/i.test(desc)
   if (i % 15 === 0) console.log(`t+${i * 2}s tray: ${desc.replace(/\s+/g, ' ').trim().slice(0, 120)}`)
 }
@@ -123,6 +125,7 @@ await page.screenshot({ path: `${OUT}1-final-tray.png` })
 check('download ends READY (complete or partial), sabotaged clips notwithstanding', ready, desc.trim().slice(0, 160))
 check('no dead-end copy ("needs better signal"/incomplete-as-final)', !/needs better signal/i.test(desc), desc.trim().slice(0, 160))
 check('straggler retry rounds fired (victim ids re-requested in a fresh batch)', batchCallsWithVictims >= 2, `${batchCallsWithVictims} batch-urls calls asked for victims`)
+check('tail phase announced honestly ("Finishing up — checking the last N clips")', sawFinishing)
 const transientRetried = [...transientIds].every((id) => (transientHits.get(id) || 0) >= 2)
 check('transient victims were retried past their failures', transientIds.size > 0 && transientRetried,
   JSON.stringify([...transientHits.entries()]))
