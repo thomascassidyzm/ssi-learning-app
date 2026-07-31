@@ -354,6 +354,26 @@ describe('fetchBatchAudioUrls', () => {
     globalThis.fetch = originalFetch
   })
 
+  it('returns null when the request hangs past the timeout — never waits forever (founder stall 2026-07-31)', async () => {
+    vi.useFakeTimers()
+    // Hang until aborted, as a wedged connection would.
+    globalThis.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal
+        const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+        if (signal?.aborted) onAbort()
+        else signal?.addEventListener('abort', onAbort, { once: true })
+      }),
+    ) as unknown as typeof fetch
+
+    const pending = fetchBatchAudioUrls(['a'])
+    await vi.advanceTimersByTimeAsync(21_000)
+    await expect(pending).resolves.toBeNull()
+
+    vi.useRealTimers()
+    globalThis.fetch = originalFetch
+  })
+
   it('returns null when fetch throws (network error)', async () => {
     globalThis.fetch = vi.fn(async () => { throw new Error('network down') }) as unknown as typeof fetch
 
