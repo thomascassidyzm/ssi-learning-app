@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -10525,7 +10525,7 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // resolve. Counts ONLY genuine cache writes — a clip that still fails after
   // retries must NOT tick progress, else "Ready ✓" lies and offline plays
   // silence (the train test).
-  const completed = await bulkDownloadAudio(
+  const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
       fetchBatchUrls: fetchBatchAudioUrls,
@@ -10582,15 +10582,77 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // reload/SW-update can't silently drop the learner back to streaming.
   persistOfflineModeOn()
 
-  if (offlineDlFailed.value > 0 || auxIncomplete) {
-    // Stays on screen (no auto-hide) so the user knows to retry on better signal.
-    offlineDlState.value = 'error'
-    console.warn(`[Offline] incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
-  } else {
+  // Readiness is a threshold, never complete==total: 99.9% cached is a
+  // playable course. Stragglers keep retrying in the background and are
+  // skipped at play time if truly unfetchable — never a red dead-end for a
+  // course that plays (founder invariant, 2026-07-31).
+  const outcome = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, auxIncomplete)
+  if (outcome === 'complete') {
     offlineDlState.value = 'complete'
     console.log(`[Offline] complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
     setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  } else {
+    // partial (ready, green) or error (low coverage) — both stay on screen and
+    // both keep retrying the missing tail in the background.
+    offlineDlState.value = outcome
+    console.warn(`[Offline] ${outcome === 'partial' ? 'ready with stragglers' : 'incomplete'}: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
+    scheduleOfflineStragglerRetry(failedIds)
   }
+}
+
+// ── Background straggler retry ──────────────────────────────────────────────
+// A partial/error download keeps trying to land its missing clips at growing
+// delays (fresh presigned URLs each attempt, via bulkDownloadAudio's own
+// straggler rounds). Success flips the status to complete; offline stays ON
+// and playable throughout.
+const OFFLINE_BG_RETRY_DELAYS_MS = [30_000, 120_000, 300_000]
+let offlineBgRetryTimer: ReturnType<typeof setTimeout> | null = null
+const clearOfflineBgRetry = () => {
+  if (offlineBgRetryTimer) { clearTimeout(offlineBgRetryTimer); offlineBgRetryTimer = null }
+}
+onUnmounted(clearOfflineBgRetry)
+const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
+  if (missingIds.length === 0 || attempt >= OFFLINE_BG_RETRY_DELAYS_MS.length) return
+  clearOfflineBgRetry()
+  offlineBgRetryTimer = setTimeout(async () => {
+    offlineBgRetryTimer = null
+    // Only while the offline selection is still live and the status still
+    // shows a gap (a remount resets the shared refs to idle → no-op).
+    if (!offlineActive.value) return
+    if (offlineDlState.value !== 'partial' && offlineDlState.value !== 'error') return
+    const missing = missingIds.filter((id) => !audioCache.persistent.has(id))
+    const { completed, failedIds: stillMissing } = await bulkDownloadAudio(
+      missing,
+      {
+        fetchBatchUrls: fetchBatchAudioUrls,
+        ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+        ensure: (id) => audioCache.persistent.ensure(id),
+        isCancelled: () => !offlineActive.value,
+        isPlaying: () => isPlaying.value,
+      },
+      {
+        onDone: () => {
+          offlineDlDone.value++
+          offlineDlFailed.value = Math.max(0, offlineDlFailed.value - 1)
+        },
+        onFailed: () => {},  // already counted failed on the original run
+      },
+    )
+    if (!completed || !offlineActive.value) return
+    if (stillMissing.length === 0) {
+      offlineDlFailed.value = 0
+      offlineDlState.value = 'complete'
+      console.log('[Offline] stragglers landed in background — download complete')
+      setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+    } else {
+      // Coverage may have crossed the ready threshold — recompute so an
+      // 'error' can promote to 'partial' as clips land (never the reverse
+      // gets louder: failed only shrinks here).
+      offlineDlState.value = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, false) === 'error' ? 'error' : 'partial'
+      console.warn(`[Offline] background retry ${attempt + 1}: ${stillMissing.length} clips still missing`)
+      scheduleOfflineStragglerRetry(stillMissing, attempt + 1)
+    }
+  }, OFFLINE_BG_RETRY_DELAYS_MS[attempt])
 }
 
 // Offline infinite play. With no network we can't generate new rounds, so
@@ -11001,7 +11063,7 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
-  const completed = await bulkDownloadAudio(
+  const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
       fetchBatchUrls: fetchBatchAudioUrls,
@@ -11046,13 +11108,17 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   // Persist the selection (same as the mid-course download).
   persistOfflineModeOn()
 
-  if (offlineDlFailed.value > 0 || auxIncomplete) {
-    offlineDlState.value = 'error'
-    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
-  } else {
+  // Same threshold readiness as the mid-course download: never a red dead-end
+  // for a playable course; stragglers retry in the background.
+  const outcome = resolveOfflineDlOutcome(offlineDlDone.value, offlineDlTotal.value, offlineDlFailed.value, auxIncomplete)
+  if (outcome === 'complete') {
     offlineDlState.value = 'complete'
     console.log(`[Offline] INF PLAY complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
     setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  } else {
+    offlineDlState.value = outcome
+    console.warn(`[Offline] INF PLAY ${outcome === 'partial' ? 'ready with stragglers' : 'incomplete'}: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed${auxIncomplete ? ', Core/Listening bundle unreachable' : ''}`)
+    scheduleOfflineStragglerRetry(failedIds)
   }
 }
 
@@ -11079,6 +11145,7 @@ const toggleOffline = async () => {
     clearPersistedOfflineMode()
     showOfflinePicker.value = false
     offlineDlState.value = 'idle'
+    clearOfflineBgRetry()  // stop chasing stragglers for a de-selected offline
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
     console.log('[LearningPlayer] Offline mode: OFF — stream')
   } else {

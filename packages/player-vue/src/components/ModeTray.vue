@@ -44,7 +44,7 @@ const toggleTray = () => {
 const offlineRingVars = computed(() => {
   let pct = 0
   let color = '#16a34a'
-  if (offlineDlState.value === 'complete') pct = 100
+  if (offlineDlState.value === 'complete' || offlineDlState.value === 'partial') pct = 100  // partial = READY (green)
   else if (offlineDlState.value === 'error') { pct = 100; color = '#ef4444' }
   else if (offlineDlState.value === 'locked') { pct = 100; color = '#f59e0b' }  // amber: lease paused
   else if (offlineDownloadPct.value !== null) pct = offlineDownloadPct.value
@@ -213,7 +213,7 @@ const handleOffline = () => {
           </div>
           <div class="tray-label">
             <span class="tray-name">{{ t('modes.offline') }}</span>
-            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
+            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete' || offlineDlState === 'partial', 'is-error': offlineDlState === 'error' }">
               <template v-if="offlineDownloadVisible">
                 <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
                 <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
