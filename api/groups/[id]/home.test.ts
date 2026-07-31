@@ -219,10 +219,24 @@ describe('GET /api/groups/:id/home', () => {
     // Teachers read-only, lead flagged and first
     expect(res.body.teachers[0]).toMatchObject({ user_id: 'teacher-uid-1', name: 'Ms Mehta', is_lead: true })
     expect(res.body.teachers.map((t: any) => t.user_id)).toContain('teacher-uid-2')
-    // Students with hours, sorted by practice
+    // Students with hours, alphabetical (a roster, not a ranking — matches
+    // ClassDetail.vue's teacher-facing view of the same class).
     expect(res.body.students.map((s: any) => s.name)).toEqual(['Asha', 'Ravi'])
     expect(res.body.students[0].practice_hours).toBe(2)
     expect(res.body.node.rollup.learnerCount).toBe(2)
+  })
+
+  it('students order alphabetically even when practice hours would rank them differently', async () => {
+    // Ravi now has MORE practice hours than Asha — old behaviour (rank by
+    // hours desc) would put Ravi first; alphabetical keeps Asha first.
+    TABLES.class_student_progress = TABLES.class_student_progress.map((s: any) =>
+      s.learner_id === 'learner-2' ? { ...s, total_practice_seconds: 36000 } : s,
+    )
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('class-1'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.students.map((s: any) => s.name)).toEqual(['Asha', 'Ravi'])
   })
 
   it('TEACHING-DATA PIN: class home carries the belt-bearing roster data + journey/benchmark cards', async () => {
@@ -304,6 +318,31 @@ describe('GET /api/groups/:id/home', () => {
       practiceHours: 135.1,
     })
     expect(res.body.schools[0].teachers).toEqual(['Mr Rao', 'Ms Mehta'])
+  })
+
+  it('lens=schools orders alphabetically, NOT by practised hours (founder ruling 2026-07-30)', async () => {
+    // A second school with far MORE practice hours than Sunrise but a name
+    // that sorts later — old behaviour (rank by hours) would put it first.
+    TABLES.groups.push({ id: 'zenith-node', name: 'Zenith Academy', type: 'school', parent_id: 'programme', path: 'india/ime/zenith', is_demo: true, is_test: false })
+    TABLES.schools.push({ id: 'school-2', school_name: 'Zenith Academy', group_id: 'programme', node_group_id: 'zenith-node', platform_status: 'trial', trial_course_code: 'hin_for_eng', trial_kind: 'standard', platform_expires_at: null, teacher_seats: 3, is_demo: true, is_test: false })
+    TABLES.school_summary.push({ school_id: 'school-2', school_name: 'Zenith Academy', teacher_count: 1, class_count: 1, student_count: 1, total_practice_hours: 999, has_admin: true })
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme', { lens: 'schools' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.schools.map((s: any) => s.name)).toEqual(['Sunrise Public School', 'Zenith Academy'])
+  })
+
+  it('lens=groups orders alphabetically by name, not by tree path', async () => {
+    // "Alpha Wing" sorts alphabetically before "Sunrise Public School" but
+    // its path (india/ime/school-node/alpha) would sort AFTER the school's
+    // shorter path under old path-based ordering.
+    TABLES.groups.push({ id: 'alpha-wing', name: 'Alpha Wing', type: 'group', parent_id: 'school-node', path: 'india/ime/sunrise/alpha', is_demo: true, is_test: false })
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme', { lens: 'groups' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.groups.map((g: any) => g.name)).toEqual(['Alpha Wing', 'Sunrise Public School'])
   })
 
   it('lens=teachers returns every teacher below with their classes', async () => {

@@ -9,6 +9,15 @@ purpose: |
   two lenses (tree/table) over the same group nodes. This spec pins the ROW
   GRAMMAR (how a row's verbs are laid out) and the demo-refresh verb.
 
+ordering: |
+  Both lenses (tree + table) list groups/schools alphabetical by name —
+  api/groups/tree.ts and api/groups/table.ts, via api/_utils/alphaSort.ts;
+  StructureTreeNode.vue sorts its visible children the same way client-side.
+  The legacy GroupTreeNode.vue (Demos tool only — see structure-tree's
+  sibling doc for demo orgs) matches this too as of the 2026-07-30 sibling-
+  ordering pass (packages/player-vue/src/utils/alphaSort.ts) — it used to
+  render children/schools in raw fetch order.
+
 row_grammar:  # founder-ruled 2026-07-19/20 — name is the anchor, repetition is noise
   rows_are_links: |
     A click ANYWHERE on a row (tree or table lens) opens the node's HOME
