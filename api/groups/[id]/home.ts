@@ -28,6 +28,7 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTre
 import { computeNodeExtras, type NodeExtras } from '../../_utils/groupRollups'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { chunk } from '../../_utils/schoolScope'
+import { sortByName } from '../../_utils/alphaSort'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -160,9 +161,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       : [nodeId]
     const subtreeIdSet = new Set(subtreeIds)
 
-    const childRows = allGroups
-      .filter((g) => g.parent_id === nodeId)
-      .sort((a, b) => a.name.localeCompare(b.name))
+    const childRows = sortByName(
+      allGroups.filter((g) => g.parent_id === nodeId),
+      (g) => g.name,
+    )
 
     // ─── Subtree schools + node/children rollups (the same shared resolver,
     // fed the forest already in hand) + practice hours: ONE concurrent wave.
@@ -252,10 +254,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const parentVisible = caller.isAdmin
       || (scopeRootId !== null && nodeRow.parent_id !== null && ancestors.some((a) => a.id === nodeRow.parent_id))
     const siblings: NodeRef[] = parentVisible
-      ? allGroups
-          .filter((g) => g.parent_id === nodeRow.parent_id && g.id !== nodeId)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((g) => toRef(g, schoolNodeIds))
+      ? sortByName(
+          allGroups.filter((g) => g.parent_id === nodeRow.parent_id && g.id !== nodeId),
+          (g) => g.name,
+        ).map((g) => toRef(g, schoolNodeIds))
       : []
 
     const withExtras = (g: GroupRow) => {
@@ -330,21 +332,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         d.setDate(d.getDate() - offset)
         return d.toISOString().split('T')[0]
       }
-      const students = (csp ?? []).map((s: any) => {
-        const days = secondsByLearnerDay.get(s.learner_id)
-        const last7 = Array.from({ length: 7 }, (_, i) => Math.round(((days?.get(dayKey(6 - i)) || 0) / 60)))
-        return {
-          learner_id: s.learner_id,
-          name: s.student_name || 'Unnamed',
-          seeds_completed: Number(s.seeds_completed) || 0,
-          legos_mastered: Number(s.legos_mastered) || 0,
-          practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
-          last_active_at: s.last_active_at,
-          joined_class_at: s.joined_class_at,
-          last7_minutes: last7,
-          week_minutes: last7.reduce((a, b) => a + b, 0),
-        }
-      }).sort((a, b) => b.practice_hours - a.practice_hours)
+      // Same roster as ClassDetail.vue's teacher-facing view (also name-
+      // ordered) — this is an operational roster, not a ranking, so it stays
+      // alphabetical rather than forking a second order for the same class.
+      const students = sortByName(
+        (csp ?? []).map((s: any) => {
+          const days = secondsByLearnerDay.get(s.learner_id)
+          const last7 = Array.from({ length: 7 }, (_, i) => Math.round(((days?.get(dayKey(6 - i)) || 0) / 60)))
+          return {
+            learner_id: s.learner_id,
+            name: s.student_name || 'Unnamed',
+            seeds_completed: Number(s.seeds_completed) || 0,
+            legos_mastered: Number(s.legos_mastered) || 0,
+            practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
+            last_active_at: s.last_active_at,
+            joined_class_at: s.joined_class_at,
+            last7_minutes: last7,
+            week_minutes: last7.reduce((a, b) => a + b, 0),
+          }
+        }),
+        (s) => s.name,
+      )
 
       const classHours = (csp ?? []).reduce((sum: number, s: any) => sum + (Number(s.total_practice_seconds) || 0), 0) / 3600
 
@@ -434,9 +442,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let lensPayload: Record<string, unknown> | null = null
 
     if (lens === 'groups') {
-      const descendants = allGroups
-        .filter((g) => subtreeIdSet.has(g.id) && g.id !== nodeId)
-        .sort((a, b) => (a.path || '').localeCompare(b.path || ''))
+      // Alphabetical by name (founder ruling 2026-07-30: same consistent
+      // order as every other structural list) — was path-ordered, which
+      // grouped by tree position instead of matching the flat "All schools"/
+      // "All teachers" lenses' order.
+      const descendants = sortByName(
+        allGroups.filter((g) => subtreeIdSet.has(g.id) && g.id !== nodeId),
+        (g) => g.name,
+      )
       const descExtras = await computeNodeExtras(svc, descendants.map((d) => d.id), allGroups)
       lensPayload = {
         groups: descendants.map((g) => ({
@@ -472,21 +485,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ])
       const allUids = [...new Set([...teacherUidsBySchool.values()].flatMap((s) => [...s]))]
       const names = await namesForAuthUids(svc, allUids)
+      // Alphabetical by name (founder ruling 2026-07-30: "the schools are
+      // listed in a different order from the groups and the everything
+      // directly below") — this used to rank by practised hours, the exact
+      // same-schools-different-order defect the ruling closes off. Practice
+      // hours is still shown as a column; it just no longer drives the order.
       lensPayload = {
-        schools: schoolRows.map((s) => {
-          const sum = summaries.get(s.id)
-          return {
-            schoolId: s.id,
-            nodeId: s.node_group_id,
-            name: sum?.school_name || s.school_name,
-            teacherCount: Number(sum?.teacher_count) || 0,
-            classCount: Number(sum?.class_count) || 0,
-            studentCount: Number(sum?.student_count) || 0,
-            practiceHours: Math.round((Number(sum?.total_practice_hours) || 0) * 10) / 10,
-            hasAdmin: Boolean(sum?.has_admin),
-            teachers: [...(teacherUidsBySchool.get(s.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
-          }
-        }).sort((a, b) => b.practiceHours - a.practiceHours),
+        schools: sortByName(
+          schoolRows.map((s) => {
+            const sum = summaries.get(s.id)
+            return {
+              schoolId: s.id,
+              nodeId: s.node_group_id,
+              name: sum?.school_name || s.school_name,
+              teacherCount: Number(sum?.teacher_count) || 0,
+              classCount: Number(sum?.class_count) || 0,
+              studentCount: Number(sum?.student_count) || 0,
+              practiceHours: Math.round((Number(sum?.total_practice_hours) || 0) * 10) / 10,
+              hasAdmin: Boolean(sum?.has_admin),
+              teachers: [...(teacherUidsBySchool.get(s.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
+            }
+          }),
+          (s) => s.name,
+        ),
       }
     } else if (lens === 'teachers' || lens === 'classes') {
       // Subtree classes: node-attached (group_id) ∪ legacy school-attached —

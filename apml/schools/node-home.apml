@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-31 (WHERE-YOU-ARE rail on every schools view — rail_everywhere)
+# Last updated: 2026-07-31 (rail_everywhere + consistent sibling ordering)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 purpose: |
@@ -49,6 +49,21 @@ lenses:  # filters over the one view, never separate pages; ?lens= in the URL
   teachers: every teacher below, with their classes
   classes: every class below, with student counts + hours
   students: fixed lens at class level
+
+ordering:  # founder ruling 2026-07-30: "the schools are listed in a different
+           # order from the groups and the everything directly below" — ONE
+           # consistent order everywhere. rail siblings/children, every lens
+           # list (children/groups/schools/teachers/classes) and the class
+           # students roster are all alphabetical by name (locale-aware,
+           # case-insensitive, numeric-aware — api/_utils/alphaSort.ts,
+           # mirrored client-side at packages/player-vue/src/utils/alphaSort.ts).
+           # Practice hours/student counts still show as row columns; they no
+           # longer drive order. A metric order stays available ONLY where
+           # it's an explicit, visible user choice (e.g. SchoolsView.vue's
+           # labelled "Sort by hours/students/name" control, default name) —
+           # never a silent default that can drift from a sibling list.
+  default: alphabetical, every structural/navigational list
+  metric_orders_must_be: explicit AND visible (a labelled sort control), never silent
 
 data:
   endpoint: GET /api/groups/:id/home?lens=<lens>   # api/groups/[id]/home.ts

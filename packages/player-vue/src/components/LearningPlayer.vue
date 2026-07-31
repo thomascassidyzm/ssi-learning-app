@@ -52,9 +52,9 @@ import { useClassAwareProgressStore, type ClassContextForProgress } from '../com
 import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
+import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop } from '../providers/generateLearningScript'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
-import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
+import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
@@ -6317,7 +6317,7 @@ const _componentsByCycleIdNative = new Map<string, Array<{known: string, target:
 const _componentsByLegoIdNative = new Map<string, Array<{known: string, target: string}>>()
 
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
-function toSimpleRoundsWithComponents(items: any[]) {
+function currentTargetSpeedConfig(): TargetSpeedConfig {
   // Detect native speed: all target voices at 1.0x → belt ramp applies
   const vc = props.course?.voice_config
   const voices = vc?.voices || vc
@@ -6342,11 +6342,27 @@ function toSimpleRoundsWithComponents(items: any[]) {
   if (learnerSpeed !== 1.0 && !isNaN(learnerSpeed)) {
     targetSpeed.globalSpeed = (targetSpeed.globalSpeed ?? 1.0) * learnerSpeed
   }
+  return targetSpeed
+}
 
+function toSimpleRoundsWithComponents(items: any[]) {
   // Pause comes from algorithm_config at runtime (see setRuntimeOverrides below);
   // toSimpleRounds bakes a DEFAULT_NORMAL fallback for environments without live config.
-  const rounds = toSimpleRounds(items, targetSpeed)
+  const rounds = toSimpleRounds(items, currentTargetSpeedConfig())
   extractComponentsToMaps(rounds, '[Components] toSimpleRoundsWithComponents')
+  return rounds
+}
+
+// Cooperative twin for the ready-gated deferred handoff paths: same output,
+// but the whole-course conversion yields to the event loop between rounds so
+// it can't add a post-READY main-thread block (founder 2026-07-30: READY
+// must mean INTERACTIVE). Foreground/interactive callers keep the sync
+// wrapper above.
+async function toSimpleRoundsWithComponentsSliced(items: any[]) {
+  const rounds = await toSimpleRoundsCooperative(items, currentTargetSpeedConfig(), makeSliceYielder())
+  // Separate task from the conversion tail; the map fill itself is light.
+  await yieldToEventLoop()
+  extractComponentsToMaps(rounds, '[Components] toSimpleRoundsWithComponentsSliced')
   return rounds
 }
 
@@ -8844,8 +8860,12 @@ const handleRoundForward = async () => {
  * inserting ahead of the live cursor), so calling this while INF PLAY is
  * actively playing does not disturb the active round/cycle/phase.
  */
-const mergeGeneratedRoundsIntoQueue = (items: any[]): any[] => {
-  const newRounds = toSimpleRoundsWithComponents(items)
+const mergeGeneratedRoundsIntoQueue = (items: any[]): any[] =>
+  mergeConvertedRoundsIntoQueue(toSimpleRoundsWithComponents(items))
+
+// Split from the converter so the deferred handoff can convert
+// cooperatively (sliced) and merge the already-converted rounds.
+const mergeConvertedRoundsIntoQueue = (newRounds: any[]): any[] => {
   if (newRounds.length === 0) return newRounds
   simplePlayer.addRounds(newRounds as any)
   // Keep the component's loadedRounds mirror in lockstep with the engine
@@ -12219,8 +12239,16 @@ onMounted(async () => {
                   if (currentMode.value !== 'infplay') return
                   if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
                   if (result.items.length === 0) return
-                  mergeGeneratedRoundsIntoQueue(result.items)
-                  cachedRounds.value = toSimpleRoundsWithComponents(result.items) as any[]
+                  // ONE cooperative conversion feeds both the queue merge and
+                  // the cachedRounds mirror (this used to convert the whole
+                  // course twice, back to back, in one main-thread task).
+                  const converted = await toSimpleRoundsWithComponentsSliced(result.items) as any[]
+                  // Re-check the mode: the sliced conversion yields, so a
+                  // fast INF-PLAY exit can land mid-conversion — same stale-
+                  // merge guard as the scheduleIdleTask entry above.
+                  if (currentMode.value !== 'infplay') return
+                  mergeConvertedRoundsIntoQueue(converted)
+                  cachedRounds.value = converted
                   sessionScriptVintage = undefined // fresh walk → live vintage
                   try {
                     await setCachedScript(courseCode.value, {
@@ -12267,7 +12295,9 @@ onMounted(async () => {
           //      Latin-script courses where runtime decomposition is fine).
           const runFullScriptHandoff = () => generateScript()
             .then(async (result) => {
-              const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
+              // Sliced conversion — the whole-course Round[] build yields per
+              // round, so it can't add a post-READY main-thread block.
+              const fullRounds = await toSimpleRoundsWithComponentsSliced(result.items) as any[]
               if (fullRounds.length === 0) {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on /cycles path')
                 return
