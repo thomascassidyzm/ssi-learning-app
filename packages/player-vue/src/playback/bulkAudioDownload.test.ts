@@ -166,6 +166,28 @@ describe('bulkDownloadAudio', () => {
     expect(stragglerBatch?.[0].sort()).toEqual([...flaky].sort())
   })
 
+  it('announces each straggler round with the remaining count (honest tail-phase display)', async () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `id-${i}`)
+    const flaky = new Set(ids.slice(-4))
+    let pass = 0
+    const ensureFromUrl = vi.fn(async (id: string) => {
+      if (pass === 0 && flaky.has(id)) throw new Error('transient stall')
+    })
+    const ensure = vi.fn(async (id: string) => {
+      if (pass === 0 && flaky.has(id)) throw new Error('transient stall')
+    })
+    const sleep = vi.fn(async () => { pass++ })
+    const { counters, counts } = makeCounters()
+    const rounds: number[] = []
+    counters.onStragglerRound = (remaining) => rounds.push(remaining)
+
+    const result = await bulkDownloadAudio(ids, makeDeps({ ensureFromUrl, ensure, sleep }), counters)
+
+    expect(result.completed).toBe(true)
+    expect(counts.done).toBe(20)
+    expect(rounds).toEqual([4])  // one round, exactly the flaky tail
+  }, 20_000)
+
   it('the founder shape: N-10 of N with permanently dead ids still completes, reporting exactly those ids', async () => {
     const ids = Array.from({ length: 60 }, (_, i) => `id-${i}`)
     const dead = new Set(ids.slice(-10))

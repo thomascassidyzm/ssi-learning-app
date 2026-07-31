@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -10518,6 +10518,7 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
+  offlineDlStragglers.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
   // Batches presigned S3 URLs and fetches bytes directly, falling back to the
@@ -10537,8 +10538,12 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
     {
       onDone: () => { offlineDlDone.value++ },
       onFailed: () => { offlineDlFailed.value++ },
+      // Straggler tail begins: name the phase honestly in the tray instead of
+      // sitting on a near-frozen 99% (founder tail-pacing report, 2026-07-31).
+      onStragglerRound: (remaining) => { offlineDlStragglers.value = remaining },
     },
   )
+  offlineDlStragglers.value = 0
   if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT (round structure) to IndexedDB, not just the audio.
@@ -11061,6 +11066,7 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
+  offlineDlStragglers.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
   const { completed, failedIds } = await bulkDownloadAudio(
@@ -11075,8 +11081,11 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
     {
       onDone: () => { offlineDlDone.value++ },
       onFailed: () => { offlineDlFailed.value++ },
+      // Same honest tail-phase display as the mid-course download.
+      onStragglerRound: (remaining) => { offlineDlStragglers.value = remaining },
     },
   )
+  offlineDlStragglers.value = 0
   if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT for the cold-reopen fast-path — identical to

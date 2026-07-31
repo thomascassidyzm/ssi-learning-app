@@ -11,6 +11,7 @@ import {
   offlineDlFailed,
   offlineDlLastProgressAt,
   offlineDlState,
+  offlineDlStragglers,
   offlineDlTotal,
   offlineDownloadHeadline,
   offlineDownloadLabel,
@@ -64,6 +65,26 @@ describe('honest progress display', () => {
     expect(offlineDownloadHeadline.value).toBe('Ready offline ✓ (10 clips retrying)')
     expect(offlineDownloadLabel.value).toBe('Ready offline (10 clips retrying)')
     expect(offlineDownloadHeadline.value).not.toMatch(/incomplete|signal/i)
+  })
+
+  it('straggler tail names the phase honestly instead of a frozen 99% (founder tail-pacing report)', () => {
+    offlineDlState.value = 'downloading'
+    offlineDlDone.value = 9732
+    offlineDlTotal.value = 9742
+    offlineDlStragglers.value = 10
+    expect(offlineDownloadHeadline.value).toBe('Finishing up — checking the last clips…')
+    expect(offlineDownloadLabel.value).toBe('Finishing up — checking the last 10 clips…')
+    // Cleared tail → back to the plain downloading copy.
+    offlineDlStragglers.value = 0
+    expect(offlineDownloadHeadline.value).toBe('Downloading… 99%')
+  })
+
+  it('a single straggler reads as one clip, not "1 clips"', () => {
+    offlineDlState.value = 'downloading'
+    offlineDlDone.value = 99
+    offlineDlTotal.value = 100
+    offlineDlStragglers.value = 1
+    expect(offlineDownloadLabel.value).toBe('Finishing up — checking the last 1 clip…')
   })
 
   it('error copy reports true state and never claims bad signal', () => {

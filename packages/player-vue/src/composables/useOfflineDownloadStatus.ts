@@ -44,6 +44,13 @@ export const offlineDlDone = ref(0)     // audio files genuinely cached (success
 export const offlineDlTotal = ref(0)
 export const offlineDlFailed = ref(0)   // fetches that failed (e.g. bad network)
 
+// Straggler tail: >0 while the download is re-checking its last few clips
+// (fresh URLs + growing backoff). The main pass is over, so the percentage is
+// pinned near 100 and barely moves — the honest display for this phase names
+// it ("Finishing up") instead of looking frozen (founder tail-pacing report,
+// 2026-07-31: 0→91% quick, 91→100% a confusing crawl).
+export const offlineDlStragglers = ref(0)
+
 // Whether the current course's offline is a FREE 30-day TASTE rather than a
 // renewing entitlement — i.e. the user is a non-payer (set by LearningPlayer from
 // entitlement.offlineRenews). Offline download itself is open to everyone now
@@ -71,7 +78,7 @@ export function tickOfflineDlStallClock(now: number = Date.now()) {
   stallClock.value = now
 }
 
-watch([offlineDlState, offlineDlDone, offlineDlFailed, offlineDlTotal], () => {
+watch([offlineDlState, offlineDlDone, offlineDlFailed, offlineDlTotal, offlineDlStragglers], () => {
   // Any state change or counter tick is a progress event.
   offlineDlLastProgressAt.value = Date.now()
   stallClock.value = Date.now()
@@ -119,6 +126,7 @@ export function resetOfflineDownloadStatus() {
   offlineDlDone.value = 0
   offlineDlTotal.value = 0
   offlineDlFailed.value = 0
+  offlineDlStragglers.value = 0
 }
 
 // Live one-line detail for the Offline row in the tray. `done` counts ONLY files
@@ -129,9 +137,11 @@ export const offlineDownloadLabel = computed(() => {
       return 'Preparing download…'
     case 'downloading': {
       const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-      return offlineDownloadStalled.value
-        ? `Stalled at ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value}) — retrying…`
-        : `Downloading… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
+      if (offlineDownloadStalled.value)
+        return `Stalled at ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value}) — retrying…`
+      if (offlineDlStragglers.value > 0)
+        return `Finishing up — checking the last ${offlineDlStragglers.value} clip${offlineDlStragglers.value === 1 ? '' : 's'}…`
+      return `Downloading… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
     }
     case 'complete':
       return 'Ready to play offline ✓'
@@ -157,7 +167,9 @@ export const offlineDownloadHeadline = computed(() => {
       return 'Preparing download…'
     case 'downloading': {
       const pct = offlineDlTotal.value > 0 ? Math.floor((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-      return offlineDownloadStalled.value ? `Stalled at ${pct}% — retrying…` : `Downloading… ${pct}%`
+      if (offlineDownloadStalled.value) return `Stalled at ${pct}% — retrying…`
+      if (offlineDlStragglers.value > 0) return 'Finishing up — checking the last clips…'
+      return `Downloading… ${pct}%`
     }
     case 'complete':
       return 'Ready to play offline ✓'
