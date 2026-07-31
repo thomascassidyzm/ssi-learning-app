@@ -825,3 +825,63 @@ data source, no new gate.
 **Cheaper (total):** zero — a lookup multiply on data already being sorted.
 **Decided by:** founder (the ranking rule); agent for the mechanism and the audience tagging
 (BSC >90%).
+
+## 2026-07-31 — offline reliability arc shipped via the fix lane, not an early train
+**Move:** Promoted the nine offline-download-reliability commits straight to `main` as
+`hotfix/offline-download-reliability` (replayed off `main` with `git rebase --onto`, merged
+`--no-ff`, back-merged into `staging` and `dev`), rather than running a full `dev → staging → main`
+promotion a day early. Founder ruling 2026-07-31: *"this was a definite user-facing bug — promote
+it to production."*
+**Better:** the classification test in `docs/RELEASE-TRAIN.md` answers this exactly — things were
+broken and lying to the user (boot watchdog nuking offline installs; the offline selection dropped
+by connectivity guesswork; downloads that could hang forever; percentages that over-claimed), so
+it is a **fix**, and fixes ship the moment they're ready. The learner gets the fix tonight instead
+of tomorrow, and the fix carries no release notes because it restores behaviour already promised.
+**Simpler:** an early full promote would have dragged 21 unrelated staging commits into production
+a day early, collapsed tomorrow's GO/HOLD into an implicit yes, and consumed the Friday candidate
+and its draft notes. The fix lane moves exactly the diff the founder verified, and leaves the
+train intact — `main..staging` still contains tomorrow's candidate, and the offline arc is absent
+from it *by construction* (a fix on `main` can never appear in that range).
+**Cheaper (total):** one nine-commit replay with zero conflicts, no notes to regenerate, no
+re-soak of the schools work. The back-merge was needed anyway (see below), so it cost nothing
+extra.
+**Searched & rejected:**
+- Full `dev → staging → main` a day early — rejected: ships 21 unvetted-by-the-train commits,
+  pre-empts Tom's Friday GO, and the RELEASE-TRAIN doc explicitly reserves that call for him.
+- Cherry-pick individual commits — rejected in favour of `rebase --onto` over the contiguous range
+  `0b52b560..74471be5`, which flattens the internal merge commit and cannot double-apply it.
+**Verified:** the replayed tree is **byte-identical to the founder-verified dev tree** for every
+file the arc touches (only WORKLIST.md differs, by 4 lines from later doc commits). All gates green
+on that exact tree: core build, player typecheck, 1307 tests, lint 0 errors, api typecheck,
+767 api tests, release-train tests, production build.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling to promote
+
+## 2026-07-31 — an un-back-merged fix lane had already blocked the Friday train
+**Move:** The back-merge `main → staging` also reconciled two *earlier* fix-lane commits
+(`daa9f093` READY-means-INTERACTIVE, `2d57cbec` handoff-conversion slice) that went to `main` and
+were never back-merged. `staging` carried equivalent content under different shas, so `main` was
+**not** an ancestor of `staging` — the precondition `promote.sh` refuses on. Tomorrow's train would
+have failed at the gate.
+**Better:** caught before Friday rather than during it; the doc's own warning ("skipping the
+back-merge is the one way this lane can hurt you") is now evidenced rather than theoretical.
+**Simpler / Cheaper:** the reconciliation rode along with a back-merge that had to happen anyway.
+**Standing lesson:** the fix lane's back-merge is not paperwork — it is the train's precondition.
+A fix-lane push is not finished until `git merge-base --is-ancestor origin/main origin/staging`
+passes again.
+**Search width:** none-needed
+**Decided by:** agent
+
+## 2026-07-31 — Vercel can silently skip a Production build while Previews keep deploying
+**Finding, not a choice:** the `main` push `3c70ed3b` produced **no Vercel Production deployment
+at all** — no GitHub deployment record, no build — while Preview builds for pushes three minutes
+later (`staging` 20:48, `dev` 20:47) deployed normally, and CI Verify was green on the sha.
+Production sat on the previous build for 15 minutes. An empty re-trigger commit (`ccaffedb`)
+deployed in ~2 minutes, confirming a dropped deploy webhook rather than a build failure or block.
+**Why it matters:** `tools/deploy-sentinel/sentinel.mjs` diagnoses "no Production deployment for
+this sha" as *"likely Vercel usage block"*. This incident is a second, more common cause with the
+same signature. The discriminator is cheap and worth adding to the sentinel's message: **if Preview
+deployments for later pushes succeeded, it is a dropped webhook, not a block — re-trigger with an
+empty commit before escalating.**
+**Search width:** none-needed
+**Decided by:** agent
