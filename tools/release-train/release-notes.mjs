@@ -14,10 +14,22 @@
  * stays hand-written; these notes are its headline skeleton and a shippable summary in their own
  * right.
  *
- * SHAPE — FOUNDER RULING (2026-07-30), superseding the original "a handful of bullets": UP TO 3
- * most significant features FOR THE USERS, then the bug fixes. Significance is a per-surface
- * judgement carried as a weight on each phrasebook entry, NOT commit count. All of it in
- * user/teacher-facing language — no commit hashes, no refactors, no process commits.
+ * SHAPE — FOUNDER RULING (2026-07-30), amended (2026-07-31): UP TO 3 most significant features
+ * FOR THE USERS, then ONE catch-all section — "Other stuff and bug fixes" — that absorbs both the
+ * overflow features (one short line each, same under-claim rule) and the bug fixes. Nothing
+ * shipped goes unmentioned; it is just compact below the fold. Verbatim: "Keep to 3 biggest and
+ * then other stuff and bug fixes."
+ *
+ * RANKING — FOUNDER RULING (2026-07-31): when picking the 3 biggest, player/learner-facing items
+ * outrank schools/teacher/leader items — most users are learners, not teachers or school leaders.
+ * Verbatim: "focus on the player stuff - most people are not teachers/school leaders." Each
+ * phrasebook entry carries an AUDIENCE ('player' | 'general' | 'schools'); feature ranking sorts
+ * on significance × AUDIENCE_WEIGHT before commit count, so a schools item never edges out an
+ * equally-significant player item for one of the 3 headline slots.
+ *
+ * Significance itself is a per-surface judgement carried as a weight on each phrasebook entry, NOT
+ * commit count. All of it in user/teacher-facing language — no commit hashes, no refactors, no
+ * process commits.
  *
  * THE HONESTY RULE (the whole design, really): a commit earns a bullet only if it can be
  * translated CONFIDENTLY. Everything else is dropped, never guessed at. Three gates in order:
@@ -69,56 +81,68 @@ const NOT_LIVE_VETO = /\b(stage \d|phase \d|shadow|behind (a )?flag|dark|groundw
 // commits, so entries keep earning their keep week after week. Add an entry when a new
 // user-facing surface appears; never add one to force a bullet for a single commit.
 
+// AUDIENCE_WEIGHT — founder ruling 2026-07-31: player/learner-facing items outrank
+// schools/teacher/leader items when picking the 3 headline features. 'general' (both, or neither
+// specifically) sits between the two. This is a ranking multiplier only — it never changes which
+// section a bullet lands in or its displayed wording.
+export const AUDIENCE_WEIGHT = { player: 1.2, general: 1, schools: 0.8 }
+
 const PHRASEBOOK = [
-  // [surface, qualifier, headline, kind, significance, area?]
-  //   kind         'feature' (goes in the up-to-3) or 'fix' (goes in the fixes list)
+  // [surface, qualifier, headline, kind, significance, area?, audience?]
+  //   kind         'feature' (competes for the 3 headline slots) or 'fix' (the catch-all section)
   //   significance 3 = a user would notice and care · 2 = notable · 1 = minor/cosmetic
+  //   audience     'player' (learners) · 'schools' (teachers/leaders/admins) · 'general' (default)
   // Wording corrected 2026-07-31 in the reconciliation pass: the change killed the cinematic
   // floor and lands READY in 2-3s. "Near-instant" over-claimed that, and over-claiming is the one
   // failure mode these notes may not have.
   [/course[- ]switch/i, /ready|instant|floor|\d ?s\b/i,
     'Switching course is quicker — it no longer waits through the full loading sequence.',
-    'feature', 3],
+    'feature', 3, undefined, 'player'],
   [/cold[- ]start|course load/i, /never blocks|swr|progressive|readiness/i,
     'The app starts as soon as it is ready to play, instead of waiting for a whole course to load.',
-    'feature', 3],
+    'feature', 3, undefined, 'player'],
   [/invite/i, /link|personal|capture|code/i,
-    'Invitations work as links, with a short code kept as the fallback.', 'feature', 3],
+    'Invitations work as links, with a short code kept as the fallback.',
+    'feature', 3, undefined, 'schools'],
   [/walkthrough/i, /engine|walks/i,
     'Guided walkthroughs of the product, for learners, teachers and leaders.',
-    'feature', 3, 'Walkthrough & onboarding'],
+    'feature', 3, 'Walkthrough & onboarding', 'general'],
   [/schools nav|nav unification/i, /view|unif|tabs|redirect/i,
     'School leaders and admins land on the unified dashboard view, with the same navigation everywhere.',
-    'feature', 3],
+    'feature', 3, undefined, 'schools'],
   [/teacher surface|nav persists/i, /player|chip|exits|nav/i,
     'Teachers keep their navigation inside the player, and finishing a session returns them to the schools home.',
-    'feature', 2],
+    'feature', 2, undefined, 'schools'],
   [/how[- ]this[- ]works|explainer/i, /surfacing|discoverab|throb|single/i,
-    '"How this works" now has one home, with a gentle nudge so it is easy to find.', 'feature', 2],
+    '"How this works" now has one home, with a gentle nudge so it is easy to find.',
+    'feature', 2, undefined, 'general'],
   [/insight|analytics/i, /faster|cold|lens|wave/i,
-    'Insights load faster at every level of an organisation.', 'feature', 2],
+    'Insights load faster at every level of an organisation.', 'feature', 2, undefined, 'schools'],
   [/danger[- ]verb/i, /guard/i,
-    'Destructive admin actions now confirm before they act.', 'feature', 1],
+    'Destructive admin actions now confirm before they act.', 'feature', 1, undefined, 'schools'],
   [/transport|play[- ]state|play[- ]button/i, /desync|pull|sync/i,
-    'The play button no longer falls out of step with what is actually playing.', 'fix', 2],
+    'The play button no longer falls out of step with what is actually playing.',
+    'fix', 2, undefined, 'player'],
   [/walkthrough/i, /guardrail|rails/i,
     'Guided walkthroughs no longer collide with playback.', 'fix', 2,
-    'Walkthrough & onboarding'],
+    'Walkthrough & onboarding', 'general'],
   [/offline/i, /download(s|ing)?\b|for the plane|pack/i,
-    'Offline downloads are more reliable.', 'fix', 2],
+    'Offline downloads are more reliable.', 'fix', 2, undefined, 'player'],
   // Both added 2026-07-31 by the reconciliation of the 2026-07-30 ship: each names a real
   // user-visible surface whose commit subject reads as machinery, so the generic path dropped it
   // ("names nothing a user can see") and a true fix went unannounced. Surfaces, not one-offs:
   // the update/relaunch screen and the where-you-are rail both recur.
   [/updating the app|update overlay|relaunch/i, /stuck|deadline|heal|tap/i,
     'The "Updating the app" screen can no longer get stuck — it gives up and offers a tap to relaunch.',
-    'fix', 3],
+    'fix', 3, undefined, 'player'],
   [/where[- ]you[- ]are|rail/i, /stab(le|ility)|surviv|flash|rehydrat|persist/i,
-    'Where-you-are stays put when you move between Overview and Insights.', 'fix', 2],
+    'Where-you-are stays put when you move between Overview and Insights.',
+    'fix', 2, undefined, 'schools'],
   [/typewriter|awakening/i, /mid-word|never cut/i,
-    'Opening text is no longer cut off mid-word.', 'fix', 1],
+    'Opening text is no longer cut off mid-word.', 'fix', 1, undefined, 'player'],
   [/loading|resting/i, /sentence[- ]cas|copy/i,
-    'Loading and resting messages read like sentences rather than labels.', 'fix', 1],
+    'Loading and resting messages read like sentences rather than labels.',
+    'fix', 1, undefined, 'player'],
 ]
 
 // ── gate 3b: the generic path ───────────────────────────────────────────────
@@ -168,9 +192,9 @@ function translate(commit) {
   // recurring play-button desync"), and the phrasebook exists precisely to translate those.
   if (PLUMBING_VETO.test(s)) return { drop: 'plumbing commit (tests, mocks, notes, lockfiles)' }
 
-  for (const [surfaceRe, qualifierRe, headline, kind, significance, area] of PHRASEBOOK) {
+  for (const [surfaceRe, qualifierRe, headline, kind, significance, area, audience] of PHRASEBOOK) {
     if (surfaceRe.test(s) && qualifierRe.test(s)) {
-      return { headline, kind, significance, area, source: 'phrasebook' }
+      return { headline, kind, significance, area, audience: audience || 'general', source: 'phrasebook' }
     }
   }
 
@@ -184,8 +208,11 @@ function translate(commit) {
     // Corrective language in the subject is the only fix/feature signal a generic commit gives.
     kind: FIX_SHAPE.test(s) ? 'fix' : 'feature',
     // Significance 1: we could not translate this confidently, so it must never outrank a curated
-    // surface for one of the three feature slots. It still shows up in the fixes list in full.
+    // surface for one of the three feature slots. It still shows up in the catch-all section in full.
     significance: 1,
+    // Unclassified audience: neither player nor schools vocabulary confidently established, so it
+    // gets the middle weight rather than a guess in either direction.
+    audience: 'general',
     source: 'generic',
   }
 }
@@ -237,22 +264,31 @@ export function buildNotes(cand) {
     bullets.push({
       headline: r.headline, source: r.source, kind: r.kind,
       significance: r.significance, area: r.area || areaOf(c.subject),
-      commits: 1, subject: c.subject,
+      audience: r.audience || 'general', commits: 1, subject: c.subject,
     })
   }
   // Phrasebook wording beats generic wording when both describe the same round, so it dedupes
-  // first — the survivor keeps the curated kind, significance and wording.
+  // first — the survivor keeps the curated kind, significance, audience and wording.
   const ranked = [...bullets].sort((a, b) =>
     (a.source === 'phrasebook' ? 0 : 1) - (b.source === 'phrasebook' ? 0 : 1))
   const unique = dedupe(ranked)
 
+  // Founder ruling 2026-07-31: player/learner-facing items outrank schools/teacher/leader items
+  // for the 3 headline feature slots. Rank on significance × audience weight first, commit count
+  // only breaks remaining ties.
+  const featureRank = (b) => b.significance * AUDIENCE_WEIGHT[b.audience || 'general']
+  const byFeatureRank = (a, b) => featureRank(b) - featureRank(a) || b.commits - a.commits
   const bySignificance = (a, b) => b.significance - a.significance || b.commits - a.commits
-  const allFeatures = unique.filter((b) => b.kind === 'feature').sort(bySignificance)
+  const allFeatures = unique.filter((b) => b.kind === 'feature').sort(byFeatureRank)
   const allFixes = unique.filter((b) => b.kind === 'fix').sort(bySignificance)
   return {
     features: allFeatures.slice(0, MAX_FEATURES),
     fixes: allFixes.slice(0, MAX_FIXES),
+    // Founder ruling 2026-07-31: overflow features join the fixes in ONE catch-all section rather
+    // than being draft-only coverage — nothing shipped goes unannounced, just compact below the
+    // fold. Overflow features first (still "stuff"), then fixes.
     overflow: [...allFeatures.slice(MAX_FEATURES), ...allFixes.slice(MAX_FIXES)],
+    otherStuff: [...allFeatures.slice(MAX_FEATURES), ...allFixes],
     bullets: unique, dropped, cond,
   }
 }
@@ -274,7 +310,8 @@ function header({ final, draftDate, shipDate, sha, count }) {
       'Friday\'s promote stamps the header and leaves the text alone.')
   }
   L.push('')
-  L.push('Up to three headline features, then the fixes. Deliberately under-claiming: a commit')
+  L.push('Up to three headline features — player/learner-facing surfaces weighted first — then one')
+  L.push('catch-all section for everything else that shipped. Deliberately under-claiming: a commit')
   L.push('that cannot be translated confidently into user-facing language is dropped rather than')
   L.push('guessed at. Generated by `tools/release-train/release-notes.mjs`.')
   L.push(HEADER_CLOSE)
@@ -299,27 +336,24 @@ export function render(cand, notes, { draftDate }) {
     for (const b of notes.features) L.push(`- ${b.headline}`)
     L.push('')
   }
-  if (notes.fixes.length) {
-    L.push('## Fixes')
+  // Founder ruling 2026-07-31: one catch-all section absorbs the overflow features (bumped from
+  // the 3 headline slots — still under-claimed, same phrasebook wording) AND the bug fixes. Ships
+  // compact, below the fold, rather than silently dropped or buried in draft-only coverage.
+  if (notes.otherStuff.length) {
+    L.push('## Other stuff and bug fixes')
     L.push('')
-    for (const b of notes.fixes) L.push(`- ${b.headline}`)
+    for (const b of notes.otherStuff) L.push(`- ${b.headline}`)
     L.push('')
   }
 
   L.push(DRAFT_OPEN)
   L.push('## Draft-only: coverage')
   L.push('')
-  L.push(`${notes.features.length} feature headline(s) + ${notes.fixes.length} fix(es) from ` +
-    `${notes.cond.substantive.length} substantive commits ` +
+  L.push(`${notes.features.length} feature headline(s) + ${notes.otherStuff.length} other-stuff ` +
+    `line(s) from ${notes.cond.substantive.length} substantive commits ` +
     `(${notes.cond.process_.length} process commits never considered).`)
   L.push('This section is stripped when the notes are finalised.')
   L.push('')
-  if (notes.overflow.length) {
-    L.push(`**Translated, but over the ${MAX_FEATURES}-feature / ${MAX_FIXES}-fix budget ` +
-      `(${notes.overflow.length}) — promote one by hand if it deserves a slot:**`)
-    for (const b of notes.overflow) L.push(`- ${b.kind}: ${b.headline}`)
-    L.push('')
-  }
   const byWhy = new Map()
   for (const d of notes.dropped) {
     if (!byWhy.has(d.why)) byWhy.set(d.why, [])
@@ -399,10 +433,13 @@ export function reconcile(draftBody, notes) {
   const handOnly = (heading) =>
     bulletsUnder(draftBody, heading).filter((h) => !isMachine(h))
   const merge = (machine, hand) => [...new Set([...machine.map((b) => b.headline), ...hand])]
+  // The draft (pre-2026-07-31 shape) may still carry a "## Fixes" heading rather than "## Other
+  // stuff and bug fixes" — read both so an old draft's hand edits are not silently dropped.
+  const otherHand = [...handOnly('Other stuff and bug fixes'), ...handOnly('Fixes')]
   return {
     features: merge(notes.features, handOnly("What's new")),
-    fixes: merge(notes.fixes, handOnly('Fixes')),
-    handEdits: [...handOnly("What's new"), ...handOnly('Fixes')],
+    fixes: merge(notes.otherStuff, otherHand),
+    handEdits: [...handOnly("What's new"), ...otherHand],
   }
 }
 
@@ -414,8 +451,10 @@ export function renderFinal({ features, fixes }, { shipDate, sha, count }) {
     for (const h of features) L.push(`- ${h}`)
     L.push('')
   }
+  // Founder ruling 2026-07-31: overflow features and fixes ship together, one catch-all section,
+  // so nothing shipped goes unannounced — just compact below the fold.
   if (fixes.length) {
-    L.push('## Fixes', '')
+    L.push('## Other stuff and bug fixes', '')
     for (const h of fixes) L.push(`- ${h}`)
     L.push('')
   }

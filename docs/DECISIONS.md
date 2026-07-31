@@ -785,3 +785,43 @@ draft does not record, for a case `git log` answers exactly); leaving the stamp-
 correcting notes by hand each week (the founder's complaint was precisely that).
 **Search width:** visible-options.
 **Decided by:** founder (accuracy over elegance); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: 3 + one catch-all "other stuff and bug fixes" section
+**Ruling (founder, verbatim):** *"Keep to 3 biggest and then other stuff and bug fixes"*.
+**What changed:** the fixed shape was `## What's new` (up to 3 features) + `## Fixes`; features
+that missed the 3-slot cut only surfaced in the draft's coverage section, for Tom to promote by
+hand later. Now overflow features land alongside the fixes in one section, titled
+"Other stuff and bug fixes" — same headline, same under-claim rule, just below the fold — so
+nothing that shipped goes unmentioned in the final notes.
+**Better:** the notes are a complete account of the ship again. A feature that missed the top-3 by
+one rank previously vanished from the final file entirely unless Tom manually promoted it from the
+draft's stripped-at-finalize coverage section; now it always ships, just compactly.
+**Simpler:** deletes a section (draft-only "translated but over budget") and a manual-promote step;
+one rendering path (`otherStuff = overflow features + fixes`) replaces two.
+**Cheaper (total):** no new inputs; `buildNotes` already computed the overflow list, it's now
+rendered instead of discarded at finalize.
+**Decided by:** founder (shape); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: player-facing features ranked above schools features
+**Ruling (founder, verbatim):** *"focus on the player stuff - most people are not teachers/school
+leaders"*.
+**What changed:** feature-slot ranking was significance-only (3/2/1 per phrasebook entry). Every
+phrasebook entry now also carries an `audience` (`player` learners · `general` · `schools`
+teachers/leaders/admins), and the 3 headline slots rank on `significance × AUDIENCE_WEIGHT`
+(`player: 1.2`, `general: 1`, `schools: 0.8`) before commit count. The weight only breaks
+cross-audience ties at equal significance — it never lets a lower-significance item outrank a
+higher one, so it can't invent importance the phrasebook didn't already assign.
+**Why:** most users of the product are learners, not teachers or school leaders, so the headline
+slots — the three things Tom is telling the whole userbase about — should default to what most of
+that userbase actually experiences.
+**Acceptance run:** `notes/2026-07-30.md` regenerated under the new rules from the actual promoted
+range (`becac1cc^1..becac1cc^2`, 150 commits, ship stamp kept). The 3 headliners now read
+course-switch, cold-start/instant-start, and walkthroughs — all learner-facing — with the schools
+nav-unification feature (equally significant, schools-audience) moved to the catch-all section.
+**Better:** the weekly headline reflects the majority-learner audience rather than whichever
+surface happened to land first in the phrasebook.
+**Simpler:** one multiplier constant (`AUDIENCE_WEIGHT`) on an existing per-entry field; no new
+data source, no new gate.
+**Cheaper (total):** zero — a lookup multiply on data already being sorted.
+**Decided by:** founder (the ranking rule); agent for the mechanism and the audience tagging
+(BSC >90%).
