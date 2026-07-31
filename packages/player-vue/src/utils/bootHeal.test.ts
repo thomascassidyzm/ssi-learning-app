@@ -13,6 +13,8 @@ import {
   nextHealDecision,
   cachesToClear,
   shouldArmBootWatchdog,
+  shouldHealOnBootFailure,
+  isDeployFatalResourceUrl,
   shouldReloadForPreloadError,
   PRESERVE_CACHE_NAMES,
   HEAL_DEADLINE_MS,
@@ -102,6 +104,51 @@ describe('inline watchdog lockstep (index.html hand-mirrors this module)', () =>
   it('escalates a wedged reload to a tap-to-relaunch affordance', () => {
     expect(html).toContain('setTimeout(showRelaunch, RELOAD_WEDGE_MS)')
     expect(html).toContain('Tap to relaunch')
+  })
+})
+
+describe('shouldHealOnBootFailure — the offline guard (always-play invariant)', () => {
+  it('heals when online (a genuine broken deploy)', () => {
+    expect(shouldHealOnBootFailure(true)).toBe(true)
+  })
+
+  it('NEVER heals offline — healing deletes the SW + precache, the only thing that makes offline work', () => {
+    expect(shouldHealOnBootFailure(false)).toBe(false)
+  })
+})
+
+describe('isDeployFatalResourceUrl — fast-path scope', () => {
+  const origin = 'https://saysomethingin.app'
+
+  it('same-origin entry-graph failures are deploy-fatal', () => {
+    expect(isDeployFatalResourceUrl('https://saysomethingin.app/assets/index-abc.js', origin)).toBe(true)
+  })
+
+  it('cross-origin failures (Google Fonts, ad-blocked CDNs) never nuke the install', () => {
+    expect(isDeployFatalResourceUrl('https://fonts.googleapis.com/css2?family=Arsenal', origin)).toBe(false)
+  })
+
+  it('a lookalike origin prefix does not count as same-origin', () => {
+    expect(isDeployFatalResourceUrl('https://saysomethingin.app.evil.com/x.js', origin)).toBe(false)
+  })
+})
+
+describe('inline watchdog mirrors the offline + same-origin guards', () => {
+  const html = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../index.html'),
+    'utf8',
+  )
+
+  it('fast path bails when offline', () => {
+    expect(html).toContain('if (!navigator.onLine) return;')
+  })
+
+  it('fast path only heals same-origin resources', () => {
+    expect(html).toContain("url.indexOf(window.location.origin + '/') !== 0")
+  })
+
+  it('slow path requires the network before healing', () => {
+    expect(html).toContain('if (!window.__SSI_BOOTED && navigator.onLine) heal();')
   })
 })
 
