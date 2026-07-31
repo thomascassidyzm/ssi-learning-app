@@ -167,6 +167,15 @@ const captureSub = computed(() => {
   return ''
 })
 
+// Quiet, one-line reason the capture screen is asking at all (Tom's founder
+// finding, 2026-07-30: legibility, not a behaviour change — a personal link
+// never reaches 'details'/'name', so this is always true when shown).
+const captureExplainer = computed(() => {
+  if (step.value === 'details') return "It's a shareable link, so we ask new arrivals to say who they are."
+  if (step.value === 'name') return "It's a shareable link, so we ask new arrivals for their name."
+  return ''
+})
+
 const authInstructionText = computed(() => {
   const pc = pendingCode.value
   if (!pc) return 'Enter your email to get started'
@@ -788,6 +797,7 @@ function goHome() {
              unverified and confirmed later from Settings. -->
         <form v-else-if="step === 'details'" class="auth-form" @submit.prevent="handlePossessionSubmit">
           <p class="instruction-text">Tell us who you are and you're in — no password, no code to wait for.</p>
+          <p class="capture-explainer">{{ captureExplainer }}</p>
 
           <Transition name="error-fade">
             <div v-if="error" class="error-banner">
@@ -853,6 +863,7 @@ function goHome() {
              the credential; one field, then straight into the player. -->
         <form v-else-if="step === 'name'" class="auth-form" @submit.prevent="handlePupilSubmit">
           <p class="instruction-text">{{ pendingCode?.className ? "What's your name? Your teacher will see it on the class list." : "What's your name?" }}</p>
+          <p class="capture-explainer">{{ captureExplainer }}</p>
 
           <Transition name="error-fade">
             <div v-if="error" class="error-banner">
@@ -1172,6 +1183,12 @@ function goHome() {
   color: var(--text-secondary, #aaa);
   font-size: 0.9375rem;
   margin: 0;
+}
+
+.capture-explainer {
+  color: var(--text-muted, #666);
+  font-size: 0.8125rem;
+  margin: -0.5rem 0 0;
 }
 
 .signed-in-text {

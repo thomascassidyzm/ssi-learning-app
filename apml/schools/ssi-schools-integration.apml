@@ -159,6 +159,20 @@ principle IdentityCaptureNotGhosts:
     server refuses linkAuth for named roles: reason identity_required,
     logged to possession_mint_attempts) -> player, class course switched.
 
+  legibility: |
+    Founder finding 2026-07-30: which screen appears was already a
+    DETERMINISTIC function of the invite row (personal vs shareable
+    species, code_type) plus the visiting user's own redemption history —
+    verified end to end (validate.ts's `personal`/`alreadyRedeemed` fields
+    are server-derived only, never client input). No behaviour changed;
+    only legibility. RedeemCode.vue's 'details'/'name' steps now show one
+    quiet secondary line ("It's a shareable link, so we ask new arrivals
+    to say who they are") — since a personal link never reaches these
+    steps, the line is always true when shown. At mint time, NodeActionBar
+    ("Invite a person" / "Get a shareable link") and WaysInLedger both
+    label the species in plain words (goes straight in vs new arrivals
+    enter their name), so the choice is legible before a link is ever sent.
+
   reclick_flow: |
     validate.ts accepts an optional bearer and returns alreadyRedeemed +
     redirectTo when the session user already holds this code's context

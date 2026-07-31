@@ -173,7 +173,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
         <tr v-for="l in visible" :key="l.code" :class="{ 'is-dead': l.status !== 'active' }">
           <td>
             <span class="row-role">{{ l.species === 'personal' ? (l.personalName || 'Personal link') : `Anyone — joins as ${(ROLE_WORD[l.role] || l.role).toLowerCase()}` }}</span>
-            <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link` : 'shareable' }}</span>
+            <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link, goes straight in` : 'shareable · new arrivals enter their name' }}</span>
           </td>
           <td>{{ l.where.name }}</td>
           <td class="mono">{{ l.code }}</td>
