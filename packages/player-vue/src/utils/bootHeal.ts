@@ -62,6 +62,30 @@ export function shouldArmBootWatchdog(hasServiceWorkerController: boolean): bool
   return hasServiceWorkerController === true
 }
 
+/**
+ * A boot failure while the device is OFFLINE is a missing network, not a
+ * broken deploy — and the heal ladder deletes the SW + precache, i.e. the
+ * only thing that lets the app work offline at all. Found 2026-07-31 chasing
+ * the always-play invariant: airplane-mode cold start served the precached
+ * shell fine, then the fonts.googleapis stylesheet failed (cross-origin,
+ * never cached), the fast-path watchdog "healed", and the SW-less reload
+ * landed on the browser "No internet" page with every cache gone. Never
+ * heal offline.
+ */
+export function shouldHealOnBootFailure(isOnline: boolean): boolean {
+  return isOnline === true
+}
+
+/**
+ * Fast-path scope: only SAME-ORIGIN script/link failures indicate a broken
+ * deploy — the entry graph lives entirely on our origin (it's what the SW
+ * precaches). A cross-origin resource failing (Google Fonts down, an
+ * ad-blocker, a captive portal) must never nuke the install.
+ */
+export function isDeployFatalResourceUrl(resourceUrl: string, origin: string): boolean {
+  return resourceUrl.indexOf(origin + '/') === 0
+}
+
 /** `vite:preloadError` fires on a stale-chunk dynamic import after a deploy
  * rotates hashed chunks mid-session. Reload exactly once per session — a
  * second failure means something else is wrong and reload-looping won't fix it. */
