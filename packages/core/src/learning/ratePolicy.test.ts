@@ -430,3 +430,173 @@ describe('RatePolicyEngine — config is honoured', () => {
     expect(plan!.buildCount).toBeLessThanOrEqual(6);
   });
 });
+
+describe('RatePolicyEngine — centrality criticality (founder ruling 2026-07-31, supersedes intro-order)', () => {
+  it('a late-course HUB (high centrality percentile) resists deferral even though intro-order calls it peripheral', () => {
+    const engine = createRatePolicyEngine();
+    let plan;
+    // ordinal 900/1000 → non-critical under the intro-order fallback; the
+    // centrality read says hub (0.95 >= 1 - 0.15) → critical → its struggle
+    // must never move the budget levers.
+    for (let i = 0; i < 6; i++) {
+      plan = engine.planRound(
+        boundary({
+          roundLegoId: 'x',
+          unitOrdinals: { hub: 900 },
+          unitCentralityPercentile: { hub: 0.95 },
+          difficulty: [read('hub', 'struggling')],
+        })
+      );
+    }
+    expect(plan!.buildCount).toBe(DEFAULT_RATE_POLICY_BOUNDS.buildCount.scripted);
+    expect(plan!.spacedRepCap).toBe(DEFAULT_RATE_POLICY_BOUNDS.spacedRepCap.scripted);
+    // The pause lever (the only "drill" a critical unit gets) still moved.
+    expect(plan!.pauseMultiplier('hub')).toBeGreaterThan(BASE_PAUSE);
+  });
+
+  it('an early-ordinal LEAF (low centrality percentile) becomes deferrable — centrality overrides the frontload rule', () => {
+    const engine = createRatePolicyEngine();
+    let plan;
+    // ordinal 10/1000 → critical under the old frontload rule; the centrality
+    // read says leaf (0.1) → NOT critical → confirmed struggle defers.
+    for (let i = 0; i < 6; i++) {
+      plan = engine.planRound(
+        boundary({
+          roundLegoId: 'x',
+          unitOrdinals: { leaf: 10 },
+          unitCentralityPercentile: { leaf: 0.1 },
+          difficulty: [read('leaf', 'struggling')],
+        })
+      );
+    }
+    expect(plan!.buildCount).toBeLessThan(DEFAULT_RATE_POLICY_BOUNDS.buildCount.scripted);
+  });
+
+  it('a unit ABSENT from the centrality map falls back to intro-order criticality', () => {
+    const engine = createRatePolicyEngine();
+    let plan;
+    // Map is present but does not cover "early" (ordinal 10/1000 → frontload-critical).
+    for (let i = 0; i < 6; i++) {
+      plan = engine.planRound(
+        boundary({
+          roundLegoId: 'x',
+          unitOrdinals: { early: 10 },
+          unitCentralityPercentile: { somethingElse: 0.5 },
+          difficulty: [read('early', 'struggling')],
+        })
+      );
+    }
+    expect(plan!.buildCount).toBe(DEFAULT_RATE_POLICY_BOUNDS.buildCount.scripted);
+  });
+
+  it('criticalCentralityFraction config is honoured', () => {
+    const engine = createRatePolicyEngine({ criticalCentralityFraction: 0.5 });
+    let plan;
+    // percentile 0.6 >= 1 - 0.5 → critical under the widened fraction.
+    for (let i = 0; i < 6; i++) {
+      plan = engine.planRound(
+        boundary({
+          roundLegoId: 'x',
+          unitOrdinals: { mid: 600 },
+          unitCentralityPercentile: { mid: 0.6 },
+          difficulty: [read('mid', 'struggling')],
+        })
+      );
+    }
+    expect(plan!.buildCount).toBe(DEFAULT_RATE_POLICY_BOUNDS.buildCount.scripted);
+  });
+});
+
+describe('RatePolicyEngine — deferred-return trigger (neighbourhood easing; Fibonacci stays the mechanism)', () => {
+  /** Confirm a defer of `deferred` (ordinal 500) over two boundaries. */
+  function deferUnit(engine: RatePolicyEngine, ordinals: Record<string, number>) {
+    for (let i = 0; i < 2; i++) {
+      engine.planRound(
+        boundary({
+          roundLegoId: 'x',
+          unitOrdinals: ordinals,
+          difficulty: [read('deferred', 'struggling')],
+        })
+      );
+    }
+  }
+
+  it('signals returnReady when a neighbour eases and none struggles — once, then stops watching', () => {
+    const engine = createRatePolicyEngine();
+    const ordinals = { deferred: 500, neighbour: 502 };
+    deferUnit(engine, ordinals);
+    const plan = engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('neighbour', 'easing')],
+      })
+    );
+    expect(plan.returnReady).toEqual(['deferred']);
+    // Signal fires once; the unit has left the watch.
+    const next = engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('neighbour', 'easing')],
+      })
+    );
+    expect(next.returnReady).toEqual([]);
+  });
+
+  it('a struggling neighbour vetoes the signal', () => {
+    const engine = createRatePolicyEngine();
+    const ordinals = { deferred: 500, n1: 502, n2: 499 };
+    deferUnit(engine, ordinals);
+    const plan = engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('n1', 'easing'), read('n2', 'struggling')],
+      })
+    );
+    expect(plan.returnReady).toEqual([]);
+  });
+
+  it('units outside the neighbourhood window are not neighbours', () => {
+    const engine = createRatePolicyEngine(); // window default 3
+    const ordinals = { deferred: 500, far: 510 };
+    deferUnit(engine, ordinals);
+    const plan = engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('far', 'easing')],
+      })
+    );
+    expect(plan.returnReady).toEqual([]);
+  });
+
+  it('a deferred unit easing by itself leaves the watch silently (the Fibonacci return already worked)', () => {
+    const engine = createRatePolicyEngine();
+    const ordinals = { deferred: 500, neighbour: 502 };
+    deferUnit(engine, ordinals);
+    engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('deferred', 'easing')],
+      })
+    );
+    // Even with the neighbourhood now reading ready, no signal — it recovered.
+    const plan = engine.planRound(
+      boundary({
+        roundLegoId: 'x',
+        unitOrdinals: ordinals,
+        difficulty: [read('neighbour', 'easing')],
+      })
+    );
+    expect(plan.returnReady).toEqual([]);
+  });
+
+  it('returnReady is empty when nothing was ever deferred', () => {
+    const engine = createRatePolicyEngine();
+    const plan = engine.planRound(boundary({}));
+    expect(plan.returnReady).toEqual([]);
+  });
+});

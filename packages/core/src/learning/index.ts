@@ -6,6 +6,7 @@ export * from './SpikeDetector';
 export * from './MasteryStateMachine';
 export * from './curvature';
 export * from './localDifficulty';
+export * from './centrality';
 export * from './evidence';
 export * from './ratePolicy';
 export * from './syntheticSeries';

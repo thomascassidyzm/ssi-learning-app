@@ -1,8 +1,28 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.6.0 (WP-0..WP-8 + VAD phase 1: SimplePlayer timing wiring + cycle_prosody)
-# Last updated: 2026-07-28
+# Version: 0.7.0 (distinction-network criticality: forward-reuse centrality supersedes intro-order)
+# Last updated: 2026-07-31
+#
+# 2026-07-31 (founder ruling — criticality rewired, see docs/DECISIONS.md for
+# the verbatim ruling):
+# - NEW core module packages/core/src/learning/centrality.ts:
+#   computeLegoCentrality — per-LEGO forward reuse (count of SUBSEQUENT
+#   practice phrases + M-LEGO compositions containing the LEGO, token-level
+#   contiguous containment) → rank percentile 0..1. Pure, computed offline
+#   from course content.
+# - rate_policy: RoundBoundaryInput gains optional unitCentralityPercentile —
+#   the PRIMARY criticality signal (top criticalCentralityFraction resists
+#   deferral); intro-order frontload stays as the per-unit fallback when no
+#   centrality read exists (intro-order is the degenerate case of forward
+#   reuse). RoundPlan gains returnReady: deferred units whose neighbourhood
+#   (± neighbourhoodWindow introduction ordinals) reads easing with none
+#   struggling — ADVISORY; Fibonacci SR remains the actual return mechanism.
+# - player_wiring: packages/player-vue/src/playback/legoCentrality.ts
+#   computes the map once per course from the full script walk (build/use
+#   content phrases, INF-PLAY replays deduped); planRound passes it through;
+#   adaptation_plan log gains plan.returnReady + roundLegoCentrality.
+#   Shadow mode untouched.
 #
 # 2026-07-28 (VAD feedback phase 1, founder-ruled):
 # - GROUND-TRUTH CORRECTION to "Producer #1 LIVE" below: the latency producer's
@@ -254,15 +274,20 @@ module: rate_policy
     Decide, at each round boundary, how to spend the session's finite
     practice budget across CONSOLIDATE / DEFER / DRILL (build spec §4; the
     paper §03). The single consumer of EvidenceAggregator series (via B4's
-    assessLocalDifficulty) and introduction-order criticality. Pure — decides
+    assessLocalDifficulty) and forward-reuse-centrality criticality
+    (intro-order fallback). Pure — decides
     only; WP-3 (player wiring, not yet built) is the only thing that ever
     applies a RoundPlan.
 
   binding_pedagogy: >
     Owner decision, do not invert: default lean is consolidate + defer; drill
-    is reserved for the structurally critical few, where criticality =
-    introduction order (earliest `criticalFrontloadFraction` of the course's
-    LEGO ordinals), NEVER corpus frequency. Enforced STRUCTURALLY, not just by
+    is reserved for the structurally critical few, where criticality = the
+    unit's HUB-NESS in the distinction network — forward-reuse centrality
+    percentile in the top `criticalCentralityFraction` (founder ruling
+    2026-07-31; computed by centrality.ts) — falling back to introduction
+    order (earliest `criticalFrontloadFraction` of the course's LEGO
+    ordinals) for any unit with no centrality read; NEVER corpus frequency.
+    Enforced STRUCTURALLY, not just by
     default numbers: a critical unit's confirmed struggle has no code path to
     the round-level buildCount/consolidateCount/spacedRepCap decision at all —
     it can only nudge that unit's own pause multiplier. Separately, no
@@ -283,7 +308,9 @@ module: rate_policy
       breatherMinRoundGap: number    # PROPOSED 3 ("at most 1 breather per 3 rounds")
     RatePolicyConfig:
       bounds: RatePolicyBounds
-      criticalFrontloadFraction: number    # PROPOSED 0.15
+      criticalFrontloadFraction: number    # PROPOSED 0.15 — the intro-order FALLBACK
+      criticalCentralityFraction: number   # PROPOSED 0.15 — top fraction by centrality percentile = critical
+      neighbourhoodWindow: number          # PROPOSED 3 — ordinal half-width for the returnReady signal
       hysteresisReads: number              # PROPOSED 2 consecutive confirming reads
       decayRounds: number                  # PROPOSED 5 quiet rounds to fully decay a one-step nudge
       manualOverrideDeadZoneMultiplier: number  # PROPOSED 2 — widens hysteresisReads while the learner
@@ -294,6 +321,9 @@ module: rate_policy
       courseLegoCount: number              # criticality-fraction denominator
       difficulty: LocalDifficulty[]        # this boundary's B4 reads, one per ready unit
       unitOrdinals: Record<string, number> # introduction ordinal per unit id
+      unitCentralityPercentile?: Record<string, number>  # forward-reuse percentile per unit id (0..1,
+                                                          #   1 = biggest hub) — PRIMARY criticality signal;
+                                                          #   absent map/entry falls back to intro-order
       manualOverrideActive: boolean
       basePauseMultiplier: (legoId) => number   # the existing MasteryStateMachine ladder value,
                                                  #   BEFORE this policy's curvature nudge
@@ -302,6 +332,9 @@ module: rate_policy
       consolidateCount: number
       spacedRepCap: number
       insertBreather: boolean              # insert a no-new-LEGO breather before the NEXT debut
+      returnReady: string[]                # deferred units whose neighbourhood reads ready (easing,
+                                            #   none struggling) — ADVISORY, shadow-logged; the
+                                            #   Fibonacci SR schedule stays the actual return mechanism
       pauseMultiplier: (legoId) => number  # ladder base + curvature nudge, clamped
 
   api:
@@ -315,9 +348,12 @@ module: rate_policy
 
   budget_logic: >
     Per confirmed-struggling unit (build spec §4.3), in priority order:
-      1. CRITICALITY GUARD — critical unit (ordinal <= ceil(courseLegoCount *
+      1. CRITICALITY GUARD — critical unit (centrality percentile >=
+         1 - criticalCentralityFraction when a read exists; else the
+         fallback ordinal <= ceil(courseLegoCount *
          criticalFrontloadFraction)): round-level levers untouched; only its
-         own pause multiplier nudges up. "Never defer" (paper §04).
+         own pause multiplier nudges up. "Never defer" (paper §04, as
+         rewired by the 2026-07-31 ruling).
       2. OWN-LEGO STRUGGLE — the round's own (new) LEGO is the non-critical
          struggling unit: buildCount HOLDS at scripted (new material is never
          starved of its own practice); consolidateCount rises one step; a
@@ -330,6 +366,12 @@ module: rate_policy
     Quiet rounds (no confirming signal) decay every off-default lever back
     toward its scripted value, `step / decayRounds` per round — "the engine's
     resting state is do nothing" (§4.5).
+    DEFERRED-RETURN WATCH (2026-07-31): each unit deferred by move 3 enters a
+    watch set; on every boundary, a watched unit whose neighbourhood (units
+    within neighbourhoodWindow introduction ordinals, read this boundary)
+    shows >=1 easing and 0 struggling is emitted in RoundPlan.returnReady and
+    leaves the watch (fires once). A watched unit that reads easing ITSELF
+    leaves silently — the Fibonacci return already worked.
 
   hysteresis_and_bounds: >
     A lever moves only after `hysteresisReads` (default 2) CONSECUTIVE
@@ -367,7 +409,18 @@ module: rate_policy
                                                        #   decay-to-default over quiet rounds; golden scenario
                                                        #   traces replaying real struggling/steady/easing
                                                        #   syntheticSeries through the real assessLocalDifficulty
-                                                       #   sensor (not a stub); config overrides honoured.
+                                                       #   sensor (not a stub); config overrides honoured;
+                                                       #   centrality criticality (late hub resists, early
+                                                       #   leaf defers, absent-entry falls back to intro-order,
+                                                       #   criticalCentralityFraction honoured); returnReady
+                                                       #   (neighbour easing fires once, struggling neighbour
+                                                       #   vetoes, out-of-window ignored, self-easing silent).
+    - packages/core/src/learning/centrality.test.ts   # tokenization (unicode, elision, diacritics);
+                                                       #   subsequent-only counting; M-composition edges;
+                                                       #   whole-token matching; contiguous multi-token;
+                                                       #   percentile ranking + ties; empty inputs.
+    - packages/player-vue/src/playback/legoCentrality.test.ts  # debut-order ordinals; spaced_rep/revival
+                                                       #   replay exclusion; re-emitted debut keeps first ordinal.
 
 module: player_wiring
   purpose: >
@@ -395,7 +448,13 @@ module: player_wiring
     `useAdaptationEngine.planRound(input: PlanRoundInput) -> { plan,
     difficulty }` wraps `EvidenceAggregator.readyUnits` +
     `assessLocalDifficulty` (B4) per ready unit, then
-    `RatePolicyEngine.planRound`. Only the round's own (about-to-play) LEGO
+    `RatePolicyEngine.planRound`. CENTRALITY FEED (2026-07-31):
+    LearningPlayer computes the per-course forward-reuse map once from the
+    first full script walk (playback/legoCentrality.ts — debut order gives
+    introduction ordinals; build/use items are the content phrases, INF-PLAY
+    replays deduped on owner+target; ~75ms measured for a 1,475-LEGO course)
+    and threads it through PlanRoundInput.unitCentralityPercentile. Compute
+    failure degrades silently to the intro-order fallback. Only the round's own (about-to-play) LEGO
     has a known introduction ordinal — `unitOrdinals` for every other unit is
     left absent, which the criticality guard treats as "never critical" (the
     policy's documented safe default) rather than guessing. `roundLegoOrdinal`
@@ -453,7 +512,9 @@ module: player_wiring
   shadow_log_shape: >
     One `adaptation_plan` player_event per round boundary (when enabled):
       { roundNumber, legoId,
-        plan: { buildCount, consolidateCount, spacedRepCap, insertBreather },
+        plan: { buildCount, consolidateCount, spacedRepCap, insertBreather,
+                returnReady },
+        roundLegoCentrality: number|null,  # the round LEGO's percentile, or null pre-compute/fallback
         difficultyStates: [{ unitId, state, accelerationZ, samples }, ...],
         applied: boolean }   # true only when shadow:false
     `applied` lets a shadow-soak query separate "what the engine computed"

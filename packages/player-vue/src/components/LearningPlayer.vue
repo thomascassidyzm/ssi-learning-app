@@ -52,7 +52,8 @@ import { useClassAwareProgressStore, type ClassContextForProgress } from '../com
 import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop } from '../providers/generateLearningScript'
+import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop, type ScriptItem } from '../providers/generateLearningScript'
+import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
@@ -422,6 +423,27 @@ const infPlayLookaheadFloor = (): number => {
 // lookahead → different key → fresh walk, as before).
 let inFlightScript: { key: string; promise: Promise<any> } | null = null
 
+// Forward-reuse centrality (founder ruling 2026-07-31 — the distinction
+// network's criticality signal, see @ssi/core centrality.ts). Computed once
+// per course from the first full script walk: INF-PLAY expansions only extend
+// the revival tail with replayed content, so the map never changes within a
+// course. Consumed by planRound (shadow mode: logged, never applied).
+let centralityForCourse: string | null = null
+const legoCentralityPercentile = ref<Record<string, number> | null>(null)
+
+const maybeComputeCentrality = (items: ScriptItem[] | undefined, forCourse: string) => {
+  if (!items?.length || centralityForCourse === forCourse) return
+  try {
+    centralityForCourse = forCourse
+    const { percentileByLego } = computeCentralityFromScript(items)
+    legoCentralityPercentile.value = percentileByLego
+  } catch (err) {
+    // Centrality is an enrichment — the criticality guard falls back to
+    // intro-order without it. Never let it break script delivery.
+    console.error('[LearningPlayer] centrality computation failed (falling back to intro-order):', err)
+  }
+}
+
 const generateScript = (
   listeningOverride?: ListeningConfigType,
 ) => {
@@ -439,6 +461,10 @@ const generateScript = (
   }
   const promise = runGenerateScript(listeningOverride)
   inFlightScript = { key: dedupeKey, promise }
+  const walkCourse = courseCode.value
+  promise.then((result) => {
+    if (walkCourse === courseCode.value) maybeComputeCentrality(result?.items, walkCourse)
+  }).catch(() => { /* observers handle their own errors */ })
   promise.finally(() => {
     if (inFlightScript?.promise === promise) inFlightScript = null
   }).catch(() => { /* observers handle their own errors */ })
@@ -4663,6 +4689,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       roundLegoOrdinal,
       courseLegoCount,
       manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+      unitCentralityPercentile: legoCentralityPercentile.value ?? undefined,
     })
     const applyingAdaptationV2 = !adaptationV2Config.value.shadow
     logEvent('adaptation_plan', {
@@ -4673,7 +4700,12 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         consolidateCount: plan.consolidateCount,
         spacedRepCap: plan.spacedRepCap,
         insertBreather: plan.insertBreather,
+        returnReady: plan.returnReady,
       },
+      // Shadow transparency for the criticality rewrite (2026-07-31): which
+      // signal the guard had for this round's LEGO, so logs show would-do
+      // under centrality vs the intro-order fallback.
+      roundLegoCentrality: legoCentralityPercentile.value?.[nextRoundFull.legoId] ?? null,
       difficultyStates: difficulty.map((d) => ({
         unitId: d.unitId,
         state: d.state,

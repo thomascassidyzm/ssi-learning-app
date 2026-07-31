@@ -29,7 +29,9 @@ A single cycle has no curvature, so every read is gated on a minimum number of c
 
 The whole budget reduces to two questions. Principle 5's discipline: answer both with a primitive already in the data, and earn a richer signal only if the data later shows the primitive failing.
 
-**Drill or defer? → introduction order.** Criticality is *not* corpus frequency and *not* in-course reuse — both under-rank the highest-impact material (the meta-communication layer: *"I'm not sure how to say…"*, *"can you say that again"*). The author already sequenced by conversational impact, so **introduction order (`seed_number` / LEGO index) is the criticality signal, for free.** Consequence: a hard **early-layer** LEGO *resists* deferral (drill or hold) even though it is "rare," because deferring it delays the conversational unlock. A hard **late/peripheral** LEGO is the natural defer candidate.
+**Drill or defer? → ~~introduction order~~ forward-reuse centrality (SUPERSEDED 2026-07-31 — founder ruling, see `docs/DECISIONS.md`).** The original C1 answer was introduction order: the author sequenced by conversational impact, so early = critical, for free. Tom's 2026-07-31 ruling replaces the proxy with the thing it proxied: criticality = **does this LEGO block the path forward?**, measured as forward reuse — the number of *subsequent* phrases and M-LEGO compositions that contain it (`packages/core/src/learning/centrality.ts`, computed offline from course content at script-build time). Intro-order is *subsumed*, not contradicted: early LEGOs naturally score high on forward reuse because the whole course sits ahead of them — and intro-order remains the fallback for any unit with no centrality read. What changes is the tail the proxy got wrong: measured on spa_for_eng, 129 of the top-15% hubs (que, lo, no, a, de — the structural glue re-introduced mid-course) sit *past* the old 15% frontload cutoff and were wrongly deferrable; conversely, zero-reuse early one-offs no longer resist deferral by accident of position.
+
+**Deferred return (same ruling's companion):** the Fibonacci SR schedule stays the return *mechanism*, but the policy now also signals `returnReady` when a deferred unit's neighbourhood (±3 introduction ordinals) reads easing with none struggling — the measured version of "the surrounding map has thickened". Advisory and shadow-logged only; nothing consumes it yet.
 
 **When does a deferred item return? → the Fibonacci SR schedule.** Deferral is timing, not abandonment. Deferring *is* letting the existing `SpacedRepetitionQueue` space the item out; it resurfaces once the surrounding map has filled, which spacing already approximates. No separate "neighbourhood-consolidated" computation.
 
@@ -53,7 +55,7 @@ Because the metric layer captures all of this, the lean is **falsifiable**: as p
 
 | Step | What | Gated on |
 |---|---|---|
-| **C1** | Budget policy: criticality = introduction order; return = Fibonacci SR. No new tag/centrality (earn it). | `B4` (curvature per unit) |
+| **C1** | Budget policy: criticality = ~~introduction order~~ forward-reuse centrality (2026-07-31 ruling, §3 above — the "earn it" bar was met: shadow logs shipped, the proxy's tail failure measured); return = Fibonacci SR + the `returnReady` neighbourhood signal. | `B4` (curvature per unit) |
 | **C2** | Acceleration-damping controller: nudge pause multiplier + rep count to keep local curvature near zero. Extends `useAdaptationEngine` / `MetricsTracker`; persists Layer 1 state. | `B4` + `A3` (Layer 1 persisted) |
 | **C3** | `surface_to_human` queue — engine actions needing sign-off, written for the dashboard to read, never done silently. | `A4` (Layer 2) |
 

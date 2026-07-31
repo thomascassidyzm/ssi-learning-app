@@ -885,3 +885,39 @@ deployments for later pushes succeeded, it is a dropped webhook, not a block —
 empty commit before escalating.**
 **Search width:** none-needed
 **Decided by:** agent
+
+## 2026-07-31 — criticality rewired: distinction-network forward-reuse centrality supersedes intro-order
+**The ruling (Tom, 2026-07-31, verbatim):** "A hub LEGO is a LEGO that is connected to many other
+subsequent LEGOs, or is used in many subsequent phrases… The question is whether this LEGO is
+going to block people from getting to other phrases. And maybe we do some simple maths: Which
+words are showing the most variation in the phrase → Find the number of other phrases that
+contain these words → Use this number as a measure of centrality."
+**Move:** New pure module `packages/core/src/learning/centrality.ts` — per-LEGO forward reuse =
+count of SUBSEQUENT practice phrases + M-LEGO compositions containing the LEGO (token-level
+contiguous containment, rank percentile out). `RatePolicyEngine` now takes an optional
+`unitCentralityPercentile` map as the PRIMARY criticality signal (top `criticalCentralityFraction`
+= resists deferral); intro-order stays as the zero-data fallback. Companion: deferred units get a
+measured return signal — `RoundPlan.returnReady` fires when the unit's neighbourhood (±3
+introduction ordinals) reads easing with none struggling; Fibonacci SR remains the actual return
+mechanism. Player computes the map once per course from the script walk it already fetched
+(`playback/legoCentrality.ts`, INF-PLAY replays deduped) and shadow-logs everything via
+`adaptation_plan` (plan.returnReady + roundLegoCentrality). Shadow mode untouched — nothing
+learner-facing moves.
+**Better:** criticality now measures the thing itself ("blocks the path forward") instead of the
+positional proxy. Measured on spa_for_eng (1,475 LEGOs, 15,212 phrases): 129 of the top-15% hubs
+— que/lo/no/a/de, the structural glue re-introduced mid-course — sit PAST the old 15% frontload
+cutoff and were wrongly deferrable; 207 zero-reuse LEGOs (late vosotros one-offs) are now honestly
+deferrable regardless of position.
+**Simpler:** intro-order is the degenerate case of forward reuse, so one signal subsumes the other
+rather than sitting beside it; no new tables, no new capture, no flags.
+**Cheaper:** one indexed in-memory pass over already-fetched script items — 75ms measured for the
+full Spanish course; zero runtime schema or query cost.
+**Searched & rejected:**
+- Corpus frequency / in-course total reuse — rejected in the original C1 analysis and still: reuse
+  BEHIND the learner blocks nothing; subsequent-only is the ruling's whole point.
+- Persisting a per-course centrality table — rejected: the consumer (shadow-mode ratePolicy) lives
+  where the script items already are; a table is a signal built before its consumer needs it.
+- Raw-substring matching (the pre-rescope component-check mistake) — rejected for token-level
+  containment: "en" must not match inside "bien", elision "qu'il" must still contain "il".
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling
