@@ -125,6 +125,23 @@ const browser = await chromium.launch()
   check('F3: teacher rail shows own classes below', childCount >= 1, `children=${childCount}, inert=${inertCount}`)
   await page.screenshot({ path: `${OUT}8-teacher-rail.png`, fullPage: true })
 
+  // F4: "+ Create class" opens the Create New Class modal IN PLACE — no
+  // navigation to My Classes first (founder finding 4, 2026-07-31).
+  const urlBefore = page.url()
+  const createBtn = page.locator('button', { hasText: 'Create class' }).first()
+  if (await createBtn.count()) {
+    await createBtn.click()
+    await page.waitForTimeout(1200)
+    const modalText = await page.locator('body').innerText()
+    check('F4: create CTA opens the Create New Class modal directly', /Create New Class|Class name/i.test(modalText))
+    check('F4: no navigation happened (still on the dashboard)', page.url() === urlBefore, page.url())
+    await page.screenshot({ path: `${OUT}10-create-class-modal.png` })
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(500)
+  } else {
+    check('F4: a create-class BUTTON exists on the teacher dashboard (not a link)', false)
+  }
+
   // Students tab keeps the rail
   const studentsTab = page.locator('.tabs a', { hasText: 'Students' }).first()
   if (await studentsTab.count()) {
