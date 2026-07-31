@@ -17,6 +17,7 @@ function makeDeps(overrides: Partial<BulkAudioDownloadDeps> = {}): BulkAudioDown
     ensure: async () => {},
     isCancelled: () => false,
     isPlaying: () => false,
+    sleep: async () => {},  // straggler-round backoff is instant in tests
     ...overrides,
   }
 }
@@ -38,7 +39,7 @@ describe('bulkDownloadAudio', () => {
   it('resolves immediately for an empty id list', async () => {
     const { counters, counts } = makeCounters()
     const result = await bulkDownloadAudio([], makeDeps(), counters)
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(counts.done).toBe(0)
     expect(counts.failed).toBe(0)
   })
@@ -50,7 +51,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(['a', 'b', 'c'], makeDeps({ ensureFromUrl, ensure }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(ensureFromUrl).toHaveBeenCalledTimes(3)
     expect(ensure).not.toHaveBeenCalled()
     expect(counts.done).toBe(3)
@@ -65,7 +66,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(['a', 'b'], makeDeps({ fetchBatchUrls, ensureFromUrl, ensure }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(ensureFromUrl).not.toHaveBeenCalled()
     expect(ensure).toHaveBeenCalledTimes(2)
     expect(ensure).toHaveBeenCalledWith('a')
@@ -85,7 +86,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(['a', 'b', 'c'], makeDeps({ fetchBatchUrls, ensureFromUrl, ensure }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(ensureFromUrl).toHaveBeenCalledTimes(2)
     expect(ensureFromUrl).toHaveBeenCalledWith('a', 'https://s3.example.com/a')
     expect(ensureFromUrl).toHaveBeenCalledWith('c', 'https://s3.example.com/c')
@@ -107,7 +108,7 @@ describe('bulkDownloadAudio', () => {
       counters,
     )
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     // 'b' retried 3x on the direct path, then fell back to ensure().
     expect(ensureFromUrl).toHaveBeenCalledWith('b', expect.any(String))
     expect(ensure).toHaveBeenCalledTimes(1)
@@ -116,17 +117,75 @@ describe('bulkDownloadAudio', () => {
     expect(counts.failed).toBe(0)
   })
 
-  it('counts a proxy failure after retries as failed, never throws', async () => {
+  it('counts a proxy failure as failed only after every straggler round, never throws', async () => {
     const fetchBatchUrls = vi.fn(async () => null)
     const ensure = vi.fn(async () => { throw new Error('proxy down') })
+    const sleep = vi.fn(async () => {})
     const { counters, counts } = makeCounters()
 
-    const result = await bulkDownloadAudio(['a'], makeDeps({ fetchBatchUrls, ensure }), counters)
+    const result = await bulkDownloadAudio(['a'], makeDeps({ fetchBatchUrls, ensure, sleep }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
+    expect(result.failedIds).toEqual(['a'])
     expect(counts.done).toBe(0)
     expect(counts.failed).toBe(1)
+    // Initial pass + 3 straggler rounds, 3 in-pass retries each.
+    expect(ensure).toHaveBeenCalledTimes(12)
+    expect(sleep).toHaveBeenCalledTimes(3) // backoff between rounds fired
   })
+
+  it('straggler rounds: a transient tail lands on a later pass with fresh URLs, never counted failed', async () => {
+    // The founder shape: N ids, the last 10 fail every path during the first
+    // pass (transient stall), then succeed once the straggler round re-runs
+    // them with freshly requested URLs.
+    const ids = Array.from({ length: 50 }, (_, i) => `id-${i}`)
+    const flaky = new Set(ids.slice(-10))
+    let pass = 0
+    const fetchBatchUrls = vi.fn(async (chunk: string[]): Promise<BatchUrlsResult> => ({
+      urls: Object.fromEntries(chunk.map((id) => [id, `https://s3.example.com/${id}?pass=${pass}`])),
+      denied: [],
+    }))
+    const ensureFromUrl = vi.fn(async (id: string) => {
+      if (pass === 0 && flaky.has(id)) throw new Error('transient stall')
+    })
+    const ensure = vi.fn(async (id: string) => {
+      if (pass === 0 && flaky.has(id)) throw new Error('transient stall')
+    })
+    const sleep = vi.fn(async () => { pass++ })
+    const { counters, counts } = makeCounters()
+
+    const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls, ensureFromUrl, ensure, sleep }), counters)
+
+    expect(result.completed).toBe(true)
+    expect(result.failedIds).toEqual([])
+    expect(counts.done).toBe(50)
+    expect(counts.failed).toBe(0)
+    expect(sleep).toHaveBeenCalledTimes(1) // one straggler round sufficed
+    // The straggler round re-requested URLs for exactly the missing tail.
+    const stragglerBatch = fetchBatchUrls.mock.calls.find((c) => c[0].length === 10)
+    expect(stragglerBatch?.[0].sort()).toEqual([...flaky].sort())
+  })
+
+  it('the founder shape: N-10 of N with permanently dead ids still completes, reporting exactly those ids', async () => {
+    const ids = Array.from({ length: 60 }, (_, i) => `id-${i}`)
+    const dead = new Set(ids.slice(-10))
+    const ensureFromUrl = vi.fn(async (id: string) => {
+      if (dead.has(id)) throw new Error('S3 fetch failed')
+    })
+    const ensure = vi.fn(async (id: string) => {
+      if (dead.has(id)) throw new Error('proxy failed too')
+    })
+    const { counters, counts } = makeCounters()
+
+    const result = await bulkDownloadAudio(ids, makeDeps({ ensureFromUrl, ensure }), counters)
+
+    // Never a dead-end: the run completes, 50 clips landed, and the caller
+    // gets the exact missing tail to keep retrying in the background.
+    expect(result.completed).toBe(true)
+    expect(result.failedIds.sort()).toEqual([...dead].sort())
+    expect(counts.done).toBe(50)
+    expect(counts.failed).toBe(10)
+  }, 20_000)  // real in-pass retry backoffs run across 4 passes on 2 paths
 
   it('stops and returns false when cancelled before the batch-url request', async () => {
     const fetchBatchUrls = vi.fn(async () => ({ urls: {}, denied: [] }))
@@ -138,7 +197,7 @@ describe('bulkDownloadAudio', () => {
       counters,
     )
 
-    expect(result).toBe(false)
+    expect(result.completed).toBe(false)
     expect(fetchBatchUrls).not.toHaveBeenCalled()
     expect(counts.done).toBe(0)
     expect(counts.failed).toBe(0)
@@ -154,7 +213,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(fetchBatchUrls).toHaveBeenCalledTimes(3) // 500 + 500 + 200
     for (const call of fetchBatchUrls.mock.calls) {
       expect(call[0].length).toBeLessThanOrEqual(500)
@@ -177,7 +236,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls, ensureFromUrl }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(fetchBatchUrls).toHaveBeenCalledTimes(2) // 500 + 100, never all upfront
     const secondBatchAt = events.indexOf('batch', events.indexOf('batch') + 1)
     const firstDownloadAt = events.indexOf('download')
@@ -208,7 +267,7 @@ describe('bulkDownloadAudio', () => {
 
     const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls, ensureFromUrl, ensure }), counters)
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(ensure).not.toHaveBeenCalled() // fresh URLs succeeded — no proxy fallback
     expect(counts.done).toBe(600)
     expect(counts.failed).toBe(0)
@@ -244,7 +303,7 @@ describe('bulkDownloadAudio', () => {
       counters,
     )
 
-    expect(result).toBe(true)
+    expect(result.completed).toBe(true)
     expect(counts.done).toBe(30)
     // First dispatch of 24 used the original URLs; the remaining 6 were
     // re-requested in one batch before dispatch, not sent stale.
