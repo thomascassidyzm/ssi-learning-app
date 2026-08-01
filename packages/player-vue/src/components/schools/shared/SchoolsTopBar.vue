@@ -50,8 +50,12 @@ const tabs = computed<NavTab[]>(() => {
     // 2026-07-29).
     const groupId = currentUser.value.group_id
     if (groupId) {
+      // 'Organisation', not 'Schools' (founder ruling 2026-08-02: ed-speak is
+      // a dressing, and the top bar can't see the subtree to pick one — so it
+      // makes no school claim). Lands on the node home, whose lens chips give
+      // an education-dressed leader All-schools in one tap.
       return [
-        { label: 'Schools',  to: `/org/${groupId}?lens=schools`, routeName: 'org-node-home', lens: 'schools' },
+        { label: 'Organisation', to: `/org/${groupId}`, routeName: 'org-node-home' },
         { label: 'Insights', to: `/org/${groupId}/insights`, routeName: 'org-node-insights' },
       ]
     }
