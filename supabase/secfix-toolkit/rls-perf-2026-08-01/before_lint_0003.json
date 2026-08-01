@@ -1,0 +1,72 @@
+[
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "policy_name": "classes_insert"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "policy_name": "classes_select"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "policy_name": "classes_update"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "govt_admins",
+  "policy_name": "govt_admins_insert"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "govt_admins",
+  "policy_name": "govt_admins_select"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "Govt admins can create school_admin codes"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "SSi admins can create govt_admin codes"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "School admins can create teacher codes"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "Teachers can create student codes"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "Users can view codes they created"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "policy_name": "invite_codes_insert"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "policy_name": "schools_insert"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "policy_name": "schools_select"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "policy_name": "schools_update"
+ }
+]
