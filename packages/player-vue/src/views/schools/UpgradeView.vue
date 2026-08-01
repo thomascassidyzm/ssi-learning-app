@@ -2,8 +2,19 @@
 /**
  * UpgradeView — the ONE canonical payment page (lever-3).
  *
+ * WORDING (founder ruling 2026-08-02): money-facing copy speaks to
+ * ORGANISATIONS, not schools. The neutral vocabulary is group / group leader /
+ * learner; school / teacher / class is a vocabulary DRESSING for the education
+ * preset, kept only on the school lane below. The org lane's unit is a LEARNER
+ * seat — docs/PRICING.md (Popty) rules "one seat = one named learner for the
+ * entire paid period", which is why the lede promises adding seats but not
+ * mid-period swaps.
+ * ⚠️ SEAM: when the terminology-preset layer lands, the school lane's literal
+ * "teacher seat" / "Subscribe your school" strings should route through it
+ * rather than being a hard-coded second lane.
+ *
  * Context-aware, serves THREE lanes off a single surface:
- *   • govt_admin (org/workplace group-leader) → £15 per MEMBER seat / month
+ *   • govt_admin (org/workplace group-leader) → £15 per LEARNER seat / month
  *     (or £150/seat/yr) for the org's `groups` row (api/_utils/orgPlatform.ts).
  *     Same seat-stepper/in-place-edit/double-subscribe-guard shape as the
  *     school lane below, against /api/org/subscription + /api/org/update-seats
@@ -506,8 +517,9 @@ watch(currentUser, (user) => {
           {{ isOrgSubscribed ? 'Manage your seats' : 'Subscribe your organisation' }}
         </h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} per member seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
-          One subscription covers every member seat, every language — add or remove seats any time.
+          £{{ PRICE_PER_SEAT_GBP }} per learner seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
+          One subscription covers every seat and every language. Add seats any time — each seat
+          belongs to one named learner for the period you've paid for.
         </p>
 
         <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
@@ -535,7 +547,7 @@ watch(currentUser, (user) => {
         </div>
 
         <div class="seat-row">
-          <span class="field-label">Member seats</span>
+          <span class="field-label">Learner seats</span>
           <div class="seat-stepper">
             <button type="button" class="seat-btn" :disabled="orgSeatCount <= 1 || checkoutOpen" @click="setOrgSeats(orgSeatCount - 1)">−</button>
             <input
@@ -553,10 +565,10 @@ watch(currentUser, (user) => {
 
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
         <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note">
-          {{ orgMemberCount ?? 0 }} member{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
+          {{ orgMemberCount ?? 0 }} learner{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
           {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
           <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
-            — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more member{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
+            — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more learner{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
           </span>
         </p>
 

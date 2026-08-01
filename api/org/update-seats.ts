@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     const groupId = await leaderGroupId(supabase, auth.userId)
     if (!groupId) {
-      res.status(404).json({ error: 'No org for this account' })
+      res.status(404).json({ error: 'No organisation for this account' })
       return
     }
 
@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .eq('id', groupId)
       .maybeSingle()
     if (groupErr || !group) {
-      res.status(404).json({ error: 'Org not found' })
+      res.status(404).json({ error: 'Organisation not found' })
       return
     }
     const subId = group.provider_subscription_id as string | null
