@@ -307,8 +307,8 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain('266.4h')
   })
 
-  it('MEMBER-MOUNT PIN (/schools/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
-    ;(routeMock as any).path = '/schools/org/programme'
+  it('MEMBER-MOUNT PIN (/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
+    ;(routeMock as any).path = '/org/programme'
     setupFetch(nodePayload())
     const wrapper = mountView()
     await flushPromises()
@@ -318,13 +318,13 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain("you're here")
     // Rail rooted at the leader's scope: no "All organisations" admin escape
     expect(wrapper.text()).not.toContain('All organisations')
-    // Navigation stays inside /schools/org — child row and rail ancestor
+    // Navigation stays inside /org — child row and rail ancestor
     await wrapper.find('.child-btn').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/schools/org/school-node')
+    expect(pushMock).toHaveBeenCalledWith('/org/school-node')
     await wrapper.find('.rail-link').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/schools/org/nation')
+    expect(pushMock).toHaveBeenCalledWith('/org/nation')
     // See insights points at the member lens, not /admin
-    expect(wrapper.find('a[href="/schools/org/programme/insights"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/org/programme/insights"]').exists()).toBe(true)
     // Verbs: leaders keep the invite pair; structural admin verbs are hidden
     const verbs = wrapper.findAll('.verb').map((v) => v.text())
     expect(verbs).toContain('Invite a person')
@@ -369,7 +369,7 @@ describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admi
   })
 
   it('mid-trial: shows the days-remaining banner with an always-visible Upgrade link, dashboard still renders', async () => {
-    ;(routeMock as any).path = '/schools/org/programme'
+    ;(routeMock as any).path = '/org/programme'
     ctx.currentUser.value = {
       user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
       educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
@@ -379,13 +379,13 @@ describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admi
     await flushPromises()
 
     expect(wrapper.text()).toContain('12 days left in your organisation\'s free trial')
-    expect(wrapper.find('a[href="/schools/upgrade"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/org/upgrade"]').exists()).toBe(true)
     // Dashboard renders normally underneath the banner — trial is not a wall.
     expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
   })
 
   it('expired: the whole node home is replaced by the pay-in-app wall, never a dead end', async () => {
-    ;(routeMock as any).path = '/schools/org/programme'
+    ;(routeMock as any).path = '/org/programme'
     ctx.currentUser.value = {
       user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
       educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
@@ -400,7 +400,7 @@ describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admi
   })
 
   it('paid (active, no trial): no banner, no wall — the dashboard renders plainly', async () => {
-    ;(routeMock as any).path = '/schools/org/programme'
+    ;(routeMock as any).path = '/org/programme'
     ctx.currentUser.value = {
       user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
       educational_role: 'govt_admin', platform_role: null, group_id: 'programme',

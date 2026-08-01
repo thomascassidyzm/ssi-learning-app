@@ -333,7 +333,7 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
 // is orientation, not navigation — it never disappears). Routes opt in via
 // meta.railFrame; useSchoolsRail resolves the tree per role (school node for
 // admins, own-classes scope for teachers) and roles with no node source
-// (legacy rows) stay full-width. The node surfaces (/schools/org/:id) own
+// (legacy rows) stay full-width. The node surfaces (/org/:id) own
 // their rail already and carry no railFrame meta.
 const { rail: schoolsRail, eligible: railEligible } = useSchoolsRail()
 const showRailFrame = computed(() => !!route.meta.railFrame && railEligible.value)
@@ -352,9 +352,9 @@ watch(
     const groupId = user?.group_id
     if (groupId && ctx.isGovtAdmin.value) {
       if (routeName === 'schools-list') {
-        void router.replace({ path: `/schools/org/${groupId}`, query: { lens: 'schools' } })
+        void router.replace({ path: `/org/${groupId}`, query: { lens: 'schools' } })
       } else if (routeName === 'analytics') {
-        void router.replace(`/schools/org/${groupId}/insights`)
+        void router.replace(`/org/${groupId}/insights`)
       }
       return
     }
@@ -368,11 +368,11 @@ watch(
     const schoolId = user?.school_id
     if (schoolId && ctx.isSchoolAdmin.value) {
       if (routeName === 'schools-dashboard') {
-        void router.replace(`/schools/org/${schoolId}`)
+        void router.replace(`/org/${schoolId}`)
       } else if (routeName === 'teachers') {
-        void router.replace({ path: `/schools/org/${schoolId}`, query: { lens: 'teachers' } })
+        void router.replace({ path: `/org/${schoolId}`, query: { lens: 'teachers' } })
       } else if (routeName === 'analytics') {
-        void router.replace(`/schools/org/${schoolId}/insights`)
+        void router.replace(`/org/${schoolId}/insights`)
       }
     }
   },

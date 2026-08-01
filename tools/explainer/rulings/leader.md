@@ -1,4 +1,4 @@
-<!-- Persona: leader (group/region/programme leader, the /schools/org/:id member
+<!-- Persona: leader (group/region/programme leader, the /org/:id member
      mount). Hand-maintained RULING — mechanism only, never restated state. -->
 
 ## group

@@ -34,8 +34,8 @@ describe('SchoolsTopBar — govt_admin tab set', () => {
     const links = wrapper.findAll('.tabs a')
     const labels = links.map((l) => l.text())
     expect(labels).toEqual(['Schools', 'Insights'])
-    expect(links[0].attributes('href')).toBe('/schools/org/grp-wales?lens=schools')
-    expect(links[1].attributes('href')).toBe('/schools/org/grp-wales/insights')
+    expect(links[0].attributes('href')).toBe('/org/grp-wales?lens=schools')
+    expect(links[1].attributes('href')).toBe('/org/grp-wales/insights')
   })
 
   it('a group-scoped govt_admin has NO door to the retired flat views', async () => {
@@ -69,12 +69,12 @@ describe('SchoolsTopBar — govt_admin tab set', () => {
       user_id: 'govt-1', learner_id: 'l1', display_name: 'Leader', educational_role: 'govt_admin',
       platform_role: null, group_id: 'grp-wales',
     }
-    await router.push('/schools/org/grp-wales?lens=schools')
+    await router.push('/org/grp-wales?lens=schools')
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const active = wrapper.findAll('.tabs a.active').map((l) => l.text())
     expect(active).toEqual(['Schools'])
 
-    await router.push('/schools/org/grp-wales')
+    await router.push('/org/grp-wales')
     await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.tabs a.active')).toHaveLength(0)
   })

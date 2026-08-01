@@ -5,7 +5,7 @@
  * breadcrumb, even if they can't go UP a level because of permissions … I
  * don't like the LHS anchor just disappearing." The rail is orientation, not
  * navigation — EVERY schools-dashboard view keeps it. The node surfaces
- * (/schools/org/:id) already own their rail; this composable feeds the same
+ * (/org/:id) already own their rail; this composable feeds the same
  * rail to the flat views (Classes, Students, class detail, teacher
  * dashboard, Insights, Settings) via SchoolsContainer's rail frame.
  *
