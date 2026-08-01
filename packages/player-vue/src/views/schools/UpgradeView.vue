@@ -234,8 +234,19 @@ async function updateSeats() {
 // /api/org/update-seats instead of the school endpoints. The org is
 // server-derived from the caller's own govt_admins row on every write path
 // (leaderGroupId) — orgId here is only what the Paddle checkout's customData
-// carries, read from the currentUser context populated at sign-in.
-const orgId = computed<string | null>(() => currentUser.value?.group_id ?? null)
+// carries.
+//
+// Prefer the id the SERVER resolved (/api/org/subscription's org.id) over the
+// client context's group_id. Both are the same org, but the server one is the
+// authority and is guaranteed present once the subscription load resolves —
+// whereas currentUser is populated by a separate sign-in-time fetch, so a
+// leader landing straight on this page could otherwise sit in front of a
+// permanently disabled Subscribe button with nothing explaining why. Context
+// stays as the fallback for the pre-load window.
+const serverOrgId = ref<string | null>(null)
+const orgId = computed<string | null>(
+  () => serverOrgId.value ?? currentUser.value?.group_id ?? null,
+)
 
 const orgSeatCount = ref(1)
 const orgSeats = computed(() => Math.max(1, orgSeatCount.value))
@@ -267,6 +278,7 @@ async function loadOrgSubscription() {
     const res = await fetch('/api/org/subscription', { headers })
     if (!res.ok) return
     const data = await res.json()
+    if (typeof data?.org?.id === 'string') serverOrgId.value = data.org.id
     orgPlatformStatus.value = data?.org?.platform_status ?? null
     orgMemberCount.value = typeof data?.org?.member_count === 'number' ? data.org.member_count : null
     const seatsResp = data?.org?.seats
