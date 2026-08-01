@@ -21,6 +21,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isMissingPlatformSchema } from './schoolPlatformTrial'
+import { chunk } from './schoolScope'
 
 /** Founder ruling 2026-08-01: 30-day free trial covering ALL languages. */
 export const ORG_TRIAL_DAYS = 30
@@ -110,6 +111,48 @@ export async function leaderGroupId(
     .eq('user_id', authUid)
     .maybeSingle()
   return ((data as any)?.group_id as string | undefined) ?? null
+}
+
+/**
+ * How many DISTINCT people this org is covering — itself plus every descendant
+ * node, matched by path prefix (the same subtree rule schoolsForGroupSubtree
+ * uses for schools, applied to people).
+ *
+ * Subtree, not this node alone, because that is exactly the population
+ * `resolveOrgCourseCoverage` entitles: a clock-less sub-group bills through its
+ * org. It also drives the manager UI's honest "N seats paid, M people" display
+ * — an org whose staff all sit in departments would otherwise read as zero
+ * members and lead its leader to buy too few seats.
+ *
+ * Distinct by person: someone tagged into two departments is one seat, not two.
+ */
+export async function countSubtreeMembers(
+  svc: SupabaseClient,
+  groupId: string,
+): Promise<number> {
+  const { data: group } = await svc.from('groups').select('path').eq('id', groupId).maybeSingle()
+  const path = (group as any)?.path as string | undefined
+
+  // No path (trigger hasn't stamped it, or a bare node) → fall back to the node
+  // itself, which is still correct, just narrower.
+  let nodeIds: string[] = [groupId]
+  if (path) {
+    const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
+    const ids = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
+    if (ids.length > 0) nodeIds = ids
+  }
+
+  const people = new Set<string>()
+  for (const batch of chunk(nodeIds)) {
+    const { data } = await svc
+      .from('user_tags')
+      .select('user_id, tag_value')
+      .eq('tag_type', 'group')
+      .in('tag_value', batch.map((id) => `GROUP:${id}`))
+      .is('removed_at', null)
+    for (const t of data ?? []) if ((t as any).user_id) people.add((t as any).user_id)
+  }
+  return people.size
 }
 
 /**

@@ -27,7 +27,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { isPlatformActive } from '../_utils/platformStatus'
-import { leaderGroupId, readOrgPlatformState } from '../_utils/orgPlatform'
+import { leaderGroupId, readOrgPlatformState, countSubtreeMembers } from '../_utils/orgPlatform'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -101,12 +101,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    const { count: memberCount } = await supabase
-      .from('user_tags')
-      .select('user_id', { count: 'exact', head: true })
-      .eq('tag_type', 'group')
-      .eq('tag_value', `GROUP:${groupId}`)
-      .is('removed_at', null)
+    // SUBTREE, not this node alone. The count exists to drive the manager UI's
+    // honest "you're paying for N seats, you have M people" display, so it must
+    // count exactly the people the org is actually covering — and
+    // resolveOrgCourseCoverage covers members of clock-less SUB-groups too
+    // (they bill through this org). Counting only direct members would
+    // undercount every org that uses sub-groups — e.g. a council whose staff
+    // all sit in departments would read as zero members — and quietly lead a
+    // leader to buy too few seats.
+    const memberCount = await countSubtreeMembers(supabase, groupId)
 
     const status = platformState?.platform_status ?? null
     const expiresAt = platformState?.platform_expires_at ?? null
