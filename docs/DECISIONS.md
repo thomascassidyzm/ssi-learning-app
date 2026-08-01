@@ -885,3 +885,32 @@ deployments for later pushes succeeded, it is a dropped webhook, not a block —
 empty commit before escalating.**
 **Search width:** none-needed
 **Decided by:** agent
+
+## 2026-08-01 — orgs bill on the schools quintet, and the group-leader is the role we already have
+**Move:** The org/workplace lane reuses two things wholesale instead of adding parallel systems.
+(1) **Billing shape:** `groups` gains the *same* five columns `schools` already carries —
+`platform_status`, `platform_expires_at`, `seats`, `provider_subscription_id`,
+`provider_customer_id` — so the shared gate `isPlatformActive()`, the Paddle webhook and the
+manager UI stay one code path per concern, differing only in which table they write.
+(2) **Role:** the group-leader is *not* new. A `govt_admins` row scoped by `group_id`, with the
+subtree primitives in `api/_utils/schoolScope.ts`, already is the school-leader pattern; orgs get
+it by extension, not by invention. `isStrictDescendantGroup`'s docstring already carried the
+founder ruling that a leader governs everything below them.
+**Better:** an org's trial, upgrade, seat edit and expiry behave *identically* to a school's,
+because they are the same code — no second billing dialect to keep in sync, and no second role
+system whose authz can drift out of step with the first.
+**Simpler:** the build is additive. One migration, one shared contract module
+(`api/_utils/orgPlatform.ts`), a third lane on the existing `UpgradeView`, and one extra
+`kind:'org_platform'` branch on the existing webhook. Nothing is forked.
+**Cheaper:** no new Paddle product — the org seat price is identical to the school teacher seat
+price (£15/mo, £150/yr, no volume scaling) and the webhook keys on `customData.kind`, not on the
+price id. The org price ids fall back to the school ones, so the lane works on dev with zero new
+operator configuration, while an operator can still split them later.
+**Three deliberate details, each avoiding a phantom clock:** the new columns are nullable with
+**no default** (`groups` also holds the school *nodes*, whose billing lives on their `schools`
+row, and a `DEFAULT 'trial'` would start a second clock on every one of them); only **root** nodes
+get a trial stamp (a sub-group bills through its org); and the **backfill is a separate migration**
+(`20260801b`) because the schema file is safe to apply any time whereas the backfill starts a real
+30-day countdown on live customer rows.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec
