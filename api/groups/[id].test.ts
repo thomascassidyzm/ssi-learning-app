@@ -140,6 +140,16 @@ describe('PATCH /api/groups/:id', () => {
     expect(updateCalls[0].obj).toMatchObject({ name: 'Gwynedd Education Authority', name_confirmed: true })
   })
 
+  it('a govt_admin renaming a DESCENDANT sub-group succeeds (leader subtree authority, 2026-08-01)', async () => {
+    // group-2's path ("1.2") is a strict descendant of group-1's ("1").
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('PATCH', { name: 'Ward 1' }, 'group-2')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ name: 'Ward 1', name_confirmed: true })
+  })
+
   it('rejects a govt_admin renaming a DIFFERENT group (wrong-group caller — the critical case)', async () => {
     govtAdminRow = { group_id: 'some-other-group' }
     const req = makeReq('PATCH', { name: 'Hijacked Name' }, 'group-1')

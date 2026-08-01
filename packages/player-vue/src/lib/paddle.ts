@@ -25,6 +25,21 @@
  *                                        env vars are set the Family paywall option
  *                                        stays hidden (graceful, same pattern as the
  *                                        annual-price-unset case above).
+ *   VITE_PADDLE_ORG_SEAT_PRICE_MONTHLY — pri_… for £15/seat/mo ORG PLATFORM (workplace/
+ *                                        group-leader lane, api/_utils/orgPlatform.ts).
+ *                                        Falls back to schoolTeacherMonthlyPriceId: the
+ *                                        org seat price is identical to the school
+ *                                        teacher seat price (£15/£150, no volume
+ *                                        scaling) and the webhook tells the lanes apart
+ *                                        by customData.kind ('org_platform' vs
+ *                                        'school_platform'), never by price id — so no
+ *                                        new Paddle product is required for this to work
+ *                                        on dev today. An operator can still split them
+ *                                        into a dedicated product later by setting these
+ *                                        two env vars.
+ *   VITE_PADDLE_ORG_SEAT_PRICE_ANNUAL  — pri_… for £150/seat/yr ORG PLATFORM. Same
+ *                                        fallback reasoning — defaults to
+ *                                        schoolTeacherAnnualPriceId when unset.
  *
  * Every value is trimmed at read — Vercel's env-var entry flow can capture
  * trailing newlines, and an untrimmed "pri_…\n" makes Paddle 400 with
@@ -74,6 +89,17 @@ export const paddleConfig = {
   // VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL) must be configured. When unset the
   // UI disables the annual option (graceful) rather than opening a broken checkout.
   schoolTeacherAnnualPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
+  // Org / workplace platform — same £15/seat/mo, £150/seat/yr as the school
+  // teacher seat, falling all the way back to it (see docblock above): no
+  // dedicated Paddle product is required for the org lane to work today.
+  orgSeatMonthlyPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_ORG_SEAT_PRICE_MONTHLY as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
+  orgSeatAnnualPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_ORG_SEAT_PRICE_ANNUAL as string | undefined) ||
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
     trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),

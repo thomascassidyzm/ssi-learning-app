@@ -8,6 +8,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveClassCourseCoverage } from '../_utils/classCoverage'
+import { resolveOrgCourseCoverage } from '../_utils/orgCoverage'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -106,6 +107,29 @@ export default async function handler(
     } catch (classCoverageErr) {
       // Non-fatal — additive, don't block user entitlements
       console.error('[EntitlementUser] Class-coverage error (non-fatal):', classCoverageErr)
+    }
+
+    // Org-coverage entitlement (founder spec 2026-08-01): a member of an ORG
+    // gets ALL languages for as long as that org has live platform coverage —
+    // its 30-day trial, then its per-seat subscription. Orgs are class-less by
+    // definition, so neither the cascade RPC (which joins through classes) nor
+    // class-coverage above reaches their members; without this an org member
+    // is entitled to nothing during the trial they were just sold.
+    try {
+      const orgCourses = await resolveOrgCourseCoverage(supabase, userId)
+      if (orgCourses.length > 0) {
+        active.push({
+          id: 'org-coverage',
+          access_type: 'courses',
+          granted_courses: orgCourses,
+          expires_at: null,
+          redeemed_at: null,
+          entitlement_code_id: null,
+        })
+      }
+    } catch (orgCoverageErr) {
+      // Non-fatal — additive, don't block user entitlements
+      console.error('[EntitlementUser] Org-coverage error (non-fatal):', orgCoverageErr)
     }
 
     res.status(200).json({ entitlements: active })

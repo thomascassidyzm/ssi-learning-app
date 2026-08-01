@@ -12,6 +12,7 @@
  *       student_via_teacher (sub + referral + tag + enrolment),
  *       school_platform (accept + price-tier reject),
  *       tutor_platform (platform set + D2 learner-premium bundle + link),
+ *       org_platform (accept + price-tier reject + missing group_id skip),
  *       unknown kind (skip).
  *   - plan-precedence guard: a lower-ranked incoming plan does NOT clobber a
  *     higher-ranked active row, but orthogonal side effects still run.
@@ -271,6 +272,43 @@ describe('POST /api/teacher/paddle-webhook', () => {
     await handler(makeReq(), res)
     expect(res._status).toBe(200)
     expect(writes.schools).toBeUndefined()
+  })
+
+  // ── org_platform ──
+  it('org_platform on a premium price sets groups platform columns incl. seats = item quantity', async () => {
+    responders.groups = () => ({ error: null })
+    currentEvent = subEvent(
+      { kind: 'org_platform', group_id: 'org-1' },
+      { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const upd = writes.groups.find((w) => w.op === 'update')!
+    expect(upd.payload).toMatchObject({ platform_status: 'active', seats: 5, provider_subscription_id: 'psub_1', provider_customer_id: 'ctm_1', platform_expires_at: '2026-08-01T00:00:00Z' })
+  })
+
+  it('org_platform billed on a NON-premium price is REJECTED (no groups write)', async () => {
+    currentEvent = subEvent(
+      { kind: 'org_platform', group_id: 'org-1' },
+      { items: [{ price: { id: STUDENT_SCHOOL_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.groups).toBeUndefined()
+  })
+
+  it('org_platform missing group_id in customData is skipped (no groups write)', async () => {
+    currentEvent = subEvent(
+      { kind: 'org_platform' },
+      { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.groups).toBeUndefined()
   })
 
   // ── tutor_platform ──

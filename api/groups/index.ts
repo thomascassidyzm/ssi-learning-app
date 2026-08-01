@@ -1,15 +1,61 @@
 /**
  * Groups API - GET/POST /api/groups
  *
- * GET: List all groups (tree structure)
- * POST: Create a new group
- *
- * Requires auth. Only ssi_admin/god users.
+ * GET: List all groups (tree structure) — ssi_admin/god only.
+ * POST: Create a new group — ssi_admin/god (any parent, or a root org), OR a
+ *   group-LEADER (govt_admin) adding a SUB-group within their own governed
+ *   subtree (founder ruling 2026-08-01: a leader has "full authority over
+ *   everything below them — invite people, add sub-groups, manage members").
+ *   For a leader, parent_id is mandatory and is validated SERVER-SIDE against
+ *   their own govt_admins.group_id (self or a strict descendant of it, via
+ *   isStrictDescendantGroup) — never taken on trust from the client. A leader
+ *   can never create a new root org.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
-import { verifyAdmin } from '../_utils/auth'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
+import { orgTrialStamp } from '../_utils/orgPlatform'
+import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
+import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+
+/**
+ * ssi_admin/god first; fall back to a group-leader whose OWN governed group
+ * is `parentId` itself or a strict ancestor of it (adding a sub-group
+ * somewhere in THEIR subtree). Writes the 401/403 response itself and
+ * returns null on rejection so the caller can `if (!caller) return`.
+ */
+async function resolveAdminOrLeaderForParent(
+  req: VercelRequest,
+  res: VercelResponse,
+  supabase: SupabaseClient,
+  parentId: string | undefined,
+): Promise<{ userId: string; isAdmin: boolean } | null> {
+  const adminResult = await verifyAdmin(req)
+  if (!('error' in adminResult)) return { userId: adminResult.userId, isAdmin: true }
+
+  const authResult = await verifyAuthToken(req)
+  if (!authResult.valid || !authResult.userId) {
+    res.status(401).json({ error: authResult.error || 'Unauthorized' })
+    return null
+  }
+  if (!parentId) {
+    // A leader may never create a root org — only ssi_admins mint those.
+    res.status(403).json({ error: 'Only SSi admins can create a root group' })
+    return null
+  }
+  const { data: govtAdmin } = await supabase
+    .from('govt_admins')
+    .select('group_id')
+    .eq('user_id', authResult.userId)
+    .maybeSingle()
+  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+  if (!(await isWithinLeaderSubtree(supabase, ownGroupId, parentId))) {
+    res.status(403).json({ error: 'You may only add a sub-group within your own governed group' })
+    return null
+  }
+  return { userId: authResult.userId, isAdmin: false }
+}
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -18,12 +64,6 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  const adminResult = await verifyAdmin(req)
-  if ('error' in adminResult) {
-    res.status(adminResult.status).json({ error: adminResult.error })
-    return
-  }
-
   if (!supabaseServiceKey) {
     console.error('[Groups] SUPABASE_SERVICE_ROLE_KEY is empty!')
     res.status(500).json({ error: 'Server misconfigured', detail: 'Missing service role key' })
@@ -33,6 +73,11 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   if (req.method === 'GET') {
+    const adminResult = await verifyAdmin(req)
+    if ('error' in adminResult) {
+      res.status(adminResult.status).json({ error: adminResult.error })
+      return
+    }
     try {
       const { data: groups, error } = await supabase
         .from('groups')
@@ -78,9 +123,13 @@ export default async function handler(
       res.status(500).json({ error: 'Internal server error', detail: String(error) })
     }
   } else if (req.method === 'POST') {
-    try {
-      const { name, type, parent_id, is_demo } = req.body || {}
+    const { name, type, parent_id, is_demo } = req.body || {}
 
+    const caller = await resolveAdminOrLeaderForParent(req, res, supabase, parent_id)
+    if (!caller) return
+    const { isAdmin } = caller
+
+    try {
       if (!name?.trim()) {
         res.status(400).json({ error: 'Group name is required' })
         return
@@ -98,14 +147,33 @@ export default async function handler(
       // showcase (founder ruling) — demo and real orgs share every other
       // code path. groups_inherit_parent_test_flags cascades this to every
       // descendant group, and schools_inherit_group_test_flags cascades it
-      // on to any school attached anywhere in the subtree.
-      if (is_demo) row.is_demo = true
+      // on to any school attached anywhere in the subtree. ssi_admin-only:
+      // a leader marking their own sub-group as a demo showcase is not a
+      // decision that belongs to them.
+      if (is_demo && isAdmin) row.is_demo = true
 
-      const { data, error } = await supabase
+      // Trial clock (founder ruling 2026-08-01): a NEW ORG gets 30 days of
+      // all-language access from the moment it exists. Only ROOT nodes get a
+      // clock — a sub-group is part of its org and bills through the org's own
+      // row, so stamping it would start a second, competing clock on the same
+      // customer. Upgrading converts this same row in place (trial → active).
+      const isRootOrg = !parent_id
+      if (isRootOrg) Object.assign(row, orgTrialStamp())
+
+      let { data, error } = await supabase
         .from('groups')
         .insert(row)
         .select()
         .single()
+
+      // Fail open on an un-migrated DB (20260801_org_platform_billing not yet
+      // applied): retry the plain insert so org creation never depends on the
+      // billing columns existing. Mirrors schoolPlatformTrial's no-op posture.
+      if (error && isRootOrg && isMissingPlatformSchema(error)) {
+        delete (row as Record<string, unknown>).platform_status
+        delete (row as Record<string, unknown>).platform_expires_at
+        ;({ data, error } = await supabase.from('groups').insert(row).select().single())
+      }
 
       if (error) throw error
       res.status(201).json({ group: data })

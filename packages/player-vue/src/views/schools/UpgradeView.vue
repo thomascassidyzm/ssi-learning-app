@@ -2,7 +2,13 @@
 /**
  * UpgradeView — the ONE canonical payment page (lever-3).
  *
- * Context-aware, serves both lanes off a single surface:
+ * Context-aware, serves THREE lanes off a single surface:
+ *   • govt_admin (org/workplace group-leader) → £15 per MEMBER seat / month
+ *     (or £150/seat/yr) for the org's `groups` row (api/_utils/orgPlatform.ts).
+ *     Same seat-stepper/in-place-edit/double-subscribe-guard shape as the
+ *     school lane below, against /api/org/subscription + /api/org/update-seats
+ *     instead of the school endpoints. Checked FIRST — a govt_admin never has
+ *     a school_id of their own, so this must not fall through to the tutor lane.
  *   • school_admin → £15 per TEACHER seat / month (or £150/seat/yr), seat
  *     stepper, Paddle quantity. If already subscribed, the stepper edits seats
  *     in-place (PATCH, no double-bill); otherwise it opens the INITIAL per-seat
@@ -32,11 +38,12 @@
 import { ref, computed, inject, watch, type Ref } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
+import { useOrgCheckout } from '@/composables/useOrgCheckout'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 
 const supabase = inject<Ref<any>>('supabase', ref(null))
-const { currentUser, isSchoolAdmin } = useSchoolContext()
+const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 
 // DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
 // the display honest so admins self-correct. `teachers.value.length` is the
@@ -64,19 +71,26 @@ type Billing = 'monthly' | 'annual'
 const billing = ref<Billing>('monthly')
 const isAnnual = computed(() => billing.value === 'annual')
 
+// govt_admin (org/workplace group-leader) is checked FIRST: they never carry
+// a school_id of their own, so if org were checked after school it would fall
+// straight through into the tutor lane instead.
+const isOrgLane = computed(() => isGovtAdmin.value)
 // A user administering a school buys seats; everyone else (solo tutor) buys one.
 const isSchoolLane = computed(
-  () => isSchoolAdmin.value || !!currentUser.value?.school_id,
+  () => !isOrgLane.value && (isSchoolAdmin.value || !!currentUser.value?.school_id),
 )
 
 // Annual is only offered when the relevant Paddle price id is configured.
-const annualAvailable = computed(() =>
-  isSchoolLane.value
-    ? !!paddleConfig.schoolTeacherAnnualPriceId
-    : !!paddleConfig.teacherAnnualPriceId,
-)
+const annualAvailable = computed(() => {
+  if (isOrgLane.value) return !!paddleConfig.orgSeatAnnualPriceId
+  if (isSchoolLane.value) return !!paddleConfig.schoolTeacherAnnualPriceId
+  return !!paddleConfig.teacherAnnualPriceId
+})
 // The Paddle price id for the currently-selected lane + period (null if unset).
 const activePriceId = computed<string | undefined>(() => {
+  if (isOrgLane.value) {
+    return isAnnual.value ? paddleConfig.orgSeatAnnualPriceId : paddleConfig.orgSeatMonthlyPriceId
+  }
   if (isSchoolLane.value) {
     return isAnnual.value
       ? paddleConfig.schoolTeacherAnnualPriceId
@@ -84,7 +98,7 @@ const activePriceId = computed<string | undefined>(() => {
   }
   return isAnnual.value ? paddleConfig.teacherAnnualPriceId : paddleConfig.teacherMonthlyPriceId
 })
-const activeQuantity = computed(() => (isSchoolLane.value ? seats.value : 1))
+const activeQuantity = computed(() => (isOrgLane.value ? orgSeats.value : isSchoolLane.value ? seats.value : 1))
 
 function setBilling(b: Billing) {
   if (b === 'annual' && !annualAvailable.value) return
@@ -143,6 +157,11 @@ const schoolSubLoaded = ref(false)
 const checkoutOpen = ref(false)
 
 const { isOpeningCheckout, checkoutError, startSchoolCheckout } = useSchoolCheckout()
+const {
+  isOpeningCheckout: isOpeningOrgCheckout,
+  checkoutError: orgCheckoutError,
+  startOrgCheckout,
+} = useOrgCheckout()
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   if (!supabase.value) return null
@@ -207,6 +226,106 @@ async function updateSeats() {
     seatsMessage.value = 'Could not update seats'
   } finally {
     isUpdatingSeats.value = false
+  }
+}
+
+// ── Org lane (govt_admin — org/workplace group-leader) ──────────────
+// Mirrors the school lane exactly, against /api/org/subscription +
+// /api/org/update-seats instead of the school endpoints. The org is
+// server-derived from the caller's own govt_admins row on every write path
+// (leaderGroupId) — orgId here is only what the Paddle checkout's customData
+// carries.
+//
+// Prefer the id the SERVER resolved (/api/org/subscription's org.id) over the
+// client context's group_id. Both are the same org, but the server one is the
+// authority and is guaranteed present once the subscription load resolves —
+// whereas currentUser is populated by a separate sign-in-time fetch, so a
+// leader landing straight on this page could otherwise sit in front of a
+// permanently disabled Subscribe button with nothing explaining why. Context
+// stays as the fallback for the pre-load window.
+const serverOrgId = ref<string | null>(null)
+const orgId = computed<string | null>(
+  () => serverOrgId.value ?? currentUser.value?.group_id ?? null,
+)
+
+const orgSeatCount = ref(1)
+const orgSeats = computed(() => Math.max(1, orgSeatCount.value))
+const orgMonthlyTotalGbp = computed(() => orgSeats.value * PRICE_PER_SEAT_GBP)
+const orgAnnualTotalGbp = computed(() => orgSeats.value * ANNUAL_PRICE_PER_SEAT_GBP)
+const orgTotalGbp = computed(() => (isAnnual.value ? orgAnnualTotalGbp.value : orgMonthlyTotalGbp.value))
+function setOrgSeats(n: number) {
+  orgSeatCount.value = Math.max(1, Math.floor(n) || 1)
+}
+
+const orgPlatformStatus = ref<string | null>(null)
+const orgPaidSeats = ref<number | null>(null)
+// DECISION A (worklist 07-02, applied here too): honest display, no seat-cap
+// gating — orgMemberCount is the ACTUAL joined-member count from the server
+// (/api/org/subscription's member_count), shown alongside orgPaidSeats.
+const orgMemberCount = ref<number | null>(null)
+const isOrgSubscribed = computed(() => orgPlatformStatus.value === 'active')
+const isUpdatingOrgSeats = ref(false)
+const orgSeatsMessage = ref('')
+// Same double-subscribe guard as the school lane: the Subscribe CTA stays
+// blocked until this resolves, so a fast click in the load window can't open
+// a SECOND initial checkout on an already-subscribed org = double-bill.
+const orgSubLoaded = ref(false)
+
+async function loadOrgSubscription() {
+  const headers = await authHeaders()
+  if (!headers) return
+  try {
+    const res = await fetch('/api/org/subscription', { headers })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.org?.id === 'string') serverOrgId.value = data.org.id
+    orgPlatformStatus.value = data?.org?.platform_status ?? null
+    orgMemberCount.value = typeof data?.org?.member_count === 'number' ? data.org.member_count : null
+    const seatsResp = data?.org?.seats
+    if (typeof seatsResp === 'number' && seatsResp > 0) {
+      orgPaidSeats.value = seatsResp
+      if (isOrgSubscribed.value) orgSeatCount.value = seatsResp
+    }
+  } catch {
+    // Non-fatal — page just stays in its default (Subscribe) state.
+  } finally {
+    orgSubLoaded.value = true
+  }
+}
+
+async function subscribeOrg() {
+  if (!orgId.value) return
+  if (!orgSubLoaded.value) await loadOrgSubscription()
+  if (isOrgSubscribed.value) return // template now shows the seat-edit CTA
+  checkoutOpen.value = true
+  await startOrgCheckout({
+    groupId: orgId.value,
+    seats: orgSeatCount.value,
+    billing: billing.value,
+    frameTarget: INLINE_FRAME_TARGET,
+  })
+}
+
+async function updateOrgSeats() {
+  if (isUpdatingOrgSeats.value) return
+  isUpdatingOrgSeats.value = true
+  orgSeatsMessage.value = ''
+  try {
+    const headers = await authHeaders()
+    if (!headers) { orgSeatsMessage.value = 'Sign in again to change seats'; return }
+    const res = await fetch('/api/org/update-seats', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seats: orgSeatCount.value }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { orgSeatsMessage.value = data?.error || 'Could not update seats'; return }
+    orgPaidSeats.value = data?.seats ?? orgSeatCount.value
+    orgSeatsMessage.value = data?.unchanged ? 'No change' : `Updated to ${orgPaidSeats.value} seats`
+  } catch {
+    orgSeatsMessage.value = 'Could not update seats'
+  } finally {
+    isUpdatingOrgSeats.value = false
   }
 }
 
@@ -360,7 +479,9 @@ async function subscribeTutor() {
 // mirroring the retry pattern used elsewhere (DashboardView etc).
 watch(currentUser, (user) => {
   if (!user) return
-  if (isSchoolLane.value) {
+  if (isOrgLane.value) {
+    if (!orgSubLoaded.value) loadOrgSubscription()
+  } else if (isSchoolLane.value) {
     if (!schoolSubLoaded.value) loadSubscription()
     void fetchTeachers()
   } else {
@@ -379,8 +500,93 @@ watch(currentUser, (user) => {
     <div class="upgrade-card schools-card">
       <span class="schools-kicker">SSi Premium</span>
 
+      <!-- ── Org lane: per-seat (govt_admin group-leader) ── -->
+      <template v-if="isOrgLane">
+        <h1 class="upgrade-title arsenal">
+          {{ isOrgSubscribed ? 'Manage your seats' : 'Subscribe your organisation' }}
+        </h1>
+        <p class="upgrade-lede">
+          £{{ PRICE_PER_SEAT_GBP }} per member seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
+          One subscription covers every member seat, every language — add or remove seats any time.
+        </p>
+
+        <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
+          <button
+            type="button"
+            class="billing-opt"
+            :class="{ 'is-active': !isAnnual }"
+            role="tab"
+            :aria-selected="!isAnnual"
+            @click="setBilling('monthly')"
+          >Monthly</button>
+          <button
+            type="button"
+            class="billing-opt"
+            :class="{ 'is-active': isAnnual, 'is-disabled': !annualAvailable }"
+            role="tab"
+            :aria-selected="isAnnual"
+            :disabled="!annualAvailable"
+            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            @click="setBilling('annual')"
+          >
+            Annual
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+          </button>
+        </div>
+
+        <div class="seat-row">
+          <span class="field-label">Member seats</span>
+          <div class="seat-stepper">
+            <button type="button" class="seat-btn" :disabled="orgSeatCount <= 1 || checkoutOpen" @click="setOrgSeats(orgSeatCount - 1)">−</button>
+            <input
+              class="seat-input"
+              type="number"
+              min="1"
+              :value="orgSeatCount"
+              :disabled="checkoutOpen"
+              @input="setOrgSeats(Number(($event.target as HTMLInputElement).value))"
+            />
+            <button type="button" class="seat-btn" :disabled="checkoutOpen" @click="setOrgSeats(orgSeatCount + 1)">+</button>
+          </div>
+          <span class="seat-total">£{{ orgTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
+        </div>
+
+        <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
+        <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note">
+          {{ orgMemberCount ?? 0 }} member{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
+          {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
+          <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
+            — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more member{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
+          </span>
+        </p>
+
+        <p v-if="orgCheckoutError" class="upgrade-error">{{ orgCheckoutError }}</p>
+        <p v-if="orgSeatsMessage" class="upgrade-note">{{ orgSeatsMessage }}</p>
+
+        <!-- Subscribed → edit seats in place (PATCH, monthly-oriented). -->
+        <button
+          v-if="isOrgSubscribed"
+          type="button"
+          class="btn-play btn-play--block upgrade-cta"
+          :disabled="isUpdatingOrgSeats || orgSeatCount === orgPaidSeats"
+          @click="updateOrgSeats"
+        >
+          {{ isUpdatingOrgSeats ? 'Updating…' : orgSeatCount === orgPaidSeats ? `${orgSeatCount} seats (current)` : `Update to ${orgSeatCount} seats — £${orgMonthlyTotalGbp}/mo` }}
+        </button>
+        <!-- Else → open the INITIAL inline checkout. -->
+        <button
+          v-else-if="!checkoutOpen"
+          type="button"
+          class="btn-play btn-play--block upgrade-cta"
+          :disabled="!orgId || isOpeningOrgCheckout || !orgSubLoaded"
+          @click="subscribeOrg"
+        >
+          {{ !orgSubLoaded ? 'Loading…' : isOpeningOrgCheckout ? 'Opening…' : `Subscribe — £${orgTotalGbp}${periodSuffix}` }}
+        </button>
+      </template>
+
       <!-- ── School lane: per-seat ── -->
-      <template v-if="isSchoolLane">
+      <template v-else-if="isSchoolLane">
         <h1 class="upgrade-title arsenal">
           {{ isSubscribed ? 'Manage your seats' : 'Subscribe your school' }}
         </h1>

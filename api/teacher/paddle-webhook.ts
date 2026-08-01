@@ -20,6 +20,12 @@
  *   subscription.* with customData.kind = 'tutor_platform'   (lever-3)
  *     → SET teachers.platform_status/expires_at from the Paddle payload.
  *
+ *   subscription.* with customData.kind = 'org_platform'     (org billing,
+ *   2026-08-01) → SET groups.platform_status/expires_at/seats (=item
+ *       quantity) + provider ids, from the Paddle payload (absolute,
+ *       idempotent). UPDATEs the existing trial org's `groups` row in place —
+ *       upgrade never inserts a new node.
+ *
  *   transaction.paid (any subscription kind)
  *     → if associated subscription is student-via-teacher, accrue teacher
  *       commission (= flat £5 / 500 pence per transaction) to the current
@@ -405,7 +411,7 @@ export async function handleSubscriptionEvent(supabase: any, data: any): Promise
     await handleFamilySubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
-  } else if (kind === 'school_platform' || kind === 'tutor_platform') {
+  } else if (kind === 'school_platform' || kind === 'tutor_platform' || kind === 'org_platform') {
     // customData.kind comes from CLIENT JS, but the entitlement it claims
     // (the paid dashboard) must be backed by the PLATFORM price actually
     // billed. Without this check, a tampered checkout on the cheapest live
@@ -423,6 +429,8 @@ export async function handleSubscriptionEvent(supabase: any, data: any): Promise
     }
     if (kind === 'school_platform') {
       await handleSchoolPlatformSubscription(supabase, data, customData)
+    } else if (kind === 'org_platform') {
+      await handleOrgPlatformSubscription(supabase, data, customData)
     } else {
       await handleTutorPlatformSubscription(supabase, data, customData)
     }
@@ -491,6 +499,65 @@ async function handleSchoolPlatformSubscription(
   console.log(
     '[paddle-webhook] School platform subscription:',
     schoolId,
+    'status:',
+    status,
+    'seats:',
+    seats,
+    'period_end:',
+    periodEnd
+  )
+}
+
+// ============================================
+// PLATFORM SUBSCRIPTION — orgs (£15/seat/mo, founder-specced 2026-08-01)
+// ============================================
+//
+// Same shape as handleSchoolPlatformSubscription above, targeting `groups`
+// instead of `schools` (the shared quintet: platform_status/expires_at/seats/
+// provider_*). This UPDATEs the org's EXISTING groups row — it must never
+// insert a new node — which is what makes upgrade convert the trial org IN
+// PLACE, exactly as the founder ruling requires.
+
+async function handleOrgPlatformSubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const groupId = customData.group_id as string | undefined
+  if (!groupId) {
+    console.error('[paddle-webhook] org_platform subscription missing group_id in customData')
+    return
+  }
+
+  const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  // ABSOLUTE set from Paddle's billing period (idempotent on retry/out-of-order).
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  // Per-seat pricing = Paddle quantity on the single per-seat price.
+  const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
+  const seats =
+    firstItem && Number.isFinite(Number(firstItem.quantity)) && Number(firstItem.quantity) > 0
+      ? Number(firstItem.quantity)
+      : 1
+
+  const { error } = await supabase
+    .from('groups')
+    .update({
+      platform_status: status,
+      platform_expires_at: periodEnd,
+      seats,
+      provider_subscription_id: data.id,
+      provider_customer_id: data.customerId,
+    })
+    .eq('id', groupId)
+
+  if (error) {
+    console.error('[paddle-webhook] Failed to update org platform subscription:', error)
+    return
+  }
+  console.log(
+    '[paddle-webhook] Org platform subscription:',
+    groupId,
     'status:',
     status,
     'seats:',

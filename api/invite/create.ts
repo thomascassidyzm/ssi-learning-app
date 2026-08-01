@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { generateCode } from '../_utils/codeGen'
 import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
+import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -85,8 +86,25 @@ export default async function handler(
         .eq('user_id', userId)
         .single()
       if (!learner || learner.platform_role !== 'ssi_admin') {
-        res.status(403).json({ error: 'Only SSi admins can create govt_admin codes' })
-        return
+        // Not a platform admin — allow a group-LEADER to appoint a
+        // sub-leader within their OWN governed subtree only. grants_group_id
+        // is required and SERVER-VALIDATED against the caller's own
+        // govt_admins.group_id (self or a strict descendant of it, via
+        // isStrictDescendantGroup) — never taken on trust from the client,
+        // same rule that makes the school_admin group-stamp cross-region-proof
+        // above. Founder ruling 2026-08-01: a leader has "full authority over
+        // everything below them ... appoint sub-leaders."
+        const { data: govtAdmin } = await supabase
+          .from('govt_admins')
+          .select('group_id')
+          .eq('user_id', userId)
+          .maybeSingle()
+        const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+        const targetGroupId = grants_group_id as string | undefined
+        if (!(await isWithinLeaderSubtree(supabase, ownGroupId, targetGroupId))) {
+          res.status(403).json({ error: 'Only SSi admins can create govt_admin codes for a group outside your own subtree' })
+          return
+        }
       }
     } else if (code_type === 'tester') {
       const { data: learner } = await supabase
