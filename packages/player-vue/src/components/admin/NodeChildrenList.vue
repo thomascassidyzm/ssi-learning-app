@@ -50,6 +50,27 @@ function joinNames(names: string[], cap = 3): string {
   return `${names.slice(0, cap).join(', ')} +${names.length - cap} more`
 }
 
+// The dressing, per ROW (founder ruling 2026-08-02: ed-speak is vocabulary
+// over the same bones): a child without school DNA never shows teacher/class
+// count words — its numbers are groups and learners.
+function rowSchoolish(n: any): boolean {
+  return !!(n?.hasSchool || n?.commercial || (n?.rollup?.teacherCount ?? 0) > 0 || (n?.rollup?.classCount ?? 0) > 0)
+}
+function groupCounts(n: any): { value: string | number; word: string }[] {
+  if (rowSchoolish(n)) {
+    return [
+      ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: 'below' }] : []),
+      { value: n.rollup?.teacherCount ?? 0, word: 'teachers' },
+      { value: n.rollup?.classCount ?? 0, word: 'classes' },
+      { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
+    ]
+  }
+  return [
+    ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: n.rollup.childGroupCount === 1 ? 'group' : 'groups' }] : []),
+    { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
+  ]
+}
+
 const rows = computed<Row[]>(() => {
   const p = props.payload
   if (props.lens === 'children') {
@@ -58,12 +79,7 @@ const rows = computed<Row[]>(() => {
       name: n.name,
       caption: n.hasSchool || n.commercial ? 'School' : (n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'),
       badge: n.is_demo ? 'Demo' : null,
-      counts: [
-        ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: 'below' }] : []),
-        { value: n.rollup?.teacherCount ?? 0, word: 'teachers' },
-        { value: n.rollup?.classCount ?? 0, word: 'classes' },
-        { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
-      ],
+      counts: groupCounts(n),
       to: groupHomePath(n.id, member.value),
     }))
   }
@@ -73,11 +89,7 @@ const rows = computed<Row[]>(() => {
       name: g.name,
       caption: `${g.hasSchool ? 'School' : 'Group'}${g.parentName ? ` · under ${g.parentName}` : ''}`,
       badge: g.is_demo ? 'Demo' : null,
-      counts: [
-        { value: g.rollup?.teacherCount ?? 0, word: 'teachers' },
-        { value: g.rollup?.classCount ?? 0, word: 'classes' },
-        { value: g.rollup?.learnerCount ?? 0, word: 'learners' },
-      ],
+      counts: groupCounts(g),
       to: groupHomePath(g.id, member.value),
     }))
   }

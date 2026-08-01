@@ -80,13 +80,17 @@ beforeEach(async () => {
 })
 
 describe('POST /api/groups', () => {
-  it('requires ssi_admin auth — rejects a non-admin caller', async () => {
+  it('SELF-SERVE ROOT (founder ruling 2026-08-02): an authenticated non-admin creates a root org AND becomes its group leader in the same request', async () => {
     verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
-    const req = makeReq('POST', { name: 'Gwynedd' })
+    govtAdminRow = null
+    const req = makeReq('POST', { name: 'Cardiff Council' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.statusCode).toBe(403)
-    expect(insertCalls).toHaveLength(0)
+    expect(res.statusCode).toBe(201)
+    const groupInsert = insertCalls.find((c) => c.table === 'groups')
+    const leaderInsert = insertCalls.find((c) => c.table === 'govt_admins')
+    expect(groupInsert.obj).toMatchObject({ name: 'Cardiff Council', type: 'organisation' })
+    expect(leaderInsert.obj).toMatchObject({ user_id: 'leader-1', group_id: 'group-new', created_by: 'leader-1' })
   })
 
   it('requires ssi_admin auth — 401s an unauthenticated caller', async () => {
@@ -145,12 +149,12 @@ describe('POST /api/groups — group-leader sub-group authority (2026-08-01)', (
     expect(insertCalls[0].obj).toMatchObject({ parent_id: 'leader-sub' })
   })
 
-  it('rejects a leader creating a root org (no parent_id)', async () => {
+  it('rejects an EXISTING leader creating a second root org — one org per leader, 409, never a silent leadership re-point', async () => {
     govtAdminRow = { group_id: 'leader-group' }
-    const req = makeReq('POST', { name: 'Sneaky Root Org' })
+    const req = makeReq('POST', { name: 'Second Root Org' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.statusCode).toBe(403)
+    expect(res.statusCode).toBe(409)
     expect(insertCalls).toHaveLength(0)
   })
 

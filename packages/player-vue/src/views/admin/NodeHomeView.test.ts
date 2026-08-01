@@ -286,6 +286,55 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).not.toHaveBeenCalled()
     expect(wrapper.find('.child-detail').exists()).toBe(false)
   })
+  it('NEUTRAL-DRESSING PIN (founder 2026-08-02, "a council is not a school"): an org with no school DNA renders zero ed-speak — neutral stats, no school/teacher/class lenses, no Add-a-school, invites default to Group leader', async () => {
+    routeMock.params = { id: 'council' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'council', name: 'Cardiff Council', label: 'organisation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 2, teacherCount: 0, classCount: 0, learnerCount: 14 }, commercial: null },
+      ancestors: [],
+      siblings: [],
+      children: [
+        { id: 'parks', name: 'Parks Department', label: 'group', hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 6 } },
+      ],
+      practiceHours: 12.5,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    // Stats: practice / groups / learners — never TEACHERS or CLASSES tiles.
+    expect(text).toContain('Practice hours')
+    expect(text).toContain('Groups')
+    expect(text).toContain('Learners')
+    expect(text).not.toContain('Teachers')
+    expect(text).not.toContain('Classes')
+    // Lenses: only the structural pair.
+    const chips = wrapper.findAll('.chip').map((c) => c.text())
+    expect(chips).toEqual(['Directly below', 'All groups'])
+    // Verbs: Add a group yes; Add a school never.
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Add a group')
+    expect(verbs).not.toContain('Add a school')
+    // Invite roles: Group leader default, no Teacher option anywhere.
+    await wrapper.findAll('.verb').find((v) => v.text() === 'Invite a person')!.trigger('click')
+    const roleSelect = wrapper.find('select')
+    expect((roleSelect.element as HTMLSelectElement).value).toBe('leader')
+    expect(roleSelect.text()).not.toContain('Teacher')
+    expect(roleSelect.text()).toContain('Group leader')
+    expect(roleSelect.text()).toContain('Learner')
+  })
+
+  it('EDUCATION-DRESSING KEEPS WORKING: the same page over a school-flavoured subtree still speaks school — dressing is vocabulary, not a second ontology', async () => {
+    setupFetch(nodePayload())
+    const wrapper = mountView()
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('Teachers')
+    expect(text).toContain('All schools')
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Add a school')
+  })
+
   it('RAIL-STABILITY PIN (founder 2026-07-30): remounting with the node cached — the hop back from Insights — paints the full page synchronously, no loading screen, no rail flash', async () => {
     setupFetch(nodePayload())
     const first = mountView()
@@ -325,11 +374,14 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).toHaveBeenCalledWith('/org/nation')
     // See insights points at the member lens, not /admin
     expect(wrapper.find('a[href="/org/programme/insights"]').exists()).toBe(true)
-    // Verbs: leaders keep the invite pair; structural admin verbs are hidden
+    // Verbs: leaders keep the invite pair AND Add a group (founder ruling
+    // 2026-08-02, groups all the way down: any group can contain subgroups,
+    // and POST /api/groups authorizes a leader on their own subtree). The
+    // remaining structural verbs stay admin-only.
     const verbs = wrapper.findAll('.verb').map((v) => v.text())
     expect(verbs).toContain('Invite a person')
     expect(verbs).toContain('Get a shareable link')
-    expect(verbs).not.toContain('Add a group')
+    expect(verbs).toContain('Add a group')
     expect(verbs).not.toContain('Mint a demo org')
     expect(verbs).not.toContain('Rename')
     expect(verbs).not.toContain('Delete')

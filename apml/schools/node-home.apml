@@ -1,6 +1,24 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-30 (WHERE-YOU-ARE rail stability across Overview <-> Insights)
+# Last updated: 2026-08-02 (terminology dressing: ed-speak is vocabulary, not structure)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
+
+dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
+  presets: neutral (group / group leader / learner — the DEFAULT) · education (school / teacher / class / student)
+  derivation: |
+    composables/nodeTerminology.ts derives the preset from the payload — a
+    subtree renders the education vocabulary iff it actually carries school
+    DNA (school attachment / commercial, teacher or class rollups, a school
+    above or below in the rail). No stored preset, no second ontology:
+    existing school orgs keep their words with zero migration; a fresh org
+    (Cardiff Council) renders neutral until a school genuinely exists in it.
+  neutral_effects: |
+    stats row = practice hours · groups · learners (never teacher/class
+    tiles); lenses reduced to directly-below + all-groups; Add-a-school verb
+    hidden; invite roles = group leader (default) + learner; children-list
+    rows count groups+learners (per-row derivation in NodeChildrenList);
+    How-this-works serves the 'org' explanations from the pack.
+  follow_up: an EXPLICIT stored preset (org chooses education vocabulary
+    before any school exists) is known follow-up, not built.
 
 purpose: |
   One page — the NODE HOME — with the same grammar at every level of the org
@@ -18,8 +36,10 @@ surface:
                                       # /schools shell — ONE :id route for groups, schools AND classes
                                       # (the endpoint resolves the kind); + /schools/org/:id/insights.
                                       # Server-scoped to the leader's own subtree; rail rooted at their
-                                      # top node (no "All organisations" admin escape); verbs reduced to
-                                      # the invite pair (invites endpoint already leader-authorized);
+                                      # top node (no "All organisations" admin escape); verbs = the
+                                      # invite pair + Add-a-group (2026-08-02: POST /api/groups
+                                      # authorizes a leader on their own subtree; root creation is
+                                      # self-serve for any signed-in user, creator becomes leader);
                                       # links derived per-mount via composables/nodeSurfacePaths.ts.
                                       # Landing: DashboardView redirects a govt_admin with a group_id
                                       # to /schools/org/:group_id (legacy region-only leaders keep the
@@ -49,6 +69,21 @@ lenses:  # filters over the one view, never separate pages; ?lens= in the URL
   teachers: every teacher below, with their classes
   classes: every class below, with student counts + hours
   students: fixed lens at class level
+
+ordering:  # founder ruling 2026-07-30: "the schools are listed in a different
+           # order from the groups and the everything directly below" — ONE
+           # consistent order everywhere. rail siblings/children, every lens
+           # list (children/groups/schools/teachers/classes) and the class
+           # students roster are all alphabetical by name (locale-aware,
+           # case-insensitive, numeric-aware — api/_utils/alphaSort.ts,
+           # mirrored client-side at packages/player-vue/src/utils/alphaSort.ts).
+           # Practice hours/student counts still show as row columns; they no
+           # longer drive order. A metric order stays available ONLY where
+           # it's an explicit, visible user choice (e.g. SchoolsView.vue's
+           # labelled "Sort by hours/students/name" control, default name) —
+           # never a silent default that can drift from a sibling list.
+  default: alphabetical, every structural/navigational list
+  metric_orders_must_be: explicit AND visible (a labelled sort control), never silent
 
 data:
   endpoint: GET /api/groups/:id/home?lens=<lens>   # api/groups/[id]/home.ts
@@ -94,6 +129,31 @@ rail_stability:  # founder finding 2026-07-30 — hopping Overview <-> Insights 
       (module-level state in NodeMapRail.vue) — the tree never visibly resets on a hop
   tests: NodeInsightsView.test.ts (warm-hop / cold-skeleton / honesty pins) +
     NodeHomeView.test.ts RAIL-STABILITY PIN + nodeHomeCache.test.ts
+
+rail_everywhere:  # founder ruling 2026-07-31 — "everyone should know where they are in the
+  # breadcrumb, even if they can't go UP a level because of permissions … I don't like the
+  # LHS anchor just disappearing." The rail is ORIENTATION, not navigation: EVERY
+  # /schools-shell view keeps it, including the flat (non-node-surface) pages.
+  mechanism: SchoolsContainer wraps meta.railFrame routes in a .rail-frame grid (same
+    columns + sticky as NodeHomeView's .node-layout); useSchoolsRail.ts resolves the tree
+  railed_flat_routes: [schools-dashboard, teachers, students, classes, class-detail,
+    analytics, settings]
+  per_role:
+    school_admin: server rail for their school node (/api/groups/:id/home, shared through
+      nodeHomeCache — a flat<->node hop paints one identical tree); class pages recentre
+      the rail on the class node
+    teacher: node endpoints 403 teachers (scope = own classes, founder ruling 2026-07-30),
+      so the rail builds from /api/me/teaching-context — the school as a NON-INTERACTIVE
+      ancestor row (RailRef.inert), own classes as rows opening /schools/classes/:id;
+      a groupless teacher (derived tutor) roots at "Your classes"
+    legacy_no_node_rows: ineligible — flat views stay full-width as before
+  rail_props: NodeMapRail gained RailRef.path (navigate to a flat page instead of the
+    node home), RailRef.inert (orientation-only row, no click affordance) and a member
+    prop (flat paths sit outside /schools/org, so path detection alone would show the
+    admin escape)
+  stability: the frame and its ONE rail instance persist across flat-view hops (only the
+    main pane swaps); flat<->node hops paint the same cached tree synchronously
+  tests: useSchoolsRail.test.ts
 
 navigation_rules:  # THE-VIEW §2
   - clicking any node NAME anywhere in admin lands on that node's HOME

@@ -1,6 +1,6 @@
 {
-  "version": "9d72e7a83ceb",
-  "generatedAt": "2026-07-28",
+  "version": "9d72e7a83ced",
+  "generatedAt": "2026-08-02",
   "truth": {
     "verbs": [
       {
@@ -13,7 +13,7 @@
       },
       {
         "label": "Add a group",
-        "adminOnly": true
+        "adminOnly": false
       },
       {
         "label": "Add a school",
@@ -52,7 +52,9 @@
       "Students",
       "Teachers",
       "Classes practising this week",
-      "Learners"
+      "Learners",
+      "Practice hours",
+      "Groups"
     ],
     "measures": [
       {
@@ -105,11 +107,13 @@
   },
   "explanations": {
     "admin": {
+      "org": "An organisation is groups all the way down: groups inside groups, each with its own leader, with\nlearners wherever they belong. Nothing here assumes a school — the numbers are always **everyone\nbelow this**, counted once.\n\n**Invite a person** makes a personal link that IS their login — email it and they're in, no\nsign-up, no password. **Get a shareable link** makes an open link for a role — a group leader or\na learner. **Add a group** grows the tree; **Rename** and **Delete** reshape it — delete always\nshows you exactly what would go before it goes. **See insights** compares this group's pace with\nthe levels above it.\n\nIf schools ever live below this, the pages inside that part of the tree speak the school\nlanguage — teachers, classes — same bones, different dressing.",
       "group": "Every page here is the same page. A **group** can hold groups, schools, teachers, classes and\nlearners — a school is just a group with billing attached, a programme or region is just a label.\nThe map on the left is the whole organisation: tap up, down or sideways and the page stays put.\n\nThe numbers are always **everyone below this** — this group and everything under it, counted\nonce. **Class practice** leads because classes practising together is the metric that matters in\na school; individual accounts are the bonus on top.\n\nThe buttons along the top act on this group. **Invite a person** makes a personal link that IS\ntheir login — email it and they're in, no sign-up, no password. **Get a shareable link** makes an\nopen link for a role — anyone who taps it joins here. **Mint a demo org** builds a working demo\nschool under this group in one gesture. **Courses** is one switch: a trial teaches one course, a\npaid group has every course. **See insights** compares this group's pace with the levels above it.\n**Add a group** and **Add a school** grow the tree; **Rename** and **Delete** reshape it — delete\nalways shows you exactly what would go before it goes. **Refresh demo activity** keeps a demo\norg's numbers looking freshly practised.",
       "school": "A school is a group with billing attached — same page, same numbers, plus the trial-or-paid badge\nin the header. Its people are teachers; a teacher becomes real the moment they have a class.\n**Get a shareable link** here is how a school fills itself: one teacher link for the staffroom,\none learner link for the pupils. The links ledger at the bottom shows every way into this school\nand lets you switch any of them off.",
       "class": "A class is a learner in its own right: it has its own course position, moved by the teacher\npressing **Play as class**. That shared journey is the headline; each student's own practice is\nthe layer below. The belt strip shows where the class sits on the course; each student row\ncarries their own belt, practice hours and last-active — a quiet flag marks anyone drifting.\n**See insights** compares this class's pace with its school and everywhere above it."
     },
     "leader": {
+      "org": "This is your organisation, one page per level. It's groups all the way down: a group can hold\nmore groups — each with its own leader — or learners directly. The map on the left is the whole\ntree; tap any name to look closer, and the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Practice hours** is the one\nto watch — it's your organisation actually using the language.\n\nYou can grow it from right here. **Invite a person** makes a personal link that IS their login —\nemail it and they're in, nothing to set up. **Get a shareable link** makes an open link anyone\ncan use to join this level as a leader or a learner. **Add a group** creates the next level down.\n**See insights** shows the pace here against the levels above.",
       "group": "This is your organisation, one page per level. The map on the left runs from your top group down\nto every school and class — tap any name to look closer; the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Class practice** leads:\nclasses practising together is what a language programme lives on, so that's the number to watch.\nIndividual student practice sits underneath it as the bonus.\n\nYou can bring people in from right here. **Invite a person** makes a personal link that IS their\nlogin — email it to a school leader or teacher and they're in, nothing to set up. **Get a\nshareable link** makes an open link anyone can use to join this level in a given role. **See\ninsights** shows the pace here against the levels above, over the window you choose.",
       "school": "Each school is the same page one level down: its teachers, their classes, and the same numbers\nscoped to just that school. A school comes alive through its links — one for teachers, one for\nlearners. If a school shows no teachers yet, sharing its teacher link is the whole job.",
       "class": "A class page is where the teaching shows. The class travels the course **together** — that shared\nposition is the headline, moved every time its teacher runs a class session. Each student row\nunderneath carries their own pace, practice and last-active, with a quiet flag for anyone\ndrifting. **See insights** compares this class's pace fairly with its school and the levels above."
