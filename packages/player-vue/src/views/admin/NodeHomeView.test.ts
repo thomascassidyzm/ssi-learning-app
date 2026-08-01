@@ -12,6 +12,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import NodeHomeView from './NodeHomeView.vue'
 import { clearNodeHomeCache } from '@/composables/admin/nodeHomeCache'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { setSchoolsClient } from '@/composables/schools/client'
 
 const routeMock = reactive({ params: { id: 'programme' } as Record<string, any>, query: {} as Record<string, any> })
 const pushMock = vi.fn()
@@ -332,5 +334,93 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(verbs).not.toContain('Rename')
     expect(verbs).not.toContain('Delete')
     expect(verbs).not.toContain('Courses')
+  })
+})
+
+// Org platform trial/upgrade (founder-specced 2026-08-01, group-leader lane).
+// Routes fetch by URL — unlike setupFetch above — because these specs need
+// BOTH /api/groups/:id/home (the node payload) and /api/org/subscription (the
+// gate) answered differently in the same test.
+function setupRoutedFetch(homePayload: any, orgResponse: any) {
+  const fetchMock = vi.fn(async (url: string) => {
+    if (String(url).includes('/api/org/subscription')) {
+      return { ok: true, json: async () => orgResponse }
+    }
+    return { ok: true, json: async () => homePayload }
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admin)', () => {
+  const ctx = useSchoolContext()
+
+  beforeEach(() => {
+    ctx.currentUser.value = null
+    // The expired wall embeds UpgradeView, whose org/school/tutor lanes all
+    // touch schools composables that resolve a client at setup — mirrors the
+    // idiom other schools *.test.ts files use to mount without a real session.
+    setSchoolsClient({
+      auth: { getSession: async () => ({ data: { session: null } }) },
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+      }),
+    } as any)
+  })
+
+  it('mid-trial: shows the days-remaining banner with an always-visible Upgrade link, dashboard still renders', async () => {
+    ;(routeMock as any).path = '/schools/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'trial', seats: null, member_count: 3 }, gate: { active: true, trial_days_remaining: 12 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('12 days left in your organisation\'s free trial')
+    expect(wrapper.find('a[href="/schools/upgrade"]').exists()).toBe(true)
+    // Dashboard renders normally underneath the banner — trial is not a wall.
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+  })
+
+  it('expired: the whole node home is replaced by the pay-in-app wall, never a dead end', async () => {
+    ;(routeMock as any).path = '/schools/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'expired', seats: 5, member_count: 8 }, gate: { active: false, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain("Your organisation's free trial has ended")
+    // The underlying node dashboard is gone — no dead end, no identity header.
+    expect(wrapper.find('.identity-name').exists()).toBe(false)
+  })
+
+  it('paid (active, no trial): no banner, no wall — the dashboard renders plainly', async () => {
+    ;(routeMock as any).path = '/schools/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'active', seats: 5, member_count: 4 }, gate: { active: true, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('free trial')
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+  })
+
+  it('admin mount (not a member/govt_admin view): never fetches the org gate, no banner', async () => {
+    ;(routeMock as any).path = undefined // admin mount
+    ctx.currentUser.value = null
+    const fetchMock = setupRoutedFetch(nodePayload(), { org: null, gate: { active: false, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/org/subscription'), expect.anything())
+    expect(wrapper.text()).not.toContain('free trial')
   })
 })
