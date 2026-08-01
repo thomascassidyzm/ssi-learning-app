@@ -144,6 +144,7 @@ async function liveBuildNumber() {
 
 async function countEvents(key, fromMs, toMs) {
   const url = `${SUPABASE_URL}/rest/v1/player_events?select=id&env=eq.production` +
+    `&event_type=neq.sentinel_synthetic_probe` +
     `&occurred_at=gte.${iso(fromMs)}&occurred_at=lt.${iso(toMs)}&limit=1`
   const ctl = new AbortController()
   const t = setTimeout(() => ctl.abort(), 20000)
@@ -175,12 +176,18 @@ async function telemetryVerdict(win) {
     if (!b.error) baseline.push(b.count)
   }
   if (baseline.length < 2) return { available: false, note: 'baseline query failures — no verdict' }
-  const median = baseline.sort((a, b) => a - b)[Math.floor(baseline.length / 2)]
+  // Reference = second-SMALLEST baseline week, not the median. Late-night windows
+  // have huge week-to-week variance (real 2026-08-01 false alarm: prior Fridays
+  // [0, 3, 177, 688] — median 177 said "crater", but half the baseline weeks were
+  // as quiet as the window being judged). If even one other quiet-but-normal week
+  // exists, the hour is naturally craterable and volume can't be judged.
+  const sorted = baseline.sort((a, b) => a - b)
+  const ref = sorted[1]
   const elapsed = to - from
-  const result = { available: true, window: cur.count, baselineMedian: median, baseline, elapsedMin: Math.round(elapsed / 60000) }
+  const result = { available: true, window: cur.count, baselineRef: ref, baseline: sorted, elapsedMin: Math.round(elapsed / 60000) }
   if (elapsed < TELEMETRY_MIN_ELAPSED_MS) return { ...result, verdict: 'too-early' }
-  if (median < BASELINE_FLOOR) return { ...result, verdict: 'too-quiet' }
-  return { ...result, verdict: cur.count < median * CRATER_RATIO ? 'crater' : 'ok' }
+  if (ref < BASELINE_FLOOR) return { ...result, verdict: 'too-quiet' }
+  return { ...result, verdict: cur.count < ref * CRATER_RATIO ? 'crater' : 'ok' }
 }
 
 // --- probes ----------------------------------------------------------------
@@ -290,7 +297,7 @@ async function tick() {
     log(`telemetry: ${JSON.stringify(tele)}`)
     if (tele.verdict === 'crater') {
       await alertOnce('telemetry',
-        `DEPLOY FALLOUT after ${short}: production telemetry crater — ${tele.window} player_events in ${tele.elapsedMin} min vs baseline median ${tele.baselineMedian} (same clock window, prior 4 weeks). Users may be unable to load the app.`)
+        `Possible fallout from tonight's deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}. This can mean learners can't load or play. Worth a quick look at saysomethingin.app.`)
     }
   }
 
@@ -302,8 +309,8 @@ async function tick() {
       const teleLine = !tele ? 'telemetry: not checked'
         : !tele.available ? `telemetry: ${tele.note}`
           : tele.verdict === 'too-quiet'
-            ? `telemetry: baseline too quiet to judge (median ${tele.baselineMedian} events)`
-            : `telemetry: ${tele.window} events vs baseline median ${tele.baselineMedian} — healthy`
+            ? `telemetry: this hour is naturally quiet in prior weeks (${tele.baseline?.join('/')}) — volume not judged`
+            : `telemetry: ${tele.window} events vs quietest-recent-week ${tele.baselineRef} — healthy`
       const probeLine = `probes: ${probes.filter((p) => p.ok).length}/${probes.length} green`
       const deployLine = win.deployLiveAt
         ? `deploy ${short} live at ${iso(win.deployLiveAt)}`

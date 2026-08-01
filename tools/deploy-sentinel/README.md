@@ -11,9 +11,14 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    blocked or failed the build — alerted DISTINCTLY as "deploy never went live",
    not "app broken". A later recovery posts a note to the done board.
 2. **Telemetry volume** — `player_events` where `env='production'`, window-so-far
-   vs the same clock window over the 4 prior weeks (median). Crater = < 35% of
-   baseline median, only judged after ≥ 60 min of window and only when the
-   baseline median ≥ 50 events (no 3am false alarms on tiny numbers).
+   vs the same clock window over the 4 prior weeks. The reference is the
+   **second-smallest** baseline week (NOT the median — late-night windows vary
+   wildly week to week; a real 2026-08-01 false alarm had prior Fridays
+   [0, 3, 177, 688] where the median cried crater while half the weeks were just
+   as quiet). Crater = < 35% of that reference, only judged after ≥ 60 min of
+   window and only when the reference ≥ 50 events (no 3am false alarms on tiny
+   numbers). The tagged `sentinel_synthetic_probe` event type is excluded from
+   counts.
    **Requires a Supabase service-role key** — from `SUPABASE_SERVICE_ROLE_KEY` in
    the environment or a `~/.ssi-sentinel.env` file (`SUPABASE_SERVICE_ROLE_KEY=…`).
    No key on the VM → the leg reports "inactive" honestly in the all-clear.
