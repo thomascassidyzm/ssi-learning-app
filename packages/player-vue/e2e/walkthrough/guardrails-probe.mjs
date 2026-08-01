@@ -25,7 +25,7 @@ await page.addInitScript(() => {
   document.head?.appendChild(style) || document.documentElement.appendChild(style)
 })
 await page.goto(LEADER_URL, { waitUntil: 'networkidle' }).catch(() => {})
-await page.waitForURL((u) => u.pathname.startsWith('/schools/org/'), { timeout: 45000 }).catch(() => {})
+await page.waitForURL((u) => u.pathname.startsWith('/org/'), { timeout: 45000 }).catch(() => {})
 await page.waitForSelector('.nh-stats, .stat-value', { timeout: 20000 }).catch(() => {})
 
 // Open the ways-in walk.

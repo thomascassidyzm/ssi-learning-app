@@ -87,7 +87,7 @@ console.log('MINTED personal leader link:', personal.code, personal.url)
   await p.goto(personal.url, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForURL((u) => u.pathname.startsWith('/schools'), { timeout: 45000 }).catch(() => {})
   await p.waitForTimeout(6000)
-  check('A: personal link lands on member node home', new URL(p.url()).pathname === `/schools/org/${PROGRAMME}`, p.url())
+  check('A: personal link lands on member node home', new URL(p.url()).pathname === `/org/${PROGRAMME}`, p.url())
   await shot('1-landing')
 
   // Drill 1: programme → Pilot Districts Region
@@ -97,7 +97,7 @@ console.log('MINTED personal leader link:', personal.code, personal.url)
     await regionRow.click()
     await p.waitForTimeout(4500)
     const body = (await p.textContent('body').catch(() => '')) || ''
-    check('A: region home in member scope', new URL(p.url()).pathname.startsWith('/schools/org/'), p.url())
+    check('A: region home in member scope', new URL(p.url()).pathname.startsWith('/org/'), p.url())
     check('A: region rail — programme above, you-are-here on region',
       body.includes('IME Demo Programme') && body.includes("you're here") && body.includes('Pilot Districts Region'))
     check('A: region — no All organisations escape', !body.includes('All organisations'))
@@ -110,7 +110,7 @@ console.log('MINTED personal leader link:', personal.code, personal.url)
       await schoolRow.click()
       await p.waitForTimeout(4500)
       const sbody = (await p.textContent('body').catch(() => '')) || ''
-      check('A: school home in member scope', new URL(p.url()).pathname.startsWith('/schools/org/'), p.url())
+      check('A: school home in member scope', new URL(p.url()).pathname.startsWith('/org/'), p.url())
       check('A: school rail keeps full ancestry', sbody.includes('IME Demo Programme') && sbody.includes('Pilot Districts Region') && sbody.includes('Sunrise'))
       await shot('3-school')
 
@@ -123,7 +123,7 @@ console.log('MINTED personal leader link:', personal.code, personal.url)
         await classRow.click()
         await p.waitForTimeout(5000)
         const cbody = (await p.textContent('body').catch(() => '')) || ''
-        check('A: class home in member scope', new URL(p.url()).pathname.startsWith('/schools/org/'), p.url())
+        check('A: class home in member scope', new URL(p.url()).pathname.startsWith('/org/'), p.url())
         check('A: class teaching cards', cbody.includes('Course journey') && cbody.includes('Belt distribution'))
         check('A: flat student rows carry teaching density', cbody.includes('Practice hours') || /LEGOs/i.test(cbody))
         await shot('4-class')
@@ -132,7 +132,7 @@ console.log('MINTED personal leader link:', personal.code, personal.url)
   }
 
   // Insights keeps the map intact
-  await p.goto(`${BASE}/schools/org/${PROGRAMME}/insights`, { waitUntil: 'networkidle' }).catch(() => {})
+  await p.goto(`${BASE}/org/${PROGRAMME}/insights`, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForTimeout(6000)
   const ibody = (await p.textContent('body').catch(() => '')) || ''
   check('A: insights opens with the map intact', ibody.includes('IME Demo Programme') && ibody.includes('Insights'))
@@ -175,7 +175,7 @@ console.log('MINTED open leader link:', open.code, open.url)
   await p.waitForURL((u) => u.pathname.startsWith('/schools'), { timeout: 45000 }).catch(() => {})
   await p.waitForTimeout(6000)
   const body = (await p.textContent('body').catch(() => '')) || ''
-  check('B: open leader lands on member node home', new URL(p.url()).pathname === `/schools/org/${PROGRAMME}`, p.url())
+  check('B: open leader lands on member node home', new URL(p.url()).pathname === `/org/${PROGRAMME}`, p.url())
   // Stats vocabulary shifted with LANE B (class practice leads) — accept either card set.
   check('B: rail + identity + stats present', body.includes("you're here") && body.includes('IME Demo Programme') && /practice/i.test(body) && body.includes('Learners'))
   check('B: no admin escape', !body.includes('All organisations'))
@@ -205,7 +205,7 @@ console.log('MINTED teacher link:', teacher.code, teacher.url)
   await p.waitForTimeout(6000)
   const path = new URL(p.url()).pathname
   const body = (await p.textContent('body').catch(() => '')) || ''
-  check('C: teacher lands on teacher surface, NOT the org mount', path.startsWith('/schools') && !path.startsWith('/schools/org/'), p.url())
+  check('C: teacher lands on teacher surface, NOT the org mount', path.startsWith('/schools') && !path.startsWith('/org/'), p.url())
   check('C: teacher surface renders (no org rail)', !body.includes('WHERE YOU ARE') && !body.includes("you're here"))
   await shot('1-teacher-landing')
   check('C: zero page errors', errors.length === 0, errors.slice(0, 3).join(' | '))

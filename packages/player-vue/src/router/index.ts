@@ -1,4 +1,9 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type NavigationGuardWithThis,
+  type RouteRecordRaw,
+} from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { prepareMissionFromRoute } from '@/missions/useMission'
 
@@ -56,6 +61,51 @@ const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
 // Onboarding — the three signup doors (/schools1, /schools2, /tutors)
 const Onboarding = () => import('@/views/onboarding/Onboarding.vue')
 
+// The member-surface guard, shared by /schools and the top-level /org node
+// surface — they are the SAME shell (SchoolsContainer), so a leader arriving
+// by either door gets the same role priming and the same bounces.
+// Parent-level so a deep-link (e.g. /schools/analytics, /org/:id/insights)
+// primes the role cache before the container's gate runs. The
+// platform-subscription gate itself (lever-3) is enforced in SchoolsContainer,
+// which wraps EVERY child route — it's async (loads platform_status), and a
+// router guard can't resolve it synchronously, so the container is the right
+// place. This guard just makes sure the role cache is restored first (no flash
+// of wrong state).
+const memberSurfaceGuard: NavigationGuardWithThis<undefined> = (to, _from, next) => {
+  // Guided-mission deep link (?mission=<id>, dev/staging-gated): primes the
+  // demo persona's role cache BEFORE the checks below so the mission's
+  // signed-out visitor isn't bounced. The demo world itself is arranged in
+  // SchoolsContainer setup (activatePendingMission), after setSchoolsClient.
+  prepareMissionFromRoute(to)
+  const { canAccessAdmin, hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
+  restoreFromCache()
+  // ssi_admins have their OWN schools surface (/admin/schools read-views) and
+  // aren't members of any school — so redirect them OUT of the member-facing
+  // tree from ANY entry point (a deep-link to /schools/teachers must never
+  // dump them on the learner "no school access / join code" wall).
+  // When acting-as a persona, hasSchoolRole is the PERSONA's, so they pass
+  // through to the live school experience as intended. (Guard on the PARENT
+  // so it covers every child route, not just the bare dashboard.)
+  if (canAccessAdmin.value && !hasSchoolRole.value) {
+    return next('/admin/structure')
+  }
+  // A user with a KNOWN role but NO school role is not a member.
+  // Solo tutors have no `educational_role`, so they look identical to a
+  // plain learner here — the role cache can't tell them apart. Rather than
+  // let them fall onto the member-facing "no school access" wall (a dead
+  // end — this is exactly what trapped Aran coming from /teach), bounce
+  // them to the surface they belong to: a tutor (last on /teach) back to
+  // /teach, anyone else to the learner home. Only act once the role cache
+  // is initialized, so a first cold load (cache not yet primed) still
+  // reaches the container, which has its own login/loading handling.
+  if (isInitialized.value && !hasSchoolRole.value) {
+    return next(lastDashboard() === 'teach' ? '/tutors/dashboard' : '/')
+  }
+  // Genuine member — remember it for the symmetric breadcrumb.
+  rememberDashboard('schools')
+  next()
+}
+
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
   {
@@ -77,51 +127,53 @@ const routes: RouteRecordRaw[] = [
     // are untouched by this route; SchoolsContainer's own guard bounces a
     // non-member back to their surface, it just never fires FROM here.
   },
+  // THE VIEW's member node surface — TOP-LEVEL (founder ruling 2026-08-02:
+  // an org/workplace is NOT a schools feature, so it must not live under
+  // /schools). ONE :id route serves groups, orgs, schools AND classes (the
+  // home endpoint resolves whichever id it's given), and the server scopes a
+  // leader to their own subtree — rail rooted at their top node, no admin
+  // escape. Server-backed reads only (no client org-table queries — the
+  // RLS-condition caution). Same shell/guard/gate as /schools; only the URL
+  // and the org-lane wording differ. `/orgs` (plural) stays FREE for the
+  // future public explainer page — nothing here may claim it.
+  {
+    path: '/org',
+    component: SchoolsContainer,
+    meta: { hideAppEscape: true }, // SchoolsContainer carries its own nav
+    beforeEnter: memberSurfaceGuard,
+    children: [
+      {
+        path: ':id',
+        name: 'org-node-home',
+        component: NodeHomeView,
+        meta: { title: 'Organisation', description: 'Node home (member scope)', nodeSurface: true },
+      },
+      {
+        // THE LENS at member scope — "See insights" on the member node home.
+        path: ':id/insights',
+        name: 'org-node-insights',
+        component: NodeInsightsView,
+        meta: {
+          title: 'Insights',
+          description: 'The Insight Engine scoped to this node (member scope)',
+        },
+      },
+      {
+        // The org lane's billing door: the same UpgradeView, reached without
+        // an org leader ever being shown a /schools URL.
+        path: 'upgrade',
+        name: 'org-upgrade',
+        component: UpgradeView,
+        meta: { title: 'Upgrade', description: 'Subscribe / manage seats' },
+      },
+    ],
+  },
   // Schools dashboard routes
   {
     path: '/schools',
     component: SchoolsContainer,
     meta: { hideAppEscape: true }, // SchoolsContainer carries its own nav
-    // Parent-level guard so a deep-link (e.g. /schools/analytics) still primes
-    // the role cache before the container's gate runs. The platform-subscription
-    // gate itself (lever-3) is enforced in SchoolsContainer, which wraps EVERY
-    // child route — it's async (loads platform_status), and a router guard can't
-    // resolve it synchronously, so the container is the right place. This guard
-    // just makes sure the role cache is restored first (no flash of wrong state).
-    beforeEnter: (to, _from, next) => {
-      // Guided-mission deep link (?mission=<id>, dev/staging-gated): primes the
-      // demo persona's role cache BEFORE the checks below so the mission's
-      // signed-out visitor isn't bounced. The demo world itself is arranged in
-      // SchoolsContainer setup (activatePendingMission), after setSchoolsClient.
-      prepareMissionFromRoute(to)
-      const { canAccessAdmin, hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
-      restoreFromCache()
-      // ssi_admins have their OWN schools surface (/admin/schools read-views) and
-      // aren't members of any school — so redirect them OUT of the member-facing
-      // /schools tree from ANY entry point (a deep-link to /schools/teachers must
-      // never dump them on the learner "no school access / join code" wall).
-      // When acting-as a persona, hasSchoolRole is the PERSONA's, so they pass
-      // through to the live school experience as intended. (Guard on the PARENT
-      // so it covers every child route, not just the bare dashboard.)
-      if (canAccessAdmin.value && !hasSchoolRole.value) {
-        return next('/admin/structure')
-      }
-      // A user with a KNOWN role but NO school role is not a school member.
-      // Solo tutors have no `educational_role`, so they look identical to a
-      // plain learner here — the role cache can't tell them apart. Rather than
-      // let them fall onto the member-facing "no school access" wall (a dead
-      // end — this is exactly what trapped Aran coming from /teach), bounce
-      // them to the surface they belong to: a tutor (last on /teach) back to
-      // /teach, anyone else to the learner home. Only act once the role cache
-      // is initialized, so a first cold load (cache not yet primed) still
-      // reaches the container, which has its own login/loading handling.
-      if (isInitialized.value && !hasSchoolRole.value) {
-        return next(lastDashboard() === 'teach' ? '/tutors/dashboard' : '/')
-      }
-      // Genuine school member — remember it for the symmetric breadcrumb.
-      rememberDashboard('schools')
-      next()
-    },
+    beforeEnter: memberSurfaceGuard,
     children: [
       {
         path: 'setup',
@@ -137,7 +189,7 @@ const routes: RouteRecordRaw[] = [
         name: 'schools-dashboard',
         // RETIRED for school-scoped school_admins (nav unification, third
         // persona, 2026-07-30): SchoolsContainer redirects them to their
-        // school's node home (/schools/org/:schoolId). Stays live for
+        // school's node home (/org/:schoolId). Stays live for
         // teachers and legacy no-school school_admin rows.
         component: DashboardView,
         meta: {
@@ -191,7 +243,7 @@ const routes: RouteRecordRaw[] = [
         // shell (its own TopNav + full-viewport scroll suppressed via `embedded`).
         // For a group-scoped govt_admin (2026-07-29) and a school-scoped
         // school_admin (2026-07-30) this URL is retired — SchoolsContainer
-        // redirects it to their node's /schools/org/:id/insights (nav
+        // redirects it to their node's /org/:id/insights (nav
         // unification); it stays live for teachers.
         component: () => import('@/insight/TeacherInsightsView.vue'),
         props: { embedded: true },
@@ -224,24 +276,20 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // THE VIEW for members (docs/THE-VIEW.md): a group/school leader's
-        // node home — the SAME recursive page the admin surface uses, mounted
-        // inside the /schools shell. One :id route serves groups, schools AND
-        // classes (the home endpoint resolves whichever it's given), and the
-        // server scopes a leader to their own subtree — rail rooted at their
-        // top node, no admin escape. Server-backed reads only (no client
-        // org-table queries — the RLS-condition caution).
+        // LEGACY (moved 2026-08-02 to top-level /org — see the route above).
+        // The old member-mount URLs live on as redirects so invite links,
+        // bookmarks and shared deep links keep working; query and hash ride
+        // along, which matters for ?lens=, ?student= and ?mission=.
         path: 'org/:id',
-        name: 'schools-node-home',
-        component: NodeHomeView,
-        meta: { title: 'Organisation', description: 'Node home (member scope)', nodeSurface: true },
+        redirect: (to) => ({ path: `/org/${to.params.id}`, query: to.query, hash: to.hash }),
       },
       {
-        // THE LENS at member scope — "See insights" on the member node home.
         path: 'org/:id/insights',
-        name: 'schools-node-insights',
-        component: NodeInsightsView,
-        meta: { title: 'Insights', description: 'The Insight Engine scoped to this node (member scope)' },
+        redirect: (to) => ({
+          path: `/org/${to.params.id}/insights`,
+          query: to.query,
+          hash: to.hash,
+        }),
       },
       {
         path: 'play',

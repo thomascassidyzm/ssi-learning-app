@@ -340,9 +340,9 @@ watch(
     const groupId = user?.group_id
     if (groupId && ctx.isGovtAdmin.value) {
       if (routeName === 'schools-list') {
-        void router.replace({ path: `/schools/org/${groupId}`, query: { lens: 'schools' } })
+        void router.replace({ path: `/org/${groupId}`, query: { lens: 'schools' } })
       } else if (routeName === 'analytics') {
-        void router.replace(`/schools/org/${groupId}/insights`)
+        void router.replace(`/org/${groupId}/insights`)
       }
       return
     }
@@ -356,11 +356,11 @@ watch(
     const schoolId = user?.school_id
     if (schoolId && ctx.isSchoolAdmin.value) {
       if (routeName === 'schools-dashboard') {
-        void router.replace(`/schools/org/${schoolId}`)
+        void router.replace(`/org/${schoolId}`)
       } else if (routeName === 'teachers') {
-        void router.replace({ path: `/schools/org/${schoolId}`, query: { lens: 'teachers' } })
+        void router.replace({ path: `/org/${schoolId}`, query: { lens: 'teachers' } })
       } else if (routeName === 'analytics') {
-        void router.replace(`/schools/org/${schoolId}/insights`)
+        void router.replace(`/org/${schoolId}/insights`)
       }
     }
   },

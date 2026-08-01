@@ -50,7 +50,7 @@ describe('shipped rules', () => {
     const inv = invs.find((i) => i.ruleId === 'quiet-subtree')
     expect(inv).toBeTruthy()
     expect(inv!.text).toContain('5 classes')
-    expect(inv!.to).toBe('/schools/org/g1?lens=classes')
+    expect(inv!.to).toBe('/org/g1?lens=classes')
     // no classes at all → silence, not a nag
     const empty = groupHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 0 } })
     expect(evaluateRules(RULES, empty, 'leader', true).map((i) => i.ruleId)).not.toContain('quiet-subtree')
@@ -99,7 +99,7 @@ describe('scoping', () => {
   it('member flag drives member-scoped links', () => {
     const quiet = classHome({ classPractice: { weekSessions: 0, totalSessions: 40, hours: 18 } })
     const inv = evaluateRules(RULES, quiet, 'leader', true).find((i) => i.ruleId === 'silent-class')
-    expect(inv!.to).toBe('/schools/org/c1/insights')
+    expect(inv!.to).toBe('/org/c1/insights')
   })
 })
 

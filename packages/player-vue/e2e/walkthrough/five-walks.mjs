@@ -125,7 +125,7 @@ async function finishWalk(p, walkId) {
 if (LEGS.includes('A')) {
   const { ctx, page: p, mutations } = await newPage()
   await p.goto(LEADER_URL, { waitUntil: 'networkidle' }).catch(() => {})
-  await p.waitForURL((u) => u.pathname.startsWith('/schools/org/'), { timeout: 45000 })
+  await p.waitForURL((u) => u.pathname.startsWith('/org/'), { timeout: 45000 })
   await p.waitForSelector('.nh-stats, .stat-value', { timeout: 20000 }).catch(() => {})
   await assertNoAutoPlay(p, 'leader node home')
   await shot(p, 'a0-leader-node-home-quiet')
@@ -184,7 +184,7 @@ if (LEGS.includes('A')) {
   await p.locator('.child-btn', { hasText: 'Sunrise Public School' }).first().click()
   await p.waitForTimeout(2500)
   await p.waitForSelector('.nh-stats, .stat-value', { timeout: 20000 }).catch(() => {})
-  check('walk1: on a school node home', p.url().includes('/schools/org/'), p.url())
+  check('walk1: on a school node home', p.url().includes('/org/'), p.url())
   await p.locator('.htw-toggle').first().click().catch(() => {})
   await p.waitForTimeout(500)
   const inviteOffer = p.locator('[data-walk-offer="invite-first-teacher"]')

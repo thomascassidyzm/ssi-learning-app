@@ -42,7 +42,7 @@ check('leader explanation renders', htwText.includes('your organisation'), htwTe
 await p.screenshot({ path: `${OUT}deployed-1-how-this-works.png`, fullPage: false })
 
 // 3. Grade 6A — a noticing invitation on real data, dismissible.
-await p.goto(`${BASE}/schools/org/${CLASS_ID}`, { waitUntil: 'networkidle' }).catch(() => {})
+await p.goto(`${BASE}/org/${CLASS_ID}`, { waitUntil: 'networkidle' }).catch(() => {})
 await p.waitForSelector('.node-home .identity-name', { timeout: 30000 })
 await p.waitForTimeout(1500)
 const notices = p.locator('.notice-card')

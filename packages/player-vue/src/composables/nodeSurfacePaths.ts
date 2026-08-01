@@ -3,10 +3,14 @@
  *
  *   - admin (ssi_admin god-view): /admin/groups/:id · /admin/schools/:id ·
  *     /admin/classes/:id — the whole forest.
- *   - member (leader path, inside the /schools shell): /schools/org/:id —
- *     ONE path for groups, schools and classes, because the home endpoint
- *     resolves whichever id it's given, and the server (resolveGroupTreeCaller)
- *     scopes a leader to their own subtree with ancestors trimmed.
+ *   - member (leader path, top-level): /org/:id — ONE path for groups, orgs,
+ *     schools and classes, because the home endpoint resolves whichever id
+ *     it's given, and the server (resolveGroupTreeCaller) scopes a leader to
+ *     their own subtree with ancestors trimmed. Top-level since 2026-08-02
+ *     (founder ruling: an org/workplace is not a schools feature); the old
+ *     /schools/org/:id URLs redirect here. NOTE the singular — /orgs is
+ *     reserved for the public explainer page, so prefix tests must never
+ *     match it.
  *
  * The shared components (NodeMapRail, NodeChildrenList, NodeHomeView,
  * NodeInsightsView) derive which mount they're on from the current route path,
@@ -15,15 +19,20 @@
  */
 
 export function isMemberNodeSurface(path: string | undefined): boolean {
-  return (path || '').startsWith('/schools/org')
+  const p = path || ''
+  // Exact-segment test, NOT startsWith('/org') — that would swallow /orgs,
+  // which is reserved for the public explainer page. The legacy
+  // legacy /schools/org/... prefix still counts: the redirect fires on
+  // navigation, but a component can render for a tick on the old path.
+  return p === '/org' || p.startsWith('/org/') || p.startsWith('/schools/org')
 }
 
 export function groupHomePath(id: string, member: boolean): string {
-  return member ? `/schools/org/${id}` : `/admin/groups/${id}`
+  return member ? `/org/${id}` : `/admin/groups/${id}`
 }
 
 export function classHomePath(id: string, member: boolean): string {
-  return member ? `/schools/org/${id}` : `/admin/classes/${id}`
+  return member ? `/org/${id}` : `/admin/classes/${id}`
 }
 
 /** A school row opens its NODE home when the node exists (THE MODEL I2). */
@@ -32,7 +41,7 @@ export function schoolHomePath(
   schoolId: string,
   member: boolean,
 ): string {
-  if (member) return `/schools/org/${nodeId || schoolId}`
+  if (member) return `/org/${nodeId || schoolId}`
   return nodeId ? `/admin/groups/${nodeId}` : `/admin/schools/${schoolId}`
 }
 
@@ -42,7 +51,7 @@ export function nodeInsightsPath(
   isClass: boolean,
   member: boolean,
 ): string {
-  if (member) return `/schools/org/${node.id}/insights`
+  if (member) return `/org/${node.id}/insights`
   if (isClass) return `/admin/classes/${node.id}/insights`
   if (node.commercial?.schoolId) return `/admin/schools/${node.commercial.schoolId}/analytics`
   return `/admin/groups/${node.id}/analytics`
