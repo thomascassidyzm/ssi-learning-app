@@ -2,12 +2,13 @@
  * Group by ID API - GET/PATCH/DELETE /api/groups/:id
  *
  * PATCH: Rename a group (name/type/parent_id — ssi_admin), OR a name-only
- *   self-rename by the leader who governs this exact group
- *   (region-tier-design.md §1d — "name your group"). The leader path is a
- *   SERVER-DERIVED ownership check: the caller's own govt_admins.group_id
- *   must equal the target id — never trust a client claim of which group
- *   they lead. type/parent_id stay ssi_admin-only: a leader must never
- *   re-parent themselves up the tree.
+ *   rename by a leader who governs this group OR a strict ancestor of it
+ *   (region-tier-design.md §1d — "name your group"; extended 2026-08-01 to
+ *   the leader's whole subtree, "full authority over everything below them",
+ *   same scope DELETE already uses). The leader path is a SERVER-DERIVED
+ *   check via isStrictDescendantGroup(their own govt_admins.group_id, target
+ *   id) — never trust a client claim of which group they lead. type/parent_id
+ *   stay ssi_admin-only: a leader must never re-parent a group up the tree.
  * GET (?impact=1): deletion-impact preview (schools/classes/learners in the
  *   group, whether there's real recorded activity) — ssi_admin, OR the
  *   leader of an ANCESTOR group previewing one of their own sub-groups.
@@ -34,6 +35,7 @@ import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { computeGroupImpact, deleteGroupCascade } from '../_utils/schoolGroupDeletion'
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
 import { isStrictDescendantGroup } from '../_utils/schoolScope'
+import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -109,7 +111,8 @@ export default async function handler(
         .select('group_id')
         .eq('user_id', authResult.userId)
         .maybeSingle()
-      if (!govtAdmin || (govtAdmin as any).group_id !== groupId) {
+      const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+      if (!(await isWithinLeaderSubtree(supabase, ownGroupId, groupId))) {
         res.status(403).json({ error: 'You do not govern this group' })
         return
       }
