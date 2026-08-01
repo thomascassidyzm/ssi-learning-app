@@ -10,6 +10,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { orgTrialStamp } from '../_utils/orgPlatform'
+import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -101,11 +103,28 @@ export default async function handler(
       // on to any school attached anywhere in the subtree.
       if (is_demo) row.is_demo = true
 
-      const { data, error } = await supabase
+      // Trial clock (founder ruling 2026-08-01): a NEW ORG gets 30 days of
+      // all-language access from the moment it exists. Only ROOT nodes get a
+      // clock — a sub-group is part of its org and bills through the org's own
+      // row, so stamping it would start a second, competing clock on the same
+      // customer. Upgrading converts this same row in place (trial → active).
+      const isRootOrg = !parent_id
+      if (isRootOrg) Object.assign(row, orgTrialStamp())
+
+      let { data, error } = await supabase
         .from('groups')
         .insert(row)
         .select()
         .single()
+
+      // Fail open on an un-migrated DB (20260801_org_platform_billing not yet
+      // applied): retry the plain insert so org creation never depends on the
+      // billing columns existing. Mirrors schoolPlatformTrial's no-op posture.
+      if (error && isRootOrg && isMissingPlatformSchema(error)) {
+        delete (row as Record<string, unknown>).platform_status
+        delete (row as Record<string, unknown>).platform_expires_at
+        ;({ data, error } = await supabase.from('groups').insert(row).select().single())
+      }
 
       if (error) throw error
       res.status(201).json({ group: data })
