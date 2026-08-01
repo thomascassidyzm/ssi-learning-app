@@ -3,7 +3,7 @@
  * of useSchoolCheckout (lever-3, extended 2026-08-01 for the group-leader
  * lane, api/_utils/orgPlatform.ts).
  *
- * An org prices exactly like a school: £15/MEMBER seat/mo (per-seat Paddle
+ * An org prices exactly like a school: £15/LEARNER seat/mo (per-seat Paddle
  * price, quantity = seats), or £150/seat/yr. The webhook
  * (handleOrgPlatformSubscription, kind:'org_platform') reads
  * `items[0].quantity` back into `groups.seats` and resolves the org by
@@ -26,7 +26,7 @@ export interface StartOrgCheckoutOptions {
    *  it's carried through Paddle so the webhook can set the platform
    *  columns on the right groups row). Required. */
   groupId: string
-  /** Paid member seats = Paddle quantity. Clamped to >= 1. */
+  /** Paid learner seats = Paddle quantity. Clamped to >= 1. */
   seats: number
   /** Billing period. 'monthly' (default) uses the per-seat monthly price;
    *  'annual' uses the per-seat annual price. */
@@ -48,7 +48,7 @@ export function useOrgCheckout() {
       checkoutError.value =
         billing === 'annual'
           ? 'Annual plan not configured — choose monthly'
-          : 'Org platform price not configured'
+          : 'Organisation plan price not configured'
       return
     }
     if (!opts.groupId) {
