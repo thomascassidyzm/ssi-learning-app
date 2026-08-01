@@ -32,6 +32,14 @@ function makeChainable(table: string) {
     },
     eq(col: string, val: unknown) { rows = rows.filter((r) => r[col] === val); return builder },
     is(col: string, val: unknown) { rows = rows.filter((r) => (r[col] ?? null) === val); return builder },
+    in(col: string, vals: unknown[]) { rows = rows.filter((r) => vals.includes(r[col])); return builder },
+    // countSubtreeMembers walks the tree by path prefix (`like 'path%'`), the
+    // same subtree rule schoolsForGroupSubtree uses.
+    like(col: string, pattern: string) {
+      const prefix = pattern.replace(/%$/, '')
+      rows = rows.filter((r) => typeof r[col] === 'string' && r[col].startsWith(prefix))
+      return builder
+    },
     async maybeSingle() {
       return { data: rows[0] ?? null, error: null }
     },
@@ -93,6 +101,32 @@ describe('GET /api/org/subscription', () => {
     expect(res.body.org).toMatchObject({ id: 'org-1', name: 'Acme Ltd', platform_status: 'trial', member_count: 2 })
     expect(res.body.gate.active).toBe(true)
     expect(res.body.gate.trial_days_remaining).toBeGreaterThan(0)
+  })
+
+  it('counts members across the whole SUBTREE, deduped by person', async () => {
+    // The live shape: 'Gwynedd Council' with a 'Finance Dept' sub-group. The
+    // count drives the manager UI's honest "N seats paid, M people" display, so
+    // it must cover everyone the org actually entitles — members of clock-less
+    // sub-groups included, since they bill through this org. Counting the root
+    // node alone would report 1 here and lead the leader to buy too few seats.
+    authUserId = 'leader-sub'
+    DB.govt_admins.push({ user_id: 'leader-sub', group_id: 'org-sub' })
+    DB.groups.push(
+      { id: 'org-sub', name: 'Gwynedd Council', platform_status: 'active', platform_expires_at: null, seats: 5, path: 'org-sub' } as any,
+      { id: 'dept-1', name: 'Finance Dept', platform_status: null, platform_expires_at: null, seats: null, path: 'org-sub.dept-1' } as any,
+    )
+    DB.user_tags.push(
+      { user_id: 'person-1', tag_type: 'group', tag_value: 'GROUP:org-sub', removed_at: null },
+      { user_id: 'person-2', tag_type: 'group', tag_value: 'GROUP:dept-1', removed_at: null },
+      { user_id: 'person-3', tag_type: 'group', tag_value: 'GROUP:dept-1', removed_at: null },
+      // Same person in two departments is ONE seat, not two.
+      { user_id: 'person-3', tag_type: 'group', tag_value: 'GROUP:org-sub', removed_at: null },
+      // A removed affiliation is not a seat.
+      { user_id: 'person-gone', tag_type: 'group', tag_value: 'GROUP:dept-1', removed_at: new Date().toISOString() },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.org.member_count).toBe(3)
   })
 
   it('reports gate.active=false for an elapsed trial', async () => {
