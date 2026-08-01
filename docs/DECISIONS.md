@@ -720,3 +720,197 @@ chars and a url, with no detail field — hence a committed report file the card
 a second post-ship watcher (the sentinel already exists).
 **Search width:** visible-options.
 **Decided by:** founder (the cadence); agent for the mechanism's shape (BSC >90%).
+
+## 2026-07-31 — two lanes: fixes ship immediately without notes, features ride the Friday train
+**Ruling (founder, verbatim):** *"fixes go live immediately - at any point in the week - without
+release notes; whereas features, and/or minor fixes that are just better affordances stick to the
+weekly release train."* An amendment to the 2026-07-30 weekly-cadence ruling, not a reversal of it.
+**The classification test, as documented:** *was something broken, or lying to the user?* → fix:
+ships now, any day, no notes. *Is something newly possible, or nicer?* → feature or affordance:
+rides the train, gets notes. "Lying to the user" is load-bearing — dishonest behaviour (a control
+out of step with reality, a false "Saved", a stale number presented as live) is breakage even when
+nothing crashed. Regressions are fixes by definition. The test is the **state of the thing before
+the change**, not the size of the diff: a small change to something that was merely *less good* is
+an affordance and waits for Friday.
+**Move:** amended `docs/RELEASE-TRAIN.md` — retitled the cadence to govern features/affordances,
+added the classification test up front and an "Any day — the fix lane" section, and stated
+explicitly that the deploy sentinel watches ALL `main` pushes, so a Tuesday fix gets the same
+2-hour fallout watch as a Friday promote.
+**Explicitly NOT built:** a second promotion mechanism. The fix lane **IS** `CLAUDE.md`'s existing
+`hotfix/<desc>`-off-`main` lane, back-merged into `staging` AND `dev` — the ruling widens *what
+qualifies*, it does not add machinery. No notes file, no card, no cron for the fix lane.
+**Better:** nobody lives with a broken or dishonest surface until Friday; the weekly cadence keeps
+its whole point (features arrive announced, in one readable batch) without holding fixes hostage.
+**Simpler:** one written test decides the lane, and the fix lane reuses a mechanism that already
+existed and was already documented; the sentinel needed zero change to cover it.
+**Cheaper (total):** zero new infrastructure. The only new ongoing cost is one judgement call per
+change, and the default when it's genuinely in doubt is the train — a week's wait costs less than
+an unannounced surprise.
+**Search width:** founder ruling (the policy); agent for the documentation shape only.
+**Decided by:** founder.
+
+## 2026-07-31 — release notes are regenerated from the promoted diff, not stamped from the draft
+**Ruling (founder, verbatim):** *"accuracy over elegance"* — said on finding the 2026-07-30 notes
+did not describe what actually shipped.
+**What was actually wrong (the reconciliation finding):** not machinery drift. Re-running the
+generator over the real promoted range (`becac1cc^1..becac1cc^2`, 150 commits) reproduced the
+shipped file byte-for-byte. Two things were wrong instead: (1) two genuinely user-visible fixes —
+the stuck "Updating the app" overlay and WHERE-YOU-ARE rail stability — were dropped by the
+generic path as *"names nothing a user can see"*, because their commit subjects read as machinery;
+(2) the course-switch bullet said "near-instant" for a change that lands READY in 2-3s, which is
+over-claiming, the one failure mode these notes may not have. Both fixed at the durable layer —
+two new phrasebook entries (surfaces, not one-offs) and a corrected phrasebook line — so the
+reconciled file is machine output, not a hand-patched one.
+**Move:** `candidate()` takes a range (default `origin/main..origin/staging`); `--finalize`
+REGENERATES the notes from the promoted range instead of stamping the draft; `promote.sh` passes
+`--base $MAIN --head $STAGING` (the only place that knows main's sha before the merge) and a
+hand-run finalize reads `main^1..main^2` off the promote merge commit.
+**Hand-edit preservation, made exact:** every machine commit to a notes file is prefixed
+`release-train:`, so "was this file touched by a human" is answerable from `git log` rather than
+guessed from text. Machine-only file → regenerate wholesale (which is how a reworded phrasebook
+line replaces its predecessor instead of doubling it). Human-touched file → keep any bullet we
+cannot prove the machine wrote.
+**Better:** the notes describe what shipped. A Thursday draft could previously miss everything
+merged to staging on Thursday night and Friday morning — which is exactly what happened: the ship
+was 150 commits against a draft written for 130.
+**Simpler:** deletes the concept of "the draft is the content, the promote is a rubber stamp" —
+one source of truth (the promoted diff) instead of two that drift. The immediate-fix lane needs no
+exclusion filter either: a hotfix already on `main` is not in `main..staging`, so the range IS the
+policy.
+**Cheaper (total):** one extra `git log` at promote time. No new inputs, no new files.
+**Searched & rejected:** marking machine bullets inline in the draft so finalize can tell them
+apart (plumbing in a file Tom reads and edits, and it would have to be stripped again for
+learners); reconstructing the draft's own range at finalize time to subtract it (needs a sha the
+draft does not record, for a case `git log` answers exactly); leaving the stamp-only flow and
+correcting notes by hand each week (the founder's complaint was precisely that).
+**Search width:** visible-options.
+**Decided by:** founder (accuracy over elegance); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: 3 + one catch-all "other stuff and bug fixes" section
+**Ruling (founder, verbatim):** *"Keep to 3 biggest and then other stuff and bug fixes"*.
+**What changed:** the fixed shape was `## What's new` (up to 3 features) + `## Fixes`; features
+that missed the 3-slot cut only surfaced in the draft's coverage section, for Tom to promote by
+hand later. Now overflow features land alongside the fixes in one section, titled
+"Other stuff and bug fixes" — same headline, same under-claim rule, just below the fold — so
+nothing that shipped goes unmentioned in the final notes.
+**Better:** the notes are a complete account of the ship again. A feature that missed the top-3 by
+one rank previously vanished from the final file entirely unless Tom manually promoted it from the
+draft's stripped-at-finalize coverage section; now it always ships, just compactly.
+**Simpler:** deletes a section (draft-only "translated but over budget") and a manual-promote step;
+one rendering path (`otherStuff = overflow features + fixes`) replaces two.
+**Cheaper (total):** no new inputs; `buildNotes` already computed the overflow list, it's now
+rendered instead of discarded at finalize.
+**Decided by:** founder (shape); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: player-facing features ranked above schools features
+**Ruling (founder, verbatim):** *"focus on the player stuff - most people are not teachers/school
+leaders"*.
+**What changed:** feature-slot ranking was significance-only (3/2/1 per phrasebook entry). Every
+phrasebook entry now also carries an `audience` (`player` learners · `general` · `schools`
+teachers/leaders/admins), and the 3 headline slots rank on `significance × AUDIENCE_WEIGHT`
+(`player: 1.2`, `general: 1`, `schools: 0.8`) before commit count. The weight only breaks
+cross-audience ties at equal significance — it never lets a lower-significance item outrank a
+higher one, so it can't invent importance the phrasebook didn't already assign.
+**Why:** most users of the product are learners, not teachers or school leaders, so the headline
+slots — the three things Tom is telling the whole userbase about — should default to what most of
+that userbase actually experiences.
+**Acceptance run:** `notes/2026-07-30.md` regenerated under the new rules from the actual promoted
+range (`becac1cc^1..becac1cc^2`, 150 commits, ship stamp kept). The 3 headliners now read
+course-switch, cold-start/instant-start, and walkthroughs — all learner-facing — with the schools
+nav-unification feature (equally significant, schools-audience) moved to the catch-all section.
+**Better:** the weekly headline reflects the majority-learner audience rather than whichever
+surface happened to land first in the phrasebook.
+**Simpler:** one multiplier constant (`AUDIENCE_WEIGHT`) on an existing per-entry field; no new
+data source, no new gate.
+**Cheaper (total):** zero — a lookup multiply on data already being sorted.
+**Decided by:** founder (the ranking rule); agent for the mechanism and the audience tagging
+(BSC >90%).
+
+## 2026-07-31 — offline reliability arc shipped via the fix lane, not an early train
+**Move:** Promoted the nine offline-download-reliability commits straight to `main` as
+`hotfix/offline-download-reliability` (replayed off `main` with `git rebase --onto`, merged
+`--no-ff`, back-merged into `staging` and `dev`), rather than running a full `dev → staging → main`
+promotion a day early. Founder ruling 2026-07-31: *"this was a definite user-facing bug — promote
+it to production."*
+**Better:** the classification test in `docs/RELEASE-TRAIN.md` answers this exactly — things were
+broken and lying to the user (boot watchdog nuking offline installs; the offline selection dropped
+by connectivity guesswork; downloads that could hang forever; percentages that over-claimed), so
+it is a **fix**, and fixes ship the moment they're ready. The learner gets the fix tonight instead
+of tomorrow, and the fix carries no release notes because it restores behaviour already promised.
+**Simpler:** an early full promote would have dragged 21 unrelated staging commits into production
+a day early, collapsed tomorrow's GO/HOLD into an implicit yes, and consumed the Friday candidate
+and its draft notes. The fix lane moves exactly the diff the founder verified, and leaves the
+train intact — `main..staging` still contains tomorrow's candidate, and the offline arc is absent
+from it *by construction* (a fix on `main` can never appear in that range).
+**Cheaper (total):** one nine-commit replay with zero conflicts, no notes to regenerate, no
+re-soak of the schools work. The back-merge was needed anyway (see below), so it cost nothing
+extra.
+**Searched & rejected:**
+- Full `dev → staging → main` a day early — rejected: ships 21 unvetted-by-the-train commits,
+  pre-empts Tom's Friday GO, and the RELEASE-TRAIN doc explicitly reserves that call for him.
+- Cherry-pick individual commits — rejected in favour of `rebase --onto` over the contiguous range
+  `0b52b560..74471be5`, which flattens the internal merge commit and cannot double-apply it.
+**Verified:** the replayed tree is **byte-identical to the founder-verified dev tree** for every
+file the arc touches (only WORKLIST.md differs, by 4 lines from later doc commits). All gates green
+on that exact tree: core build, player typecheck, 1307 tests, lint 0 errors, api typecheck,
+767 api tests, release-train tests, production build.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling to promote
+
+## 2026-07-31 — an un-back-merged fix lane had already blocked the Friday train
+**Move:** The back-merge `main → staging` also reconciled two *earlier* fix-lane commits
+(`daa9f093` READY-means-INTERACTIVE, `2d57cbec` handoff-conversion slice) that went to `main` and
+were never back-merged. `staging` carried equivalent content under different shas, so `main` was
+**not** an ancestor of `staging` — the precondition `promote.sh` refuses on. Tomorrow's train would
+have failed at the gate.
+**Better:** caught before Friday rather than during it; the doc's own warning ("skipping the
+back-merge is the one way this lane can hurt you") is now evidenced rather than theoretical.
+**Simpler / Cheaper:** the reconciliation rode along with a back-merge that had to happen anyway.
+**Standing lesson:** the fix lane's back-merge is not paperwork — it is the train's precondition.
+A fix-lane push is not finished until `git merge-base --is-ancestor origin/main origin/staging`
+passes again.
+**Search width:** none-needed
+**Decided by:** agent
+
+## 2026-07-31 — Vercel can silently skip a Production build while Previews keep deploying
+**Finding, not a choice:** the `main` push `3c70ed3b` produced **no Vercel Production deployment
+at all** — no GitHub deployment record, no build — while Preview builds for pushes three minutes
+later (`staging` 20:48, `dev` 20:47) deployed normally, and CI Verify was green on the sha.
+Production sat on the previous build for 15 minutes. An empty re-trigger commit (`ccaffedb`)
+deployed in ~2 minutes, confirming a dropped deploy webhook rather than a build failure or block.
+**Why it matters:** `tools/deploy-sentinel/sentinel.mjs` diagnoses "no Production deployment for
+this sha" as *"likely Vercel usage block"*. This incident is a second, more common cause with the
+same signature. The discriminator is cheap and worth adding to the sentinel's message: **if Preview
+deployments for later pushes succeeded, it is a dropped webhook, not a block — re-trigger with an
+empty commit before escalating.**
+**Search width:** none-needed
+**Decided by:** agent
+
+## 2026-08-01 — orgs bill on the schools quintet, and the group-leader is the role we already have
+**Move:** The org/workplace lane reuses two things wholesale instead of adding parallel systems.
+(1) **Billing shape:** `groups` gains the *same* five columns `schools` already carries —
+`platform_status`, `platform_expires_at`, `seats`, `provider_subscription_id`,
+`provider_customer_id` — so the shared gate `isPlatformActive()`, the Paddle webhook and the
+manager UI stay one code path per concern, differing only in which table they write.
+(2) **Role:** the group-leader is *not* new. A `govt_admins` row scoped by `group_id`, with the
+subtree primitives in `api/_utils/schoolScope.ts`, already is the school-leader pattern; orgs get
+it by extension, not by invention. `isStrictDescendantGroup`'s docstring already carried the
+founder ruling that a leader governs everything below them.
+**Better:** an org's trial, upgrade, seat edit and expiry behave *identically* to a school's,
+because they are the same code — no second billing dialect to keep in sync, and no second role
+system whose authz can drift out of step with the first.
+**Simpler:** the build is additive. One migration, one shared contract module
+(`api/_utils/orgPlatform.ts`), a third lane on the existing `UpgradeView`, and one extra
+`kind:'org_platform'` branch on the existing webhook. Nothing is forked.
+**Cheaper:** no new Paddle product — the org seat price is identical to the school teacher seat
+price (£15/mo, £150/yr, no volume scaling) and the webhook keys on `customData.kind`, not on the
+price id. The org price ids fall back to the school ones, so the lane works on dev with zero new
+operator configuration, while an operator can still split them later.
+**Three deliberate details, each avoiding a phantom clock:** the new columns are nullable with
+**no default** (`groups` also holds the school *nodes*, whose billing lives on their `schools`
+row, and a `DEFAULT 'trial'` would start a second clock on every one of them); only **root** nodes
+get a trial stamp (a sub-group bills through its org); and the **backfill is a separate migration**
+(`20260801b`) because the schema file is safe to apply any time whereas the backfill starts a real
+30-day countdown on live customer rows.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec
