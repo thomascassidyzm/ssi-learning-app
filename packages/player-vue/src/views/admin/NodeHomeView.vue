@@ -7,6 +7,8 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import UpgradeView from '@/views/schools/UpgradeView.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
@@ -35,6 +37,49 @@ const { getClient, getAuthToken } = useAdminClient()
 // admin mount. Same page, same endpoint; the server scopes a leader to their
 // subtree, and links/verbs stay within member scope (nodeSurfacePaths.ts).
 const member = computed(() => isMemberNodeSurface(route.path))
+
+// ─── Org platform trial/upgrade (founder-specced 2026-08-01, group-leader
+// lane) — a govt_admin viewing their own org on the member surface. Entirely
+// separate from the per-school platform gate SchoolsContainer already enforces
+// (that one explicitly exempts govt_admin — a group leader's cross-school VIEW
+// isn't gated by any one school's billing); this is the ORG's OWN billing,
+// read from /api/org/subscription (leaderGroupId — server-derived from the
+// caller's own govt_admins row, never a route param). FAILS OPEN: an
+// unresolved/errored read leaves orgGate null, so nothing renders and nothing
+// blocks. ───
+const { isGovtAdmin } = useSchoolContext()
+const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
+const orgGate = ref<{ active: boolean; trial_days_remaining: number } | null>(null)
+const orgGateLoaded = ref(false)
+
+async function fetchOrgGate(): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch('/api/org/subscription', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    const data = await resp.json().catch(() => ({}))
+    orgGate.value = data?.gate ?? null
+  } catch {
+    // Fail open — no banner, no wall, the node home just renders normally.
+  } finally {
+    orgGateLoaded.value = true
+  }
+}
+
+watch(isOrgLeaderView, (v) => { if (v && !orgGateLoaded.value) void fetchOrgGate() }, { immediate: true })
+
+// Expired wall: the org's OWN trial/subscription has lapsed. Still lets the
+// leader pay in-app rather than dead-ending — same pattern as the per-school
+// wall in SchoolsContainer.vue (embeds UpgradeView, never a mailto).
+const showOrgExpiredWall = computed(
+  () => isOrgLeaderView.value && orgGateLoaded.value && orgGate.value !== null && !orgGate.value.active,
+)
+// Always-visible trial banner (founder ruling: upgradeable at ANY point during
+// the trial, not only at expiry).
+const showOrgTrialBanner = computed(
+  () => isOrgLeaderView.value && !showOrgExpiredWall.value && !!orgGate.value?.active && orgGate.value.trial_days_remaining > 0,
+)
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -328,7 +373,31 @@ const listPayload = computed(() => {
 </script>
 
 <template>
-  <div class="node-home">
+  <!-- ORG EXPIRED WALL — the org's own trial/subscription has lapsed. Pay
+       in-app rather than dead-ending (same pattern as SchoolsContainer's
+       per-school wall). Replaces the whole node home for this leader. -->
+  <div v-if="showOrgExpiredWall" class="org-expired">
+    <div class="org-expired-card schools-card">
+      <span class="org-expired-pill">● Trial ended</span>
+      <h1 class="arsenal org-expired-headline">Your organisation's free trial has ended</h1>
+      <p class="org-expired-lede">
+        Subscribe below to keep every member, group and school in your organisation. Your data is safe — nothing is deleted.
+      </p>
+      <UpgradeView />
+    </div>
+  </div>
+
+  <div v-else class="node-home">
+    <!-- ORG TRIAL BANNER — always-visible upgrade entry point DURING the
+         trial (founder ruling: upgradeable at any point, not only at
+         expiry). -->
+    <div v-if="showOrgTrialBanner" class="org-trial-banner schools-card">
+      <span class="org-trial-copy">
+        {{ orgGate?.trial_days_remaining }} day{{ orgGate?.trial_days_remaining === 1 ? '' : 's' }} left in your organisation's free trial — every language included.
+      </span>
+      <router-link to="/schools/upgrade" class="org-trial-cta">Upgrade →</router-link>
+    </div>
+
     <div v-if="isLoading && !home && !rail" class="node-loading">
       <div class="loading-spinner"></div>
       <p>Loading…</p>
@@ -527,6 +596,33 @@ const listPayload = computed(() => {
 
 <style scoped>
 .node-home { display: flex; flex-direction: column; gap: var(--space-5); }
+
+/* Org trial banner — always-visible upgrade entry point during the trial. */
+.org-trial-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  flex-wrap: wrap; padding: var(--space-4); margin-bottom: var(--space-4);
+  border: 1px solid rgba(219, 30, 23, 0.18);
+}
+.org-trial-copy { font-size: var(--text-sm); color: var(--schools-fg-1, #222); }
+.org-trial-cta {
+  display: inline-flex; align-items: center; padding: 8px 16px; font-size: var(--text-sm);
+  font-weight: var(--font-semibold); border-radius: var(--radius-lg);
+  background: var(--schools-red, #DB1E17); color: #fff; text-decoration: none; white-space: nowrap;
+}
+.org-trial-cta:hover { background: var(--schools-red-deep, #b21611); }
+
+/* Org expired wall — replaces the whole node home; pay in-app, no dead-end. */
+.org-expired {
+  display: flex; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-5);
+}
+.org-expired-card { max-width: 480px; width: 100%; padding: var(--space-6); text-align: center; }
+.org-expired-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; margin-bottom: var(--space-4);
+  background: #fff5e5; border: 1px solid #f4d28a; color: #7a5418; border-radius: 30px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.org-expired-headline { font-size: 28px; line-height: 1.15; margin: 0 0 var(--space-3); }
+.org-expired-lede { font-size: var(--text-sm); line-height: 1.55; color: var(--schools-fg-2, #555); margin: 0 0 var(--space-4); }
 .node-loading {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 40vh; gap: 16px; color: var(--schools-fg-2, #555);
