@@ -22,7 +22,7 @@ interface NodeShape {
   rollup?: { teacherCount?: number; classCount?: number; childGroupCount?: number; learnerCount?: number }
 }
 
-// `member` = the /schools/org mount (a leader on their own subtree). Leaders
+// `member` = the /org mount (a leader on their own subtree). Leaders
 // get the invite verbs — /api/groups/:id/invites authorizes a govt_admin on
 // their governed node or any strict descendant — while the structural verbs
 // (add/rename/mint/delete/courses) stay admin-only for now: their endpoints

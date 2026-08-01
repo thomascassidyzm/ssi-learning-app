@@ -3,7 +3,7 @@
  *
  * "One of your students is quietly struggling. Find them."
  * Demo world: a teacher at Harbour View Primary with two classes, rendered
- * entirely on THE VIEW's canon node surface (/schools/org/:id — NodeHomeView,
+ * entirely on THE VIEW's canon node surface (/org/:id — NodeHomeView,
  * map rail, class cards, flat student rows). The Year 6 Spanish roster is
  * arranged so exactly ONE student (Seren Williams) is clearly drifting —
  * LEGOs far below the class average while still quietly turning up — which
@@ -29,7 +29,7 @@ const TEACHER_USER_ID = 'demo-mission-teacher'
 const CLASS_Y6 = 'demo-mission-class-y6'
 const CLASS_Y5 = 'demo-mission-class-y5'
 export const MISSION_TARGET_LEARNER_ID = 'demo-mission-seren'
-export const MISSION_CLASS_HOME = `/schools/org/${CLASS_Y6}`
+export const MISSION_CLASS_HOME = `/org/${CLASS_Y6}`
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86400000).toISOString()
@@ -89,7 +89,7 @@ function homeStudents(classId: string) {
       // Mission-only: the row opens this student (NodeChildrenList honours a
       // row-supplied link; the real server never sends one). Completion
       // watches for the target's link arriving in the route.
-      to: `/schools/org/${classId}?student=${s.learner_id}`,
+      to: `/org/${classId}?student=${s.learner_id}`,
     }))
     .sort((a, b) => b.practice_hours - a.practice_hours)
 }
@@ -295,7 +295,7 @@ export const MISSIONS: MissionDefinition[] = [
     brief: 'One of your students is quietly struggling — no red flags, no fuss. Have a look around; something in these classes needs a teacher’s eye.',
     // The canon school node home, classes lens up — THE VIEW, not the legacy
     // dashboard (owner styling ruling 2026-07-24).
-    startRoute: `/schools/org/${SCHOOL_ID}?lens=classes`,
+    startRoute: `/org/${SCHOOL_ID}?lens=classes`,
     completion: {
       path: MISSION_CLASS_HOME,
       query: { student: MISSION_TARGET_LEARNER_ID },

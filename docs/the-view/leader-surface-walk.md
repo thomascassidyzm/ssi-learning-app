@@ -1,7 +1,7 @@
 # Leader surface — deployed walk (2026-07-20)
 
 Finishing walk of the member mount (`075aaf83`, leaders land on THE VIEW at
-`/schools/org/:id`) on the **deployed dev build** (`version.json` = `075aaf8`),
+`/org/:id`) on the **deployed dev build** (`version.json` = `075aaf8`),
 then promoted dev → staging → main. Scripts:
 `packages/player-vue/e2e/the-view/member-mount-verify.mjs` (landing grammar,
 desktop + phone) and `e2e/the-view/leader-walk-finish.mjs` (deep drill, admin
@@ -20,7 +20,7 @@ minted fresh and deleted after each leg.
    ![landing](leader-surface-walk/a-1-landing.jpg)
 2. **Drill their subtree, never leaving it.** Programme → Pilot Districts
    Region → Sunrise Public School, Pune → Grade 6A, every step staying on
-   `/schools/org/…`, the rail keeping full ancestry with you-are-here moving.
+   `/org/…`, the rail keeping full ancestry with you-are-here moving.
    Class home carries the full teaching density: Course journey, Belt
    distribution, practice-min/student/week, flat student rows (belt · LEGOs ·
    hours · last practised · needs-attention).
@@ -31,7 +31,7 @@ minted fresh and deleted after each leg.
    `/admin/structure` renders nothing (deny-not-defer gate) and bounces the
    leader back to their own node home within ~5s.
    ![admin refused](leader-surface-walk/a-6-admin-refused.jpg)
-4. **Insights keep the map.** `/schools/org/:id/insights` opens scoped to the
+4. **Insights keep the map.** `/org/:id/insights` opens scoped to the
    node, Overview back-verb present, no All-boards admin lens.
    ![insights](leader-surface-walk/a-5-insights.jpg)
 5. **Open leader code (capture species).** A shareable `/group/:code` link

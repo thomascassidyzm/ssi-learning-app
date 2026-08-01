@@ -93,7 +93,7 @@ export function useOrgCheckout() {
                   'width:100%; min-width:312px; background-color:transparent; border:none;',
               }
             : {}),
-          successUrl: `${window.location.origin}/schools/org/${opts.groupId}?just_subscribed=1`,
+          successUrl: `${window.location.origin}/org/${opts.groupId}?just_subscribed=1`,
         },
       })
     } catch (err: any) {

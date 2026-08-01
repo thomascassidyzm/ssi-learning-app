@@ -33,7 +33,7 @@ const route = useRoute()
 const router = useRouter()
 const { getClient, getAuthToken } = useAdminClient()
 
-// Member mount (/schools/org/:id — a leader inside the /schools shell) vs the
+// Member mount (/org/:id — a leader inside the /schools shell) vs the
 // admin mount. Same page, same endpoint; the server scopes a leader to their
 // subtree, and links/verbs stay within member scope (nodeSurfacePaths.ts).
 const member = computed(() => isMemberNodeSurface(route.path))
@@ -381,7 +381,7 @@ const listPayload = computed(() => {
       <span class="org-expired-pill">● Trial ended</span>
       <h1 class="arsenal org-expired-headline">Your organisation's free trial has ended</h1>
       <p class="org-expired-lede">
-        Subscribe below to keep every member, group and school in your organisation. Your data is safe — nothing is deleted.
+        Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.
       </p>
       <UpgradeView />
     </div>
@@ -395,7 +395,7 @@ const listPayload = computed(() => {
       <span class="org-trial-copy">
         {{ orgGate?.trial_days_remaining }} day{{ orgGate?.trial_days_remaining === 1 ? '' : 's' }} left in your organisation's free trial — every language included.
       </span>
-      <router-link to="/schools/upgrade" class="org-trial-cta">Upgrade →</router-link>
+      <router-link to="/org/upgrade" class="org-trial-cta">Upgrade →</router-link>
     </div>
 
     <div v-if="isLoading && !home && !rail" class="node-loading">

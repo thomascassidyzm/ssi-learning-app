@@ -19,12 +19,12 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
 
   it('redirects the retired schools-list route to the node home with the schools lens', () => {
     expect(source).toMatch(/routeName === 'schools-list'/)
-    expect(source).toMatch(/path: `\/schools\/org\/\$\{groupId\}`, query: \{ lens: 'schools' \}/)
+    expect(source).toMatch(/path: `\/org\/\$\{groupId\}`, query: \{ lens: 'schools' \}/)
   })
 
   it('redirects the retired analytics route to the node insights', () => {
     expect(source).toMatch(/routeName === 'analytics'/)
-    expect(source).toMatch(/`\/schools\/org\/\$\{groupId\}\/insights`/)
+    expect(source).toMatch(/`\/org\/\$\{groupId\}\/insights`/)
   })
 
   it('fires only for group-scoped govt_admins — legacy no-group rows keep the flat views', () => {
@@ -38,10 +38,10 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
   it('redirects a school_admin\'s retired dashboard/teachers/analytics routes to the node surface', () => {
     expect(source).toMatch(/if \(schoolId && ctx\.isSchoolAdmin\.value\)/)
     expect(source).toMatch(/routeName === 'schools-dashboard'/)
-    expect(source).toMatch(/`\/schools\/org\/\$\{schoolId\}`/)
+    expect(source).toMatch(/`\/org\/\$\{schoolId\}`/)
     expect(source).toMatch(/routeName === 'teachers'/)
-    expect(source).toMatch(/path: `\/schools\/org\/\$\{schoolId\}`, query: \{ lens: 'teachers' \}/)
-    expect(source).toMatch(/`\/schools\/org\/\$\{schoolId\}\/insights`/)
+    expect(source).toMatch(/path: `\/org\/\$\{schoolId\}`, query: \{ lens: 'teachers' \}/)
+    expect(source).toMatch(/`\/org\/\$\{schoolId\}\/insights`/)
   })
 
   it('is a watch on the resolving context, not a one-shot (group_id lands async after deep links)', () => {

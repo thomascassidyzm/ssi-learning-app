@@ -74,7 +74,7 @@ const tabs = computed(() => {
     // flat /schools/all survives only for legacy no-group govt_admin rows.
     const groupId = (selectedUser.value as any)?.group_id as string | undefined
     result.push(groupId
-      ? { name: 'all-schools', path: `/schools/org/${groupId}?lens=schools`, label: 'Schools' }
+      ? { name: 'all-schools', path: `/org/${groupId}?lens=schools`, label: 'Schools' }
       : { name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
   // Show school-owner tabs for actual school roles, or when god is
@@ -87,10 +87,10 @@ const tabs = computed(() => {
     const schoolId = (selectedUser.value as any)?.school_id as string | undefined
     if (isSchoolAdmin.value && schoolId) {
       result.push(
-        { name: 'dashboard', path: `/schools/org/${schoolId}`, label: 'Dashboard' },
+        { name: 'dashboard', path: `/org/${schoolId}`, label: 'Dashboard' },
         { name: 'students', path: '/schools/students', label: 'Students' },
         { name: 'classes', path: '/schools/classes', label: 'Classes' },
-        { name: 'analytics', path: `/schools/org/${schoolId}/insights`, label: 'Insights' },
+        { name: 'analytics', path: `/org/${schoolId}/insights`, label: 'Insights' },
       )
     } else {
       result.push(...baseTabs)
