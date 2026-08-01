@@ -1,6 +1,24 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-31 (rail_everywhere + consistent sibling ordering)
+# Last updated: 2026-08-02 (terminology dressing: ed-speak is vocabulary, not structure)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
+
+dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
+  presets: neutral (group / group leader / learner — the DEFAULT) · education (school / teacher / class / student)
+  derivation: |
+    composables/nodeTerminology.ts derives the preset from the payload — a
+    subtree renders the education vocabulary iff it actually carries school
+    DNA (school attachment / commercial, teacher or class rollups, a school
+    above or below in the rail). No stored preset, no second ontology:
+    existing school orgs keep their words with zero migration; a fresh org
+    (Cardiff Council) renders neutral until a school genuinely exists in it.
+  neutral_effects: |
+    stats row = practice hours · groups · learners (never teacher/class
+    tiles); lenses reduced to directly-below + all-groups; Add-a-school verb
+    hidden; invite roles = group leader (default) + learner; children-list
+    rows count groups+learners (per-row derivation in NodeChildrenList);
+    How-this-works serves the 'org' explanations from the pack.
+  follow_up: an EXPLICIT stored preset (org chooses education vocabulary
+    before any school exists) is known follow-up, not built.
 
 purpose: |
   One page — the NODE HOME — with the same grammar at every level of the org
@@ -18,8 +36,10 @@ surface:
                                       # /schools shell — ONE :id route for groups, schools AND classes
                                       # (the endpoint resolves the kind); + /schools/org/:id/insights.
                                       # Server-scoped to the leader's own subtree; rail rooted at their
-                                      # top node (no "All organisations" admin escape); verbs reduced to
-                                      # the invite pair (invites endpoint already leader-authorized);
+                                      # top node (no "All organisations" admin escape); verbs = the
+                                      # invite pair + Add-a-group (2026-08-02: POST /api/groups
+                                      # authorizes a leader on their own subtree; root creation is
+                                      # self-serve for any signed-in user, creator becomes leader);
                                       # links derived per-mount via composables/nodeSurfacePaths.ts.
                                       # Landing: DashboardView redirects a govt_admin with a group_id
                                       # to /schools/org/:group_id (legacy region-only leaders keep the

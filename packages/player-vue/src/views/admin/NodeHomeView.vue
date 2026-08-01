@@ -27,6 +27,7 @@ import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
+import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
@@ -111,7 +112,7 @@ const ledgerEl = ref<InstanceType<typeof WaysInLedger> | null>(null)
 const identityHoldPx = ref<number | null>(null)
 const NBSP = '\u00A0'
 
-const LENSES = [
+const ALL_LENSES = [
   { value: 'children', label: 'Directly below' },
   { value: 'groups', label: 'All groups' },
   { value: 'schools', label: 'All schools' },
@@ -120,10 +121,20 @@ const LENSES = [
 ]
 
 const isClass = computed(() => home.value?.kind === 'class')
+
+// ─── The dressing (founder ruling 2026-08-02: ed-speak is VOCABULARY, not
+// structure). Derived from the payload: a subtree without school DNA renders
+// in the neutral vocabulary — group / group leader / learner — and never
+// shows a school/teacher/class word or lens. ───
+const preset = computed(() => derivePreset(home.value))
+const neutral = computed(() => preset.value === 'neutral')
+
+// Neutral trees have nothing for the school/teacher/class lenses to filter.
+const LENSES = computed(() => (neutral.value ? ALL_LENSES.slice(0, 2) : ALL_LENSES))
 const lens = computed(() => {
   if (isClass.value) return 'students'
   const q = typeof route.query.lens === 'string' ? route.query.lens : ''
-  return LENSES.some((l) => l.value === q) ? q : 'children'
+  return LENSES.value.some((l) => l.value === q) ? q : 'children'
 })
 
 function setLens(value: string): void {
@@ -244,6 +255,14 @@ const stats = computed(() => {
       { value: r.teacherCount ?? 0, word: 'Teachers' },
     ]
   }
+  // Neutral dressing: no class/teacher words — practice, groups, learners.
+  if (neutral.value) {
+    return [
+      { value: `${home.value?.practiceHours ?? 0}h`, word: 'Practice hours' },
+      { value: r.childGroupCount ?? 0, word: 'Groups' },
+      { value: r.learnerCount ?? 0, word: 'Learners' },
+    ]
+  }
   return [
     { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: 'Class practice' },
     { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? 'Classes practising this week' : 'Classes' },
@@ -340,7 +359,8 @@ const enrichedStudents = computed(() => {
 // ─── The self-explaining dashboard (docs/self-explaining-dashboard.md):
 // persona is what the mount already knows; place is the payload's own kind. ───
 const explainerPersona = computed<'admin' | 'leader'>(() => (member.value ? 'leader' : 'admin'))
-const explainerKind = computed(() => nodeKindOf(home.value))
+// Neutral dressing gets its own 'org' explanation — no school-speak.
+const explainerKind = computed(() => (neutral.value ? 'org' : nodeKindOf(home.value)))
 
 // ONE evaluation of the noticing rules feeds both surfaces: the on-page
 // invitation cards and the How-this-works panel + throb (founder ruling
@@ -460,7 +480,7 @@ const listPayload = computed(() => {
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
           <!-- Verbs hold their space but go inert while another node loads —
                a mid-switch click must never act on the PREVIOUS node. -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :preset="preset" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -568,7 +588,7 @@ const listPayload = computed(() => {
               <div v-if="isLoading" class="children-loading">Loading…</div>
               <NodeChildrenList v-else :lens="lens" :payload="listPayload">
                 <template #empty>
-                  {{ isClass ? 'No students in this class yet.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.') }}
+                  {{ isClass ? 'No students in this class yet.' : (neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.')) }}
                 </template>
               </NodeChildrenList>
             </div>

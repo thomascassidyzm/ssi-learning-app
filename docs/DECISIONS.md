@@ -949,3 +949,32 @@ get a trial stamp (a sub-group bills through its org); and the **backfill is a s
 30-day countdown on live customer rows.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder spec
+
+## 2026-08-02 — org dressing: ed-speak becomes vocabulary, derived not stored
+**Move:** Founder ruling ("orgs are still schools in another dressing" — a council is not a
+school): the educational ontology (school/teacher/class) stops being structure and becomes a
+VOCABULARY over the one group tree. Implemented as a derived presentation preset
+(`composables/nodeTerminology.ts`): a subtree renders the education words iff it actually carries
+school DNA (school attachment, teacher/class rollups, a school above or below in the rail);
+otherwise neutral — group / group leader / learner. Neutral changes the node home's stat tiles,
+lenses, empty state, invite-role options (Group leader default), children-row count words, and
+the How-this-works text ('org' pack entries); Add-a-school only exists inside the education
+dressing. Leaders gained the Add-a-group verb (endpoint already authorized them), and POST
+/api/groups roots are now self-serve: any signed-in user can create an org and becomes its group
+leader in the same request (one org per leader; existing leaders get a 409).
+**Better:** Cardiff Council renders as an organisation, not a school with the serial numbers
+filed off — and every existing school surface keeps its vocabulary untouched.
+**Simpler:** no second ontology, no stored preset, no migration, no backfill — the dressing is a
+pure function of data the home payload already carries. Deletes ed-speak from the neutral path
+rather than adding a parallel one.
+**Cheaper (total):** zero schema change on a DB shared by dev/staging/prod, zero new endpoints,
+zero new signal before its consumer exists.
+**Searched & rejected:**
+- Stored org-level `terminology` column — rejected for now: the shared live DB makes even
+  nullable columns a coordination cost, and no case exists yet that derivation misses except
+  "an org wants school words before any school exists", which is exactly the moment a school
+  gets created anyway. Logged as the known follow-up in node-home.apml.
+- Parallel neutral components (OrgHomeView beside NodeHomeView) — rejected: a second surface to
+  drift, violating the one-recursive-page ruling.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling

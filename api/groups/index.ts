@@ -2,14 +2,20 @@
  * Groups API - GET/POST /api/groups
  *
  * GET: List all groups (tree structure) — ssi_admin/god only.
- * POST: Create a new group — ssi_admin/god (any parent, or a root org), OR a
- *   group-LEADER (govt_admin) adding a SUB-group within their own governed
- *   subtree (founder ruling 2026-08-01: a leader has "full authority over
- *   everything below them — invite people, add sub-groups, manage members").
- *   For a leader, parent_id is mandatory and is validated SERVER-SIDE against
- *   their own govt_admins.group_id (self or a strict descendant of it, via
- *   isStrictDescendantGroup) — never taken on trust from the client. A leader
- *   can never create a new root org.
+ * POST: Create a new group.
+ *   · ssi_admin/god: any parent, or a root org (no leader row minted — admins
+ *     assign leadership via invite links).
+ *   · a group-LEADER (govt_admin) adding a SUB-group within their own governed
+ *     subtree (founder ruling 2026-08-01: a leader has "full authority over
+ *     everything below them"). parent_id is validated SERVER-SIDE against
+ *     their own govt_admins.group_id (self or strict descendant) — never taken
+ *     on trust from the client.
+ *   · ANY authenticated user creating a ROOT org (founder ruling 2026-08-02,
+ *     groups all the way down: "anyone who creates one becomes its GROUP
+ *     LEADER by default") — the caller's govt_admins row is minted in the
+ *     same request. One org per leader (govt_admins is one-row-per-user
+ *     across the whole org stack), so a caller who already leads a group
+ *     gets a clear 409, not a silently re-pointed leadership.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -30,7 +36,7 @@ async function resolveAdminOrLeaderForParent(
   res: VercelResponse,
   supabase: SupabaseClient,
   parentId: string | undefined,
-): Promise<{ userId: string; isAdmin: boolean } | null> {
+): Promise<{ userId: string; isAdmin: boolean; becomesLeader?: boolean } | null> {
   const adminResult = await verifyAdmin(req)
   if (!('error' in adminResult)) return { userId: adminResult.userId, isAdmin: true }
 
@@ -39,17 +45,23 @@ async function resolveAdminOrLeaderForParent(
     res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return null
   }
-  if (!parentId) {
-    // A leader may never create a root org — only ssi_admins mint those.
-    res.status(403).json({ error: 'Only SSi admins can create a root group' })
-    return null
-  }
   const { data: govtAdmin } = await supabase
     .from('govt_admins')
     .select('group_id')
     .eq('user_id', authResult.userId)
     .maybeSingle()
   const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+  if (!parentId) {
+    // Root org creation (founder ruling 2026-08-02): open to any signed-in
+    // user — the creator becomes the org's group leader. One org per leader:
+    // govt_admins is one-row-per-user across the org stack, so an existing
+    // leadership can't be silently re-pointed by creating a second root.
+    if (ownGroupId) {
+      res.status(409).json({ error: 'You already lead a group — one organisation per leader for now' })
+      return null
+    }
+    return { userId: authResult.userId, isAdmin: false, becomesLeader: true }
+  }
   if (!(await isWithinLeaderSubtree(supabase, ownGroupId, parentId))) {
     res.status(403).json({ error: 'You may only add a sub-group within your own governed group' })
     return null
@@ -176,6 +188,24 @@ export default async function handler(
       }
 
       if (error) throw error
+
+      // Creator = default leader (founder ruling 2026-08-02). Minted only for
+      // the self-serve lane — an ssi_admin minting orgs for others assigns
+      // leadership via invite links, not by absorbing it themselves.
+      if (caller.becomesLeader && data?.id) {
+        const { error: leaderError } = await supabase.from('govt_admins').insert({
+          user_id: caller.userId,
+          group_id: data.id,
+          organization_name: data.name,
+          created_by: caller.userId,
+        })
+        if (leaderError) {
+          // Don't strand an orphaned root the caller can't see or manage.
+          await supabase.from('groups').delete().eq('id', data.id)
+          throw leaderError
+        }
+      }
+
       res.status(201).json({ group: data })
     } catch (error) {
       console.error('[Groups] Create error:', error)
