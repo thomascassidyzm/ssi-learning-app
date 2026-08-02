@@ -22,9 +22,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isMissingPlatformSchema } from './schoolPlatformTrial'
 import { chunk } from './schoolScope'
+import { ORG_TRIAL_DAYS } from './trialPolicy'
 
-/** Founder ruling 2026-08-01: 30-day free trial covering ALL languages. */
-export const ORG_TRIAL_DAYS = 30
+/** Founder ruling 2026-08-02: 30-day free trial covering ALL languages —
+ * sourced from trialPolicy.ts, the single trial-length policy point. */
+export { ORG_TRIAL_DAYS }
 
 /** Founder ruling 2026-08-01: standard per-seat price, no volume scaling. */
 export const ORG_PRICE_PER_SEAT_GBP = 15

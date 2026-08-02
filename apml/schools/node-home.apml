@@ -17,6 +17,12 @@ dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
     hidden; invite roles = group leader (default) + learner; children-list
     rows count groups+learners (per-row derivation in NodeChildrenList);
     How-this-works serves the 'org' explanations from the pack.
+  chrome_badge: |
+    the header-chrome role badge for a govt_admin routes through
+    nodeTerminology.leaderRoleLabel() (neutral default 'Group Leader') —
+    'Govt Admin' was a dressing leak (founder bug 2026-08-02: Cardiff
+    Council's leader badged as government staff). Chrome has no node payload
+    to derive a preset from, so it takes the neutral default.
   follow_up: an EXPLICIT stored preset (org chooses education vocabulary
     before any school exists) is known follow-up, not built.
 

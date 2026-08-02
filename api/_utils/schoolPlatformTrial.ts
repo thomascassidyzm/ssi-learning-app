@@ -11,13 +11,17 @@
  * the dashboard gate is advisory until the migration lands.
  */
 
+import { SCHOOL_PREMIUM_TRIAL_DAYS, SCHOOL_HERITAGE_TRIAL_DAYS } from './trialPolicy'
+
 // A school pays £15/teacher/mo for the dashboard; the trial is time-limited
 // even on free courses. Exported: THE-MODEL.md §1.11 generalizes this same
 // 30d-premium/365d-free derivation to any node's binary trial entitlement
 // (api/entitlement/grant.ts) — one constant pair, no drift between the two
 // trial clocks.
-export const PLATFORM_TRIAL_PREMIUM_DAYS = 30 // premium-track school + every tutor
-export const PLATFORM_TRIAL_FREE_DAYS = 365 // free-track school (still pays for the platform)
+// Values live in trialPolicy.ts (founder ruling 2026-08-02) — the single
+// trial-length policy point; these names are kept for existing importers.
+export const PLATFORM_TRIAL_PREMIUM_DAYS = SCHOOL_PREMIUM_TRIAL_DAYS // premium-track school + every tutor
+export const PLATFORM_TRIAL_FREE_DAYS = SCHOOL_HERITAGE_TRIAL_DAYS // free-track school (still pays for the platform)
 
 export type PlatformTrial = { track: string; kind: string; expires_at: string; days: number }
 

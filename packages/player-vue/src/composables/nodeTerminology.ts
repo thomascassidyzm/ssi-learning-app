@@ -21,6 +21,18 @@
 
 export type TerminologyPreset = 'education' | 'neutral'
 
+/**
+ * Chrome badge for a govt_admin (root group leader). 'Govt Admin' was a
+ * dressing leak (founder bug 2026-08-02: Cardiff Council's leader badged as
+ * government staff) — a root leader makes no government claim in either
+ * vocabulary; both presets call them what the invite flow already does. The
+ * preset parameter is the seam: header chrome has no node payload to derive
+ * from, so it passes nothing and gets the neutral default.
+ */
+export function leaderRoleLabel(_preset: TerminologyPreset = 'neutral'): string {
+  return 'Group Leader'
+}
+
 function schoolish(x: unknown): boolean {
   const n = x as { hasSchool?: boolean; commercial?: unknown; label?: string } | null
   return !!(n && (n.hasSchool || n.commercial || n.label === 'school'))

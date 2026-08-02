@@ -3,6 +3,7 @@ import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
+import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
 
@@ -137,7 +138,9 @@ const initials = computed(() =>
   displayName.value.split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'SS',
 )
 const roleLabel = computed(() => {
-  if (isGovtAdmin.value) return 'Govt Admin'
+  // Routed through the terminology dressing (neutral default) — 'Govt Admin'
+  // was a dressing leak on org leaders (founder bug 2026-08-02).
+  if (isGovtAdmin.value) return leaderRoleLabel()
   if (isSchoolAdmin.value) return 'School Admin'
   return 'Teacher'
 })
