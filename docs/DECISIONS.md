@@ -978,3 +978,41 @@ zero new signal before its consumer exists.
   drift, violating the one-recursive-page ruling.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder ruling
+
+## 2026-08-02 — tutor rebate: per-student-month ledger + release 30d after the completed month
+**Move:** Founder model (verbatim): "£5 per completed student-month flows back to the tutor,
+paid 30 days AFTER the completed month (no exposure to refunds/chargebacks)." Two changes to
+the existing (already substantial) Wise plumbing: (1) hold_until on the £5 accrual moves from
+paid_at+30d (which released AT month completion) to paid_at + 1 month + 30d — release timing
+now matches the ruling and only ever DELAYS money, never accelerates it; (2) a new
+`tutor_rebate_ledger` table records one line per student-month accrual/reversal under the
+existing `teacher_commissions` aggregate, so `GET /api/teacher/commissions` can return a real
+statement (student × month × £5 × held/released status) and the tutor dashboard shows it.
+The aggregate stays the money source of truth; the payout cron (Wise batch groups, funding
+still a manual Wise-dashboard step — no automatic money movement) is untouched.
+**Better:** the tutor sees exactly which student-months earned what, and money releases per
+the founder's stated window instead of a month early.
+**Simpler:** one narrow append-only table written at the exact point the webhook already
+holds every fact (teacher, student, class, transaction); no new service, no cron change.
+**Cheaper (total):** statement is a single indexed read; migration is additive with
+tolerate-absent code, so it can be applied whenever the live-DB window is quiet.
+**Searched & rejected:**
+- Deriving statements from existing tables retroactively — impossible: per-transaction
+  history isn't stored locally; aggregates can't be decomposed.
+- Making the ledger the payout source of truth (cron reads lines, not aggregates) — cleaner
+  long-term but a money-path rewrite with zero current payout volume to justify it; logged
+  as the natural follow-up if per-line payout states are ever needed.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
+today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
+silently changed.
+
+## 2026-08-02 — paddle: school seat lane joins the in-repo SSi Premium fallback
+**Move:** Two-product ruling: every adult seat bills on SSi Premium £15/mo / £150/yr. The
+school platform lane was the last checkout whose price id could resolve EMPTY with no Vercel
+env vars (env → env → nothing); it now falls through to the same in-repo Premium constants
+the org lane landed on in `21ff7b24`, which also un-gates the school annual option.
+**Better:** school checkout can never open on a missing price id. **Simpler:** one fallback
+pattern across all seat lanes. **Cheaper:** two lines, zero env coordination.
+**Search width:** obvious-fix
+**Decided by:** agent, under the founder's two-product ruling
