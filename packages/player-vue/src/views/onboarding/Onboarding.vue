@@ -29,20 +29,28 @@ const cfg = computed(() => TRACKS[props.track])
 // moment of signup, per track. The landing page did the selling; this retires
 // the residual "how much work is this for me?" questions while the right
 // column takes the email. Copy drawn from the www /schools1 landing content.
-const panelFacts = computed(() =>
-  props.track === 'tutor'
-    ? [
-        'No planning, no marking — sessions run themselves',
-        'Press play — the session leads, you coach',
-        'Every learner’s practice and progress on your dashboard',
-      ]
-    : [
-        'No planning, no marking — you press play, the session leads',
-        'No fluency needed — you learn alongside your class',
-        'The whole class speaks together — pupils need no accounts',
-        'Every class on your dashboard — progress you can see',
-      ]
-)
+const panelFacts = computed(() => {
+  if (props.track === 'tutor') {
+    return [
+      'No planning, no marking — sessions run themselves',
+      'Press play — the session leads, you coach',
+      'Every learner’s practice and progress on your dashboard',
+    ]
+  }
+  if (props.track === 'org') {
+    return [
+      'Every language included — no per-course pricing to manage',
+      'Invite your people in — no accounts to set up for them',
+      'Progress across your whole organisation on one dashboard',
+    ]
+  }
+  return [
+    'No planning, no marking — you press play, the session leads',
+    'No fluency needed — you learn alongside your class',
+    'The whole class speaks together — pupils need no accounts',
+    'Every class on your dashboard — progress you can see',
+  ]
+})
 
 // schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
 // list is the whole 365-day-school-trial set (every free/community course +
@@ -53,6 +61,13 @@ const panelFacts = computed(() =>
 // share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
+// The org door (/orgs) is class-less and covers ALL languages (trialPolicy.ts) —
+// it skips the whole language/course picker and asks for the org's name
+// instead. Keeps every course-shaped computed below (selectedCourse,
+// trialDaysFor, etc.) simply unused rather than threading an org branch
+// through each one.
+const isOrgDoor = computed(() => props.track === 'org')
+const orgName = ref('')
 // The PIN order for the heritage dropdown — NOT the door's course list (that's
 // derived from the offer). Welsh N/S are course variants under 'cym'.
 const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish
@@ -318,8 +333,14 @@ const institution = ref('')
 const isReturning = ref(false)
 
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
-const canSend = computed(() => emailValid.value && !!selectedCourse.value && !busy.value)
+const canSend = computed(
+  () =>
+    emailValid.value &&
+    (isOrgDoor.value ? !!orgName.value.trim() : !!selectedCourse.value) &&
+    !busy.value
+)
 const selectedCourseLabel = computed(() => {
+  if (isOrgDoor.value) return orgName.value.trim()
   const c = trackCourses.value.find((x) => x.course_code === selectedCourse.value)
   return c ? courseLabel(c) : ''
 })
@@ -348,8 +369,15 @@ function trialDaysFor(course: LiveCourse | null): number {
   if (props.track === 'tutor') return 30
   return isYearTrialCourse(course) ? 365 : 30
 }
-const selectedTrialDays = computed(() => trialDaysFor(selectedCourseObj.value))
+// Mirrors api/_utils/trialPolicy.ts's ORG_TRIAL_DAYS — the org door's offer
+// is fixed (30 days, every language), unlike the per-course school/tutor
+// trial length, so there's no server round trip needed to show it here.
+const ORG_TRIAL_DAYS = 30
+const selectedTrialDays = computed(() =>
+  isOrgDoor.value ? ORG_TRIAL_DAYS : trialDaysFor(selectedCourseObj.value)
+)
 const offerLine = computed(() => {
+  if (isOrgDoor.value) return `Free for ${ORG_TRIAL_DAYS} days — every language, no card needed`
   if (!selectedCourseObj.value) return ''
   return `Free for ${selectedTrialDays.value} days — no card needed`
 })
@@ -394,6 +422,11 @@ async function retryCatalogue(): Promise<void> {
 }
 
 onMounted(async () => {
+  // Org door has no course catalogue to show — skip the fetch entirely.
+  if (isOrgDoor.value) {
+    coursesLoaded.value = true
+    return
+  }
   await loadCatalogue()
   applyDefaultTarget()
 })
@@ -408,7 +441,7 @@ async function authToken(): Promise<string | null> {
 // first real onboarding step, but there's a real session already — go
 // straight to provisioning under it, no OTP.
 async function continueSignedIn() {
-  if (!selectedCourse.value) return
+  if (isOrgDoor.value ? !orgName.value.trim() : !selectedCourse.value) return
   busy.value = true
   error.value = ''
   try {
@@ -488,10 +521,13 @@ async function sendCode() {
 // Supabase Auth session to provision against.
 async function finishProvisioning() {
   const token = await authToken()
+  const body = isOrgDoor.value
+    ? { track: props.track, org_name: orgName.value.trim() }
+    : { track: props.track, course_code: selectedCourse.value }
   const res = await fetch('/api/onboarding/provision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ track: props.track, course_code: selectedCourse.value }),
+    body: JSON.stringify(body),
   })
   const data = await res.json()
   if (!res.ok) {
@@ -656,14 +692,14 @@ async function continueIn() {
         <Transition name="ob-line" mode="out-in">
           <p class="ob-evolve" :key="step + (selectedCourseLabel || '')">
             <template v-if="step === 'choose'">
-              Pick your language and we'll open the door — no card, no catch.
+              {{ isOrgDoor ? "Name your organisation and we'll open the door — no card, no catch." : "Pick your language and we'll open the door — no card, no catch." }}
             </template>
             <template v-else-if="step === 'otp'">
               One code stands between you and
-              <strong>{{ selectedCourseLabel || 'your first words' }}</strong>.
+              <strong>{{ selectedCourseLabel || (isOrgDoor ? 'your organisation' : 'your first words') }}</strong>.
             </template>
             <template v-else>
-              Welcome. <strong>{{ selectedCourseLabel }}</strong> is yours to begin.
+              Welcome. <strong>{{ selectedCourseLabel || 'Your organisation' }}</strong> is yours to begin.
             </template>
           </p>
         </Transition>
@@ -689,14 +725,30 @@ async function continueIn() {
           <p v-if="redirectNotice" class="ob-redirect-notice">{{ redirectNotice }}</p>
           <p v-if="offerLine" class="ob-trial">{{ offerLine }}</p>
 
-          <h1 class="ob-title">Which language will you teach?</h1>
+          <h1 class="ob-title">{{ isOrgDoor ? "What's your organisation called?" : 'Which language will you teach?' }}</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
+
+          <!-- ORG DOOR: no language/course picker at all — an org is class-less
+               and its trial covers every language, so the only thing to ask
+               for here is its name. -->
+          <div v-if="isOrgDoor" class="ob-field">
+            <label class="ob-label" for="ob-org-name">Organisation name</label>
+            <input
+              id="ob-org-name"
+              v-model="orgName"
+              type="text"
+              class="ob-input"
+              placeholder="e.g. Cardiff Council"
+              autocomplete="organization"
+              @keyup.enter="isSignedIn ? continueSignedIn() : (canSend && sendCode())"
+            />
+          </div>
 
           <!-- Taught-language switcher — defaulted to English; a custom on-brand
                menu (not the native OS select). Pick the language you'll teach,
                then the list shows who you can teach it to. -->
           <div
-            v-if="targetOptions.length > 1"
+            v-else-if="targetOptions.length > 1"
             class="ob-known-wrap"
             @keyup.escape="closeTarget"
           >
@@ -756,7 +808,9 @@ async function continueIn() {
 
           <!-- Once a language is chosen, collapse the whole picker to the ONE
                selected language. (Single-language tracks auto-select, so this
-               shows immediately for them too.) -->
+               shows immediately for them too.) ORG DOOR has no course to pick,
+               so this whole chain is skipped there. -->
+          <template v-if="!isOrgDoor">
           <div v-if="selectedCourseObj" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
               <span class="ob-claim-eyebrow">You're teaching</span>
@@ -873,6 +927,7 @@ async function continueIn() {
           <p v-else-if="!targetOptions.length" class="ob-muted">
             No languages available for this signup yet.
           </p>
+          </template>
 
           <!-- Already signed in: no email/OTP capture — greet and confirm
                identity instead (mirrors RedeemCode.vue's confirm step). -->
@@ -904,7 +959,7 @@ async function continueIn() {
             size="lg"
             block
             :loading="busy"
-            :disabled="!selectedCourse || busy"
+            :disabled="(isOrgDoor ? !orgName.trim() : !selectedCourse) || busy"
             @click="continueSignedIn"
           >
             Continue

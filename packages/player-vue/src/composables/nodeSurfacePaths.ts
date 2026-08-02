@@ -8,8 +8,9 @@
  *     it's given, and the server (resolveGroupTreeCaller) scopes a leader to
  *     their own subtree with ancestors trimmed. Top-level since 2026-08-02
  *     (founder ruling: an org/workplace is not a schools feature); the old
- *     /schools/org/:id URLs redirect here. NOTE the singular — /orgs is
- *     reserved for the public explainer page, so prefix tests must never
+ *     /schools/org/:id URLs redirect here. NOTE the singular — /orgs is the
+ *     self-serve org SIGNUP door (a distinct route, Onboarding.vue track:
+ *     'org'), not a member's own node home, so prefix tests must never
  *     match it.
  *
  * The shared components (NodeMapRail, NodeChildrenList, NodeHomeView,
@@ -21,9 +22,9 @@
 export function isMemberNodeSurface(path: string | undefined): boolean {
   const p = path || ''
   // Exact-segment test, NOT startsWith('/org') — that would swallow /orgs,
-  // which is reserved for the public explainer page. The legacy
-  // legacy /schools/org/... prefix still counts: the redirect fires on
-  // navigation, but a component can render for a tick on the old path.
+  // the self-serve signup door. The legacy /schools/org/... prefix still
+  // counts: the redirect fires on navigation, but a component can render
+  // for a tick on the old path.
   return p === '/org' || p.startsWith('/org/') || p.startsWith('/schools/org')
 }
 

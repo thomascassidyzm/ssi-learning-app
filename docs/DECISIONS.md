@@ -943,3 +943,98 @@ zero new signal before its consumer exists.
   drift, violating the one-recursive-page ruling.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder ruling
+
+## 2026-08-02 — tutor rebate: per-student-month ledger + release 30d after the completed month
+**Move:** Founder model (verbatim): "£5 per completed student-month flows back to the tutor,
+paid 30 days AFTER the completed month (no exposure to refunds/chargebacks)." Two changes to
+the existing (already substantial) Wise plumbing: (1) hold_until on the £5 accrual moves from
+paid_at+30d (which released AT month completion) to paid_at + 1 month + 30d — release timing
+now matches the ruling and only ever DELAYS money, never accelerates it; (2) a new
+`tutor_rebate_ledger` table records one line per student-month accrual/reversal under the
+existing `teacher_commissions` aggregate, so `GET /api/teacher/commissions` can return a real
+statement (student × month × £5 × held/released status) and the tutor dashboard shows it.
+The aggregate stays the money source of truth; the payout cron (Wise batch groups, funding
+still a manual Wise-dashboard step — no automatic money movement) is untouched.
+**Better:** the tutor sees exactly which student-months earned what, and money releases per
+the founder's stated window instead of a month early.
+**Simpler:** one narrow append-only table written at the exact point the webhook already
+holds every fact (teacher, student, class, transaction); no new service, no cron change.
+**Cheaper (total):** statement is a single indexed read; migration is additive with
+tolerate-absent code, so it can be applied whenever the live-DB window is quiet.
+**Searched & rejected:**
+- Deriving statements from existing tables retroactively — impossible: per-transaction
+  history isn't stored locally; aggregates can't be decomposed.
+- Making the ledger the payout source of truth (cron reads lines, not aggregates) — cleaner
+  long-term but a money-path rewrite with zero current payout volume to justify it; logged
+  as the natural follow-up if per-line payout states are ever needed.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
+today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
+silently changed.
+
+## 2026-08-02 — paddle: school seat lane joins the in-repo SSi Premium fallback
+**Move:** Two-product ruling: every adult seat bills on SSi Premium £15/mo / £150/yr. The
+school platform lane was the last checkout whose price id could resolve EMPTY with no Vercel
+env vars (env → env → nothing); it now falls through to the same in-repo Premium constants
+the org lane landed on in `21ff7b24`, which also un-gates the school annual option.
+**Better:** school checkout can never open on a missing price id. **Simpler:** one fallback
+pattern across all seat lanes. **Cheaper:** two lines, zero env coordination.
+**Search width:** obvious-fix
+**Decided by:** agent, under the founder's two-product ruling
+
+## 2026-08-02 — tutor unification depth: flat now, never-stack encoded at the money gate
+**Move:** Founder ruling (relayed): (1) no tutor-inside-an-org yet, but don't paint it into a
+corner; (2) commissions NEVER stack — hard rule; (3) unification depth delegated to BSC. The
+call: tutors stay entirely FLAT (no groups row, no leader row — `teachers` + `classes` with
+null school_id/group_id, exactly as today). The corner-proofing audit found the flat model
+already leaves the later attach open (`classes.group_id` is nullable and unused in the tutor
+lane), with ONE real seam: the student price/commission derivation gated on `school_id` alone,
+so a future group-attached tutor class would have priced £10 AND skimmed £5 commission beside
+org coverage — the exact stack the ruling bans. Encoded now: webhook + by-code derive
+tutor-tier from school_id AND group_id both null; either set → org £5 tier, zero commission
+(the org seat relationship is the compensation). locked_price_pence stays frozen at signup, so
+structure changes never retro-change existing commissions.
+**Better:** the never-stack rule is enforcement, not doctrine — unbuilt future structures
+can't violate it by default. **Simpler:** two files, one boolean widened; no tutor node
+surface, no migration. **Cheaper (total):** zero schema, zero backfill, zero behaviour change
+for every existing class (all current school classes carry school_id; all tutor classes carry
+neither).
+**Searched & rejected:** full unification (a 1-node group tree per tutor) — buys nothing a
+flat tutor needs today, drags the deliberately-simple tutor dashboard into node-home
+machinery, and costs a live-DB migration inside the RLS-canary window. Revisit only when a
+real tutor-org case exists; the attach path is now safe by construction.
+**Search width:** visible-options
+**Decided by:** agent, delegated by founder ruling 2026-08-02
+
+## 2026-08-02 — /orgs signup door: extract createRootOrgAndLeader as the ONE root-org contract
+**Move:** Built the self-serve `/orgs` door (Onboarding.vue track:'org' → POST
+`/api/onboarding/provision` track:'org') alongside the existing `/schools1` `/schools2`
+`/tutors` doors. Rather than re-implementing "insert a root `groups` row, stamp the 30-day
+trial, mint the caller as `govt_admins` leader, roll back on failure" a second time inside
+provision.ts, extracted that exact logic (already live in POST `/api/groups`'s self-serve
+lane) into `api/_utils/rootOrgProvision.ts`'s `createRootOrgAndLeader`, and pointed BOTH
+callers at it. Also had to add one write neither existing caller made: provision.ts sets
+`learners.educational_role = 'govt_admin'` on the new leader (POST /api/groups never did,
+since its only tested caller is an ssi_admin who bypasses `memberSurfaceGuard` via
+`canAccessAdmin` anyway) — without it a self-serve leader would be bounced straight off
+their own freshly-created `/org/:id`.
+**Better:** a leader who signs up at the door lands on a live, ownable org dashboard in one
+verified session, no second admin step.
+**Simpler:** one root-org-creation contract instead of two near-identical copies that would
+drift the moment either changed (trial length, rollback behaviour, leader-mint shape).
+**Cheaper (total):** zero new tables/migrations; the extraction is a pure refactor (12
+existing `api/groups/index.test.ts` cases pinned the behaviour and still pass unchanged) plus
+~60 new lines in one shared file.
+**Searched & rejected:** duplicating the insert+stamp+mint block directly in provision.ts —
+rejected on the same "two independently-editable copies" ground as prior entries in this
+log; the two doors (self-serve /orgs, admin-gated POST /api/groups) already share every other
+trial/provisioning helper (`orgTrialStamp`, `orgPlatform.ts`), so a root org's creation
+belonged in that same shared layer.
+**Gap flagged, not fixed (out of this door's scope):** the leader is minted via `govt_admins`
+only, no `user_tags` GROUP: row — matches the existing (pre-this-change) POST /api/groups
+self-serve pattern and `provisionPersona.ts`'s 'leader' role, but means
+`resolveOrgCourseCoverage` (which reads only `user_tags`) does not itself grant the leader
+course-PLAY access to their own org; they can administer it immediately, but a further
+decision is needed on whether/how leaders also get learner-side coverage.
+**Search width:** visible-options
+**Decided by:** agent, under founder instruction 2026-08-02 ("BUILD: self-serve /orgs door")

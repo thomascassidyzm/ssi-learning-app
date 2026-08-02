@@ -212,6 +212,23 @@ principle SingleAuthOnboarding:
     invite-born admins trial with no course lock until they pick one
     (trial_course_code null reads as "no restriction" — TeacherDashboard.vue).
 
+  self_serve_org_flow: |
+    /orgs (Onboarding.vue track:'org', added 2026-08-02) -> name your
+    organisation -> ONE email+OTP -> POST /api/onboarding/provision
+    (track:'org') -> /org/:groupId. No course picker at all — an org is
+    class-less and its trial (api/_utils/trialPolicy.ts, ORG_TRIAL_DAYS)
+    covers every language, so there is nothing per-course to lock. Reuses
+    api/_utils/rootOrgProvision.ts's createRootOrgAndLeader — the same
+    root-org-creation contract POST /api/groups' self-serve lane uses — so a
+    root org and its govt_admins leader row are minted in exactly one
+    shared place. Sets learners.educational_role = 'govt_admin'
+    unconditionally (never downgrades, since govt_admin already outranks
+    every other role for hasSchoolRole purposes) — required for
+    memberSurfaceGuard to let the new leader reach their own /org/:id at
+    all. One org per leader: a caller who already leads a group is handed
+    back their existing org (existing:true) instead of being re-provisioned
+    or 409'd.
+
   first_run_naming: |
     An invite-born school's name is pre-filled from the inviting leader's
     guess (invite_codes.metadata.school_name) but unconfirmed

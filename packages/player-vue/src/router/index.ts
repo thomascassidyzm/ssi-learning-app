@@ -134,8 +134,10 @@ const routes: RouteRecordRaw[] = [
   // leader to their own subtree — rail rooted at their top node, no admin
   // escape. Server-backed reads only (no client org-table queries — the
   // RLS-condition caution). Same shell/guard/gate as /schools; only the URL
-  // and the org-lane wording differ. `/orgs` (plural) stays FREE for the
-  // future public explainer page — nothing here may claim it.
+  // and the org-lane wording differ. `/orgs` (plural, defined below among the
+  // signup doors) is the self-serve ORG SIGNUP door (founder instruction
+  // 2026-08-02) — a distinct route name ('onboard-org'), never this member
+  // node surface, so an org's OWN members still only ever land on /org/:id.
   {
     path: '/org',
     component: SchoolsContainer,
@@ -387,6 +389,17 @@ const routes: RouteRecordRaw[] = [
     component: Onboarding,
     props: { track: 'tutor' },
     meta: { title: 'Start teaching' },
+  },
+  // Self-serve org/workplace signup (founder instruction 2026-08-02) — the
+  // neutral-dressing sibling of the two doors above. Provisions via the
+  // 'org' track (api/onboarding/provision.ts): a root `groups` row + a
+  // govt_admins leader row, then redirects to the leader's own /org/:id.
+  {
+    path: '/orgs',
+    name: 'onboard-org',
+    component: Onboarding,
+    props: { track: 'org' },
+    meta: { title: 'Set up your organisation' },
   },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
