@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 
-// useRoute is only used to detect the heritage door by route name — stub the
-// plain 'onboard-school-2' door so the language dropdown (not the heritage
-// course-level picker) renders, keeping the fixture minimal.
+// useRoute is only used to detect the heritage door by route name. Stub the
+// real (and, since /schools2 retired on 2026-08-02, only) school door —
+// 'onboard-school-1'. These specs assert session awareness / the email step,
+// which is picker-shape-independent.
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: 'onboard-school-2' }),
+  useRoute: () => ({ name: 'onboard-school-1' }),
 }))
 
 import Onboarding from './Onboarding.vue'

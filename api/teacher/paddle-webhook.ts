@@ -1014,6 +1014,19 @@ export async function handleStudentSubscription(
     console.warn('[paddle-webhook] student_via_teacher billed on unrecognised price id:', billedPlanId)
   }
 
+  // MONTHLY-ONLY GUARD (founder ruling 2026-08-02): a TUTOR-class student may
+  // only ever be sold the monthly plan — the £5 rebate accrues per paid
+  // transaction, so an annual tutor student would pay 12 months up front and
+  // accrue £5 once. The app no longer offers annual in this lane (WithTeacher.vue
+  // + paddle.ts), so this can only fire on a legacy subscription or a
+  // hand-built checkout. Entitlement is still honoured (they paid); the log is
+  // the audit trail. Commission is unaffected — it rides transaction.paid.
+  if (isTutorClass && priceMeta?.period === 'annual') {
+    console.warn(
+      `[paddle-webhook] TUTOR-ANNUAL (retired): class ${classId} student billed on annual price ${billedPlanId} — tutor lane is monthly-only since 2026-08-02; honouring entitlement, flagged for audit`
+    )
+  }
+
   // Get or create the learner for this Supabase user
   let { data: learner } = await supabase
     .from('learners')

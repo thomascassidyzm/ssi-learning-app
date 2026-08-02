@@ -219,8 +219,16 @@ principle SingleAuthOnboarding:
     /schools. No second onboarding journey.
 
   self_serve_flow: |
-    /schools1 or /schools2 -> choose a course -> ONE email+OTP ->
+    /schools1 -> choose a course -> ONE email+OTP ->
     POST /api/onboarding/provision (unchanged) -> /schools.
+    /schools2 RETIRED 2026-08-02 (founder ruling): one school door, not two.
+    The URL stays alive forever as a pure redirect to /schools1 (query + hash
+    preserved) because external marketing links point at it. /schools2 was the
+    English-first door listing the FULL catalogue, so /schools1's course-level
+    dropdown widened from the year-free set (isYearTrialCourse) to the whole
+    catalogue — banded pinned-heritage / year-free / rest, with a per-course
+    "Free for a year" badge carried over from /schools2. No course became
+    unreachable at signup.
     The two flows share the SAME trial-provisioning helper but never the
     same route — self-serve picks a course before its trial starts;
     invite-born admins trial with no course lock until they pick one

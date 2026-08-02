@@ -1,16 +1,17 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * The three signup doors, driven in a real browser against the live catalogue.
+ * The signup doors, driven in a real browser against the live catalogue.
  * READ-ONLY: stops at the "Send my code" boundary — never sends an OTP email.
  *
  * What these assert (the door contract):
- *   /schools1  — the HERITAGE door lists the whole 365-day offer (30+ courses,
- *                derived from pricing_tier + Welsh), Welsh N/S + Irish pinned
- *                first, search works, no badges (the offer IS the door), a
- *                free-tier pick promises 365 days.
- *   /schools2  — English-first door; "Free for a year" badges mark qualifying
- *                targets in the dropdown; Welsh promises 365 days.
+ *   /schools1  — the HERITAGE door, and since 2026-08-02 the ONLY school door.
+ *                Welsh N/S + Irish pinned first, then the rest of the 365-day
+ *                offer, then the REST OF THE CATALOGUE (inherited from the
+ *                retired /schools2). "Free for a year" badges discriminate
+ *                within the merged list; search works; a free-tier pick
+ *                promises 365 days.
+ *   /schools2  — RETIRED: a pure redirect to /schools1, query + hash preserved.
  *   /tutors    — NO year badges anywhere and a free-tier pick promises 30 days
  *                (the tutor trial is 30 days regardless of course).
  */
@@ -32,8 +33,8 @@ async function openDoor(page: Page, path: string) {
   await catalogue
 }
 
-test.describe('/schools1 — the year-free heritage door', () => {
-  test('lists the whole 365-day offer, pinned and searchable, and promises 365 days', async ({ page }) => {
+test.describe('/schools1 — the heritage door, now the only school door', () => {
+  test('lists the whole catalogue, pinned and searchable, and promises 365 days', async ({ page }) => {
     const { pageErrors } = attachObservers(page)
     await openDoor(page, '/schools1')
 
@@ -50,8 +51,18 @@ test.describe('/schools1 — the year-free heritage door', () => {
     await expect(options.nth(1)).toContainText('South Welsh')
     await expect(options.nth(2)).toContainText('Irish')
 
-    // No badges here — everything on this door qualifies by construction.
-    await expect(page.locator('.ob-known-menu .ob-tier')).toHaveCount(0)
+    // Badges now DISCRIMINATE: the door lists the whole catalogue (merged in
+    // when /schools2 retired), so the year-free set is marked and the
+    // commercial courses are not. Spanish for English speakers is the canonical
+    // unbadged case — and its presence is the proof no course became
+    // unreachable when the English-first door closed.
+    const badges = page.locator('.ob-known-menu .ob-tier')
+    expect(await badges.count(), 'year-free badges should render').toBeGreaterThan(10)
+    await page.locator('.ob-known-search').fill('spanish')
+    const spanishOpt = page.locator('.ob-known-opt').first()
+    await expect(spanishOpt).toContainText(/Spanish/i)
+    await expect(spanishOpt.locator('.ob-tier')).toHaveCount(0)
+    await page.locator('.ob-known-search').fill('')
 
     // Search surfaces a language the old door hid; picking it commits the course.
     await page.locator('.ob-known-search').fill('armen')
@@ -70,29 +81,14 @@ test.describe('/schools1 — the year-free heritage door', () => {
   })
 })
 
-test.describe('/schools2 — the English-first school door', () => {
-  test('badges year-free targets in the dropdown; Welsh promises 365 days', async ({ page }) => {
+test.describe('/schools2 — retired, kept alive as a redirect', () => {
+  test('redirects to /schools1 preserving query and hash', async ({ page }) => {
     const { pageErrors } = attachObservers(page)
-    await openDoor(page, '/schools2')
+    await openDoor(page, '/schools2?utm_source=leaflet#top')
 
-    const trigger = page.locator('.ob-known')
-    await expect(trigger).toContainText('English')
-    await trigger.click()
-
-    // Badges present on qualifying targets, absent on English (premium).
-    const badges = page.locator('.ob-known-menu .ob-tier')
-    expect(await badges.count(), 'year-free badges should render').toBeGreaterThan(10)
-    const englishOpt = page.locator('.ob-known-opt', { hasText: 'English' }).first()
-    await expect(englishOpt.locator('.ob-tier')).toHaveCount(0)
-
-    // Welsh is badged (the premium anomaly) and promises the year.
-    await page.locator('.ob-known-search').fill('welsh')
-    const welshOpt = page.locator('.ob-known-opt').first()
-    await expect(welshOpt.locator('.ob-tier')).toContainText('Free for a year')
-    await welshOpt.click()
-    // Two learner-language rows (N/S variants), disambiguated.
-    await page.locator('.ob-lang-row, .ob-lang-tile').first().click()
-    await expect(page.locator('.ob-claim-echo')).toContainText('Free for 365 days')
+    await expect(page).toHaveURL(/\/schools1\?utm_source=leaflet#top$/)
+    // The real door rendered — not a blank redirect shell.
+    await expect(page.locator('.ob-known')).toContainText('Choose a language')
 
     expect(pageErrors, 'uncaught JS exceptions').toEqual([])
   })

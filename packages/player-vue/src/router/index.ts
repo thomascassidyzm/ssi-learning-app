@@ -376,9 +376,7 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Learning with your teacher' },
   },
   // Signup doors — two roles (school / tutor); the offer is per-course (pricing_tier),
-  // not per-door. /schools1 + /schools2 both run the ONE school flow (kept as two
-  // paths so existing landing-page links don't break). Note: bare /schools is the
-  // school DASHBOARD, not a signup door.
+  // not per-door. Note: bare /schools is the school DASHBOARD, not a signup door.
   {
     path: '/schools1',
     name: 'onboard-school-1',
@@ -386,12 +384,16 @@ const routes: RouteRecordRaw[] = [
     props: { track: 'school' },
     meta: { title: 'Set up your school' },
   },
+  // /schools2 RETIRED (founder ruling 2026-08-02) — one school door, not two.
+  // The URL stays alive FOREVER as a pure redirect because external marketing
+  // links point at it; query + hash are preserved (same pattern as the
+  // /schools/org/:id → /org/:id redirects above). /schools2 was the
+  // English-first door listing the full catalogue, so /schools1's course
+  // dropdown was widened from the year-free set to the WHOLE catalogue
+  // (Onboarding.vue targetOptions) — no course becomes unreachable.
   {
     path: '/schools2',
-    name: 'onboard-school-2',
-    component: Onboarding,
-    props: { track: 'school' },
-    meta: { title: 'Set up your school' },
+    redirect: (to) => ({ path: '/schools1', query: to.query, hash: to.hash }),
   },
   {
     path: '/tutors',

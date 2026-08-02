@@ -1003,9 +1003,11 @@ tolerate-absent code, so it can be applied whenever the live-DB window is quiet.
   long-term but a money-path rewrite with zero current payout volume to justify it; logged
   as the natural follow-up if per-line payout states are ever needed.
 **Search width:** visible-options
-**Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
+**Decided by:** agent, on an explicit founder spec. ~~OPEN (needs Tom): an annual £100 student
 today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
-silently changed.
+silently changed.~~ **RESOLVED 2026-08-02 by founder ruling: tutor-class students are
+monthly-only — the annual option is removed from the tutor lane, so the edge case cannot
+occur. See "tutor-class students: monthly only" below.**
 
 ## 2026-08-02 — paddle: school seat lane joins the in-repo SSi Premium fallback
 **Move:** Two-product ruling: every adult seat bills on SSi Premium £15/mo / £150/yr. The
@@ -1073,3 +1075,70 @@ course-PLAY access to their own org; they can administer it immediately, but a f
 decision is needed on whether/how leaders also get learner-side coverage.
 **Search width:** visible-options
 **Decided by:** agent, under founder instruction 2026-08-02 ("BUILD: self-serve /orgs door")
+
+## 2026-08-02 — tutor-class students: monthly only (close the annual rebate edge case)
+**Move:** Founder ruling: to cap rebate exposure, a student joining a TUTOR class may only be
+offered the monthly plan (£10/mo). The £100/yr tutor-student option is removed end to end —
+the `/with/:code` join UI (billing toggle now renders only for school classes; `isAnnual` is
+guarded by `allowAnnual = isSchoolClass`, so the class type resolving async can never leave a
+tutor lane on annual), the client price wiring (`paddleConfig.studentAnnualPriceId` retired;
+the annual branch of `studentPriceId` now only resolves the SCHOOL price), and the server
+assumption (paddle-webhook logs a loud `TUTOR-ANNUAL (retired)` line if a tutor class is ever
+billed on an annual price — entitlement still honoured, since they paid). SCHOOL-class
+students keep both £5/mo and £50/yr, untouched. The Paddle price and the webhook's
+PRICE_CATALOG entry stay so any historical annual tutor subscription keeps resolving. No
+change to the £100 Wise payout threshold (founder confirmed keep).
+**Better:** the rebate model is now true by construction — every tutor-student payment is one
+student-month, so "£5 per completed student-month" needs no special case, and the £100 up-front
+exposure disappears.
+**Simpler:** it DELETES a branch (one price id, one UI state) rather than adding ledger logic
+to amortise an annual payment across 12 accrual lines.
+**Cheaper (total):** zero schema, zero migration, zero cron change; the accrual path
+(transaction.paid → flat £5) is untouched.
+**Searched & rejected:**
+- Amortising annual in the ledger (accrue £5×12 held on staggered hold_until dates) — the
+  "correct" model, but it adds a scheduled-accrual concept to a money path with no volume to
+  justify it, and keeps £100 of refund exposure open. Rejected on all three legs.
+- Accruing £5 once on annual and calling it priced-in — silently pays a tutor 1/12th for an
+  annual student; a trust bug, not a simplification.
+- Server-side hard REJECT of a tutor-annual checkout — the client can no longer start one, and
+  rejecting a webhook for a payment Paddle already collected strands a paying learner. Log
+  loudly, honour entitlement.
+**Gap (honest):** the live count of existing annual tutor-tier students could NOT be verified
+from this session — `scripts/db-read.mjs` uses the anon key and `subscriptions` is RLS'd
+own-row, so it returns `[]` for every query including an unfiltered one. `[]` here is "no
+access", NOT "zero rows". Query for someone with service-role access:
+`select count(*) from subscriptions s join teacher_referrals r on r.subscription_id = s.id
+where r.locked_price_pence = 1000 and s.plan_id = 'pri_01kvaj1ben739erky6zjdjsq22';`
+Existing rows are not touched by this change either way — only the new-purchase surface closed.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling 2026-08-02
+
+## 2026-08-02 — retire /schools2 into a redirect; merge its catalogue into /schools1's picker
+**Move:** Founder ruling: one school signup door, not two. `/schools2` becomes a pure redirect
+to `/schools1` preserving query + hash (the existing `/schools/org/:id → /org/:id` pattern) —
+the URL stays alive forever because external marketing links point at it. The catch: `/schools2`
+was the English-first door listing the FULL catalogue, while `/schools1` (heritage) listed only
+the year-free offer (`isYearTrialCourse`), so a naive redirect would have made every commercial
+course unreachable at signup. So `/schools1`'s course-level dropdown widened to the whole
+catalogue, banded: pinned heritage (Welsh N/S, Irish) → rest of the year-free offer → everything
+else, A–Z within each band. The "Free for a year" badge moves from language-level to
+per-course (`option.yearFree`) so it discriminates WITHIN the merged list instead of labelling
+a whole door.
+**Better:** one door to maintain and to point marketing at; the heritage identity survives at
+the top of the list; nothing became unreachable.
+**Simpler:** deletes a route component mount and a door variant; the merged picker is the pool
+filter removed, not a new branch.
+**Cheaper (total):** no new surface; the door's offer copy was ALREADY per-course
+(`trialDaysFor` → 365 or 30), so a premium course picked on the heritage door truthfully shows
+its 30-day trial with no extra wiring.
+**Searched & rejected:**
+- Redirect only, leave the heritage pool narrow — drops every commercial course from the only
+  school door. This is exactly the "STOP and report" case in the brief; it was avoided because
+  the catalogues ARE mergeable (both course-level, both already per-course priced).
+- Keep /schools2 rendering but unlisted — leaves two doors to drift, which is the thing being
+  retired.
+- A "show all courses" expander under the year-free set — a second interaction to discover a
+  course; the banded single list gets the same ordering benefit for free.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling 2026-08-02

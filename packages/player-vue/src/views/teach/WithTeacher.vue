@@ -46,10 +46,21 @@ const STUDENT_ANNUAL_PRICE = computed(() => (isSchoolClass.value ? 50 : 100))
 const ANNUAL_MONTHS_FREE = 2
 
 // Billing period (monthly default).
+//
+// TUTOR CLASSES ARE MONTHLY-ONLY (founder ruling, 2026-08-02). The £5/student-
+// month rebate accrues per paid transaction, so an annual £100 tutor student
+// would pay 12 months up front and accrue £5 ONCE — the exposure/edge case
+// flagged as OPEN in DECISIONS.md 2026-08-02. Closing the annual door in the
+// tutor lane removes the edge case entirely rather than special-casing the
+// ledger. SCHOOL classes keep both £5/mo and £50/yr — untouched.
 type Billing = 'monthly' | 'annual'
+const allowAnnual = computed(() => isSchoolClass.value)
 const billing = ref<Billing>('monthly')
-const isAnnual = computed(() => billing.value === 'annual')
+// Guarded read: a tutor class can never resolve to annual even if `billing` were
+// somehow set (class type is resolved async, after mount).
+const isAnnual = computed(() => allowAnnual.value && billing.value === 'annual')
 function setBilling(b: Billing) {
+  if (b === 'annual' && !allowAnnual.value) return
   billing.value = b
 }
 
@@ -58,11 +69,12 @@ function setBilling(b: Billing) {
 // dedicated school price — never to the tutor price — so it can't over-charge.
 // Annual works on the hardcoded fallback alone (no env var required) so real
 // annual purchases can be tested on prod immediately.
+// isAnnual can only be true on a SCHOOL class (allowAnnual), so the annual
+// branch never needs a tutor price — the tutor annual price id is retired from
+// the client entirely (paddle.ts).
 const studentPriceId = computed(() => {
   if (isAnnual.value) {
-    return isSchoolClass.value
-      ? (paddleConfig.studentSchoolAnnualPriceId || 'pri_01kvaj05x1y16trwvm8pdm2wcb')
-      : (paddleConfig.studentAnnualPriceId || 'pri_01kvaj1ben739erky6zjdjsq22')
+    return paddleConfig.studentSchoolAnnualPriceId || 'pri_01kvaj05x1y16trwvm8pdm2wcb'
   }
   return isSchoolClass.value
     ? (paddleConfig.studentSchoolMonthlyPriceId || 'pri_01kv5wrc5cz17pwgeva4zk8s0r')
@@ -456,7 +468,9 @@ function cancelLogin() {
         </div>
 
         <div v-else class="price-block">
-          <div class="billing-toggle" role="tablist" aria-label="Billing period">
+          <!-- Tutor classes are monthly-only (founder ruling 2026-08-02) — the
+               toggle only renders for school classes, which keep £5/mo + £50/yr. -->
+          <div v-if="allowAnnual" class="billing-toggle" role="tablist" aria-label="Billing period">
             <button
               type="button"
               role="tab"
