@@ -1016,3 +1016,27 @@ the org lane landed on in `21ff7b24`, which also un-gates the school annual opti
 pattern across all seat lanes. **Cheaper:** two lines, zero env coordination.
 **Search width:** obvious-fix
 **Decided by:** agent, under the founder's two-product ruling
+
+## 2026-08-02 — tutor unification depth: flat now, never-stack encoded at the money gate
+**Move:** Founder ruling (relayed): (1) no tutor-inside-an-org yet, but don't paint it into a
+corner; (2) commissions NEVER stack — hard rule; (3) unification depth delegated to BSC. The
+call: tutors stay entirely FLAT (no groups row, no leader row — `teachers` + `classes` with
+null school_id/group_id, exactly as today). The corner-proofing audit found the flat model
+already leaves the later attach open (`classes.group_id` is nullable and unused in the tutor
+lane), with ONE real seam: the student price/commission derivation gated on `school_id` alone,
+so a future group-attached tutor class would have priced £10 AND skimmed £5 commission beside
+org coverage — the exact stack the ruling bans. Encoded now: webhook + by-code derive
+tutor-tier from school_id AND group_id both null; either set → org £5 tier, zero commission
+(the org seat relationship is the compensation). locked_price_pence stays frozen at signup, so
+structure changes never retro-change existing commissions.
+**Better:** the never-stack rule is enforcement, not doctrine — unbuilt future structures
+can't violate it by default. **Simpler:** two files, one boolean widened; no tutor node
+surface, no migration. **Cheaper (total):** zero schema, zero backfill, zero behaviour change
+for every existing class (all current school classes carry school_id; all tutor classes carry
+neither).
+**Searched & rejected:** full unification (a 1-node group tree per tutor) — buys nothing a
+flat tutor needs today, drags the deliberately-simple tutor dashboard into node-home
+machinery, and costs a live-DB migration inside the RLS-canary window. Revisit only when a
+real tutor-org case exists; the attach path is now safe by construction.
+**Search width:** visible-options
+**Decided by:** agent, delegated by founder ruling 2026-08-02

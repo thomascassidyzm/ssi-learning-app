@@ -248,6 +248,27 @@ describe('POST /api/teacher/paddle-webhook', () => {
     expect(writes.course_enrollments.find((w) => w.op === 'upsert')!.payload).toMatchObject({ learner_id: 'learner-1', course_id: 'cym_for_eng' })
   })
 
+  it('student_via_teacher on a GROUP-attached class locks the org £5 tier (commissions never stack)', async () => {
+    // Founder ruling 2026-08-02: a tutor class inside an org's group tree prices
+    // as an org class — no per-student commission alongside org coverage.
+    responders.classes = () => ({ data: { school_id: null, group_id: 'grp-1', course_code: 'cym_for_eng' }, error: null })
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = (calls) => {
+      if (calls.some((c) => c[0] === 'upsert')) return { data: { id: 'sub-1' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.learner_emails = () => ({ data: [], error: null })
+    currentEvent = subEvent(
+      { kind: 'student_via_teacher', supabase_user_id: 'user-x', class_id: 'class-1' },
+      { items: [{ price: { id: STUDENT_SCHOOL_PRICE }, quantity: 1 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.teacher_referrals.find((w) => w.op === 'upsert')!.payload).toMatchObject({ locked_price_pence: 500 })
+  })
+
   // ── school_platform ──
   it('school_platform on a premium price sets school platform columns incl. seats = item quantity', async () => {
     responders.schools = () => ({ error: null })

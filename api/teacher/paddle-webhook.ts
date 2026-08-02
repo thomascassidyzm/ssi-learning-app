@@ -976,18 +976,26 @@ export async function handleStudentSubscription(
   }
 
   // Price is decided SERVER-SIDE by the class type, never trusted from the client.
-  // school_id NULL = tutor/ACT class → £10 (1000); set = school class → £5 (500).
-  // Frozen into teacher_referrals.locked_price_pence below; commission gates on it.
+  // school_id AND group_id both NULL = independent tutor/ACT class → £10 (1000);
+  // either set = organisation-owned class → £5 (500). Frozen into
+  // teacher_referrals.locked_price_pence below; commission gates on it.
+  //
+  // group_id is part of the gate because of the COMMISSIONS-NEVER-STACK ruling
+  // (founder, 2026-08-02): if a tutor's class is ever attached inside an org's
+  // group tree (not built today, deliberately not painted out), its students
+  // price as org students and the tutor earns NO per-student commission — the
+  // org seat relationship is the compensation. Commission only ever rides a
+  // student's own tutor-tier payment, never alongside org/school coverage.
   const { data: priceCls } = await supabase
     .from('classes')
-    .select('school_id, course_code')
+    .select('school_id, group_id, course_code')
     .eq('id', classId)
     .maybeSingle()
   if (!priceCls) {
     // Money-safe default under uncertainty: unknown class → school tier (no commission).
     console.error('[paddle-webhook] Class not found deriving price; defaulting to school/no-commission:', classId)
   }
-  const isTutorClass = !!priceCls && priceCls.school_id === null
+  const isTutorClass = !!priceCls && priceCls.school_id === null && priceCls.group_id == null
   const lockedPricePence = isTutorClass ? 1000 : 500
 
   // PRICE-TIER GUARD: confirm the price the customer was actually billed on belongs
