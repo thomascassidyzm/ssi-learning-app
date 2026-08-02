@@ -87,19 +87,21 @@ export const paddleConfig = {
   // quantity = teacher seats; the webhook (kind:'school_platform') reads it back.
   schoolTeacherMonthlyPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
-    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    SSI_PREMIUM_MONTHLY_PRICE_ID,
   // School ANNUAL platform price — same single-product reasoning as the monthly
   // fallback above: there is ONE per-seat annual Paddle price (a school is just
   // quantity>1 of the same per-unit price as the tutor annual plan). Falls back
   // to the tutor annual price when its own env var isn't set, so no separate
   // Paddle product is required.
-  // ⚠️ OPERATOR NOTE: for annual checkout to charge correctly the actual annual
-  // Paddle prices + env vars (VITE_PADDLE_TEACHER_PRICE_ANNUAL /
-  // VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL) must be configured. When unset the
-  // UI disables the annual option (graceful) rather than opening a broken checkout.
+  // Like the org lane below, both school prices land on the in-repo SSi
+  // Premium constants when no env var is configured (founder ruling
+  // 2026-08-02: one product, £15/£150 per seat, for every adult lane) — so
+  // school checkout can never resolve to an empty price id.
   schoolTeacherAnnualPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
-    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    SSI_PREMIUM_ANNUAL_PRICE_ID,
   // Org / workplace platform — founder ruling 2026-08-02: no separate org-seat
   // Paddle product exists or should exist. The org lane uses the EXISTING SSi
   // Premium product, same £15/seat/mo, £150/seat/yr as the school teacher
