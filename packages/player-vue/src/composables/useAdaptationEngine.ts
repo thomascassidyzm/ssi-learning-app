@@ -186,7 +186,16 @@ export function useAdaptationEngine(
 
   const canSync = (): boolean => {
     const learnerId = getLearnerId()
-    return !!(getSupabase() && learnerId && !learnerId.startsWith('guest-'))
+    // 'demo-learner' is LearningPlayer's pre-auth/guest fallback id — not a
+    // learners.id uuid, so an upsert with it can only fail (22P02). Skip it
+    // like the guest- prefix; the watcher below re-hydrates when the real id
+    // resolves.
+    return !!(
+      getSupabase() &&
+      learnerId &&
+      !learnerId.startsWith('guest-') &&
+      learnerId !== 'demo-learner'
+    )
   }
 
   const store = (): LegoMetricsStore | null => {
@@ -375,8 +384,12 @@ export function useAdaptationEngine(
     if (dirty.size === 0) return
     const s = store()
     const learnerId = getLearnerId()
-    if (!s || !learnerId) {
-      dirty.clear()
+    if (!s || !learnerId || !canSync()) {
+      // Can't sync yet (guest, or auth/client still resolving). KEEP the
+      // dirty set — clearing it here silently discarded every cycle recorded
+      // before auth resolved (the other half of the 2026-07-16 persistence
+      // fix: live refs alone don't help if the pre-auth flush already threw
+      // the data away). Bounded: at most one entry per lego in the course.
       cyclesSinceFlush = 0
       return
     }
