@@ -397,6 +397,44 @@ describe('POST /api/teacher/paddle-webhook', () => {
     expect(accrue!.params).toMatchObject({ p_teacher_id: 'teacher-1', p_pence: 500 })
   })
 
+  it('transaction.paid holds the £5 until 30 days AFTER the completed student-month', async () => {
+    responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
+    responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 1000 }, error: null })
+    responders.classes = () => ({ data: { teacher_user_id: 'tuid' }, error: null })
+    responders.learners = () => ({ data: { id: 'tlearner' }, error: null })
+    responders.teachers = () => ({ data: { id: 'teacher-1' }, error: null })
+    currentEvent = txnEvent() // billedAt 2026-07-17
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const accrue = rpcCalls.find((c) => c.name === 'accrue_teacher_commission_held')!
+    // paid 2026-07-17 → student-month completes 2026-08-17 → releases +30d = 2026-09-16
+    expect(accrue.params.p_hold_until).toBe('2026-09-16T00:00:00.000Z')
+  })
+
+  it('transaction.paid writes a per-student-month rebate ledger line under the accrual', async () => {
+    responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
+    responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 1000 }, error: null })
+    responders.classes = () => ({ data: { teacher_user_id: 'tuid' }, error: null })
+    responders.learners = () => ({ data: { id: 'tlearner' }, error: null })
+    responders.teachers = () => ({ data: { id: 'teacher-1' }, error: null })
+    currentEvent = txnEvent()
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const line = writes.tutor_rebate_ledger?.find((w) => w.op === 'upsert')
+    expect(line).toBeDefined()
+    expect(line!.payload).toMatchObject({
+      teacher_id: 'teacher-1',
+      class_id: 'class-1',
+      subscription_id: 'sub-1',
+      provider_ref: 'txn-1',
+      entry_type: 'accrual',
+      amount_pence: 500,
+    })
+  })
+
   it('transaction.paid on a SCHOOL referral (locked 500) accrues no commission', async () => {
     responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
     responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 500 }, error: null })
@@ -456,6 +494,14 @@ describe('POST /api/teacher/paddle-webhook', () => {
     const reverse = rpcCalls.find((c) => c.name === 'reverse_teacher_commission')
     expect(reverse).toBeDefined()
     expect(reverse!.params).toMatchObject({ p_teacher_id: 'teacher-1', p_pence: 500 })
+    const line = writes.tutor_rebate_ledger?.find((w) => w.op === 'upsert')
+    expect(line).toBeDefined()
+    expect(line!.payload).toMatchObject({
+      teacher_id: 'teacher-1',
+      provider_ref: 'adj-1',
+      entry_type: 'reversal',
+      amount_pence: -500,
+    })
   })
 
   it('adjustment chargeback_warning is a no-op (no revocation)', async () => {
