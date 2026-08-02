@@ -2,7 +2,7 @@
 # SSi Learning App
 #
 # Version: 1.4.0
-# Last updated: 2026-06-08
+# Last updated: 2026-08-02
 # Grounded in: Distinction as Primitive (APML Design Principles v2.0.0)
 #
 # Core Insight: We don't measure absolutes. We measure DIFFERENCES.
@@ -736,12 +736,21 @@ spec AdaptationEngine:
   voice_activity_detection:
     status: "LIVE — VoiceActivityDetector.ts (createVoiceActivityDetector) + SpeechTimingAnalyzer.ts"
     wiring: |
-      LearningPlayer.vue calls initializeVad() from a user gesture
+      LearningPlayer.vue calls initializeVad()
       (createVoiceActivityDetector({ energy_threshold_db: -45, min_frames_above: 3 })
       then .initialize()), wraps it in createSpeechTimingAnalyzer to capture
-      per-phase timing. Active only when isAdaptationActive = adaptationConsent
+      per-phase timing. Two callers: the Settings consent toggle (user gesture)
+      and — since 2026-08-02 — an unconditional boot-time re-arm at player
+      mount, right after loadAdaptationConsent(), for learners whose stored
+      consent is already true. (The boot re-arm previously lived only inside
+      the legacy cached-script load branch, which the instant-playback boot
+      path never reaches — so consented learners booted with the VAD dead and
+      cycle_prosody / learner_lego_metrics never received a single row.)
+      Active only when isAdaptationActive = adaptationConsent
       (opt-in, persisted under 'ssi-adaptation-consent') AND vadInitialized.
-      Mic-permission denial is treated as declined consent. The duration signal
+      Mic-permission denial on the Settings toggle is treated as declined
+      consent; a boot-time init failure is NOT (revokeConsentOnDenial: false)
+      — transient mic failure at boot must not silently revoke stored consent. The duration signal
       the analyzer measures is currently NOT routed into the live pause loop —
       getPauseMultiplier is driven by mastery state (from latency-based spikes),
       not by VAD speech duration yet.

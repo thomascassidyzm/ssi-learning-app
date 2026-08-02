@@ -2,7 +2,7 @@
 # SSi Learning App
 #
 # Version: 0.7.0 (distinction-network criticality: forward-reuse centrality supersedes intro-order)
-# Last updated: 2026-07-31
+# Last updated: 2026-08-02
 #
 # 2026-07-31 (founder ruling — criticality rewired, see docs/DECISIONS.md for
 # the verbatim ruling):
@@ -25,6 +25,17 @@
 #   Shadow mode untouched.
 #
 # 2026-07-28 (VAD feedback phase 1, founder-ruled):
+# - SECOND GROUND-TRUTH CORRECTION (2026-08-02): even after the wiring fix
+#   below, the whole VAD chain stayed dead on the modern boot path — the
+#   boot-time initializeVad() for previously-consented learners lived only in
+#   the legacy cached-script load branch, which the instant-playback path
+#   (early return) never reaches. Live repro: getUserMedia never called across
+#   a full consented session while adaptation_plan events flowed with
+#   difficultyStates:[] (aggregator empty — recordCycle never fired). Fixed by
+#   hoisting the re-arm to player mount (after loadAdaptationConsent()),
+#   non-revoking on boot failure. Also completed the 2026-07-16 persistence
+#   fix: flush() no longer clears the dirty set pre-auth (it holds and
+#   retries), and canSync() excludes the 'demo-learner' fallback id.
 # - GROUND-TRUTH CORRECTION to "Producer #1 LIVE" below: the latency producer's
 #   INPUT was dead on the live path until today. startTimingCycle /
 #   markPhaseTransition / endTimingCycle were only driven by the legacy
