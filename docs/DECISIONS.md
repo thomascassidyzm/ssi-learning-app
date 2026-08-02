@@ -785,3 +785,291 @@ draft does not record, for a case `git log` answers exactly); leaving the stamp-
 correcting notes by hand each week (the founder's complaint was precisely that).
 **Search width:** visible-options.
 **Decided by:** founder (accuracy over elegance); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: 3 + one catch-all "other stuff and bug fixes" section
+**Ruling (founder, verbatim):** *"Keep to 3 biggest and then other stuff and bug fixes"*.
+**What changed:** the fixed shape was `## What's new` (up to 3 features) + `## Fixes`; features
+that missed the 3-slot cut only surfaced in the draft's coverage section, for Tom to promote by
+hand later. Now overflow features land alongside the fixes in one section, titled
+"Other stuff and bug fixes" — same headline, same under-claim rule, just below the fold — so
+nothing that shipped goes unmentioned in the final notes.
+**Better:** the notes are a complete account of the ship again. A feature that missed the top-3 by
+one rank previously vanished from the final file entirely unless Tom manually promoted it from the
+draft's stripped-at-finalize coverage section; now it always ships, just compactly.
+**Simpler:** deletes a section (draft-only "translated but over budget") and a manual-promote step;
+one rendering path (`otherStuff = overflow features + fixes`) replaces two.
+**Cheaper (total):** no new inputs; `buildNotes` already computed the overflow list, it's now
+rendered instead of discarded at finalize.
+**Decided by:** founder (shape); agent for the mechanism (BSC >90%).
+
+## 2026-07-31 — release notes: player-facing features ranked above schools features
+**Ruling (founder, verbatim):** *"focus on the player stuff - most people are not teachers/school
+leaders"*.
+**What changed:** feature-slot ranking was significance-only (3/2/1 per phrasebook entry). Every
+phrasebook entry now also carries an `audience` (`player` learners · `general` · `schools`
+teachers/leaders/admins), and the 3 headline slots rank on `significance × AUDIENCE_WEIGHT`
+(`player: 1.2`, `general: 1`, `schools: 0.8`) before commit count. The weight only breaks
+cross-audience ties at equal significance — it never lets a lower-significance item outrank a
+higher one, so it can't invent importance the phrasebook didn't already assign.
+**Why:** most users of the product are learners, not teachers or school leaders, so the headline
+slots — the three things Tom is telling the whole userbase about — should default to what most of
+that userbase actually experiences.
+**Acceptance run:** `notes/2026-07-30.md` regenerated under the new rules from the actual promoted
+range (`becac1cc^1..becac1cc^2`, 150 commits, ship stamp kept). The 3 headliners now read
+course-switch, cold-start/instant-start, and walkthroughs — all learner-facing — with the schools
+nav-unification feature (equally significant, schools-audience) moved to the catch-all section.
+**Better:** the weekly headline reflects the majority-learner audience rather than whichever
+surface happened to land first in the phrasebook.
+**Simpler:** one multiplier constant (`AUDIENCE_WEIGHT`) on an existing per-entry field; no new
+data source, no new gate.
+**Cheaper (total):** zero — a lookup multiply on data already being sorted.
+**Decided by:** founder (the ranking rule); agent for the mechanism and the audience tagging
+(BSC >90%).
+
+## 2026-07-31 — offline reliability arc shipped via the fix lane, not an early train
+**Move:** Promoted the nine offline-download-reliability commits straight to `main` as
+`hotfix/offline-download-reliability` (replayed off `main` with `git rebase --onto`, merged
+`--no-ff`, back-merged into `staging` and `dev`), rather than running a full `dev → staging → main`
+promotion a day early. Founder ruling 2026-07-31: *"this was a definite user-facing bug — promote
+it to production."*
+**Better:** the classification test in `docs/RELEASE-TRAIN.md` answers this exactly — things were
+broken and lying to the user (boot watchdog nuking offline installs; the offline selection dropped
+by connectivity guesswork; downloads that could hang forever; percentages that over-claimed), so
+it is a **fix**, and fixes ship the moment they're ready. The learner gets the fix tonight instead
+of tomorrow, and the fix carries no release notes because it restores behaviour already promised.
+**Simpler:** an early full promote would have dragged 21 unrelated staging commits into production
+a day early, collapsed tomorrow's GO/HOLD into an implicit yes, and consumed the Friday candidate
+and its draft notes. The fix lane moves exactly the diff the founder verified, and leaves the
+train intact — `main..staging` still contains tomorrow's candidate, and the offline arc is absent
+from it *by construction* (a fix on `main` can never appear in that range).
+**Cheaper (total):** one nine-commit replay with zero conflicts, no notes to regenerate, no
+re-soak of the schools work. The back-merge was needed anyway (see below), so it cost nothing
+extra.
+**Searched & rejected:**
+- Full `dev → staging → main` a day early — rejected: ships 21 unvetted-by-the-train commits,
+  pre-empts Tom's Friday GO, and the RELEASE-TRAIN doc explicitly reserves that call for him.
+- Cherry-pick individual commits — rejected in favour of `rebase --onto` over the contiguous range
+  `0b52b560..74471be5`, which flattens the internal merge commit and cannot double-apply it.
+**Verified:** the replayed tree is **byte-identical to the founder-verified dev tree** for every
+file the arc touches (only WORKLIST.md differs, by 4 lines from later doc commits). All gates green
+on that exact tree: core build, player typecheck, 1307 tests, lint 0 errors, api typecheck,
+767 api tests, release-train tests, production build.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling to promote
+
+## 2026-07-31 — an un-back-merged fix lane had already blocked the Friday train
+**Move:** The back-merge `main → staging` also reconciled two *earlier* fix-lane commits
+(`daa9f093` READY-means-INTERACTIVE, `2d57cbec` handoff-conversion slice) that went to `main` and
+were never back-merged. `staging` carried equivalent content under different shas, so `main` was
+**not** an ancestor of `staging` — the precondition `promote.sh` refuses on. Tomorrow's train would
+have failed at the gate.
+**Better:** caught before Friday rather than during it; the doc's own warning ("skipping the
+back-merge is the one way this lane can hurt you") is now evidenced rather than theoretical.
+**Simpler / Cheaper:** the reconciliation rode along with a back-merge that had to happen anyway.
+**Standing lesson:** the fix lane's back-merge is not paperwork — it is the train's precondition.
+A fix-lane push is not finished until `git merge-base --is-ancestor origin/main origin/staging`
+passes again.
+**Search width:** none-needed
+**Decided by:** agent
+
+## 2026-07-31 — Vercel can silently skip a Production build while Previews keep deploying
+**Finding, not a choice:** the `main` push `3c70ed3b` produced **no Vercel Production deployment
+at all** — no GitHub deployment record, no build — while Preview builds for pushes three minutes
+later (`staging` 20:48, `dev` 20:47) deployed normally, and CI Verify was green on the sha.
+Production sat on the previous build for 15 minutes. An empty re-trigger commit (`ccaffedb`)
+deployed in ~2 minutes, confirming a dropped deploy webhook rather than a build failure or block.
+**Why it matters:** `tools/deploy-sentinel/sentinel.mjs` diagnoses "no Production deployment for
+this sha" as *"likely Vercel usage block"*. This incident is a second, more common cause with the
+same signature. The discriminator is cheap and worth adding to the sentinel's message: **if Preview
+deployments for later pushes succeeded, it is a dropped webhook, not a block — re-trigger with an
+empty commit before escalating.**
+**Search width:** none-needed
+**Decided by:** agent
+
+## 2026-07-31 — criticality rewired: distinction-network forward-reuse centrality supersedes intro-order
+**The ruling (Tom, 2026-07-31, verbatim):** "A hub LEGO is a LEGO that is connected to many other
+subsequent LEGOs, or is used in many subsequent phrases… The question is whether this LEGO is
+going to block people from getting to other phrases. And maybe we do some simple maths: Which
+words are showing the most variation in the phrase → Find the number of other phrases that
+contain these words → Use this number as a measure of centrality."
+**Move:** New pure module `packages/core/src/learning/centrality.ts` — per-LEGO forward reuse =
+count of SUBSEQUENT practice phrases + M-LEGO compositions containing the LEGO (token-level
+contiguous containment, rank percentile out). `RatePolicyEngine` now takes an optional
+`unitCentralityPercentile` map as the PRIMARY criticality signal (top `criticalCentralityFraction`
+= resists deferral); intro-order stays as the zero-data fallback. Companion: deferred units get a
+measured return signal — `RoundPlan.returnReady` fires when the unit's neighbourhood (±3
+introduction ordinals) reads easing with none struggling; Fibonacci SR remains the actual return
+mechanism. Player computes the map once per course from the script walk it already fetched
+(`playback/legoCentrality.ts`, INF-PLAY replays deduped) and shadow-logs everything via
+`adaptation_plan` (plan.returnReady + roundLegoCentrality). Shadow mode untouched — nothing
+learner-facing moves.
+**Better:** criticality now measures the thing itself ("blocks the path forward") instead of the
+positional proxy. Measured on spa_for_eng (1,475 LEGOs, 15,212 phrases): 129 of the top-15% hubs
+— que/lo/no/a/de, the structural glue re-introduced mid-course — sit PAST the old 15% frontload
+cutoff and were wrongly deferrable; 207 zero-reuse LEGOs (late vosotros one-offs) are now honestly
+deferrable regardless of position.
+**Simpler:** intro-order is the degenerate case of forward reuse, so one signal subsumes the other
+rather than sitting beside it; no new tables, no new capture, no flags.
+**Cheaper:** one indexed in-memory pass over already-fetched script items — 75ms measured for the
+full Spanish course; zero runtime schema or query cost.
+**Searched & rejected:**
+- Corpus frequency / in-course total reuse — rejected in the original C1 analysis and still: reuse
+  BEHIND the learner blocks nothing; subsequent-only is the ruling's whole point.
+- Persisting a per-course centrality table — rejected: the consumer (shadow-mode ratePolicy) lives
+  where the script items already are; a table is a signal built before its consumer needs it.
+- Raw-substring matching (the pre-rescope component-check mistake) — rejected for token-level
+  containment: "en" must not match inside "bien", elision "qu'il" must still contain "il".
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling
+## 2026-08-01 — orgs bill on the schools quintet, and the group-leader is the role we already have
+**Move:** The org/workplace lane reuses two things wholesale instead of adding parallel systems.
+(1) **Billing shape:** `groups` gains the *same* five columns `schools` already carries —
+`platform_status`, `platform_expires_at`, `seats`, `provider_subscription_id`,
+`provider_customer_id` — so the shared gate `isPlatformActive()`, the Paddle webhook and the
+manager UI stay one code path per concern, differing only in which table they write.
+(2) **Role:** the group-leader is *not* new. A `govt_admins` row scoped by `group_id`, with the
+subtree primitives in `api/_utils/schoolScope.ts`, already is the school-leader pattern; orgs get
+it by extension, not by invention. `isStrictDescendantGroup`'s docstring already carried the
+founder ruling that a leader governs everything below them.
+**Better:** an org's trial, upgrade, seat edit and expiry behave *identically* to a school's,
+because they are the same code — no second billing dialect to keep in sync, and no second role
+system whose authz can drift out of step with the first.
+**Simpler:** the build is additive. One migration, one shared contract module
+(`api/_utils/orgPlatform.ts`), a third lane on the existing `UpgradeView`, and one extra
+`kind:'org_platform'` branch on the existing webhook. Nothing is forked.
+**Cheaper:** no new Paddle product — the org seat price is identical to the school teacher seat
+price (£15/mo, £150/yr, no volume scaling) and the webhook keys on `customData.kind`, not on the
+price id. The org price ids fall back to the school ones, so the lane works on dev with zero new
+operator configuration, while an operator can still split them later.
+**Three deliberate details, each avoiding a phantom clock:** the new columns are nullable with
+**no default** (`groups` also holds the school *nodes*, whose billing lives on their `schools`
+row, and a `DEFAULT 'trial'` would start a second clock on every one of them); only **root** nodes
+get a trial stamp (a sub-group bills through its org); and the **backfill is a separate migration**
+(`20260801b`) because the schema file is safe to apply any time whereas the backfill starts a real
+30-day countdown on live customer rows.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec
+
+## 2026-08-02 — org dressing: ed-speak becomes vocabulary, derived not stored
+**Move:** Founder ruling ("orgs are still schools in another dressing" — a council is not a
+school): the educational ontology (school/teacher/class) stops being structure and becomes a
+VOCABULARY over the one group tree. Implemented as a derived presentation preset
+(`composables/nodeTerminology.ts`): a subtree renders the education words iff it actually carries
+school DNA (school attachment, teacher/class rollups, a school above or below in the rail);
+otherwise neutral — group / group leader / learner. Neutral changes the node home's stat tiles,
+lenses, empty state, invite-role options (Group leader default), children-row count words, and
+the How-this-works text ('org' pack entries); Add-a-school only exists inside the education
+dressing. Leaders gained the Add-a-group verb (endpoint already authorized them), and POST
+/api/groups roots are now self-serve: any signed-in user can create an org and becomes its group
+leader in the same request (one org per leader; existing leaders get a 409).
+**Better:** Cardiff Council renders as an organisation, not a school with the serial numbers
+filed off — and every existing school surface keeps its vocabulary untouched.
+**Simpler:** no second ontology, no stored preset, no migration, no backfill — the dressing is a
+pure function of data the home payload already carries. Deletes ed-speak from the neutral path
+rather than adding a parallel one.
+**Cheaper (total):** zero schema change on a DB shared by dev/staging/prod, zero new endpoints,
+zero new signal before its consumer exists.
+**Searched & rejected:**
+- Stored org-level `terminology` column — rejected for now: the shared live DB makes even
+  nullable columns a coordination cost, and no case exists yet that derivation misses except
+  "an org wants school words before any school exists", which is exactly the moment a school
+  gets created anyway. Logged as the known follow-up in node-home.apml.
+- Parallel neutral components (OrgHomeView beside NodeHomeView) — rejected: a second surface to
+  drift, violating the one-recursive-page ruling.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling
+
+## 2026-08-02 — tutor rebate: per-student-month ledger + release 30d after the completed month
+**Move:** Founder model (verbatim): "£5 per completed student-month flows back to the tutor,
+paid 30 days AFTER the completed month (no exposure to refunds/chargebacks)." Two changes to
+the existing (already substantial) Wise plumbing: (1) hold_until on the £5 accrual moves from
+paid_at+30d (which released AT month completion) to paid_at + 1 month + 30d — release timing
+now matches the ruling and only ever DELAYS money, never accelerates it; (2) a new
+`tutor_rebate_ledger` table records one line per student-month accrual/reversal under the
+existing `teacher_commissions` aggregate, so `GET /api/teacher/commissions` can return a real
+statement (student × month × £5 × held/released status) and the tutor dashboard shows it.
+The aggregate stays the money source of truth; the payout cron (Wise batch groups, funding
+still a manual Wise-dashboard step — no automatic money movement) is untouched.
+**Better:** the tutor sees exactly which student-months earned what, and money releases per
+the founder's stated window instead of a month early.
+**Simpler:** one narrow append-only table written at the exact point the webhook already
+holds every fact (teacher, student, class, transaction); no new service, no cron change.
+**Cheaper (total):** statement is a single indexed read; migration is additive with
+tolerate-absent code, so it can be applied whenever the live-DB window is quiet.
+**Searched & rejected:**
+- Deriving statements from existing tables retroactively — impossible: per-transaction
+  history isn't stored locally; aggregates can't be decomposed.
+- Making the ledger the payout source of truth (cron reads lines, not aggregates) — cleaner
+  long-term but a money-path rewrite with zero current payout volume to justify it; logged
+  as the natural follow-up if per-line payout states are ever needed.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
+today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
+silently changed.
+
+## 2026-08-02 — paddle: school seat lane joins the in-repo SSi Premium fallback
+**Move:** Two-product ruling: every adult seat bills on SSi Premium £15/mo / £150/yr. The
+school platform lane was the last checkout whose price id could resolve EMPTY with no Vercel
+env vars (env → env → nothing); it now falls through to the same in-repo Premium constants
+the org lane landed on in `21ff7b24`, which also un-gates the school annual option.
+**Better:** school checkout can never open on a missing price id. **Simpler:** one fallback
+pattern across all seat lanes. **Cheaper:** two lines, zero env coordination.
+**Search width:** obvious-fix
+**Decided by:** agent, under the founder's two-product ruling
+
+## 2026-08-02 — tutor unification depth: flat now, never-stack encoded at the money gate
+**Move:** Founder ruling (relayed): (1) no tutor-inside-an-org yet, but don't paint it into a
+corner; (2) commissions NEVER stack — hard rule; (3) unification depth delegated to BSC. The
+call: tutors stay entirely FLAT (no groups row, no leader row — `teachers` + `classes` with
+null school_id/group_id, exactly as today). The corner-proofing audit found the flat model
+already leaves the later attach open (`classes.group_id` is nullable and unused in the tutor
+lane), with ONE real seam: the student price/commission derivation gated on `school_id` alone,
+so a future group-attached tutor class would have priced £10 AND skimmed £5 commission beside
+org coverage — the exact stack the ruling bans. Encoded now: webhook + by-code derive
+tutor-tier from school_id AND group_id both null; either set → org £5 tier, zero commission
+(the org seat relationship is the compensation). locked_price_pence stays frozen at signup, so
+structure changes never retro-change existing commissions.
+**Better:** the never-stack rule is enforcement, not doctrine — unbuilt future structures
+can't violate it by default. **Simpler:** two files, one boolean widened; no tutor node
+surface, no migration. **Cheaper (total):** zero schema, zero backfill, zero behaviour change
+for every existing class (all current school classes carry school_id; all tutor classes carry
+neither).
+**Searched & rejected:** full unification (a 1-node group tree per tutor) — buys nothing a
+flat tutor needs today, drags the deliberately-simple tutor dashboard into node-home
+machinery, and costs a live-DB migration inside the RLS-canary window. Revisit only when a
+real tutor-org case exists; the attach path is now safe by construction.
+**Search width:** visible-options
+**Decided by:** agent, delegated by founder ruling 2026-08-02
+
+## 2026-08-02 — /orgs signup door: extract createRootOrgAndLeader as the ONE root-org contract
+**Move:** Built the self-serve `/orgs` door (Onboarding.vue track:'org' → POST
+`/api/onboarding/provision` track:'org') alongside the existing `/schools1` `/schools2`
+`/tutors` doors. Rather than re-implementing "insert a root `groups` row, stamp the 30-day
+trial, mint the caller as `govt_admins` leader, roll back on failure" a second time inside
+provision.ts, extracted that exact logic (already live in POST `/api/groups`'s self-serve
+lane) into `api/_utils/rootOrgProvision.ts`'s `createRootOrgAndLeader`, and pointed BOTH
+callers at it. Also had to add one write neither existing caller made: provision.ts sets
+`learners.educational_role = 'govt_admin'` on the new leader (POST /api/groups never did,
+since its only tested caller is an ssi_admin who bypasses `memberSurfaceGuard` via
+`canAccessAdmin` anyway) — without it a self-serve leader would be bounced straight off
+their own freshly-created `/org/:id`.
+**Better:** a leader who signs up at the door lands on a live, ownable org dashboard in one
+verified session, no second admin step.
+**Simpler:** one root-org-creation contract instead of two near-identical copies that would
+drift the moment either changed (trial length, rollback behaviour, leader-mint shape).
+**Cheaper (total):** zero new tables/migrations; the extraction is a pure refactor (12
+existing `api/groups/index.test.ts` cases pinned the behaviour and still pass unchanged) plus
+~60 new lines in one shared file.
+**Searched & rejected:** duplicating the insert+stamp+mint block directly in provision.ts —
+rejected on the same "two independently-editable copies" ground as prior entries in this
+log; the two doors (self-serve /orgs, admin-gated POST /api/groups) already share every other
+trial/provisioning helper (`orgTrialStamp`, `orgPlatform.ts`), so a root org's creation
+belonged in that same shared layer.
+**Gap flagged, not fixed (out of this door's scope):** the leader is minted via `govt_admins`
+only, no `user_tags` GROUP: row — matches the existing (pre-this-change) POST /api/groups
+self-serve pattern and `provisionPersona.ts`'s 'leader' role, but means
+`resolveOrgCourseCoverage` (which reads only `user_tags`) does not itself grant the leader
+course-PLAY access to their own org; they can administer it immediately, but a further
+decision is needed on whether/how leaders also get learner-side coverage.
+**Search width:** visible-options
+**Decided by:** agent, under founder instruction 2026-08-02 ("BUILD: self-serve /orgs door")

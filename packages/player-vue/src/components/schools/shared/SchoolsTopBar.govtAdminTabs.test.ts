@@ -24,7 +24,7 @@ describe('SchoolsTopBar — govt_admin tab set', () => {
     await router.isReady()
   })
 
-  it('a group-scoped govt_admin gets node-surface tabs (Schools → node home schools lens, Insights → node insights)', async () => {
+  it('a group-scoped govt_admin gets node-surface tabs (Organisation → node home, Insights → node insights) — no school claim in the top bar (dressing ruling 2026-08-02)', async () => {
     role.initialize(null, 'govt_admin')
     ;(ctx.currentUser as any).value = {
       user_id: 'govt-1', learner_id: 'l1', display_name: 'Leader', educational_role: 'govt_admin',
@@ -33,9 +33,9 @@ describe('SchoolsTopBar — govt_admin tab set', () => {
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const links = wrapper.findAll('.tabs a')
     const labels = links.map((l) => l.text())
-    expect(labels).toEqual(['Schools', 'Insights'])
-    expect(links[0].attributes('href')).toBe('/schools/org/grp-wales?lens=schools')
-    expect(links[1].attributes('href')).toBe('/schools/org/grp-wales/insights')
+    expect(labels).toEqual(['Organisation', 'Insights'])
+    expect(links[0].attributes('href')).toBe('/org/grp-wales')
+    expect(links[1].attributes('href')).toBe('/org/grp-wales/insights')
   })
 
   it('a group-scoped govt_admin has NO door to the retired flat views', async () => {
@@ -63,19 +63,19 @@ describe('SchoolsTopBar — govt_admin tab set', () => {
     expect(links[1].attributes('href')).toBe('/schools/analytics')
   })
 
-  it('the Schools tab is active only under the schools lens (plain node home lights no tab)', async () => {
+  it('the Organisation tab is active on the node home (any lens — lenses are filters, not pages)', async () => {
     role.initialize(null, 'govt_admin')
     ;(ctx.currentUser as any).value = {
       user_id: 'govt-1', learner_id: 'l1', display_name: 'Leader', educational_role: 'govt_admin',
       platform_role: null, group_id: 'grp-wales',
     }
-    await router.push('/schools/org/grp-wales?lens=schools')
+    await router.push('/org/grp-wales?lens=schools')
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const active = wrapper.findAll('.tabs a.active').map((l) => l.text())
-    expect(active).toEqual(['Schools'])
+    expect(active).toEqual(['Organisation'])
 
-    await router.push('/schools/org/grp-wales')
+    await router.push('/org/grp-wales')
     await wrapper.vm.$nextTick()
-    expect(wrapper.findAll('.tabs a.active')).toHaveLength(0)
+    expect(wrapper.findAll('.tabs a.active').map((l) => l.text())).toEqual(['Organisation'])
   })
 })

@@ -351,6 +351,14 @@ async function redeemInviteCode(
     })
   }
 
+  // The node a redeeming LEADER ends up on — set inside the govt_admin branch
+  // below and used for redirectTo, so an org/group leader's invite link lands
+  // them straight on their own node home (/org/:id) instead of bouncing
+  // through /schools first (founder ruling 2026-08-02: an org is not a
+  // schools feature, and that bounce was the one /schools URL they'd still be
+  // shown). Falls back to /schools when there's no resolvable group.
+  let leaderGroupId: string | null = null
+
   // Create role-specific records
   if (codeType === 'govt_admin') {
     // Honour grants_group_id when set (leader joins Tom's pre-built group node).
@@ -419,6 +427,8 @@ async function redeemInviteCode(
       // orphan (best-effort; a leftover empty group is cosmetic, not worth
       // failing the response over).
       await supabase.from('groups').delete().eq('id', groupId)
+    } else {
+      leaderGroupId = groupId
     }
   } else if (codeType === 'school_admin') {
     // Idempotent select-then-insert: reuse an existing school for this admin
@@ -668,6 +678,10 @@ async function redeemInviteCode(
   // second email+OTP) runs for it. Self-serve's own /schools1 course-picking
   // journey is untouched — this redirect only fires from redeem.ts.
   const redirectTo = codeType === 'ssi_admin' ? '/admin'
+    // A group/org leader goes straight to THEIR node home — the top-level
+    // member mount (founder ruling 2026-08-02). No /schools bounce, so an org
+    // leader never sees a schools URL on the way in.
+    : codeType === 'govt_admin' && leaderGroupId ? `/org/${leaderGroupId}`
     : ['school_admin', 'god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 

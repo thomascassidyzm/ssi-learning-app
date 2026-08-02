@@ -137,6 +137,59 @@ export default async function handler(
     const available_pence = releasedPence >= PAYOUT_THRESHOLD_PENCE ? releasedPence : 0
     const held_pence = accrued_pence - available_pence
 
+    // Per-student-month STATEMENT lines from the rebate ledger (written by the
+    // Paddle webhook). null when the ledger table doesn't exist yet — the
+    // dashboard hides the statement section in that case. The aggregate sums
+    // above remain the money source of truth either way.
+    let statement: Array<{
+      service_month: string
+      total_pence: number
+      lines: Array<{
+        learner_display: string | null
+        entry_type: string
+        amount_pence: number
+        hold_until: string | null
+        created_at: string
+      }>
+    }> | null = null
+    {
+      const ledger = await supabase
+        .from('tutor_rebate_ledger')
+        .select('learner_display, entry_type, service_month, amount_pence, hold_until, created_at')
+        .eq('teacher_id', teacher.id)
+        .order('service_month', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(500)
+
+      if (ledger.error) {
+        const missingTable =
+          ledger.error.code === '42P01' ||
+          ledger.error.code === 'PGRST205' ||
+          /relation .* does not exist|could not find the table/i.test(ledger.error.message || '')
+        if (!missingTable) {
+          console.warn('[TeacherCommissions] Ledger read failed (statement omitted):', ledger.error)
+        }
+      } else {
+        const byMonth = new Map<string, { service_month: string; total_pence: number; lines: any[] }>()
+        for (const row of ledger.data || []) {
+          let month = byMonth.get(row.service_month)
+          if (!month) {
+            month = { service_month: row.service_month, total_pence: 0, lines: [] }
+            byMonth.set(row.service_month, month)
+          }
+          month.total_pence += row.amount_pence || 0
+          month.lines.push({
+            learner_display: row.learner_display,
+            entry_type: row.entry_type,
+            amount_pence: row.amount_pence,
+            hold_until: row.hold_until,
+            created_at: row.created_at,
+          })
+        }
+        statement = Array.from(byMonth.values())
+      }
+    }
+
     res.status(200).json({
       accrued_pence,
       held_pence,
@@ -144,6 +197,7 @@ export default async function handler(
       pending_pence,
       lifetime_paid_pence,
       periods,
+      statement,
     })
   } catch (error: any) {
     console.error('[TeacherCommissions] Error:', error)

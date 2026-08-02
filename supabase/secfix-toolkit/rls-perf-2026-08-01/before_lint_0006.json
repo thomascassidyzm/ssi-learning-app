@@ -1,0 +1,604 @@
+[
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"God users can write all classes\",classes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users can read all classes\",\"God users can write all classes\",classes_select,classes_select_admin_subtree}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "classes",
+  "role_name": "authenticated",
+  "action": "UPDATE",
+  "policies": "{\"God users can write all classes\",classes_update}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "course_enrollments",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all course_enrollments\",course_enrollments_scoped_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "courses",
+  "role_name": "anon",
+  "action": "SELECT",
+  "policies": "{\"Anon can read courses\",\"Public users can view all courses\",\"Public users can view visible courses\",courses_select_public}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "courses",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Authenticated users can view all courses\",\"Authenticated users can view visible courses\",courses_read_policy,courses_select_public}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "anon",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "anon",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "anon",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "anon",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticated",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticated",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticator",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticator",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticator",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "authenticator",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "cli_login_postgres",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "cli_login_postgres",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "cli_login_postgres",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "cli_login_postgres",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "dashboard_user",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "dashboard_user",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "dashboard_user",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "dashboard_user",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "pgbouncer",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "pgbouncer",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "pgbouncer",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "pgbouncer",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "supabase_privileged_role",
+  "action": "DELETE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "supabase_privileged_role",
+  "action": "INSERT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "supabase_privileged_role",
+  "action": "SELECT",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "entitlement_codes",
+  "role_name": "supabase_privileged_role",
+  "action": "UPDATE",
+  "policies": "{\"God users manage entitlement codes\",entitlement_codes_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "govt_admins",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"God users can write all govt_admins\",govt_admins_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "govt_admins",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users can read all govt_admins\",\"God users can write all govt_admins\",govt_admins_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "anon",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users can read all invite_codes\",\"SSi admins can view all codes\",\"Users can view codes they created\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "authenticator",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "cli_login_postgres",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "dashboard_user",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "pgbouncer",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "invite_codes",
+  "role_name": "supabase_privileged_role",
+  "action": "INSERT",
+  "policies": "{\"Govt admins can create school_admin codes\",\"SSi admins can create govt_admin codes\",\"School admins can create teacher codes\",\"Teachers can create student codes\",invite_codes_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learner_l1_state",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all learner_l1_state\",\"Users can view own l1 state\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learner_lego_metrics",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all learner_lego_metrics\",\"Users can view own lego metrics\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learner_meta_commentary_state",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all meta commentary state\",\"Users can view own meta commentary state\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learner_pod_state",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all learner_pod_state\",\"Users can view own pod state\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learner_speaking_opportunities",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all learner_speaking_opportunities\",\"Users can view own speaking opportunities\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "learners",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all learners\",learners_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "lego_progress",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all lego_progress\",lego_progress_scoped_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "regions",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Anyone can view regions\",\"SSi admins can manage regions\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"God users can write all schools\",schools_insert}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users can read all schools\",\"God users can write all schools\",schools_select,schools_select_admin_subtree}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "schools",
+  "role_name": "authenticated",
+  "action": "UPDATE",
+  "policies": "{\"God users can write all schools\",schools_update}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "seed_progress",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all seed_progress\",seed_progress_scoped_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "sessions",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Admins can read all sessions\",sessions_scoped_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "subscriptions",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"Users can view own subscription\",subscriptions_admin_select}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "anon",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "anon",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "anon",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "anon",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticated",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticated",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticated",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\",user_entitlements_select_own_or_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticated",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticator",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticator",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticator",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "authenticator",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "cli_login_postgres",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "cli_login_postgres",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "cli_login_postgres",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "cli_login_postgres",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "dashboard_user",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "dashboard_user",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "dashboard_user",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "dashboard_user",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "pgbouncer",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "pgbouncer",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "pgbouncer",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "pgbouncer",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "supabase_privileged_role",
+  "action": "DELETE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_delete_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "supabase_privileged_role",
+  "action": "INSERT",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_insert_admin}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "supabase_privileged_role",
+  "action": "SELECT",
+  "policies": "{\"God users manage all entitlements\",\"Users read own entitlements\"}"
+ },
+ {
+  "schema_name": "public",
+  "table_name": "user_entitlements",
+  "role_name": "supabase_privileged_role",
+  "action": "UPDATE",
+  "policies": "{\"God users manage all entitlements\",user_entitlements_update_admin}"
+ }
+]

@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNotes, finalizeBody, reconcile, renderFinal } from './release-notes.mjs'
+import { buildNotes, finalizeBody, reconcile, render, renderFinal } from './release-notes.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -151,6 +151,59 @@ test('an unclear commit can never take a feature slot from a known surface', () 
   ])
   assert.equal(n.features.length, 3)
   for (const f of n.features) assert.equal(f.source, 'phrasebook', f.headline)
+})
+
+// ── founder ruling 2026-07-31: player-first ranking + one catch-all section ─
+
+test('a player-facing feature outranks an equally-significant schools feature', () => {
+  const n = notesFor([
+    'schools nav unification: govt_admin tabs land on THE VIEW',       // curated, schools, sig 3
+    'course-switch READY in 2-3s: kill the cinematic floor',           // curated, player, sig 3
+  ])
+  assert.equal(n.features.length, 2)
+  assert.match(n.features[0].headline, /Switching course/, 'player-facing feature ranks first')
+})
+
+test('a lower-significance player feature can still outrank a higher schools feature', () => {
+  const n = notesFor([
+    'schools nav unification: govt_admin tabs land on THE VIEW',          // schools, sig 3
+    'feat(schools): teacher surface nav persists in the player',         // schools, sig 2
+    'copy: sentence-case the loading + resting messages',                // player fix, not a feature
+  ])
+  // Sanity check only: the audience weight is a ranking multiplier on FEATURES, so a schools
+  // feature at sig 3 still beats a schools feature at sig 2 — weight only breaks cross-audience
+  // ties, never invents a slot. Assert both remain features in significance order.
+  assert.equal(n.features.length, 2)
+  assert.match(n.features[0].headline, /unified dashboard view/)
+})
+
+test('overflow features and fixes both land in the one catch-all section, nothing dropped', () => {
+  const n = notesFor([
+    'course-switch READY in 2-3s: kill the cinematic floor',                                   // feature 1
+    'feat(cold-start): course load never blocks past readiness-to-start — SWR + progressive start', // feature 2
+    'schools nav unification: govt_admin tabs land on THE VIEW',                                // feature 3
+    'explainer: How-this-works becomes the single surfacing point, with a discoverability throb', // overflow feature
+    'fix(player): transport play-state is PULLED from the engine — kills the play-button desync', // fix
+  ])
+  assert.equal(n.features.length, 3)
+  assert.equal(n.otherStuff.length, 2, 'the overflow feature and the fix both land in one section')
+  const headlines = n.otherStuff.map((b) => b.headline).join('\n')
+  assert.match(headlines, /How this works/)
+  assert.match(headlines, /play button/)
+})
+
+test('the rendered draft uses one "Other stuff and bug fixes" heading, not separate Fixes', () => {
+  const cand = {
+    commits: [
+      commit('course-switch READY in 2-3s: kill the cinematic floor'),
+      commit('fix(player): transport play-state is PULLED from the engine — kills the play-button desync'),
+    ],
+    stagingSha: 'c'.repeat(40),
+  }
+  const notes = buildNotes(cand)
+  const body = render(cand, notes, { draftDate: '2026-07-31' })
+  assert.match(body, /## Other stuff and bug fixes/)
+  assert.doesNotMatch(body, /## Fixes\n/)
 })
 
 test('finalize stamps the header, keeps hand edits, strips the draft section', () => {

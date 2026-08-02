@@ -7,23 +7,31 @@
  *   - grants the ADMIN's OWN play-trial entitlement for a premium course (so
  *     they can try the lesson) — capped per account
  *   - assigns the role: tutor → teachers row (+ a first class); school → the
- *     school_admin role + a school row (NO student cascade grant — students pay)
+ *     school_admin role + a school row (NO student cascade grant — students pay);
+ *     org → a root `groups` row + govt_admins leader row (NO schools/teachers
+ *     rows — an org is class-less by definition)
  *   - activates the PLATFORM subscription trial (lever-3): the dashboard is free
  *     for a window, then £15/teacher/mo. premium-track → 1 month; free-track →
- *     1 year (schools pay for the platform even on free courses); tutor → 1 month.
+ *     1 year (schools pay for the platform even on free courses); tutor → 1 month;
+ *     org → 30 days, all languages (api/_utils/trialPolicy.ts).
  *     Limited to ONE trialled language per school, and ONE trial per email per
- *     track FOREVER (email-burn via trial_burns; burn-before-grant).
+ *     track FOREVER (email-burn via trial_burns; burn-before-grant). The org
+ *     track has no per-course trial burn — one org per leader (govt_admins is
+ *     one-row-per-user) is its own farming guard.
  *
  * Idempotent: safe to call more than once (re-verify / retry) — it never
  * double-grants or double-creates. Price/trial is decided SERVER-SIDE from the
  * track + the course's live status; the client choice is never trusted blindly.
+ * For the org track, a caller who already leads a group is NOT re-provisioned —
+ * they're just handed their existing org back (existing: true), the same
+ * "already have an account" idempotence the school/tutor tracks give.
  *
  * Fails OPEN on the platform columns: if the school_platform_subscription
  * migration is not yet applied (columns/table absent), the platform-trial step
  * is skipped without failing provisioning — accounts still onboard, the gate
  * just stays advisory until the migration lands.
  *
- * Body: { track: 'school' | 'tutor', course_code }
+ * Body: { track: 'school' | 'tutor', course_code } | { track: 'org', org_name }
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -35,11 +43,13 @@ import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
+import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
+import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/orgPlatform'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-const TRACKS = new Set(['school', 'tutor'])
+const TRACKS = new Set(['school', 'tutor', 'org'])
 
 export default async function handler(
   req: VercelRequest,
@@ -56,12 +66,17 @@ export default async function handler(
     return
   }
 
-  const { track, course_code } = req.body || {}
+  const { track, course_code, org_name } = req.body || {}
   if (!TRACKS.has(track)) {
     res.status(400).json({ error: 'Invalid track' })
     return
   }
-  if (!course_code || typeof course_code !== 'string') {
+  if (track === 'org') {
+    if (!org_name || typeof org_name !== 'string' || !org_name.trim()) {
+      res.status(400).json({ error: 'org_name is required' })
+      return
+    }
+  } else if (!course_code || typeof course_code !== 'string') {
     res.status(400).json({ error: 'course_code is required' })
     return
   }
@@ -72,27 +87,35 @@ export default async function handler(
     // 1. Validate the course is genuinely DEPLOYED (live OR beta — mirroring the
     //    in-app catalogue in App.vue) and matches the track. Never trust the
     //    client to pick a not_available/draft or wrong-track course.
-    const { data: course, error: courseErr } = await supabase
-      .from('courses')
-      .select('course_code, target_lang, pricing_tier, new_app_status')
-      .eq('course_code', course_code)
-      .maybeSingle()
-    if (courseErr) throw new Error(`course lookup failed: ${courseErr.message}`)
-    if (!course || !['live', 'beta'].includes(course.new_app_status)) {
-      res.status(400).json({ error: 'That course is not available yet' })
-      return
+    //    Org track skips all of this — an org is class-less and its trial
+    //    covers every language (trialPolicy.ts), so there is no single course
+    //    to validate against.
+    let isFree = false
+    let commercial = true
+    let trialDays = 30
+    if (track !== 'org') {
+      const { data: course, error: courseErr } = await supabase
+        .from('courses')
+        .select('course_code, target_lang, pricing_tier, new_app_status')
+        .eq('course_code', course_code)
+        .maybeSingle()
+      if (courseErr) throw new Error(`course lookup failed: ${courseErr.message}`)
+      if (!course || !['live', 'beta'].includes(course.new_app_status)) {
+        res.status(400).json({ error: 'That course is not available yet' })
+        return
+      }
+      // The OFFER is the course's tier: Free/Community = free (no grant needed — free
+      // courses are already accessible to everyone); Premium = a free trial then paid.
+      isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
+      // Trial LENGTH derives from the course's commercial class, not its tier
+      // (founder ruling 2026-07-19): commercial (Big-10 target) = 30 days;
+      // heritage (everything else — Welsh + minority languages) = 365 days. Welsh
+      // is priced premium yet is heritage-length, which target classification
+      // captures without a `cym` prefix hack. Governs BOTH the learner play-trial
+      // expiry (premium courses only) and the platform trial window.
+      commercial = isCommercialCourse(course)
+      trialDays = trialDaysForCourse(course)
     }
-    // The OFFER is the course's tier: Free/Community = free (no grant needed — free
-    // courses are already accessible to everyone); Premium = a free trial then paid.
-    const isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
-    // Trial LENGTH derives from the course's commercial class, not its tier
-    // (founder ruling 2026-07-19): commercial (Big-10 target) = 30 days;
-    // heritage (everything else — Welsh + minority languages) = 365 days. Welsh
-    // is priced premium yet is heritage-length, which target classification
-    // captures without a `cym` prefix hack. Governs BOTH the learner play-trial
-    // expiry (premium courses only) and the platform trial window.
-    const commercial = isCommercialCourse(course)
-    const trialDays = trialDaysForCourse(course)
 
     // 1b. Resolve the auth email — the stable identity the platform trial-burn
     //     is keyed on (trial_burns). Lower-cased + trimmed to normalise.
@@ -162,8 +185,11 @@ export default async function handler(
     // 3. Access. Free/Community courses are already accessible to everyone, so no
     //    grant is needed. Premium courses get a free trial entitlement, capped so a
     //    single OTP'd account can't farm a trial for the whole premium catalogue.
+    //    Org track: no per-course entitlement at all — org members (including the
+    //    leader) get course coverage via their org affiliation for as long as the
+    //    org's platform trial/subscription is live (resolveOrgCourseCoverage).
     let expiresAt: string | null = null
-    if (!isFree) {
+    if (track !== 'org' && !isFree) {
       expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString()
       const SELF_SERVICE_TRIAL_CAP = 3
       const { data: existingEnts } = await supabase
@@ -210,7 +236,51 @@ export default async function handler(
     // True when this email already had an account for this track — used by the
     // signup UI to skip the "finishing details" step and say "Welcome back".
     let existingAccount = false
-    if (track === 'tutor') {
+    // Set only by the org branch — the freshly-created (or already-led) group's
+    // id, which the redirect and the response both need.
+    let orgGroupId: string | null = null
+    if (track === 'org') {
+      role = 'govt_admin'
+      // Leader role wiring: govt_admin outranks every other educational_role
+      // for hasSchoolRole/isGovtAdmin purposes (useUserRole.ts), so upgrade
+      // unconditionally — a school_admin who starts an org becomes that org's
+      // leader too, and memberSurfaceGuard needs this write to let them reach
+      // /org/:id at all (a govt_admins row alone does not grant hasSchoolRole).
+      if (learner.educational_role !== 'govt_admin') {
+        const { error: roleErr } = await supabase
+          .from('learners')
+          .update({ educational_role: 'govt_admin' })
+          .eq('id', learner.id)
+        if (roleErr) throw new Error(`org leader role assignment failed: ${roleErr.message}`)
+      }
+
+      // One org per leader (founder ruling 2026-08-02): a caller who already
+      // leads a group is NOT re-provisioned — hand them back their existing
+      // org, gracefully, rather than a 409 dead end.
+      const existingGroupId = await leaderGroupId(supabase, auth.userId)
+      if (existingGroupId) {
+        existingAccount = true
+        orgGroupId = existingGroupId
+        const state = await readOrgPlatformState(supabase, existingGroupId)
+        if (state?.platform_expires_at) {
+          platformTrial = {
+            track: 'org',
+            kind: state.platform_status === 'active' ? 'active' : 'trial',
+            expires_at: state.platform_expires_at,
+            days: ORG_TRIAL_DAYS,
+          }
+        }
+      } else {
+        const group = await createRootOrgAndLeader(supabase, auth.userId, org_name.trim())
+        orgGroupId = group.id
+        platformTrial = {
+          track: 'org',
+          kind: 'trial',
+          expires_at: group.platform_expires_at || new Date(Date.now() + ORG_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+          days: ORG_TRIAL_DAYS,
+        }
+      }
+    } else if (track === 'tutor') {
       role = 'teacher'
       // Tag the learner as a solo tutor so the learner shell can find them again.
       // 'tutor' is deliberately DISTINCT from the school 'teacher'/'school_admin'
@@ -391,18 +461,19 @@ export default async function handler(
     }
 
     res.status(200).json({
-      trial: isFree ? null : { course_code, expires_at: expiresAt, days: trialDays },
-      free: isFree,
+      trial: track === 'org' || isFree ? null : { course_code, expires_at: expiresAt, days: trialDays },
+      free: track === 'org' ? true : isFree,
       role,
       // The platform-subscription trial (lever-3): the dashboard window before
-      // £15/teacher/mo. null when none was granted (e.g. the email already
-      // burned its trial, or the migration is unapplied).
+      // £15/teacher/mo (or, for org, £15/seat/mo). null when none was granted
+      // (e.g. the email already burned its trial, or the migration is unapplied).
       platform_trial: platformTrial,
       trial_burned: trialBurned,
-      // Returning user (already had a teacher/school for this track) — the signup
-      // UI skips the finishing-details step and sends them straight in.
+      // Returning user (already had a teacher/school/org for this track) — the
+      // signup UI skips the finishing-details step and sends them straight in.
       existing: existingAccount,
-      redirect: track === 'tutor' ? '/tutors/dashboard' : '/schools',
+      redirect:
+        track === 'org' ? `/org/${orgGroupId}` : track === 'tutor' ? '/tutors/dashboard' : '/schools',
     })
   } catch (error: any) {
     // Full detail server-side only — the raw message can carry internal

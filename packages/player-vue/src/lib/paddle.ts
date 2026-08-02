@@ -25,6 +25,21 @@
  *                                        env vars are set the Family paywall option
  *                                        stays hidden (graceful, same pattern as the
  *                                        annual-price-unset case above).
+ *   VITE_PADDLE_ORG_SEAT_PRICE_MONTHLY — pri_… for £15/seat/mo ORG PLATFORM (workplace/
+ *                                        group-leader lane, api/_utils/orgPlatform.ts).
+ *                                        Founder ruling 2026-08-02: no separate org-seat
+ *                                        Paddle product exists or should exist — the org
+ *                                        lane always resolves to the existing SSi Premium
+ *                                        product. Falls through schoolTeacherMonthlyPriceId
+ *                                        and teacherMonthlyPriceId's env vars first, then
+ *                                        lands on the in-repo SSI_PREMIUM_MONTHLY_PRICE_ID
+ *                                        constant — so it resolves correctly even with zero
+ *                                        Vercel env config. The webhook tells the lanes
+ *                                        apart by customData.kind ('org_platform' vs
+ *                                        'school_platform'), never by price id.
+ *   VITE_PADDLE_ORG_SEAT_PRICE_ANNUAL  — pri_… for £150/seat/yr ORG PLATFORM. Same
+ *                                        fallback reasoning — ends on
+ *                                        SSI_PREMIUM_ANNUAL_PRICE_ID when unset.
  *
  * Every value is trimmed at read — Vercel's env-var entry flow can capture
  * trailing newlines, and an untrimmed "pri_…\n" makes Paddle 400 with
@@ -38,6 +53,15 @@ function trimEnv(v: string | undefined): string | undefined {
   return t ? t : undefined
 }
 
+// The live SSi Premium (consumer) Paddle prices — the ONE product every
+// per-seat/per-tutor lane ultimately falls back to when its own env var is
+// unset. Named here so the org lane (below) can fall back to them directly
+// in-repo, rather than only through a chain of raw env-var reads that go
+// undefined if Vercel env isn't configured (founder ruling 2026-08-02: the
+// org lane must use the existing SSi Premium product, never a separate one).
+const SSI_PREMIUM_MONTHLY_PRICE_ID = 'pri_01kqq85gvncyasfmfvvpcv1xfg'
+const SSI_PREMIUM_ANNUAL_PRICE_ID = 'pri_01kqq86ymc3yhm8be3w7f7kgr1'
+
 export const paddleConfig = {
   clientToken: trimEnv(import.meta.env.VITE_PADDLE_CLIENT_TOKEN as string | undefined),
   env: trimEnv(import.meta.env.VITE_PADDLE_ENV as string | undefined) || 'sandbox',
@@ -47,10 +71,10 @@ export const paddleConfig = {
   // SAME price ID, so no extra IDs/env vars are needed for regions.
   teacherMonthlyPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined) ||
-    'pri_01kqq85gvncyasfmfvvpcv1xfg', // £15/mo SSi Premium
+    SSI_PREMIUM_MONTHLY_PRICE_ID, // £15/mo SSi Premium
   teacherAnnualPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined) ||
-    'pri_01kqq86ymc3yhm8be3w7f7kgr1', // £150/yr SSi Premium
+    SSI_PREMIUM_ANNUAL_PRICE_ID, // £150/yr SSi Premium
   studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
   studentSchoolMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY as string | undefined),
   studentAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_ANNUAL as string | undefined),
@@ -63,19 +87,37 @@ export const paddleConfig = {
   // quantity = teacher seats; the webhook (kind:'school_platform') reads it back.
   schoolTeacherMonthlyPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
-    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    SSI_PREMIUM_MONTHLY_PRICE_ID,
   // School ANNUAL platform price — same single-product reasoning as the monthly
   // fallback above: there is ONE per-seat annual Paddle price (a school is just
   // quantity>1 of the same per-unit price as the tutor annual plan). Falls back
   // to the tutor annual price when its own env var isn't set, so no separate
   // Paddle product is required.
-  // ⚠️ OPERATOR NOTE: for annual checkout to charge correctly the actual annual
-  // Paddle prices + env vars (VITE_PADDLE_TEACHER_PRICE_ANNUAL /
-  // VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL) must be configured. When unset the
-  // UI disables the annual option (graceful) rather than opening a broken checkout.
+  // Like the org lane below, both school prices land on the in-repo SSi
+  // Premium constants when no env var is configured (founder ruling
+  // 2026-08-02: one product, £15/£150 per seat, for every adult lane) — so
+  // school checkout can never resolve to an empty price id.
   schoolTeacherAnnualPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
-    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    SSI_PREMIUM_ANNUAL_PRICE_ID,
+  // Org / workplace platform — founder ruling 2026-08-02: no separate org-seat
+  // Paddle product exists or should exist. The org lane uses the EXISTING SSi
+  // Premium product, same £15/seat/mo, £150/seat/yr as the school teacher
+  // seat. Falls through env overrides first, then lands on the in-repo SSi
+  // Premium constants (not just a further env-var read) so checkout resolves
+  // correctly even when none of the Vercel env vars are configured.
+  orgSeatMonthlyPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_ORG_SEAT_PRICE_MONTHLY as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    SSI_PREMIUM_MONTHLY_PRICE_ID,
+  orgSeatAnnualPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_ORG_SEAT_PRICE_ANNUAL as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    SSI_PREMIUM_ANNUAL_PRICE_ID,
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
   extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
   familyMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY as string | undefined),

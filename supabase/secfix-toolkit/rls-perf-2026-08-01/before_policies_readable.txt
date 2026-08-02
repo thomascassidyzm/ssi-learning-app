@@ -1,0 +1,183 @@
+======== classes
+-- [ALL] God users can write all classes  roles={authenticated}
+   USING: is_god_user()
+   CHECK: is_god_user()
+-- [INSERT] classes_insert  roles={public}
+   CHECK: (teacher_user_id = (auth.uid())::text)
+-- [SELECT] God users can read all classes  roles={authenticated}
+   USING: is_god_user()
+-- [SELECT] classes_select  roles={public}
+   USING: ((teacher_user_id = (auth.uid())::text) OR is_school_admin_of(school_id) OR has_user_tag('class'::text, ('CLASS:'::text || (id)::text)))
+-- [SELECT] classes_select_admin_subtree  roles={authenticated}
+   USING: (is_ssi_admin() OR (EXISTS ( SELECT 1
+   FROM schools s
+  WHERE ((s.id = classes.school_id) AND is_govt_admin_over_group(s.group_id)))))
+-- [UPDATE] classes_update  roles={public}
+   USING: ((teacher_user_id = (auth.uid())::text) OR is_class_teacher(id))
+   CHECK: ((teacher_user_id = (auth.uid())::text) OR is_class_teacher(id))
+======== course_enrollments
+-- [INSERT] course_enrollments_own_insert  roles={authenticated}
+   CHECK: (learner_id = current_learner_id())
+-- [SELECT] Admins can read all course_enrollments  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] course_enrollments_scoped_select  roles={authenticated}
+   USING: can_view_learner_data(learner_id)
+-- [UPDATE] course_enrollments_own_update  roles={authenticated}
+   USING: (learner_id = current_learner_id())
+   CHECK: (learner_id = current_learner_id())
+======== courses
+-- [ALL] courses_service_policy  roles={service_role}
+   USING: true
+   CHECK: true
+-- [DELETE] courses_delete_admin  roles={public}
+   USING: is_ssi_admin()
+-- [INSERT] courses_insert_admin  roles={public}
+   CHECK: is_ssi_admin()
+-- [SELECT] Anon can read courses  roles={anon}
+   USING: (status = ANY (ARRAY['beta'::text, 'released'::text]))
+-- [SELECT] Authenticated users can view all courses  roles={authenticated}
+   USING: (new_app_status = ANY (ARRAY['live'::text, 'beta'::text]))
+-- [SELECT] Authenticated users can view visible courses  roles={authenticated}
+   USING: (visibility = ANY (ARRAY['public'::text, 'beta'::text]))
+-- [SELECT] Public users can view all courses  roles={anon}
+   USING: (new_app_status = ANY (ARRAY['live'::text, 'beta'::text]))
+-- [SELECT] Public users can view visible courses  roles={anon}
+   USING: (visibility = ANY (ARRAY['public'::text, 'beta'::text]))
+-- [SELECT] courses_read_policy  roles={authenticated}
+   USING: (status = ANY (ARRAY['beta'::text, 'released'::text]))
+-- [SELECT] courses_select_public  roles={public}
+   USING: true
+-- [UPDATE] courses_update_admin  roles={public}
+   USING: is_ssi_admin()
+======== entitlement_codes
+-- [ALL] God users manage entitlement codes  roles={public}
+   USING: is_god_user()
+-- [DELETE] entitlement_codes_delete_admin  roles={public}
+   USING: is_ssi_admin()
+-- [INSERT] entitlement_codes_insert_admin  roles={public}
+   CHECK: is_ssi_admin()
+-- [SELECT] entitlement_codes_admin_select  roles={public}
+   USING: is_ssi_admin()
+-- [UPDATE] entitlement_codes_update_admin  roles={public}
+   USING: is_ssi_admin()
+======== govt_admins
+-- [ALL] God users can write all govt_admins  roles={authenticated}
+   USING: is_god_user()
+   CHECK: is_god_user()
+-- [INSERT] govt_admins_insert  roles={public}
+   CHECK: (user_id = (auth.uid())::text)
+-- [SELECT] God users can read all govt_admins  roles={authenticated}
+   USING: is_god_user()
+-- [SELECT] govt_admins_select  roles={public}
+   USING: (user_id = (auth.uid())::text)
+======== invite_codes
+-- [INSERT] Govt admins can create school_admin codes  roles={public}
+   CHECK: ((code_type = 'school_admin'::text) AND (EXISTS ( SELECT 1
+   FROM govt_admins
+  WHERE (govt_admins.user_id = (auth.jwt() ->> 'sub'::text)))))
+-- [INSERT] SSi admins can create govt_admin codes  roles={public}
+   CHECK: ((code_type = 'govt_admin'::text) AND (EXISTS ( SELECT 1
+   FROM learners
+  WHERE ((learners.user_id = (auth.jwt() ->> 'sub'::text)) AND (learners.platform_role = 'ssi_admin'::text)))))
+-- [INSERT] School admins can create teacher codes  roles={public}
+   CHECK: ((code_type = 'teacher'::text) AND (EXISTS ( SELECT 1
+   FROM schools
+  WHERE ((schools.admin_user_id = (auth.jwt() ->> 'sub'::text)) AND (schools.id = invite_codes.grants_school_id)))))
+-- [INSERT] Teachers can create student codes  roles={public}
+   CHECK: ((code_type = 'student'::text) AND (EXISTS ( SELECT 1
+   FROM classes
+  WHERE ((classes.teacher_user_id = (auth.jwt() ->> 'sub'::text)) AND (classes.id = invite_codes.grants_class_id)))))
+-- [INSERT] invite_codes_insert  roles={public}
+   CHECK: (created_by = (auth.uid())::text)
+-- [SELECT] God users can read all invite_codes  roles={authenticated}
+   USING: is_god_user()
+-- [SELECT] SSi admins can view all codes  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] Users can view codes they created  roles={authenticated}
+   USING: (created_by = (auth.uid())::text)
+======== learners
+-- [DELETE] learners_delete_own  roles={authenticated}
+   USING: (user_id = (( SELECT auth.uid() AS uid))::text)
+-- [INSERT] learners_insert_self  roles={authenticated}
+   CHECK: (user_id = (( SELECT auth.uid() AS uid))::text)
+-- [SELECT] Admins can read all learners  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] learners_select  roles={authenticated}
+   USING: ((user_id = (( SELECT auth.uid() AS uid))::text) OR can_view_learner_data(id))
+-- [UPDATE] learners_update_own  roles={authenticated}
+   USING: (user_id = (( SELECT auth.uid() AS uid))::text)
+   CHECK: (user_id = (( SELECT auth.uid() AS uid))::text)
+======== lego_progress
+-- [INSERT] lego_progress_own_insert  roles={authenticated}
+   CHECK: (learner_id = current_learner_id())
+-- [SELECT] Admins can read all lego_progress  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] lego_progress_scoped_select  roles={authenticated}
+   USING: can_view_learner_data(learner_id)
+-- [UPDATE] lego_progress_own_update  roles={authenticated}
+   USING: (learner_id = current_learner_id())
+   CHECK: (learner_id = current_learner_id())
+======== regions
+-- [ALL] SSi admins can manage regions  roles={authenticated}
+   USING: is_ssi_admin()
+   CHECK: is_ssi_admin()
+-- [SELECT] Anyone can view regions  roles={public}
+   USING: true
+======== schools
+-- [ALL] God users can write all schools  roles={authenticated}
+   USING: is_god_user()
+   CHECK: is_god_user()
+-- [INSERT] schools_insert  roles={public}
+   CHECK: (admin_user_id = (auth.uid())::text)
+-- [SELECT] God users can read all schools  roles={authenticated}
+   USING: is_god_user()
+-- [SELECT] schools_select  roles={public}
+   USING: ((admin_user_id = (auth.uid())::text) OR has_user_tag('school'::text, ('SCHOOL:'::text || (id)::text)))
+-- [SELECT] schools_select_admin_subtree  roles={authenticated}
+   USING: (is_ssi_admin() OR is_govt_admin_over_group(group_id))
+-- [UPDATE] schools_update  roles={public}
+   USING: (admin_user_id = (auth.uid())::text)
+======== seed_progress
+-- [INSERT] seed_progress_own_insert  roles={authenticated}
+   CHECK: (learner_id = current_learner_id())
+-- [SELECT] Admins can read all seed_progress  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] seed_progress_scoped_select  roles={authenticated}
+   USING: can_view_learner_data(learner_id)
+-- [UPDATE] seed_progress_own_update  roles={authenticated}
+   USING: (learner_id = current_learner_id())
+   CHECK: (learner_id = current_learner_id())
+======== sessions
+-- [INSERT] sessions_own_insert  roles={authenticated}
+   CHECK: (learner_id = current_learner_id())
+-- [SELECT] Admins can read all sessions  roles={authenticated}
+   USING: is_ssi_admin()
+-- [SELECT] sessions_scoped_select  roles={authenticated}
+   USING: can_view_learner_data(learner_id)
+-- [UPDATE] sessions_own_update  roles={authenticated}
+   USING: (learner_id = current_learner_id())
+   CHECK: (learner_id = current_learner_id())
+======== subscriptions
+-- [DELETE] subscriptions_delete_admin  roles={public}
+   USING: is_ssi_admin()
+-- [SELECT] Users can view own subscription  roles={authenticated}
+   USING: (learner_id = current_learner_id())
+-- [SELECT] subscriptions_admin_select  roles={public}
+   USING: is_ssi_admin()
+-- [UPDATE] subscriptions_update_admin  roles={public}
+   USING: is_ssi_admin()
+======== user_entitlements
+-- [ALL] God users manage all entitlements  roles={public}
+   USING: is_god_user()
+-- [DELETE] user_entitlements_delete_admin  roles={public}
+   USING: is_ssi_admin()
+-- [INSERT] user_entitlements_insert_admin  roles={public}
+   CHECK: is_ssi_admin()
+-- [SELECT] Users read own entitlements  roles={public}
+   USING: (learner_id IN ( SELECT learners.id
+   FROM learners
+  WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text)))
+-- [SELECT] user_entitlements_select_own_or_admin  roles={authenticated}
+   USING: ((learner_id = current_learner_id()) OR is_ssi_admin())
+-- [UPDATE] user_entitlements_update_admin  roles={public}
+   USING: is_ssi_admin()

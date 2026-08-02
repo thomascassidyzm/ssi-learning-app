@@ -18,13 +18,33 @@
  *                    N-1 spaced-rep multiplier (3x) do the work.
  *
  * BINDING PEDAGOGY (owner decision, do not invert): the default lean is
- * consolidate + defer. Drill is reserved for units whose introduction
- * ordinal falls in the earliest `criticalFrontloadFraction` of the course —
+ * consolidate + defer. Drill is reserved for the structurally critical few —
  * never for units that are merely corpus-frequent. A struggling non-critical
  * unit gets DEFERRED while its surrounding map thickens, never ground harder
  * in isolation. This is enforced structurally below (§ "structural
  * enforcement"), not just by the default numbers — see that section for how
  * a caller cannot accidentally invert the lean even by misconfiguring bounds.
+ *
+ * CRITICALITY (founder ruling 2026-07-31, supersedes criticality =
+ * introduction order — see `centrality.ts` and docs/DECISIONS.md): a unit is
+ * critical when it is a HUB in the distinction network — high forward-reuse
+ * centrality, i.e. many subsequent phrases / M-LEGO compositions contain it,
+ * so struggling on it blocks the path forward. The caller supplies the
+ * per-unit centrality percentile via `unitCentralityPercentile` (computed
+ * offline by `computeLegoCentrality`); a unit in the top
+ * `criticalCentralityFraction` resists deferral. When no centrality read is
+ * available for a unit, the old introduction-order frontload rule is the
+ * fallback — intro-order is the degenerate case of forward reuse (early
+ * LEGOs have the whole course ahead of them), so absent data degrades to the
+ * previous behaviour, never to "nothing is critical".
+ *
+ * DEFERRED RETURN (same ruling's companion): deferral's return trigger stays
+ * the existing Fibonacci spaced-rep schedule (reuse, don't build), but the
+ * policy now additionally SIGNALS when a deferred unit's neighbourhood reads
+ * ready — neighbouring units (by introduction ordinal, within
+ * `neighbourhoodWindow`) easing and none struggling means the surrounding map
+ * has thickened, the measured version of "the island is known". That signal
+ * is `RoundPlan.returnReady`: advisory, shadow-logged, applied by no one yet.
  *
  * Every lever moves at most one step per round boundary, only after the B4
  * local-difficulty signal has persisted across >= `hysteresisReads`
@@ -78,8 +98,12 @@ export const DEFAULT_RATE_POLICY_BOUNDS: RatePolicyBounds = {
 
 export interface RatePolicyConfig {
   bounds: RatePolicyBounds;
-  /** Earliest fraction of course LEGO ordinals that "resist deferral" (§04 of the paper). PROPOSED 0.15. */
+  /** Earliest fraction of course LEGO ordinals that "resist deferral" — the FALLBACK criticality when a unit has no centrality read. PROPOSED 0.15. */
   criticalFrontloadFraction: number;
+  /** Top fraction of the course by forward-reuse centrality percentile that "resists deferral" (founder ruling 2026-07-31). Default 0.15, mirroring the frontload fraction. */
+  criticalCentralityFraction: number;
+  /** Ordinal half-width of a deferred unit's neighbourhood for the return-ready signal. Default 3. */
+  neighbourhoodWindow: number;
   /** Consecutive confirming round-boundary reads required before a lever moves (§4.5). Default 2. */
   hysteresisReads: number;
   /** Rounds of quiet (no confirming signal) for a one-step nudge to fully decay to default (§4.5). Default 5. */
@@ -91,6 +115,8 @@ export interface RatePolicyConfig {
 export const DEFAULT_RATE_POLICY_CONFIG: RatePolicyConfig = {
   bounds: DEFAULT_RATE_POLICY_BOUNDS,
   criticalFrontloadFraction: 0.15,
+  criticalCentralityFraction: 0.15,
+  neighbourhoodWindow: 3,
   hysteresisReads: 2,
   decayRounds: 5,
   manualOverrideDeadZoneMultiplier: 2,
@@ -124,6 +150,14 @@ export interface RoundPlan {
   spacedRepCap: number;
   /** Insert a consolidation-only breather round BEFORE the next debut? (§4.4) */
   insertBreather: boolean;
+  /**
+   * Deferred units whose neighbourhood reads ready this boundary (neighbours
+   * easing, none struggling) — the measured early-return signal. ADVISORY:
+   * the Fibonacci spaced-rep schedule remains the actual return mechanism;
+   * this is shadow-logged so the signal's usefulness can be judged before
+   * anything consumes it.
+   */
+  returnReady: string[];
   /** Per-LEGO pause multipliers (existing ladder, now curvature-nudged). */
   pauseMultiplier: (legoId: string) => number;
 }
@@ -143,6 +177,13 @@ export interface RoundBoundaryInput {
   difficulty: LocalDifficulty[];
   /** Introduction ordinal per unit id (LEGO ordinal; a boundary unit inherits its own LEGO's ordinal). */
   unitOrdinals: Record<string, number>;
+  /**
+   * Forward-reuse centrality percentile per unit id (0..1, 1 = biggest hub),
+   * from `computeLegoCentrality`. PRIMARY criticality signal (founder ruling
+   * 2026-07-31); a unit absent from the map — or the map absent entirely —
+   * falls back to the introduction-order frontload rule.
+   */
+  unitCentralityPercentile?: Record<string, number>;
   /** True once the learner has exercised a manual dial (belt_skip/turbo_toggle) this session (§3). */
   manualOverrideActive: boolean;
   /**
@@ -176,6 +217,13 @@ export class RatePolicyEngine {
   private readonly config: RatePolicyConfig;
   private readonly units = new Map<string, UnitLeverState>();
 
+  /**
+   * Units deferred by the budget decision (non-critical, confirmed
+   * struggling, not the round's own LEGO) and not yet signalled as
+   * return-ready — the population the neighbourhood return trigger watches.
+   */
+  private readonly deferredUnits = new Set<string>();
+
   /** Round-level lever offsets from scripted defaults, in step units (fractional while decaying). */
   private buildOffset = 0;
   private consolidateOffset = 0;
@@ -186,6 +234,9 @@ export class RatePolicyEngine {
     this.config = {
       bounds: mergeBounds(config.bounds),
       criticalFrontloadFraction: config.criticalFrontloadFraction ?? DEFAULT_RATE_POLICY_CONFIG.criticalFrontloadFraction,
+      criticalCentralityFraction:
+        config.criticalCentralityFraction ?? DEFAULT_RATE_POLICY_CONFIG.criticalCentralityFraction,
+      neighbourhoodWindow: config.neighbourhoodWindow ?? DEFAULT_RATE_POLICY_CONFIG.neighbourhoodWindow,
       hysteresisReads: config.hysteresisReads ?? DEFAULT_RATE_POLICY_CONFIG.hysteresisReads,
       decayRounds: Math.max(1, config.decayRounds ?? DEFAULT_RATE_POLICY_CONFIG.decayRounds),
       manualOverrideDeadZoneMultiplier:
@@ -203,8 +254,16 @@ export class RatePolicyEngine {
   }
 
   private isCritical(unitId: string, input: RoundBoundaryInput): boolean {
+    // PRIMARY: forward-reuse centrality — is this unit a hub that blocks the
+    // path forward? (Founder ruling 2026-07-31, supersedes intro-order.)
+    const centrality = input.unitCentralityPercentile?.[unitId];
+    if (centrality !== undefined) {
+      return centrality >= 1 - this.config.criticalCentralityFraction;
+    }
+    // FALLBACK: introduction-order frontload — the degenerate case of forward
+    // reuse; keeps behaviour identical for callers with no centrality map.
     const ordinal = input.unitOrdinals[unitId];
-    if (ordinal === undefined) return false; // unknown ordinal never resists deferral by accident
+    if (ordinal === undefined) return false; // unknown unit never resists deferral by accident
     const cutoff = Math.ceil(input.courseLegoCount * this.config.criticalFrontloadFraction);
     return ordinal <= cutoff;
   }
@@ -282,6 +341,9 @@ export class RatePolicyEngine {
             ownLegoConfirmedStruggling = true;
           } else {
             otherNonCriticalConfirmedStruggling = true;
+            // This unit is the one being deferred — start watching its
+            // neighbourhood for the measured return signal below.
+            this.deferredUnits.add(read.unitId);
           }
         }
       }
@@ -348,6 +410,40 @@ export class RatePolicyEngine {
     );
     this.spacedRepOffset = clamp(this.spacedRepOffset, bounds.spacedRepCap.floor - bounds.spacedRepCap.scripted, bounds.spacedRepCap.ceiling - bounds.spacedRepCap.scripted);
 
+    // --- Deferred-return trigger (founder ruling 2026-07-31 companion). ---
+    // A deferred unit reads return-ready when its neighbourhood (units within
+    // `neighbourhoodWindow` introduction ordinals, read this boundary) shows
+    // the surrounding map thickening: at least one neighbour easing and none
+    // struggling. A deferred unit that reads easing ITSELF simply leaves the
+    // watch — the Fibonacci schedule (still the actual return mechanism)
+    // already brought it back and it recovered; no signal needed.
+    const returnReady: string[] = [];
+    if (this.deferredUnits.size > 0) {
+      const stateByUnit = new Map(input.difficulty.map((d) => [d.unitId, d.state]));
+      for (const deferredId of [...this.deferredUnits]) {
+        if (stateByUnit.get(deferredId) === 'easing') {
+          this.deferredUnits.delete(deferredId);
+          continue;
+        }
+        const deferredOrdinal = input.unitOrdinals[deferredId];
+        if (deferredOrdinal === undefined) continue; // no ordinal → no measurable neighbourhood
+        let neighbourEasing = false;
+        let neighbourStruggling = false;
+        for (const [unitId, state] of stateByUnit) {
+          if (unitId === deferredId) continue;
+          const ordinal = input.unitOrdinals[unitId];
+          if (ordinal === undefined) continue;
+          if (Math.abs(ordinal - deferredOrdinal) > this.config.neighbourhoodWindow) continue;
+          if (state === 'easing') neighbourEasing = true;
+          else if (state === 'struggling') neighbourStruggling = true;
+        }
+        if (neighbourEasing && !neighbourStruggling) {
+          returnReady.push(deferredId);
+          this.deferredUnits.delete(deferredId);
+        }
+      }
+    }
+
     // --- Breather cadence (§4.4: at most 1 per breatherMinRoundGap rounds). ---
     this.roundsSinceBreather += 1; // Infinity + 1 === Infinity, so the first boundary is always eligible.
     let insertBreather = false;
@@ -381,7 +477,7 @@ export class RatePolicyEngine {
       return clamp(base + nudge, pauseFloor, pauseCeiling);
     };
 
-    return { buildCount, consolidateCount, spacedRepCap, insertBreather, pauseMultiplier };
+    return { buildCount, consolidateCount, spacedRepCap, insertBreather, returnReady, pauseMultiplier };
   }
 }
 

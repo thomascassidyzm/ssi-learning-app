@@ -13,7 +13,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from './auth'
-import { isStrictDescendantGroup, schoolIdForAdmin } from './schoolScope'
+import { schoolIdForAdmin } from './schoolScope'
+import { isWithinLeaderSubtree } from './orgLeader'
 import { ensureSchoolNode } from './schoolNode'
 
 export interface GroupTreeCaller {
@@ -79,14 +80,20 @@ export async function resolveGroupTreeCaller(
   return null
 }
 
-/** Is `groupId` within the caller's visible scope (self or strict descendant)? Admin => always true. */
+/**
+ * Is `groupId` within the caller's visible scope (self or strict descendant)?
+ * Admin => always true.
+ *
+ * The leader half delegates to isWithinLeaderSubtree — the SAME predicate the
+ * write paths (groups create/rename, invite minting) enforce. Two copies of an
+ * authz rule is precisely where a read surface and a write surface drift apart,
+ * so there is deliberately only one.
+ */
 export async function callerCanSeeGroup(
   supabase: SupabaseClient,
   caller: GroupTreeCaller,
   groupId: string,
 ): Promise<boolean> {
   if (caller.isAdmin) return true
-  if (!caller.ownGroupId) return false
-  if (caller.ownGroupId === groupId) return true
-  return isStrictDescendantGroup(supabase, caller.ownGroupId, groupId)
+  return isWithinLeaderSubtree(supabase, caller.ownGroupId, groupId)
 }

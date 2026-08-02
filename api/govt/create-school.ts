@@ -38,6 +38,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { ensureSchoolNode } from '../_utils/schoolNode'
+import { SCHOOL_HERITAGE_TRIAL_DAYS } from '../_utils/trialPolicy'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -45,7 +46,8 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 // Mirrors provision.ts's free-track platform trial window — schools pay for
 // the platform even on free courses, so a leader-created school (no course
 // picked yet) gets the long, generous default rather than the short one.
-const PLATFORM_TRIAL_FREE_DAYS = 365
+// Length comes from trialPolicy.ts, the single trial-length policy point.
+const PLATFORM_TRIAL_FREE_DAYS = SCHOOL_HERITAGE_TRIAL_DAYS
 
 function isoIn(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()

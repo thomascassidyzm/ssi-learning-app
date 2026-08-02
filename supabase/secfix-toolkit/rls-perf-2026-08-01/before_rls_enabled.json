@@ -1,0 +1,527 @@
+[
+ {
+  "relname": "admin_impersonation_audit",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "algorithm_config",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "apml_documents",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "app_config",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "audio_flags",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "audio_pass_requests",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "board_snapshots",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "build_jobs",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "build_lessons",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "canonical_pod_scenarios",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "canonical_seed_translations",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "canonical_seeds",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "checkpoint_approvals",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "class_sessions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "classes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "content_audit_log",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "content_feedback",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "conversations",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_audio",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_audio_envelope",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_audio_usage",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_checkpoint_config",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_checkpoint_results",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_enrollments",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_export_states",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_gender_expansions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_lego_positions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_legos",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_practice_phrases",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_qa_flags",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_seed_drafts",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "course_seeds",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "courses",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "daily_contributions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "dashboard_invite_codes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "dashboard_login_codes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "dashboard_sessions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "dashboard_users",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "demo_orgs",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "documentation_content",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "documentation_sections",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "email_access_grants",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "entitlement_codes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "entitlement_grants",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "evolution_levels",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "family_members",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "gamification_config",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "govt_admins",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "groups",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "insight_discoveries",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "invite_codes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "language_briefs",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "language_pair_briefs",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_emails",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_l1_state",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_lego_metrics",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_lego_pairings",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_meta_commentary_state",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_milestones",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_pod_state",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_points",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_practice_history",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learner_speaking_opportunities",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "learners",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "lego_introductions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "lego_progress",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "listening_pod_sentences",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "listening_pods",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "offline_leases",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "onboarding_messages",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "orchestrator_messages",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "phase_prompts",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "player_events",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "pod_legos",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "possession_mint_attempts",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "practice_prompts",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "presentation_templates",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "processed_webhook_events",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "raw_seed_uploads",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "recording_provenance",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "regions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "release_notes",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "response_metrics",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "role_change_audit",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "sample_flags",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "schools",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "seed_progress",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "sessions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "shared_audio",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "spike_events",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "subscriptions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "target_audio",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "target_legos",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "target_phrases",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "target_seed_texts",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "teacher_commissions",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "teacher_referrals",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "teachers",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "tester_feedback",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "trial_burns",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "try_link_visits",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "try_links",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "user_entitlements",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "user_tags",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ },
+ {
+  "relname": "voices",
+  "relrowsecurity": true,
+  "relforcerowsecurity": false
+ }
+]

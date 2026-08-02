@@ -186,6 +186,20 @@ principle IdentityCaptureNotGhosts:
     NodeActionBar picker: Group leader / School leader / Teacher / Learner.
     Classes are never invited; a class's student link lives on ClassDetail.
 
+principle CreateClassOneTap:
+  statement: "A create-class CTA opens the Create New Class modal in place — never a navigation to a second screen"
+
+  why: |
+    Founder demo finding 2026-07-31: the teacher dashboard's "+ Create
+    class" and "Create your first class" buttons navigated to My Classes,
+    whose own "+ New class" button then opened the modal — a two-hop dead
+    end. DashboardView now mounts the same CreateClassModal/
+    ClassCreatedModal flow TeacherDashboard has and every create CTA opens
+    it directly. My Classes keeps its own button and the ?create=1 deep
+    link for users who navigate there. Pinned by
+    DashboardView.createClassDirect.test.ts (source pin: no create CTA may
+    regress to a router-link).
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 
@@ -211,6 +225,23 @@ principle SingleAuthOnboarding:
     same route — self-serve picks a course before its trial starts;
     invite-born admins trial with no course lock until they pick one
     (trial_course_code null reads as "no restriction" — TeacherDashboard.vue).
+
+  self_serve_org_flow: |
+    /orgs (Onboarding.vue track:'org', added 2026-08-02) -> name your
+    organisation -> ONE email+OTP -> POST /api/onboarding/provision
+    (track:'org') -> /org/:groupId. No course picker at all — an org is
+    class-less and its trial (api/_utils/trialPolicy.ts, ORG_TRIAL_DAYS)
+    covers every language, so there is nothing per-course to lock. Reuses
+    api/_utils/rootOrgProvision.ts's createRootOrgAndLeader — the same
+    root-org-creation contract POST /api/groups' self-serve lane uses — so a
+    root org and its govt_admins leader row are minted in exactly one
+    shared place. Sets learners.educational_role = 'govt_admin'
+    unconditionally (never downgrades, since govt_admin already outranks
+    every other role for hasSchoolRole purposes) — required for
+    memberSurfaceGuard to let the new leader reach their own /org/:id at
+    all. One org per leader: a caller who already leads a group is handed
+    back their existing org (existing:true) instead of being re-provisioned
+    or 409'd.
 
   first_run_naming: |
     An invite-born school's name is pre-filled from the inviting leader's

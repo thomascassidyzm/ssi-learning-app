@@ -30,7 +30,7 @@ const browser = await chromium.launch()
   const page = await ctx.newPage()
   await page.goto(REGION_LINK, { waitUntil: 'networkidle' }).catch(() => {})
   await page.waitForTimeout(5000)
-  check('region leader lands on node home', page.url().includes('/schools/org/'), page.url())
+  check('region leader lands on node home', page.url().includes('/org/'), page.url())
   const railNames = await page.locator('.rail-col .is-child .rail-name').allInnerTexts()
   check('rail children alphabetical', railNames.length >= 2 && isSorted(railNames), JSON.stringify(railNames))
   const belowNames = await page.locator('.children-body .row-name, .children-body .child-name, .children-body a, .children-body button').allInnerTexts()
@@ -53,7 +53,7 @@ const browser = await chromium.launch()
   const page = await ctx.newPage()
   await page.goto(SCHOOL_LEADER_LINK, { waitUntil: 'networkidle' }).catch(() => {})
   await page.waitForTimeout(5000)
-  check('school leader lands on node home', page.url().includes('/schools/org/'), page.url())
+  check('school leader lands on node home', page.url().includes('/org/'), page.url())
 
   // F1: ways-in ledger rows say the kind
   const homeText = await page.locator('body').innerText()
@@ -124,6 +124,23 @@ const browser = await chromium.launch()
   const childCount = await page.locator('.rail-col .is-child').count()
   check('F3: teacher rail shows own classes below', childCount >= 1, `children=${childCount}, inert=${inertCount}`)
   await page.screenshot({ path: `${OUT}8-teacher-rail.png`, fullPage: true })
+
+  // F4: "+ Create class" opens the Create New Class modal IN PLACE — no
+  // navigation to My Classes first (founder finding 4, 2026-07-31).
+  const urlBefore = page.url()
+  const createBtn = page.locator('button', { hasText: 'Create class' }).first()
+  if (await createBtn.count()) {
+    await createBtn.click()
+    await page.waitForTimeout(1200)
+    const modalText = await page.locator('body').innerText()
+    check('F4: create CTA opens the Create New Class modal directly', /Create New Class|Class name/i.test(modalText))
+    check('F4: no navigation happened (still on the dashboard)', page.url() === urlBefore, page.url())
+    await page.screenshot({ path: `${OUT}10-create-class-modal.png` })
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(500)
+  } else {
+    check('F4: a create-class BUTTON exists on the teacher dashboard (not a link)', false)
+  }
 
   // Students tab keeps the rail
   const studentsTab = page.locator('.tabs a', { hasText: 'Students' }).first()

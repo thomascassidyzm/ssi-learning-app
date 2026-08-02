@@ -36,7 +36,7 @@ const props = defineProps<{
   children: RailRef[]
   /** 'class' renders the current node as a leaf (no child nav rows). */
   kind?: 'node' | 'class'
-  /** Force member scope (flat /schools views sit outside /schools/org, so
+  /** Force member scope (flat /schools views sit outside /org, so
    * path detection alone would wrongly show the admin escape). OR-semantics:
    * true forces member; absent/false falls back to path detection — Vue
    * defaults absent boolean props to false, so ?? can't express this. */

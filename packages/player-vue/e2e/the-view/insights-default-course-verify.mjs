@@ -8,7 +8,7 @@
 //   2. API · option ordering + hasData flags; dataless explicit pick stays
 //      honest+named; window switch never re-defaults the course.
 //   3. UI · admin mount /admin/groups/:id/analytics — alive, screenshot.
-//   4. UI · leader mount /schools/org/:id/insights (fresh personal leader
+//   4. UI · leader mount /org/:id/insights (fresh personal leader
 //      link on Coastal) — alive, window chips don't reset the course.
 //
 //   BASE_URL=<deployment> node --env-file=../../.env --env-file=../../.env.local \
@@ -113,7 +113,7 @@ await adminCtx.addInitScript(([key, value]) => { window.localStorage.setItem(key
   await p.close()
 }
 
-// ── 4. UI · LEADER mount (/schools/org/:id/insights) via fresh personal link ──
+// ── 4. UI · LEADER mount (/org/:id/insights) via fresh personal link ──
 const mintResp = await fetch(`${BASE}/api/groups/${COASTAL}/invites`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },

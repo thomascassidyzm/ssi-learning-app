@@ -119,6 +119,13 @@ export interface PlanRoundInput {
   courseLegoCount: number
   /** True once the learner has exercised a manual dial (belt_skip/turbo_toggle) this session. */
   manualOverrideActive: boolean
+  /**
+   * Forward-reuse centrality percentile per LEGO id (0..1, 1 = biggest hub)
+   * from `computeCentralityFromScript` — the PRIMARY criticality signal
+   * (founder ruling 2026-07-31). Absent (map or entry) → the policy falls
+   * back to introduction-order criticality.
+   */
+  unitCentralityPercentile?: Record<string, number>
 }
 
 export interface PlanRoundResult {
@@ -357,6 +364,7 @@ export function useAdaptationEngine(
       courseLegoCount: input.courseLegoCount,
       difficulty,
       unitOrdinals,
+      unitCentralityPercentile: input.unitCentralityPercentile,
       manualOverrideActive: input.manualOverrideActive,
       basePauseMultiplier: getPauseMultiplier,
     })

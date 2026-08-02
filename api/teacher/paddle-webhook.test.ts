@@ -12,6 +12,7 @@
  *       student_via_teacher (sub + referral + tag + enrolment),
  *       school_platform (accept + price-tier reject),
  *       tutor_platform (platform set + D2 learner-premium bundle + link),
+ *       org_platform (accept + price-tier reject + missing group_id skip),
  *       unknown kind (skip).
  *   - plan-precedence guard: a lower-ranked incoming plan does NOT clobber a
  *     higher-ranked active row, but orthogonal side effects still run.
@@ -247,6 +248,27 @@ describe('POST /api/teacher/paddle-webhook', () => {
     expect(writes.course_enrollments.find((w) => w.op === 'upsert')!.payload).toMatchObject({ learner_id: 'learner-1', course_id: 'cym_for_eng' })
   })
 
+  it('student_via_teacher on a GROUP-attached class locks the org £5 tier (commissions never stack)', async () => {
+    // Founder ruling 2026-08-02: a tutor class inside an org's group tree prices
+    // as an org class — no per-student commission alongside org coverage.
+    responders.classes = () => ({ data: { school_id: null, group_id: 'grp-1', course_code: 'cym_for_eng' }, error: null })
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = (calls) => {
+      if (calls.some((c) => c[0] === 'upsert')) return { data: { id: 'sub-1' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.learner_emails = () => ({ data: [], error: null })
+    currentEvent = subEvent(
+      { kind: 'student_via_teacher', supabase_user_id: 'user-x', class_id: 'class-1' },
+      { items: [{ price: { id: STUDENT_SCHOOL_PRICE }, quantity: 1 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.teacher_referrals.find((w) => w.op === 'upsert')!.payload).toMatchObject({ locked_price_pence: 500 })
+  })
+
   // ── school_platform ──
   it('school_platform on a premium price sets school platform columns incl. seats = item quantity', async () => {
     responders.schools = () => ({ error: null })
@@ -271,6 +293,43 @@ describe('POST /api/teacher/paddle-webhook', () => {
     await handler(makeReq(), res)
     expect(res._status).toBe(200)
     expect(writes.schools).toBeUndefined()
+  })
+
+  // ── org_platform ──
+  it('org_platform on a premium price sets groups platform columns incl. seats = item quantity', async () => {
+    responders.groups = () => ({ error: null })
+    currentEvent = subEvent(
+      { kind: 'org_platform', group_id: 'org-1' },
+      { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const upd = writes.groups.find((w) => w.op === 'update')!
+    expect(upd.payload).toMatchObject({ platform_status: 'active', seats: 5, provider_subscription_id: 'psub_1', provider_customer_id: 'ctm_1', platform_expires_at: '2026-08-01T00:00:00Z' })
+  })
+
+  it('org_platform billed on a NON-premium price is REJECTED (no groups write)', async () => {
+    currentEvent = subEvent(
+      { kind: 'org_platform', group_id: 'org-1' },
+      { items: [{ price: { id: STUDENT_SCHOOL_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.groups).toBeUndefined()
+  })
+
+  it('org_platform missing group_id in customData is skipped (no groups write)', async () => {
+    currentEvent = subEvent(
+      { kind: 'org_platform' },
+      { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },
+    )
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.groups).toBeUndefined()
   })
 
   // ── tutor_platform ──
@@ -359,6 +418,44 @@ describe('POST /api/teacher/paddle-webhook', () => {
     expect(accrue!.params).toMatchObject({ p_teacher_id: 'teacher-1', p_pence: 500 })
   })
 
+  it('transaction.paid holds the £5 until 30 days AFTER the completed student-month', async () => {
+    responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
+    responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 1000 }, error: null })
+    responders.classes = () => ({ data: { teacher_user_id: 'tuid' }, error: null })
+    responders.learners = () => ({ data: { id: 'tlearner' }, error: null })
+    responders.teachers = () => ({ data: { id: 'teacher-1' }, error: null })
+    currentEvent = txnEvent() // billedAt 2026-07-17
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const accrue = rpcCalls.find((c) => c.name === 'accrue_teacher_commission_held')!
+    // paid 2026-07-17 → student-month completes 2026-08-17 → releases +30d = 2026-09-16
+    expect(accrue.params.p_hold_until).toBe('2026-09-16T00:00:00.000Z')
+  })
+
+  it('transaction.paid writes a per-student-month rebate ledger line under the accrual', async () => {
+    responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
+    responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 1000 }, error: null })
+    responders.classes = () => ({ data: { teacher_user_id: 'tuid' }, error: null })
+    responders.learners = () => ({ data: { id: 'tlearner' }, error: null })
+    responders.teachers = () => ({ data: { id: 'teacher-1' }, error: null })
+    currentEvent = txnEvent()
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const line = writes.tutor_rebate_ledger?.find((w) => w.op === 'upsert')
+    expect(line).toBeDefined()
+    expect(line!.payload).toMatchObject({
+      teacher_id: 'teacher-1',
+      class_id: 'class-1',
+      subscription_id: 'sub-1',
+      provider_ref: 'txn-1',
+      entry_type: 'accrual',
+      amount_pence: 500,
+    })
+  })
+
   it('transaction.paid on a SCHOOL referral (locked 500) accrues no commission', async () => {
     responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
     responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 500 }, error: null })
@@ -418,6 +515,14 @@ describe('POST /api/teacher/paddle-webhook', () => {
     const reverse = rpcCalls.find((c) => c.name === 'reverse_teacher_commission')
     expect(reverse).toBeDefined()
     expect(reverse!.params).toMatchObject({ p_teacher_id: 'teacher-1', p_pence: 500 })
+    const line = writes.tutor_rebate_ledger?.find((w) => w.op === 'upsert')
+    expect(line).toBeDefined()
+    expect(line!.payload).toMatchObject({
+      teacher_id: 'teacher-1',
+      provider_ref: 'adj-1',
+      entry_type: 'reversal',
+      amount_pence: -500,
+    })
   })
 
   it('adjustment chargeback_warning is a no-op (no revocation)', async () => {
