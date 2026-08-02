@@ -9,9 +9,10 @@
  * 2. The old /schools/org/:id URLs still work: minted invite links, bookmarks
  *    and shared deep links redirect to the new path, carrying query + hash
  *    (?lens=, ?student=, ?mission= all ride along).
- * 3. /orgs (PLURAL) is reserved for the future public explainer page — the
- *    org surface must never swallow it, and isMemberNodeSurface must not
- *    mistake it for the member mount.
+ * 3. /orgs (PLURAL) is the self-serve org SIGNUP door (founder instruction
+ *    2026-08-02, track: 'org' on the shared Onboarding.vue) — a distinct
+ *    route from the member node surface. The org surface must never swallow
+ *    it, and isMemberNodeSurface must not mistake it for the member mount.
  */
 import { describe, it, expect } from 'vitest'
 import router from './index'
@@ -59,7 +60,7 @@ describe('org surface — top-level /org', () => {
     expect(router.resolve('/org/upgrade').name).toBe('org-upgrade')
   })
 
-  it('/orgs PIN: the plural stays free for the public explainer page', () => {
+  it('/orgs PIN: the plural is the signup door, never the member node surface', () => {
     // Not the org node surface, and not swallowed by /org/:id.
     expect(router.resolve('/orgs').name).not.toBe('org-node-home')
     expect(isMemberNodeSurface('/orgs')).toBe(false)

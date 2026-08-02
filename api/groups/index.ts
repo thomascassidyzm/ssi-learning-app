@@ -24,6 +24,7 @@ import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { orgTrialStamp } from '../_utils/orgPlatform'
 import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 
 /**
  * ssi_admin/god first; fall back to a group-leader whose OWN governed group
@@ -147,6 +148,15 @@ export default async function handler(
         return
       }
 
+      // Self-serve root org creation — the same helper /api/onboarding/provision's
+      // 'org' track uses, so the org-creation contract (trial stamp + leader
+      // mint + rollback-on-failure) lives in exactly one place.
+      if (caller.becomesLeader) {
+        const group = await createRootOrgAndLeader(supabase, caller.userId, name)
+        res.status(201).json({ group })
+        return
+      }
+
       const row: Record<string, unknown> = {
         name: name.trim(),
         // Root-level orgs default to 'organisation'; a parent_id implies a
@@ -188,23 +198,6 @@ export default async function handler(
       }
 
       if (error) throw error
-
-      // Creator = default leader (founder ruling 2026-08-02). Minted only for
-      // the self-serve lane — an ssi_admin minting orgs for others assigns
-      // leadership via invite links, not by absorbing it themselves.
-      if (caller.becomesLeader && data?.id) {
-        const { error: leaderError } = await supabase.from('govt_admins').insert({
-          user_id: caller.userId,
-          group_id: data.id,
-          organization_name: data.name,
-          created_by: caller.userId,
-        })
-        if (leaderError) {
-          // Don't strand an orphaned root the caller can't see or manage.
-          await supabase.from('groups').delete().eq('id', data.id)
-          throw leaderError
-        }
-      }
 
       res.status(201).json({ group: data })
     } catch (error) {

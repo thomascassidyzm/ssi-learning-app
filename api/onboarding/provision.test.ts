@@ -147,4 +147,81 @@ describe('POST /api/onboarding/provision — operator-capture guard', () => {
     expect(res._json.role).toBe('teacher')
     expect(writes.teachers).toHaveLength(1)
   })
+
+  it('refuses the org track for an ssi_admin too', async () => {
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-op', display_name: 'Tom', educational_role: null, platform_role: 'ssi_admin' }, error: null }
+        : undefined
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Cardiff Council' } }), res)
+
+    expect(res._status).toBe(409)
+    expect(res._json.error).toMatch(/platform admin/)
+    expect(writes.groups).toBeUndefined()
+    expect(writes.govt_admins).toBeUndefined()
+  })
+})
+
+describe('POST /api/onboarding/provision — org track', () => {
+  let handler: typeof import('./provision').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-org', display_name: 'Aran', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    handler = (await import('./provision')).default
+  })
+
+  it('rejects a missing org_name', async () => {
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org' } }), res)
+    expect(res._status).toBe(400)
+  })
+
+  it('creates a root org + leader, sets educational_role, and redirects to /org/:id', async () => {
+    responders.govt_admins = () => ({ data: null, error: null }) // leaderGroupId: no existing leadership
+    responders.groups = (calls) => {
+      if (calls.some((c) => c[0] === 'insert')) {
+        return {
+          data: { id: 'group-new', name: 'Cardiff Council', platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z' },
+          error: null,
+        }
+      }
+      return undefined
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Cardiff Council' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.role).toBe('govt_admin')
+    expect(res._json.redirect).toBe('/org/group-new')
+    expect(res._json.existing).toBe(false)
+    expect(res._json.platform_trial).toMatchObject({ track: 'org', kind: 'trial', days: 30 })
+    expect(writes.groups[0].payload).toMatchObject({ name: 'Cardiff Council', type: 'organisation' })
+    expect(writes.govt_admins[0].payload).toMatchObject({ user_id: 'auth-op-1', group_id: 'group-new' })
+    expect(writes.learners.some((w) => w.op === 'update' && w.payload.educational_role === 'govt_admin')).toBe(true)
+  })
+
+  it('a caller who already leads a group is handed back their existing org, not re-provisioned', async () => {
+    responders.govt_admins = () => ({ data: { group_id: 'group-existing' }, error: null })
+    responders.groups = () => ({
+      data: { platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z', seats: null },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Cardiff Council' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.existing).toBe(true)
+    expect(res._json.redirect).toBe('/org/group-existing')
+    expect(writes.groups).toBeUndefined()
+  })
 })

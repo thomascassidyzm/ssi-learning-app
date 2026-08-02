@@ -1040,3 +1040,36 @@ machinery, and costs a live-DB migration inside the RLS-canary window. Revisit o
 real tutor-org case exists; the attach path is now safe by construction.
 **Search width:** visible-options
 **Decided by:** agent, delegated by founder ruling 2026-08-02
+
+## 2026-08-02 — /orgs signup door: extract createRootOrgAndLeader as the ONE root-org contract
+**Move:** Built the self-serve `/orgs` door (Onboarding.vue track:'org' → POST
+`/api/onboarding/provision` track:'org') alongside the existing `/schools1` `/schools2`
+`/tutors` doors. Rather than re-implementing "insert a root `groups` row, stamp the 30-day
+trial, mint the caller as `govt_admins` leader, roll back on failure" a second time inside
+provision.ts, extracted that exact logic (already live in POST `/api/groups`'s self-serve
+lane) into `api/_utils/rootOrgProvision.ts`'s `createRootOrgAndLeader`, and pointed BOTH
+callers at it. Also had to add one write neither existing caller made: provision.ts sets
+`learners.educational_role = 'govt_admin'` on the new leader (POST /api/groups never did,
+since its only tested caller is an ssi_admin who bypasses `memberSurfaceGuard` via
+`canAccessAdmin` anyway) — without it a self-serve leader would be bounced straight off
+their own freshly-created `/org/:id`.
+**Better:** a leader who signs up at the door lands on a live, ownable org dashboard in one
+verified session, no second admin step.
+**Simpler:** one root-org-creation contract instead of two near-identical copies that would
+drift the moment either changed (trial length, rollback behaviour, leader-mint shape).
+**Cheaper (total):** zero new tables/migrations; the extraction is a pure refactor (12
+existing `api/groups/index.test.ts` cases pinned the behaviour and still pass unchanged) plus
+~60 new lines in one shared file.
+**Searched & rejected:** duplicating the insert+stamp+mint block directly in provision.ts —
+rejected on the same "two independently-editable copies" ground as prior entries in this
+log; the two doors (self-serve /orgs, admin-gated POST /api/groups) already share every other
+trial/provisioning helper (`orgTrialStamp`, `orgPlatform.ts`), so a root org's creation
+belonged in that same shared layer.
+**Gap flagged, not fixed (out of this door's scope):** the leader is minted via `govt_admins`
+only, no `user_tags` GROUP: row — matches the existing (pre-this-change) POST /api/groups
+self-serve pattern and `provisionPersona.ts`'s 'leader' role, but means
+`resolveOrgCourseCoverage` (which reads only `user_tags`) does not itself grant the leader
+course-PLAY access to their own org; they can administer it immediately, but a further
+decision is needed on whether/how leaders also get learner-side coverage.
+**Search width:** visible-options
+**Decided by:** agent, under founder instruction 2026-08-02 ("BUILD: self-serve /orgs door")
