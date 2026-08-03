@@ -48,6 +48,7 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTre
 import { ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 import { provisionPersona } from '../../_utils/provisionPersona'
+import { sendInviteEmail, isMailable } from '../../_utils/sendInviteEmail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -147,8 +148,8 @@ export default async function handler(
   // ─── PATCH: the ledger verbs — revoke / reactivate / rotate ───
   if (req.method === 'PATCH') {
     const { code, action } = (req.body || {}) as { code?: string; action?: string }
-    if (!code || !['revoke', 'reactivate', 'rotate'].includes(action || '')) {
-      res.status(400).json({ error: "action must be one of 'revoke', 'reactivate', 'rotate'" })
+    if (!code || !['revoke', 'reactivate', 'rotate', 'resend'].includes(action || '')) {
+      res.status(400).json({ error: "action must be one of 'revoke', 'reactivate', 'rotate', 'resend'" })
       return
     }
     try {
@@ -181,6 +182,27 @@ export default async function handler(
           .eq('id', row.id)
         if (updError) throw updError
         res.status(200).json({ ok: true, code: row.code, is_active: action === 'reactivate' })
+        return
+      }
+
+      // resend — personal links only: same code, mail it again. The recovery
+      // verb for "I sent it to the wrong address / it never arrived"; invites
+      // are re-mintable ways in, so nothing heavier is warranted.
+      if (action === 'resend') {
+        const personalEmail = (row as any).metadata?.personal_email as string | undefined
+        if (!personalEmail) {
+          res.status(400).json({ error: 'No email address on this person — copy the link and send it yourself' })
+          return
+        }
+        const roleForPath = ROLE_BY_CODE_TYPE[row.code_type as string] || 'teacher'
+        const resendUrl = `${getAppOrigin(req)}/${redeemPathForRole(roleForPath)}/${row.code}`
+        const result = await sendInviteEmail(personalEmail, resendUrl)
+        if (!result.sent) {
+          console.error('[GroupInvites] resend failed:', result.error)
+          res.status(502).json({ error: `Could not send the email: ${result.error}`, url: resendUrl })
+          return
+        }
+        res.status(200).json({ ok: true, code: row.code, url: resendUrl, emailed: { sent: true, to: personalEmail } })
         return
       }
 
@@ -225,11 +247,22 @@ export default async function handler(
       if (mintError || !minted) throw mintError || new Error('rotate insert returned nothing')
       await supabase.from('invite_codes').update({ is_active: false }).eq('id', row.id)
       const role = ROLE_BY_CODE_TYPE[row.code_type as string] || 'teacher'
+      const rotatedUrl = `${getAppOrigin(req)}/${redeemPathForRole(role)}/${(minted as any).code}`
+      // A re-mint invalidates the address they were already sent, so mail the
+      // replacement automatically when we have somewhere to send it.
+      let rotatedEmail: { sent: boolean; to?: string; error?: string } | null = null
+      const rotatedTo = (row as any).metadata?.personal_email as string | undefined
+      if (isMailable(rotatedTo)) {
+        const result = await sendInviteEmail(rotatedTo, rotatedUrl)
+        if (!result.sent) console.error('[GroupInvites] rotate email failed:', result.error)
+        rotatedEmail = { sent: result.sent, to: rotatedTo as string, ...(result.error ? { error: result.error } : {}) }
+      }
       res.status(200).json({
         ok: true,
         code: (minted as any).code,
-        url: `${getAppOrigin(req)}/${redeemPathForRole(role)}/${(minted as any).code}`,
+        url: rotatedUrl,
         revoked: row.code,
+        ...(rotatedEmail ? { emailed: rotatedEmail } : {}),
       })
       return
     } catch (error) {
@@ -310,6 +343,9 @@ export default async function handler(
             role,
             species: row.metadata?.personal_auth_user_id ? 'personal' : 'shareable',
             personalName: row.metadata?.personal_name ?? null,
+            // Present only when this person has a real address on file — the
+            // ledger's "resend" affordance keys off it.
+            personalEmail: row.metadata?.personal_email ?? null,
             code: row.code,
             url: `${origin}/${redeemPathForRole(role)}/${row.code}`,
             where,
@@ -493,8 +529,17 @@ export default async function handler(
           : { grants_group_id: groupId }),
       // Personal binding — server-derived from the account we just
       // provisioned above, never client-supplied.
+      // `personal_email` is stored so the ledger can offer "resend" without an
+      // admin auth lookup per row — it is the address the leader themselves
+      // just typed, never a new disclosure.
       ...(personaUserId
-        ? { metadata: { personal_auth_user_id: personaUserId, personal_name: personaName } }
+        ? {
+            metadata: {
+              personal_auth_user_id: personaUserId,
+              personal_name: personaName,
+              ...(isMailable(personaEmail) ? { personal_email: personaEmail } : {}),
+            },
+          }
         : {}),
     }
     if (limits?.expires_at !== undefined) insertData.expires_at = limits.expires_at
@@ -513,11 +558,24 @@ export default async function handler(
     }
 
     const origin = getAppOrigin(req)
+    const url = `${origin}/${redeemPathForRole(role)}/${created.code}`
+
+    // Auto-send the personal invite when the leader gave a real address. A
+    // failure here NEVER fails the mint — the link is already good, and the
+    // client falls back to "copy and send it yourself".
+    let emailed: { sent: boolean; to?: string; error?: string } | null = null
+    if (personaUserId && isMailable(personaEmail)) {
+      const result = await sendInviteEmail(personaEmail, url)
+      if (!result.sent) console.error('[GroupInvites] invite email failed:', result.error)
+      emailed = { sent: result.sent, to: personaEmail as string, ...(result.error ? { error: result.error } : {}) }
+    }
+
     res.status(201).json({
       code: created.code,
       id: created.id,
-      url: `${origin}/${redeemPathForRole(role)}/${created.code}`,
+      url,
       ...(personaUserId ? { account: { auth_user_id: personaUserId, email: personaEmail, name: personaName } } : {}),
+      ...(emailed ? { emailed } : {}),
     })
   } catch (error) {
     console.error('[GroupInvites] Error:', error)

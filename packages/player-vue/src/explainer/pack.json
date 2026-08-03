@@ -314,7 +314,7 @@
           "value": 0
         }
       ],
-      "invitation": "{name} has nobody in it yet — its own link is how it fills up.",
+      "invitation": "{name} has nobody in it yet — click on the group to add individual members.",
       "cta": {
         "label": "Open {name}",
         "target": "child-home"

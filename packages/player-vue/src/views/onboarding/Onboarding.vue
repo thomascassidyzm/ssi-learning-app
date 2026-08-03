@@ -832,7 +832,7 @@ async function continueIn() {
         <Transition name="ob-line" mode="out-in">
           <p class="ob-evolve" :key="step + (selectedCourseLabel || '')">
             <template v-if="step === 'choose'">
-              {{ isOrgDoor ? "Name your organisation and we'll open the door — no card, no catch." : "Pick your language and we'll open the door — no card, no catch." }}
+              {{ isOrgDoor ? `Set your organisation up for free, then test drive it for ${ORG_TRIAL_DAYS} days — every language, as many learners as you like, no card.` : "Pick your language and we'll open the door — no card, no catch." }}
             </template>
             <template v-else-if="step === 'otp'">
               One code stands between you and

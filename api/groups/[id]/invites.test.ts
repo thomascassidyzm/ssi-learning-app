@@ -25,6 +25,19 @@ vi.mock('../../_utils/provisionPersona', () => ({
   }),
 }))
 
+// The invite email rides Supabase Auth's existing sender (see
+// _utils/sendInviteEmail.ts) — mocked here so the tests assert WHAT we ask it
+// to send, never that a mail leaves the machine.
+let sendInviteEmailResult: { sent: boolean; error?: string }
+let sendInviteEmailCalls: [string | null | undefined, string][] = []
+vi.mock('../../_utils/sendInviteEmail', () => ({
+  isMailable: (e?: string | null) => !!e && e.includes('@') && !e.endsWith('@invite.saysomethingin.app'),
+  sendInviteEmail: vi.fn(async (email: string, url: string) => {
+    sendInviteEmailCalls.push([email, url])
+    return sendInviteEmailResult
+  }),
+}))
+
 let govtAdminRow: any
 // Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
 // sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
@@ -160,6 +173,8 @@ beforeEach(async () => {
   classesRows = []
   updatedRows = []
   provisionPersonaArg = undefined
+  sendInviteEmailCalls = []
+  sendInviteEmailResult = { sent: true }
   provisionPersonaResult = { authUserId: 'persona-9', email: 'persona-9@invite.saysomethingin.app', learnerId: 'learner-9' }
   verifyAdminResult = { error: 'Not admin', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
@@ -259,6 +274,39 @@ describe('POST /api/groups/:id/invites', () => {
     expect(provisionPersonaArg).toMatchObject({ role: 'leader', name: 'IME Programme Leader', groupId: 'group-1', createdBy: 'admin-1' })
     expect(insertedRows[0].metadata).toEqual({ personal_auth_user_id: 'persona-9', personal_name: 'IME Programme Leader' })
     expect(res.body.account).toMatchObject({ auth_user_id: 'persona-9', name: 'IME Programme Leader' })
+  })
+
+  it('a personal mint with a real email SENDS the invite to it, and reports that it went', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    provisionPersonaResult = { authUserId: 'persona-9', email: 'aran@example.com', learnerId: 'learner-9' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'Aran', email: 'aran@example.com' } }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(sendInviteEmailCalls).toEqual([['aran@example.com', res.body.url]])
+    expect(res.body.emailed).toMatchObject({ sent: true, to: 'aran@example.com' })
+    // Stored so the ledger can offer "Email again" without an auth lookup.
+    expect(insertedRows[0].metadata.personal_email).toBe('aran@example.com')
+  })
+
+  it('a failed send never fails the mint — the link still comes back to share by hand', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    sendInviteEmailResult = { sent: false, error: 'smtp down' }
+    provisionPersonaResult = { authUserId: 'persona-9', email: 'aran@example.com', learnerId: 'learner-9' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'Aran', email: 'aran@example.com' } }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(res.body.url).toContain('/redeem/')
+    expect(res.body.emailed).toMatchObject({ sent: false, error: 'smtp down' })
+  })
+
+  it('a personal mint with NO email sends nothing — the placeholder address is never mailed', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'No Email' } }, 'group-1'), res)
+    expect(res.statusCode).toBe(201)
+    expect(sendInviteEmailCalls.length).toBe(0)
+    expect(res.body.emailed).toBeUndefined()
+    expect(insertedRows[0].metadata.personal_email).toBeUndefined()
   })
 
   it('personal mint requires a name', async () => {
@@ -385,6 +433,44 @@ describe('PATCH /api/groups/:id/invites — ledger verbs', () => {
       metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher' },
     })
     expect(updatedRows.some(([t, patch]) => t === 'invite_codes' && patch.is_active === false)).toBe(true)
+  })
+
+  it('rotate re-sends the replacement link to the person on file', async () => {
+    codeRows = [{ id: 'ic-3', code: 'PERS-1', code_type: 'teacher', grants_group_id: 'group-2', grants_school_id: null, grants_class_id: null, is_active: true, max_uses: null, expires_at: null, metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher', personal_email: 'aran@example.com' } }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'PERS-1', action: 'rotate' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(sendInviteEmailCalls[0][0]).toBe('aran@example.com')
+    expect(sendInviteEmailCalls[0][1]).toBe(res.body.url)
+    expect(res.body.emailed).toMatchObject({ sent: true, to: 'aran@example.com' })
+  })
+
+  it('resend mails the SAME link again without minting a new code', async () => {
+    codeRows = [{ id: 'ic-5', code: 'PERS-2', code_type: 'teacher', grants_group_id: 'group-2', grants_school_id: null, grants_class_id: null, is_active: true, max_uses: null, expires_at: null, metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher', personal_email: 'aran@example.com' } }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'PERS-2', action: 'resend' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows.length).toBe(0)
+    expect(updatedRows.length).toBe(0)
+    expect(sendInviteEmailCalls).toEqual([['aran@example.com', res.body.url]])
+    expect(res.body.url).toContain('/redeem/PERS-2')
+  })
+
+  it('resend refuses a person with no address on file', async () => {
+    codeRows = [{ id: 'ic-6', code: 'PERS-3', code_type: 'teacher', grants_group_id: 'group-2', grants_school_id: null, grants_class_id: null, is_active: true, max_uses: null, expires_at: null, metadata: { personal_auth_user_id: 'p9', personal_name: 'No Email' } }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'PERS-3', action: 'resend' }), res)
+    expect(res.statusCode).toBe(400)
+    expect(sendInviteEmailCalls.length).toBe(0)
+  })
+
+  it('a failed resend reports 502 and still hands back the link to share by hand', async () => {
+    sendInviteEmailResult = { sent: false, error: 'rate limited' }
+    codeRows = [{ id: 'ic-7', code: 'PERS-4', code_type: 'teacher', grants_group_id: 'group-2', grants_school_id: null, grants_class_id: null, is_active: true, max_uses: null, expires_at: null, metadata: { personal_auth_user_id: 'p9', personal_name: 'IME Teacher', personal_email: 'aran@example.com' } }]
+    const res = makeRes()
+    await handler(patchReq({ code: 'PERS-4', action: 'resend' }), res)
+    expect(res.statusCode).toBe(502)
+    expect(res.body.url).toContain('/redeem/PERS-4')
   })
 
   it('rotate refuses a shareable (non-personal) link', async () => {

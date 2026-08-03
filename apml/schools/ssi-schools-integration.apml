@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.8"
-  date: "2026-07-30"
+  version: "1.0.9"
+  date: "2026-08-03"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -123,6 +123,24 @@ principle PersonalLinksAreTheLogin:
     invite_codes row with metadata.personal_auth_user_id (server-derived,
     never client-supplied). Node verbs: "Invite a person" (this) vs "Get a
     shareable link" (species 2).
+
+  auto_send: |
+    Tester finding 2026-08-03 (Aran): entering an email at mint MUST send
+    the invite, not instruct the leader to post the link themselves. When
+    `personal.email` is a real address, POST mints then calls
+    api/_utils/sendInviteEmail — which reuses the ONLY sender this estate
+    has, Supabase Auth's own SMTP, via signInWithOtp({ shouldCreateUser:
+    false, emailRedirectTo: joinUrl }) — and reports `emailed {sent,to}`.
+    A send failure NEVER fails the mint: the link comes back and the UI
+    says to send it by hand (sharing by WhatsApp is often better anyway).
+    The address is stored on the code row as metadata.personal_email so the
+    ledger can offer recovery verbs without an auth lookup: PATCH action
+    'resend' (same link, mail it again) and 'rotate' (new link, auto-mailed
+    to the same address). Wrong-address recovery is deliberately light —
+    invites are re-mintable ways in.
+    KNOWN LIMIT: subject/body are Supabase's sign-in template (dashboard
+    config, outside this repo), so the mail reads "here's your way in", not
+    "X invited you to Y".
 
   redeem_flow: |
     validate.ts returns personal:true + redirectTo -> RedeemCode.vue calls
