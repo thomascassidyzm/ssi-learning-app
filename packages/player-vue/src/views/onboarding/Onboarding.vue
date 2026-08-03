@@ -56,19 +56,23 @@ const panelFacts = computed(() => {
 // The headline proof, per door. The Cardiff finding is a SCHOOLS stat — it
 // counts PUPILS — so it stays on the school/tutor doors and must not lead the
 // /orgs door, where a council, company or community group is signing up ADULT
-// learners (Tom, 08-03). The org door's proof is the adult-learner record on
-// www.saysomethingin.com instead. Copy is quoted from the live site, not
-// written here: the community figure and the closing line are the wording of
-// /wp/en/about-us/mission-methodology/ and /wp/en/about-us/ respectively.
+// learners (Tom, 08-03). The org door leads with the adult-learner record
+// instead, in the register the marketing site actually sells in.
+//
+// Copy discipline for this pane: every claim is the LIVE SITE'S OWN WORDING,
+// not written here. "over 100,000 learners since 2009" is www /tutors; "Our
+// oldest active learner is in her eighties" and the creed "It isn't easy. But
+// it works." are www /schools1. Re-verify before editing; never soften a
+// number or invent a new one.
 const panelProof = computed(() => {
   if (props.track === 'org') {
     return {
       label:
-        'SaySomethingin has built a community of Welsh speakers numbering in the tens of thousands since January 2009. Everything we do is designed to help people become confident in a new language as quickly as possible.',
-      eyebrow: 'Adult learners — since January 2009',
-      num: 'Tens of thousands',
-      headline: 'of confident speakers',
-      line: ['everything designed to help people become', 'confident in a new language as quickly as possible'],
+        'A method with over 100,000 learners since 2009. Our oldest active learner is in her eighties.',
+      eyebrow: 'Adults, speaking — since 2009',
+      num: '100,000+',
+      headline: 'learners since 2009',
+      line: ['and our oldest active learner', 'is in her eighties'],
     }
   }
   return {
@@ -80,6 +84,14 @@ const panelProof = computed(() => {
     line: ['of possible marks — from five minutes', 'of speaking practice a week'],
   }
 })
+
+// The creed. The www /schools1 page's own headline — the anti-hype promise the
+// whole method rests on, and the line that gives this pane its spine. Org door
+// only; the school/tutor doors already lead with the Cardiff evaluation.
+const panelCreed = computed(() =>
+  // https://www.saysomethingin.com/schools1
+  props.track === 'org' ? "It isn’t easy. But it works." : ''
+)
 
 // Real adult learners, in their own words. VERBATIM from the learner stories
 // published on www.saysomethingin.com — never paraphrased, never invented; the
@@ -93,6 +105,12 @@ const panelQuotes = computed(() => {
       quote:
         'The good news is that with the help of SSiW, I can, albeit at a fairly basic level, hold a conversation with them.',
       who: 'Nigel, learning to speak Welsh with his granddaughters',
+    },
+    {
+      // https://www.saysomethingin.com/wp/en/community/learner-stories/mike-kent/
+      quote:
+        'I can’t use other language apps, they just don’t stick, but my progress with SSiW feels rapid so far!',
+      who: 'Mike, moving his family to Pembrokeshire',
     },
     {
       // https://www.saysomethingin.com/wp/en/community/learner-stories/jeremy/
@@ -755,6 +773,9 @@ async function continueIn() {
             </span>
           </span>
         </div>
+
+        <!-- The creed — www /schools1's own headline, the pane's spine. -->
+        <p v-if="panelCreed" class="ob-creed">{{ panelCreed }}</p>
 
         <!-- Desktop-only: the doubts a teacher actually has at the door,
              retired in four lines. Mobile keeps its compact band untouched. -->
@@ -1424,6 +1445,22 @@ async function continueIn() {
   font-size: var(--text-sm, 0.875rem);
   line-height: var(--leading-snug, 1.375);
   color: var(--text-secondary, #4a4440);
+}
+
+/* --- Org door: the creed. One short declarative in display type — the pane's
+       spine, sitting between the number and the practicalities. --- */
+.ob-creed {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--font-bold, 700);
+  font-size: clamp(1.15rem, 1.9vw, 1.45rem);
+  line-height: var(--leading-snug, 1.25);
+  letter-spacing: -0.02em;
+  color: var(--text-primary, #2c2622);
+  max-width: 22ch;
+  animation: ob-rise 0.8s var(--ease-out-expo, ease) 0.16s both;
 }
 
 /* --- Org door: real adult learners, quietly set. Same warm register as the
@@ -2324,6 +2361,7 @@ async function continueIn() {
 @media (prefers-reduced-motion: reduce) {
   .ob-panel-card::before,
   .ob-proof,
+  .ob-creed,
   .ob-quotes,
   .ob-arrival-ripple { animation: none !important; }
   .ob-arrival-circle,
