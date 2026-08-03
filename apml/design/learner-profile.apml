@@ -1,0 +1,184 @@
+# SSi Learner Profile — motivation layer as built
+# AI Projects Markup Language (APML)
+
+metadata:
+  title: "Learner Profile / Mirror / Portrait"
+  version: "1.0.0"
+  date: "2026-08-03"
+  author: "SSi Team"
+  status: "preview — shipped to dev on the unlinked /me route"
+  source: "founder design session 2026-08-03"
+  supersedes: "apml/design/gamification-philosophy.apml (its MECHANICS; its principles stand)"
+
+# =============================================================================
+# WHAT CHANGED, AND WHY THE OLD SPEC IS ONLY HALF DEAD
+# =============================================================================
+
+ruling SupersedesGamificationMechanics:
+  date: "2026-08-03"
+  kept_from_the_old_spec:
+    - "Show the results of good behaviour, hide the mechanics"
+    - "Celebrate returns, never guilt absences"
+    - "Overjustification: external rewards destroy intrinsic motivation"
+    - "No streaks, no full leaderboards, no explicit achievements"
+  overturned_from_the_old_spec:
+    visible_points_per_cycle: "DELETED — no incentive points anywhere"
+    evolution_score: "DELETED — replaced by the portrait, which is an estimate, not a score"
+    top_5_leaderboard: "DELETED — comparison is not the instrument"
+    percentile: "DELETED"
+    contribution_counter: "not built; collective purpose is not this surface's job"
+  rationale: |
+    The old spec kept a points economy and only hid its formula. The 2026-08-03
+    ruling goes further: numbers exist ONLY as descriptive insights the learner
+    could count themselves — goes, minutes, milliseconds. A hidden formula still
+    survives, but it produces an ESTIMATE OF WHERE THEY ARE, never a reward.
+
+# =============================================================================
+# THE THREE LAYERS
+# =============================================================================
+
+layer CelebrateAdherence:
+  energy: "dog, not dentist"
+  rewarded_thing: "showing up and giving it a go — the only one"
+  vocabulary:
+    speaking_opportunity: "a GO — never 'opportunity', never 'attempt'"
+  surfaces:
+    - "goes this week (hero number)"
+    - "speaking minutes / listening minutes this week"
+  never:
+    - "any mention of absence, in any form"
+    - "streaks, days-since, missed days, lapses"
+  invariant: |
+    ABSENCE IS NOT REPRESENTABLE. The payload has no key that can carry a
+    streak, a gap or a days-since count. This is enforced by test, not by
+    discipline — api/me/profile.test.ts and views/me/ProfileView.test.ts.
+
+layer ReflectExecution:
+  name: "the mirror"
+  reports: "how quickly replies come — directly, honestly, UNREWARDED"
+  under_the_hood: "the envelope signals stay under the hood, never surfaced"
+  framing: "where you are x the direction you're moving"
+  first_30_hours_job: |
+    ACCELERATING EXTRAPOLATION — show the curve early, before the learner can
+    feel it, so belief outruns doubt. Hence the dashed projection, drawn at
+    HALF the observed slope: an over-promise that fails to land would cost the
+    exact trust this panel exists to build.
+  honesty_rule: "a flat line is stated plainly; no invented progress"
+
+layer EstimateLevel:
+  name: "the portrait"
+  formula: "difficulty x execution, where COURSE POSITION is the difficulty term"
+  why_position_dominates: |
+    Brilliant on the third thing you ever learned is not expert. Struggling on
+    the nine-hundredth is not weak. Execution may nudge the estimate by one
+    rung; it can never carry it. Pinned by test.
+  surfaced_as: "a notional CEFR band with an interval that visibly narrows"
+  never: "a test result; a pass/fail; a score"
+  confidence: "from sample volume, saturating — the interval collapses as it settles"
+
+# =============================================================================
+# THE PLAN
+# =============================================================================
+
+system ReasonablePlan:
+  unit: "30 HOURS — fixed"
+  free_variable: "cadence"
+  metaphors: "fast x hard / slow x easy / going up the mountain"
+  routes:
+    - "a real burn — 6 hours a day, 5 days"
+    - "an hour a day — 30 days"
+    - "weekends only — 3 hours a day, both days, five weekends"
+    - "half an hour a day — 60 days"
+    - "a gentle quarter hour — 15 minutes a day, 120 days"
+  honest_note: |
+    The gentlest-sounding route is the HARDEST to hold — most decision points,
+    least evidence per sitting. Said warmly, and never as a reason to shame
+    anyone who picks it.
+  learner_job_thereafter: "press play. That is the whole ask."
+  persistence: "localStorage key ssi-plan-cadence — no server write, no new table"
+
+# =============================================================================
+# MODE PHASING — the routines
+# =============================================================================
+
+system ModePhasing:
+  principle: "MAINTAIN focus, CHANGE routines. The focus is the language; the routine is the mode."
+  modes: ["speaking", "listening", "drills", "immersion"]
+  arc:
+    zero_to_thirty_hours: "mostly speaking, listening folded in"
+    thirty_to_hundred_hours: "increasingly bulk listening deep dives on harder material"
+  surfaced_as: "a nudge in the dog voice — bring the right ball. Never a score, never a correction."
+
+# =============================================================================
+# THE EXPLAINERS
+# =============================================================================
+
+system Explainers:
+  mechanic: "pulse-until-viewed, reused verbatim from the schools/orgs How-this-works"
+  independence: "the two sections carry independent seen-state"
+  how_this_works:
+    covers: "using the app — what pressing play does, what a go is, the modes, changing course"
+    pulse: "RED (the existing flavour)"
+  why_this_works:
+    covers: "the methodology — the 30-hour arc, mode phasing, why no streaks or points, the evidence since 2009"
+    pulse: "BLUE (app-update / Alexander blue)"
+  thirty_hour_promise:
+    lives: "inside Why-this-works, and NOWHERE else"
+    not: "a headline — we are not a claims-focused company"
+    claim:
+      - "you will be getting into conversations"
+      - "you will be moving towards more listening work"
+      - "you will be noticing how much surfaces easily that was genuinely impossible before"
+    instrument: "the mirror quietly shows these predictions coming true — prediction fulfilled is the anti-doubt instrument"
+
+# =============================================================================
+# LAWS
+# =============================================================================
+
+law LanguageWall:
+  rule: "Internal and non-self-evident technical terminology is NEVER learner-facing"
+  banned_on_learner_surfaces: ["LEGO", "Script", "VAD", "prosody", "adherence", "SEED", "latency"]
+  say_instead: ["a go", "the thing you just said", "how quickly it comes", "listening deep dives"]
+  enforcement: "asserted against the RENDERED text in ProfileView.test.ts"
+
+law PositionIsContent:
+  rule: |
+    Position is shown as the learner's OWN WORDS — the last thing they said, in
+    both languages. Never a number, never an internal unit id.
+
+law NumbersAreDescriptive:
+  rule: "Every visible number is one the learner could count themselves"
+  allowed: ["goes", "minutes", "hours", "milliseconds", "days they chose"]
+  forbidden: ["points", "score", "XP", "rank", "percentile", "multiplier"]
+  hidden_formula: "server-side only, in api/me/profile.ts — never shipped to the client"
+
+law HonestSourcing:
+  rule: "Each block carries its own source tag; sample data is labelled as sample data"
+
+# =============================================================================
+# IMPLEMENTATION
+# =============================================================================
+
+implementation:
+  route: "/me — UNLINKED from every nav, which IS the flag"
+  server: "api/me/profile.ts (+ profile.test.ts)"
+  client_reader: "composables/useLearnerProfile.ts"
+  view: "views/me/ProfileView.vue (+ ProfileView.test.ts)"
+  panels:
+    - "components/me/AdherencePanel.vue"
+    - "components/me/MirrorPanel.vue"
+    - "components/me/PortraitPanel.vue"
+    - "components/me/PlanPanel.vue"
+    - "components/me/HowThisWorksLearner.vue"
+    - "components/me/WhyThisWorks.vue"
+    - "components/me/CourseSwitchRow.vue"
+    - "components/me/SettingsDirection.vue"
+  content: "explainer/learnerExplainers.ts"
+  throb: "explainer/learnerThrob.ts — learner-side sibling of howThisWorksThrob.ts, which is untouched"
+
+acceptance_test:
+  fixture: "the anti-gallery — six real Duolingo shame emails"
+  rule: |
+    Nothing in this design could ever generate any of them. Every one of those
+    emails needs the system to know about an absence, so the system cannot know
+    about an absence. If it could know 'streak: 0', the data model is wrong.

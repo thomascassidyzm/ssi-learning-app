@@ -413,6 +413,19 @@ const routes: RouteRecordRaw[] = [
     props: { track: 'org' },
     meta: { title: 'Set up your organisation' },
   },
+  // PARTNER DOORS — one landing page per partner network, parameterised off
+  // views/marketing/partners.ts (a second partner = one copy entry + one route
+  // line, no new component). Deliberately UNLINKED from every nav and
+  // noindex'd by the component: shareable by URL, not discoverable. Sells the
+  // LIVE tutor model only and CTAs into /tutors — no affiliate offer appears
+  // on it (that lane is undecided, founder exploration 2026-08-03).
+  {
+    path: '/znotes',
+    name: 'partner-znotes',
+    component: () => import('@/views/marketing/PartnerDoor.vue'),
+    props: { partner: 'znotes' },
+    meta: { title: 'Teach English with SSi', hideAppEscape: true },
+  },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
   // login (the global admin guard only fires on /admin + /methodology). It is
@@ -426,6 +439,21 @@ const routes: RouteRecordRaw[] = [
       title: 'Your class',
       description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
       hideAppEscape: true, // carries the full TopNav, so no floating Back needed
+    },
+  },
+  // Learner profile / mirror — founder-commissioned design build 2026-08-03.
+  // PREVIEW: deliberately UNLINKED from every nav, which is the flag — nothing
+  // learner-visible changes until it is wired in, so this can be tasted on dev
+  // without touching a single shipped surface. Lives under App.vue's provides,
+  // so it injects the app's existing course plumbing rather than duplicating it.
+  {
+    path: '/me',
+    name: 'learner-profile',
+    component: () => import('@/views/me/ProfileView.vue'),
+    meta: {
+      title: 'You',
+      description: 'Learner profile, mirror and plan — preview surface',
+      hideAppEscape: true, // carries its own Back-to-learning link
     },
   },
   // Admin panel
