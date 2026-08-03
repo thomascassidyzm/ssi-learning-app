@@ -182,6 +182,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## ✅ Done (archive — groomer-managed, don't hand-edit)
 
+- 2026-08-03 — Aran's /orgs pass, shipped dev + staging: door closing line states the actual deal (free, 30 days, every language, any number of learners, no card); "Rate leads; position is just context." deleted from both insights subtitles; empty-child-group invitation points at the verb ("click on the group to add individual members"); **invites auto-send** — a personal invite with an email is mailed via Supabase Auth's existing sender, with "Email again" + auto-mailed re-mint in the ways-in ledger. Known limit: the mail body is Supabase's sign-in template, so it reads "here's your way in", not "X invited you to Y" — upgrading that is dashboard template config or the transactional-sender lane in `docs/onboarding/`.
 - 2026-06-13 — Tutor-insights v2 (attention vs coverage; class-as-learner) + class-first-class-citizen migration drafted.
 - 2026-06 — Listening mode v2 (stage modes, teleprompter, cache-horizon, glosses); Insight Engine Discovery feed at `/admin/insights`; secfix #1–16 (RLS hardening + identity bridge).
 
