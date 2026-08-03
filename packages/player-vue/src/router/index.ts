@@ -413,6 +413,19 @@ const routes: RouteRecordRaw[] = [
     props: { track: 'org' },
     meta: { title: 'Set up your organisation' },
   },
+  // PARTNER DOORS — one landing page per partner network, parameterised off
+  // views/marketing/partners.ts (a second partner = one copy entry + one route
+  // line, no new component). Deliberately UNLINKED from every nav and
+  // noindex'd by the component: shareable by URL, not discoverable. Sells the
+  // LIVE tutor model only and CTAs into /tutors — no affiliate offer appears
+  // on it (that lane is undecided, founder exploration 2026-08-03).
+  {
+    path: '/znotes',
+    name: 'partner-znotes',
+    component: () => import('@/views/marketing/PartnerDoor.vue'),
+    props: { partner: 'znotes' },
+    meta: { title: 'Teach English with SSi', hideAppEscape: true },
+  },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
   // login (the global admin guard only fires on /admin + /methodology). It is
