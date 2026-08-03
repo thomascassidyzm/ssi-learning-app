@@ -191,7 +191,7 @@ const requestedLearnerName = computed(() => {
         </div>
         <h1 class="tiv-title">{{ headerTitle }}</h1>
         <p class="tiv-sub">
-          How your class is doing, compared with the average. Rate leads; position is just context.
+          How your class is doing, compared with the average.
         </p>
         <p v-if="isLearnerDeepLink && requestedLearnerName" class="tiv-preview-note">
           Opened for <strong>{{ requestedLearnerName }}</strong> — per-learner rates aren't available

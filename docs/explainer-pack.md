@@ -138,5 +138,5 @@ it once, they tap it, give a name, and they're in your class on your course.
 - **school-no-teachers** (perChild, group): "{name} has no teachers yet — its teacher link gets them started." → child-home
 - **org-needs-first-person** (node, org): "Nobody here yet — want a 30-second tour of bringing the first person in?" → walk:invite-first-person
 - **org-not-started** (node, org): "{node.rollup.learnerCount} people belong below this group, but none of them has practised yet — the links ledger at the bottom shows who has actually been sent a way in." → insights
-- **group-nobody-in-it** (perChild, org): "{name} has nobody in it yet — its own link is how it fills up." → child-home
+- **group-nobody-in-it** (perChild, org): "{name} has nobody in it yet — click on the group to add individual members." → child-home
 - **students-quiet-week** (countWhere, class): "{count} of the students haven't practised on their own this week — the rows below show who." → students
