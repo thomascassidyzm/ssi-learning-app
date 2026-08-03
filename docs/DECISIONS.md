@@ -1142,3 +1142,42 @@ its 30-day trial with no extra wiring.
   course; the banded single list gets the same ordering benefit for free.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder ruling 2026-08-02
+
+## 2026-08-03 — courses RLS: discoverability is (visibility ∨ new_app_status), not visibility alone
+**Move:** Replaced seven stacked SELECT policies on `public.courses` — one of them
+`courses_select_public USING (true)` TO public, making the effective predicate exactly TRUE for
+anon and authenticated — with one policy: `visibility IN ('public','beta') OR new_app_status IN
+('live','beta') OR course_code = ANY(current_user_enrolled_course_codes()) OR is_ssi_admin() OR
+is_dashboard_user()`. Applied live 2026-08-03 on Tom's founder ruling; migration
+`supabase/migrations/20260803_courses_rls_tighten.sql`, rollback + before/after canary in
+`supabase/secfix-toolkit/courses-rls-2026-08-03/`.
+**Better:** 57 unreleased draft course rows stop being world-readable, and enrolled learners keep
+every course they are progressing through — the two things the ruling asked for, proven at the SQL
+layer with a real non-admin learner JWT.
+**Simpler:** seven permissive SELECT policies become one, which also clears the six
+multiple-permissive-policies lint pairs 20260801c §4 was going to clear. One predicate to read.
+**Cheaper (total):** both helpers are initplan-wrapped `(select fn())`, so EXPLAIN shows three
+InitPlans evaluated once per query, not per row — 1.7ms for a full-table scan of 143 rows. No new
+tables, no app-code change, no deploy.
+**Searched & rejected:**
+- **Gate on `visibility` alone** (the literal reading of the ruling) — rejected by live data:
+  46 courses sit at `visibility='hidden'` with `new_app_status IN ('live','beta')` and carry 717
+  enrollments / 464 learners / 452 practised in 30 days. The learner app has never read
+  `visibility`; every catalogue query filters `new_app_status` (BrowseScreen.vue:237,
+  CourseSelector.vue:373, App.vue:420). Gating on visibility alone would have deleted 46
+  actively-practised courses from the production browse screen — a product outage dressed as a
+  security fix. The stale-`visibility` cleanup on those 46 rows is a content pass, and after it
+  the second disjunct can be dropped; that is the frame-breaker, not a policy tweak.
+- **Learner-only tighten, leave anon on `USING (true)`** — theatre: the anon key ships in the
+  browser bundle, so anything anon can read, any authenticated user can read too.
+- **`is_ssi_admin()` as the only staff leg** — would have blinded 13 of 18 Popty dashboard users.
+  The dashboard browser runs on the ANON key with a real auth session, and its identity is
+  `dashboard_users(email)`, not `learners.platform_role`. Hence `is_dashboard_user()`.
+- **Scope the staff leg by `dashboard_users.courses`** — tighter, but that per-user scope is
+  enforced in dashboard app code today; moving enforcement into RLS is its own deliberate change.
+- **Correlated `EXISTS` for the enrolled leg** — reads naturally but re-evaluates per row and
+  re-enters RLS on `course_enrollments`/`learners` (whose own policies call the row-dependent
+  `can_view_learner_data`). A SECURITY DEFINER helper returning `text[]`, compared with
+  `= ANY((select fn())::text[])`, is one evaluation and no RLS re-entry.
+**Search width:** frame-breaking
+**Decided by:** agent, on an explicit founder ruling 2026-08-03
