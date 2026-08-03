@@ -196,3 +196,61 @@ describe('Onboarding.vue — org door (track: org)', () => {
     expect(wrapper.text()).toContain('Cardiff Council is ready')
   })
 })
+
+// The /orgs door signs up councils, companies and community groups whose
+// learners are ADULTS — the Cardiff finding counts PUPILS, so it belongs to the
+// school/tutor doors only (Tom, 2026-08-03). The org door leads with the
+// adult-learner record and two verbatim learner quotes from
+// www.saysomethingin.com instead.
+describe('Onboarding.vue — proof panel is dressing-aware', () => {
+  function mountTrack(track: 'org' | 'school' | 'tutor') {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => LIVE_COURSES }))
+    const supabase = ref({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      },
+    })
+    return mount(Onboarding, {
+      props: { track },
+      global: {
+        provide: { supabase, auth: { isAuthenticated: ref(false), user: ref(null) } },
+        stubs: {
+          AtmosphereBackdrop: true,
+          FrostCard: { template: '<div><slot /></div>' },
+          Button: { template: '<button><slot /></button>' },
+        },
+      },
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('org door: no pupils stat, adult proof plus real learner quotes', async () => {
+    const wrapper = mountTrack('org')
+    await flushAsync()
+
+    const text = wrapper.text()
+    expect(text).not.toContain('pupils')
+    expect(text).not.toContain('Cardiff University')
+    expect(text).toContain('Adult learners — since January 2009')
+    expect(text).toContain('Tens of thousands')
+    expect(wrapper.findAll('.ob-quote')).toHaveLength(2)
+    expect(text).toContain('hold a conversation with them')
+    expect(text).toContain('Jeremy, learning Welsh with his partner')
+  })
+
+  it('school door: keeps the Cardiff pupils stat and shows no quotes', async () => {
+    const wrapper = mountTrack('school')
+    await flushAsync()
+
+    const text = wrapper.text()
+    expect(text).toContain('Independently evaluated — Cardiff University')
+    expect(text).toContain('pupils in the top 10%')
+    expect(wrapper.findAll('.ob-quote')).toHaveLength(0)
+  })
+})
