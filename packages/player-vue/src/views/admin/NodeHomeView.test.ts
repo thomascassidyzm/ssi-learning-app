@@ -324,6 +324,49 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(roleSelect.text()).toContain('Learner')
   })
 
+  it('ORG SELF-TEACHING PARITY (founder gap 2026-08-03): the neutral dressing gets the same How-this-works kit as schools — throbbing link, org explanation, neutral walks, neutral invitations', async () => {
+    localStorage.clear()
+    routeMock.params = { id: 'council' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'council', name: 'Cardiff Council', label: 'organisation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }, commercial: null },
+      ancestors: [],
+      siblings: [],
+      children: [],
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The link is there and ARMED on a first visit (the schools mechanic).
+    const toggle = wrapper.find('.htw-toggle')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.classes()).toContain('is-armed')
+    expect(wrapper.find('.htw-dot').exists()).toBe(true)
+
+    // Opening it disarms and shows the ORG explanation — no school-speak.
+    await toggle.trigger('click')
+    const panel = wrapper.find('.htw-card')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('groups all the way down')
+    // School words appear only in the closing "if schools ever live below
+    // this" aside — never as this place's own vocabulary.
+    const beforeAside = panel.text().split('If schools ever live below this')[0]
+    expect(beforeAside).not.toMatch(/\bteachers?\b|\bclasses\b|\bpupils?\b/i)
+    // The walk offers are the neutral ones.
+    const offers = wrapper.findAll('[data-walk-offer]').map((b) => b.attributes('data-walk-offer'))
+    expect(offers).toContain('invite-first-person')
+    expect(offers).toContain('ways-in')
+    expect(offers).not.toContain('invite-first-teacher')
+    // And the empty org's own invitation is surfaced here, in neutral words.
+    expect(wrapper.find('[data-walk-cta="invite-first-person"]').exists()).toBe(true)
+    expect(wrapper.find('.htw-invitation-text').text()).toContain('Nobody here yet')
+
+    // Disarmed once seen — same persisted state as schools.
+    await wrapper.find('.htw-toggle').trigger('click')
+    expect(wrapper.find('.htw-toggle').classes()).not.toContain('is-armed')
+  })
+
   it('EDUCATION-DRESSING KEEPS WORKING: the same page over a school-flavoured subtree still speaks school — dressing is vocabulary, not a second ontology', async () => {
     setupFetch(nodePayload())
     const wrapper = mountView()

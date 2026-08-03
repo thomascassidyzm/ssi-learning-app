@@ -28,6 +28,8 @@ export function useNoticingInvitations(opts: {
   persona: Ref<'admin' | 'leader'>
   member: Ref<boolean>
   nodeId: Ref<string>
+  /** The dressing kind the surface renders in ('org' under neutral vocabulary). */
+  kind?: Ref<string>
 }) {
   const dismissed = ref(readDismissed())
 
@@ -47,7 +49,13 @@ export function useNoticingInvitations(opts: {
 
   const invitations = computed<Invitation[]>(() => {
     if (!opts.home.value) return []
-    const all = evaluateRules(pack.rules as NoticingRule[], opts.home.value, opts.persona.value, opts.member.value)
+    const all = evaluateRules(
+      pack.rules as NoticingRule[],
+      opts.home.value,
+      opts.persona.value,
+      opts.member.value,
+      opts.kind?.value,
+    )
     const cutoff = Date.now() - DISMISS_DAYS * 86400000
     return all
       .filter((inv) => !(dismissed.value[`${opts.nodeId.value}:${inv.key}`] > cutoff))

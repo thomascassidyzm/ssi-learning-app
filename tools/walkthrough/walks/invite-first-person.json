@@ -1,0 +1,29 @@
+{
+  "id": "invite-first-person",
+  "title": "Bring your first person in",
+  "personas": ["admin", "leader"],
+  "place": { "route": "node-home", "kinds": ["org"] },
+  "steps": [
+    {
+      "anchor": "verb-invite-person",
+      "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form.",
+      "advance": { "on": "click" }
+    },
+    {
+      "anchor": "invite-form-role",
+      "say": "Pick **Group leader** for someone who will run a group of their own, or **Learner** for someone who is here to learn. The link carries the role with it, so they arrive already belonging to this group.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "invite-form-submit",
+      "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. No sign-up, no password. Send it any way you like.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "ways-in-ledger",
+      "say": "Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.",
+      "advance": { "on": "next" },
+      "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
+    }
+  ]
+}
