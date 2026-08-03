@@ -1,12 +1,21 @@
 # SSi Gamification Philosophy
 # AI Projects Markup Language (APML) — intent capture, largely superseded by direct code generation
 
+# ⚠️ PARTLY SUPERSEDED, 2026-08-03 — read apml/design/learner-profile.apml first.
+# Its PRINCIPLES stand and are still the law: show results, hide mechanics,
+# celebrate returns, never guilt absences, no streaks. Its MECHANICS do not:
+# the founder ruling of 2026-08-03 deletes visible points per cycle, the
+# Evolution Score, the Top-5 leaderboard and the percentile outright. Numbers
+# now exist only as descriptive insights a learner could count themselves.
+# Do not implement the PointsPerCycle, EvolutionScore or Leaderboard systems
+# below — they are retained as the historical record of a superseded design.
+
 metadata:
   title: "Gamification Done Right"
   version: "1.0.0"
   date: "2026-01-13"
   author: "SSi Team"
-  status: "core-philosophy"
+  status: "principles current; mechanics superseded 2026-08-03 by apml/design/learner-profile.apml"
   source: "packages/player-vue/public/design/gamification-done-right.html"
 
 # =============================================================================
