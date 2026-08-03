@@ -12,8 +12,10 @@
 --   LEARNER  2985746c-c6e6-4518-a3ba-e7f77557adb4  non-admin, enrolled in
 --            fra_ca_for_eng (visibility=hidden, new_app_status=draft) — the
 --            enrolled-but-not-discoverable case.
---   HIDDEN   nld_for_eng-style drafts: any course with visibility='hidden'
---            AND new_app_status NOT IN ('live','beta') AND no enrollment for LEARNER.
+--   HIDDEN   the 57 rows with visibility NOT IN ('public','beta') AND
+--            new_app_status NOT IN ('live','beta') — 55 hidden/draft/not_available,
+--            fra_ca_for_eng (hidden/draft/draft), 1 private/draft/not_available.
+--   STAFF    catrinlliar@gmail.com — a dashboard_users row that is NOT an ssi_admin.
 
 \echo '=== 1. postgres/superuser view: the full table (RLS bypassed) ==='
 SELECT count(*) AS all_courses,
