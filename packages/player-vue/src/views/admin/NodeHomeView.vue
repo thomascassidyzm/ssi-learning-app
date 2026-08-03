@@ -366,11 +366,15 @@ const explainerKind = computed(() => (neutral.value ? 'org' : nodeKindOf(home.va
 // invitation cards and the How-this-works panel + throb (founder ruling
 // 2026-07-29: How-this-works is the single surfacing point).
 const explainerNodeId = computed(() => String(home.value?.node?.id ?? ''))
+// The dressing kind goes in too: a neutral org is structurally a group, but
+// its invitations must speak the neutral vocabulary — 'org' rules only, never
+// the class/teacher-worded ones (founder ruling 2026-08-02).
 const { invitations, dismiss: dismissInvitation } = useNoticingInvitations({
   home,
   persona: explainerPersona,
   member,
   nodeId: explainerNodeId,
+  kind: explainerKind,
 })
 
 // Viewer identity for the throb's per-user seen state — the auth uid once the

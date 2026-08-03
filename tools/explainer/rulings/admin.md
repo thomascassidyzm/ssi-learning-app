@@ -1,6 +1,21 @@
 <!-- Persona: admin (ssi_admin, the /admin mount). Hand-maintained RULING —
      mechanism only, never restated state. Sections map to node kinds. -->
 
+## org
+
+An organisation is groups all the way down: groups inside groups, each with its own leader, with
+learners wherever they belong. Nothing here assumes a school — the numbers are always **everyone
+below this**, counted once.
+
+**Invite a person** makes a personal link that IS their login — email it and they're in, no
+sign-up, no password. **Get a shareable link** makes an open link for a role — a group leader or
+a learner. **Add a group** grows the tree; **Rename** and **Delete** reshape it — delete always
+shows you exactly what would go before it goes. **See insights** compares this group's pace with
+the levels above it.
+
+If schools ever live below this, the pages inside that part of the tree speak the school
+language — teachers, classes — same bones, different dressing.
+
 ## group
 
 Every page here is the same page. A **group** can hold groups, schools, teachers, classes and

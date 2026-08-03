@@ -50,6 +50,43 @@
       "cta": { "label": "Open {name}", "target": "child-home" }
     },
     {
+      "id": "org-needs-first-person",
+      "shape": "node",
+      "kinds": ["org"],
+      "personas": ["admin", "leader"],
+      "when": [
+        { "path": "node.rollup.learnerCount", "op": "eq", "value": 0 },
+        { "path": "node.rollup.childGroupCount", "op": "eq", "value": 0 }
+      ],
+      "invitation": "Nobody here yet — want a 30-second tour of bringing the first person in?",
+      "cta": { "label": "Show me", "target": "walk:invite-first-person" }
+    },
+    {
+      "id": "org-not-started",
+      "shape": "node",
+      "kinds": ["org"],
+      "personas": ["admin", "leader"],
+      "when": [
+        { "path": "node.rollup.learnerCount", "op": "gt", "value": 0 },
+        { "path": "practiceHours", "op": "eq", "value": 0 }
+      ],
+      "invitation": "{node.rollup.learnerCount} people belong below this group, but none of them has practised yet — the links ledger at the bottom shows who has actually been sent a way in.",
+      "cta": { "label": "See where it stands", "target": "insights" }
+    },
+    {
+      "id": "group-nobody-in-it",
+      "shape": "perChild",
+      "arrayPath": "children",
+      "kinds": ["org"],
+      "personas": ["admin", "leader"],
+      "itemWhen": [
+        { "path": "rollup.learnerCount", "op": "eq", "value": 0 },
+        { "path": "rollup.childGroupCount", "op": "eq", "value": 0 }
+      ],
+      "invitation": "{name} has nobody in it yet — its own link is how it fills up.",
+      "cta": { "label": "Open {name}", "target": "child-home" }
+    },
+    {
       "id": "students-quiet-week",
       "shape": "countWhere",
       "arrayPath": "students",

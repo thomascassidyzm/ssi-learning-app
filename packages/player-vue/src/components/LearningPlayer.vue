@@ -9711,8 +9711,12 @@ const handleAdaptationConsent = async (granted) => {
   }
 }
 
-// Initialize VAD (must be called from user gesture)
-const initializeVad = async () => {
+// Initialize VAD. The Settings-toggle path runs inside a user gesture and
+// treats a mic denial as the learner declining (consent revoked). Boot-time
+// re-arming for an already-consented learner passes revokeConsentOnDenial:
+// false — a transient failure there must not silently flip the learner's
+// stored consent off.
+const initializeVad = async ({ revokeConsentOnDenial = true } = {}) => {
   if (vadInitialized.value || vadInitializing.value) return true
 
   vadInitializing.value = true
@@ -9731,8 +9735,8 @@ const initializeVad = async () => {
       console.log('[LearningPlayer] VAD + SpeechTimingAnalyzer initialized')
     } else {
       console.warn('[LearningPlayer] VAD initialization failed (mic permission denied?)')
-      // If mic denied, treat as declined consent
-      saveAdaptationConsent(false)
+      // If mic denied on an explicit toggle, treat as declined consent
+      if (revokeConsentOnDenial) saveAdaptationConsent(false)
     }
 
     return success
@@ -11715,6 +11719,18 @@ onMounted(async () => {
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
 
+  // Re-arm the VAD for previously-consented learners on EVERY boot path.
+  // This used to live only inside the legacy cached-script load branch, which
+  // the instant-playback path (early return) never reaches — so consented
+  // learners booted with the VAD dead: no timing windows, no cycle_prosody
+  // events, no recordCycle latency feed, zero learner_lego_metrics rows ever
+  // (2026-08-02 live repro: getUserMedia never called across a full session).
+  // Boot init never revokes consent on failure — a transient mic failure at
+  // boot is not the learner declining (only the Settings toggle path is).
+  if (adaptationConsent.value === true) {
+    void initializeVad({ revokeConsentOnDenial: false }).catch(() => {})
+  }
+
   // Fetch contribution data — display-only, so it waits for READY instead of
   // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
@@ -13217,10 +13233,10 @@ onMounted(async () => {
           })()
         )
 
-        // Task: Initialize VAD if previously consented
-        if (adaptationConsent.value === true) {
-          parallelTasks.push(initializeVad().catch(() => {}))
-        }
+        // (VAD re-arm for previously-consented learners is handled
+        // unconditionally at mount, right after loadAdaptationConsent() —
+        // it used to live only here, which the instant-playback path never
+        // reaches.)
 
         // (Ceiling fetch is handled by the unconditional watch on
         // courseCode + learnerId near where the refs are declared — it

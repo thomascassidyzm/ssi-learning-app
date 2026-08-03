@@ -1,6 +1,16 @@
 # Walkthrough pack — compiled render
 
-**Version `a785aa0b7033` · generated 2026-07-28 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `567cfb0bd93e` · generated 2026-08-03 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## invite-first-person — Bring your first person in
+
+Personas: admin, leader · place: node-home (org)
+
+1. [`verb-invite-person` · click] People join through here — tap **Invite a person**. Nothing is created until you submit the form.
+2. [`invite-form-role` · next] Pick **Group leader** for someone who will run a group of their own, or **Learner** for someone who is here to learn. The link carries the role with it, so they arrive already belonging to this group.
+3. [`invite-form-submit` · next] With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. No sign-up, no password. Send it any way you like.
+4. [`ways-in-ledger` · next] Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.
+   - terminal: That's the whole flow — the link is their login. This tour minted nothing; only your own taps do.
 
 ## invite-first-teacher — Bring your first teacher in
 
@@ -43,7 +53,7 @@ Personas: teacher · place: class-detail
 
 ## ways-in — Ways in — who can get in, and how to change it
 
-Personas: admin, leader, school_admin · place: node-home (group/school)
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
 
 1. [`ways-in-ledger` · next] Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.
 2. [`ways-in-copy` · next] **Copy** re-shares the same live link — always safe, nothing changes.

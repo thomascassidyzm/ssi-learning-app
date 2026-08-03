@@ -18,7 +18,8 @@ import {
 } from '@/lib/onboardingTracks'
 import '@/styles/schools-tokens.css'
 
-// track is set per route (/schools1 /schools2 /tutors) via router props.
+// track is set per route (/schools1 /tutors /orgs) via router props.
+// (/schools2 retired 2026-08-02 — it is now a pure redirect to /schools1.)
 const props = defineProps<{ track: OnboardingTrack }>()
 const supabase = inject('supabase', ref(null)) as any
 const auth = inject<any>('auth', null)
@@ -120,13 +121,14 @@ const panelQuotes = computed(() => {
   ]
 })
 
-// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
-// list is the whole 365-day-school-trial set (every free/community course +
-// Welsh — the same rule provision.ts prices the trial by, via
-// isYearTrialCourse), with Welsh + Irish pinned first, and it must NOT default
-// to English. The other school door (/schools2) and the tutor door keep the
-// English-first default. Keyed off the route NAME because both school doors
-// share track: 'school'.
+// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door and,
+// since /schools2 retired into a redirect (2026-08-02), the ONLY school door.
+// Its course-level dropdown lists the whole catalogue with Welsh + Irish pinned
+// first and the rest of the 365-day-school-trial set (isYearTrialCourse — the
+// same rule provision.ts prices the trial by) next, and it must NOT default to
+// English. The tutor door keeps the English-first default. Keyed off the route
+// NAME, not the track, because the tutor/org doors differ by track anyway and a
+// future school door would share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
 // The org door (/orgs) is class-less and covers ALL languages (trialPolicy.ts) —
@@ -254,10 +256,20 @@ function targetName(code: string): string {
 // `courseCode` it commits directly.
 //
 // HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level,
-// and lists the ENTIRE year-free offer (isYearTrialCourse), not a hand-kept
-// pair — a new community course joins the door with zero code changes. Welsh
-// (North), Welsh (South), Irish stay pinned first (the door's identity; Tom's
-// call: a collapsed "Welsh" hides the dialect choice), the rest run A–Z.
+// and lists the ENTIRE school catalogue — a new course joins the door with zero
+// code changes. Welsh (North), Welsh (South), Irish stay pinned first (the
+// door's identity; Tom's call: a collapsed "Welsh" hides the dialect choice),
+// then the rest of the year-free offer (isYearTrialCourse), then every
+// remaining course; A–Z within each band.
+//
+// The pool WAS just the year-free offer. It widened to the whole catalogue when
+// /schools2 retired into a redirect to /schools1 (founder ruling 2026-08-02) —
+// /schools2 was the English-first door showing the full catalogue, so narrowing
+// everyone onto the old heritage pool would have made every commercial course
+// unreachable at signup. The offer copy is already per-COURSE (trialDaysFor →
+// 365 or 30), so a premium course picked here truthfully shows its 30-day
+// trial; the "Free for a year" badge (below) marks the ones that qualify,
+// carrying over /schools2's badge signal to the merged list.
 // Picking an entry commits that course directly. A target taught FROM more
 // than one learner language shows the FULL course name in the learners' own
 // language — the canonical "X for Y speakers, in Y" paradigm ("Catalan for
@@ -268,16 +280,20 @@ function targetName(code: string): string {
 // with the learner-language course list below resolving the specific course.
 const targetOptions = computed(() => {
   if (isHeritageDoor.value) {
-    const pool = trackCourses.value.filter(isYearTrialCourse)
+    const pool = trackCourses.value
     const knownsByTarget = new Map<string, Set<string>>()
     for (const c of pool) {
       const s = knownsByTarget.get(c.target_lang) || new Set<string>()
       s.add(c.known_lang)
       knownsByTarget.set(c.target_lang, s)
     }
-    const pinRank = (lang: string) => {
-      const i = HERITAGE_LANGS.indexOf(lang)
-      return i === -1 ? HERITAGE_LANGS.length : i
+    // Three bands: pinned heritage languages → the rest of the year-free
+    // offer → everything else. Keeps the door's identity at the top while the
+    // full catalogue stays reachable underneath.
+    const bandRank = (c: LiveCourse) => {
+      const i = HERITAGE_LANGS.indexOf(c.target_lang)
+      if (i !== -1) return i
+      return isYearTrialCourse(c) ? HERITAGE_LANGS.length : HERITAGE_LANGS.length + 1
     }
     return pool
       .map((c) => ({
@@ -288,19 +304,32 @@ const targetOptions = computed(() => {
             : targetLabel(c),
         courseCode: c.course_code,
         lang: c.target_lang,
+        band: bandRank(c),
+        yearFree: isYearTrialCourse(c),
       }))
-      .sort((a, b) => pinRank(a.lang) - pinRank(b.lang) || a.name.localeCompare(b.name))
+      .sort((a, b) => a.band - b.band || a.name.localeCompare(b.name))
   }
   const rank = (code: string) => (code === 'eng' ? -1 : 1)
   return [...availableTargetLangs.value]
-    .map((code) => ({ value: code, name: targetName(code), courseCode: null as string | null, lang: code }))
+    .map((code) => ({
+      value: code,
+      name: targetName(code),
+      courseCode: null as string | null,
+      lang: code,
+      band: 0,
+      // Language-level doors badge from yearTrialTargets (every deployed course
+      // under that language qualifies), not per-option.
+      yearFree: false,
+    }))
     .sort((a, b) => rank(a.value) - rank(b.value) || a.name.localeCompare(b.name))
 })
 
 // Targets whose EVERY deployed course is on the year-free school offer — the
-// "Free for a year" badge in the /schools2 dropdown. Badge only what's
-// unambiguously true, and never on the tutor door (tutor trial = 30 days
-// always) or the heritage door (there the offer IS the door's premise).
+// LANGUAGE-level "Free for a year" badge. Badge only what's unambiguously true,
+// and never on the tutor door (tutor trial = 30 days always) or the heritage
+// door, which badges per-COURSE off option.yearFree instead (its dropdown is
+// course-level and now spans the whole catalogue, so the badge has to
+// discriminate within it rather than sit on the whole door).
 const yearTrialTargets = computed(() => {
   const set = new Set<string>()
   if (props.track !== 'school' || isHeritageDoor.value) return set
@@ -874,7 +903,7 @@ async function continueIn() {
                       {{ o.name }}
                       <!-- The attractive signal: languages on the year-long
                            school offer, visible at the choice point. -->
-                      <span v-if="yearTrialTargets.has(o.value)" class="ob-tier">Free for a year</span>
+                      <span v-if="o.yearFree || yearTrialTargets.has(o.value)" class="ob-tier">Free for a year</span>
                     </span>
                     <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />
