@@ -52,6 +52,56 @@ const panelFacts = computed(() => {
   ]
 })
 
+// The headline proof, per door. The Cardiff finding is a SCHOOLS stat — it
+// counts PUPILS — so it stays on the school/tutor doors and must not lead the
+// /orgs door, where a council, company or community group is signing up ADULT
+// learners (Tom, 08-03). The org door's proof is the adult-learner record on
+// www.saysomethingin.com instead. Copy is quoted from the live site, not
+// written here: the community figure and the closing line are the wording of
+// /wp/en/about-us/mission-methodology/ and /wp/en/about-us/ respectively.
+const panelProof = computed(() => {
+  if (props.track === 'org') {
+    return {
+      label:
+        'SaySomethingin has built a community of Welsh speakers numbering in the tens of thousands since January 2009. Everything we do is designed to help people become confident in a new language as quickly as possible.',
+      eyebrow: 'Adult learners — since January 2009',
+      num: 'Tens of thousands',
+      headline: 'of confident speakers',
+      line: ['everything designed to help people become', 'confident in a new language as quickly as possible'],
+    }
+  }
+  return {
+    label:
+      'Independent Cardiff University study, 2024: one in two pupils scored in the top ten percent of possible marks, from five minutes of speaking practice a week',
+    eyebrow: 'Independently evaluated — Cardiff University',
+    num: '1 in 2',
+    headline: 'pupils in the top 10%',
+    line: ['of possible marks — from five minutes', 'of speaking practice a week'],
+  }
+})
+
+// Real adult learners, in their own words. VERBATIM from the learner stories
+// published on www.saysomethingin.com — never paraphrased, never invented; the
+// source URL sits beside each so the next editor can re-verify it. Org door
+// only: the school/tutor doors lead with the Cardiff stat and don't need them.
+const panelQuotes = computed(() => {
+  if (props.track !== 'org') return []
+  return [
+    {
+      // https://www.saysomethingin.com/wp/en/community/learner-stories/nigel/
+      quote:
+        'The good news is that with the help of SSiW, I can, albeit at a fairly basic level, hold a conversation with them.',
+      who: 'Nigel, learning to speak Welsh with his granddaughters',
+    },
+    {
+      // https://www.saysomethingin.com/wp/en/community/learner-stories/jeremy/
+      quote:
+        'We’re both working full time, so we’ve developed an easy way to do it consistently and incrementally.',
+      who: 'Jeremy, learning Welsh with his partner',
+    },
+  ]
+})
+
 // schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
 // list is the whole 365-day-school-trial set (every free/community course +
 // Welsh — the same rule provision.ts prices the trial by, via
@@ -658,20 +708,21 @@ async function continueIn() {
           <span class="ob-brand-sub">{{ cfg.heading }}</span>
         </header>
 
-        <!-- The proof: the Cardiff University finding, as a designed editorial
-             moment. Replaces the old free-floating "17 years" (which carried
-             no claim); this number means something at the point of signup. -->
-        <div
-          class="ob-proof"
-          role="img"
-          aria-label="Independent Cardiff University study, 2024: one in two pupils scored in the top ten percent of possible marks, from five minutes of speaking practice a week"
-        >
-          <span class="ob-proof-eyebrow" aria-hidden="true">Independently evaluated — Cardiff University</span>
+        <!-- The proof, as a designed editorial moment. School/tutor doors show
+             the Cardiff University finding; the org door shows the adult-learner
+             record instead (pupils is the wrong noun for a council or company
+             signing up adults). Both come from panelProof. -->
+        <div class="ob-proof" role="img" :aria-label="panelProof.label">
+          <span class="ob-proof-eyebrow" aria-hidden="true">{{ panelProof.eyebrow }}</span>
           <span class="ob-proof-stat" aria-hidden="true">
-            <span class="ob-proof-num">1 in 2</span>
+            <span class="ob-proof-num">{{ panelProof.num }}</span>
             <span class="ob-proof-words">
-              <span class="ob-proof-years">pupils in the top 10%</span>
-              <span class="ob-proof-line">of possible marks — from five minutes<br />of speaking practice a week</span>
+              <span class="ob-proof-years">{{ panelProof.headline }}</span>
+              <span class="ob-proof-line">
+                <template v-for="(l, i) in panelProof.line" :key="l">
+                  <br v-if="i" />{{ l }}
+                </template>
+              </span>
             </span>
           </span>
         </div>
@@ -684,6 +735,16 @@ async function continueIn() {
               <path d="M5 12.5l4.2 4.2L19 7" />
             </svg>
             <span>{{ f }}</span>
+          </li>
+        </ul>
+
+        <!-- Org door only: two real adult learners, verbatim from the learner
+             stories on www.saysomethingin.com. Desktop-only, like the facts —
+             mobile keeps its compact band. -->
+        <ul v-if="panelQuotes.length" class="ob-quotes">
+          <li v-for="q in panelQuotes" :key="q.who" class="ob-quote">
+            <blockquote class="ob-quote-text">{{ q.quote }}</blockquote>
+            <cite class="ob-quote-who">{{ q.who }}</cite>
           </li>
         </ul>
 
@@ -1334,6 +1395,46 @@ async function continueIn() {
   font-size: var(--text-sm, 0.875rem);
   line-height: var(--leading-snug, 1.375);
   color: var(--text-secondary, #4a4440);
+}
+
+/* --- Org door: real adult learners, quietly set. Same warm register as the
+       facts — a quoted voice, not a marketing pull-quote. --- */
+.ob-quotes {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.7rem, 1.6vh, 1.1rem);
+  animation: ob-rise 0.8s var(--ease-out-expo, ease) 0.28s both;
+}
+.ob-quote {
+  border-left: 2px solid var(--ob-accent-soft);
+  padding-left: 0.75rem;
+  max-width: 38ch;
+}
+.ob-quote-text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm, 0.875rem);
+  line-height: var(--leading-snug, 1.375);
+  color: var(--text-secondary, #4a4440);
+}
+.ob-quote-text::before {
+  content: '\201C';
+}
+.ob-quote-text::after {
+  content: '\201D';
+}
+.ob-quote-who {
+  display: block;
+  margin-top: 0.3rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs, 0.75rem);
+  font-style: normal;
+  color: var(--ob-accent-ink);
 }
 
 /* --- Desktop checklist: signup-moment doubts, retired --- */
@@ -2166,6 +2267,7 @@ async function continueIn() {
   .ob-proof-num { font-size: clamp(2.4rem, 9vw, 3.4rem); }
   /* The checklist is desktop enrichment only — the mobile band stays compact. */
   .ob-facts { display: none; }
+  .ob-quotes { display: none; }
   .ob-evolve { flex: 1 1 100%; max-width: none; margin-top: 0; }
   .ob-marker { flex: 1 1 100%; }
   .ob-spine {
@@ -2193,6 +2295,7 @@ async function continueIn() {
 @media (prefers-reduced-motion: reduce) {
   .ob-panel-card::before,
   .ob-proof,
+  .ob-quotes,
   .ob-arrival-ripple { animation: none !important; }
   .ob-arrival-circle,
   .ob-arrival-tick { stroke-dashoffset: 0; animation: none !important; }
