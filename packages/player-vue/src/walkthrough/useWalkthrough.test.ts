@@ -33,6 +33,23 @@ describe('walksFor (offer filtering)', () => {
     expect(group).not.toContain('invite-first-teacher')
     expect(group).toContain('ways-in')
   })
+
+  // Neutral dressing (kind 'org'): parity with schools — an org leader is
+  // offered the same two node-home walks, in the neutral vocabulary. No
+  // school-worded walk ever reaches them.
+  it('offers the org dressing its own first-person walk plus ways-in', () => {
+    const org = walksFor('leader', 'node-home', 'org').map((x) => x.id)
+    expect(org).toContain('invite-first-person')
+    expect(org).toContain('ways-in')
+    expect(org).not.toContain('invite-first-teacher')
+    expect(walksFor('admin', 'node-home', 'org').map((x) => x.id)).toContain('invite-first-person')
+  })
+
+  it('the org walk never says teacher, class or school', () => {
+    const walk = pack.walks.find((x) => x.id === 'invite-first-person')!
+    const words = walk.steps.map((s) => s.say).join(' ').toLowerCase()
+    for (const ed of ['teacher', 'class', 'school', 'pupil']) expect(words).not.toContain(ed)
+  })
 })
 
 describe('state machine', () => {

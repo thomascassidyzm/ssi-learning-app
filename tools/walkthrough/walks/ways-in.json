@@ -2,7 +2,7 @@
   "id": "ways-in",
   "title": "Ways in — who can get in, and how to change it",
   "personas": ["admin", "leader", "school_admin"],
-  "place": { "route": "node-home", "kinds": ["group", "school"] },
+  "place": { "route": "node-home", "kinds": ["org", "group", "school"] },
   "steps": [
     {
       "anchor": "ways-in-ledger",

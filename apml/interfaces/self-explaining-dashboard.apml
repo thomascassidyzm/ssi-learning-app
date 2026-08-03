@@ -1,6 +1,6 @@
 # APML Interface: Self-Explaining Dashboard (compiled explainer)
 # SSI Learning App
-# Version: 1.1.0 (2026-07-29) — How-this-works = single surfacing point (walks + invitations in the panel) with a discoverability throb
+# Version: 1.2.0 (2026-08-03) — DRESSING-AWARE: the neutral org vocabulary gets its own explanations, walks and noticing rules (schools parity)
 # Status: Live on node home (admin + leader member mounts). Design doc: docs/self-explaining-dashboard.md
 
 ## ============================================================================
@@ -40,14 +40,23 @@ DISCOVERABILITY_THROB:
 PACK_SHAPE:
   version: "12-hex content hash"
   truth: "verbs (parsed from NodeActionBar.vue + See insights), statWords (NodeHomeView), measures+windows (rate-compare.ts)"
-  explanations: "persona (admin|leader|school_admin|teacher) × kind (group|school|class) — markdown-lite (**bold** only)"
+  explanations: "persona (admin|leader|school_admin|teacher) × kind (org|group|school|class) — markdown-lite (**bold** only). 'org' = the NEUTRAL dressing (founder ruling 2026-08-02); authored in rulings/*.md like every other kind — never hand-edited into the pack."
   rules: "NoticingRule[] — shapes node | perChild | countWhere; conditions {path, op(eq|gt|lt|gte|lte|truthy|falsy), value}; cta targets insights | lens:classes | child-home | students"
+
+DRESSING_SCOPING:
+  ruling: "founder gap 2026-08-03: 'logging into an org, How this works is missing the self-teaching elements schools has'"
+  rule: "the surface passes its DRESSING kind (NodeHomeView explainerKind — 'org' under the neutral vocabulary) into evaluateRules as kindOverride; rules are scoped by the VOCABULARY the viewer sees, not by the bones underneath"
+  why: "a neutral org is structurally a 'group', so without the override it received class/teacher-worded invitations — ed-speak leaking into a council's dashboard"
+  effect: "'org' rules fire for neutral nodes only; group/school/class rules never do. Education dressing is unchanged (kindOverride == nodeKindOf)."
 
 RULES_V1:
   silent_class: "class practised before, zero sessions this week → insights"
   quiet_subtree: "classes below, none practised this week → lens:classes"
   school_no_teachers: "school child with zero teachers → that school's home (per child, cap 3)"
   students_quiet_week: "previously-active students silent this week in an active class → in-page (students list)"
+  org_needs_first_person: "[org] empty org (no learners, no subgroups) → walk:invite-first-person"
+  org_not_started: "[org] people below but zero practice hours → insights"
+  group_nobody_in_it: "[org] child group with nobody in it → that group's home (per child, cap 3)"
 
 KIND_RESOLUTION:
   rule: "payload kind 'class' wins; else the node's OWN label decides (label-not-type — a school attachment never outvotes the label); unlabelled falls back to commercial/hasSchool"
@@ -58,5 +67,7 @@ WIRING_STATUS:
   telemetry_input: "v2 stub (--telemetry flag prints stub notice; no signal before its consumer)"
 
 TESTS:
-  unit: "src/explainer/evaluateRules.test.ts — evaluator ops, all four rules' fire paths, caps, persona/kind scoping, member links, pack integrity"
+  unit: "src/explainer/evaluateRules.test.ts — evaluator ops, every rule's fire path, caps, persona/kind scoping, the org dressing scoping pins, member links, pack integrity"
+  compile_gate: "src/explainer/compileGate.test.ts — runs the real compiler --check on every `pnpm test` AND asserts the checked-in pack version equals the compiled one (a hand-edit of pack.json now fails CI; this is how the org explanations' absence from rulings/*.md was found, 2026-08-03)"
+  view: "src/views/admin/NodeHomeView.test.ts — ORG SELF-TEACHING PARITY pin: armed throb, org explanation, neutral walk offers, neutral invitation, disarm on open"
   live: "src/explainer/verifyIme.live.test.ts (IME_LIVE=1, network) — redeems the IME leader personal link on deployed dev, walks the full IME subtree (~24 nodes), asserts every rule's fire/no-fire against the live values"
