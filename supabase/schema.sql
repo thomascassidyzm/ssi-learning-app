@@ -2369,6 +2369,28 @@ COMMENT ON FUNCTION public.current_learner_id() IS 'THE identity bridge: auth.ui
 
 
 --
+-- Name: current_user_enrolled_course_codes(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_user_enrolled_course_codes() RETURNS text[]
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT coalesce(array_agg(DISTINCT e.course_id), ARRAY[]::text[])
+  FROM public.course_enrollments e
+  JOIN public.learners l ON l.id = e.learner_id
+  WHERE l.user_id = (auth.uid())::text
+$$;
+
+
+--
+-- Name: FUNCTION current_user_enrolled_course_codes(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.current_user_enrolled_course_codes() IS 'Course codes the calling auth user is enrolled in, across all their learner rows. SECURITY DEFINER so RLS policies can use it without re-entering RLS on course_enrollments/learners. Used by the courses_select policy (2026-08-03).';
+
+
+--
 -- Name: decrement_voice_sample_count(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3303,6 +3325,24 @@ COMMENT ON FUNCTION public.handle_new_user() IS 'Creates learners row when a new
 
 
 --
+-- Name: has_user_tag(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.has_user_tag(p_tag_type text, p_tag_value text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_tags ut
+    WHERE ut.user_id = (auth.uid())::text
+      AND ut.tag_type = p_tag_type
+      AND ut.tag_value = p_tag_value
+      AND ut.removed_at IS NULL
+  );
+$$;
+
+
+--
 -- Name: increment_version(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3392,6 +3432,25 @@ $$;
 
 
 --
+-- Name: is_class_teacher(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_class_teacher(p_class_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_tags ut
+    WHERE ut.user_id = (auth.uid())::text
+      AND ut.tag_type = 'class'
+      AND ut.role_in_context = 'teacher'
+      AND ut.removed_at IS NULL
+      AND ut.tag_value = 'CLASS:' || (p_class_id)::text
+  );
+$$;
+
+
+--
 -- Name: is_class_teacher(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3418,6 +3477,26 @@ COMMENT ON FUNCTION public.is_class_teacher(p_class_id uuid, p_uid text) IS 'Tru
 
 
 --
+-- Name: is_dashboard_user(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_dashboard_user() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (SELECT 1 FROM public.dashboard_users du
+                 WHERE lower(du.email) = lower(auth.jwt() ->> 'email'))
+$$;
+
+
+--
+-- Name: FUNCTION is_dashboard_user(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.is_dashboard_user() IS 'True when the calling auth user''s JWT email matches a public.dashboard_users row (Popty content-dashboard staff). SECURITY DEFINER because dashboard_users RLS only lets a user read their OWN row. Used by the courses_select policy (2026-08-03).';
+
+
+--
 -- Name: is_god_user(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3426,6 +3505,42 @@ CREATE FUNCTION public.is_god_user() RETURNS boolean
     SET search_path TO 'public', 'pg_temp'
     AS $$
   SELECT public.is_ssi_admin();   -- DEPRECATED: 'god' collapsed into 'ssi_admin' (2026-06-16)
+$$;
+
+
+--
+-- Name: is_govt_admin_over_group(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_govt_admin_over_group(target_group_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.govt_admins ga
+    JOIN public.groups admin_g ON admin_g.id = ga.group_id
+    JOIN public.groups target_g ON target_g.id = target_group_id
+    WHERE ga.user_id = (auth.uid())::text
+      AND (target_g.path = admin_g.path
+           OR target_g.path LIKE admin_g.path || '/%')
+  );
+$$;
+
+
+--
+-- Name: is_school_admin_of(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_school_admin_of(p_school_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.schools s
+    WHERE s.id = p_school_id
+      AND s.admin_user_id = (auth.uid())::text
+  );
 $$;
 
 
@@ -7027,7 +7142,14 @@ CREATE TABLE public.groups (
     path text,
     is_demo boolean DEFAULT false NOT NULL,
     name_confirmed boolean DEFAULT false NOT NULL,
-    is_test boolean DEFAULT false NOT NULL
+    is_test boolean DEFAULT false NOT NULL,
+    platform_status text,
+    platform_expires_at timestamp with time zone,
+    seats integer,
+    provider_subscription_id text,
+    provider_customer_id text,
+    CONSTRAINT groups_platform_status_check CHECK (((platform_status IS NULL) OR (platform_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'expired'::text, 'cancelled'::text])))),
+    CONSTRAINT groups_seats_check CHECK (((seats IS NULL) OR (seats >= 1)))
 );
 
 
@@ -7050,6 +7172,34 @@ COMMENT ON COLUMN public.groups.type IS 'LABEL ONLY (THE MODEL, 2026-07-18): sch
 --
 
 COMMENT ON COLUMN public.groups.is_test IS 'Not a genuine paying/pilot customer — soak-test/E2E/owner-test group. Superset of is_demo.';
+
+
+--
+-- Name: COLUMN groups.platform_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.groups.platform_status IS 'Org platform-subscription lifecycle: trial|active|past_due|expired|cancelled. NULL = not a billed org node (e.g. a school node, whose billing lives on its schools row) — the gate FAILS OPEN on NULL. Gate = active OR (trial AND platform_expires_at > now).';
+
+
+--
+-- Name: COLUMN groups.platform_expires_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.groups.platform_expires_at IS 'End of the current paid period, or end of the 30-day trial. Set ABSOLUTELY from the Paddle billing period by the webhook (idempotent on retry/out-of-order).';
+
+
+--
+-- Name: COLUMN groups.seats; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.groups.seats IS 'Paid member seats = Paddle quantity on the per-seat org price (£15/seat/mo, £150/seat/yr). Mirrors schools.teacher_seats.';
+
+
+--
+-- Name: COLUMN groups.provider_subscription_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.groups.provider_subscription_id IS 'Paddle subscription id backing this org. Lookup key for webhook events that carry no custom data (e.g. cancellations raised in Paddle itself).';
 
 
 --
@@ -8829,6 +8979,27 @@ CREATE TABLE public.try_links (
 
 
 --
+-- Name: tutor_rebate_ledger; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tutor_rebate_ledger (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    teacher_id uuid NOT NULL,
+    learner_id uuid,
+    learner_display text,
+    class_id uuid,
+    subscription_id uuid,
+    provider_ref text NOT NULL,
+    entry_type text NOT NULL,
+    service_month date NOT NULL,
+    amount_pence integer NOT NULL,
+    hold_until timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT tutor_rebate_ledger_entry_type_check CHECK ((entry_type = ANY (ARRAY['accrual'::text, 'reversal'::text, 'reaccrual'::text])))
+);
+
+
+--
 -- Name: user_entitlements; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10198,6 +10369,14 @@ ALTER TABLE ONLY public.try_links
 
 
 --
+-- Name: tutor_rebate_ledger tutor_rebate_ledger_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tutor_rebate_ledger
+    ADD CONSTRAINT tutor_rebate_ledger_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: user_tags unique_active_tag; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11029,6 +11208,20 @@ CREATE INDEX idx_groups_parent ON public.groups USING btree (parent_id);
 --
 
 CREATE INDEX idx_groups_path ON public.groups USING btree (path text_pattern_ops);
+
+
+--
+-- Name: idx_groups_platform_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_groups_platform_status ON public.groups USING btree (platform_status) WHERE (platform_status IS NOT NULL);
+
+
+--
+-- Name: idx_groups_provider_subscription_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_groups_provider_subscription_id ON public.groups USING btree (provider_subscription_id) WHERE (provider_subscription_id IS NOT NULL);
 
 
 --
@@ -11918,6 +12111,20 @@ CREATE INDEX release_notes_released_at_idx ON public.release_notes USING btree (
 --
 
 CREATE UNIQUE INDEX schools_admin_user_id_key ON public.schools USING btree (admin_user_id) WHERE (admin_user_id IS NOT NULL);
+
+
+--
+-- Name: tutor_rebate_ledger_provider_ref_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tutor_rebate_ledger_provider_ref_type ON public.tutor_rebate_ledger USING btree (provider_ref, entry_type);
+
+
+--
+-- Name: tutor_rebate_ledger_teacher_month; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tutor_rebate_ledger_teacher_month ON public.tutor_rebate_ledger USING btree (teacher_id, service_month DESC);
 
 
 --
@@ -13136,13 +13343,6 @@ CREATE POLICY "Anon can read course_practice_phrases" ON public.course_practice_
 
 
 --
--- Name: courses Anon can read courses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Anon can read courses" ON public.courses FOR SELECT TO anon USING ((status = ANY (ARRAY['beta'::text, 'released'::text])));
-
-
---
 -- Name: shared_audio Anon can read shared_audio; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13178,13 +13378,6 @@ CREATE POLICY "Authenticated can view config" ON public.gamification_config FOR 
 
 
 --
--- Name: courses Authenticated users can view all courses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Authenticated users can view all courses" ON public.courses FOR SELECT TO authenticated USING ((new_app_status = ANY (ARRAY['live'::text, 'beta'::text])));
-
-
---
 -- Name: course_legos Authenticated users can view course_legos; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13203,13 +13396,6 @@ CREATE POLICY "Authenticated users can view course_practice_phrases" ON public.c
 --
 
 CREATE POLICY "Authenticated users can view course_seeds" ON public.course_seeds FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: courses Authenticated users can view visible courses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Authenticated users can view visible courses" ON public.courses FOR SELECT TO authenticated USING ((visibility = ANY (ARRAY['public'::text, 'beta'::text])));
 
 
 --
@@ -13292,41 +13478,6 @@ CREATE POLICY "Govt admins can create school_admin codes" ON public.invite_codes
 
 
 --
--- Name: courses Public users can view all courses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Public users can view all courses" ON public.courses FOR SELECT TO anon USING ((new_app_status = ANY (ARRAY['live'::text, 'beta'::text])));
-
-
---
--- Name: course_legos Public users can view course_legos; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Public users can view course_legos" ON public.course_legos FOR SELECT TO anon USING (true);
-
-
---
--- Name: POLICY "Public users can view course_legos" ON course_legos; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON POLICY "Public users can view course_legos" ON public.course_legos IS 'Allow guest users to read LEGO content';
-
-
---
--- Name: course_practice_phrases Public users can view course_practice_phrases; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Public users can view course_practice_phrases" ON public.course_practice_phrases FOR SELECT TO anon USING (true);
-
-
---
--- Name: POLICY "Public users can view course_practice_phrases" ON course_practice_phrases; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON POLICY "Public users can view course_practice_phrases" ON public.course_practice_phrases IS 'Allow guest users to read practice phrases';
-
-
---
 -- Name: course_seeds Public users can view course_seeds; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13338,13 +13489,6 @@ CREATE POLICY "Public users can view course_seeds" ON public.course_seeds FOR SE
 --
 
 COMMENT ON POLICY "Public users can view course_seeds" ON public.course_seeds IS 'Allow guest users to read course content';
-
-
---
--- Name: courses Public users can view visible courses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Public users can view visible courses" ON public.courses FOR SELECT TO anon USING ((visibility = ANY (ARRAY['public'::text, 'beta'::text])));
 
 
 --
@@ -13696,6 +13840,12 @@ CREATE POLICY audio_flags_public_read ON public.audio_flags FOR SELECT TO authen
 
 
 --
+-- Name: audio_pass_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audio_pass_requests ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: course_audio authenticated_read_course_audio; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13741,6 +13891,32 @@ ALTER TABLE public.build_lessons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.canonical_pod_scenarios ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: canonical_seed_translations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.canonical_seed_translations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: canonical_seed_translations canonical_seed_translations_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY canonical_seed_translations_public_read ON public.canonical_seed_translations FOR SELECT TO authenticated, anon USING (true);
+
+
+--
+-- Name: canonical_seeds; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.canonical_seeds ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: canonical_seeds canonical_seeds_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY canonical_seeds_public_read ON public.canonical_seeds FOR SELECT TO authenticated, anon USING (true);
+
+
+--
 -- Name: checkpoint_approvals; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13778,6 +13954,12 @@ CREATE POLICY class_sessions_teacher_update ON public.class_sessions FOR UPDATE 
 
 
 --
+-- Name: classes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: classes classes_insert; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13788,18 +13970,23 @@ CREATE POLICY classes_insert ON public.classes FOR INSERT WITH CHECK ((teacher_u
 -- Name: classes classes_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY classes_select ON public.classes FOR SELECT USING (((teacher_user_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
-   FROM public.schools
-  WHERE ((schools.id = classes.school_id) AND (schools.admin_user_id = (auth.uid())::text)))) OR (EXISTS ( SELECT 1
-   FROM public.user_tags
-  WHERE ((user_tags.user_id = (auth.uid())::text) AND (user_tags.tag_type = 'class'::text) AND (user_tags.tag_value = ('CLASS:'::text || (classes.id)::text)) AND (user_tags.removed_at IS NULL))))));
+CREATE POLICY classes_select ON public.classes FOR SELECT USING (((teacher_user_id = (auth.uid())::text) OR public.is_school_admin_of(school_id) OR public.has_user_tag('class'::text, ('CLASS:'::text || (id)::text))));
+
+
+--
+-- Name: classes classes_select_admin_subtree; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY classes_select_admin_subtree ON public.classes FOR SELECT TO authenticated USING ((public.is_ssi_admin() OR (EXISTS ( SELECT 1
+   FROM public.schools s
+  WHERE ((s.id = classes.school_id) AND public.is_govt_admin_over_group(s.group_id))))));
 
 
 --
 -- Name: classes classes_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY classes_update ON public.classes FOR UPDATE USING ((teacher_user_id = (auth.uid())::text)) WITH CHECK ((teacher_user_id = (auth.uid())::text));
+CREATE POLICY classes_update ON public.classes FOR UPDATE USING (((teacher_user_id = (auth.uid())::text) OR public.is_class_teacher(id))) WITH CHECK (((teacher_user_id = (auth.uid())::text) OR public.is_class_teacher(id)));
 
 
 --
@@ -13833,6 +14020,12 @@ CREATE POLICY content_feedback_public_read ON public.content_feedback FOR SELECT
 --
 
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_audio; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_audio ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: course_audio_envelope; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13925,6 +14118,18 @@ CREATE POLICY course_gender_expansions_public_read ON public.course_gender_expan
 ALTER TABLE public.course_lego_positions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: course_legos; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_legos ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_practice_phrases; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_practice_phrases ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: course_qa_flags; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13935,6 +14140,12 @@ ALTER TABLE public.course_qa_flags ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.course_seed_drafts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_seeds; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_seeds ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: courses; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13957,17 +14168,10 @@ CREATE POLICY courses_insert_admin ON public.courses FOR INSERT WITH CHECK (publ
 
 
 --
--- Name: courses courses_read_policy; Type: POLICY; Schema: public; Owner: -
+-- Name: courses courses_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY courses_read_policy ON public.courses FOR SELECT TO authenticated USING ((status = ANY (ARRAY['beta'::text, 'released'::text])));
-
-
---
--- Name: courses courses_select_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY courses_select_public ON public.courses FOR SELECT USING (true);
+CREATE POLICY courses_select ON public.courses FOR SELECT TO authenticated, anon USING (((visibility = ANY (ARRAY['public'::text, 'beta'::text])) OR (new_app_status = ANY (ARRAY['live'::text, 'beta'::text])) OR (course_code = ANY (( SELECT public.current_user_enrolled_course_codes() AS current_user_enrolled_course_codes)::text[])) OR ( SELECT public.is_ssi_admin() AS is_ssi_admin) OR ( SELECT public.is_dashboard_user() AS is_dashboard_user)));
 
 
 --
@@ -14080,6 +14284,19 @@ CREATE POLICY entitlement_codes_update_admin ON public.entitlement_codes FOR UPD
 
 
 --
+-- Name: entitlement_grants; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.entitlement_grants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: entitlement_grants entitlement_grants_authenticated_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY entitlement_grants_authenticated_read ON public.entitlement_grants FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: evolution_levels; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14098,6 +14315,12 @@ ALTER TABLE public.family_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gamification_config ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: govt_admins; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.govt_admins ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: govt_admins govt_admins_insert; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14112,23 +14335,35 @@ CREATE POLICY govt_admins_select ON public.govt_admins FOR SELECT USING ((user_i
 
 
 --
+-- Name: groups; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: groups groups_authenticated_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY groups_authenticated_read ON public.groups FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: insight_discoveries; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.insight_discoveries ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: invite_codes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: invite_codes invite_codes_insert; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY invite_codes_insert ON public.invite_codes FOR INSERT WITH CHECK ((created_by = (auth.uid())::text));
-
-
---
--- Name: invite_codes invite_codes_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY invite_codes_select ON public.invite_codes FOR SELECT USING (true);
 
 
 --
@@ -14341,6 +14576,32 @@ CREATE POLICY lego_progress_scoped_select ON public.lego_progress FOR SELECT TO 
 
 
 --
+-- Name: listening_pod_sentences; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.listening_pod_sentences ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: listening_pod_sentences listening_pod_sentences_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY listening_pod_sentences_public_read ON public.listening_pod_sentences FOR SELECT TO authenticated, anon USING (true);
+
+
+--
+-- Name: listening_pods; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.listening_pods ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: listening_pods listening_pods_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY listening_pods_public_read ON public.listening_pods FOR SELECT TO authenticated, anon USING (true);
+
+
+--
 -- Name: offline_leases; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14406,6 +14667,19 @@ CREATE POLICY phase_prompts_service_policy ON public.phase_prompts TO service_ro
 --
 
 ALTER TABLE public.player_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: pod_legos; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.pod_legos ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: pod_legos pod_legos_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY pod_legos_public_read ON public.pod_legos FOR SELECT TO authenticated, anon USING (true);
+
 
 --
 -- Name: possession_mint_attempts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14553,6 +14827,12 @@ CREATE POLICY sample_flags_public_update ON public.sample_flags FOR UPDATE TO au
 
 
 --
+-- Name: schools; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: schools schools_insert; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14563,9 +14843,14 @@ CREATE POLICY schools_insert ON public.schools FOR INSERT WITH CHECK ((admin_use
 -- Name: schools schools_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY schools_select ON public.schools FOR SELECT USING (((admin_user_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
-   FROM public.user_tags
-  WHERE ((user_tags.user_id = (auth.uid())::text) AND (user_tags.tag_type = 'school'::text) AND (user_tags.tag_value = ('SCHOOL:'::text || (schools.id)::text)) AND (user_tags.removed_at IS NULL))))));
+CREATE POLICY schools_select ON public.schools FOR SELECT USING (((admin_user_id = (auth.uid())::text) OR public.has_user_tag('school'::text, ('SCHOOL:'::text || (id)::text))));
+
+
+--
+-- Name: schools schools_select_admin_subtree; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY schools_select_admin_subtree ON public.schools FOR SELECT TO authenticated USING ((public.is_ssi_admin() OR public.is_govt_admin_over_group(group_id)));
 
 
 --
@@ -14649,6 +14934,12 @@ CREATE POLICY sessions_own_update ON public.sessions FOR UPDATE TO authenticated
 
 CREATE POLICY sessions_scoped_select ON public.sessions FOR SELECT TO authenticated USING (public.can_view_learner_data(learner_id));
 
+
+--
+-- Name: shared_audio; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.shared_audio ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: shared_audio shared_audio_read_policy; Type: POLICY; Schema: public; Owner: -
@@ -14892,6 +15183,12 @@ ALTER TABLE public.try_link_visits ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.try_links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tutor_rebate_ledger; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tutor_rebate_ledger ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_entitlements; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15360,6 +15657,16 @@ GRANT ALL ON FUNCTION public.current_learner_id() TO service_role;
 
 
 --
+-- Name: FUNCTION current_user_enrolled_course_codes(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_user_enrolled_course_codes() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO anon;
+GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO authenticated;
+GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO service_role;
+
+
+--
 -- Name: FUNCTION decrement_voice_sample_count(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15637,6 +15944,15 @@ GRANT ALL ON FUNCTION public.handle_new_user() TO service_role;
 
 
 --
+-- Name: FUNCTION has_user_tag(p_tag_type text, p_tag_value text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.has_user_tag(p_tag_type text, p_tag_value text) TO anon;
+GRANT ALL ON FUNCTION public.has_user_tag(p_tag_type text, p_tag_value text) TO authenticated;
+GRANT ALL ON FUNCTION public.has_user_tag(p_tag_type text, p_tag_value text) TO service_role;
+
+
+--
 -- Name: FUNCTION increment_version(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15673,6 +15989,15 @@ GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO service_role;
 
 
 --
+-- Name: FUNCTION is_class_teacher(p_class_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.is_class_teacher(p_class_id uuid) TO anon;
+GRANT ALL ON FUNCTION public.is_class_teacher(p_class_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.is_class_teacher(p_class_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION is_class_teacher(p_class_id uuid, p_uid text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15683,12 +16008,40 @@ GRANT ALL ON FUNCTION public.is_class_teacher(p_class_id uuid, p_uid text) TO se
 
 
 --
+-- Name: FUNCTION is_dashboard_user(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.is_dashboard_user() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.is_dashboard_user() TO anon;
+GRANT ALL ON FUNCTION public.is_dashboard_user() TO authenticated;
+GRANT ALL ON FUNCTION public.is_dashboard_user() TO service_role;
+
+
+--
 -- Name: FUNCTION is_god_user(); Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON FUNCTION public.is_god_user() TO anon;
 GRANT ALL ON FUNCTION public.is_god_user() TO authenticated;
 GRANT ALL ON FUNCTION public.is_god_user() TO service_role;
+
+
+--
+-- Name: FUNCTION is_govt_admin_over_group(target_group_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.is_govt_admin_over_group(target_group_id uuid) TO anon;
+GRANT ALL ON FUNCTION public.is_govt_admin_over_group(target_group_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.is_govt_admin_over_group(target_group_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION is_school_admin_of(p_school_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.is_school_admin_of(p_school_id uuid) TO anon;
+GRANT ALL ON FUNCTION public.is_school_admin_of(p_school_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.is_school_admin_of(p_school_id uuid) TO service_role;
 
 
 --
@@ -16025,8 +16378,6 @@ GRANT ALL ON SEQUENCE public.audio_flags_id_seq TO service_role;
 -- Name: TABLE audio_pass_requests; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.audio_pass_requests TO anon;
-GRANT ALL ON TABLE public.audio_pass_requests TO authenticated;
 GRANT ALL ON TABLE public.audio_pass_requests TO service_role;
 
 
@@ -16835,8 +17186,8 @@ GRANT ALL ON SEQUENCE public.player_events_id_seq TO service_role;
 -- Name: TABLE pod_legos; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.pod_legos TO anon;
-GRANT ALL ON TABLE public.pod_legos TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.pod_legos TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.pod_legos TO authenticated;
 GRANT ALL ON TABLE public.pod_legos TO service_role;
 
 
@@ -17063,6 +17414,13 @@ GRANT ALL ON TABLE public.try_link_visits TO service_role;
 --
 
 GRANT ALL ON TABLE public.try_links TO service_role;
+
+
+--
+-- Name: TABLE tutor_rebate_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.tutor_rebate_ledger TO service_role;
 
 
 --

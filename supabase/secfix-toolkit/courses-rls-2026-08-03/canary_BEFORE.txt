@@ -1,0 +1,128 @@
+=== 1. postgres/superuser view: the full table (RLS bypassed) ===
+ all_courses | discoverable | not_discoverable 
+-------------+--------------+------------------
+         143 |           86 |               57
+(1 row)
+
+
+=== 2. role anon, no JWT — expect: discoverable only (AFTER); all (BEFORE) ===
+BEGIN
+SET
+ anon_visible_rows 
+-------------------
+               143
+(1 row)
+
+ anon_sees_undiscoverable 
+--------------------------
+                       57
+(1 row)
+
+ROLLBACK
+
+=== 3. role authenticated, real non-admin learner JWT ===
+    3a. total rows visible
+BEGIN
+SET
+SET
+ learner_visible_rows 
+----------------------
+                  143
+(1 row)
+
+ROLLBACK
+    3b. DoD #1 — hidden AND unenrolled rows must NOT be returned (expect 0 after)
+BEGIN
+SET
+SET
+ hidden_unenrolled_leaked 
+--------------------------
+                       56
+(1 row)
+
+ROLLBACK
+    3c. DoD #2 — discoverable courses ARE returned (expect the discoverable count from probe 1)
+BEGIN
+SET
+SET
+ discoverable_returned 
+-----------------------
+                    86
+(1 row)
+
+ROLLBACK
+    3d. DoD #3 — the enrolled-but-hidden course IS returned (expect 1 row)
+BEGIN
+SET
+SET
+  course_code   | visibility | new_app_status 
+----------------+------------+----------------
+ fra_ca_for_eng | hidden     | draft
+(1 row)
+
+ROLLBACK
+    3e. cross-check — a DIFFERENT learner, NOT enrolled in fra_ca_for_eng, must not see it (expect 0 rows)
+BEGIN
+SET
+SET
+ other_learner_sees_fra_ca 
+---------------------------
+                         1
+(1 row)
+
+ROLLBACK
+
+=== 4. live catalogue query, as the learner app issues it (BrowseScreen.vue:237) ===
+    must be IDENTICAL before and after — this is the no-product-regression proof
+BEGIN
+SET
+SET
+ catalogue_rows 
+----------------
+             78
+(1 row)
+
+ROLLBACK
+
+=== 5. SSi admin keeps the full table on the authenticated key ===
+BEGIN
+SET
+SET
+ admin_visible_rows 
+--------------------
+                143
+(1 row)
+
+ROLLBACK
+
+=== 6. policy inventory on public.courses (expect 5 after: 1 select + 3 admin write + service) ===
+                   polname                    | polcmd |      roles      
+----------------------------------------------+--------+-----------------
+ courses_service_policy                       | *      | {service_role}
+ courses_insert_admin                         | a      | 
+ courses_delete_admin                         | d      | 
+ Anon can read courses                        | r      | {anon}
+ Authenticated users can view all courses     | r      | {authenticated}
+ Authenticated users can view visible courses | r      | {authenticated}
+ Public users can view all courses            | r      | {anon}
+ Public users can view visible courses        | r      | {anon}
+ courses_read_policy                          | r      | {authenticated}
+ courses_select_public                        | r      | 
+ courses_update_admin                         | w      | 
+(11 rows)
+
+
+=== 7. initplan check — the helper must appear as an InitPlan, not a per-row call ===
+BEGIN
+SET
+SET
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Index Only Scan using courses_pkey on courses (actual time=0.014..0.113 rows=143 loops=1)
+   Heap Fetches: 111
+   Buffers: shared hit=109
+ Planning Time: 0.065 ms
+ Execution Time: 0.139 ms
+(5 rows)
+
+ROLLBACK

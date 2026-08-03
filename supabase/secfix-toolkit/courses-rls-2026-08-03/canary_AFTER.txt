@@ -1,0 +1,154 @@
+=== 1. postgres/superuser view: the full table (RLS bypassed) ===
+ all_courses | discoverable | not_discoverable 
+-------------+--------------+------------------
+         143 |           86 |               57
+(1 row)
+
+
+=== 2. role anon, no JWT — expect: discoverable only (AFTER); all (BEFORE) ===
+BEGIN
+SET
+ anon_visible_rows 
+-------------------
+                86
+(1 row)
+
+ anon_sees_undiscoverable 
+--------------------------
+                        0
+(1 row)
+
+ROLLBACK
+
+=== 3. role authenticated, real non-admin learner JWT ===
+    3a. total rows visible
+BEGIN
+SET
+SET
+ learner_visible_rows 
+----------------------
+                   87
+(1 row)
+
+ROLLBACK
+    3b. DoD #1 — hidden AND unenrolled rows must NOT be returned (expect 0 after)
+BEGIN
+SET
+SET
+ hidden_unenrolled_leaked 
+--------------------------
+                        0
+(1 row)
+
+ROLLBACK
+    3c. DoD #2 — discoverable courses ARE returned (expect the discoverable count from probe 1)
+BEGIN
+SET
+SET
+ discoverable_returned 
+-----------------------
+                    86
+(1 row)
+
+ROLLBACK
+    3d. DoD #3 — the enrolled-but-hidden course IS returned (expect 1 row)
+BEGIN
+SET
+SET
+  course_code   | visibility | new_app_status 
+----------------+------------+----------------
+ fra_ca_for_eng | hidden     | draft
+(1 row)
+
+ROLLBACK
+    3e. cross-check — a DIFFERENT learner, NOT enrolled in fra_ca_for_eng, must not see it (expect 0 rows)
+BEGIN
+SET
+SET
+ other_learner_sees_fra_ca 
+---------------------------
+                         0
+(1 row)
+
+ROLLBACK
+
+=== 4. live catalogue query, as the learner app issues it (BrowseScreen.vue:237) ===
+    must be IDENTICAL before and after — this is the no-product-regression proof
+BEGIN
+SET
+SET
+ catalogue_rows 
+----------------
+             78
+(1 row)
+
+ROLLBACK
+
+=== 5. SSi admin keeps the full table on the authenticated key ===
+BEGIN
+SET
+SET
+ admin_visible_rows 
+--------------------
+                143
+(1 row)
+
+ROLLBACK
+
+=== 5b. Popty dashboard staff (dashboard_users email, NOT an ssi_admin) keep the full table ===
+    the dashboard browser runs on the anon key + a real auth session -> role authenticated
+BEGIN
+SET
+SET
+ dashboard_staff_visible_rows 
+------------------------------
+                          143
+(1 row)
+
+ROLLBACK
+    5c. a NON-dashboard, non-admin email must NOT get the staff leg (expect 87)
+BEGIN
+SET
+SET
+ random_authenticated_rows 
+---------------------------
+                        87
+(1 row)
+
+ROLLBACK
+
+=== 6. policy inventory on public.courses (expect 5 after: 1 select + 3 admin write + service) ===
+        polname         | polcmd |        roles         
+------------------------+--------+----------------------
+ courses_service_policy | *      | {service_role}
+ courses_insert_admin   | a      | 
+ courses_delete_admin   | d      | 
+ courses_select         | r      | {anon,authenticated}
+ courses_update_admin   | w      | 
+(5 rows)
+
+
+=== 7. initplan check — the helper must appear as an InitPlan, not a per-row call ===
+BEGIN
+SET
+SET
+                                                                                           QUERY PLAN                                                                                            
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on courses (actual time=0.945..1.668 rows=87 loops=1)
+   Filter: ((visibility = ANY ('{public,beta}'::text[])) OR (new_app_status = ANY ('{live,beta}'::text[])) OR (course_code = ANY ((InitPlan 1).col1)) OR (InitPlan 2).col1 OR (InitPlan 3).col1)
+   Rows Removed by Filter: 56
+   Buffers: shared hit=802
+   InitPlan 1
+     ->  Result (actual time=0.543..0.544 rows=1 loops=1)
+           Buffers: shared hit=28
+   InitPlan 2
+     ->  Result (actual time=0.195..0.195 rows=1 loops=1)
+           Buffers: shared hit=3
+   InitPlan 3
+     ->  Result (actual time=0.185..0.185 rows=1 loops=1)
+           Buffers: shared hit=1
+ Planning Time: 0.116 ms
+ Execution Time: 1.711 ms
+(15 rows)
+
+ROLLBACK

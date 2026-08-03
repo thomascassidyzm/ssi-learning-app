@@ -124,6 +124,14 @@ CREATE POLICY govt_admins_delete ON public.govt_admins FOR DELETE TO authenticat
 -- ⚠ FLAGGED TO TOM (not decided here): this means anon already sees EVERY course
 -- row regardless of status/visibility/new_app_status. If that is an accidental
 -- over-grant, tightening it is a separate, deliberate security change.
+--
+-- ⛔ SUPERSEDED 2026-08-03 — DO NOT APPLY THIS SECTION.
+--    Tom ruled the over-grant closed; 20260803_courses_rls_tighten.sql was APPLIED
+--    LIVE that day and already drops these seven policies and creates the tightened
+--    `courses_select`. This §4 as written would re-widen courses to USING (true).
+--    The rest of 20260801c was still unapplied as of 2026-08-03 (verified: classes
+--    et al. retain their pre-20260801c policy sets) — if it is applied later, skip
+--    §4 entirely; its DROPs are already done and its CREATE is wrong.
 ------------------------------------------------------------------------------
 DROP POLICY "Anon can read courses"                     ON public.courses;
 DROP POLICY "Public users can view all courses"         ON public.courses;
