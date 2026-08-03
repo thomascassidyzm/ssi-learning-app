@@ -104,9 +104,27 @@ async function submitPerson(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     openForm.value = null
+    // Tester feedback (Aran 2026-08-03): entering an email should SEND the
+    // invite, not tell the leader to post it themselves. The server does that
+    // now; the link stays on screen because sharing it by WhatsApp is often
+    // better, and because it is the fallback when the send fails.
+    const name = personName.value.trim()
+    const emailed = data.emailed as { sent?: boolean; to?: string } | undefined
+    const message = emailed?.sent
+      ? `Invite sent to ${emailed.to} — ${name} is in.`
+      : emailed
+        ? `${name} is in, but we couldn't email the invite — send them this link.`
+        : `Personal link created for ${name}`
     announce(
-      `Personal link created for ${personName.value.trim()}`,
-      data.url ? { url: data.url, hint: 'Email this to them — clicking it signs them straight in.' } : null,
+      message,
+      data.url
+        ? {
+            url: data.url,
+            hint: emailed?.sent
+              ? 'Same link, if you\'d rather send it yourself too — clicking it signs them straight in.'
+              : 'Send this to them — clicking it signs them straight in.',
+          }
+        : null,
     )
     personName.value = ''
     personEmail.value = ''
@@ -404,12 +422,12 @@ function closeDelete(): void {
           <option value="student">Learner</option>
         </select>
         <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
-        <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
+        <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email — we'll send the invite" />
         <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
-          {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
+          {{ isInvitingPerson ? (personEmail.trim() ? 'Sending…' : 'Creating…') : (personEmail.trim() ? 'Send their invite' : 'Create their link') }}
         </button>
       </div>
-      <p class="kind-hint">Named invite — goes straight in, no screens.</p>
+      <p class="kind-hint">Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
     </div>
     <div v-else-if="openForm === 'invite'" class="verb-form-block">
       <div class="verb-form">
