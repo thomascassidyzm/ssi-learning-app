@@ -40,6 +40,8 @@ export interface PartnerDoorCopy {
   }
   /** One declarative paragraph under the proof. */
   stance: string
+  /** The thing the partner's people can't do unaided — the live page's hook. */
+  hook: string
   /** The deal, stated plainly — three lines, no adjectives. */
   deal: { label: string; value: string; note: string }[]
   /** The worked example. Arithmetic only, no projection. */
@@ -50,6 +52,8 @@ export interface PartnerDoorCopy {
   steps: { title: string; body: string }[]
   /** The small print people actually want. */
   practicalities: string[]
+  /** Why there are no testimonials — said plainly, not omitted. */
+  honesty: string
   cta: { label: string; href: string; note: string }
 }
 
@@ -93,13 +97,21 @@ export const PARTNER_DOORS: Record<string, PartnerDoorCopy> = {
     },
     stance:
       'The method does the teaching. You do the part a person has to do — showing up, keeping someone going, answering the question they were too embarrassed to ask. You do not need to be a trained teacher, and you do not need to speak your student’s first language.',
+    // The live /tutors page's own hook — "The bit you can't do yourself: teach
+    // absolute beginners, in any language." Kept because it is the thing a
+    // ZNotes student genuinely cannot do unaided, and it is the site's claim,
+    // not one written here.
+    hook: 'Your students learn English in their own language, so a complete beginner can start with you on day one. You keep teaching in English. You do not need to learn twenty languages — that is the part SSi does.',
     deal: [
       { label: 'You pay', value: '£15 a month', note: 'to teach — and you get the full course yourself' },
       { label: 'Your students pay', value: '£10 a month', note: 'each, directly — you never handle their money' },
       { label: 'You get back', value: '£5 a month', note: 'for every student, for every month they stay' },
     ],
+    // Break-even framing, lifted from the live /tutors page ("Three students at
+    // £10 a month covers your £15 subscription — everyone after that is
+    // profit"). Arithmetic only, no projection.
     example:
-      'Ten students who stay the month: £50 back, against your £15. It is per completed student-month, so it keeps coming for as long as they keep learning.',
+      'Three students cover your £15. Everyone after that is profit — ten students who stay the month is £50 back. It is per completed student-month, so it keeps coming for as long as they keep learning.',
     teach: {
       heading: 'What you teach',
       body:
@@ -133,12 +145,22 @@ export const PARTNER_DOORS: Record<string, PartnerDoorCopy> = {
       'Payouts go by bank transfer once your balance passes £100.',
       // Verified: TUTOR_SEAT_CAP = 20 (api/teacher/by-code.ts).
       'A class holds up to twenty students.',
+      // Live /tutors' own promise, verbatim in substance: "No streaks, no owls,
+      // no shame loops, no dark patterns at cancellation… they can leave with
+      // one click and keep access to the end of their billing cycle."
+      'Your students can cancel with one click and keep access to the end of their billing cycle. No streaks, no shame loops, no dark patterns — you are putting your name on this.',
     ],
+    // The live /tutors page says this in its own voice, and it is the reason
+    // there are no testimonials here: "we'd rather tell you that than invent
+    // testimonials."
+    honesty:
+      'The teacher programme is new, and we would rather tell you that than invent testimonials. What we can show you is the Cardiff study, a method with over 100,000 learners since 2009, and thirty free days to judge it yourself before your name goes anywhere near it.',
     cta: {
       label: 'Start teaching',
       href: '/tutors',
       // Verified: tutor track trial = 30 days, every language (Onboarding.vue).
-      note: 'Thirty days free before anything is charged.',
+      // "no card" is the live /tutors page's own promise ("thirty days free, no card").
+      note: 'Thirty days free, no card.',
     },
   },
 }

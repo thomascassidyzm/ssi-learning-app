@@ -76,6 +76,7 @@ onBeforeUnmount(() => {
     <section class="pd-section">
       <h2 class="pd-h2">{{ copy.teach.heading }}</h2>
       <p class="pd-body">{{ copy.teach.body }}</p>
+      <p class="pd-body">{{ copy.hook }}</p>
       <ul class="pd-langs">
         <li v-for="l in copy.teach.languages" :key="l" class="pd-lang">{{ l }}</li>
       </ul>
@@ -101,6 +102,8 @@ onBeforeUnmount(() => {
       <ul class="pd-practical">
         <li v-for="p in copy.practicalities" :key="p">{{ p }}</li>
       </ul>
+      <!-- Why there are no testimonials on this page — said, not omitted. -->
+      <p class="pd-honesty">{{ copy.honesty }}</p>
     </section>
 
     <!-- CTA -->
@@ -315,6 +318,15 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 0.6rem;
   line-height: var(--leading-relaxed, 1.625);
+}
+
+.pd-honesty {
+  margin: 1.5rem 0 0;
+  padding: 1rem 1.25rem;
+  background: var(--bg-elevated, #ffffff);
+  border-radius: 14px;
+  line-height: var(--leading-relaxed, 1.625);
+  color: var(--text-secondary, #6b6660);
 }
 
 .pd-cta {
