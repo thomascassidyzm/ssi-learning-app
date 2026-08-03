@@ -2,7 +2,7 @@
 # SSi Learning App
 #
 # Version: 0.7.0 (distinction-network criticality: forward-reuse centrality supersedes intro-order)
-# Last updated: 2026-08-02
+# Last updated: 2026-08-03
 #
 # 2026-07-31 (founder ruling — criticality rewired, see docs/DECISIONS.md for
 # the verbatim ruling):
@@ -36,6 +36,16 @@
 #   non-revoking on boot failure. Also completed the 2026-07-16 persistence
 #   fix: flush() no longer clears the dirty set pre-auth (it holds and
 #   retries), and canSync() excludes the 'demo-learner' fallback id.
+# - VERIFIED LIVE (2026-08-03) against dev @ d7208c38, by a driven signed-in
+#   session (packages/player-vue/e2e/_metrics-signedin-walk.mjs — real magic-link
+#   learner, fake-mic speech bursts, real deployment): 2.5 minutes of play →
+#   8 cycle_prosody rows in player_events + 3 learner_lego_metrics rows carrying
+#   real recent_latency_samples. Both tables had been zero-rows-ever. The DB
+#   layer was independently cleared first (a real learner JWT can do all three
+#   upserts — mastery, series, evidence), so the whole failure was client-side
+#   and the boot re-arm is the entire fix. Guarded by two new unit tests in
+#   useAdaptationEngine.test.ts (pre-auth flush retains the dirty set; the
+#   'demo-learner' id is never written).
 # - GROUND-TRUTH CORRECTION to "Producer #1 LIVE" below: the latency producer's
 #   INPUT was dead on the live path until today. startTimingCycle /
 #   markPhaseTransition / endTimingCycle were only driven by the legacy
