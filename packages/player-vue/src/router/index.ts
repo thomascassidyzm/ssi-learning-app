@@ -428,6 +428,21 @@ const routes: RouteRecordRaw[] = [
       hideAppEscape: true, // carries the full TopNav, so no floating Back needed
     },
   },
+  // Learner profile / mirror — founder-commissioned design build 2026-08-03.
+  // PREVIEW: deliberately UNLINKED from every nav, which is the flag — nothing
+  // learner-visible changes until it is wired in, so this can be tasted on dev
+  // without touching a single shipped surface. Lives under App.vue's provides,
+  // so it injects the app's existing course plumbing rather than duplicating it.
+  {
+    path: '/me',
+    name: 'learner-profile',
+    component: () => import('@/views/me/ProfileView.vue'),
+    meta: {
+      title: 'You',
+      description: 'Learner profile, mirror and plan — preview surface',
+      hideAppEscape: true, // carries its own Back-to-learning link
+    },
+  },
   // Admin panel
   {
     path: '/admin',
