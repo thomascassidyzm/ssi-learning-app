@@ -228,11 +228,15 @@ export function toPlayerCycle(
     }
   }
 
-  // No belt-ramp / per-context speed here — the legacy `toSimpleRounds`
-  // computes a context-aware speed multiplier. For the cutover we keep
-  // it simple: rely on the runtime overrides in `simplePlayer.setRuntimeOverrides`
-  // to apply the same belt/context curves at play time. That keeps this
-  // adapter pure (no `props.course.voice_config` plumbing).
+  // (Historical note, kept as a warning.) This block used to read:
+  //   "No belt-ramp / per-context speed here — rely on the runtime overrides
+  //    in simplePlayer.setRuntimeOverrides to apply the same belt/context
+  //    curves at play time. That keeps this adapter pure."
+  // That assumption was FALSE and cost every learner their belt ramp from the
+  // instant-playback cutover until 2026-08-04. `getPlaybackSpeedMultiplier`
+  // only CANCELS a baked ramp (for Turbo); it never applies one. The speed is
+  // now baked above, from the course's real `voice_config.target_speed` which
+  // the caller threads in as `targetSpeed`.
 
   // Decomposition → componentLegoIds / componentLegoTexts. The backend's
   // `decomposition` is per-token (one entry per word, with optional legoId
