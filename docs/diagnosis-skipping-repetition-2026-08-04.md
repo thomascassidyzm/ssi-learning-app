@@ -9,10 +9,25 @@ rows (last ~24h), read with the service-role key. Reads only.
 ## Verdict in one line
 
 **Kai's turbo hunch is wrong, and it is wrong in a way that is easy to prove.** Turbo cannot be
-sticky or default-on — it is a session-only `ref(false)` that only a deliberate user tap sets.
-The real cause is a **code defect**: the belt speed/pause ramp is not baked by the adapter that
-every learner's main loop actually runs through, so **beginners hear native-rate speech with an
-advanced learner's short pause, from cycle one.**
+sticky or default-on — it is a session-only `ref(false)` that only a deliberate user tap sets,
+and Aran has **zero** turbo-toggle events in his entire history. Adaptation v2 is in shadow and
+culls nothing. **Settings contribute 0%.**
+
+The cause is **code, in two independent defects**, and they split cleanly along Aran's two
+complaints:
+
+- *"Beginnings too fast"* — the belt speed/pause ramp is not baked by the adapter that fresh,
+  uncached sessions run through, so a new learner hears native-rate speech with an advanced
+  learner's short pause from cycle one (§2). **Note: this is not what Aran personally hit** —
+  his own cycles are correctly ramped (§5.2). It is real for new learners on `cat_for_eng`,
+  `eus_for_eng` and any first session without a cached script.
+- *"Too much skipping"* — `offlinePlaybackActive` ORs `navigator.onLine`, so a momentary
+  connectivity blink silently drops every not-yet-cached cycle, repeatedly, and the cache is
+  emptiest at the start of a course (§5.4). This is the leading explanation for Aran's 4,777
+  `phase_skip` events.
+
+Underneath both sits a methodology gap: by its own rails, the opening of a course legitimately
+has the fewest practice combinations *and* an empty review pool (§5.5).
 
 ---
 
