@@ -16,6 +16,7 @@ import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -157,9 +158,24 @@ function* toSimpleRoundsGen(
       // Intro/component_intro: use presentationAudioId as prompt audio
       // ("The Spanish for 'want', as in 'I want to learn', is:")
       // Regular items: use knownAudioId (the known-language prompt)
-      const promptAudioId = (i.type === 'intro' || i.type === 'component_intro')
+      const isIntroLike = i.type === 'intro' || i.type === 'component_intro'
+      const promptAudioId = isIntroLike
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
+
+      // The fallback point. Until 2026-08-04 this branch was silent in both
+      // senses: it quietly degraded to known audio (or to nothing), and it
+      // emitted no telemetry, so a course-wide presentation-audio gap was
+      // invisible until a learner reported it. See introAudioTelemetry.ts.
+      if (isIntroLike && !i.presentationAudioId) {
+        reportIntroAudioMissing({
+          legoId: i.legoKey,
+          cycleId: i.uuid,
+          cycleType: i.type,
+          tier: i.knownAudioId ? 'known_fallback' : 'silent',
+          source: 'script',
+        })
+      }
 
       // Target speed: explicit (listening mode) → context-aware ramp → 1.0
       const speed = i.playbackSpeed ?? computePlaybackSpeed(

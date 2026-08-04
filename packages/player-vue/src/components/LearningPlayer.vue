@@ -91,6 +91,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
+import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -1250,6 +1251,28 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)?.userId?.value ?? null) : null))
 const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
+
+// Intro/presentation audio never reaches SimplePlayer's audio_failed path —
+// a missing presentation clip isn't an error, it's an empty URL and a skipped
+// phase. The round-building adapters report it instead, through a module-level
+// sink so those pure functions stay free of Vue. Wired here because playerLog
+// is what stamps course_code / session_id / user attribution on the row.
+// Deduped per cycle id: a round can be rebuilt several times per session
+// (tier-3 top-ups, INF PLAY refreshes) and the gap is a property of the
+// CONTENT, so one report per cycle per session is the useful signal.
+const introAudioMissingReported = new Set<string>()
+setIntroAudioTelemetrySink((e) => {
+  if (introAudioMissingReported.has(e.cycleId)) return
+  introAudioMissingReported.add(e.cycleId)
+  logEvent('intro_audio_missing', {
+    legoId: e.legoId,
+    cycleId: e.cycleId,
+    cycleType: e.cycleType,
+    tier: e.tier,
+    source: e.source,
+  })
+})
+onUnmounted(() => setIntroAudioTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
