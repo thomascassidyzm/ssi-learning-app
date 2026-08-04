@@ -19,9 +19,12 @@
  *     as `toSimpleRounds` — runtime overrides recompute it from live
  *     algorithm_config at play time, so this fallback is only seen by
  *     environments without live config
- *   - listening / pod / component_intro cycles are NOT emitted: the
- *     backend doesn't return them today (see INSTANT_PLAYBACK_SPEC.md
- *     §"Open questions"). Round-end listening fires via the existing
+ *   - `component_intro` IS emitted (since 2026-08-04) — the M-LEGO
+ *     per-piece "as in" narrations. It shares the intro treatment here:
+ *     presentation audio takes the prompt slot, no pause.
+ *   - listening / pod cycles are NOT emitted: the backend doesn't return
+ *     them today (see INSTANT_PLAYBACK_SPEC.md §"Open questions").
+ *     Round-end listening fires via the existing
  *     `simplePlayer.onRoundCompleted` → `podScheduler` path which only
  *     needs round transitions to land — it doesn't depend on listening
  *     cycles being woven into the round itself
@@ -30,6 +33,7 @@ import type { Round, Cycle } from '../playback/SimplePlayer'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
@@ -163,20 +167,25 @@ export function backendCyclesToRounds(
  * the cycle is structurally unplayable (missing all target audio
  * — same skip-policy as `toSimpleRounds`).
  *
- * The backend emits `intro | debut | build | use` today; `listening`
- * is reserved for a future endpoint extension and is handled here
- * defensively so when it lands we don't have to change the adapter.
+ * The backend emits `intro | component_intro | debut | build | use`
+ * today; `listening` is reserved for a future endpoint extension and is
+ * handled here defensively so when it lands we don't have to change the
+ * adapter.
  *
  * Exported for the INF PLAY adapter (infPlayCyclesToRounds) which
  * reuses the same cycle-shaping logic but groups by inf_round rather
  * than by legoId.
  */
 export function toPlayerCycle(bc: BackendCycle): Cycle | null {
-  const isIntro = bc.type === 'intro'
+  // `component_intro` is an introduction too — the per-piece "as in"
+  // narration for one component of an M-LEGO. It gets the same treatment
+  // as `intro`: presentation audio in the prompt slot, no production pause.
+  const isIntro = bc.type === 'intro' || bc.type === 'component_intro'
   const isListening = bc.type === 'listening'
 
-  // Intro uses presentation audio as the prompt ("The X for Y is..."),
-  // debut/build/use use the known-language audio.
+  // Intros use presentation audio as the prompt ("The Italian for: 'to
+  // speak', as in — 'I want to speak Italian', is:"); debut/build/use use
+  // the known-language audio.
   const promptAudioId = isIntro
     ? bc.audio.presentation_id || bc.audio.known_id
     : bc.audio.known_id
@@ -198,6 +207,20 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
         return null
       }
     }
+  }
+
+  // An intro with no presentation clip is the silence-class this whole
+  // path used to swallow. Report it — degraded (known audio took the
+  // prompt) and fully silent (no prompt audio at all) are different
+  // severities and are distinguished by `tier`.
+  if (isIntro && !bc.audio.presentation_id) {
+    reportIntroAudioMissing({
+      legoId: bc.lego_id,
+      cycleId: bc.id,
+      cycleType: bc.type,
+      tier: bc.audio.known_id ? 'known_fallback' : 'silent',
+      source: 'backend',
+    })
   }
 
   // No belt-ramp / per-context speed here — the legacy `toSimpleRounds`

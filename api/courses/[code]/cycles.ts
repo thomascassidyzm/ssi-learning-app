@@ -3,7 +3,8 @@
  *
  * Instant-playback critical path. Returns the next `n` fully-assembled
  * cycles starting from the LEGO matching `:from`, in script order
- * (intro -> debut -> BUILDs -> USEs per LEGO, then next LEGO).
+ * (intro -> component_intro(s) -> debut -> BUILDs -> USEs per LEGO, then
+ * next LEGO).
  *
  * Frontend calls this with limit=1 on Start (for instant first cycle),
  * then limit=15 once audio is playing.
@@ -40,6 +41,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { courseMaxSeed } from '../../_utils/courseBoundary'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -95,6 +97,14 @@ interface CoursePhraseRow {
   target2_audio_id: string | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
+  /** Component rows carry their own "as in" narration — the clip that
+   * contextualises this piece inside its parent M-LEGO. Only ever non-null
+   * on `phrase_role = 'component'` rows. */
+  presentation_audio_id?: string | null
+  /** false = visual-only tile (particles/stubs that make no sense alone);
+   * such components get a ghost tile on the intro card but never their own
+   * audio cycle. Absent/null is treated as true. */
+  introduce?: boolean | null
 }
 
 interface RoundMapRow {
@@ -293,15 +303,24 @@ export default async function handler(
       return
     }
 
-    const rounds = previewOnly
-      ? payload.rounds.filter((r) => r.seed_number <= previewMaxSeed)
-      : payload.rounds
-    const legoRows = previewOnly
-      ? (payload.legos || []).filter((l) => l.seed_number <= previewMaxSeed)
-      : payload.legos || []
-    const phraseRows = previewOnly
-      ? (payload.phrases || []).filter((p) => p.seed_number <= previewMaxSeed)
-      : payload.phrases || []
+    // Two independent seed ceilings, both inclusive, applied together:
+    //  - previewMaxSeed: the entitlement gate above (paywall).
+    //  - courseMaxSeed:  where the course's BUILT content ends
+    //    (_utils/courseBoundary — MVP courses author more seeds than they
+    //    have audio for). round-map already truncates the walk, so a client
+    //    on the normal path never asks for these; this is the direct-call
+    //    guard so the ceiling can't be stepped over by a stale cached map.
+    const builtMaxSeed = courseMaxSeed(code)
+    const ceilings: number[] = []
+    if (previewOnly) ceilings.push(previewMaxSeed)
+    if (builtMaxSeed !== null) ceilings.push(builtMaxSeed)
+    const maxSeed = ceilings.length > 0 ? Math.min(...ceilings) : null
+    const withinCeiling = <T extends { seed_number: number }>(list: T[]): T[] =>
+      maxSeed === null ? list : list.filter((x) => x.seed_number <= maxSeed)
+
+    const rounds = withinCeiling(payload.rounds)
+    const legoRows = withinCeiling(payload.legos || [])
+    const phraseRows = withinCeiling(payload.phrases || [])
 
     // Index for O(1) lookup during the per-LEGO walk.
     const legoByKey = new Map<string, CourseLegoRow>()
@@ -379,14 +398,17 @@ export default async function handler(
 }
 
 /**
- * Emit the cycle sequence for one LEGO: intro -> debut -> BUILD phrases ->
- * USE phrases. Phrases honour their `position` order from the DB.
+ * Emit the cycle sequence for one LEGO: intro -> component_intro(s) ->
+ * debut -> BUILD phrases -> USE phrases. Phrases honour their `position`
+ * order from the DB.
  *
- * No filtering by audio completeness here — the spec says return everything
- * in script order and let the frontend decide. The audio.* keys are simply
- * omitted when their IDs are null; the player handles missing roles.
+ * No filtering by audio completeness here for the main cycle types — the
+ * spec says return everything in script order and let the frontend decide.
+ * The audio.* keys are simply omitted when their IDs are null; the player
+ * handles missing roles. `component_intro` is the exception: it is skipped
+ * outright when unplayable (see buildComponentIntroCycles).
  */
-function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle[] {
+export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle[] {
   const out: Cycle[] = []
   const legoId = lego.lego_id
   const seed = lego.seed_number
@@ -398,9 +420,20 @@ function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle
       ? lego.components.map((c) => ({ known: c?.known ?? '', target: c?.target ?? '' }))
       : undefined
 
-  // INTRO — the "reveal" cycle. Uses presentation audio (the narration:
-  // "The X for Y is...") with the two target voices following. No `known`
-  // audio because the prompt is the presentation itself.
+  // INTRO — the "reveal" cycle. The prompt is the presentation narration
+  // ("The Italian for: 'to speak', as in — 'I want to speak Italian', is:")
+  // followed by the two target voices.
+  //
+  // `known_id` is carried as a FALLBACK, not as a second clip. The client
+  // (`backendCyclesToRounds.toPlayerCycle`) resolves the prompt as
+  // `presentation_id || known_id`; until 2026-08-04 this endpoint omitted
+  // known_id from intro cycles, so that fallback could never fire and a LEGO
+  // with no presentation audio produced an EMPTY prompt URL — SimplePlayer
+  // silently skipped the prompt phase and the learner got no intro at all.
+  // The legacy script path had a live equivalent (`presentationAudioId ||
+  // known_audio_id`), which is why the same data gap only degraded there.
+  // Presentation still wins whenever it exists; this only changes what
+  // happens when it doesn't.
   out.push({
     id: `${legoId}_intro`,
     type: 'intro',
@@ -413,6 +446,7 @@ function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle
       : {}),
     ...(components ? { components } : {}),
     audio: buildAudio({
+      knownAudioId: lego.known_audio_id,
       target1AudioId: lego.target1_audio_id,
       target2AudioId: lego.target2_audio_id,
       presentationAudioId: lego.presentation_audio_id,
@@ -420,6 +454,13 @@ function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle
     durations: buildDurations(lego.target1_duration_ms, lego.target2_duration_ms),
     is_new: isNew,
   })
+
+  // COMPONENT INTROS — for M-LEGOs, the per-piece "as in" narrations that
+  // give each component its context inside the parent phrase. Emitted after
+  // the M-LEGO's own intro and before its debut, matching the client's
+  // TYPE_ORDER (validateLearningScript.ts) so a round that mixes producers
+  // still validates.
+  out.push(...buildComponentIntroCycles(lego, phrases))
 
   // DEBUT — the standard 4-phase cycle on the LEGO itself.
   out.push({
@@ -461,6 +502,79 @@ function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle
   for (const p of uses) {
     useIdx++
     out.push(phraseToCycle(p, legoId, seed, 'use', useIdx))
+  }
+
+  return out
+}
+
+/**
+ * Build the `component_intro` cycles for one LEGO.
+ *
+ * A component row (`phrase_role = 'component'`) is one tiling piece of an
+ * M-LEGO, and it carries its OWN presentation clip contextualising that piece
+ * inside the parent phrase — the live "as in" shape, verbatim from the data:
+ *
+ *   lego  S0005L02  "to practise speaking" / "fare pratica parlando"
+ *     └ "The Italian for: 'to practise', as in — 'to practise speaking', is:"
+ *     └ "The Italian for: 'speaking',    as in — 'to practise speaking', is:"
+ *
+ * Two rules govern what actually becomes a cycle:
+ *
+ *  1. `introduce === false` means "visual tile only" — stubs that make no
+ *     sense detached (single-letter prepositions, particles with no known-
+ *     language equivalent). They still render as ghost tiles under the intro
+ *     card via `lego.components`, but they never get their own audio cycle.
+ *     Same rule the legacy generator applies.
+ *
+ *  2. Skip, don't emit a hole. A component with no presentation narration and
+ *     no target voice has nothing to play, so it is dropped entirely rather
+ *     than emitted as a silent cycle — matching the skip-policy in
+ *     `toPlayerCycle` / `toSimpleRounds`, where a structurally unplayable
+ *     cycle returns null.
+ *
+ * Like the LEGO intro, the prompt is `presentation || known` — the component
+ * rows do carry known audio, so a component whose narration is missing still
+ * introduces itself with the known-language clip instead of going silent.
+ */
+function buildComponentIntroCycles(
+  lego: CourseLegoRow,
+  phrases: CoursePhraseRow[]
+): Cycle[] {
+  const legoId = lego.lego_id
+  const seed = lego.seed_number
+  const out: Cycle[] = []
+  let ordinal = 0
+
+  for (const p of phrases) {
+    if (p.phrase_role !== 'component') continue
+    // Visual-only tile — rendered, never played.
+    if (p.introduce === false) continue
+    // Nothing playable: no prompt (presentation or known) or no target voice.
+    const promptId = p.presentation_audio_id || p.known_audio_id
+    if (!promptId || !p.target1_audio_id) continue
+
+    ordinal++
+    const targets = pickTargets(p)
+    out.push({
+      id: `${legoId}_component_intro_${ordinal}`,
+      type: 'component_intro',
+      lego_id: legoId,
+      seed_number: seed,
+      known_text: p.known_text ?? '',
+      target_text: targets.target_text,
+      ...(targets.target_text_native !== undefined
+        ? { target_text_native: targets.target_text_native }
+        : {}),
+      audio: buildAudio({
+        knownAudioId: p.known_audio_id,
+        target1AudioId: p.target1_audio_id,
+        target2AudioId: p.target2_audio_id,
+        presentationAudioId: p.presentation_audio_id,
+      }),
+      durations: buildDurations(p.target1_duration_ms, p.target2_duration_ms),
+      // A component is part of the LEGO being introduced, not a review item.
+      is_new: true,
+    })
   }
 
   return out
