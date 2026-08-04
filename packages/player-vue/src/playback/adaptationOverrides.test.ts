@@ -155,3 +155,43 @@ describe('assembleBreatherRound', () => {
     expect(result!.cycles.map((c) => c.legoId)).toEqual(['S0001L01'])
   })
 })
+
+/**
+ * COUNTING-UNIT MISMATCH (diagnosis, 2026-08-04 — latent, cannot fire today).
+ *
+ * `computeAdaptOmitCycleIds` counts PLAY-TIME CYCLES. The script generator's
+ * own `spacedRepCount` budget (generateLearningScript.ts, MAX_SPACED_REP_
+ * PHRASES = 12) counts REVIEW SLOTS. Those two units agree for ordinary
+ * use-phrase reviews (1 slot = 1 cycle) but NOT for the drained SEED-PHASE
+ * sandwich (offset >= 144), which is explicitly "one review slot, not
+ * phraseCount" yet emits 3-4 `spaced_rep` sub-cycles (target/known/target/
+ * target — see `emitSeedSandwich`, and toSimpleRounds.ts's per-role split).
+ *
+ * So a fully-scripted late-course round can legitimately carry far more than
+ * 12 `spaced_rep` CYCLES while being within its 12-SLOT budget — and a plan
+ * sitting at its scripted ceiling (spacedRepCap 12, i.e. "cull nothing") would
+ * still cull the tail. This is pinned, not fixed: adaptation v2 is live in
+ * SHADOW (`algorithm_config.adaptation_v2.shadow = true`, verified 2026-08-04)
+ * so nothing is applied and no learner is affected. It must be fixed BEFORE
+ * v2 is ever switched to applying.
+ */
+describe('computeAdaptOmitCycleIds — seed-sandwich counting-unit mismatch (latent)', () => {
+  it('culls sandwich sub-cycles even at the scripted ceiling, because it counts cycles not review slots', () => {
+    // Four drained seed sandwiches = 4 review SLOTS (well inside the
+    // generator's 12-slot budget) but 16 spaced_rep CYCLES.
+    const cycles: Cycle[] = []
+    for (let slot = 0; slot < 4; slot++) {
+      for (let sub = 0; sub < 4; sub++) {
+        cycles.push(cycle(`sr${slot}_${sub}`, 'spaced_rep', `S00${slot}L01`))
+      }
+    }
+    const round: Round = { roundNumber: 200, legoId: 'S0200L01', seedId: 'S0200', cycles }
+
+    // plan.spacedRepCap === scripted ceiling === 12 === "cull nothing".
+    const omit = computeAdaptOmitCycleIds(round, plan())
+
+    // But four whole sub-cycles are culled anyway — cycles 13..16.
+    expect(omit.size).toBe(4)
+    expect([...omit]).toEqual(['sr3_0', 'sr3_1', 'sr3_2', 'sr3_3'])
+  })
+})
