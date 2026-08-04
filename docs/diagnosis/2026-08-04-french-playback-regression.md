@@ -89,9 +89,18 @@ was actually heard (`packages/core/src/script/computePauseDuration.ts`):
 ref = reference==='avg' ? (t1+t2)/2 : reference==='target1' ? t1 : t1 + t2
 ```
 
-So a `target2` recorded as 144 ms instead of ~1,300 ms drags `ref` down by
-~1,200 ms, and the pause after that cycle collapses with it. One bad number,
-two downstream effects.
+The live `algorithm_config.normal_mode` sets `pause_reference: "avg"`, so
+`ref = (t1 + t2) / 2` with `pause_assembly_threshold_ms: 750`,
+`pause_assembly_lin: 3.5`, `pause_assembly_quad: 75`. Worked on a real cycle
+from Tom's session (t1 1800 ms, t2 1584 ms):
+
+- healthy: `ref` 1692 → over 942 → assembly ≈ **3,363 ms**
+- with a 144 ms stub: `ref` 972 → over 222 → assembly ≈ **781 ms**
+
+**The pause loses ~2.5 seconds on a longer phrase**, and collapses to pure boot
+on a short one. One bad number, two downstream effects. (An earlier draft said
+~1.2 s assuming `reference: 'sum'`; the live config is `avg`, and the real
+magnitude is larger and phrase-length dependent.)
 
 | # | symptom | explanation |
 |---|---|---|
@@ -171,6 +180,18 @@ correctly, so the boot path did not serve those rounds.
 So: a genuine latent bug worth its own ticket, but it did not cause this
 incident. Logged here so the next reader does not re-find it and mistake it for
 the root cause.
+
+**A second latent gap, also not the cause:** `AudioCache.ts:249-276` stores
+fetched bytes with no `Content-Length` check, no minimum-size floor and no
+integrity check, and treats a 206 as success like a 200; on read, a truncated
+MP3 typically decodes to a short-but-valid WAV rather than throwing, and the bad
+blob is then memoised and never re-fetched. That is a real robustness hole worth
+closing. **It is not what happened here**, and the test is one line of data: if
+the client had truncated the bytes, `course_audio.duration_ms` would still read
+~1,300 ms and only the local blob would be short. It reads **144 ms in the
+database**, and the file fetched fresh through the production proxy — bypassing
+every client cache — is the same 2,016-byte silent stub. The corruption is at
+the source, upstream of any cache.
 
 ## 6. Explicit gaps
 
