@@ -235,3 +235,81 @@ and not implicated here — logged for the ledger, not for this incident.
 
 *Tooling: `scripts/audit-broken-target2.mjs` (read-only) reproduces every number
 above and generates the repair list.*
+
+---
+
+## 8. Repair addendum (2026-08-04) — what the fix found
+
+The repair landed the same day. Three findings from executing it change what
+this document said, and are recorded here rather than edited in above, so the
+original diagnosis stays readable as what was known at the time.
+
+### 8.1 The failure is a SPECTRUM, not one artefact
+
+§1 characterised the defect as 2,016-byte stubs of digital silence, and that is
+right for 539 of the clips. But re-measuring the whole course found roughly 260
+more that are **truncated**: audible, mastered to normal level, and carrying only
+the first part of their sentence. Proven by re-rendering the same text at the
+same voice:
+
+| text | stored | fresh render |
+|---|---:|---:|
+| je vais expliquer maintenant | 624 ms | 1,632 ms |
+| je ne veux pas expliquer | 648 ms | 1,320 ms |
+| je n'aime pas deviner | 648 ms | 1,176 ms |
+| je veux lire attentivement | 840 ms | 1,584 ms |
+
+This is the same mechanism at lesser severity — a degrading provider returning
+short bodies, of which a fully empty body is the extreme — and it strengthens
+the load-degradation read rather than complicating it.
+
+**Consequence for detection:** a check that only asks "is this clip silent?"
+passes every one of these. The `target2`-versus-its-own-`target1` ratio check in
+`scripts/audit-broken-target2.mjs` is what caught 99 of them, which is why that
+second signal was worth having. A further 24 truncations (20 `known`, 4
+`target1`) had no paired clip to compare against and were invisible to both
+checks; only a speech-rate screen (duration per character against the course's
+own healthy median for that role) found them.
+
+So the original figure of "567 broken target2" was correct, and was reached by
+counting both signals — 468 silent plus 99 truncated.
+
+### 8.2 A byte floor at the response boundary is necessary and NOT sufficient
+
+§"The detection that should exist" proposed a byte floor as the cheapest fix and
+judged that it "makes [RMS/silence detection] unnecessary". Executing the repair
+refuted that. In the 6-clip pilot, the text "I've got" came back from xAI
+**silent twice in succession** while the raw responses comfortably cleared a
+250 ms byte floor — the body was large enough and still contained no speech.
+Only a loudness check on the mastered artefact caught it.
+
+Both layers shipped, and both are load-bearing:
+- `services/tts-service.cjs` (dashboard) rejects a response too small to hold
+  speech and re-rolls it inside the existing retry budget.
+- `tools/audio-batch-gate.cjs` (dashboard) checks what actually landed —
+  duration, speech rate, and loudness — and is wired into the end of every
+  `/generate` pass.
+
+### 8.3 Repairing in place would not have healed anyone
+
+The obvious repair — refresh the bytes under the existing audio id — does not
+work here. This app serves audio from `api/audio/[audioId].ts` with
+`Cache-Control: public, max-age=31536000, immutable`, and `AudioCache.ts` keys
+offline blobs by audio id. A device that already streamed or downloaded a silent
+clip holds those bytes under that id for a year, and no amount of fresh bytes at
+the same id reaches it. The repair therefore mints a **new id** per clip and
+re-points every foreign key, which is what actually heals a device.
+
+(The service worker is not involved — it deliberately stopped caching audio in
+2026-05-24. It is the browser's own HTTP cache that bites.)
+
+`target1_duration_ms` / `target2_duration_ms` are denormalised onto
+`course_legos` and `course_practice_phrases`, and the player sizes the
+inter-cycle pause from those columns. The repair updates them too — otherwise
+the audio would be fixed and the collapsed pause described in §1 would remain.
+
+### 8.4 Answers to §7
+
+- **Re-running the batch**: done, under the new gates, 2026-08-04.
+- **Should German ride along**: yes — `deu_for_eng` was swept by the same tool
+  and was NOT clean; it was repaired on the same protected path.
