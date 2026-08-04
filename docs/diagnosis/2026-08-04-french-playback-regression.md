@@ -193,6 +193,11 @@ database**, and the file fetched fresh through the production proxy — bypassin
 every client cache — is the same 2,016-byte silent stub. The corruption is at
 the source, upstream of any cache.
 
+**A third latent gap, also not the cause:** `SimplePlayer.onAudioEnded`
+(`:1281`) is the only advance path without a `playGeneration` guard, so a late
+`ended` from a superseded clip could in principle advance the cycle. Unproven,
+and not implicated here — logged for the ledger, not for this incident.
+
 ## 6. Explicit gaps
 
 - **None on telemetry.** `player_events` was read in full via the service-role
