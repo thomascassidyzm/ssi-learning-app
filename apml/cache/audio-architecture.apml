@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-31 (tail-pacing: straggler rounds announce themselves — "Finishing up — checking the last N clips…" via offlineDlStragglers. Earlier: stall-proofing: hard per-fetch timeouts everywhere in the download path + UI liveness rule — see bulk_download_transport.fetch_timeouts + progress.liveness. Earlier same day: readiness THRESHOLD + straggler retry rounds)
+# Last Updated: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
@@ -62,6 +62,34 @@ spec audio_caching_architecture:
         cache MISS, so it can't count real plays. Source of truth for "what played"
         is now player_events.audio_play (client-side: user_id, course_code,
         session_id + payload {url, role, legoId, cycleId, cycleType, playbackSpeed}).
+
+    intro_audio_missing:
+      file: "packages/player-vue/src/playback/introAudioTelemetry.ts"
+      event: "player_events.intro_audio_missing"
+      payload: "{legoId, cycleId, cycleType, tier, source}"
+      added: "2026-08-04"
+      why: >
+        A missing presentation clip is not an ERROR anywhere in this system.
+        The round-building adapters resolve a prompt URL, get an empty string,
+        and SimplePlayer skips a phase with no audio — by design, silently.
+        SimplePlayer is also the only emitter of audio_failed. So an
+        estate-wide intro-audio gap emitted nothing, anywhere, and surfaced
+        months later as a single learner's bug report rather than on the
+        health board.
+      tiers: >
+        known_fallback = no narration, the known clip took the prompt slot
+        (degraded but audible). silent = no prompt audio at all — the case
+        that reads to a learner as "the intro never played".
+      source: "backend (instant-playback cycles endpoint) | script (legacy generateLearningScript)"
+      shape: >
+        Emitted from the pure adapters (toSimpleRounds, backendCyclesToRounds)
+        via a module-level sink LearningPlayer wires to playerLog.event on
+        mount and clears on unmount. course_code / session_id / user
+        attribution come from the event ROW via usePlayerLog, exactly as
+        audio_play does — not duplicated into the payload. Deduped per cycle
+        id per session (a round is rebuilt several times per session; the gap
+        is a property of the CONTENT). A throwing sink is swallowed —
+        telemetry never interferes with playback.
 
   ## ==========================================================================
   ## THE CACHE — AudioCache (one IndexedDB store, two lifecycles)
