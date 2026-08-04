@@ -1,0 +1,149 @@
+COURSE: cym_s_for_eng   rounds analysed: 1-5
+
+LIVE algorithm_config vs code defaults
+  script_shape.spacedRepOffs live=[1,2,3,5,8,13,21,34,55,89,144,233,377,610,987, default=[1,2,3,5,8,13,21,34,55,8 SAME
+  script_shape.maxBuildPhras live=7                                              default=7                        SAME
+  script_shape.useConsolidat live=2                                              default=2                        SAME
+  script_shape.maxSpacedRep  live=12                                             default=12                       SAME
+  script_shape.n1PhraseCount live=3                                              default=3                        SAME
+  turbo_boost.fibKeep        live=[0,1,2,4,6,8]                                  default=[0,1,2,4,6,8]            SAME
+  turbo_boost.buildKeep      live=3                                              default=3                        SAME
+  turbo_boost.useKeep        live=2                                              default=1                        **DIFFERS**
+  normal_mode.fibKeep/buildKeep/useKeep present? fibKeep=undefined buildKeep=undefined useKeep=undefined
+  normal_mode.spaced_rep_fraction=1 debut_phrases_fraction=1
+  turbo_boost.spaced_rep_fraction=0.33 debut_phrases_fraction=0.5
+  script_shape updated 2026-05-06T20:33:32.741795+00:00 by system
+  turbo_boost  updated 2026-07-01T13:03:57.162+00:00 by thomas.cassidy+ssi@gmail.com
+
+generateLearningScript: 9550 items, 701 rounds, mainLoop 651 — 6399ms
+
+================================================================================================
+  NORMAL MODE (turbo OFF) — every cycle plays — cym_s_for_eng rounds 1-5
+================================================================================================
+
+(a) CYCLES PER ROUND
+Round  LEGO       new lego (target)           cycles  prod  listen   type breakdown
+1      S0001L01   dw i’n moyn                      2     1       1   intro×1 debut×1
+2      S0001L02   siarad                           3     2       1   intro×1 debut×1 build×1
+3      S0001L03   Cymraeg                          3     2       1   intro×1 debut×1 build×1
+4      S0002L01   dysgu                            6     5       1   intro×1 debut×1 build×4
+5      S0002L02   dw i’n trio                      5     4       1   intro×1 debut×1 build×3
+TOTAL rounds 1-5: 19 cycles (14 production, 5 listen-only)
+
+(b) PER NEW LEGO — hearings before first production ask, and total reps in rounds 1-5
+LEGO       target                   intro rd heardB4 audioB4 totalReps prodReps   per-round reps
+S0001L01   dw i’n moyn                     1       1       2         2        1   R1:2 R2:0 R3:0 R4:0 R5:0
+S0001L02   siarad                          2       1       2         3        2   R1:0 R2:3 R3:0 R4:0 R5:0
+S0001L03   Cymraeg                         3       1       2         3        2   R1:0 R2:0 R3:3 R4:0 R5:0
+S0002L01   dysgu                           4       1       2         6        5   R1:0 R2:0 R3:0 R4:6 R5:0
+S0002L02   dw i’n trio                     5       1       2         5        4   R1:0 R2:0 R3:0 R4:0 R5:5
+
+(c) DISTINCT PRACTICE COMBINATIONS (production cycles only: debut/build/use/spaced_rep)
+production cycles: 14   distinct phrases: 14   mean repeats/phrase: 1.00
+
+  repeat histogram:
+    heard  1× :   14 distinct phrases  ██████████████
+
+  every distinct phrase (sorted by repeats desc):
+     1×  Cymraeg                                  | Welsh                                    | rds 3 | debut
+     1×  dw i’n moyn                              | I want                                   | rds 1 | debut
+     1×  dw i’n moyn dysgu                        | I want to learn                          | rds 4 | build
+     1×  dw i’n moyn dysgu Cymraeg                | I want to learn Welsh                    | rds 4 | build
+     1×  dw i’n moyn dysgu siarad Cymraeg         | I want to learn to speak Welsh           | rds 4 | build
+     1×  dw i’n moyn siarad                       | I want to speak                          | rds 2 | build
+     1×  dw i’n trio                              | I’m trying                               | rds 5 | debut
+     1×  dw i’n trio dysgu                        | I’m trying to learn                      | rds 5 | build
+     1×  dw i’n trio siarad                       | I’m trying to speak                      | rds 5 | build
+     1×  dw i’n trio siarad Cymraeg               | I’m trying to speak Welsh                | rds 5 | build
+     1×  dysgu                                    | to learn                                 | rds 4 | debut
+     1×  dysgu Cymraeg                            | to learn Welsh                           | rds 4 | build
+     1×  siarad                                   | to speak                                 | rds 2 | debut
+     1×  siarad Cymraeg                           | to speak Welsh                           | rds 3 | build
+
+(e) EXPOSURE — times each new LEGO's target string occurs inside ANY cycle in rounds 1-5
+    (LEGO-attributed reps in (b) undercount: "quiero" recurs inside "Quiero hablar español" etc.)
+LEGO       target                  attrib  exposure  prodExp   exposure per round
+S0001L01   dw i’n moyn                  2         6        5   R1:2 R2:1 R3:0 R4:3 R5:0
+S0001L02   siarad                       3         7        6   R1:0 R2:3 R3:1 R4:1 R5:2
+S0001L03   Cymraeg                      3         7        6   R1:0 R2:0 R3:3 R4:3 R5:1
+S0002L01   dysgu                        6         7        6   R1:0 R2:0 R3:0 R4:6 R5:1
+S0002L02   dw i’n trio                  5         5        4   R1:0 R2:0 R3:0 R4:0 R5:5
+
+  spaced_rep by round: R1=0  R2=0  R3=0  R4=0  R5=0
+
+================================================================================================
+  TURBO ON — turboOmit cycles skipped (live fibKeep/buildKeep/useKeep) — cym_s_for_eng rounds 1-5
+================================================================================================
+
+(a) CYCLES PER ROUND
+Round  LEGO       new lego (target)           cycles  prod  listen   type breakdown
+1      S0001L01   dw i’n moyn                      2     1       1   intro×1 debut×1
+2      S0001L02   siarad                           3     2       1   intro×1 debut×1 build×1
+3      S0001L03   Cymraeg                          3     2       1   intro×1 debut×1 build×1
+4      S0002L01   dysgu                            5     4       1   intro×1 debut×1 build×3
+5      S0002L02   dw i’n trio                      5     4       1   intro×1 debut×1 build×3
+TOTAL rounds 1-5: 18 cycles (13 production, 5 listen-only)
+
+(b) PER NEW LEGO — hearings before first production ask, and total reps in rounds 1-5
+LEGO       target                   intro rd heardB4 audioB4 totalReps prodReps   per-round reps
+S0001L01   dw i’n moyn                     1       1       2         2        1   R1:2 R2:0 R3:0 R4:0 R5:0
+S0001L02   siarad                          2       1       2         3        2   R1:0 R2:3 R3:0 R4:0 R5:0
+S0001L03   Cymraeg                         3       1       2         3        2   R1:0 R2:0 R3:3 R4:0 R5:0
+S0002L01   dysgu                           4       1       2         5        4   R1:0 R2:0 R3:0 R4:5 R5:0
+S0002L02   dw i’n trio                     5       1       2         5        4   R1:0 R2:0 R3:0 R4:0 R5:5
+
+(c) DISTINCT PRACTICE COMBINATIONS (production cycles only: debut/build/use/spaced_rep)
+production cycles: 13   distinct phrases: 13   mean repeats/phrase: 1.00
+
+  repeat histogram:
+    heard  1× :   13 distinct phrases  █████████████
+
+  every distinct phrase (sorted by repeats desc):
+     1×  Cymraeg                                  | Welsh                                    | rds 3 | debut
+     1×  dw i’n moyn                              | I want                                   | rds 1 | debut
+     1×  dw i’n moyn dysgu                        | I want to learn                          | rds 4 | build
+     1×  dw i’n moyn dysgu Cymraeg                | I want to learn Welsh                    | rds 4 | build
+     1×  dw i’n moyn siarad                       | I want to speak                          | rds 2 | build
+     1×  dw i’n trio                              | I’m trying                               | rds 5 | debut
+     1×  dw i’n trio dysgu                        | I’m trying to learn                      | rds 5 | build
+     1×  dw i’n trio siarad                       | I’m trying to speak                      | rds 5 | build
+     1×  dw i’n trio siarad Cymraeg               | I’m trying to speak Welsh                | rds 5 | build
+     1×  dysgu                                    | to learn                                 | rds 4 | debut
+     1×  dysgu Cymraeg                            | to learn Welsh                           | rds 4 | build
+     1×  siarad                                   | to speak                                 | rds 2 | debut
+     1×  siarad Cymraeg                           | to speak Welsh                           | rds 3 | build
+
+(e) EXPOSURE — times each new LEGO's target string occurs inside ANY cycle in rounds 1-5
+    (LEGO-attributed reps in (b) undercount: "quiero" recurs inside "Quiero hablar español" etc.)
+LEGO       target                  attrib  exposure  prodExp   exposure per round
+S0001L01   dw i’n moyn                  2         5        4   R1:2 R2:1 R3:0 R4:2 R5:0
+S0001L02   siarad                       3         6        5   R1:0 R2:3 R3:1 R4:0 R5:2
+S0001L03   Cymraeg                      3         6        5   R1:0 R2:0 R3:3 R4:2 R5:1
+S0002L01   dysgu                        5         6        5   R1:0 R2:0 R3:0 R4:5 R5:1
+S0002L02   dw i’n trio                  5         5        4   R1:0 R2:0 R3:0 R4:0 R5:5
+
+  spaced_rep by round: R1=0  R2=0  R3=0  R4=0  R5=0
+
+================================================================================================
+  (d) TURBO DELTA — what Turbo strips in rounds 1-5
+================================================================================================
+Round     normal   turbo  stripped   %kept   stripped types
+1              2       2         0    100%   
+2              3       3         0    100%   
+3              3       3         0    100%   
+4              6       5         1     83%   build×1
+5              5       5         0    100%   
+TOTAL         19      18         1     95%
+
+================================================================================================
+  (f) IS THE THIN START A CULL, OR A CONTENT SHORTAGE?
+      authored course_practice_phrases per LEGO vs what the generator emitted
+================================================================================================
+LEGO         rd   AUTHORED (build/use/comp)   EMITTED normal (build/use)  caps                      verdict
+S0001L01      1   0 build / 0 use / 0 comp  (00 build / 0 use  (2 cyc)    build≤7 use≤2             CONTENT-STARVED (inventory < caps)
+S0001L02      2   1 build / 0 use / 0 comp  (11 build / 0 use  (3 cyc)    build≤7 use≤2             CONTENT-STARVED (inventory < caps)
+S0001L03      3   1 build / 0 use / 0 comp  (11 build / 0 use  (3 cyc)    build≤7 use≤2             CONTENT-STARVED (inventory < caps)
+S0002L01      4   4 build / 0 use / 0 comp  (44 build / 0 use  (6 cyc)    build≤7 use≤2             CONTENT-STARVED (inventory < caps)
+S0002L02      5   3 build / 0 use / 0 comp  (33 build / 0 use  (5 cyc)    build≤7 use≤2             CONTENT-STARVED (inventory < caps)
+
+CONTRAST: turbo with CODE DEFAULTS (useKeep=1) rounds 1-5: 18 cycles vs live-config turbo 18 vs normal 19

@@ -1,0 +1,398 @@
+COURSE: spa_for_eng   rounds analysed: 1-12
+
+LIVE algorithm_config vs code defaults
+  script_shape.spacedRepOffs live=[1,2,3,5,8,13,21,34,55,89,144,233,377,610,987, default=[1,2,3,5,8,13,21,34,55,8 SAME
+  script_shape.maxBuildPhras live=7                                              default=7                        SAME
+  script_shape.useConsolidat live=2                                              default=2                        SAME
+  script_shape.maxSpacedRep  live=12                                             default=12                       SAME
+  script_shape.n1PhraseCount live=3                                              default=3                        SAME
+  turbo_boost.fibKeep        live=[0,1,2,4,6,8]                                  default=[0,1,2,4,6,8]            SAME
+  turbo_boost.buildKeep      live=3                                              default=3                        SAME
+  turbo_boost.useKeep        live=2                                              default=1                        **DIFFERS**
+  normal_mode.fibKeep/buildKeep/useKeep present? fibKeep=undefined buildKeep=undefined useKeep=undefined
+  normal_mode.spaced_rep_fraction=1 debut_phrases_fraction=1
+  turbo_boost.spaced_rep_fraction=0.33 debut_phrases_fraction=0.5
+  script_shape updated 2026-05-06T20:33:32.741795+00:00 by system
+  turbo_boost  updated 2026-07-01T13:03:57.162+00:00 by thomas.cassidy+ssi@gmail.com
+
+generateLearningScript: 31431 items, 1384 rounds, mainLoop 1334 — 5140ms
+
+================================================================================================
+  NORMAL MODE (turbo OFF) — every cycle plays — spa_for_eng rounds 1-12
+================================================================================================
+
+(a) CYCLES PER ROUND
+Round  LEGO       new lego (target)           cycles  prod  listen   type breakdown
+1      S0001L01   quiero                           3     2       1   intro×1 debut×1 build×1
+2      S0001L02   hablar                           3     2       1   intro×1 debut×1 build×1
+3      S0001L03   español                          6     5       1   intro×1 debut×1 build×2 spaced_rep×1 use×1
+4      S0001L04   contigo                         10     9       1   intro×1 debut×1 build×4 spaced_rep×2 use×2
+5      S0001L05   ahora                           15    14       1   intro×1 debut×1 build×7 spaced_rep×4 use×2
+6      S0002L01   aprender                        16    15       1   intro×1 debut×1 build×7 spaced_rep×5 use×2
+7      S0002L02   estoy intentando                17    16       1   intro×1 debut×1 build×7 spaced_rep×6 use×2
+8      S0003L01   cómo                            17    16       1   intro×1 debut×1 build×7 spaced_rep×6 use×2
+9      S0003L02   frecuentemente                  17    16       1   intro×1 debut×1 build×7 spaced_rep×6 use×2
+10     S0003L03   lo más frecuentemente posi      18    17       1   intro×1 debut×1 build×7 spaced_rep×7 use×2
+11     S0004L01   en                              18    17       1   intro×1 debut×1 build×7 spaced_rep×7 use×2
+12     S0004L02   algo                            18    17       1   intro×1 debut×1 build×7 spaced_rep×7 use×2
+TOTAL rounds 1-12: 158 cycles (146 production, 12 listen-only)
+
+(b) PER NEW LEGO — hearings before first production ask, and total reps in rounds 1-12
+LEGO       target                   intro rd heardB4 audioB4 totalReps prodReps   per-round reps
+S0001L01   quiero                          1       1       2         3        2   R1:3 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:0
+S0001L02   hablar                          2       1       2         8        7   R1:0 R2:3 R3:1 R4:1 R5:1 R6:0 R7:1 R8:0 R9:0 R10:1 R11:0 R12:0
+S0001L03   español                         3       1       2        10        9   R1:0 R2:0 R3:5 R4:1 R5:1 R6:1 R7:0 R8:1 R9:0 R10:0 R11:1 R12:0
+S0001L04   contigo                         4       1       2        14       13   R1:0 R2:0 R3:0 R4:8 R5:2 R6:1 R7:1 R8:0 R9:1 R10:0 R11:0 R12:1
+S0001L05   ahora                           5       1       2        17       16   R1:0 R2:0 R3:0 R4:0 R5:11 R6:3 R7:1 R8:1 R9:0 R10:1 R11:0 R12:0
+S0002L01   aprender                        6       1       2        17       16   R1:0 R2:0 R3:0 R4:0 R5:0 R6:11 R7:3 R8:1 R9:1 R10:0 R11:1 R12:0
+S0002L02   estoy intentando                7       1       2        17       16   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:11 R8:3 R9:1 R10:1 R11:0 R12:1
+S0003L01   cómo                            8       1       2        16       15   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:11 R9:3 R10:1 R11:1 R12:0
+S0003L02   frecuentemente                  9       1       2        16       15   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:11 R10:3 R11:1 R12:1
+S0003L03   lo más frecuentemente po       10       1       2        15       14   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:11 R11:3 R12:1
+S0004L01   en                             11       1       2        14       13   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:11 R12:3
+S0004L02   algo                           12       1       2        11       10   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:11
+
+(c) DISTINCT PRACTICE COMBINATIONS (production cycles only: debut/build/use/spaced_rep)
+production cycles: 146   distinct phrases: 80   mean repeats/phrase: 1.82
+
+  repeat histogram:
+    heard  1× :   40 distinct phrases  ████████████████████████████████████████
+    heard  2× :   28 distinct phrases  ████████████████████████████
+    heard  3× :    5 distinct phrases  █████
+    heard  4× :    3 distinct phrases  ███
+    heard  5× :    2 distinct phrases  ██
+    heard  6× :    1 distinct phrases  █
+    heard  7× :    1 distinct phrases  █
+
+  every distinct phrase (sorted by repeats desc):
+     7×  Quiero hablar español                    | I want to speak Spanish                  | rds 3,3,4,5,6,8,11 | build/use/spaced_rep
+     6×  Quiero hablar                            | I want to speak                          | rds 2,3,4,5,7,10 | build/spaced_rep
+     5×  Quiero hablar contigo                    | I want to speak with you                 | rds 4,4,5,6,9 | build/use/spaced_rep
+     5×  Quiero hablar español contigo            | I want to speak Spanish with you         | rds 4,4,5,7,12 | build/use/spaced_rep
+     4×  Estoy intentando hablar español          | I'm trying to speak Spanish              | rds 7,7,8,12 | build/use/spaced_rep
+     4×  Quiero hablar ahora                      | I want to speak now                      | rds 5,5,6,8 | build/use/spaced_rep
+     4×  Quiero hablar contigo frecuentemente     | I want to speak with you frequently      | rds 9,9,10,12 | build/use/spaced_rep
+     3×  Estoy intentando hablar frecuentemente   | I'm trying to speak frequently           | rds 9,9,10 | build/use/spaced_rep
+     3×  Quiero aprender ahora                    | I want to learn now                      | rds 6,6,7 | build/use/spaced_rep
+     3×  Quiero aprender cómo hablar español      | I want to learn how to speak Spanish     | rds 8,8,9 | build/use/spaced_rep
+     3×  Quiero hablar en español                 | I want to speak in Spanish               | rds 11,11,12 | build/use/spaced_rep
+     3×  Quiero hablar español ahora              | I want to speak Spanish now              | rds 5,6,10 | build/spaced_rep
+     2×  Ahora quiero aprender español contigo    | Now I want to learn Spanish with you     | rds 6,9 | build/spaced_rep
+     2×  estoy intentando                         | I'm trying to                            | rds 7,7 | debut/build
+     2×  Estoy intentando aprender cómo hablar    | I'm trying to learn how to speak         | rds 8,9 | build/spaced_rep
+     2×  Estoy intentando aprender cómo hablar es | I'm trying to learn how to speak Spanish | rds 8,11 | use/spaced_rep
+     2×  Estoy intentando aprender español ahora  | I'm trying to learn Spanish now          | rds 7,8 | build/spaced_rep
+     2×  Estoy intentando aprender español contig | I'm trying to learn Spanish with you now | rds 7,10 | use/spaced_rep
+     2×  Estoy intentando hablar contigo ahora    | I'm trying to speak with you now         | rds 7,8 | build/spaced_rep
+     2×  Estoy intentando hablar en español       | I'm trying to speak in Spanish           | rds 11,12 | build/spaced_rep
+     2×  Estoy intentando hablar español contigo  | I'm trying to speak Spanish with you     | rds 7,9 | build/spaced_rep
+     2×  Estoy intentando hablar español frecuent | I'm trying to speak Spanish frequently   | rds 9,11 | build/spaced_rep
+     2×  Estoy intentando hablar lo más frecuente | I'm trying to speak as frequently as pos | rds 10,11 | build/spaced_rep
+     2×  lo más frecuentemente posible            | as frequently as possible                | rds 10,10 | debut/build
+     2×  quiero                                   | I want                                   | rds 1,1 | debut/build
+     2×  Quiero aprender algo                     | I want to learn something                | rds 12,12 | build/use
+     2×  Quiero aprender algo en español          | I want to learn something in Spanish     | rds 12,12 | build/use
+     2×  Quiero aprender cómo hablar contigo      | I want to learn how to speak with you    | rds 8,9 | build/spaced_rep
+     2×  Quiero aprender cómo hablar en español   | I want to learn how to speak in Spanish  | rds 11,12 | build/spaced_rep
+     2×  Quiero aprender cómo hablar español cont | I want to learn how to speak Spanish wit | rds 8,10 | build/spaced_rep
+     2×  Quiero aprender cómo hablar frecuentemen | I want to learn how to speak frequently  | rds 9,10 | build/spaced_rep
+     2×  Quiero aprender español                  | I want to learn Spanish                  | rds 6,7 | build/spaced_rep
+     2×  Quiero aprender español ahora            | I want to learn Spanish now              | rds 6,7 | build/spaced_rep
+     2×  Quiero aprender español contigo          | I want to learn Spanish with you         | rds 6,8 | build/spaced_rep
+     2×  Quiero aprender español contigo ahora    | I want to learn Spanish with you now     | rds 6,11 | use/spaced_rep
+     2×  Quiero hablar contigo ahora              | I want to speak with you now             | rds 5,6 | build/spaced_rep
+     2×  Quiero hablar contigo lo más frecuenteme | I want to speak with you as frequently a | rds 10,11 | build/spaced_rep
+     2×  Quiero hablar español contigo ahora      | I want to speak Spanish with you now     | rds 5,7 | use/spaced_rep
+     2×  Quiero hablar español contigo lo más fre | I want to speak Spanish with you as freq | rds 10,12 | use/spaced_rep
+     2×  Quiero hablar español lo más frecuenteme | I want to speak Spanish as frequently as | rds 10,11 | build/spaced_rep
+     1×  ¿Cómo hablar en español?                 | How to speak in Spanish?                 | rds 11 | build
+     1×  ahora                                    | now                                      | rds 5 | debut
+     1×  algo                                     | something                                | rds 12 | debut
+     1×  Algo en español                          | Something in Spanish                     | rds 12 | build
+     1×  aprender                                 | to learn                                 | rds 6 | debut
+     1×  Aprender algo                            | To learn something                       | rds 12 | build
+     1×  Aprender español                         | To learn Spanish                         | rds 6 | build
+     1×  Aprender lo más frecuentemente posible   | To learn as frequently as possible       | rds 10 | build
+     1×  cómo                                     | how                                      | rds 8 | debut
+     1×  Cómo aprender                            | How to learn                             | rds 8 | build
+     1×  Cómo hablar                              | How to speak                             | rds 8 | build
+     1×  Cómo hablar español                      | How to speak Spanish                     | rds 8 | build
+     1×  contigo                                  | with you                                 | rds 4 | debut
+     1×  Contigo ahora                            | With you now                             | rds 5 | build
+     1×  en                                       | in                                       | rds 11 | debut
+     1×  En español                               | In Spanish                               | rds 11 | build
+     1×  español                                  | Spanish                                  | rds 3 | debut
+     1×  Español contigo ahora                    | Spanish with you now                     | rds 5 | build
+     1×  Estoy intentando aprender                | I'm trying to learn                      | rds 7 | build
+     1×  Estoy intentando aprender algo ahora     | I'm trying to learn something now        | rds 12 | build
+     1×  Estoy intentando aprender algo en españo | I'm trying to learn something in Spanish | rds 12 | build
+     1×  Estoy intentando aprender español lo más | I'm trying to learn Spanish as frequentl | rds 10 | use
+     1×  Estoy intentando hablar                  | I'm trying to speak                      | rds 7 | build
+     1×  Estoy intentando hablar en español lo má | I'm trying to speak in Spanish as freque | rds 11 | use
+     1×  frecuentemente                           | frequently                               | rds 9 | debut
+     1×  hablar                                   | to speak                                 | rds 2 | debut
+     1×  Hablar ahora                             | To speak now                             | rds 5 | build
+     1×  Hablar contigo                           | To speak with you                        | rds 4 | build
+     1×  Hablar en español                        | To speak in Spanish                      | rds 11 | build
+     1×  Hablar español                           | To speak Spanish                         | rds 3 | build
+     1×  Hablar español ahora                     | To speak Spanish now                     | rds 5 | build
+     1×  Hablar español contigo                   | To speak Spanish with you                | rds 4 | build
+     1×  Hablar frecuentemente                    | To speak frequently                      | rds 9 | build
+     1×  Hablar lo más frecuentemente posible     | To speak as frequently as possible       | rds 10 | build
+     1×  Quiero aprender                          | I want to learn                          | rds 6 | build
+     1×  Quiero aprender algo en español contigo  | I want to learn something in Spanish wit | rds 12 | build
+     1×  Quiero hablar en español contigo ahora   | I want to speak in Spanish with you now  | rds 11 | build
+     1×  Quiero hablar español frecuentemente     | I want to speak Spanish frequently       | rds 9 | build
+     1×  Quiero hablar frecuentemente             | I want to speak frequently               | rds 9 | build
+     1×  Quiero hablar lo más frecuentemente posi | I want to speak as frequently as possibl | rds 10 | build
+
+(e) EXPOSURE — times each new LEGO's target string occurs inside ANY cycle in rounds 1-12
+    (LEGO-attributed reps in (b) undercount: "quiero" recurs inside "Quiero hablar español" etc.)
+LEGO       target                  attrib  exposure  prodExp   exposure per round
+S0001L01   quiero                       3        84       83   R1:3 R2:1 R3:3 R4:6 R5:9 R6:13 R7:6 R8:7 R9:9 R10:9 R11:8 R12:10
+S0001L02   hablar                       8        98       97   R1:0 R2:3 R3:4 R4:8 R5:11 R6:5 R7:8 R8:12 R9:14 R10:12 R11:14 R12:7
+S0001L03   español                     10        77       76   R1:0 R2:0 R3:5 R4:4 R5:6 R6:8 R7:9 R8:9 R9:5 R10:6 R11:14 R12:11
+S0001L04   contigo                     14        48       47   R1:0 R2:0 R3:0 R4:8 R5:6 R6:5 R7:5 R8:5 R9:6 R10:5 R11:4 R12:4
+S0001L05   ahora                       17        36       35   R1:0 R2:0 R3:0 R4:0 R5:11 R6:8 R7:6 R8:4 R9:1 R10:3 R11:2 R12:1
+S0002L01   aprender                    17        48       47   R1:0 R2:0 R3:0 R4:0 R5:0 R6:11 R7:6 R8:9 R9:5 R10:5 R11:3 R12:9
+S0002L02   estoy intentando            17        34       33   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:11 R8:5 R9:5 R10:4 R11:5 R12:4
+S0003L01   cómo                        16        21       20   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:11 R9:4 R10:2 R11:3 R12:1
+S0003L02   frecuentemente              16        32       30   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:11 R10:14 R11:5 R12:2
+S0003L03   lo más frecuentemente       15        16       15   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:11 R11:4 R12:1
+S0004L01   en                          14       100       95   R1:0 R2:0 R3:0 R4:0 R5:0 R6:11 R7:14 R8:11 R9:16 R10:16 R11:17 R12:15
+S0004L02   algo                        11        11       10   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:11
+
+  spaced_rep by round: R1=0  R2=0  R3=1 (offsets 0)  R4=2 (offsets 0/1)  R5=4 (offsets 0/1/2)  R6=5 (offsets 0/1/2)  R7=6 (offsets 0/1/2/3)  R8=6 (offsets 0/1/2/3)  R9=6 (offsets 0/1/2/3)  R10=7 (offsets 0/1/2/3/4)  R11=7 (offsets 0/1/2/3/4)  R12=7 (offsets 0/1/2/3/4)
+
+================================================================================================
+  TURBO ON — turboOmit cycles skipped (live fibKeep/buildKeep/useKeep) — spa_for_eng rounds 1-12
+================================================================================================
+
+(a) CYCLES PER ROUND
+Round  LEGO       new lego (target)           cycles  prod  listen   type breakdown
+1      S0001L01   quiero                           3     2       1   intro×1 debut×1 build×1
+2      S0001L02   hablar                           3     2       1   intro×1 debut×1 build×1
+3      S0001L03   español                          6     5       1   intro×1 debut×1 build×2 spaced_rep×1 use×1
+4      S0001L04   contigo                          9     8       1   intro×1 debut×1 build×3 spaced_rep×2 use×2
+5      S0001L05   ahora                           11    10       1   intro×1 debut×1 build×3 spaced_rep×4 use×2
+6      S0002L01   aprender                        12    11       1   intro×1 debut×1 build×3 spaced_rep×5 use×2
+7      S0002L02   estoy intentando                12    11       1   intro×1 debut×1 build×3 spaced_rep×5 use×2
+8      S0003L01   cómo                            12    11       1   intro×1 debut×1 build×3 spaced_rep×5 use×2
+9      S0003L02   frecuentemente                  12    11       1   intro×1 debut×1 build×3 spaced_rep×5 use×2
+10     S0003L03   lo más frecuentemente posi      13    12       1   intro×1 debut×1 build×3 spaced_rep×6 use×2
+11     S0004L01   en                              13    12       1   intro×1 debut×1 build×3 spaced_rep×6 use×2
+12     S0004L02   algo                            13    12       1   intro×1 debut×1 build×3 spaced_rep×6 use×2
+TOTAL rounds 1-12: 119 cycles (107 production, 12 listen-only)
+
+(b) PER NEW LEGO — hearings before first production ask, and total reps in rounds 1-12
+LEGO       target                   intro rd heardB4 audioB4 totalReps prodReps   per-round reps
+S0001L01   quiero                          1       1       2         3        2   R1:3 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:0
+S0001L02   hablar                          2       1       2         7        6   R1:0 R2:3 R3:1 R4:1 R5:1 R6:0 R7:0 R8:0 R9:0 R10:1 R11:0 R12:0
+S0001L03   español                         3       1       2         9        8   R1:0 R2:0 R3:5 R4:1 R5:1 R6:1 R7:0 R8:0 R9:0 R10:0 R11:1 R12:0
+S0001L04   contigo                         4       1       2        12       11   R1:0 R2:0 R3:0 R4:7 R5:2 R6:1 R7:1 R8:0 R9:0 R10:0 R11:0 R12:1
+S0001L05   ahora                           5       1       2        12       11   R1:0 R2:0 R3:0 R4:0 R5:7 R6:3 R7:1 R8:1 R9:0 R10:0 R11:0 R12:0
+S0002L01   aprender                        6       1       2        12       11   R1:0 R2:0 R3:0 R4:0 R5:0 R6:7 R7:3 R8:1 R9:1 R10:0 R11:0 R12:0
+S0002L02   estoy intentando                7       1       2        12       11   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:7 R8:3 R9:1 R10:1 R11:0 R12:0
+S0003L01   cómo                            8       1       2        12       11   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:7 R9:3 R10:1 R11:1 R12:0
+S0003L02   frecuentemente                  9       1       2        12       11   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:7 R10:3 R11:1 R12:1
+S0003L03   lo más frecuentemente po       10       1       2        11       10   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:7 R11:3 R12:1
+S0004L01   en                             11       1       2        10        9   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:7 R12:3
+S0004L02   algo                           12       1       2         7        6   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:7
+
+(c) DISTINCT PRACTICE COMBINATIONS (production cycles only: debut/build/use/spaced_rep)
+production cycles: 107   distinct phrases: 74   mean repeats/phrase: 1.45
+
+  repeat histogram:
+    heard  1× :   55 distinct phrases  ███████████████████████████████████████████████████████
+    heard  2× :   12 distinct phrases  ████████████
+    heard  3× :    3 distinct phrases  ███
+    heard  4× :    2 distinct phrases  ██
+    heard  5× :    1 distinct phrases  █
+    heard  6× :    1 distinct phrases  █
+
+  every distinct phrase (sorted by repeats desc):
+     6×  Quiero hablar español                    | I want to speak Spanish                  | rds 3,3,4,5,6,11 | build/use/spaced_rep
+     5×  Quiero hablar                            | I want to speak                          | rds 2,3,4,5,10 | build/spaced_rep
+     4×  Quiero hablar contigo                    | I want to speak with you                 | rds 4,4,5,6 | build/use/spaced_rep
+     4×  Quiero hablar español contigo            | I want to speak Spanish with you         | rds 4,5,7,12 | use/spaced_rep
+     3×  Quiero aprender ahora                    | I want to learn now                      | rds 6,6,7 | build/use/spaced_rep
+     3×  Quiero hablar ahora                      | I want to speak now                      | rds 5,6,8 | use/spaced_rep
+     3×  Quiero hablar contigo frecuentemente     | I want to speak with you frequently      | rds 9,10,12 | use/spaced_rep
+     2×  estoy intentando                         | I'm trying to                            | rds 7,7 | debut/build
+     2×  Estoy intentando aprender cómo hablar es | I'm trying to learn how to speak Spanish | rds 8,11 | use/spaced_rep
+     2×  Estoy intentando aprender español contig | I'm trying to learn Spanish with you now | rds 7,10 | use/spaced_rep
+     2×  Estoy intentando hablar español          | I'm trying to speak Spanish              | rds 7,8 | use/spaced_rep
+     2×  Estoy intentando hablar frecuentemente   | I'm trying to speak frequently           | rds 9,10 | use/spaced_rep
+     2×  lo más frecuentemente posible            | as frequently as possible                | rds 10,10 | debut/build
+     2×  quiero                                   | I want                                   | rds 1,1 | debut/build
+     2×  Quiero aprender algo                     | I want to learn something                | rds 12,12 | build/use
+     2×  Quiero aprender cómo hablar español      | I want to learn how to speak Spanish     | rds 8,9 | use/spaced_rep
+     2×  Quiero hablar en español                 | I want to speak in Spanish               | rds 11,12 | use/spaced_rep
+     2×  Quiero hablar español contigo ahora      | I want to speak Spanish with you now     | rds 5,7 | use/spaced_rep
+     2×  Quiero hablar español contigo lo más fre | I want to speak Spanish with you as freq | rds 10,12 | use/spaced_rep
+     1×  ¿Cómo hablar en español?                 | How to speak in Spanish?                 | rds 11 | build
+     1×  ahora                                    | now                                      | rds 5 | debut
+     1×  Ahora quiero aprender español contigo    | Now I want to learn Spanish with you     | rds 9 | spaced_rep
+     1×  algo                                     | something                                | rds 12 | debut
+     1×  Algo en español                          | Something in Spanish                     | rds 12 | build
+     1×  aprender                                 | to learn                                 | rds 6 | debut
+     1×  Aprender algo                            | To learn something                       | rds 12 | build
+     1×  Aprender español                         | To learn Spanish                         | rds 6 | build
+     1×  Aprender lo más frecuentemente posible   | To learn as frequently as possible       | rds 10 | build
+     1×  cómo                                     | how                                      | rds 8 | debut
+     1×  Cómo aprender                            | How to learn                             | rds 8 | build
+     1×  Cómo hablar                              | How to speak                             | rds 8 | build
+     1×  Cómo hablar español                      | How to speak Spanish                     | rds 8 | build
+     1×  contigo                                  | with you                                 | rds 4 | debut
+     1×  Contigo ahora                            | With you now                             | rds 5 | build
+     1×  en                                       | in                                       | rds 11 | debut
+     1×  En español                               | In Spanish                               | rds 11 | build
+     1×  español                                  | Spanish                                  | rds 3 | debut
+     1×  Estoy intentando aprender                | I'm trying to learn                      | rds 7 | build
+     1×  Estoy intentando aprender cómo hablar    | I'm trying to learn how to speak         | rds 9 | spaced_rep
+     1×  Estoy intentando aprender español ahora  | I'm trying to learn Spanish now          | rds 8 | spaced_rep
+     1×  Estoy intentando aprender español lo más | I'm trying to learn Spanish as frequentl | rds 10 | use
+     1×  Estoy intentando hablar                  | I'm trying to speak                      | rds 7 | build
+     1×  Estoy intentando hablar contigo ahora    | I'm trying to speak with you now         | rds 8 | spaced_rep
+     1×  Estoy intentando hablar en español       | I'm trying to speak in Spanish           | rds 12 | spaced_rep
+     1×  Estoy intentando hablar en español lo má | I'm trying to speak in Spanish as freque | rds 11 | use
+     1×  Estoy intentando hablar español contigo  | I'm trying to speak Spanish with you     | rds 9 | spaced_rep
+     1×  Estoy intentando hablar español frecuent | I'm trying to speak Spanish frequently   | rds 11 | spaced_rep
+     1×  Estoy intentando hablar lo más frecuente | I'm trying to speak as frequently as pos | rds 11 | spaced_rep
+     1×  frecuentemente                           | frequently                               | rds 9 | debut
+     1×  hablar                                   | to speak                                 | rds 2 | debut
+     1×  Hablar ahora                             | To speak now                             | rds 5 | build
+     1×  Hablar contigo                           | To speak with you                        | rds 4 | build
+     1×  Hablar en español                        | To speak in Spanish                      | rds 11 | build
+     1×  Hablar español                           | To speak Spanish                         | rds 3 | build
+     1×  Hablar español ahora                     | To speak Spanish now                     | rds 5 | build
+     1×  Hablar español contigo                   | To speak Spanish with you                | rds 4 | build
+     1×  Hablar frecuentemente                    | To speak frequently                      | rds 9 | build
+     1×  Hablar lo más frecuentemente posible     | To speak as frequently as possible       | rds 10 | build
+     1×  Quiero aprender                          | I want to learn                          | rds 6 | build
+     1×  Quiero aprender algo en español          | I want to learn something in Spanish     | rds 12 | use
+     1×  Quiero aprender cómo hablar contigo      | I want to learn how to speak with you    | rds 9 | spaced_rep
+     1×  Quiero aprender cómo hablar en español   | I want to learn how to speak in Spanish  | rds 12 | spaced_rep
+     1×  Quiero aprender cómo hablar español cont | I want to learn how to speak Spanish wit | rds 10 | spaced_rep
+     1×  Quiero aprender cómo hablar frecuentemen | I want to learn how to speak frequently  | rds 10 | spaced_rep
+     1×  Quiero aprender español                  | I want to learn Spanish                  | rds 7 | spaced_rep
+     1×  Quiero aprender español ahora            | I want to learn Spanish now              | rds 7 | spaced_rep
+     1×  Quiero aprender español contigo          | I want to learn Spanish with you         | rds 8 | spaced_rep
+     1×  Quiero aprender español contigo ahora    | I want to learn Spanish with you now     | rds 6 | use
+     1×  Quiero hablar contigo ahora              | I want to speak with you now             | rds 6 | spaced_rep
+     1×  Quiero hablar contigo lo más frecuenteme | I want to speak with you as frequently a | rds 11 | spaced_rep
+     1×  Quiero hablar español ahora              | I want to speak Spanish now              | rds 6 | spaced_rep
+     1×  Quiero hablar español frecuentemente     | I want to speak Spanish frequently       | rds 9 | build
+     1×  Quiero hablar español lo más frecuenteme | I want to speak Spanish as frequently as | rds 11 | spaced_rep
+     1×  Quiero hablar frecuentemente             | I want to speak frequently               | rds 9 | build
+
+(e) EXPOSURE — times each new LEGO's target string occurs inside ANY cycle in rounds 1-12
+    (LEGO-attributed reps in (b) undercount: "quiero" recurs inside "Quiero hablar español" etc.)
+LEGO       target                  attrib  exposure  prodExp   exposure per round
+S0001L01   quiero                       3        58       57   R1:3 R2:1 R3:3 R4:5 R5:6 R6:9 R7:5 R8:3 R9:6 R10:5 R11:4 R12:8
+S0001L02   hablar                       7        70       69   R1:0 R2:3 R3:4 R4:7 R5:8 R6:5 R7:4 R8:7 R9:9 R10:7 R11:10 R12:6
+S0001L03   español                      9        52       51   R1:0 R2:0 R3:5 R4:3 R5:4 R6:4 R7:6 R8:6 R9:4 R10:4 R11:9 R12:7
+S0001L04   contigo                     12        33       32   R1:0 R2:0 R3:0 R4:7 R5:4 R6:3 R7:3 R8:3 R9:4 R10:4 R11:2 R12:3
+S0001L05   ahora                       12        23       22   R1:0 R2:0 R3:0 R4:0 R5:7 R6:6 R7:4 R8:3 R9:1 R10:2 R11:0 R12:0
+S0002L01   aprender                    12        32       31   R1:0 R2:0 R3:0 R4:0 R5:0 R6:7 R7:5 R8:5 R9:4 R10:5 R11:1 R12:5
+S0002L02   estoy intentando            12        22       21   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:7 R8:4 R9:3 R10:3 R11:4 R12:1
+S0003L01   cómo                        12        15       14   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:7 R9:3 R10:2 R11:2 R12:1
+S0003L02   frecuentemente              12        24       22   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:7 R10:10 R11:5 R12:2
+S0003L03   lo más frecuentemente       11        12       11   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:7 R11:4 R12:1
+S0004L01   en                          10        70       65   R1:0 R2:0 R3:0 R4:0 R5:0 R6:7 R7:10 R8:7 R9:12 R10:12 R11:12 R12:10
+S0004L02   algo                         7         7        6   R1:0 R2:0 R3:0 R4:0 R5:0 R6:0 R7:0 R8:0 R9:0 R10:0 R11:0 R12:7
+
+  spaced_rep by round: R1=0  R2=0  R3=1 (offsets 0)  R4=2 (offsets 0/1)  R5=4 (offsets 0/1/2)  R6=5 (offsets 0/1/2)  R7=5 (offsets 0/1/2)  R8=5 (offsets 0/1/2)  R9=5 (offsets 0/1/2)  R10=6 (offsets 0/1/2/4)  R11=6 (offsets 0/1/2/4)  R12=6 (offsets 0/1/2/4)
+
+================================================================================================
+  (d) TURBO DELTA — what Turbo strips in rounds 1-12
+================================================================================================
+Round     normal   turbo  stripped   %kept   stripped types
+1              3       3         0    100%   
+2              3       3         0    100%   
+3              6       6         0    100%   
+4             10       9         1     90%   build×1
+5             15      11         4     73%   build×4
+6             16      12         4     75%   build×4
+7             17      12         5     71%   build×4 spaced_rep×1
+8             17      12         5     71%   build×4 spaced_rep×1
+9             17      12         5     71%   build×4 spaced_rep×1
+10            18      13         5     72%   build×4 spaced_rep×1
+11            18      13         5     72%   build×4 spaced_rep×1
+12            18      13         5     72%   build×4 spaced_rep×1
+TOTAL        158     119        39     75%
+
+================================================================================================
+  (f) IS THE THIN START A CULL, OR A CONTENT SHORTAGE?
+      authored course_practice_phrases per LEGO vs what the generator emitted
+================================================================================================
+LEGO         rd   AUTHORED under this LEGO          EMITTED in its own round      caps                verdict
+S0001L01      1   1 build / 0 use / 0 comp = 1      1 build / 0 use (3 cyc)       build<=7 use<=2     BELOW CAPS -> content-limited
+S0001L02      2   1 build / 1 use / 0 comp = 2      1 build / 0 use (3 cyc)       build<=7 use<=2     BELOW CAPS -> content-limited
+S0001L03      3   2 build / 1 use / 0 comp = 3      2 build / 1 use (6 cyc)       build<=7 use<=2     BELOW CAPS -> content-limited
+S0001L04      4   2 build / 2 use / 0 comp = 4      4 build / 2 use (10 cyc)      build<=7 use<=2     BELOW CAPS -> content-limited
+S0001L05      5   4 build / 4 use / 0 comp = 8      7 build / 2 use (15 cyc)      build<=7 use<=2     at caps
+S0002L01      6   2 build / 6 use / 0 comp = 8      7 build / 2 use (16 cyc)      build<=7 use<=2     at caps
+S0002L02      7   3 build / 5 use / 2 comp = 10     7 build / 2 use (17 cyc)      build<=7 use<=2     at caps
+S0003L01      8   3 build / 5 use / 0 comp = 8      7 build / 2 use (17 cyc)      build<=7 use<=2     at caps
+S0003L02      9   3 build / 4 use / 0 comp = 7      7 build / 2 use (17 cyc)      build<=7 use<=2     at caps
+S0003L03     10   4 build / 5 use / 0 comp = 9      7 build / 2 use (18 cyc)      build<=7 use<=2     at caps
+S0004L01     11   3 build / 5 use / 0 comp = 8      7 build / 2 use (18 cyc)      build<=7 use<=2     at caps
+S0004L02     12   3 build / 5 use / 0 comp = 8      7 build / 2 use (18 cyc)      build<=7 use<=2     at caps
+
+  PROVENANCE — every drilled phrase in rounds 1-6, traced to its authored row:
+  Round 1:
+    debut       quiero                                     <- S0001L01/build/pos1
+    build       quiero                                     <- S0001L01/build/pos1
+  Round 2:
+    debut       hablar                                     <- (not in course_practice_phrases — LEGO debut row)
+    build       Quiero hablar                              <- S0001L02/build/pos1, S0001L02/use/pos2
+  Round 3:
+    debut       español                                    <- (not in course_practice_phrases — LEGO debut row)
+    build       Hablar español                             <- S0001L03/build/pos1
+    build       Quiero hablar español                      <- S0001L03/build/pos2, S0001L03/use/pos3
+    spaced_rep  Quiero hablar                              <- S0001L02/build/pos1, S0001L02/use/pos2
+    use         Quiero hablar español                      <- S0001L03/build/pos2, S0001L03/use/pos3
+  Round 4:
+    debut       contigo                                    <- (not in course_practice_phrases — LEGO debut row)
+    build       Hablar contigo                             <- S0001L04/build/pos1
+    build       Hablar español contigo                     <- S0001L04/build/pos2
+    build       Quiero hablar contigo                      <- S0001L04/use/pos3
+    build       Quiero hablar español contigo              <- S0001L04/use/pos4
+    spaced_rep  Quiero hablar español                      <- S0001L03/build/pos2, S0001L03/use/pos3
+    spaced_rep  Quiero hablar                              <- S0001L02/build/pos1, S0001L02/use/pos2
+    use         Quiero hablar contigo                      <- S0001L04/use/pos3
+    use         Quiero hablar español contigo              <- S0001L04/use/pos4
+  Round 5:
+    debut       ahora                                      <- (not in course_practice_phrases — LEGO debut row)
+    build       Hablar ahora                               <- S0001L05/build/pos1
+    build       Contigo ahora                              <- S0001L05/build/pos2
+    build       Hablar español ahora                       <- S0001L05/build/pos4
+    build       Español contigo ahora                      <- S0001L05/build/pos3
+    build       Quiero hablar ahora                        <- S0001L05/use/pos5
+    build       Quiero hablar español ahora                <- S0001L05/use/pos6
+    build       Quiero hablar contigo ahora                <- S0001L05/use/pos7
+    spaced_rep  Quiero hablar contigo                      <- S0001L04/use/pos3
+    spaced_rep  Quiero hablar español contigo              <- S0001L04/use/pos4
+    spaced_rep  Quiero hablar español                      <- S0001L03/build/pos2, S0001L03/use/pos3
+    spaced_rep  Quiero hablar                              <- S0001L02/build/pos1, S0001L02/use/pos2
+    use         Quiero hablar español contigo ahora        <- S0001L05/use/pos8
+    use         Quiero hablar ahora                        <- S0001L05/use/pos5
+  Round 6:
+    debut       aprender                                   <- (not in course_practice_phrases — LEGO debut row)
+    build       Quiero aprender                            <- S0002L01/build/pos1
+    build       Aprender español                           <- S0002L01/build/pos3
+    build       Quiero aprender ahora                      <- S0002L01/use/pos4
+    build       Quiero aprender español                    <- S0002L01/use/pos5
+    build       Quiero aprender español ahora              <- S0002L01/use/pos7
+    build       Quiero aprender español contigo            <- S0002L01/use/pos8
+    build       Ahora quiero aprender español contigo      <- S0002L01/use/pos9
+    spaced_rep  Quiero hablar ahora                        <- S0001L05/use/pos5
+    spaced_rep  Quiero hablar español ahora                <- S0001L05/use/pos6
+    spaced_rep  Quiero hablar contigo ahora                <- S0001L05/use/pos7
+    spaced_rep  Quiero hablar contigo                      <- S0001L04/use/pos3
+    spaced_rep  Quiero hablar español                      <- S0001L03/build/pos2, S0001L03/use/pos3
+    use         Quiero aprender español contigo ahora      <- S0002L01/use/pos10
+    use         Quiero aprender ahora                      <- S0002L01/use/pos4
+
+CONTRAST: turbo with CODE DEFAULTS (useKeep=1) rounds 1-12: 110 cycles vs live-config turbo 119 vs normal 158
