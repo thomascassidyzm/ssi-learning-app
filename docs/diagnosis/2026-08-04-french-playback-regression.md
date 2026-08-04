@@ -47,6 +47,15 @@ The whole French audio set was regenerated that afternoon:
 Every French `target2` row in the database now dates from that batch, and
 **100% of the 567 broken items trace to it** (`voice=xai_leo`, 2026-08-03).
 
+**The files are digital silence — confirmed by decoding, not inferred.**
+`S0530L02` "pour que je puisse" target2, pulled from S3 and run through
+`ffprobe` / `ffmpeg volumedetect`:
+
+- DB says 144 ms; the file is actually **100 ms**
+- **mean −91 dB, peak −91 dB — digital silence. There is no speech in it.**
+- The paired target1 for the same phrase is a real 1.104 s recording
+  (mean −17 dB, peak −1.9 dB)
+
 The broken clips are not merely short — they are **byte-identical stubs**. Four
 different texts, fetched live through the production proxy:
 
@@ -132,6 +141,37 @@ Symptom 4 needs no fix: it was a one-off stale script cache against a
 `content_stamp` that moved mid-session, and it self-healed on restart. Worth
 noting only if it recurs when content has *not* just changed.
 
+## 5a. A separate latent bug found on the way — real, but NOT what Tom heard
+
+`backendCyclesToRounds.ts:203-207` deliberately bakes no `playbackSpeed`, on the
+stated assumption that the runtime override reapplies the belt curve at play
+time. **That assumption is false** — `getPlaybackSpeedMultiplier`
+(`LearningPlayer.vue:9264-9266`) returns a hard `1.0` unless Turbo is on. It only
+ever *cancels* a baked ramp; it never *applies* one. So cycles built on the
+instant-playback boot path play flat 1.0× and, because speed doubles as the belt
+proxy in `computePauseDuration` (`beltProgress(1) = Green`), also get the fully
+tapered Green-belt pause.
+
+**This is visible in Tom's telemetry — and it is not his symptom.** Measuring the
+actual `playbackSpeed` on every French cycle against the designed ramp
+(`0.95 globalSpeed × beltSpeed`):
+
+| belt | expected | actual | cycles |
+|---|---|---|---|
+| White | 0.76 | **0.76** | 84 |
+| Yellow/Orange | 0.9 | **0.9** | 2 |
+| Green+ | 0.95 | **1.0** | 7 |
+| Green+ | 0.95 | 0.95 | 1 |
+
+The 86 cycles where the ramp *matters* were all correctly baked. The defect shows
+up only on 7 green-belt cycles, where the error is 0.95 → 1.0 — **5%, inaudible**.
+At White belt it would be a 32% error and unmissable, but White belt was baked
+correctly, so the boot path did not serve those rounds.
+
+So: a genuine latent bug worth its own ticket, but it did not cause this
+incident. Logged here so the next reader does not re-find it and mistake it for
+the root cause.
+
 ## 6. Explicit gaps
 
 - **None on telemetry.** `player_events` was read in full via the service-role
@@ -142,12 +182,22 @@ noting only if it recurs when content has *not* just changed.
 - **Not checked:** whether other learners on French report the same thing. Tom's
   session was the question asked; the defect is in shared data, so the blast
   radius is every French learner, but that is inference, not measurement.
-- **Not checked:** the 72 broken `known`-role French clips from the same batch.
-  They will produce a dead *prompt*, which is a louder failure than a dead second
-  voice. Worth a look.
-- **Not decoded:** the stub MP3s were confirmed byte-identical and 2,016 bytes,
-  but not decoded to prove they are pure silence rather than a fragment. The
-  byte-identity across unrelated texts already settles that they are not speech.
+- **Confirmed since first draft:** the stubs decode to digital silence (−91 dB),
+  and there are **~75 broken `known`-role French clips** from the same batch —
+  those produce a dead *prompt*, a louder failure than a dead second voice.
+- **Alternative for symptom 4, not eliminated:** `isInfPlayActive` can
+  false-classify a round and freeze `beltAnchorSeed` at `null`
+  (`LearningPlayer.vue:3894-3927`); the `watch` guard then writes nothing and the
+  belt holds its last value until an in-memory flag clears — which a force-kill
+  does. The M9 regression suite (`beltPositionSync.test.ts`) never constructs a
+  pure-`spaced_rep`/`use` round, so that path is untested. The stale-script-cache
+  explanation in §3 is the one with telemetry behind it (no `script_revalidated`
+  for French all session, `content_stamp` moved 18 min before); this one is
+  code-plausible but unevidenced. Both can be true.
+- **`voice_config` changed 2 hours before the bad batch** (fra
+  `voice_config.updatedAt` = 2026-08-03 13:46, batch ran 15:45–16:56). Whether
+  that change *caused* the failure is unestablished — Italian uses the same xAI
+  "Leo" voice cleanly, so the voice alone is not sufficient.
 
 ## 7. Needs Tom
 
