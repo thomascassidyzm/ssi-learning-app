@@ -156,3 +156,139 @@ spaced rep, and half the debut phrases. It also *raises* the pause floor
 That is a large, deliberate cull — which is why it matters that it is opt-in-only and
 session-scoped. **If Aran tapped Turbo, this alone fully explains "not enough repetition."**
 Resolving that is the single highest-value fact still outstanding.
+
+---
+
+## 5. Worker findings folded in (2026-08-04, three of four reported)
+
+### 5.1 Aran is on Croatian — content and turbo both ruled OUT for him
+
+`learners.id = 07610299-f2dd-4fc9-8872-2c9e2d01b9f6` (`aran@hey.com`, `is_internal: true`).
+**45,243 of 45,252 events (99.98%) are `hrv_for_eng`.** Eleven other enrollments, all abandoned
+after ≤11 minutes, untouched since May 2026.
+
+- `hrv_for_eng` has **1** suspect clip in 28,079 — clean. **Content ruled out.**
+- **Zero `turbo_toggle` events, ever.** `preferences.turbo_mode_enabled: false`. **Turbo ruled
+  out.** Population-wide turbo is real but tiny: 20 distinct learners in 60 days.
+
+### 5.2 IMPORTANT correction to §2 — the speed defect does NOT explain Aran's own experience
+
+Aran's target-audio speeds: `0.8` × 8,806 and `0.9` × 1,000. **His cycles are correctly
+ramped** — so the unbaked-speed defect is not firing for him. This is consistent with §2.1: he
+is a long-established learner (round 631, `S0280L02`) whose script comes from the **cached
+legacy path**, not the instant adapter.
+
+That sharpens rather than weakens the finding: **the unbaked ramp bites hardest on a learner
+starting a fresh course with no cached script — precisely "the beginning of courses feels too
+fast."** It is a real defect affecting `cat_for_eng`, `eus_for_eng` and every no-cache first
+session; it is simply not what Aran personally hit.
+
+Aran's telemetry only reaches back to `roundIndex 52`, so his own beginning-of-course behaviour
+is **not observable**. Explicit gap.
+
+### 5.3 Adaptation v2 — ruled OUT, verified live
+
+`algorithm_config.adaptation_v2` has **`shadow: true`** (row last touched 2026-07-16). Shadow
+computes and logs but applies nothing, so `adaptOmitCycleIds` stays empty. Cold start was
+pinned by test: with no mastery evidence every lever sits at its scripted value (7 builds /
+2 consolidations / 12 spaced-reps, matching the live `script_shape` row) and **zero cycles are
+culled**. There is no code path from "learner is doing well" to "play fewer repetitions" — the
+only signal that moves the levers is *struggling*, and it moves toward **more** consolidation.
+
+A latent bug was pinned for the day v2 is switched to applying: the cull counts play-time
+*cycles* while the generator budgets review *slots*, and the late-course seed sandwich is one
+slot but four cycles.
+
+### 5.4 NEW — the strongest candidate for "skipping": `navigator.onLine`
+
+`LearningPlayer.vue:9320`:
+
+```js
+const offlinePlaybackActive = () =>
+  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+```
+
+The explicit offline toggle is **one half of an OR, not a precondition**. A learner who never
+opted into offline mode enters skip-forward mode the instant `navigator.onLine` flickers false —
+a tunnel, a lift, an iOS wifi→cellular handover. From that moment every cycle whose audio is not
+already in IndexedDB is **silently dropped**, and the check re-runs at every cycle boundary,
+walking forward past each failing cycle in turn.
+
+**On rounds 1–10 of a fresh course the persistent cache is nearly empty** — only what has played
+plus ~one cycle of lookahead. So one connectivity blip can cull most of the near-term queue. It
+self-heals when the network returns, presenting as **bursts of skipping correlated with flaky
+connectivity**.
+
+`navigator.onLine` is notoriously twitchy on mobile and says nothing about whether the
+connection actually *works*. There is no debounce, no requirement that a fetch actually failed,
+and no cap on consecutive drops.
+
+Corroborating: Aran's own history carries **4,777 `phase_skip`, 432 `tap_skip`, 170 `lego_skip`**
+events — heavy skip volume that nothing else in this diagnosis explains.
+
+Also found: an unconditional 10-second stall watchdog (`SimplePlayer.ts:1164`) advances the
+phase when audio makes no progress. It does not drop a cycle, but on a slow-but-alive connection
+it **truncates clips to silence and moves on** — which reads to a learner as skipping. That is
+mechanism (b) from Kai's taxonomy, arising from code rather than content.
+
+### 5.5 Methodology rails — the start of a course is structurally thin, and undefended
+
+From `ralph-methodology.md` (the runtime-facing doc):
+- Spaced-rep offsets `[1,2,3,5,8,13,21,34,55,89]`; N-1 contributes **3** USE phrases, every other
+  due LEGO **1**; total review capped at **12**/round.
+- The validator's graduated combination ramp: **seed 1 LEGO 1 → 0 BUILD / 0 USE**; rest of seed 1
+  and seeds 2–3 → **1/1**; seeds 4–5 onward → **3/5**, the full minimum for the rest of the course.
+  `skip_validation` can silence these minimums, but **only for seeds 1–3**.
+
+Two structural facts compound at the start:
+1. Review offsets resolve to nothing until enough prior rounds exist (`if (targetSessionIndex < 0)
+   break`) — round 1 gets **zero** spaced review, round 2 only N-1.
+2. Seeds 1–3 are permitted as few as **0–1** practice combinations.
+
+**So by the methodology's own numbers, the opening of a course legitimately has both the thinnest
+practice-combination count AND the emptiest review pool.** No document reconciles this or defends
+it as intentional. Directly answers Kai's "amount of combinations" question: at the very start it
+is **too low**, by design, and nothing compensates.
+
+The docs also state **no belt- or seed-indexed pace ramp** — pause/pace values are static per-role
+defaults. The belt speed ramp in the player is therefore a *player-side* invention with no
+methodology backing either way. The only sanctioned "faster path" is a future, unconfirmed,
+performance-gated adaptive layer for learners already scoring >90% — nothing sanctions reducing
+repetition at the *start* of a course.
+
+**Gap:** `LEGO_SESSION_SPECIFICATION.md` (a spec doc, some sections marked "Future") and
+`ralph-methodology.md` disagree numerically on the offset list. Neither was verified against the
+actual round-assembly runtime.
+
+---
+
+## 6. Attribution of the symptom
+
+| bucket | share | verdict |
+|---|---|---|
+| **SETTINGS** (turbo, adaptation flags) | **0%** | Ruled out. Turbo never enabled by Aran and cannot default-on; adaptation v2 in shadow. |
+| **CODE — `navigator.onLine` skip-forward** | largest share of *"skipping"* | Confirmed mechanism; field frequency unmeasured. Worst exactly when the cache is cold = course start. |
+| **CODE — unbaked belt ramp** | largest share of *"too fast at the beginning"* | Confirmed on `origin/dev`. 13–18% of every cycle lost; voice 25–32% fast. Hits fresh-course/no-cache sessions, not Aran's own. |
+| **CODE — 10s stall watchdog** | some of *"clips cut off"* | Confirmed; truncates on slow-but-alive connections. |
+| **CONTENT** (broken audio) | **0% for Aran** | Croatian clean (1/28,079). German (935) real but a different cohort and owned elsewhere. |
+| **METHODOLOGY** (thin course opening) | real, by design | Seeds 1–3 permit 0–1 combinations and have no review pool. Not a bug — an undefended design gap. |
+
+## 7. Recommendations
+
+1. **Bake the belt ramp on the instant path.** Pass `currentTargetSpeedConfig()` to all three
+   `backendCyclesToRounds` call sites and compute the speed in the adapter. Fixes both the voice
+   speed and — via the belt proxy — the pause. Also restores the ignored `learner_speed` setting.
+   Small, contained, high value.
+2. **Fix the `navigator.onLine` trigger.** Require the explicit offline toggle *or* real evidence
+   of failed fetches, add a debounce, and cap consecutive skips. **This one is a judgement call
+   about what a learner should experience on a bad connection — it needs Tom/Kai's decision, not
+   an agent's.**
+3. **Stop using playback speed as a belt proxy.** Pass belt/seed position to
+   `computePauseDuration` explicitly. The proxy is why one missing field corrupted two unrelated
+   behaviours.
+4. **Measure before acting on #2:** correlate `phase_skip` density against connectivity in
+   `player_events` to size how often it actually fires. Cheap, and it would confirm or kill the
+   leading hypothesis.
+5. **Methodology, for Tom:** decide whether seeds 1–3 having 0–1 combinations and no review pool
+   is acceptable. If not, that is a content-authoring change, not a code one.
+6. **Do not touch German audio** — owned by another job (lane 1).
