@@ -277,33 +277,139 @@ actual round-assembly runtime.
 
 ---
 
-## 6. Attribution of the symptom
+## 6. COUNTED — the repetition schedule at course start (the decisive measurement)
+
+Run, not simulated: `packages/player-vue/diag/repetitionCount.diag.test.ts` drives
+`generateLearningScript` → `toSimpleRounds` against live Supabase with the live `algorithm_config`
+triple threaded exactly as `LearningPlayer.runGenerateScript` does.
+
+### 6.1 Cycles per round — `spa_for_eng`, normal mode
+
+| Round | new LEGO | cycles | breakdown |
+|---|---|---|---|
+| 1 | quiero | **3** | intro×1 debut×1 build×1 |
+| 2 | hablar | **3** | intro×1 debut×1 build×1 |
+| 3 | español | **6** | intro×1 debut×1 build×2 spaced_rep×1 use×1 |
+| 4 | contigo | **10** | intro×1 debut×1 build×4 spaced_rep×2 use×2 |
+| 5 | ahora | **15** | intro×1 debut×1 build×7 spaced_rep×4 use×2 |
+| 7–12 | steady state | **17–18** | build×7 spaced_rep×6–7 use×2 |
+
+**Round 1 is ~17% of the density the learner gets by round 7.** Cross-course rounds 1–5 totals:
+`spa` 37 · `ita` 25 · `cym_s` 19. Welsh round 1 is **2 cycles**.
+
+### 6.2 Hearings before the first production ask — the single most important number
+
+**Every LEGO gets exactly ONE listen-only exposure — the intro cycle — before the learner is
+asked to produce it.** The intro plays the target twice (voice1 + voice2), so it is **2 audio
+plays, then produce.** Identical in `spa_for_eng`, `ita_for_eng`, `cym_s_for_eng`.
+
+**There is no ramp.** LEGO #1 of a course gets the same 2-plays-then-produce as LEGO #400. This
+is the structural knob that could compensate for a thin opening, and it is fixed.
+
+`quiero` (LEGO #1) accrues **3 attributed reps over 12 rounds and never returns** — introduced
+before any spaced-rep partner existed, it never enters the fib queue. `ahora` (LEGO #5) gets 17.
+
+### 6.3 Distinct combinations — Kai's fork, answered
+
+`spa_for_eng` rounds 1–5: **32 production cycles across 20 distinct phrases** (mean 1.60 repeats).
+
+| repeats | # distinct phrases |
+|---|---|
+| **1×** | **14** |
+| 2× | 2 |
+| 3× | 2 |
+| 4× | 2 |
+
+Rounds 1–12: 146 production cycles, 80 distinct — **40 of 80 phrases are heard exactly once,
+ever.** Cross-course means: `spa` 1.60 · `ita` 1.43 · **`cym_s` 1.00** (14 cycles, 14 distinct —
+every phrase heard exactly once).
+
+**It is the "too HIGH" arm of Kai's fork: nothing repeats enough to stick.** Not a small recycled
+pool — a near-flat sequence of one-shot phrases.
+
+### 6.4 The cause is the authored inventory, not the generator
+
+Provenance trace back to `course_practice_phrases` rows:
+
+| LEGO | rd | authored | emitted | caps |
+|---|---|---|---|---|
+| S0001L01 | 1 | **1 build / 0 use** | 1 / 0 | build≤7 use≤2 |
+| S0001L02 | 2 | 1 / 1 | 1 / 0 | ″ |
+| S0001L03 | 3 | 2 / 1 | 2 / 1 | ″ |
+| S0001L04 | 4 | 2 / 2 | 4 / 2 | ″ |
+| S0001L05 | 5 | 4 / 4 | 7 / 2 | **at caps** |
+
+**Rounds 1–4 are content-limited, not cap-limited.** LEGO #1 has exactly one authored practice
+phrase, and that phrase is `quiero` — so the debut and the sole build cycle are the same string.
+**Round 1 is: hear `quiero` twice, say `quiero`, say `quiero`.**
+
+The generator papers over this by promoting overflow `use` rows into `build` slots and re-emitting
+the same row as `use` in the same round — so part of the density from round 4 on is **within-round
+duplication, not new material**.
+
+### 6.5 Turbo strips nothing from the opening
+
+| Round | normal | turbo | stripped |
+|---|---|---|---|
+| 1–3 | 3/3/6 | 3/3/6 | **0 — 100% kept** |
+| 4 | 10 | 9 | 1 |
+| 5 | 15 | 11 | 4 |
+| 6–12 each | 17–18 | 12–13 | 5 (~72% kept) |
+
+**Turbo cannot strip rounds 1–3 because they have fewer than 4 builds to strip — the culling
+threshold sits above the content floor.** Hearings-before-production is unchanged at 1 (intro is
+never tagged). **The thin opening is thin with Turbo off.** Final nail in the turbo hypothesis.
+
+### 6.6 Config notes
+
+- Live `turbo_boost.useKeep = 2` vs code default `1` — Turbo culls **less** than the code default.
+- `normal_mode` carries no `fibKeep`/`buildKeep`/`useKeep` at all. **Normal mode is not culled by
+  a mis-set config.**
+- **Dead knobs:** `spaced_rep_fraction` and `debut_phrases_fraction` are **read nowhere in the
+  codebase**. The turbo row sets them to `0.33`/`0.5`, which looks like a live control and is not.
+- Flagged: `useEagerScriptPreload` / `useFullCourseScript` call the generator **without** the
+  config triple (defaults only). The play path does thread it. Divergence not chased.
+- **Gap:** `fra_for_eng` could not be measured — three runs failed on a flaky parallel-pagination
+  fault in `fetchAllPracticePhrases`. No `fra` numbers are reported.
+
+---
+
+## 7. Attribution of the symptom (final)
 
 | bucket | share | verdict |
 |---|---|---|
-| **SETTINGS** (turbo, adaptation flags) | **0%** | Ruled out. Turbo never enabled by Aran and cannot default-on; adaptation v2 in shadow. |
-| **CODE — `navigator.onLine` skip-forward** | largest share of *"skipping"* | Confirmed mechanism; field frequency unmeasured. Worst exactly when the cache is cold = course start. |
-| **CODE — unbaked belt ramp** | largest share of *"too fast at the beginning"* | Confirmed on `origin/dev`. 13–18% of every cycle lost; voice 25–32% fast. Hits fresh-course/no-cache sessions, not Aran's own. |
-| **CODE — 10s stall watchdog** | some of *"clips cut off"* | Confirmed; truncates on slow-but-alive connections. |
-| **CONTENT** (broken audio) | **0% for Aran** | Croatian clean (1/28,079). German (935) real but a different cohort and owned elsewhere. |
-| **METHODOLOGY** (thin course opening) | real, by design | Seeds 1–3 permit 0–1 combinations and have no review pool. Not a bug — an undefended design gap. |
+| **SETTINGS** (turbo, adaptation flags) | **0%** | Ruled out three ways: Aran never toggled turbo; turbo cannot default-on; turbo strips **nothing** from rounds 1–3; adaptation v2 is in shadow. |
+| **CONTENT AUTHORING** (thin inventory) | **dominant** for *"not enough repetition"* | LEGO #1 has **1** authored practice phrase. 14 of 20 phrases in rounds 1–5 are heard exactly once. Rounds 1–4 are content-limited, not cap-limited. |
+| **CODE — fixed 1-exposure scaffold** | **dominant** for *"beginnings too fast"* (pedagogically) | Every LEGO gets 2 audio plays then produce, with no ramp for the first LEGO of a course. |
+| **CODE — `navigator.onLine` skip-forward** | largest share of *"skipping"* | Confirmed mechanism; field frequency unmeasured. Worst when the cache is cold = course start. |
+| **CODE — unbaked belt ramp** | real, but **not Aran's** | 13–18% of every cycle lost, voice 25–32% fast. Hits fresh/uncached sessions on `cat`/`eus`; Aran's own cycles are correctly ramped. |
+| **CODE — 10s stall watchdog** | some of *"clips cut off"* | Truncates on slow-but-alive connections. |
+| **CONTENT — broken audio** | **0% for Aran** | Croatian clean (1/28,079). German (935) real, different cohort, owned elsewhere. |
 
-## 7. Recommendations
+## 8. Recommendations
 
-1. **Bake the belt ramp on the instant path.** Pass `currentTargetSpeedConfig()` to all three
-   `backendCyclesToRounds` call sites and compute the speed in the adapter. Fixes both the voice
-   speed and — via the belt proxy — the pause. Also restores the ignored `learner_speed` setting.
-   Small, contained, high value.
-2. **Fix the `navigator.onLine` trigger.** Require the explicit offline toggle *or* real evidence
-   of failed fetches, add a debounce, and cap consecutive skips. **This one is a judgement call
-   about what a learner should experience on a bad connection — it needs Tom/Kai's decision, not
-   an agent's.**
-3. **Stop using playback speed as a belt proxy.** Pass belt/seed position to
+**Content (the biggest lever, and it is not a code change):**
+1. **Author more practice phrases for the first 3–5 LEGOs of every course.** One phrase for LEGO
+   #1 is the root cause of the thin opening. The generator's caps (7 build / 2 use) are never
+   reached until round 5 — the machinery is ready for more material, there just isn't any.
+2. **Decide whether 2-plays-then-produce is right for LEGO #1.** It is currently identical to
+   LEGO #400. If the first LEGO of a course deserves more scaffolding, that is a deliberate ramp
+   someone has to choose — the methodology docs are silent on it.
+
+**Code:**
+3. **Fix the `navigator.onLine` trigger** — require the explicit offline toggle *or* real fetch
+   failures, add a debounce, cap consecutive skips. **Needs a human decision** (learner-experience
+   judgement).
+4. **Bake the belt ramp** on all three `backendCyclesToRounds` call sites. Also restores the
+   currently-ignored `learner_speed` setting.
+5. **Stop using playback speed as a belt proxy** — pass belt/seed position to
    `computePauseDuration` explicitly. The proxy is why one missing field corrupted two unrelated
    behaviours.
-4. **Measure before acting on #2:** correlate `phase_skip` density against connectivity in
-   `player_events` to size how often it actually fires. Cheap, and it would confirm or kill the
-   leading hypothesis.
-5. **Methodology, for Tom:** decide whether seeds 1–3 having 0–1 combinations and no review pool
-   is acceptable. If not, that is a content-authoring change, not a code one.
-6. **Do not touch German audio** — owned by another job (lane 1).
+6. **Delete or wire up** `spaced_rep_fraction` / `debut_phrases_fraction` — dead knobs that read
+   as live controls are a trap for the next person tuning pace.
+
+**Measurement:**
+7. Correlate `phase_skip` density against connectivity in `player_events` to size how often #3
+   actually fires. Cheap; would confirm or kill the leading skipping hypothesis.
+
+**Do not:** touch German audio (owned by lane 1).
