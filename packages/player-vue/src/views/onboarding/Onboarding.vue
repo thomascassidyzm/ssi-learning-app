@@ -127,64 +127,6 @@ const panelQuotes = computed(() => {
 // to English. The other school door (/schools2) and the tutor door keep the
 // English-first default. Keyed off the route NAME because both school doors
 // share track: 'school'.
-// The headline proof, per door. The Cardiff finding is a SCHOOLS stat — it
-// counts PUPILS — so it stays on the school/tutor doors and must not lead the
-// /orgs door, where a council, company or community group is signing up ADULT
-// learners (Tom, 08-03). The org door's proof is the adult-learner record on
-// www.saysomethingin.com instead. Copy is quoted from the live site, not
-// written here: the community figure and the closing line are the wording of
-// /wp/en/about-us/mission-methodology/ and /wp/en/about-us/ respectively.
-const panelProof = computed(() => {
-  if (props.track === 'org') {
-    return {
-      label:
-        'SaySomethingin has built a community of Welsh speakers numbering in the tens of thousands since January 2009. Everything we do is designed to help people become confident in a new language as quickly as possible.',
-      eyebrow: 'Adult learners — since January 2009',
-      num: 'Tens of thousands',
-      headline: 'of confident speakers',
-      line: ['everything designed to help people become', 'confident in a new language as quickly as possible'],
-    }
-  }
-  return {
-    label:
-      'Independent Cardiff University study, 2024: one in two pupils scored in the top ten percent of possible marks, from five minutes of speaking practice a week',
-    eyebrow: 'Independently evaluated — Cardiff University',
-    num: '1 in 2',
-    headline: 'pupils in the top 10%',
-    line: ['of possible marks — from five minutes', 'of speaking practice a week'],
-  }
-})
-
-// Real adult learners, in their own words. VERBATIM from the learner stories
-// published on www.saysomethingin.com — never paraphrased, never invented; the
-// source URL sits beside each so the next editor can re-verify it. Org door
-// only: the school/tutor doors lead with the Cardiff stat and don't need them.
-const panelQuotes = computed(() => {
-  if (props.track !== 'org') return []
-  return [
-    {
-      // https://www.saysomethingin.com/wp/en/community/learner-stories/nigel/
-      quote:
-        'The good news is that with the help of SSiW, I can, albeit at a fairly basic level, hold a conversation with them.',
-      who: 'Nigel, learning to speak Welsh with his granddaughters',
-    },
-    {
-      // https://www.saysomethingin.com/wp/en/community/learner-stories/jeremy/
-      quote:
-        'We’re both working full time, so we’ve developed an easy way to do it consistently and incrementally.',
-      who: 'Jeremy, learning Welsh with his partner',
-    },
-  ]
-})
-
-// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door and,
-// since /schools2 retired into a redirect (2026-08-02), the ONLY school door.
-// Its course-level dropdown lists the whole catalogue with Welsh + Irish pinned
-// first and the rest of the 365-day-school-trial set (isYearTrialCourse — the
-// same rule provision.ts prices the trial by) next, and it must NOT default to
-// English. The tutor door keeps the English-first default. Keyed off the route
-// NAME, not the track, because the tutor/org doors differ by track anyway and a
-// future school door would share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
 // The org door (/orgs) is class-less and covers ALL languages (trialPolicy.ts) —
