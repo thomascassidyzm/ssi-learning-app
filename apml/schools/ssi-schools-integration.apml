@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.1.0"
+  version: "1.2.0"
   date: "2026-08-05"
   author: "Tom Cassidy"
   status: "draft"
@@ -143,23 +143,41 @@ principle PersonalLinksAreTheLogin:
     person signed in with no code entry. The first cut sent via
     signInWithOtp, which mails this project's MAGIC-LINK template — branded
     down to a "Your sign-in code" card with 6 digits and NO link (verified
-    live by mailing a real inbox and reading the body). sendInviteEmail now
-    sends the INVITE template instead, via
-    auth.admin.inviteUserByEmail(email, { redirectTo: joinUrl }): body is
-    "You have been invited … Accept the invite" with a real href, and
-    following it 303s to <joinUrl>#access_token=…&type=invite — signed in,
-    on their own join link. Same Supabase sender, different template; no new
-    email infra.
-    via:'link' = the invite mail. via:'code' = the fallback, reached only
-    when Supabase answers "already been registered" — inviteUserByEmail
-    mails a NEW or still-UNCONFIRMED account only, and a persona is
-    unconfirmed until the person actually clicks. The UI states which went.
+    live by mailing a real inbox and reading the body). The second cut sent
+    the stock INVITE template via auth.admin.inviteUserByEmail — a real href
+    at last, but wearing Supabase's machine copy: "You have been invited to
+    create a user on https://saysomethingin.app", naming neither the inviter
+    nor the org.
+    RESEND OWNS THE MAIL (Tom's ruling 2026-08-05: "we use Resend as our
+    email service not Supabase"). sendInviteEmail now asks Supabase only for
+    the LINK — auth.admin.generateLink({ type:'magiclink', email, options:
+    { redirectTo } }), which mints without sending — and posts our own
+    branded invitation through the Resend API from
+    noreply@contact.saysomethingin.app (domain verified in Resend), gated on
+    RESEND_API_KEY. The copy is api/_utils/inviteEmailTemplate.ts:
+    "<inviter> invited you to join <org>", one "Accept the invitation"
+    button, a copyable plain-text link, Mist palette, HTML + text parts.
+    inviterName (learners.display_name of the caller) and orgName (the grant
+    target's school/group name) are resolved server-side in
+    api/groups/:id/invites.ts and threaded into sendInviteEmail; either name
+    missing degrades to a sentence that still reads, never to "undefined".
+    THE 6-DIGIT FALLBACK IS RETIRED on this path: verified live 2026-08-05
+    that a magiclink resolves for BOTH an unconfirmed persona and one who
+    has already clicked — 303 to <joinUrl>#access_token=…, signing in and
+    confirming — so every invitee always gets something clickable, and a
+    failure is reported loudly instead of mailing a code.
+    via:'link' = a clickable way in. via:'code' survives only on the legacy
+    Supabase path, which is used when RESEND_API_KEY is absent so a missing
+    secret degrades to the old behaviour rather than to silence. The UI
+    states which went.
     EMAILED ORIGIN: Supabase silently swaps any redirectTo outside its
     allow-list for the Site URL, and only https://saysomethingin.app is
     allow-listed (verified 2026-08-05: a staging redirect came back as the
     prod root). So an emailed link always points at production —
     inviteEmailOrigin(), overridable via INVITE_EMAIL_ORIGIN once
-    https://staging.saysomethingin.app/** is added to the allow-list. One
+    https://staging.saysomethingin.app/** is added to the allow-list — it binds generateLink exactly as it bound
+    inviteUserByEmail, because the constraint lives on Supabase's side, not
+    the mailer's (re-verified 2026-08-05). One
     shared DB means a staging-minted code redeems on production unchanged.
 
   redeem_flow: |
