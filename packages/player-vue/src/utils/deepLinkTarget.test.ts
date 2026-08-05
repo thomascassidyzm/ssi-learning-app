@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   parseDeepLinkTarget,
+  deepLinkAppliesTo,
   resolveDeepLinkTarget,
   getDeepLinkTarget,
   __resetDeepLinkTargetForTests,
@@ -33,6 +34,7 @@ describe('parseDeepLinkTarget', () => {
 
   it('reads lego, round and 1-based cycle', () => {
     expect(parseDeepLinkTarget('?course=deu_for_eng&round=7&lego=S0002L02&cycle=3')).toEqual({
+      courseCode: 'deu_for_eng',
       legoId: 'S0002L02',
       round: 7,
       cycleIndex: 2,
@@ -40,7 +42,12 @@ describe('parseDeepLinkTarget', () => {
   })
 
   it('accepts round on its own', () => {
-    expect(parseDeepLinkTarget('?round=7')).toEqual({ legoId: null, round: 7, cycleIndex: null })
+    expect(parseDeepLinkTarget('?round=7')).toEqual({
+      courseCode: null,
+      legoId: null,
+      round: 7,
+      cycleIndex: null,
+    })
   })
 
   it('uppercases the lego id', () => {
@@ -49,6 +56,7 @@ describe('parseDeepLinkTarget', () => {
 
   it('drops a malformed lego but keeps a usable round', () => {
     expect(parseDeepLinkTarget('?round=7&lego=not-a-lego')).toEqual({
+      courseCode: null,
       legoId: null,
       round: 7,
       cycleIndex: null,
@@ -74,7 +82,7 @@ describe('resolveDeepLinkTarget', () => {
   })
 
   it('resolves via the lego id when it is in the map', () => {
-    expect(resolveDeepLinkTarget({ legoId: 'S0002L02', round: 999, cycleIndex: 2 }, map)).toEqual({
+    expect(resolveDeepLinkTarget({ courseCode: null, legoId: 'S0002L02', round: 999, cycleIndex: 2 }, map)).toEqual({
       legoId: 'S0002L02',
       cycleIndex: 2,
       via: 'lego',
@@ -82,23 +90,23 @@ describe('resolveDeepLinkTarget', () => {
   })
 
   it('prefers the lego id over a disagreeing round number', () => {
-    const r = resolveDeepLinkTarget({ legoId: 'S0001L02', round: 7, cycleIndex: null }, map)
+    const r = resolveDeepLinkTarget({ courseCode: null, legoId: 'S0001L02', round: 7, cycleIndex: null }, map)
     expect(r).toEqual({ legoId: 'S0001L02', cycleIndex: 0, via: 'lego' })
   })
 
   it('falls back to the round number when the lego is not in this course', () => {
-    const r = resolveDeepLinkTarget({ legoId: 'S9999L99', round: 7, cycleIndex: null }, map)
+    const r = resolveDeepLinkTarget({ courseCode: null, legoId: 'S9999L99', round: 7, cycleIndex: null }, map)
     expect(r).toEqual({ legoId: 'S0002L02', cycleIndex: 0, via: 'round' })
   })
 
   it('returns null when neither anchor resolves', () => {
-    expect(resolveDeepLinkTarget({ legoId: 'S9999L99', round: 4242, cycleIndex: null }, map)).toBeNull()
+    expect(resolveDeepLinkTarget({ courseCode: null, legoId: 'S9999L99', round: 4242, cycleIndex: null }, map)).toBeNull()
   })
 
   it('returns null for a missing target or an empty map', () => {
     expect(resolveDeepLinkTarget(null, map)).toBeNull()
-    expect(resolveDeepLinkTarget({ legoId: 'S0002L02', round: null, cycleIndex: null }, null)).toBeNull()
-    expect(resolveDeepLinkTarget({ legoId: 'S0002L02', round: null, cycleIndex: null }, { rounds: [] })).toBeNull()
+    expect(resolveDeepLinkTarget({ courseCode: null, legoId: 'S0002L02', round: null, cycleIndex: null }, null)).toBeNull()
+    expect(resolveDeepLinkTarget({ courseCode: null, legoId: 'S0002L02', round: null, cycleIndex: null }, { rounds: [] })).toBeNull()
   })
 })
 
@@ -129,6 +137,32 @@ describe('getDeepLinkTarget', () => {
   })
 
   it('honours an explicit search override without caching it', () => {
-    expect(getDeepLinkTarget('?round=2')).toEqual({ legoId: null, round: 2, cycleIndex: null })
+    expect(getDeepLinkTarget('?round=2')).toEqual({
+      courseCode: null,
+      legoId: null,
+      round: 2,
+      cycleIndex: null,
+    })
+  })
+})
+
+describe('deepLinkAppliesTo', () => {
+  const forGerman = parseDeepLinkTarget('?course=deu_for_eng&round=7&lego=S0002L02')
+
+  it('applies to the course the link named', () => {
+    expect(deepLinkAppliesTo(forGerman, 'deu_for_eng')).toBe(true)
+  })
+
+  it('does not follow the visitor into another course', () => {
+    expect(deepLinkAppliesTo(forGerman, 'fra_for_eng')).toBe(false)
+    expect(deepLinkAppliesTo(forGerman, null)).toBe(false)
+  })
+
+  it('a link naming no course applies wherever it lands', () => {
+    expect(deepLinkAppliesTo(parseDeepLinkTarget('?round=7'), 'fra_for_eng')).toBe(true)
+  })
+
+  it('is false without a target', () => {
+    expect(deepLinkAppliesTo(null, 'deu_for_eng')).toBe(false)
   })
 })
