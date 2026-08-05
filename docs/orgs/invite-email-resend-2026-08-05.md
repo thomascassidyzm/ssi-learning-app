@@ -4,7 +4,7 @@
 **What it closes:** the known limit left open by the previous fix — the mail carried a link, but wore
 Supabase's stock copy: *"You have been invited to create a user on https://saysomethingin.app"*,
 naming neither the person inviting nor the thing being joined.
-**Status:** live in **production**. Tom ruled 2026-08-05 that this goes straight to main — admin
+**Status:** live in **production**, with the copy ruled down to one fixed sentence from no-one. Tom ruled 2026-08-05 that this goes straight to main — admin
 tooling, not player code — so it was carried there as a scoped cherry-pick and is now on all three
 branches. Verified end to end on each.
 
@@ -14,17 +14,34 @@ Read from a real disposable inbox, not asserted from the code:
 
 ```
 From:    SaySomethingin <noreply@contact.saysomethingin.app>
-Subject: Deborah invited you to join Pilot Districts Region
+Subject: You've been invited to try SaySomethingin
 
-Deborah has invited you to join Pilot Districts Region on SaySomethingin.
+You've been invited to try SaySomethingin — please click to activate your account.
 
-[ Accept the invitation ]
+[ Activate your account ]
 
 One tap and you're in — there's no code to type and no password to set.
 ```
 
-Following the button: `303 → https://saysomethingin.app/redeem/KQM-678#access_token=…` — signed in,
+Following the button: `303 → https://saysomethingin.app/redeem/UKP-610#access_token=…` — signed in,
 on their own join link, zero code entry.
+
+## The copy comes from no-one, deliberately
+
+Tom's ruling: *"it shouldn't come from Deborah, it should come from whoever is the person inviting
+them - from their own org - whoever's logged in at the time OR just no-one … as simple as
+possible."*
+
+It was never hardcoded to Deborah — she was the test case, and the first cut already named whoever
+was logged in, with their own org. But that branch turned out to be exactly the hassle the ruling
+anticipated: the caller's `learners` row, a second admin lookup for their email, and a guard against
+the auth trigger that seeds `display_name` from the email's local part — two lookups per send and a
+leak to police, for a name the invitee may not even recognise.
+
+So the second branch won on his own terms, and the change **deletes** rather than adds:
+`renderInviteEmail` takes the URL and nothing else, `sendInviteEmail` takes no inviter/org context,
+and `invites.ts` resolves no names at all. Nothing personal is left that could be blank, stale,
+wrong, or quietly lifted from somebody's address. The sentence is his, verbatim.
 
 ## How it works
 
@@ -35,10 +52,7 @@ Resend API from `noreply@contact.saysomethingin.app` — the same address the in
 a domain that was already verified in Resend. No Supabase template is in the loop at any point,
 which is exactly what makes the words ours.
 
-The two names that turn a notification into an invitation are resolved server-side and threaded in:
-the inviter from `learners.display_name` of the caller, the org from **the link's grant target** — a
-class link says its school, because a class name alone tells the invitee little, and the node the
-admin happens to be standing on may not be where the link actually leads.
+Nothing else is looked up. The mail takes the minted URL and nothing more.
 
 ## The 6-digit fallback is retired
 
@@ -58,13 +72,13 @@ A real invite driven through the deployed API as a real org leader, into a real 
 run separately against **dev, production and staging**, all four checks true on each:
 
 ```
-POST /api/groups/<id>/invites  → 201 {"code":"KQM-678", …,
+POST /api/groups/<id>/invites  → 201 {"code":"UKP-610", …,
                                       "emailed":{"sent":true,"to":"…","via":"link"}}
-subject: "Deborah invited you to join Pilot Districts Region"
-link:    …/auth/v1/verify?token=…&type=magiclink&redirect_to=https://saysomethingin.app/redeem/KQM-678
-follow → 303 https://saysomethingin.app/redeem/KQM-678#access_token=…
+subject: "You've been invited to try SaySomethingin"
+link:    …/auth/v1/verify?token=…&type=magiclink&redirect_to=https://saysomethingin.app/redeem/UKP-610
+follow → 303 https://saysomethingin.app/redeem/UKP-610#access_token=…
 
-ACCEPTANCE: link present = true | names inviter + org = true | signs in = true | zero code entry = true
+ACCEPTANCE: link present = true | signs in = true | zero code entry = true | names nobody = true
 ```
 
 Every account, org row and code each test created was deleted afterwards. No real learner or org
@@ -78,17 +92,16 @@ tooling, not player code". So the invite chain alone was cherry-picked — ten f
 player code — and the same chain was back-merged to `staging`, which is where the bug was reported
 and which would otherwise be the one environment still running the broken send.
 
-## One defect the live test caught
+## One defect the live test caught — and why it settled the copy
 
 The first live run signed the mail *"ssi-leader-1785970197 invited you to join…"*. Creating an auth
 account fires a trigger that seeds `learners.display_name` from the **email's local part** — so a
 leader who never set a name carries one that is a fragment of their own address, and signing an
-invitation with it would put that fragment in a stranger's inbox.
+invitation with it put that fragment in a test inbox.
 
-Fixed by dropping the display name when it is exactly the caller's own email local part. Verified
-live in both directions: a named leader gets *"Deborah invited you to join Pilot Districts Region"*;
-an unnamed one gets *"You've been invited to join Pilot Districts Region"*. Never a blank, never an
-address, never "undefined".
+It was fixed with a guard, and then the guard was deleted along with the rest of the name plumbing
+when the copy went to one fixed sentence. That is the honest argument for the simpler copy: the
+name was never free, and this is the class of thing it kept costing.
 
 ## Things worth knowing
 
