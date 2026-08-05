@@ -4,43 +4,52 @@
  *
  * THE LINK IS THE INVITE (founder ruling 2026-08-05, after Deborah's staging
  * report: the email carried only a 6-digit code and no clickable link). The
- * first cut of this sender reused `auth.signInWithOtp`, and that call sends
- * the project's MAGIC-LINK template — which this estate has customised down to
- * a branded "Your sign-in code" card with the 6 digits and NO link at all
- * (verified live 2026-08-05 by mailing a real inbox and reading the body). So
- * the invitee got a code they had nowhere to type, and the link stayed stuck
- * in the dashboard.
+ * first cut of this sender reused `auth.signInWithOtp`, whose MAGIC-LINK
+ * template this estate has customised down to a branded "Your sign-in code"
+ * card with 6 digits and NO link at all. The second cut moved to
+ * `auth.admin.inviteUserByEmail`, which does carry a link — but wears
+ * Supabase's stock copy: "You have been invited to create a user on
+ * https://saysomethingin.app", naming neither the inviter nor the org.
  *
- * The fix uses the OTHER stock Supabase template — the INVITE one, sent by
- * `auth.admin.inviteUserByEmail`. Verified live against the same inbox: it
- * arrives as "You have been invited … Accept the invite" with a real
- * `<a href>`, and following that href 303s to
- * `<joinUrl>#access_token=…&type=invite` — i.e. the person lands on their own
- * join link already signed in, zero code entry. Exactly the ruling.
+ * THIS cut owns the whole mail. Tom's ruling 2026-08-05: "we use Resend as our
+ * email service not Supabase". So we ask Supabase's admin API only for the
+ * LINK (`auth.admin.generateLink`, which mints without sending), wrap it in
+ * our own branded invitation — "Deborah invited you to join <org>" — and post
+ * it through Resend. Supabase's templates are out of the loop entirely.
  *
- * STILL NO NEW EMAIL INFRA: same Supabase Auth sender
- * (noreply@contact.saysomethingin.app), same project — just the template that
- * carries a link instead of the one that carries a code.
+ * Verified live 2026-08-05 against a real disposable inbox on the live project:
+ *  - `generateLink({ type: 'magiclink' })` works for BOTH an unconfirmed
+ *    persona and one who has already clicked; following the link 303s to
+ *    `<joinUrl>#access_token=…`, signing them in AND confirming the account.
+ *    One link type covers every state, so THE 6-DIGIT FALLBACK IS RETIRED on
+ *    this path — every invitee always gets something clickable.
+ *  - Resend delivers from `noreply@contact.saysomethingin.app` (the domain is
+ *    verified in Resend, and is the same address Supabase Auth already used).
  *
- * Two constraints of that API, both handled here:
- *  1. It only mails an account that is NEW or still UNCONFIRMED. A personal
- *     link's persona is created with `email_confirm: false`, so the mint,
- *     resend and rotate paths all qualify — until the person actually clicks,
- *     which confirms them. After that Supabase answers "already been
- *     registered", and we fall back to the old code mail so a re-send still
- *     puts SOMETHING in their inbox; the reply carries `via: 'code'` so the
- *     caller can say so honestly and keep copy-the-link first-class.
- *  2. `redirectTo` must sit inside the project's redirect allow-list, or
- *     Supabase silently swaps it for the Site URL. Only the production origin
- *     is allow-listed today (verified 2026-08-05: a staging redirect came back
- *     as `https://saysomethingin.app`) — hence `inviteEmailOrigin()` below.
+ * Two constraints carried forward:
+ *  1. `redirectTo` must sit inside the project's redirect allow-list, or
+ *     Supabase silently swaps it for the Site URL — this binds `generateLink`
+ *     exactly as it bound `inviteUserByEmail`, because the constraint lives on
+ *     Supabase's side, not the mailer's (re-verified 2026-08-05). Only the
+ *     production origin is allow-listed today, hence `inviteEmailOrigin()`.
+ *  2. Without `RESEND_API_KEY` we fall back to the previous Supabase path
+ *     (`inviteUserByEmail`, then the code mail) rather than sending nothing —
+ *     so a missing secret degrades to the old behaviour, never to silence.
  */
 import { createClient } from '@supabase/supabase-js'
 import { PERSONA_EMAIL_DOMAIN } from './provisionPersona'
+import { renderInviteEmail } from './inviteEmailTemplate'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+/**
+ * The From address. `contact.saysomethingin.app` is the domain verified in
+ * Resend (checked live 2026-08-05) and is the address Supabase Auth already
+ * mailed from, so nothing changes in the invitee's inbox but the words.
+ */
+const INVITE_FROM = (process.env.INVITE_EMAIL_FROM || 'SaySomethingin <noreply@contact.saysomethingin.app>').trim()
 
 /**
  * The origin an EMAILED join link points at — production by default, whatever
@@ -76,11 +85,17 @@ export function toInviteEmailUrl(joinUrl: string): string {
 
 export interface SendInviteEmailResult {
   sent: boolean
-  /** 'link' — the invite template (a clickable way in). 'code' — the 6-digit fallback. */
+  /** 'link' — a clickable way in. 'code' — the 6-digit legacy fallback. */
   via?: 'link' | 'code'
   /** The URL actually put in the mail, so callers can log/echo the real artifact. */
   url?: string
   error?: string
+}
+
+/** Who invited them, and into what — the words that make the mail an invitation. */
+export interface InviteContext {
+  inviterName?: string | null
+  orgName?: string | null
 }
 
 /** Placeholder personas (no email given at mint) live on a domain that never receives mail. */
@@ -96,7 +111,8 @@ function isAlreadyRegistered(message: string): boolean {
 
 export async function sendInviteEmail(
   email: string | null | undefined,
-  joinUrl: string
+  joinUrl: string,
+  context: InviteContext = {}
 ): Promise<SendInviteEmailResult> {
   if (!isMailable(email)) return { sent: false, error: 'no mailable address for this person' }
   if (!supabaseUrl) return { sent: false, error: 'email sender not configured' }
@@ -104,7 +120,14 @@ export async function sendInviteEmail(
   const address = (email as string).trim().toLowerCase()
   const url = toInviteEmailUrl(joinUrl)
 
-  // Primary: the invite template — the one that carries a link.
+  // Primary: our own branded invitation, posted through Resend.
+  const resendKey = (process.env.RESEND_API_KEY || '').trim()
+  if (resendKey && supabaseServiceKey) {
+    return sendViaResend(resendKey, address, url, context)
+  }
+
+  // No Resend key configured — degrade to the previous Supabase-mailer path
+  // (stock copy, but a real link) rather than leaving the inbox empty.
   if (supabaseServiceKey) {
     try {
       const svc = createClient(supabaseUrl, supabaseServiceKey, {
@@ -134,6 +157,59 @@ export async function sendInviteEmail(
     })
     if (error) return { sent: false, error: error.message, url }
     return { sent: true, via: 'code', url }
+  } catch (err) {
+    return { sent: false, error: err instanceof Error ? err.message : 'send failed', url }
+  }
+}
+
+/**
+ * Mint the sign-in link ourselves, then send our own mail.
+ *
+ * `generateLink` GENERATES without sending — no Supabase template is involved
+ * at any point, which is the whole reason we can write the words. `magiclink`
+ * is the one type that works whether the persona has clicked before or not
+ * (verified live), so there is no already-registered branch here and no code
+ * mail: an invitee on this path always gets a clickable link.
+ *
+ * A failure is reported loudly rather than papered over with the code mail
+ * this ruling retired — the link is already good in the dashboard, and the
+ * caller falls back to "copy and send it yourself".
+ */
+async function sendViaResend(
+  resendKey: string,
+  address: string,
+  url: string,
+  context: InviteContext
+): Promise<SendInviteEmailResult> {
+  let actionLink: string
+  try {
+    const svc = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    const { data, error } = await svc.auth.admin.generateLink({
+      type: 'magiclink',
+      email: address,
+      options: { redirectTo: url },
+    })
+    if (error) return { sent: false, error: error.message, url }
+    actionLink = (data as { properties?: { action_link?: string } } | null)?.properties?.action_link || ''
+    if (!actionLink) return { sent: false, error: 'could not mint a sign-in link', url }
+  } catch (err) {
+    return { sent: false, error: err instanceof Error ? err.message : 'could not mint a sign-in link', url }
+  }
+
+  const { subject, html, text } = renderInviteEmail({ ...context, url: actionLink })
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: INVITE_FROM, to: [address], subject, html, text }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      return { sent: false, error: `email provider refused the send (${res.status}) ${body}`.trim(), url }
+    }
+    return { sent: true, via: 'link', url }
   } catch (err) {
     return { sent: false, error: err instanceof Error ? err.message : 'send failed', url }
   }
