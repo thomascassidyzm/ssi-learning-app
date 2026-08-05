@@ -76,9 +76,12 @@ Neither blocks the fix; both are one-line config if wanted.
    and set `INVITE_EMAIL_ORIGIN=https://staging.saysomethingin.app` on the staging deployment. The
    code already reads that variable.
 
-## Known limit, unchanged
+## Known limit — CLOSED the same day
 
-The mail's wording is Supabase's stock invite copy — "You have been invited to create a user on
-https://saysomethingin.app" — not "Deborah invited you to join X". Making it read like a true
-invitation means either editing that template in the Supabase dashboard or a transactional sender,
-both outside this repo.
+The mail's wording was Supabase's stock invite copy — "You have been invited to create a user on
+https://saysomethingin.app" — not "Deborah invited you to join X".
+
+Closed by the follow-on work: the whole mail is ours now, written by us and sent through Resend,
+with Supabase asked only for the link. It reads "Deborah invited you to join Pilot Districts
+Region", and the 6-digit fallback described above is retired with it. See
+`docs/orgs/invite-email-resend-2026-08-05.md`.
