@@ -66,6 +66,11 @@ import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
+import {
+  getDeepLinkTarget,
+  resolveDeepLinkTarget,
+  type ResolvedDeepLink,
+} from '../utils/deepLinkTarget'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 // Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
@@ -517,6 +522,14 @@ const courseCode = computed(() => props.course?.course_code || '')
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
 
+// Production deep link — Popty's Script Viewer launching "this round" here for
+// a real-fidelity listen (utils/deepLinkTarget.ts owns the URL contract). The
+// raw target is captured once per page load; `deepLinkStart` holds it AFTER it
+// has been resolved against this course's round-map, and stays null when the
+// link names something this course doesn't have, so normal resume is untouched.
+const deepLinkTarget = getDeepLinkTarget()
+const deepLinkStart = ref<ResolvedDeepLink | null>(null)
+
 // Instant-playback composable (flag-gated, see INSTANT_PLAYBACK_COURSES).
 // Wires `last_completed_lego_id` from the enrollment row as the resume
 // anchor — matches the resolution path used by the legacy eager-script
@@ -534,6 +547,11 @@ const instantPlayback = useInstantPlayback(courseCode, {
     // same as before. Tom 2026-05-26 established local as the fast
     // path; this closes the resurrection bug that model reopened
     // (reset nulled the DB but local survived and re-ratcheted it back).
+    // Production deep link wins over every saved position — it is an explicit
+    // "start HERE" instruction, not a resume. Resolved against the round-map
+    // before this runs, so a target this course doesn't have never gets here.
+    if (deepLinkStart.value) return deepLinkStart.value.legoId
+
     const localPos = courseCode.value ? loadPositionFromLocalStorage() : null
     const localSnapshot = localPos?.legoId
       ? { legoId: localPos.legoId, lastUpdated: localPos.lastUpdated ?? null }
@@ -3036,6 +3054,18 @@ const loadPositionFromLocalStorage = () => {
  * Tom 2026-05-26.
  */
 const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex: number } | null => {
+  // Production deep link beats the saved cursor — see deepLinkStart above.
+  // Resolved against the round-map, but the rounds array handed in here can be
+  // a different vintage, so we still look the LEGO up and fall through to
+  // normal resume if it isn't in THIS list.
+  if (deepLinkStart.value && Array.isArray(rounds)) {
+    const dlIdx = rounds.findIndex((r: any) => r?.legoId === deepLinkStart.value!.legoId)
+    if (dlIdx >= 0) {
+      return { roundIndex: dlIdx, cycleIndex: deepLinkStart.value.cycleIndex }
+    }
+    console.warn(`[DeepLink] ${deepLinkStart.value.legoId} not in the loaded rounds — resuming normally`)
+  }
+
   const localPos = loadPositionFromLocalStorage()
   if (!localPos?.legoId || !Array.isArray(rounds)) return null
   const idx = rounds.findIndex((r: any) => r?.legoId === localPos.legoId)
@@ -11937,6 +11967,41 @@ onMounted(async () => {
         }
 
         // ============================================
+        // PRODUCTION DEEP LINK — "open this round in the learning app"
+        // ============================================
+        // Popty's Script Viewer launches a specific round here so a producer
+        // can hear it exactly as a learner does. Resolve the target against
+        // the course round-map (cached — the same map bootstrap uses) and then
+        // stand in for the enrollment cursor: every downstream boot path
+        // (cache fast-path, bootstrap, stale-matview repair) resolves position
+        // from these variables, so one override lands them all.
+        //
+        // A target this course doesn't have leaves everything untouched —
+        // deepLinkStart stays null and the visitor resumes normally, with a
+        // console warning. No learner-facing error surface for a production
+        // tool's deep link.
+        if (deepLinkTarget) {
+          try {
+            const dlMap = await instantPlayback.getOrFetchRoundMap()
+            const resolved = resolveDeepLinkTarget(deepLinkTarget, dlMap)
+            if (resolved) {
+              deepLinkStart.value = resolved
+              // Main loop, always: the deep link names a main-loop round, so a
+              // learner already in INF PLAY must not be bootstrapped from
+              // /infplay-cycles and sent somewhere else entirely.
+              inferEnrollmentMode = 'main'
+              inferInfPlayRoundIndex = 1
+              inferCursorLegoId = resolved.legoId
+              inferCeilingLegoId = null
+              inferCursorCycle = resolved.cycleIndex
+              console.log(`[DeepLink] Starting at ${resolved.legoId} cycle ${resolved.cycleIndex} via ${resolved.via}`)
+            }
+          } catch (dlErr) {
+            console.warn('[DeepLink] Could not resolve the deep-link target — resuming normally:', dlErr)
+          }
+        }
+
+        // ============================================
         // CACHE FAST PATH (main-loop only)
         // ============================================
         // Returning learner with a populated script cache skips the
@@ -12256,9 +12321,14 @@ onMounted(async () => {
           // where bootstrap went to next-LEGO via enrollment and we
           // have no local cursor.
           const localPos = loadPositionFromLocalStorage()
-          const resumeCycle = (localPos?.legoId === startedAtLegoId)
-            ? Math.max(0, localPos?.itemInRound || 0)
-            : Math.max(0, savedCurrentCycleIndex.value || 0)
+          // A production deep link carries its own cycle and overrides the
+          // saved one — bootstrap landed on the deep-linked LEGO, so cycle 0
+          // is the start of exactly the round that was asked for.
+          const resumeCycle = deepLinkStart.value?.legoId === startedAtLegoId
+            ? deepLinkStart.value.cycleIndex
+            : (localPos?.legoId === startedAtLegoId)
+              ? Math.max(0, localPos?.itemInRound || 0)
+              : Math.max(0, savedCurrentCycleIndex.value || 0)
           if (resumeCycle > 0) {
             console.log(`[InstantPlayback] Resuming at ${startedAtLegoId} cycle ${resumeCycle}`)
             simplePlayer.jumpToRound(0, resumeCycle)
@@ -12845,7 +12915,28 @@ onMounted(async () => {
               // the NEXT seed, which skips mid-seed LEGOs the learner hadn't
               // finished. Falls back to seed-based only if lastLegoId is
               // missing.
-              if (isReturningUser) {
+              // Production deep link on the legacy path. Reached either when
+              // instant playback is off for this course (round-map never
+              // fetched, so resolve against the generated rounds themselves)
+              // or when the instant path threw and fell through here. Lands ON
+              // the named round — not the round AFTER it, which is what the
+              // resume branch below does deliberately for a returning learner.
+              let deepLinkJumped = false
+              if (deepLinkTarget) {
+                const dl = deepLinkStart.value ?? resolveDeepLinkTarget(deepLinkTarget, {
+                  rounds: (simpleRounds as any[]).map((r: any, i: number) => ({ r: i + 1, legoId: r?.legoId })),
+                })
+                const dlIdx = dl ? (simpleRounds as any[]).findIndex((r: any) => r?.legoId === dl.legoId) : -1
+                if (dl && dlIdx >= 0) {
+                  console.log(`[DeepLink] eagerLoad: starting at ${dl.legoId} (round index ${dlIdx}, cycle ${dl.cycleIndex})`)
+                  simplePlayer.jumpToRound(dlIdx, dl.cycleIndex)
+                  deepLinkJumped = true
+                } else {
+                  console.warn('[DeepLink] eagerLoad: target not in the generated rounds — resuming normally')
+                }
+              }
+
+              if (isReturningUser && !deepLinkJumped) {
                 const personalLastLegoId = beltProgress.value?.lastLegoId?.value ?? null
                 let resumeLegoId = classLastLegoId ?? personalLastLegoId
                 // Mid-round cycle cursor — only meaningful for the in-progress
