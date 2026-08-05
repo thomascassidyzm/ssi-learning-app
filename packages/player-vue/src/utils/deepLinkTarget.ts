@@ -10,7 +10,7 @@
  * URL contract (emitted by Popty's `buildLearningAppUrl`, single source of
  * truth on that side):
  *
- *   /?course=<code>&round=<n>[&lego=<legoId>][&cycle=<n>]
+ *   /?course=<code>&round=<n>[&lego=<legoId>][&cycle=<n>][&cycleText=<text>]
  *
  *   - `lego`  — LEGO id (e.g. S0002L02). AUTHORITATIVE when present. Position
  *               in this system is the LEGO, so the LEGO id is the only anchor
@@ -22,6 +22,14 @@
  *               map instant playback already fetches.
  *   - `cycle` — 1-based cycle within the round. Best-effort: the engine clamps
  *               an out-of-range cycle to a valid one. Optional.
+ *   - `cycleText` — the known-language text of the clicked cycle. AUTHORITATIVE
+ *               over `cycle` when it matches, and for the same reason `lego`
+ *               beats `round`: identity survives, ordinals don't. The two sides
+ *               enumerate a round differently (Popty's Script Viewer is a
+ *               parallel reimplementation of the generator and has drifted), so
+ *               a bare ordinal lands on the wrong row. Optional; absent or
+ *               unmatched degrades to `cycle`, which is the pre-2026-08-06
+ *               behaviour.
  *
  * Unknown / out-of-range targets do NOT error and do NOT show anything to the
  * learner: they log a console warning and leave the normal resume path
@@ -42,6 +50,18 @@ export interface DeepLinkTarget {
   round: number | null
   /** 0-based cycle index within the round (URL is 1-based), or null. */
   cycleIndex: number | null
+  /**
+   * The known-language text of the cycle the producer actually clicked.
+   * AUTHORITATIVE over `cycleIndex` when it matches a cycle in the round,
+   * for the same reason `lego` is authoritative over `round`: an ordinal is
+   * only meaningful if both sides enumerate the same list, and here they
+   * demonstrably do not. Popty's Script Viewer is a parallel reimplementation
+   * of the script generator and has drifted from what the player actually
+   * plays — in `deu_for_eng` round 11 the player has a bare-LEGO build the
+   * Script Viewer omits, and orders the USE phrases differently. Anchoring on
+   * the text lands on the row the producer clicked regardless of that drift.
+   */
+  cycleText: string | null
 }
 
 /** Round-map shape this module needs — a subset of `RoundMap`. */
@@ -54,6 +74,13 @@ export interface ResolvedDeepLink {
   cycleIndex: number
   /** How the LEGO was found — `lego` param direct, or via the round number. */
   via: 'lego' | 'round'
+  /** The clicked cycle's known text, carried through for `resolveCycleIndex`. */
+  cycleText: string | null
+}
+
+/** The cycle shape this module needs — a subset of `Cycle`. */
+export interface CycleLookup {
+  known?: { text?: string | null } | null
 }
 
 /** Popty's LEGO id format: S0002L02. */
@@ -96,12 +123,55 @@ export function parseDeepLinkTarget(search: string): DeepLinkTarget | null {
   if (!legoId && round === null) return null
 
   const rawCourse = params.get('course')
+  const rawCycleText = params.get('cycleText')
   return {
     courseCode: rawCourse && rawCourse.trim() !== '' ? rawCourse.trim() : null,
     legoId,
     round,
     cycleIndex: cycle === null ? null : cycle - 1,
+    cycleText: rawCycleText && rawCycleText.trim() !== '' ? rawCycleText.trim() : null,
   }
+}
+
+/**
+ * Normalise a known-language phrase for comparison. Case, punctuation and
+ * whitespace all differ harmlessly between Popty's rendering and the player's
+ * (`"How to speak as often as possible"` vs `"how to speak as often as
+ * possible"`), so compare on letters and digits only.
+ */
+function normaliseCycleText(text: string | null | undefined): string {
+  return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Which cycle in this round did the producer actually click?
+ *
+ * `cycleText` wins when it matches exactly one cycle — that is the row they
+ * were looking at. Ties (a round legitimately repeats a phrase, e.g. a USE
+ * phrase that also appears as a consolidate) fall back to whichever matching
+ * cycle sits nearest the ordinal, so a duplicate never drags the launch to the
+ * top of the round. No match at all, or no text supplied, degrades to the
+ * ordinal — which is exactly today's behaviour, so an old link still works.
+ */
+export function resolveCycleIndex(
+  cycles: CycleLookup[] | null | undefined,
+  target: { cycleIndex: number | null; cycleText: string | null } | null,
+): number {
+  const fallback = Math.max(0, target?.cycleIndex ?? 0)
+  const wanted = normaliseCycleText(target?.cycleText)
+  if (!wanted || !Array.isArray(cycles) || cycles.length === 0) return fallback
+
+  const hits: number[] = []
+  cycles.forEach((c, i) => {
+    if (normaliseCycleText(c?.known?.text) === wanted) hits.push(i)
+  })
+  if (hits.length === 0) {
+    console.warn(`[DeepLink] cycleText "${target?.cycleText}" is not in this round — using cycle ${fallback + 1}`)
+    return fallback
+  }
+  if (hits.length === 1) return hits[0]
+
+  return hits.reduce((best, i) => (Math.abs(i - fallback) < Math.abs(best - fallback) ? i : best), hits[0])
 }
 
 /**
@@ -132,13 +202,13 @@ export function resolveDeepLinkTarget(
 
   if (target.legoId) {
     const hit = map.rounds.find(r => r.legoId?.toUpperCase() === target.legoId)
-    if (hit) return { legoId: hit.legoId, cycleIndex, via: 'lego' }
+    if (hit) return { legoId: hit.legoId, cycleIndex, via: 'lego', cycleText: target.cycleText }
     console.warn(`[DeepLink] lego=${target.legoId} is not in this course's round-map`)
   }
 
   if (target.round !== null) {
     const byNumber = map.rounds.find(r => r.r === target.round)
-    if (byNumber) return { legoId: byNumber.legoId, cycleIndex, via: 'round' }
+    if (byNumber) return { legoId: byNumber.legoId, cycleIndex, via: 'round', cycleText: target.cycleText }
     console.warn(`[DeepLink] round=${target.round} is out of range for this course`)
   }
 

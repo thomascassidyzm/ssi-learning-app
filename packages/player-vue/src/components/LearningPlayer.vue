@@ -72,6 +72,7 @@ import {
   resolveDeepLinkTarget,
   deepLinkAppliesTo,
   deepLinkForcesLearnerDefaults,
+  resolveCycleIndex,
   type ResolvedDeepLink,
 } from '../utils/deepLinkTarget'
 import { decomposePhrase } from '../utils/decomposePhrase'
@@ -3098,7 +3099,12 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
   if (deepLinkStart.value && Array.isArray(rounds)) {
     const dlIdx = rounds.findIndex((r: any) => r?.legoId === deepLinkStart.value!.legoId)
     if (dlIdx >= 0) {
-      return { roundIndex: dlIdx, cycleIndex: deepLinkStart.value.cycleIndex }
+      // Anchor on the clicked cycle's text, not its ordinal — the two sides
+      // enumerate a round differently (see deepLinkTarget.ts).
+      return {
+        roundIndex: dlIdx,
+        cycleIndex: resolveCycleIndex(rounds[dlIdx]?.cycles, deepLinkStart.value),
+      }
     }
     console.warn(`[DeepLink] ${deepLinkStart.value.legoId} not in the loaded rounds — resuming normally`)
   }
@@ -12412,9 +12418,11 @@ onMounted(async () => {
           const localPos = loadPositionFromLocalStorage()
           // A production deep link carries its own cycle and overrides the
           // saved one — bootstrap landed on the deep-linked LEGO, so cycle 0
-          // is the start of exactly the round that was asked for.
+          // is the start of exactly the round that was asked for. The cycle is
+          // resolved by TEXT against the round we actually built, because the
+          // ordinal alone lands on the wrong row (see deepLinkTarget.ts).
           const resumeCycle = deepLinkStart.value?.legoId === startedAtLegoId
-            ? deepLinkStart.value.cycleIndex
+            ? resolveCycleIndex((initialRounds as any[])[0]?.cycles, deepLinkStart.value)
             : (localPos?.legoId === startedAtLegoId)
               ? Math.max(0, localPos?.itemInRound || 0)
               : Math.max(0, savedCurrentCycleIndex.value || 0)
@@ -13017,8 +13025,9 @@ onMounted(async () => {
                 })
                 const dlIdx = dl ? (simpleRounds as any[]).findIndex((r: any) => r?.legoId === dl.legoId) : -1
                 if (dl && dlIdx >= 0) {
-                  console.log(`[DeepLink] eagerLoad: starting at ${dl.legoId} (round index ${dlIdx}, cycle ${dl.cycleIndex})`)
-                  simplePlayer.jumpToRound(dlIdx, dl.cycleIndex)
+                  const dlCycle = resolveCycleIndex((simpleRounds as any[])[dlIdx]?.cycles, dl)
+                  console.log(`[DeepLink] eagerLoad: starting at ${dl.legoId} (round index ${dlIdx}, cycle ${dlCycle})`)
+                  simplePlayer.jumpToRound(dlIdx, dlCycle)
                   deepLinkJumped = true
                 } else {
                   console.warn('[DeepLink] eagerLoad: target not in the generated rounds — resuming normally')
