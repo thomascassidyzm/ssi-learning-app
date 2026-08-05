@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   parseDeepLinkTarget,
   deepLinkAppliesTo,
+  deepLinkForcesLearnerDefaults,
   resolveDeepLinkTarget,
   getDeepLinkTarget,
   __resetDeepLinkTargetForTests,
@@ -164,5 +165,22 @@ describe('deepLinkAppliesTo', () => {
 
   it('is false without a target', () => {
     expect(deepLinkAppliesTo(null, 'deu_for_eng')).toBe(false)
+  })
+})
+
+describe('deepLinkForcesLearnerDefaults', () => {
+  it('forces defaults for the course the link named', () => {
+    const t = parseDeepLinkTarget('?course=deu_for_eng&round=7&lego=S0002L02')
+    expect(deepLinkForcesLearnerDefaults(t, 'deu_for_eng')).toBe(true)
+  })
+
+  it('leaves a normal visit alone', () => {
+    expect(deepLinkForcesLearnerDefaults(null, 'deu_for_eng')).toBe(false)
+    expect(deepLinkForcesLearnerDefaults(parseDeepLinkTarget('?course=deu_for_eng'), 'deu_for_eng')).toBe(false)
+  })
+
+  it('does not force defaults in a course the link did not name', () => {
+    const t = parseDeepLinkTarget('?course=deu_for_eng&round=7')
+    expect(deepLinkForcesLearnerDefaults(t, 'fra_for_eng')).toBe(false)
   })
 })
