@@ -9,13 +9,15 @@
  * card with 6 digits and NO link at all. The second cut moved to
  * `auth.admin.inviteUserByEmail`, which does carry a link — but wears
  * Supabase's stock copy: "You have been invited to create a user on
- * https://saysomethingin.app", naming neither the inviter nor the org.
+ * https://saysomethingin.app".
  *
  * THIS cut owns the whole mail. Tom's ruling 2026-08-05: "we use Resend as our
  * email service not Supabase". So we ask Supabase's admin API only for the
  * LINK (`auth.admin.generateLink`, which mints without sending), wrap it in
- * our own branded invitation — "Deborah invited you to join <org>" — and post
- * it through Resend. Supabase's templates are out of the loop entirely.
+ * our own branded mail and post it through Resend. Supabase's templates are
+ * out of the loop entirely. The words are fixed and name nobody — see
+ * inviteEmailTemplate.ts for why (Tom's "or just no-one … as simple as
+ * possible"), which is also why this function takes no inviter/org context.
  *
  * Verified live 2026-08-05 against a real disposable inbox on the live project:
  *  - `generateLink({ type: 'magiclink' })` works for BOTH an unconfirmed
@@ -92,11 +94,6 @@ export interface SendInviteEmailResult {
   error?: string
 }
 
-/** Who invited them, and into what — the words that make the mail an invitation. */
-export interface InviteContext {
-  inviterName?: string | null
-  orgName?: string | null
-}
 
 /** Placeholder personas (no email given at mint) live on a domain that never receives mail. */
 export function isMailable(email: string | null | undefined): boolean {
@@ -111,8 +108,7 @@ function isAlreadyRegistered(message: string): boolean {
 
 export async function sendInviteEmail(
   email: string | null | undefined,
-  joinUrl: string,
-  context: InviteContext = {}
+  joinUrl: string
 ): Promise<SendInviteEmailResult> {
   if (!isMailable(email)) return { sent: false, error: 'no mailable address for this person' }
   if (!supabaseUrl) return { sent: false, error: 'email sender not configured' }
@@ -123,7 +119,7 @@ export async function sendInviteEmail(
   // Primary: our own branded invitation, posted through Resend.
   const resendKey = (process.env.RESEND_API_KEY || '').trim()
   if (resendKey && supabaseServiceKey) {
-    return sendViaResend(resendKey, address, url, context)
+    return sendViaResend(resendKey, address, url)
   }
 
   // No Resend key configured — degrade to the previous Supabase-mailer path
@@ -178,8 +174,7 @@ export async function sendInviteEmail(
 async function sendViaResend(
   resendKey: string,
   address: string,
-  url: string,
-  context: InviteContext
+  url: string
 ): Promise<SendInviteEmailResult> {
   let actionLink: string
   try {
@@ -198,7 +193,7 @@ async function sendViaResend(
     return { sent: false, error: err instanceof Error ? err.message : 'could not mint a sign-in link', url }
   }
 
-  const { subject, html, text } = renderInviteEmail({ ...context, url: actionLink })
+  const { subject, html, text } = renderInviteEmail(actionLink)
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
