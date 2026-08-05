@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.9"
-  date: "2026-08-03"
+  version: "1.1.0"
+  date: "2026-08-05"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -128,9 +128,7 @@ principle PersonalLinksAreTheLogin:
     Tester finding 2026-08-03 (Aran): entering an email at mint MUST send
     the invite, not instruct the leader to post the link themselves. When
     `personal.email` is a real address, POST mints then calls
-    api/_utils/sendInviteEmail — which reuses the ONLY sender this estate
-    has, Supabase Auth's own SMTP, via signInWithOtp({ shouldCreateUser:
-    false, emailRedirectTo: joinUrl }) — and reports `emailed {sent,to}`.
+    api/_utils/sendInviteEmail — and reports `emailed {sent,to,via}`.
     A send failure NEVER fails the mint: the link comes back and the UI
     says to send it by hand (sharing by WhatsApp is often better anyway).
     The address is stored on the code row as metadata.personal_email so the
@@ -138,9 +136,31 @@ principle PersonalLinksAreTheLogin:
     'resend' (same link, mail it again) and 'rotate' (new link, auto-mailed
     to the same address). Wrong-address recovery is deliberately light —
     invites are re-mintable ways in.
-    KNOWN LIMIT: subject/body are Supabase's sign-in template (dashboard
-    config, outside this repo), so the mail reads "here's your way in", not
-    "X invited you to Y".
+
+  the_link_is_the_invite: |
+    Founder ruling 2026-08-05, after Deborah's staging report: the invite
+    email must carry THE LINK, and clicking it from the email must land the
+    person signed in with no code entry. The first cut sent via
+    signInWithOtp, which mails this project's MAGIC-LINK template — branded
+    down to a "Your sign-in code" card with 6 digits and NO link (verified
+    live by mailing a real inbox and reading the body). sendInviteEmail now
+    sends the INVITE template instead, via
+    auth.admin.inviteUserByEmail(email, { redirectTo: joinUrl }): body is
+    "You have been invited … Accept the invite" with a real href, and
+    following it 303s to <joinUrl>#access_token=…&type=invite — signed in,
+    on their own join link. Same Supabase sender, different template; no new
+    email infra.
+    via:'link' = the invite mail. via:'code' = the fallback, reached only
+    when Supabase answers "already been registered" — inviteUserByEmail
+    mails a NEW or still-UNCONFIRMED account only, and a persona is
+    unconfirmed until the person actually clicks. The UI states which went.
+    EMAILED ORIGIN: Supabase silently swaps any redirectTo outside its
+    allow-list for the Site URL, and only https://saysomethingin.app is
+    allow-listed (verified 2026-08-05: a staging redirect came back as the
+    prod root). So an emailed link always points at production —
+    inviteEmailOrigin(), overridable via INVITE_EMAIL_ORIGIN once
+    https://staging.saysomethingin.app/** is added to the allow-list. One
+    shared DB means a staging-minted code redeems on production unchanged.
 
   redeem_flow: |
     validate.ts returns personal:true + redirectTo -> RedeemCode.vue calls

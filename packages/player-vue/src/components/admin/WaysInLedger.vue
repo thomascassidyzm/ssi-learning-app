@@ -114,7 +114,10 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     if (action === 'resend') {
-      notice.value = `Invite emailed again to ${data.emailed?.to || l.personalEmail}.`
+      const to = data.emailed?.to || l.personalEmail
+      notice.value = data.emailed?.via === 'code'
+        ? `${to} already has an account, so we sent a sign-in code rather than a link. Copy the link and send it if they need the one-click way in.`
+        : `Invite emailed again to ${to}.`
     } else if (action === 'rotate' && data.url) {
       try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard unavailable */ }
       notice.value = data.emailed?.sent

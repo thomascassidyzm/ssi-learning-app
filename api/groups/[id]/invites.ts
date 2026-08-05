@@ -202,7 +202,7 @@ export default async function handler(
           res.status(502).json({ error: `Could not send the email: ${result.error}`, url: resendUrl })
           return
         }
-        res.status(200).json({ ok: true, code: row.code, url: resendUrl, emailed: { sent: true, to: personalEmail } })
+        res.status(200).json({ ok: true, code: row.code, url: resendUrl, emailed: { sent: true, to: personalEmail, via: result.via } })
         return
       }
 
@@ -250,12 +250,12 @@ export default async function handler(
       const rotatedUrl = `${getAppOrigin(req)}/${redeemPathForRole(role)}/${(minted as any).code}`
       // A re-mint invalidates the address they were already sent, so mail the
       // replacement automatically when we have somewhere to send it.
-      let rotatedEmail: { sent: boolean; to?: string; error?: string } | null = null
+      let rotatedEmail: { sent: boolean; to?: string; via?: 'link' | 'code'; error?: string } | null = null
       const rotatedTo = (row as any).metadata?.personal_email as string | undefined
       if (isMailable(rotatedTo)) {
         const result = await sendInviteEmail(rotatedTo, rotatedUrl)
         if (!result.sent) console.error('[GroupInvites] rotate email failed:', result.error)
-        rotatedEmail = { sent: result.sent, to: rotatedTo as string, ...(result.error ? { error: result.error } : {}) }
+        rotatedEmail = { sent: result.sent, to: rotatedTo as string, ...(result.via ? { via: result.via } : {}), ...(result.error ? { error: result.error } : {}) }
       }
       res.status(200).json({
         ok: true,
@@ -563,11 +563,11 @@ export default async function handler(
     // Auto-send the personal invite when the leader gave a real address. A
     // failure here NEVER fails the mint — the link is already good, and the
     // client falls back to "copy and send it yourself".
-    let emailed: { sent: boolean; to?: string; error?: string } | null = null
+    let emailed: { sent: boolean; to?: string; via?: 'link' | 'code'; error?: string } | null = null
     if (personaUserId && isMailable(personaEmail)) {
       const result = await sendInviteEmail(personaEmail, url)
       if (!result.sent) console.error('[GroupInvites] invite email failed:', result.error)
-      emailed = { sent: result.sent, to: personaEmail as string, ...(result.error ? { error: result.error } : {}) }
+      emailed = { sent: result.sent, to: personaEmail as string, ...(result.via ? { via: result.via } : {}), ...(result.error ? { error: result.error } : {}) }
     }
 
     res.status(201).json({
