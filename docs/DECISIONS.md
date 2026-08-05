@@ -1008,6 +1008,9 @@ today accrues £5 once, not £5×12 as "per completed student-month" implies —
 silently changed.~~ **RESOLVED 2026-08-02 by founder ruling: tutor-class students are
 monthly-only — the annual option is removed from the tutor lane, so the edge case cannot
 occur. See "tutor-class students: monthly only" below.**
+**Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
+today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
+silently changed.
 
 ## 2026-08-02 — paddle: school seat lane joins the in-repo SSi Premium fallback
 **Move:** Two-product ruling: every adult seat bills on SSi Premium £15/mo / £150/yr. The
