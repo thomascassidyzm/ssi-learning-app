@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.2.0"
+  version: "1.3.0"
   date: "2026-08-05"
   author: "Tom Cassidy"
   status: "draft"
@@ -152,15 +152,23 @@ principle PersonalLinksAreTheLogin:
     email service not Supabase"). sendInviteEmail now asks Supabase only for
     the LINK — auth.admin.generateLink({ type:'magiclink', email, options:
     { redirectTo } }), which mints without sending — and posts our own
-    branded invitation through the Resend API from
+    branded mail through the Resend API from
     noreply@contact.saysomethingin.app (domain verified in Resend), gated on
-    RESEND_API_KEY. The copy is api/_utils/inviteEmailTemplate.ts:
-    "<inviter> invited you to join <org>", one "Accept the invitation"
-    button, a copyable plain-text link, Mist palette, HTML + text parts.
-    inviterName (learners.display_name of the caller) and orgName (the grant
-    target's school/group name) are resolved server-side in
-    api/groups/:id/invites.ts and threaded into sendInviteEmail; either name
-    missing degrades to a sentence that still reads, never to "undefined".
+    RESEND_API_KEY.
+    THE MAIL COMES FROM NO-ONE (Tom's copy ruling 2026-08-05: "it shouldn't
+    come from Deborah, it should come from whoever is the person inviting
+    them … OR just no-one … as simple as possible"). The first cut took the
+    first branch — inviter display_name + the grant target's org name — and
+    that proved to be exactly the hassle the ruling anticipated: two lookups
+    per send plus a guard against the auth trigger that seeds display_name
+    from the email's local part. So the copy is now ONE FIXED SENTENCE,
+    his words verbatim, in api/_utils/inviteEmailTemplate.ts:
+    subject "You've been invited to try SaySomethingin", body "You've been
+    invited to try SaySomethingin — please click to activate your account.",
+    one "Activate your account" button, a copyable plain-text link, Mist
+    palette, HTML + text parts. renderInviteEmail takes the URL and nothing
+    else; sendInviteEmail takes no inviter/org context; invites.ts resolves
+    no names. Nothing personal can be blank, stale, wrong or leaked.
     THE 6-DIGIT FALLBACK IS RETIRED on this path: verified live 2026-08-05
     that a magiclink resolves for BOTH an unconfirmed persona and one who
     has already clicked — 303 to <joinUrl>#access_token=…, signing in and
