@@ -71,6 +71,7 @@ import {
   getDeepLinkTarget,
   resolveDeepLinkTarget,
   deepLinkAppliesTo,
+  deepLinkForcesLearnerDefaults,
   type ResolvedDeepLink,
 } from '../utils/deepLinkTarget'
 import { decomposePhrase } from '../utils/decomposePhrase'
@@ -556,6 +557,15 @@ const activeCourseCode = courseCode
 // link names something this course doesn't have, so normal resume is untouched.
 const deepLinkTarget = getDeepLinkTarget()
 const deepLinkStart = ref<ResolvedDeepLink | null>(null)
+
+// Fidelity rule (Tom, 2026-08-05): a deep-linked launch opens on the DB
+// defaults a real learner gets — never a QA/preview variant, never the
+// reviewer's remembered local settings. This is computed, not stored, so it
+// costs nothing when there is no deep link, and nothing is ever written back:
+// the reviewer's own settings survive untouched for their next normal visit.
+const learnerDefaultsForced = computed(() =>
+  deepLinkForcesLearnerDefaults(deepLinkTarget, courseCode.value),
+)
 
 // Instant-playback composable (flag-gated, see INSTANT_PLAYBACK_COURSES).
 // Wires `last_completed_lego_id` from the enrollment row as the resume
@@ -6400,8 +6410,12 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     beltRamp: dbSpeed?.belt_ramp ?? false,
   }
 
-  // Learner speed preference (from settings, stored in localStorage)
-  const learnerSpeed = parseFloat(localStorage.getItem('learner_speed') || '1.0')
+  // Learner speed preference (from settings, stored in localStorage). A
+  // production deep link runs on the DB defaults a fresh learner gets, so the
+  // reviewer's own speed preference is not applied (Tom, 2026-08-05).
+  const learnerSpeed = learnerDefaultsForced.value
+    ? 1.0
+    : parseFloat(localStorage.getItem('learner_speed') || '1.0')
   if (learnerSpeed !== 1.0 && !isNaN(learnerSpeed)) {
     targetSpeed.globalSpeed = (targetSpeed.globalSpeed ?? 1.0) * learnerSpeed
   }
@@ -9712,6 +9726,12 @@ let vadStatusInterval = null
 
 // Load consent from localStorage
 const loadAdaptationConsent = () => {
+  // Adaptation changes pacing, and its default is off. A production deep link
+  // takes the default, not the reviewer's remembered consent.
+  if (learnerDefaultsForced.value) {
+    adaptationConsent.value = false
+    return
+  }
   const stored = localStorage.getItem(ADAPTATION_CONSENT_KEY)
   if (stored === 'true') adaptationConsent.value = true
   else adaptationConsent.value = false
@@ -9996,6 +10016,9 @@ const offlineActive = ref(false)
 // before first play. The lease lock still governs (premium design).
 const OFFLINE_MODE_KEY_PREFIX = 'ssi-offline-mode-'
 const persistedOfflineModeOn = (): boolean => {
+  // A production deep link listens to what is live NOW — a persisted offline
+  // course would serve cached audio and hide a clip that was just repaired.
+  if (learnerDefaultsForced.value) return false
   try { return localStorage.getItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) === '1' } catch { return false }
 }
 const persistOfflineModeOn = (): void => {
@@ -11787,9 +11810,10 @@ onMounted(async () => {
     console.log('[LearningPlayer] Offline mode: restored ON (persisted selection)')
   }
 
-  // Load developer settings
-  enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
-  showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
+  // Load developer settings. A production deep link is a fidelity listen —
+  // never the QA/preview variant — so these stay off for it.
+  enableQaMode.value = !learnerDefaultsForced.value && localStorage.getItem('ssi-enable-qa-mode') === 'true'
+  showDebugOverlay.value = !learnerDefaultsForced.value && localStorage.getItem('ssi-show-debug-overlay') === 'true'
 
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
@@ -12044,6 +12068,22 @@ onMounted(async () => {
               inferCeilingLegoId = null
               inferCursorCycle = resolved.cycleIndex
               console.log(`[DeepLink] Starting at ${resolved.legoId} cycle ${resolved.cycleIndex} via ${resolved.via}`)
+              // Say out loud what the fidelity rule suppressed, so a reviewer
+              // can see they are on learner defaults rather than trust it.
+              const suppressed: string[] = []
+              try {
+                const spd = parseFloat(localStorage.getItem('learner_speed') || '1.0')
+                if (!Number.isNaN(spd) && spd !== 1.0) suppressed.push(`learner_speed ${spd} → 1.0`)
+                if (localStorage.getItem('ssi-enable-qa-mode') === 'true') suppressed.push('QA mode → off')
+                if (localStorage.getItem('ssi-show-debug-overlay') === 'true') suppressed.push('debug overlay → off')
+                if (localStorage.getItem(ADAPTATION_CONSENT_KEY) === 'true') suppressed.push('adaptation → off')
+                if (localStorage.getItem(OFFLINE_MODE_KEY_PREFIX + courseCode.value) === '1') suppressed.push('offline mode → off')
+              } catch { /* storage blocked — nothing local to suppress anyway */ }
+              console.log(
+                suppressed.length
+                  ? `[DeepLink] Learner defaults enforced, local settings suppressed for this launch: ${suppressed.join(', ')}`
+                  : '[DeepLink] Learner defaults enforced, no local settings to suppress',
+              )
             }
           } catch (dlErr) {
             console.warn('[DeepLink] Could not resolve the deep-link target — resuming normally:', dlErr)
