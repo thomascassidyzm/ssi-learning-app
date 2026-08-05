@@ -159,8 +159,23 @@ export default async function handler(
       .select('display_name')
       .eq('user_id', callerUserId)
       .maybeSingle()
-    inviterNameCache = ((data as any)?.display_name as string) || null
+    const name = (((data as any)?.display_name as string) || '').trim()
+    inviterNameCache = name && !(await looksLikeOwnEmail(name)) ? name : null
     return inviterNameCache
+  }
+
+  /**
+   * A leader who never set a name still HAS one: creating an auth account
+   * seeds learners.display_name from the email's local part (verified live
+   * 2026-08-05 — an account made as `d.jones@…` comes back named "d.jones").
+   * Signing an invitation with that would put a fragment of the inviter's
+   * email in a stranger's inbox, so it counts as "no name" and the mail falls
+   * back to naming the org alone.
+   */
+  async function looksLikeOwnEmail(name: string): Promise<boolean> {
+    const { data } = await supabase.auth.admin.getUserById(callerUserId)
+    const local = (data?.user?.email || '').split('@')[0].trim().toLowerCase()
+    return !!local && local === name.toLowerCase()
   }
 
   /** The name of a node as an invitee would recognise it — its school name where it is a school. */
