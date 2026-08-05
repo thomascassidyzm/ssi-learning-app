@@ -4,7 +4,9 @@
 **What it closes:** the known limit left open by the previous fix — the mail carried a link, but wore
 Supabase's stock copy: *"You have been invited to create a user on https://saysomethingin.app"*,
 naming neither the person inviting nor the thing being joined.
-**Status:** landed on `dev`, verified live end-to-end on the dev deployment.
+**Status:** live in **production**. Tom ruled 2026-08-05 that this goes straight to main — admin
+tooling, not player code — so it was carried there as a scoped cherry-pick and is now on all three
+branches. Verified end to end on each.
 
 ## What the invitee gets now
 
@@ -52,7 +54,8 @@ loudly instead of being papered over with a code.
 
 ## Live acceptance
 
-A real invite driven through the deployed dev API as a real org leader, into a real inbox:
+A real invite driven through the deployed API as a real org leader, into a real disposable inbox —
+run separately against **dev, production and staging**, all four checks true on each:
 
 ```
 POST /api/groups/<id>/invites  → 201 {"code":"KQM-678", …,
@@ -64,7 +67,16 @@ follow → 303 https://saysomethingin.app/redeem/KQM-678#access_token=…
 ACCEPTANCE: link present = true | names inviter + org = true | signs in = true | zero code entry = true
 ```
 
-Every account, org row and code the test created was deleted afterwards.
+Every account, org row and code each test created was deleted afterwards. No real learner or org
+contact was mailed at any point.
+
+### Why it went to main as a cherry-pick, not a merge
+
+`dev` was 118 commits ahead of `main`, carrying player, course-boundary and telemetry work. Merging
+the branch would have put all of that into production on a ruling whose whole premise was "admin
+tooling, not player code". So the invite chain alone was cherry-picked — ten files, none of them
+player code — and the same chain was back-merged to `staging`, which is where the bug was reported
+and which would otherwise be the one environment still running the broken send.
 
 ## One defect the live test caught
 
