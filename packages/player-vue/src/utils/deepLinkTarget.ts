@@ -34,6 +34,8 @@
  */
 
 export interface DeepLinkTarget {
+  /** The course the link named, so it never follows a course switch. */
+  courseCode: string | null
   /** LEGO id, uppercased, when the link carried a well-formed one. */
   legoId: string | null
   /** 1-based round number, when the link carried a valid one. */
@@ -93,7 +95,27 @@ export function parseDeepLinkTarget(search: string): DeepLinkTarget | null {
 
   if (!legoId && round === null) return null
 
-  return { legoId, round, cycleIndex: cycle === null ? null : cycle - 1 }
+  const rawCourse = params.get('course')
+  return {
+    courseCode: rawCourse && rawCourse.trim() !== '' ? rawCourse.trim() : null,
+    legoId,
+    round,
+    cycleIndex: cycle === null ? null : cycle - 1,
+  }
+}
+
+/**
+ * Does this target apply to the course now playing? A link names one course;
+ * if the visitor switches course in-app the target must not follow them. A
+ * link with no course names no course, so it applies wherever it lands.
+ */
+export function deepLinkAppliesTo(
+  target: DeepLinkTarget | null,
+  courseCode: string | null | undefined,
+): boolean {
+  if (!target) return false
+  if (!target.courseCode) return true
+  return !!courseCode && target.courseCode === courseCode
 }
 
 /**

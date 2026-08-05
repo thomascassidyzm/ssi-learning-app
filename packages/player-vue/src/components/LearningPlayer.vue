@@ -70,6 +70,7 @@ import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosit
 import {
   getDeepLinkTarget,
   resolveDeepLinkTarget,
+  deepLinkAppliesTo,
   type ResolvedDeepLink,
 } from '../utils/deepLinkTarget'
 import { decomposePhrase } from '../utils/decomposePhrase'
@@ -12053,7 +12054,7 @@ onMounted(async () => {
         // deepLinkStart stays null and the visitor resumes normally, with a
         // console warning. No learner-facing error surface for a production
         // tool's deep link.
-        if (deepLinkTarget) {
+        if (deepLinkAppliesTo(deepLinkTarget, courseCode.value)) {
           try {
             const dlMap = await instantPlayback.getOrFetchRoundMap()
             const resolved = resolveDeepLinkTarget(deepLinkTarget, dlMap)
@@ -12999,7 +13000,7 @@ onMounted(async () => {
               // the named round — not the round AFTER it, which is what the
               // resume branch below does deliberately for a returning learner.
               let deepLinkJumped = false
-              if (deepLinkTarget) {
+              if (deepLinkAppliesTo(deepLinkTarget, courseCode.value)) {
                 const dl = deepLinkStart.value ?? resolveDeepLinkTarget(deepLinkTarget, {
                   rounds: (simpleRounds as any[]).map((r: any, i: number) => ({ r: i + 1, legoId: r?.legoId })),
                 })
