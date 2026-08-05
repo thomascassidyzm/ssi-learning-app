@@ -145,6 +145,31 @@ export function resolveDeepLinkTarget(
   return null
 }
 
+/**
+ * Does this launch have to run on a fresh learner's settings?
+ *
+ * Tom's ruling (2026-08-05): a deep-linked launch must open with the DEFAULT
+ * configs that are in the DB at that time — exactly what a real learner gets,
+ * not a QA/preview variant and not the reviewer's remembered local settings.
+ * The point of the launch is fidelity, so the reviewer hears precisely what a
+ * learner hears.
+ *
+ * The DB side already holds: algorithm_config (normal_mode, turbo_boost,
+ * script_shape/speed, pods, listening, stage0, adaptation_v2) is fetched every
+ * boot, and the old course-level "Open Learning App" link injects nothing but
+ * ?course=. What diverges is the reviewer's own localStorage — playback speed,
+ * QA mode, the debug overlay, adaptation consent, and a persisted offline
+ * course, which would serve cached audio instead of the clip that is live NOW.
+ * Those are suppressed for the launch; nothing is written, so the reviewer's
+ * own settings are intact the moment they open the app normally again.
+ */
+export function deepLinkForcesLearnerDefaults(
+  target: DeepLinkTarget | null,
+  courseCode: string | null | undefined,
+): boolean {
+  return deepLinkAppliesTo(target, courseCode)
+}
+
 // ---------------------------------------------------------------------------
 // Captured-once accessor
 // ---------------------------------------------------------------------------
