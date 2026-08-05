@@ -22,6 +22,12 @@
  *   - `component_intro` IS emitted (since 2026-08-04) — the M-LEGO
  *     per-piece "as in" narrations. It shares the intro treatment here:
  *     presentation audio takes the prompt slot, no pause.
+ *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
+ *     curve from `toSimpleRounds`. It MUST be: the runtime override in
+ *     LearningPlayer only ever CANCELS a baked ramp (for Turbo), it never
+ *     applies one — and the runtime pause override reads
+ *     `cycle.playbackSpeed` as its belt proxy. See the note on
+ *     `computeCycleSpeed`
  *   - listening / pod cycles are NOT emitted: the backend doesn't return
  *     them today (see INSTANT_PLAYBACK_SPEC.md §"Open questions").
  *     Round-end listening fires via the existing
@@ -34,6 +40,7 @@ import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
+import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
@@ -56,6 +63,7 @@ const audioUrl = (uuid: string | undefined): string => {
 export function infPlayCyclesToRounds(
   cycles: BackendCycle[],
   mainLoopCount: number,
+  targetSpeed: TargetSpeedConfig = {},
 ): Round[] {
   const byRound = new Map<number, BackendCycle[]>()
   for (const c of cycles) {
@@ -69,7 +77,7 @@ export function infPlayCyclesToRounds(
   for (const [infR, cs] of [...byRound.entries()].sort(([a], [b]) => a - b)) {
     const playerCycles: Cycle[] = []
     for (const bc of cs) {
-      const cycle = toPlayerCycle(bc)
+      const cycle = toPlayerCycle(bc, targetSpeed)
       if (cycle) playerCycles.push(cycle)
     }
     if (playerCycles.length === 0) continue
@@ -115,6 +123,13 @@ export function backendCyclesToRounds(
    * partials (legacy/test paths).
    */
   isLegoComplete: (legoId: string) => boolean = () => true,
+  /**
+   * Course target-speed config (from `voice_config.target_speed`). Drives the
+   * baked belt ramp — see `computeCycleSpeed`. Defaults to `{}` = flat 1.0×,
+   * which is what every caller silently got before 2026-08-04 and is exactly
+   * the bug this parameter exists to close: pass the real config.
+   */
+  targetSpeed: TargetSpeedConfig = {},
 ): Round[] {
   const rounds: Round[] = []
 
@@ -135,7 +150,9 @@ export function backendCyclesToRounds(
 
     const cycles: Cycle[] = []
     for (const bc of legoCycles) {
-      const cycle = toPlayerCycle(bc)
+      // Belt band from the round map's seed — authoritative and always
+      // present, unlike the per-cycle `seed_number` on older wire shapes.
+      const cycle = toPlayerCycle(bc, targetSpeed, entry.seed)
       if (cycle) cycles.push(cycle)
     }
     if (cycles.length === 0) continue
@@ -176,16 +193,26 @@ export function backendCyclesToRounds(
  * reuses the same cycle-shaping logic but groups by inf_round rather
  * than by legoId.
  */
-export function toPlayerCycle(bc: BackendCycle): Cycle | null {
+export function toPlayerCycle(
+  bc: BackendCycle,
+  targetSpeed: TargetSpeedConfig = {},
+  /** Seed number for the belt band. Defaults to the cycle's own
+   *  `seed_number`; the main-loop adapter passes the round-map's `seed`
+   *  instead, which is authoritative and always present. */
+  seedNumber: number = bc.seed_number,
+): Cycle | null {
   // `component_intro` is an introduction too — the per-piece "as in"
   // narration for one component of an M-LEGO. It gets the same treatment
   // as `intro`: presentation audio in the prompt slot, no production pause.
   const isIntro = bc.type === 'intro' || bc.type === 'component_intro'
   const isListening = bc.type === 'listening'
 
-  // Intros use presentation audio as the prompt ("The Italian for: 'to
-  // speak', as in — 'I want to speak Italian', is:"); debut/build/use use
-  // the known-language audio.
+  // Baked target-voice speed for this cycle's belt band. Drives BOTH the
+  // voice speed and (as the belt proxy) the pause taper below.
+  const speed = computeCycleSpeed(seedNumber, targetSpeed)
+
+  // Intro uses presentation audio as the prompt ("The X for Y is..."),
+  // debut/build/use use the known-language audio.
   const promptAudioId = isIntro
     ? bc.audio.presentation_id || bc.audio.known_id
     : bc.audio.known_id
@@ -223,11 +250,15 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
     })
   }
 
-  // No belt-ramp / per-context speed here — the legacy `toSimpleRounds`
-  // computes a context-aware speed multiplier. For the cutover we keep
-  // it simple: rely on the runtime overrides in `simplePlayer.setRuntimeOverrides`
-  // to apply the same belt/context curves at play time. That keeps this
-  // adapter pure (no `props.course.voice_config` plumbing).
+  // (Historical note, kept as a warning.) This block used to read:
+  //   "No belt-ramp / per-context speed here — rely on the runtime overrides
+  //    in simplePlayer.setRuntimeOverrides to apply the same belt/context
+  //    curves at play time. That keeps this adapter pure."
+  // That assumption was FALSE and cost every learner their belt ramp from the
+  // instant-playback cutover until 2026-08-04. `getPlaybackSpeedMultiplier`
+  // only CANCELS a baked ramp (for Turbo); it never applies one. The speed is
+  // now baked above, from the course's real `voice_config.target_speed` which
+  // the caller threads in as `targetSpeed`.
 
   // Decomposition → componentLegoIds / componentLegoTexts. The backend's
   // `decomposition` is per-token (one entry per word, with optional legoId
@@ -263,6 +294,7 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
           bc.durations.target1_ms ?? 0,
           bc.durations.target2_ms ?? 0,
           DEFAULT_NORMAL,
+          speed,
         ),
     // Linger after voice2 on intros so the learner can read the reveal.
     ...(isIntro ? { lingerMs: 2000 } : {}),
@@ -292,6 +324,10 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
     // Authored display tiles — same verbatim pass-through (wire snake_case →
     // player camelCase, matching toSimpleRounds' displayTiling field).
     ...(Array.isArray(bc.display_tiling) && bc.display_tiling.length > 0 ? { displayTiling: bc.display_tiling } : {}),
+    // Baked belt/global speed. Omitted at exactly 1.0 so the wire shape
+    // matches `toSimpleRounds` (which also only sets it when != 1.0) and
+    // Turbo's `target / baked` cancellation reads the same default.
+    ...(speed !== 1.0 ? { playbackSpeed: speed } : {}),
   }
 
   return cycle

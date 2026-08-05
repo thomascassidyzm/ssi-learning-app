@@ -1522,6 +1522,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           const refreshed = infPlayCyclesToRounds(
             instantPlayback.infPlayCycles.value as any,
             mainLoopCount,
+            currentTargetSpeedConfig(),
           )
           if (refreshed.length > totalLoaded) {
             // Diff by roundNumber against the engine's truth — slice(totalLoaded)
@@ -1544,6 +1545,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           instantPlayback.getBufferedCyclesForLego,
           map,
           instantPlayback.isLegoComplete,
+          currentTargetSpeedConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -12289,11 +12291,13 @@ onMounted(async () => {
             ? infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopBoundary(),  // boundary from the canonical round-map (single source of truth)
+                currentTargetSpeedConfig(),
               )
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
                 map,
                 instantPlayback.isLegoComplete,
+                currentTargetSpeedConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12388,6 +12392,7 @@ onMounted(async () => {
                   instantPlayback.getBufferedCyclesForLego,
                   refreshedMap,
                   instantPlayback.isLegoComplete,
+                  currentTargetSpeedConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -12422,6 +12427,7 @@ onMounted(async () => {
               const refreshedRounds = infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopCount,
+                currentTargetSpeedConfig(),
               )
               if (refreshedRounds.length > initialRounds.length) {
                 const newRounds = refreshedRounds.slice(initialRounds.length) as any
