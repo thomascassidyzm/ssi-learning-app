@@ -110,9 +110,12 @@ async function submitPerson(): Promise<void> {
     // better, and because it is the fallback when the send fails.
     const name = personName.value.trim()
     // `via` (2026-08-05): 'link' is the invite email carrying a clickable way
-    // in — the whole point. 'code' is the sign-in-code fallback, sent only to
-    // someone who has already accepted an invite before; say so plainly rather
-    // than letting the leader assume a link went out.
+    // in — the whole point, and now always the case, because the branded
+    // Resend mail mints a link that works whether or not they have signed in
+    // before. 'code' survives only on the legacy Supabase path (no
+    // RESEND_API_KEY configured) for someone who has already accepted an
+    // invite; say so plainly rather than letting the leader assume a link
+    // went out.
     const emailed = data.emailed as { sent?: boolean; to?: string; via?: 'link' | 'code' } | undefined
     const message = emailed?.sent
       ? emailed.via === 'code'
