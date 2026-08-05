@@ -145,51 +145,6 @@ export default async function handler(
     return { groups, schools, classes, groupIds }
   }
 
-  // ─── The words the invite email is written in ───
-  // "Deborah invited you to join Seaside Model School" needs two names the
-  // mailer cannot know: who is inviting, and into what. Both are read here,
-  // server-side, and passed down — never taken from the client. Missing either
-  // is fine: the template degrades to a sentence that still reads naturally
-  // (see inviteEmailTemplate.ts), never to an empty name.
-  let inviterNameCache: string | null | undefined
-  async function inviterName(): Promise<string | null> {
-    if (inviterNameCache !== undefined) return inviterNameCache
-    const { data } = await supabase
-      .from('learners')
-      .select('display_name')
-      .eq('user_id', callerUserId)
-      .maybeSingle()
-    const name = (((data as any)?.display_name as string) || '').trim()
-    inviterNameCache = name && !(await looksLikeOwnEmail(name)) ? name : null
-    return inviterNameCache
-  }
-
-  /**
-   * A leader who never set a name still HAS one: creating an auth account
-   * seeds learners.display_name from the email's local part (verified live
-   * 2026-08-05 — an account made as `d.jones@…` comes back named "d.jones").
-   * Signing an invitation with that would put a fragment of the inviter's
-   * email in a stranger's inbox, so it counts as "no name" and the mail falls
-   * back to naming the org alone.
-   */
-  async function looksLikeOwnEmail(name: string): Promise<boolean> {
-    const { data } = await supabase.auth.admin.getUserById(callerUserId)
-    const local = (data?.user?.email || '').split('@')[0].trim().toLowerCase()
-    return !!local && local === name.toLowerCase()
-  }
-
-  /** The name of a node as an invitee would recognise it — its school name where it is a school. */
-  async function nodeName(id: string): Promise<string | null> {
-    const { data: school } = await supabase
-      .from('schools')
-      .select('school_name')
-      .or(`group_id.eq.${id},node_group_id.eq.${id}`)
-      .maybeSingle()
-    if ((school as any)?.school_name) return (school as any).school_name as string
-    const { data: group } = await supabase.from('groups').select('name').eq('id', id).maybeSingle()
-    return ((group as any)?.name as string) || null
-  }
-
   // ─── PATCH: the ledger verbs — revoke / reactivate / rotate ───
   if (req.method === 'PATCH') {
     const { code, action } = (req.body || {}) as { code?: string; action?: string }
@@ -220,19 +175,6 @@ export default async function handler(
         return
       }
 
-      // The org an existing link grants into — the invitee's own words for
-      // where they are going, which is the link's grant target, not
-      // necessarily the node the admin happens to be standing on. A class
-      // link says the school; a class name alone would not tell them much.
-      const classOfRow = row.grants_class_id
-        ? subtree.classes.find((c) => c.id === row.grants_class_id)
-        : null
-      const orgNameForRow =
-        (row.grants_school_id
-          ? subtree.schools.find((s) => s.id === row.grants_school_id)?.school_name
-          : classOfRow
-            ? subtree.schools.find((s) => s.id === classOfRow.school_id)?.school_name
-            : subtree.groups.find((g) => g.id === row.grants_group_id)?.name) || null
 
       if (action === 'revoke' || action === 'reactivate') {
         const { error: updError } = await supabase
@@ -255,10 +197,7 @@ export default async function handler(
         }
         const roleForPath = ROLE_BY_CODE_TYPE[row.code_type as string] || 'teacher'
         const resendUrl = `${getAppOrigin(req)}/${redeemPathForRole(roleForPath)}/${row.code}`
-        const result = await sendInviteEmail(personalEmail, resendUrl, {
-          inviterName: await inviterName(),
-          orgName: orgNameForRow,
-        })
+        const result = await sendInviteEmail(personalEmail, resendUrl)
         if (!result.sent) {
           console.error('[GroupInvites] resend failed:', result.error)
           res.status(502).json({ error: `Could not send the email: ${result.error}`, url: resendUrl })
@@ -315,10 +254,7 @@ export default async function handler(
       let rotatedEmail: { sent: boolean; to?: string; via?: 'link' | 'code'; error?: string } | null = null
       const rotatedTo = (row as any).metadata?.personal_email as string | undefined
       if (isMailable(rotatedTo)) {
-        const result = await sendInviteEmail(rotatedTo, rotatedUrl, {
-          inviterName: await inviterName(),
-          orgName: orgNameForRow,
-        })
+        const result = await sendInviteEmail(rotatedTo, rotatedUrl)
         if (!result.sent) console.error('[GroupInvites] rotate email failed:', result.error)
         rotatedEmail = { sent: result.sent, to: rotatedTo as string, ...(result.via ? { via: result.via } : {}), ...(result.error ? { error: result.error } : {}) }
       }
@@ -630,10 +566,7 @@ export default async function handler(
     // client falls back to "copy and send it yourself".
     let emailed: { sent: boolean; to?: string; via?: 'link' | 'code'; error?: string } | null = null
     if (personaUserId && isMailable(personaEmail)) {
-      const result = await sendInviteEmail(personaEmail, url, {
-        inviterName: await inviterName(),
-        orgName: await nodeName(groupId),
-      })
+      const result = await sendInviteEmail(personaEmail, url)
       if (!result.sent) console.error('[GroupInvites] invite email failed:', result.error)
       emailed = { sent: result.sent, to: personaEmail as string, ...(result.via ? { via: result.via } : {}), ...(result.error ? { error: result.error } : {}) }
     }

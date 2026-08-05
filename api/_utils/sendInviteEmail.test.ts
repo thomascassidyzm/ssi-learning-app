@@ -113,10 +113,7 @@ describe('toInviteEmailUrl', () => {
 
 describe('sendInviteEmail — the branded Resend path', () => {
   it('mints a link with Supabase and posts our own invitation to Resend', async () => {
-    const result = await sendInviteEmail('Aran@Example.com', 'https://staging.saysomethingin.app/redeem/ABC123', {
-      inviterName: 'Deborah',
-      orgName: 'Seaside Model School',
-    })
+    const result = await sendInviteEmail('Aran@Example.com', 'https://staging.saysomethingin.app/redeem/ABC123')
     expect(result).toEqual({ sent: true, via: 'link', url: 'https://saysomethingin.app/redeem/ABC123' })
 
     // Supabase is asked for the LINK only — magiclink, the one type that works
@@ -139,7 +136,9 @@ describe('sendInviteEmail — the branded Resend path', () => {
     expect(call.headers.Authorization).toBe('Bearer resend-key')
     expect(call.body.from).toContain('noreply@contact.saysomethingin.app')
     expect(call.body.to).toEqual(['aran@example.com'])
-    expect(call.body.subject).toBe('Deborah invited you to join Seaside Model School')
+    // The copy is fixed and names nobody (Tom's ruling) — the send path passes
+    // it nothing but the minted link.
+    expect(call.body.subject).toBe("You've been invited to try SaySomethingin")
     // The clickable thing is the minted sign-in link, in both parts.
     expect(call.body.html).toContain(ACTION_LINK.replace(/&/g, '&amp;'))
     expect(call.body.text).toContain(ACTION_LINK)
