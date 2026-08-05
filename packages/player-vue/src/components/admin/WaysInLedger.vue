@@ -13,6 +13,8 @@ interface LedgerLink {
   role: 'leader' | 'school_leader' | 'teacher' | 'student'
   species: 'personal' | 'shareable'
   personalName: string | null
+  /** Set only when a real address is on file — gates the "Email again" verb. */
+  personalEmail?: string | null
   code: string
   url: string
   where: { nodeId: string | null; name: string; kind: 'group' | 'school' | 'class' }
@@ -97,7 +99,7 @@ async function copyLink(l: LedgerLink): Promise<void> {
   } catch { /* clipboard unavailable */ }
 }
 
-async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'): Promise<void> {
+async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' | 'resend'): Promise<void> {
   if (busyCode.value) return
   busyCode.value = l.code
   error.value = null
@@ -111,9 +113,13 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    if (action === 'rotate' && data.url) {
+    if (action === 'resend') {
+      notice.value = `Invite emailed again to ${data.emailed?.to || l.personalEmail}.`
+    } else if (action === 'rotate' && data.url) {
       try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard unavailable */ }
-      notice.value = `New link for ${l.personalName || 'this person'} — copied. The old one no longer works.`
+      notice.value = data.emailed?.sent
+        ? `New link for ${l.personalName || 'this person'} — emailed to ${data.emailed.to} and copied. The old one no longer works.`
+        : `New link for ${l.personalName || 'this person'} — copied. The old one no longer works.`
     }
     await load()
   } catch (err) {
@@ -173,7 +179,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
         <tr v-for="l in visible" :key="l.code" :class="{ 'is-dead': l.status !== 'active' }">
           <td>
             <span class="row-role">{{ l.species === 'personal' ? (l.personalName || 'Personal link') : `Anyone — joins as ${(ROLE_WORD[l.role] || l.role).toLowerCase()}` }}</span>
-            <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link` : 'shareable' }}</span>
+            <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link, goes straight in` : 'shareable · new arrivals enter their name' }}</span>
           </td>
           <td>{{ l.where.name }}</td>
           <td class="mono">{{ l.code }}</td>
@@ -182,6 +188,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate'):
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? 'Copied!' : 'Copy' }}</button>
+            <button v-if="l.status === 'active' && l.species === 'personal' && l.personalEmail" type="button" class="row-verb" :disabled="busyCode === l.code" :title="`Send the invite to ${l.personalEmail} again`" data-walk="ways-in-resend" @click="patch(l, 'resend')">Email again</button>
             <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">Re-mint</button>
             <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">Revoke</button>
             <button v-else-if="l.status === 'revoked'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'reactivate')">Put back</button>

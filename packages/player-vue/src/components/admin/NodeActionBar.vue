@@ -7,7 +7,7 @@
 // calls the same server endpoints AdminStructure/the retired NodePanel used,
 // then emits `changed` so the host page refetches. No "node"/"entitlement"
 // jargon in any user-facing string (say school/group/courses).
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeEntitlementControl from '@/components/schools/NodeEntitlementControl.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
@@ -22,14 +22,23 @@ interface NodeShape {
   rollup?: { teacherCount?: number; classCount?: number; childGroupCount?: number; learnerCount?: number }
 }
 
-// `member` = the /schools/org mount (a leader on their own subtree). Leaders
-// get the invite verbs — /api/groups/:id/invites authorizes a govt_admin on
-// their governed node or any strict descendant — while the structural verbs
-// (add/rename/mint/delete/courses) stay admin-only for now: their endpoints
-// are ssi_admin-gated, and a leader's create-school lane is a separate
-// surface (POST /api/govt/create-school).
-const props = defineProps<{ node: NodeShape; member?: boolean }>()
+// `member` = the /org mount (a leader on their own subtree). Leaders get the
+// invite verbs AND Add-a-group — /api/groups/:id/invites and POST /api/groups
+// both authorize a govt_admin on their governed node or any strict descendant
+// — while the remaining structural verbs (school/rename/mint/delete/courses)
+// stay admin-only: their endpoints are ssi_admin-gated, and a leader's
+// create-school lane is a separate surface (POST /api/govt/create-school).
+// `preset` = the vocabulary dressing (founder ruling 2026-08-02, groups all
+// the way down): 'neutral' hides every school/teacher word — no Add-a-school
+// verb, invites default to Group leader. Defaults to 'education' so mounts
+// that don't pass it (legacy school surfaces) keep their vocabulary.
+const props = withDefaults(
+  defineProps<{ node: NodeShape; member?: boolean; preset?: 'education' | 'neutral' }>(),
+  { preset: 'education' },
+)
 const emit = defineEmits<{ changed: []; renamed: [name: string]; minted: [] }>()
+
+const neutral = computed(() => props.preset === 'neutral')
 
 const { getAuthToken } = useAdminClient()
 function authHeaders(token: string | null): Record<string, string> {
@@ -71,7 +80,10 @@ const entitlementNodeType = computed<'group' | 'school'>(() => (props.node.comme
 
 // ─── Invite a person (species 1: personal link — the account is provisioned
 // NOW with their name; the link is their login, zero screens on click) ───
-const personRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>('teacher')
+// Under the neutral dressing the default role is GROUP LEADER, not teacher —
+// a council is not a school (founder taste-test 2026-08-02).
+const defaultRole = computed<'teacher' | 'leader'>(() => (neutral.value ? 'leader' : 'teacher'))
+const personRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>(defaultRole.value)
 const personName = ref('')
 const personEmail = ref('')
 const isInvitingPerson = ref(false)
@@ -92,9 +104,27 @@ async function submitPerson(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     openForm.value = null
+    // Tester feedback (Aran 2026-08-03): entering an email should SEND the
+    // invite, not tell the leader to post it themselves. The server does that
+    // now; the link stays on screen because sharing it by WhatsApp is often
+    // better, and because it is the fallback when the send fails.
+    const name = personName.value.trim()
+    const emailed = data.emailed as { sent?: boolean; to?: string } | undefined
+    const message = emailed?.sent
+      ? `Invite sent to ${emailed.to} — ${name} is in.`
+      : emailed
+        ? `${name} is in, but we couldn't email the invite — send them this link.`
+        : `Personal link created for ${name}`
     announce(
-      `Personal link created for ${personName.value.trim()}`,
-      data.url ? { url: data.url, hint: 'Email this to them — clicking it signs them straight in.' } : null,
+      message,
+      data.url
+        ? {
+            url: data.url,
+            hint: emailed?.sent
+              ? 'Same link, if you\'d rather send it yourself too — clicking it signs them straight in.'
+              : 'Send this to them — clicking it signs them straight in.',
+          }
+        : null,
     )
     personName.value = ''
     personEmail.value = ''
@@ -110,7 +140,13 @@ async function submitPerson(): Promise<void> {
 // Role-scoped links (founder-ruled 2026-07-20): every link names its role and
 // its node — never one generic link. 'school_leader' appears only on school
 // nodes (it grants the school-admin seat); 'student' is the learner join.
-const inviteRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>('teacher')
+const inviteRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>(defaultRole.value)
+// A node switch reuses this component instance — re-seed the defaults when
+// the dressing flips so a neutral node never opens on 'Teacher'.
+watch(defaultRole, (r) => {
+  personRole.value = r
+  inviteRole.value = r
+})
 const isInviting = ref(false)
 const inviteHintByRole: Record<string, string> = {
   teacher: 'Share this with the teacher it\'s for.',
@@ -362,8 +398,11 @@ function closeDelete(): void {
            learner-only "Get join link" folded into the shareable menu. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
-      <button v-if="!member && !node.commercial" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
+      <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
+           group can contain subgroups — the endpoint authorizes a leader on
+           their own subtree). Add a school is education-dressing-only. -->
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
+      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
@@ -374,29 +413,35 @@ function closeDelete(): void {
     </div>
 
     <!-- Inline forms (one at a time) -->
-    <div v-if="openForm === 'person'" class="verb-form">
-      <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
-        <option value="teacher">Teacher</option>
-        <option value="leader">Group leader</option>
-        <option v-if="node.commercial" value="school_leader">School leader</option>
-        <option value="student">Learner</option>
-      </select>
-      <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
-      <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email (optional)" />
-      <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
-        {{ isInvitingPerson ? 'Creating…' : 'Create their link' }}
-      </button>
+    <div v-if="openForm === 'person'" class="verb-form-block">
+      <div class="verb-form">
+        <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
+          <option v-if="!neutral" value="teacher">Teacher</option>
+          <option value="leader">Group leader</option>
+          <option v-if="!neutral && node.commercial" value="school_leader">School leader</option>
+          <option value="student">Learner</option>
+        </select>
+        <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
+        <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email — we'll send the invite" />
+        <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
+          {{ isInvitingPerson ? (personEmail.trim() ? 'Sending…' : 'Creating…') : (personEmail.trim() ? 'Send their invite' : 'Create their link') }}
+        </button>
+      </div>
+      <p class="kind-hint">Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
     </div>
-    <div v-else-if="openForm === 'invite'" class="verb-form">
-      <select v-model="inviteRole" class="frost-select">
-        <option value="teacher">Teacher</option>
-        <option value="leader">Group leader</option>
-        <option v-if="node.commercial" value="school_leader">School leader</option>
-        <option value="student">Learner</option>
-      </select>
-      <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
-        {{ isInviting ? 'Creating…' : 'Create invite link' }}
-      </button>
+    <div v-else-if="openForm === 'invite'" class="verb-form-block">
+      <div class="verb-form">
+        <select v-model="inviteRole" class="frost-select">
+          <option v-if="!neutral" value="teacher">Teacher</option>
+          <option value="leader">Group leader</option>
+          <option v-if="!neutral && node.commercial" value="school_leader">School leader</option>
+          <option value="student">Learner</option>
+        </select>
+        <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
+          {{ isInviting ? 'Creating…' : 'Create invite link' }}
+        </button>
+      </div>
+      <p class="kind-hint">Shareable — new arrivals enter their name before they're in.</p>
     </div>
     <div v-else-if="openForm === 'group'" class="verb-form">
       <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup" />
@@ -469,6 +514,7 @@ function closeDelete(): void {
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .verb-form-block { display: block; }
+.kind-hint { margin: 6px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
 .frost-input, .frost-select {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);
   background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);

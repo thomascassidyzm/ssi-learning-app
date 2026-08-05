@@ -21,6 +21,10 @@ let learnerRow: any
 let schoolRow: any
 let classRow: any
 let insertedRows: any[] = []
+// Path-prefix fixture for isStrictDescendantGroup (leader govt_admin codes):
+// 'leader-group' is the leader's own governed group; 'leader-sub' is a real
+// sub-group of it (path 'L.1' starts with 'L'); 'other-group' is unrelated.
+let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
 
 // Tracks the .eq() filters chained onto the CURRENT query so maybeSingle/single
 // can scope their canned response — matters for tables (schools, classes) that
@@ -40,6 +44,10 @@ function makeChainable(table: string) {
       if (table === 'classes') {
         const match = classRow && classRow.id === filters.id && classRow.teacher_user_id === filters.teacher_user_id
         return Promise.resolve({ data: match ? classRow : null, error: null })
+      }
+      if (table === 'groups') {
+        const path = groupPaths[filters.id as string]
+        return Promise.resolve({ data: path ? { path } : null, error: null })
       }
       // Code-uniqueness probe during generation: pretend it's always free.
       return Promise.resolve({ data: null, error: null })
@@ -80,6 +88,7 @@ beforeEach(async () => {
   learnerRow = null
   schoolRow = null
   classRow = null
+  groupPaths = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
   handler = (await import('./create')).default
 })
 
@@ -172,6 +181,55 @@ describe('POST /api/invite/create — permission gates per code_type', () => {
   it('rejects a non-ssi_admin trying to create a govt_admin code', async () => {
     learnerRow = { platform_role: 'school_admin' }
     const req = makeReq({ code_type: 'govt_admin', metadata: { organization_name: 'Sneaky Region' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('a group-leader appoints a sub-leader — govt_admin code for their OWN governed group', async () => {
+    govtAdminRow = { id: 'govt-row-1', group_id: 'leader-group' }
+    const req = makeReq({ code_type: 'govt_admin', grants_group_id: 'leader-group', metadata: { organization_name: 'Co-lead' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.grants_group_id).toBe('leader-group')
+    expect(insert.obj.code_type).toBe('govt_admin')
+  })
+
+  it('a group-leader appoints a sub-leader — govt_admin code for a DESCENDANT sub-group', async () => {
+    govtAdminRow = { id: 'govt-row-1', group_id: 'leader-group' }
+    const req = makeReq({ code_type: 'govt_admin', grants_group_id: 'leader-sub', metadata: { organization_name: 'Ward lead' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.grants_group_id).toBe('leader-sub')
+  })
+
+  it('rejects a group-leader minting a govt_admin code for a group OUTSIDE their subtree (the critical case)', async () => {
+    govtAdminRow = { id: 'govt-row-1', group_id: 'leader-group' }
+    const req = makeReq({ code_type: 'govt_admin', grants_group_id: 'other-group', metadata: { organization_name: 'Sneaky' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('rejects a group-leader minting a govt_admin code with no grants_group_id at all', async () => {
+    govtAdminRow = { id: 'govt-row-1', group_id: 'leader-group' }
+    const req = makeReq({ code_type: 'govt_admin', metadata: { organization_name: 'Missing target' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('rejects a caller with no govt_admins row and no ssi_admin role from creating a govt_admin code', async () => {
+    govtAdminRow = null
+    learnerRow = { platform_role: 'teacher' }
+    const req = makeReq({ code_type: 'govt_admin', grants_group_id: 'leader-group' })
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)

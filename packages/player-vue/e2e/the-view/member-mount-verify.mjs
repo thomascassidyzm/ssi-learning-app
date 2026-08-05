@@ -50,12 +50,12 @@ async function walk(width, height, tag) {
   p.on('pageerror', (e) => errors.push(e.message))
   const shot = async (name) => { const f = `${OUT}${tag}-${name}.png`; await p.screenshot({ path: f, fullPage: false }); shots.push(f) }
 
-  // 1. Redeem fresh → must land on /schools/org/<programme>
+  // 1. Redeem fresh → must land on /org/<programme>
   await p.goto(mint.url, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForURL((u) => u.pathname.startsWith('/schools'), { timeout: 45000 }).catch(() => {})
   await p.waitForTimeout(6000)
   const landPath = new URL(p.url()).pathname
-  check(`${tag}: leader lands on member node home`, landPath === `/schools/org/${PROGRAMME}`, p.url())
+  check(`${tag}: leader lands on member node home`, landPath === `/org/${PROGRAMME}`, p.url())
   const body = (await p.textContent('body').catch(() => '')) || ''
   check(`${tag}: rail you-are-here`, body.includes("you're here"))
   check(`${tag}: identity names the node`, body.includes('IME Demo Programme'))
@@ -69,7 +69,7 @@ async function walk(width, height, tag) {
   check(`${tag}: invite verbs present`, body.includes('Invite a person') && body.includes('Get a shareable link'))
   await shot('1-landing')
 
-  // 2. Drill into a school from the children list → stays in /schools/org.
+  // 2. Drill into a school from the children list → stays in /org.
   // The IME tree is programme → region → school, so go through Pilot Districts
   // Region first (Sunrise lives under it), not straight to a school row.
   const regionRow = p.locator('.child-btn', { hasText: 'Pilot Districts Region' }).first()
@@ -79,7 +79,7 @@ async function walk(width, height, tag) {
     await schoolRow.click()
     await p.waitForTimeout(4500)
     const drillPath = new URL(p.url()).pathname
-    check(`${tag}: school drill stays in member scope`, drillPath.startsWith('/schools/org/'), p.url())
+    check(`${tag}: school drill stays in member scope`, drillPath.startsWith('/org/'), p.url())
     const sbody = (await p.textContent('body').catch(() => '')) || ''
     check(`${tag}: school home renders`, sbody.includes('Sunrise') && sbody.includes("you're here"))
     await shot('2-school')
@@ -94,7 +94,7 @@ async function walk(width, height, tag) {
         await classRow.click()
         await p.waitForTimeout(4500)
         const cbody = (await p.textContent('body').catch(() => '')) || ''
-        check(`${tag}: class home in member scope`, new URL(p.url()).pathname.startsWith('/schools/org/'), p.url())
+        check(`${tag}: class home in member scope`, new URL(p.url()).pathname.startsWith('/org/'), p.url())
         check(`${tag}: class teaching cards`, cbody.includes('Course journey') && cbody.includes('Belt distribution'))
         await shot('3-class')
       }
@@ -104,7 +104,7 @@ async function walk(width, height, tag) {
   }
 
   // 4. Insights lens from the programme home
-  await p.goto(`${BASE}/schools/org/${PROGRAMME}/insights`, { waitUntil: 'networkidle' }).catch(() => {})
+  await p.goto(`${BASE}/org/${PROGRAMME}/insights`, { waitUntil: 'networkidle' }).catch(() => {})
   await p.waitForTimeout(6000)
   const ibody = (await p.textContent('body').catch(() => '')) || ''
   check(`${tag}: insights renders at member mount`, ibody.includes('Insights') && ibody.includes('IME Demo Programme'))

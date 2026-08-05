@@ -8,7 +8,7 @@ ime-personal-pack.mjs` — **ALL PASS** (6/6 roles + repeat-click ×2 + revoked-
 
 > **PRODUCTION VERIFIED 2026-07-20 ~07:30 UK.** All six links walked in fresh incognito contexts
 > against `saysomethingin.app` itself: zero dialogs, correct landings, ALL PASS. Leaders land on
-> their node home (`/schools/org/<their node>` — THE VIEW member mount). Send the production
+> their node home (`/org/<their node>` — THE VIEW member mount). Send the production
 > forms.
 
 | # | Who (display name) | Signs in as | Lands on | Production link | Staging link (live now) |

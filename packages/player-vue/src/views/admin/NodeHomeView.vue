@@ -7,6 +7,8 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import UpgradeView from '@/views/schools/UpgradeView.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
@@ -25,16 +27,60 @@ import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
+import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
 const router = useRouter()
 const { getClient, getAuthToken } = useAdminClient()
 
-// Member mount (/schools/org/:id — a leader inside the /schools shell) vs the
+// Member mount (/org/:id — a leader inside the /schools shell) vs the
 // admin mount. Same page, same endpoint; the server scopes a leader to their
 // subtree, and links/verbs stay within member scope (nodeSurfacePaths.ts).
 const member = computed(() => isMemberNodeSurface(route.path))
+
+// ─── Org platform trial/upgrade (founder-specced 2026-08-01, group-leader
+// lane) — a govt_admin viewing their own org on the member surface. Entirely
+// separate from the per-school platform gate SchoolsContainer already enforces
+// (that one explicitly exempts govt_admin — a group leader's cross-school VIEW
+// isn't gated by any one school's billing); this is the ORG's OWN billing,
+// read from /api/org/subscription (leaderGroupId — server-derived from the
+// caller's own govt_admins row, never a route param). FAILS OPEN: an
+// unresolved/errored read leaves orgGate null, so nothing renders and nothing
+// blocks. ───
+const { isGovtAdmin } = useSchoolContext()
+const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
+const orgGate = ref<{ active: boolean; trial_days_remaining: number } | null>(null)
+const orgGateLoaded = ref(false)
+
+async function fetchOrgGate(): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch('/api/org/subscription', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    const data = await resp.json().catch(() => ({}))
+    orgGate.value = data?.gate ?? null
+  } catch {
+    // Fail open — no banner, no wall, the node home just renders normally.
+  } finally {
+    orgGateLoaded.value = true
+  }
+}
+
+watch(isOrgLeaderView, (v) => { if (v && !orgGateLoaded.value) void fetchOrgGate() }, { immediate: true })
+
+// Expired wall: the org's OWN trial/subscription has lapsed. Still lets the
+// leader pay in-app rather than dead-ending — same pattern as the per-school
+// wall in SchoolsContainer.vue (embeds UpgradeView, never a mailto).
+const showOrgExpiredWall = computed(
+  () => isOrgLeaderView.value && orgGateLoaded.value && orgGate.value !== null && !orgGate.value.active,
+)
+// Always-visible trial banner (founder ruling: upgradeable at ANY point during
+// the trial, not only at expiry).
+const showOrgTrialBanner = computed(
+  () => isOrgLeaderView.value && !showOrgExpiredWall.value && !!orgGate.value?.active && orgGate.value.trial_days_remaining > 0,
+)
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -66,7 +112,7 @@ const ledgerEl = ref<InstanceType<typeof WaysInLedger> | null>(null)
 const identityHoldPx = ref<number | null>(null)
 const NBSP = '\u00A0'
 
-const LENSES = [
+const ALL_LENSES = [
   { value: 'children', label: 'Directly below' },
   { value: 'groups', label: 'All groups' },
   { value: 'schools', label: 'All schools' },
@@ -75,10 +121,20 @@ const LENSES = [
 ]
 
 const isClass = computed(() => home.value?.kind === 'class')
+
+// ─── The dressing (founder ruling 2026-08-02: ed-speak is VOCABULARY, not
+// structure). Derived from the payload: a subtree without school DNA renders
+// in the neutral vocabulary — group / group leader / learner — and never
+// shows a school/teacher/class word or lens. ───
+const preset = computed(() => derivePreset(home.value))
+const neutral = computed(() => preset.value === 'neutral')
+
+// Neutral trees have nothing for the school/teacher/class lenses to filter.
+const LENSES = computed(() => (neutral.value ? ALL_LENSES.slice(0, 2) : ALL_LENSES))
 const lens = computed(() => {
   if (isClass.value) return 'students'
   const q = typeof route.query.lens === 'string' ? route.query.lens : ''
-  return LENSES.some((l) => l.value === q) ? q : 'children'
+  return LENSES.value.some((l) => l.value === q) ? q : 'children'
 })
 
 function setLens(value: string): void {
@@ -199,6 +255,14 @@ const stats = computed(() => {
       { value: r.teacherCount ?? 0, word: 'Teachers' },
     ]
   }
+  // Neutral dressing: no class/teacher words — practice, groups, learners.
+  if (neutral.value) {
+    return [
+      { value: `${home.value?.practiceHours ?? 0}h`, word: 'Practice hours' },
+      { value: r.childGroupCount ?? 0, word: 'Groups' },
+      { value: r.learnerCount ?? 0, word: 'Learners' },
+    ]
+  }
   return [
     { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: 'Class practice' },
     { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? 'Classes practising this week' : 'Classes' },
@@ -295,17 +359,22 @@ const enrichedStudents = computed(() => {
 // ─── The self-explaining dashboard (docs/self-explaining-dashboard.md):
 // persona is what the mount already knows; place is the payload's own kind. ───
 const explainerPersona = computed<'admin' | 'leader'>(() => (member.value ? 'leader' : 'admin'))
-const explainerKind = computed(() => nodeKindOf(home.value))
+// Neutral dressing gets its own 'org' explanation — no school-speak.
+const explainerKind = computed(() => (neutral.value ? 'org' : nodeKindOf(home.value)))
 
 // ONE evaluation of the noticing rules feeds both surfaces: the on-page
 // invitation cards and the How-this-works panel + throb (founder ruling
 // 2026-07-29: How-this-works is the single surfacing point).
 const explainerNodeId = computed(() => String(home.value?.node?.id ?? ''))
+// The dressing kind goes in too: a neutral org is structurally a group, but
+// its invitations must speak the neutral vocabulary — 'org' rules only, never
+// the class/teacher-worded ones (founder ruling 2026-08-02).
 const { invitations, dismiss: dismissInvitation } = useNoticingInvitations({
   home,
   persona: explainerPersona,
   member,
   nodeId: explainerNodeId,
+  kind: explainerKind,
 })
 
 // Viewer identity for the throb's per-user seen state — the auth uid once the
@@ -328,7 +397,31 @@ const listPayload = computed(() => {
 </script>
 
 <template>
-  <div class="node-home">
+  <!-- ORG EXPIRED WALL — the org's own trial/subscription has lapsed. Pay
+       in-app rather than dead-ending (same pattern as SchoolsContainer's
+       per-school wall). Replaces the whole node home for this leader. -->
+  <div v-if="showOrgExpiredWall" class="org-expired">
+    <div class="org-expired-card schools-card">
+      <span class="org-expired-pill">● Trial ended</span>
+      <h1 class="arsenal org-expired-headline">Your organisation's free trial has ended</h1>
+      <p class="org-expired-lede">
+        Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.
+      </p>
+      <UpgradeView />
+    </div>
+  </div>
+
+  <div v-else class="node-home">
+    <!-- ORG TRIAL BANNER — always-visible upgrade entry point DURING the
+         trial (founder ruling: upgradeable at any point, not only at
+         expiry). -->
+    <div v-if="showOrgTrialBanner" class="org-trial-banner schools-card">
+      <span class="org-trial-copy">
+        {{ orgGate?.trial_days_remaining }} day{{ orgGate?.trial_days_remaining === 1 ? '' : 's' }} left in your organisation's free trial — every language included.
+      </span>
+      <router-link to="/org/upgrade" class="org-trial-cta">Upgrade →</router-link>
+    </div>
+
     <div v-if="isLoading && !home && !rail" class="node-loading">
       <div class="loading-spinner"></div>
       <p>Loading…</p>
@@ -391,7 +484,7 @@ const listPayload = computed(() => {
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
           <!-- Verbs hold their space but go inert while another node loads —
                a mid-switch click must never act on the PREVIOUS node. -->
-          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :preset="preset" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -499,7 +592,7 @@ const listPayload = computed(() => {
               <div v-if="isLoading" class="children-loading">Loading…</div>
               <NodeChildrenList v-else :lens="lens" :payload="listPayload">
                 <template #empty>
-                  {{ isClass ? 'No students in this class yet.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use "Quick actions" to add a school or group.') }}
+                  {{ isClass ? 'No students in this class yet.' : (neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.')) }}
                 </template>
               </NodeChildrenList>
             </div>
@@ -527,6 +620,33 @@ const listPayload = computed(() => {
 
 <style scoped>
 .node-home { display: flex; flex-direction: column; gap: var(--space-5); }
+
+/* Org trial banner — always-visible upgrade entry point during the trial. */
+.org-trial-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  flex-wrap: wrap; padding: var(--space-4); margin-bottom: var(--space-4);
+  border: 1px solid rgba(219, 30, 23, 0.18);
+}
+.org-trial-copy { font-size: var(--text-sm); color: var(--schools-fg-1, #222); }
+.org-trial-cta {
+  display: inline-flex; align-items: center; padding: 8px 16px; font-size: var(--text-sm);
+  font-weight: var(--font-semibold); border-radius: var(--radius-lg);
+  background: var(--schools-red, #DB1E17); color: #fff; text-decoration: none; white-space: nowrap;
+}
+.org-trial-cta:hover { background: var(--schools-red-deep, #b21611); }
+
+/* Org expired wall — replaces the whole node home; pay in-app, no dead-end. */
+.org-expired {
+  display: flex; align-items: center; justify-content: center; min-height: 60vh; padding: var(--space-5);
+}
+.org-expired-card { max-width: 480px; width: 100%; padding: var(--space-6); text-align: center; }
+.org-expired-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; margin-bottom: var(--space-4);
+  background: #fff5e5; border: 1px solid #f4d28a; color: #7a5418; border-radius: 30px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.org-expired-headline { font-size: 28px; line-height: 1.15; margin: 0 0 var(--space-3); }
+.org-expired-lede { font-size: var(--text-sm); line-height: 1.55; color: var(--schools-fg-2, #555); margin: 0 0 var(--space-4); }
 .node-loading {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 40vh; gap: 16px; color: var(--schools-fg-2, #555);

@@ -26,7 +26,7 @@ page.on('pageerror', (e) => errors.push(e.message))
 // 1. Personal link → signed in, role-matched landing on the node home
 await page.goto(LEADER_LINK, { waitUntil: 'networkidle' }).catch(() => {})
 await page.waitForTimeout(4000)
-check('leader link lands on a node surface', page.url().includes('/schools/org/'), page.url())
+check('leader link lands on a node surface', page.url().includes('/org/'), page.url())
 check('WHERE-YOU-ARE rail present on landing', await page.locator('.rail-col').count() >= 1)
 await page.screenshot({ path: `${OUT}1-landing.png` })
 const orgMatch = page.url().match(/\/schools\/org\/([^/?#]+)/)
@@ -42,7 +42,7 @@ check('no door to /schools/all or /schools/analytics', !tabHrefs.some(([, h]) =>
 // 3. Schools tab → node home, schools lens, rail present
 await page.locator('.tabs a', { hasText: 'Schools' }).first().click()
 await page.waitForTimeout(2500)
-check('Schools tab → node home with schools lens', page.url().includes(`/schools/org/${groupId}`) && page.url().includes('lens=schools'), page.url())
+check('Schools tab → node home with schools lens', page.url().includes(`/org/${groupId}`) && page.url().includes('lens=schools'), page.url())
 check('rail present under schools lens', await page.locator('.rail-col').count() >= 1)
 await page.screenshot({ path: `${OUT}2-schools-lens.png` })
 
@@ -51,7 +51,7 @@ await page.screenshot({ path: `${OUT}2-schools-lens.png` })
 //    teacher tool's 'No classes yet'.
 await page.locator('.tabs a', { hasText: 'Insights' }).first().click()
 await page.waitForTimeout(6000)
-check('Insights tab → node insights', page.url().includes(`/schools/org/${groupId}/insights`), page.url())
+check('Insights tab → node insights', page.url().includes(`/org/${groupId}/insights`), page.url())
 check('rail present on insights', await page.locator('.rail-col').count() >= 1)
 const bodyText = await page.locator('body').innerText()
 check("no 'No classes yet' dead end", !bodyText.includes('No classes yet'))
@@ -61,19 +61,19 @@ await page.screenshot({ path: `${OUT}3-insights.png` })
 // 5. Retired URL /schools/all → redirect to node home + schools lens
 await page.goto(`${BASE}/schools/all`, { waitUntil: 'networkidle' }).catch(() => {})
 await page.waitForTimeout(4000)
-check('/schools/all redirects to node home + schools lens', page.url().includes(`/schools/org/${groupId}`) && page.url().includes('lens=schools'), page.url())
+check('/schools/all redirects to node home + schools lens', page.url().includes(`/org/${groupId}`) && page.url().includes('lens=schools'), page.url())
 await page.screenshot({ path: `${OUT}4-all-redirect.png` })
 
 // 6. Retired URL /schools/analytics → redirect to node insights
 await page.goto(`${BASE}/schools/analytics`, { waitUntil: 'networkidle' }).catch(() => {})
 await page.waitForTimeout(4000)
-check('/schools/analytics redirects to node insights', page.url().includes(`/schools/org/${groupId}/insights`), page.url())
+check('/schools/analytics redirects to node insights', page.url().includes(`/org/${groupId}/insights`), page.url())
 await page.screenshot({ path: `${OUT}5-analytics-redirect.png` })
 
 // 7. Brand /schools landing also resolves to the node home (DashboardView redirect)
 await page.goto(`${BASE}/schools`, { waitUntil: 'networkidle' }).catch(() => {})
 await page.waitForTimeout(4000)
-check('/schools lands on the node home', page.url().includes(`/schools/org/${groupId}`), page.url())
+check('/schools lands on the node home', page.url().includes(`/org/${groupId}`), page.url())
 
 check('no page errors', errors.length === 0, errors.join('; ').slice(0, 300))
 await browser.close()

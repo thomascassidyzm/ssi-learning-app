@@ -1,5 +1,5 @@
 # Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
-# Last updated: 2026-07-28
+# Last updated: 2026-08-03 (org dressing: invite-first-person walk; ways-in offered to org kind)
 # Spec source: docs/walkthrough-engine-scout.md (founder-ratified build spec)
 
 vision: >
@@ -56,9 +56,10 @@ real_data_ruling: >
   steps only on safe/reversible verbs (compiler-enforced denylist); admins
   rehearse write-heavy flows inside demo orgs.
 
-walks_v1:
+walks_v1 (6):
   - invite-first-teacher: node-home (school) — admin/leader/school_admin
   - run-class-session: class-detail — teacher
-  - ways-in: node-home (group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap)
+  - invite-first-person: node-home (org) — admin/leader — the NEUTRAL-dressing twin of invite-first-teacher: same anchors, group-leader/learner vocabulary (founder gap 2026-08-03, orgs at schools parity)
+  - ways-in: node-home (org/group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap; the ledger is dressing-neutral, so the org kind is offered it too)
   - reading-insights: node-insights — admin/leader/school_admin
   - invites-desk: admin-invites — admin (show-and-point only)

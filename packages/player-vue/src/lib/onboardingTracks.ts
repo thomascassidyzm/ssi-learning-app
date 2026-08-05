@@ -1,9 +1,13 @@
 /**
- * Onboarding tracks — the signup doors. Two roles only: a SCHOOL (admin +
- * dashboard) or a TUTOR. Every door shows ALL deployed languages; the OFFER is
- * read per-course from its pricing_tier (Free → free; Premium → paid), NOT from
- * a per-door trial or a "minority languages" list. The role is re-derived
- * server-side in api/onboarding/provision.
+ * Onboarding tracks — the signup doors. THREE roles: a SCHOOL (admin +
+ * dashboard), a TUTOR, or an ORG (neutral group/workplace dressing —
+ * nodeTerminology.ts). School/tutor every door shows ALL deployed languages;
+ * the OFFER is read per-course from its pricing_tier (Free → free; Premium →
+ * paid), NOT from a per-door trial or a "minority languages" list. The ORG
+ * door skips course selection entirely — an org is class-less and its trial
+ * (api/_utils/trialPolicy.ts) covers every language, so there is no
+ * per-course offer to show. The role is re-derived server-side in
+ * api/onboarding/provision.
  *
  * Aesthetics/copy here are INTERIM — to be matched to the marketing landing
  * pages (saysomethingin.com) once they land.
@@ -11,7 +15,7 @@
 
 import { isCommercialCourse } from '@ssi/core'
 
-export type OnboardingTrack = 'school' | 'tutor'
+export type OnboardingTrack = 'school' | 'tutor' | 'org'
 
 export interface LiveCourse {
   course_code: string
@@ -58,7 +62,7 @@ export function targetLangName(code: string): string {
 
 export interface TrackConfig {
   key: OnboardingTrack
-  audience: 'school' | 'tutor'
+  audience: 'school' | 'tutor' | 'org'
   heading: string
   blurb: string
   collectInstitution: boolean
@@ -77,6 +81,16 @@ export const TRACKS: Record<OnboardingTrack, TrackConfig> = {
     audience: 'tutor',
     heading: 'Start teaching',
     blurb: 'Teach the SSi way, in your own classes, and earn from every learner you bring.',
+    collectInstitution: false,
+  },
+  org: {
+    key: 'org',
+    audience: 'org',
+    heading: 'Set up your organisation',
+    blurb: 'Bring SSi to your people. Every language included — no card needed.',
+    // The org name is collected on the FIRST step (it's the thing being
+    // created), not as an optional finishing-details field like a school
+    // name — so the generic 'done' step institution field stays off.
     collectInstitution: false,
   },
 }

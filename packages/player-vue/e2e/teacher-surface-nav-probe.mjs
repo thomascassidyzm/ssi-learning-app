@@ -67,7 +67,7 @@ const guidedBtn = page.locator('button', { hasText: /Take a guided look/ }).firs
 check('guided-look affordance present on the dashboard', await guidedBtn.count() >= 1)
 await guidedBtn.click()
 await page.waitForTimeout(4000)
-check('guided look relocates to the canon node surface', page.url().includes('/schools/org/demo-mission-school'), page.url())
+check('guided look relocates to the canon node surface', page.url().includes('/org/demo-mission-school'), page.url())
 check('schools top bar still present in the guided look', (await page.locator('.schools-topbar').count()) === 1)
 const cardText = (await page.locator('.mission-card').innerText().catch(() => '')) || ''
 check('guided-look card renders', cardText.length > 0)

@@ -37,8 +37,8 @@ describe('SchoolsTopBar — school_admin tab set', () => {
     const links = wrapper.findAll('.tabs a')
     const labels = links.map((l) => l.text())
     expect(labels).toEqual(['Dashboard', 'Classes', 'Students', 'Insights', 'Upgrade'])
-    expect(links[0].attributes('href')).toBe('/schools/org/sch-seaside')
-    expect(links[3].attributes('href')).toBe('/schools/org/sch-seaside/insights')
+    expect(links[0].attributes('href')).toBe('/org/sch-seaside')
+    expect(links[3].attributes('href')).toBe('/org/sch-seaside/insights')
     expect(links[4].attributes('href')).toBe('/schools/upgrade')
   })
 
@@ -72,7 +72,7 @@ describe('SchoolsTopBar — school_admin tab set', () => {
       user_id: 'admin-1', learner_id: 'l1', display_name: 'Chennai Lead', educational_role: 'school_admin',
       platform_role: null, school_id: 'sch-seaside',
     }
-    await router.push('/schools/org/sch-seaside')
+    await router.push('/org/sch-seaside')
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const active = wrapper.findAll('.tabs a.active').map((l) => l.text())
     expect(active).toEqual(['Dashboard'])

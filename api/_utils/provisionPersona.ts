@@ -25,7 +25,7 @@ import { randomUUID } from 'crypto'
 
 type Svc = SupabaseClient
 
-const PERSONA_EMAIL_DOMAIN = 'invite.saysomethingin.app'
+export const PERSONA_EMAIL_DOMAIN = 'invite.saysomethingin.app'
 
 export interface PersonaSpec {
   role: 'leader' | 'school_leader' | 'teacher' | 'student'

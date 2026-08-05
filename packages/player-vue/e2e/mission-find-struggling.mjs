@@ -27,7 +27,7 @@ await page.waitForTimeout(1500)
 const card = page.locator('.mission-card')
 check('mission card visible on entry', await card.count() === 1, page.url())
 check('card carries the brief', /quietly struggling/.test(await card.textContent().catch(() => '') || ''))
-check('deep link relocated to the canon node surface', page.url().includes('/schools/org/demo-mission-school'), page.url())
+check('deep link relocated to the canon node surface', page.url().includes('/org/demo-mission-school'), page.url())
 let bodyText = (await page.textContent('body').catch(() => '')) || ''
 check('canon chrome: WHERE-YOU-ARE rail', bodyText.includes('Where you are'))
 check('demo world rendered (both classes)', bodyText.includes('Year 6 Spanish') && bodyText.includes('Year 5 French'))

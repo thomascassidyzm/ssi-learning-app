@@ -1,10 +1,25 @@
 # Explanation pack — compiled render
 
-**Version `9d72e7a83ceb` · generated 2026-07-28 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
+**Version `ffbbb4a7dade` · generated 2026-08-03 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
 
-Truth manifest: 10 verbs (Invite a person · Get a shareable link · Add a group · Add a school · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · Class sessions this week · Class practice · Students · Teachers · Classes practising this week · Learners · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
+Truth manifest: 10 verbs (Invite a person · Get a shareable link · Add a group · Add a school · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · Class sessions this week · Class practice · Students · Teachers · Practice hours · Groups · Learners · Classes practising this week · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
 
 ## admin
+
+### org
+
+An organisation is groups all the way down: groups inside groups, each with its own leader, with
+learners wherever they belong. Nothing here assumes a school — the numbers are always **everyone
+below this**, counted once.
+
+**Invite a person** makes a personal link that IS their login — email it and they're in, no
+sign-up, no password. **Get a shareable link** makes an open link for a role — a group leader or
+a learner. **Add a group** grows the tree; **Rename** and **Delete** reshape it — delete always
+shows you exactly what would go before it goes. **See insights** compares this group's pace with
+the levels above it.
+
+If schools ever live below this, the pages inside that part of the tree speak the school
+language — teachers, classes — same bones, different dressing.
 
 ### group
 
@@ -42,6 +57,20 @@ carries their own belt, practice hours and last-active — a quiet flag marks an
 **See insights** compares this class's pace with its school and everywhere above it.
 
 ## leader
+
+### org
+
+This is your organisation, one page per level. It's groups all the way down: a group can hold
+more groups — each with its own leader — or learners directly. The map on the left is the whole
+tree; tap any name to look closer, and the page stays put.
+
+The numbers are always **everyone below this level**, counted once. **Practice hours** is the one
+to watch — it's your organisation actually using the language.
+
+You can grow it from right here. **Invite a person** makes a personal link that IS their login —
+email it and they're in, nothing to set up. **Get a shareable link** makes an open link anyone
+can use to join this level as a leader or a learner. **Add a group** creates the next level down.
+**See insights** shows the pace here against the levels above.
 
 ### group
 
@@ -107,4 +136,7 @@ it once, they tap it, give a name, and they're in your class on your course.
 - **quiet-subtree** (node, group/school): "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when." → lens:classes
 - **school-needs-first-teacher** (node, school): "No teachers here yet — want a 30-second tour of bringing the first one in?" → walk:invite-first-teacher
 - **school-no-teachers** (perChild, group): "{name} has no teachers yet — its teacher link gets them started." → child-home
+- **org-needs-first-person** (node, org): "Nobody here yet — want a 30-second tour of bringing the first person in?" → walk:invite-first-person
+- **org-not-started** (node, org): "{node.rollup.learnerCount} people belong below this group, but none of them has practised yet — the links ledger at the bottom shows who has actually been sent a way in." → insights
+- **group-nobody-in-it** (perChild, org): "{name} has nobody in it yet — click on the group to add individual members." → child-home
 - **students-quiet-week** (countWhere, class): "{count} of the students haven't practised on their own this week — the rows below show who." → students

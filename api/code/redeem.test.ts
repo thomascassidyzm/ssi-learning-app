@@ -137,6 +137,10 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(writes.groups).toBeUndefined()
     expect(writes.govt_admins).toHaveLength(1)
     expect(writes.govt_admins[0].payload.group_id).toBe('group-existing')
+    // ORG-LANE PIN (founder ruling 2026-08-02): a leader's invite link lands
+    // on their own node home at the TOP-LEVEL member mount — never a /schools
+    // URL, and never a bounce through the schools dashboard to get there.
+    expect(res._json.redirectTo).toBe('/org/group-existing')
   })
 
   it('govt_admin branch: creates the group at redemption when grants_group_id is absent', async () => {

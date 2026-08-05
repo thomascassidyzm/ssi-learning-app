@@ -110,14 +110,22 @@ function resolveTarget(target: string, home: any, member: boolean, child?: any):
 
 const MAX_PER_RULE = 3
 
+/**
+ * @param kindOverride the DRESSING kind the surface is rendering in ('org'
+ *   under the neutral vocabulary, founder ruling 2026-08-02). Passed so the
+ *   noticing rules are scoped by the vocabulary the viewer actually sees:
+ *   a neutral org is structurally a 'group', but must never be handed a
+ *   class/teacher-worded invitation — its rules carry kind 'org'.
+ */
 export function evaluateRules(
   rules: NoticingRule[],
   home: unknown,
   persona: string,
   member: boolean,
+  kindOverride?: string,
 ): Invitation[] {
   const out: Invitation[] = []
-  const kind = nodeKindOf(home)
+  const kind = kindOverride || nodeKindOf(home)
   for (const rule of rules) {
     if (!rule.personas.includes(persona) || !rule.kinds.includes(kind)) continue
     if (!allHold(rule.when, home)) continue

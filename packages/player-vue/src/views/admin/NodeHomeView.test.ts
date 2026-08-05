@@ -12,6 +12,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import NodeHomeView from './NodeHomeView.vue'
 import { clearNodeHomeCache } from '@/composables/admin/nodeHomeCache'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { setSchoolsClient } from '@/composables/schools/client'
 
 const routeMock = reactive({ params: { id: 'programme' } as Record<string, any>, query: {} as Record<string, any> })
 const pushMock = vi.fn()
@@ -284,6 +286,98 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).not.toHaveBeenCalled()
     expect(wrapper.find('.child-detail').exists()).toBe(false)
   })
+  it('NEUTRAL-DRESSING PIN (founder 2026-08-02, "a council is not a school"): an org with no school DNA renders zero ed-speak — neutral stats, no school/teacher/class lenses, no Add-a-school, invites default to Group leader', async () => {
+    routeMock.params = { id: 'council' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'council', name: 'Cardiff Council', label: 'organisation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 2, teacherCount: 0, classCount: 0, learnerCount: 14 }, commercial: null },
+      ancestors: [],
+      siblings: [],
+      children: [
+        { id: 'parks', name: 'Parks Department', label: 'group', hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 6 } },
+      ],
+      practiceHours: 12.5,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    // Stats: practice / groups / learners — never TEACHERS or CLASSES tiles.
+    expect(text).toContain('Practice hours')
+    expect(text).toContain('Groups')
+    expect(text).toContain('Learners')
+    expect(text).not.toContain('Teachers')
+    expect(text).not.toContain('Classes')
+    // Lenses: only the structural pair.
+    const chips = wrapper.findAll('.chip').map((c) => c.text())
+    expect(chips).toEqual(['Directly below', 'All groups'])
+    // Verbs: Add a group yes; Add a school never.
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Add a group')
+    expect(verbs).not.toContain('Add a school')
+    // Invite roles: Group leader default, no Teacher option anywhere.
+    await wrapper.findAll('.verb').find((v) => v.text() === 'Invite a person')!.trigger('click')
+    const roleSelect = wrapper.find('select')
+    expect((roleSelect.element as HTMLSelectElement).value).toBe('leader')
+    expect(roleSelect.text()).not.toContain('Teacher')
+    expect(roleSelect.text()).toContain('Group leader')
+    expect(roleSelect.text()).toContain('Learner')
+  })
+
+  it('ORG SELF-TEACHING PARITY (founder gap 2026-08-03): the neutral dressing gets the same How-this-works kit as schools — throbbing link, org explanation, neutral walks, neutral invitations', async () => {
+    localStorage.clear()
+    routeMock.params = { id: 'council' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'council', name: 'Cardiff Council', label: 'organisation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }, commercial: null },
+      ancestors: [],
+      siblings: [],
+      children: [],
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The link is there and ARMED on a first visit (the schools mechanic).
+    const toggle = wrapper.find('.htw-toggle')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.classes()).toContain('is-armed')
+    expect(wrapper.find('.htw-dot').exists()).toBe(true)
+
+    // Opening it disarms and shows the ORG explanation — no school-speak.
+    await toggle.trigger('click')
+    const panel = wrapper.find('.htw-card')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('groups all the way down')
+    // School words appear only in the closing "if schools ever live below
+    // this" aside — never as this place's own vocabulary.
+    const beforeAside = panel.text().split('If schools ever live below this')[0]
+    expect(beforeAside).not.toMatch(/\bteachers?\b|\bclasses\b|\bpupils?\b/i)
+    // The walk offers are the neutral ones.
+    const offers = wrapper.findAll('[data-walk-offer]').map((b) => b.attributes('data-walk-offer'))
+    expect(offers).toContain('invite-first-person')
+    expect(offers).toContain('ways-in')
+    expect(offers).not.toContain('invite-first-teacher')
+    // And the empty org's own invitation is surfaced here, in neutral words.
+    expect(wrapper.find('[data-walk-cta="invite-first-person"]').exists()).toBe(true)
+    expect(wrapper.find('.htw-invitation-text').text()).toContain('Nobody here yet')
+
+    // Disarmed once seen — same persisted state as schools.
+    await wrapper.find('.htw-toggle').trigger('click')
+    expect(wrapper.find('.htw-toggle').classes()).not.toContain('is-armed')
+  })
+
+  it('EDUCATION-DRESSING KEEPS WORKING: the same page over a school-flavoured subtree still speaks school — dressing is vocabulary, not a second ontology', async () => {
+    setupFetch(nodePayload())
+    const wrapper = mountView()
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('Teachers')
+    expect(text).toContain('All schools')
+    const verbs = wrapper.findAll('.verb').map((v) => v.text())
+    expect(verbs).toContain('Add a school')
+  })
+
   it('RAIL-STABILITY PIN (founder 2026-07-30): remounting with the node cached — the hop back from Insights — paints the full page synchronously, no loading screen, no rail flash', async () => {
     setupFetch(nodePayload())
     const first = mountView()
@@ -305,8 +399,8 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain('266.4h')
   })
 
-  it('MEMBER-MOUNT PIN (/schools/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
-    ;(routeMock as any).path = '/schools/org/programme'
+  it('MEMBER-MOUNT PIN (/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
+    ;(routeMock as any).path = '/org/programme'
     setupFetch(nodePayload())
     const wrapper = mountView()
     await flushPromises()
@@ -316,21 +410,112 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain("you're here")
     // Rail rooted at the leader's scope: no "All organisations" admin escape
     expect(wrapper.text()).not.toContain('All organisations')
-    // Navigation stays inside /schools/org — child row and rail ancestor
+    // Navigation stays inside /org — child row and rail ancestor
     await wrapper.find('.child-btn').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/schools/org/school-node')
+    expect(pushMock).toHaveBeenCalledWith('/org/school-node')
     await wrapper.find('.rail-link').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/schools/org/nation')
+    expect(pushMock).toHaveBeenCalledWith('/org/nation')
     // See insights points at the member lens, not /admin
-    expect(wrapper.find('a[href="/schools/org/programme/insights"]').exists()).toBe(true)
-    // Verbs: leaders keep the invite pair; structural admin verbs are hidden
+    expect(wrapper.find('a[href="/org/programme/insights"]').exists()).toBe(true)
+    // Verbs: leaders keep the invite pair AND Add a group (founder ruling
+    // 2026-08-02, groups all the way down: any group can contain subgroups,
+    // and POST /api/groups authorizes a leader on their own subtree). The
+    // remaining structural verbs stay admin-only.
     const verbs = wrapper.findAll('.verb').map((v) => v.text())
     expect(verbs).toContain('Invite a person')
     expect(verbs).toContain('Get a shareable link')
-    expect(verbs).not.toContain('Add a group')
+    expect(verbs).toContain('Add a group')
     expect(verbs).not.toContain('Mint a demo org')
     expect(verbs).not.toContain('Rename')
     expect(verbs).not.toContain('Delete')
     expect(verbs).not.toContain('Courses')
+  })
+})
+
+// Org platform trial/upgrade (founder-specced 2026-08-01, group-leader lane).
+// Routes fetch by URL — unlike setupFetch above — because these specs need
+// BOTH /api/groups/:id/home (the node payload) and /api/org/subscription (the
+// gate) answered differently in the same test.
+function setupRoutedFetch(homePayload: any, orgResponse: any) {
+  const fetchMock = vi.fn(async (url: string) => {
+    if (String(url).includes('/api/org/subscription')) {
+      return { ok: true, json: async () => orgResponse }
+    }
+    return { ok: true, json: async () => homePayload }
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admin)', () => {
+  const ctx = useSchoolContext()
+
+  beforeEach(() => {
+    ctx.currentUser.value = null
+    // The expired wall embeds UpgradeView, whose org/school/tutor lanes all
+    // touch schools composables that resolve a client at setup — mirrors the
+    // idiom other schools *.test.ts files use to mount without a real session.
+    setSchoolsClient({
+      auth: { getSession: async () => ({ data: { session: null } }) },
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+      }),
+    } as any)
+  })
+
+  it('mid-trial: shows the days-remaining banner with an always-visible Upgrade link, dashboard still renders', async () => {
+    ;(routeMock as any).path = '/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'trial', seats: null, member_count: 3 }, gate: { active: true, trial_days_remaining: 12 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('12 days left in your organisation\'s free trial')
+    expect(wrapper.find('a[href="/org/upgrade"]').exists()).toBe(true)
+    // Dashboard renders normally underneath the banner — trial is not a wall.
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+  })
+
+  it('expired: the whole node home is replaced by the pay-in-app wall, never a dead end', async () => {
+    ;(routeMock as any).path = '/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'expired', seats: 5, member_count: 8 }, gate: { active: false, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain("Your organisation's free trial has ended")
+    // The underlying node dashboard is gone — no dead end, no identity header.
+    expect(wrapper.find('.identity-name').exists()).toBe(false)
+  })
+
+  it('paid (active, no trial): no banner, no wall — the dashboard renders plainly', async () => {
+    ;(routeMock as any).path = '/org/programme'
+    ctx.currentUser.value = {
+      user_id: 'leader-1', learner_id: 'l1', display_name: 'Leader',
+      educational_role: 'govt_admin', platform_role: null, group_id: 'programme',
+    }
+    setupRoutedFetch(nodePayload(), { org: { id: 'programme', platform_status: 'active', seats: 5, member_count: 4 }, gate: { active: true, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('free trial')
+    expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
+  })
+
+  it('admin mount (not a member/govt_admin view): never fetches the org gate, no banner', async () => {
+    ;(routeMock as any).path = undefined // admin mount
+    ctx.currentUser.value = null
+    const fetchMock = setupRoutedFetch(nodePayload(), { org: null, gate: { active: false, trial_days_remaining: 0 } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/org/subscription'), expect.anything())
+    expect(wrapper.text()).not.toContain('free trial')
   })
 })

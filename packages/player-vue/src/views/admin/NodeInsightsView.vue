@@ -114,16 +114,16 @@ const labelWord = computed(() => {
 const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
 const subtitle = computed(() =>
   isClass.value
-    ? 'How this class is moving, compared with the average you choose. Rate leads; position is just context.'
-    : 'How everyone below this is moving, compared with the average you choose. Rate leads; position is just context.')
+    ? 'How this class is moving, compared with the average you choose.'
+    : 'How everyone below this is moving, compared with the average you choose.')
 
 // Overview = this node's home — the same URL family the lens was opened from.
-// Member mount (/schools/org/:id/insights — a leader inside the /schools
+// Member mount (/org/:id/insights — a leader inside the /schools
 // shell) goes back to the member node home; admin mounts keep their family.
 const member = computed(() => isMemberNodeSurface(route.path))
 const homeLink = computed(() => {
   const p = route.path
-  if (member.value) return `/schools/org/${nodeId.value}`
+  if (member.value) return `/org/${nodeId.value}`
   if (p.includes('/admin/classes/')) return `/admin/classes/${nodeId.value}`
   if (p.includes('/admin/schools/')) return `/admin/schools/${nodeId.value}`
   return `/admin/groups/${nodeId.value}`

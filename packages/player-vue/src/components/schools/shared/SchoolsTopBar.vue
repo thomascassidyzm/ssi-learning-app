@@ -3,6 +3,7 @@ import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
+import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
 
@@ -50,9 +51,13 @@ const tabs = computed<NavTab[]>(() => {
     // 2026-07-29).
     const groupId = currentUser.value.group_id
     if (groupId) {
+      // 'Organisation', not 'Schools' (founder ruling 2026-08-02: ed-speak is
+      // a dressing, and the top bar can't see the subtree to pick one — so it
+      // makes no school claim). Lands on the node home, whose lens chips give
+      // an education-dressed leader All-schools in one tap.
       return [
-        { label: 'Schools',  to: `/schools/org/${groupId}?lens=schools`, routeName: 'schools-node-home', lens: 'schools' },
-        { label: 'Insights', to: `/schools/org/${groupId}/insights`, routeName: 'schools-node-insights' },
+        { label: 'Organisation', to: `/org/${groupId}`, routeName: 'org-node-home' },
+        { label: 'Insights', to: `/org/${groupId}/insights`, routeName: 'org-node-insights' },
       ]
     }
     // Legacy leaders with no group (region_code-only govt_admin rows) have
@@ -70,7 +75,7 @@ const tabs = computed<NavTab[]>(() => {
     // THE VIEW convergence, third persona (founder ruling, 2026-07-30: "it's
     // better to have consistency - they should also have the hierarchical
     // LHS WHERE YOU ARE menu"): a school leader's Dashboard IS their school's
-    // node home (/schools/org/:schoolId — the endpoint bridges the school id
+    // node home (/org/:schoolId — the endpoint bridges the school id
     // to its node), and Insights the node insights — same door govt_admin
     // went through (2026-07-29). Teachers tab retired: teachers ARE the
     // school node's children, and Invite teacher lives on the node's verb
@@ -79,10 +84,10 @@ const tabs = computed<NavTab[]>(() => {
     const schoolId = currentUser.value.school_id
     if (schoolId) {
       return [
-        { label: 'Dashboard', to: `/schools/org/${schoolId}`, routeName: 'schools-node-home' },
+        { label: 'Dashboard', to: `/org/${schoolId}`, routeName: 'org-node-home' },
         { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
         { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-        { label: 'Insights',  to: `/schools/org/${schoolId}/insights`, routeName: 'schools-node-insights' },
+        { label: 'Insights',  to: `/org/${schoolId}/insights`, routeName: 'org-node-insights' },
         { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
       ]
     }
@@ -133,7 +138,9 @@ const initials = computed(() =>
   displayName.value.split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'SS',
 )
 const roleLabel = computed(() => {
-  if (isGovtAdmin.value) return 'Govt Admin'
+  // Routed through the terminology dressing (neutral default) — 'Govt Admin'
+  // was a dressing leak on org leaders (founder bug 2026-08-02).
+  if (isGovtAdmin.value) return leaderRoleLabel()
   if (isSchoolAdmin.value) return 'School Admin'
   return 'Teacher'
 })
@@ -143,6 +150,25 @@ const roleAvatarColor = computed(() => {
   return 'var(--schools-role-teacher)'
 })
 const schoolLabel = computed(() => currentUser.value?.school_name || '')
+
+// Brand block. The "Schools" tail is a CLAIM about the surface, so it must not
+// appear on the org/workplace lane (founder ruling 2026-08-02: an org is not a
+// schools feature). A group leader sitting on the top-level node surface
+// (/org/:id) gets the bare wordmark, pointing home at their own node instead
+// of the /schools dashboard they have no business being sent to. Everywhere
+// else — the whole schools lane, teachers included — is untouched.
+const onOrgSurface = computed(
+  () => isGovtAdmin.value && (route.path === '/org' || route.path.startsWith('/org/')),
+)
+const brandTail = computed(() => (onOrgSurface.value ? '' : 'Schools'))
+const brandTo = computed(() => {
+  if (!onOrgSurface.value) return '/schools'
+  const groupId = currentUser.value?.group_id
+  return groupId ? `/org/${groupId}` : '/'
+})
+const brandAria = computed(() =>
+  onOrgSurface.value ? 'SaySomethingin' : 'SaySomethingin · Schools',
+)
 
 // User menu
 const menuOpen = ref(false)
@@ -208,9 +234,9 @@ if (typeof document !== 'undefined') {
         </svg>
       </button>
 
-      <router-link to="/schools" class="brand" aria-label="SaySomethingin · Schools">
+      <router-link :to="brandTo" class="brand" :aria-label="brandAria">
         <img class="brand-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
-        <span class="brand-tail">Schools</span>
+        <span v-if="brandTail" class="brand-tail">{{ brandTail }}</span>
       </router-link>
 
       <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT —

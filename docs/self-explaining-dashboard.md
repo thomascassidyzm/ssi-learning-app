@@ -66,7 +66,7 @@ packages/player-vue/src/explainer/pack.json
 ```
 
 Persona at runtime is what the mount already knows: the admin mount (`/admin/...`) → `admin`; the
-member mount (`/schools/org/:id`) → `leader`. Place is the payload's own `kind` + label
+member mount (`/org/:id`) → `leader`. Place is the payload's own `kind` + label
 (group / school / class). No new auth reads, no persona service.
 
 ## 4. The compiler (`tools/explainer/compile.mjs`)

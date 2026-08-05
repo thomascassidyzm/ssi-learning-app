@@ -50,7 +50,7 @@ describe('shipped rules', () => {
     const inv = invs.find((i) => i.ruleId === 'quiet-subtree')
     expect(inv).toBeTruthy()
     expect(inv!.text).toContain('5 classes')
-    expect(inv!.to).toBe('/schools/org/g1?lens=classes')
+    expect(inv!.to).toBe('/org/g1?lens=classes')
     // no classes at all → silence, not a nag
     const empty = groupHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 0 } })
     expect(evaluateRules(RULES, empty, 'leader', true).map((i) => i.ruleId)).not.toContain('quiet-subtree')
@@ -99,7 +99,75 @@ describe('scoping', () => {
   it('member flag drives member-scoped links', () => {
     const quiet = classHome({ classPractice: { weekSessions: 0, totalSessions: 40, hours: 18 } })
     const inv = evaluateRules(RULES, quiet, 'leader', true).find((i) => i.ruleId === 'silent-class')
-    expect(inv!.to).toBe('/schools/org/c1/insights')
+    expect(inv!.to).toBe('/org/c1/insights')
+  })
+})
+
+// The neutral dressing (founder ruling 2026-08-02): an org node is
+// structurally a group, so the surface passes kind 'org' and the rules are
+// scoped by the VOCABULARY the viewer sees — never by the bones.
+describe('dressing-aware scoping (org)', () => {
+  const orgHome = (over: Record<string, unknown> = {}) => groupHome({
+    node: {
+      id: 'g1', name: 'Cardiff Council', label: 'group', commercial: null, hasSchool: false,
+      rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 },
+    },
+    classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 0 },
+    practiceHours: 0,
+    ...over,
+  })
+
+  it('never hands an org the class/teacher-worded invitations', () => {
+    // Same payload, education dressing: the class-worded rule fires.
+    const withClasses = orgHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 5 } })
+    expect(evaluateRules(RULES, withClasses, 'leader', true).map((i) => i.ruleId)).toContain('quiet-subtree')
+    // Neutral dressing: it does not.
+    const neutral = evaluateRules(RULES, withClasses, 'leader', true, 'org').map((i) => i.ruleId)
+    expect(neutral).not.toContain('quiet-subtree')
+    expect(neutral).not.toContain('school-no-teachers')
+  })
+
+  it('org-needs-first-person offers the neutral walk on an empty org', () => {
+    const inv = evaluateRules(RULES, orgHome(), 'leader', true, 'org').find((i) => i.ruleId === 'org-needs-first-person')
+    expect(inv!.walk).toBe('invite-first-person')
+    expect(inv!.text).not.toMatch(/teacher|class|school/i)
+  })
+
+  it('org-not-started fires once people are in but nobody has practised', () => {
+    const home = orgHome({
+      node: {
+        id: 'g1', name: 'Cardiff Council', label: 'group', commercial: null, hasSchool: false,
+        rollup: { childGroupCount: 1, teacherCount: 0, classCount: 0, learnerCount: 12 },
+      },
+    })
+    const ids = evaluateRules(RULES, home, 'leader', true, 'org').map((i) => i.ruleId)
+    expect(ids).toContain('org-not-started')
+    expect(ids).not.toContain('org-needs-first-person')
+    const inv = evaluateRules(RULES, home, 'leader', true, 'org').find((i) => i.ruleId === 'org-not-started')
+    expect(inv!.text).toContain('12 people')
+    expect(inv!.to).toBe('/org/g1/insights')
+    // practice recorded → the invitation goes away
+    expect(evaluateRules(RULES, { ...home, practiceHours: 4 }, 'leader', true, 'org').map((i) => i.ruleId))
+      .not.toContain('org-not-started')
+  })
+
+  it('group-nobody-in-it points at the empty child group', () => {
+    const home = orgHome({
+      children: [
+        { id: 'c-empty', name: 'North Team', label: 'group', hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 } },
+        { id: 'c-full', name: 'South Team', label: 'group', hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 9 } },
+      ],
+    })
+    const inv = evaluateRules(RULES, home, 'leader', true, 'org').find((i) => i.ruleId.startsWith('group-nobody-in-it'))
+    expect(inv!.text).toContain('North Team')
+    expect(inv!.ctaLabel).toBe('Open North Team')
+    expect(inv!.to).toBe('/org/c-empty')
+  })
+
+  it('the org explanations and invitations stay free of school vocabulary', () => {
+    const orgRules = (RULES as NoticingRule[]).filter((r) => r.kinds.includes('org'))
+    expect(orgRules.length).toBeGreaterThanOrEqual(3)
+    for (const r of orgRules) expect(r.invitation).not.toMatch(/\b(teacher|class|classes|school|pupil)\b/i)
   })
 })
 

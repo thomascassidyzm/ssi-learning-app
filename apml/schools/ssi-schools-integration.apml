@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.8"
-  date: "2026-07-30"
+  version: "1.0.9"
+  date: "2026-08-03"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -124,6 +124,24 @@ principle PersonalLinksAreTheLogin:
     never client-supplied). Node verbs: "Invite a person" (this) vs "Get a
     shareable link" (species 2).
 
+  auto_send: |
+    Tester finding 2026-08-03 (Aran): entering an email at mint MUST send
+    the invite, not instruct the leader to post the link themselves. When
+    `personal.email` is a real address, POST mints then calls
+    api/_utils/sendInviteEmail — which reuses the ONLY sender this estate
+    has, Supabase Auth's own SMTP, via signInWithOtp({ shouldCreateUser:
+    false, emailRedirectTo: joinUrl }) — and reports `emailed {sent,to}`.
+    A send failure NEVER fails the mint: the link comes back and the UI
+    says to send it by hand (sharing by WhatsApp is often better anyway).
+    The address is stored on the code row as metadata.personal_email so the
+    ledger can offer recovery verbs without an auth lookup: PATCH action
+    'resend' (same link, mail it again) and 'rotate' (new link, auto-mailed
+    to the same address). Wrong-address recovery is deliberately light —
+    invites are re-mintable ways in.
+    KNOWN LIMIT: subject/body are Supabase's sign-in template (dashboard
+    config, outside this repo), so the mail reads "here's your way in", not
+    "X invited you to Y".
+
   redeem_flow: |
     validate.ts returns personal:true + redirectTo -> RedeemCode.vue calls
     possession-redeem directly (zero screens; replaces any foreign session
@@ -158,6 +176,20 @@ principle IdentityCaptureNotGhosts:
     linkAuth mode (placeholder email survives for code_type student ONLY;
     server refuses linkAuth for named roles: reason identity_required,
     logged to possession_mint_attempts) -> player, class course switched.
+
+  legibility: |
+    Founder finding 2026-07-30: which screen appears was already a
+    DETERMINISTIC function of the invite row (personal vs shareable
+    species, code_type) plus the visiting user's own redemption history —
+    verified end to end (validate.ts's `personal`/`alreadyRedeemed` fields
+    are server-derived only, never client input). No behaviour changed;
+    only legibility. RedeemCode.vue's 'details'/'name' steps now show one
+    quiet secondary line ("It's a shareable link, so we ask new arrivals
+    to say who they are") — since a personal link never reaches these
+    steps, the line is always true when shown. At mint time, NodeActionBar
+    ("Invite a person" / "Get a shareable link") and WaysInLedger both
+    label the species in plain words (goes straight in vs new arrivals
+    enter their name), so the choice is legible before a link is ever sent.
 
   reclick_flow: |
     validate.ts accepts an optional bearer and returns alreadyRedeemed +
@@ -197,6 +229,23 @@ principle SingleAuthOnboarding:
     same route — self-serve picks a course before its trial starts;
     invite-born admins trial with no course lock until they pick one
     (trial_course_code null reads as "no restriction" — TeacherDashboard.vue).
+
+  self_serve_org_flow: |
+    /orgs (Onboarding.vue track:'org', added 2026-08-02) -> name your
+    organisation -> ONE email+OTP -> POST /api/onboarding/provision
+    (track:'org') -> /org/:groupId. No course picker at all — an org is
+    class-less and its trial (api/_utils/trialPolicy.ts, ORG_TRIAL_DAYS)
+    covers every language, so there is nothing per-course to lock. Reuses
+    api/_utils/rootOrgProvision.ts's createRootOrgAndLeader — the same
+    root-org-creation contract POST /api/groups' self-serve lane uses — so a
+    root org and its govt_admins leader row are minted in exactly one
+    shared place. Sets learners.educational_role = 'govt_admin'
+    unconditionally (never downgrades, since govt_admin already outranks
+    every other role for hasSchoolRole purposes) — required for
+    memberSurfaceGuard to let the new leader reach their own /org/:id at
+    all. One org per leader: a caller who already leads a group is handed
+    back their existing org (existing:true) instead of being re-provisioned
+    or 409'd.
 
   first_run_naming: |
     An invite-born school's name is pre-filled from the inviting leader's

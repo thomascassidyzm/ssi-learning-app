@@ -97,7 +97,7 @@ describe.skipIf(!live)('IME live walk — noticing rules over real demo payloads
     for (const h of homes) {
       for (const inv of h.invitations) {
         expect(inv.text, `${h.name}/${inv.ruleId}`).not.toMatch(/\{[\w.]+\}/)
-        if (inv.to) expect(inv.to.startsWith('/schools/org/'), `${h.name}/${inv.ruleId} member link: ${inv.to}`).toBe(true)
+        if (inv.to) expect(inv.to.startsWith('/org/'), `${h.name}/${inv.ruleId} member link: ${inv.to}`).toBe(true)
       }
     }
   })
