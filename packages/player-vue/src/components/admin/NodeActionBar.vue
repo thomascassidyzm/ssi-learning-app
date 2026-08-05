@@ -109,9 +109,15 @@ async function submitPerson(): Promise<void> {
     // now; the link stays on screen because sharing it by WhatsApp is often
     // better, and because it is the fallback when the send fails.
     const name = personName.value.trim()
-    const emailed = data.emailed as { sent?: boolean; to?: string } | undefined
+    // `via` (2026-08-05): 'link' is the invite email carrying a clickable way
+    // in — the whole point. 'code' is the sign-in-code fallback, sent only to
+    // someone who has already accepted an invite before; say so plainly rather
+    // than letting the leader assume a link went out.
+    const emailed = data.emailed as { sent?: boolean; to?: string; via?: 'link' | 'code' } | undefined
     const message = emailed?.sent
-      ? `Invite sent to ${emailed.to} — ${name} is in.`
+      ? emailed.via === 'code'
+        ? `${name} is in — ${emailed.to} already has an account, so we sent a sign-in code. Send them this link too.`
+        : `Invite sent to ${emailed.to} — ${name} is in.`
       : emailed
         ? `${name} is in, but we couldn't email the invite — send them this link.`
         : `Personal link created for ${name}`
