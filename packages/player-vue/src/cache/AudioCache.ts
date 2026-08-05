@@ -18,6 +18,7 @@ import type {
   PersistentNamespace,
 } from './AudioCache.types'
 import type { AudioLifecycle } from '../types/courseBundle'
+import { buildAudioUrl, getAudioRevision } from '@ssi/core'
 import { bytesToWavBlob } from './wav'
 
 const DB_NAME = 'ssi-audio-cache-v2'
@@ -40,6 +41,19 @@ interface AudioRow {
   cachedAt: number
   lastAccessedAt: number
   ephemeralOwnerLegoId: string | null
+  /**
+   * The `course_audio.audio_revision` these bytes were fetched at, when it
+   * was known. Repaired audio is swapped in place at the SAME id, so the id
+   * alone no longer identifies the bytes — without this a device that cached
+   * the damaged clip would serve it from IndexedDB forever, even though the
+   * HTTP layer has been busted by the `?v=` URL.
+   *
+   * Optional on purpose: every row written before this existed has no value,
+   * and undefined is meaningful (see `isStale`). No DB_VERSION bump — adding
+   * an optional field to an existing store needs no migration, and bumping
+   * would force an upgrade transaction on every device for nothing.
+   */
+  audioRevision?: number
 }
 
 interface CacheSchema extends DBSchema {
@@ -61,6 +75,14 @@ export class AudioCacheImpl implements AudioCache {
 
   private readonly persistentIds: Set<string> = new Set()
   private readonly ephemeralIds: Set<string> = new Set()
+
+  /**
+   * id -> the revision the cached bytes were fetched at. Mirrors
+   * `AudioRow.audioRevision` so the staleness check stays synchronous and
+   * the `has(id)` fast path keeps its O(1) shape. Ids absent from this map
+   * either aren't cached or were cached before revisions existed.
+   */
+  private readonly cachedRevisions: Map<string, number> = new Map()
 
   // Offline WAV blob URLs, keyed by audio id — decoded once and reused for
   // repeated clips (spaced rep replays the same audio). See getWavBlobUrl.
@@ -88,21 +110,27 @@ export class AudioCacheImpl implements AudioCache {
   readonly ephemeral: EphemeralNamespace
 
   constructor(options: CreateAudioCacheOptions = {}) {
-    this.audioUrl = options.audioUrl ?? ((id) => `/api/audio/${id}`)
+    // Revision-aware by default: a repaired clip fetches
+    // `/api/audio/<id>?v=<rev>`, which no HTTP or SW cache has seen.
+    this.audioUrl = options.audioUrl ?? ((id) => buildAudioUrl(id))
     this.fetchTimeoutMs = options.fetchTimeoutMs ?? 30_000
 
     // Bind namespace facades to `this`.
     this.persistent = {
       ensure: (id) => this.persistentEnsure(id),
       ensureFromUrl: (id, url) => this.persistentEnsureFromUrl(id, url),
-      has: (id) => this.persistentIds.has(id),
+      // A superseded entry answers false: `has` exists so callers can decide
+      // whether to fetch, and holding repaired-away bytes is not "having it".
+      // The read path (getBlobUrl) is independent and still serves the old
+      // bytes if the refetch can't happen, so offline never goes silent.
+      has: (id) => this.persistentIds.has(id) && !this.isStale(id),
       getBlobUrl: (id) => this.getBlobUrl(id),
       evictToTarget: (targetBytes) => this.persistentEvictToTarget(targetBytes),
     }
     this.ephemeral = {
       acquireForLego: (set) => this.ephemeralAcquireForLego(set),
       releaseForLego: (legoId) => this.ephemeralReleaseForLego(legoId),
-      has: (id) => this.ephemeralIds.has(id),
+      has: (id) => this.ephemeralIds.has(id) && !this.isStale(id),
       getBlobUrl: (id) => this.getBlobUrl(id),
     }
   }
@@ -152,9 +180,53 @@ export class AudioCacheImpl implements AudioCache {
       const row = cursor.value
       if (row.lifecycle === 'persistent') this.persistentIds.add(row.id)
       else this.ephemeralIds.add(row.id)
+      if (typeof row.audioRevision === 'number') {
+        this.cachedRevisions.set(row.id, row.audioRevision)
+      }
       cursor = await cursor.continue()
     }
     await tx.done
+  }
+
+  // ==========================================================================
+  // REVISION STALENESS
+  // ==========================================================================
+
+  /**
+   * Is the cached copy of `id` superseded by a repair?
+   *
+   * `getAudioRevision(id)` is what the backend most recently told us to play
+   * (undefined = never repaired, or we simply haven't heard). The stored
+   * revision is what we actually hold.
+   *
+   *   wanted undefined                -> NOT stale. The load-bearing rule:
+   *                                      offline, or on a payload that
+   *                                      predates revisions, we know nothing,
+   *                                      so we must keep playing what we have.
+   *                                      Never invalidate on ignorance.
+   *   stored undefined, wanted known  -> STALE. The entry was cached before
+   *                                      revisions existed, so it may well be
+   *                                      the very bytes that got repaired.
+   *   wanted > stored                 -> STALE. A repair landed since.
+   *   wanted <= stored                -> NOT stale. Never downgrade.
+   *
+   * A stale entry is refetched and overwritten, but is NOT deleted first: if
+   * the refetch fails (offline), `getBlobUrl` still finds the old row and
+   * playback continues on slightly-worse audio rather than silence.
+   */
+  private isStale(id: AudioId): boolean {
+    const wanted = getAudioRevision(id)
+    if (wanted === undefined) return false
+    const stored = this.cachedRevisions.get(id)
+    if (stored === undefined) return true
+    return wanted > stored
+  }
+
+  /** Cache key for the in-flight de-dupe: an old-revision fetch in flight
+   *  must not satisfy a request for a newer revision. */
+  private inflightKey(id: AudioId): string {
+    const wanted = getAudioRevision(id)
+    return wanted === undefined ? id : `${id}@${wanted}`
   }
 
   // ==========================================================================
@@ -162,8 +234,9 @@ export class AudioCacheImpl implements AudioCache {
   // ==========================================================================
 
   private persistentEnsure(id: AudioId): Promise<void> {
-    if (this.persistentIds.has(id)) return Promise.resolve()
-    const existing = this.inflight.get(id)
+    if (this.persistentIds.has(id) && !this.isStale(id)) return Promise.resolve()
+    const key = this.inflightKey(id)
+    const existing = this.inflight.get(key)
     if (existing) return existing
 
     const p = this.doFetchAndStore(id, {
@@ -171,15 +244,16 @@ export class AudioCacheImpl implements AudioCache {
       ephemeralOwnerLegoId: null,
     })
       .finally(() => {
-        this.inflight.delete(id)
+        this.inflight.delete(key)
       })
-    this.inflight.set(id, p)
+    this.inflight.set(key, p)
     return p
   }
 
   private persistentEnsureFromUrl(id: AudioId, url: string): Promise<void> {
-    if (this.persistentIds.has(id)) return Promise.resolve()
-    const existing = this.inflight.get(id)
+    if (this.persistentIds.has(id) && !this.isStale(id)) return Promise.resolve()
+    const key = this.inflightKey(id)
+    const existing = this.inflight.get(key)
     if (existing) return existing
 
     const p = this.doFetchAndStore(id, {
@@ -188,9 +262,9 @@ export class AudioCacheImpl implements AudioCache {
       url,
     })
       .finally(() => {
-        this.inflight.delete(id)
+        this.inflight.delete(key)
       })
-    this.inflight.set(id, p)
+    this.inflight.set(key, p)
     return p
   }
 
@@ -202,13 +276,18 @@ export class AudioCacheImpl implements AudioCache {
     if (!this.db) throw new Error('AudioCache: DB not initialized')
 
     // If already cached in either namespace, persistent wins — skip duplicate.
-    if (this.persistentIds.has(id)) return
-    if (opts.lifecycle === 'ephemeral' && this.ephemeralIds.has(id)) return
+    // Unless a repair has superseded those bytes, in which case we refetch and
+    // overwrite regardless of which namespace holds them.
+    const stale = this.isStale(id)
+    if (this.persistentIds.has(id) && !stale) return
+    if (opts.lifecycle === 'ephemeral' && this.ephemeralIds.has(id) && !stale) return
 
     // Cross-namespace promotion: id is already cached as ephemeral and the
     // caller wants it persistent. Rewrite the existing row's lifecycle in
     // place instead of re-fetching, and move it between the in-memory Sets.
-    if (opts.lifecycle === 'persistent' && this.ephemeralIds.has(id)) {
+    // (A stale row is deliberately excluded — promoting it would keep the
+    // superseded bytes, just under a different lifecycle.)
+    if (opts.lifecycle === 'persistent' && this.ephemeralIds.has(id) && !stale) {
       const existing = await this.db.get(STORE, id)
       if (existing) {
         const promoted: AudioRow = {
@@ -262,6 +341,9 @@ export class AudioCacheImpl implements AudioCache {
     }
 
     const now = Date.now()
+    // Stamp the revision these bytes were fetched at. Read AFTER the fetch so
+    // a revision published mid-flight isn't attributed to older bytes.
+    const fetchedRevision = getAudioRevision(id)
     const row: AudioRow = {
       id,
       blob,
@@ -272,8 +354,21 @@ export class AudioCacheImpl implements AudioCache {
       cachedAt: now,
       lastAccessedAt: now,
       ephemeralOwnerLegoId: opts.ephemeralOwnerLegoId,
+      ...(fetchedRevision !== undefined ? { audioRevision: fetchedRevision } : {}),
     }
     await this.db.put(STORE, row)
+
+    if (fetchedRevision !== undefined) this.cachedRevisions.set(id, fetchedRevision)
+    else this.cachedRevisions.delete(id)
+
+    // The decoded-WAV cache is keyed by id too, so an overwrite must drop it —
+    // otherwise the offline read path keeps handing out a blob: URL holding
+    // the repaired-away audio, and the repair is invisible offline.
+    const staleWav = this.wavUrlCache.get(id)
+    if (staleWav) {
+      URL.revokeObjectURL(staleWav)
+      this.wavUrlCache.delete(id)
+    }
 
     if (opts.lifecycle === 'persistent') {
       this.persistentIds.add(id)
@@ -313,6 +408,7 @@ export class AudioCacheImpl implements AudioCache {
       if (row.lifecycle === 'persistent') {
         total -= row.size
         this.persistentIds.delete(row.id)
+        this.cachedRevisions.delete(row.id)
         // The bytes are gone — drop any cached WAV blob URL for this id too,
         // else a held blob: URL points at deleted data and plays silence/stalls.
         // Revoke it to release the blob.
@@ -344,10 +440,13 @@ export class AudioCacheImpl implements AudioCache {
 
     const promises: Promise<void>[] = []
     for (const id of set.audioIds) {
-      // Persistent wins — never duplicate.
-      if (this.persistentIds.has(id)) continue
-      if (this.ephemeralIds.has(id)) continue
-      const existing = this.inflight.get(id)
+      // Persistent wins — never duplicate. A superseded entry is refetched
+      // regardless of which namespace holds it.
+      const stale = this.isStale(id)
+      if (this.persistentIds.has(id) && !stale) continue
+      if (this.ephemeralIds.has(id) && !stale) continue
+      const key = this.inflightKey(id)
+      const existing = this.inflight.get(key)
       if (existing) {
         promises.push(existing)
         continue
@@ -363,9 +462,9 @@ export class AudioCacheImpl implements AudioCache {
           throw err
         })
         .finally(() => {
-          this.inflight.delete(id)
+          this.inflight.delete(key)
         })
-      this.inflight.set(id, p)
+      this.inflight.set(key, p)
       promises.push(p)
     }
 
@@ -391,6 +490,7 @@ export class AudioCacheImpl implements AudioCache {
     while (cursor) {
       const row = cursor.value
       this.ephemeralIds.delete(row.id)
+      this.cachedRevisions.delete(row.id)
       await cursor.delete()
       deleted++
       cursor = await cursor.continue()
@@ -406,7 +506,9 @@ export class AudioCacheImpl implements AudioCache {
   // ==========================================================================
 
   has(id: AudioId): boolean {
-    return this.persistentIds.has(id) || this.ephemeralIds.has(id)
+    // Same rule as the namespace facades: holding bytes a repair has
+    // superseded is not "having it".
+    return (this.persistentIds.has(id) || this.ephemeralIds.has(id)) && !this.isStale(id)
   }
 
   async getBlobUrl(id: AudioId): Promise<string | null> {

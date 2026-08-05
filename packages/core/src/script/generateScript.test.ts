@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { generateScript, GENERATOR_VERSION } from './generateScript'
+import { setAudioRevisions, clearAudioRevisions } from './audioRevisions'
 import type {
   BundleAudioRef,
   BundleLego,
@@ -368,6 +369,47 @@ describe('generateScript — main mode', () => {
     const debut2 = custom.rounds[0].cycles.find((c) => c.type === 'debut')!
     expect(debut2.known.audioUrl).toBe('https://cdn.test/S0001L01-known.mp3')
     expect(debut2.target.voice1Url).toBe('https://cdn.test/S0001L01-t1.mp3')
+  })
+
+  it('a repaired clip gets ?v=<rev>; its unrepaired siblings stay bare', () => {
+    // Repaired audio is swapped in place at the same course_audio.id, so the
+    // revision has to ride in the URL to bust the immutable HTTP/SW caches.
+    // Only the repaired clip changes URL — the rest must stay byte-identical
+    // to before, or every device re-downloads the whole course for nothing.
+    const bundle = makeBundle({ legoCount: 1, buildsPerLego: 0, usesPerLego: 1 })
+    try {
+      setAudioRevisions({ 'S0001L01-t1': 3 })
+
+      const { rounds } = generateScript({
+        bundle,
+        position: { mode: 'main', fromLegoId: 'S0001L01' },
+      })
+      const debut = rounds[0].cycles.find((c) => c.type === 'debut')!
+      expect(debut.target.voice1Url).toBe('/api/audio/S0001L01-t1?v=3')
+      expect(debut.known.audioUrl).toBe('/api/audio/S0001L01-known')
+      expect(debut.target.voice2Url).toBe('/api/audio/S0001L01-t2')
+    } finally {
+      clearAudioRevisions()
+    }
+  })
+
+  it('revision 1 and below are ignored — they mean the original bytes', () => {
+    // Revision 1 is the implicit default for every clip; emitting ?v=1 would
+    // invalidate every cache on the planet to serve identical audio.
+    const bundle = makeBundle({ legoCount: 1, buildsPerLego: 0, usesPerLego: 1 })
+    try {
+      setAudioRevisions({ 'S0001L01-t1': 1, 'S0001L01-t2': 0 })
+
+      const { rounds } = generateScript({
+        bundle,
+        position: { mode: 'main', fromLegoId: 'S0001L01' },
+      })
+      const debut = rounds[0].cycles.find((c) => c.type === 'debut')!
+      expect(debut.target.voice1Url).toBe('/api/audio/S0001L01-t1')
+      expect(debut.target.voice2Url).toBe('/api/audio/S0001L01-t2')
+    } finally {
+      clearAudioRevisions()
+    }
   })
 
   it('intro uses presentation audio for the prompt slot', () => {
