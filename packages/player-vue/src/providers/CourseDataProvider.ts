@@ -30,6 +30,7 @@ import type {
   AudioRef,
   LegoPair,
 } from '@ssi/core'
+import { buildAudioUrl } from '@ssi/core'
 
 export interface LearningItem {
   lego: {
@@ -319,7 +320,7 @@ export class CourseDataProvider {
       }
       return ''
     }
-    return `/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`
+    return buildAudioUrl(audioId, `courseId=${encodeURIComponent(this.courseId)}`)
   }
 
   /**

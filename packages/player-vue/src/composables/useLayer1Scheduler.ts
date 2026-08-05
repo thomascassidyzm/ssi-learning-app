@@ -77,6 +77,7 @@ export interface L1SeedAudio {
   targetText: string
   knownText: string
 }
+import { buildAudioUrl } from '@ssi/core'
 
 /**
  * One slot of the per-seed Layer-1 sandwich (admin-tunable playlist).
@@ -627,7 +628,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
     for (const id of ids) {
       if (ensureFn) ensureFn(id).catch(() => undefined)
-      else fetch(`/api/audio/${id}`, { priority: 'low' as any }).catch(() => undefined)
+      else fetch(buildAudioUrl(id), { priority: 'low' as any }).catch(() => undefined)
     }
   }
 

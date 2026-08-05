@@ -40,6 +40,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { getAudioRevisions } from '../../_utils/audioRevisions'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -211,7 +212,10 @@ export default async function handler(
     // course_code + version (no pricing metadata), so the entitlement gate
     // needs its own tiny lookup — run in parallel, it's a single indexed row.
     const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
-    const [rpcResult, pricingRes] = await Promise.all([
+    // The audio-revision lookup keys on course_code, not on the ids the RPC
+    // returns, so it rides this same parallel batch — it costs nothing on the
+    // instant-playback critical path.
+    const [rpcResult, pricingRes, audioRevisions] = await Promise.all([
       supabase.rpc('get_course_cycles_window', {
         p_course_code: code,
         p_from_lego_id: from,
@@ -222,6 +226,7 @@ export default async function handler(
         .select('target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .maybeSingle(),
+      getAudioRevisions(supabase, code),
     ])
     const { data, error } = rpcResult
 
@@ -370,6 +375,9 @@ export default async function handler(
       version,
       cycles,
       next_lego_id: nextLegoId,
+      // Repaired clips only — absent/empty means every clip is at revision 1
+      // and the client emits bare /api/audio/<id> URLs, as today.
+      ...(Object.keys(audioRevisions).length > 0 ? { audioRevisions } : {}),
       ...(previewOnly ? { preview_only: true } : {}),
     })
   } catch (error) {

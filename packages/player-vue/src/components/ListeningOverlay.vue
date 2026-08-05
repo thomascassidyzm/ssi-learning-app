@@ -11,7 +11,7 @@ import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
-import { PodStateStore } from '@ssi/core'
+import { PodStateStore, buildAudioUrl } from '@ssi/core'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -1087,7 +1087,7 @@ const glossPairsFor = (phrase) => {
  */
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
-  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+  return buildAudioUrl(audioId, `courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
 /**

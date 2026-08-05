@@ -51,7 +51,7 @@ import {
   type PodPlay,
   type PodSentenceRow,
 } from '@ssi/core/pods'
-import { PodStateStore } from '@ssi/core'
+import { PodStateStore, buildAudioUrl } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 
@@ -570,7 +570,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       }
     } else {
       for (const id of ids) {
-        const url = `/api/audio/${id}`
+        const url = buildAudioUrl(id)
         fetch(url, { priority: 'low' }).catch(() => undefined)
       }
     }

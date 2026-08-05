@@ -355,6 +355,18 @@ export interface CourseBundle {
    * Absent/false = the full course.
    */
   previewOnly?: boolean
+  /**
+   * Audio id -> revision, for clips that have been REPAIRED in place
+   * (revision > 1). Repaired audio keeps its `course_audio.id` — minting a
+   * new one would CASCADE into `lego_introductions` and destroy authored
+   * intro scripts — so the revision rides in the URL instead
+   * (`/api/audio/<id>?v=<rev>`) to bust the immutable HTTP/SW caches.
+   *
+   * Absent or empty is the normal case and means every clip is at revision
+   * 1, i.e. bare `/api/audio/<id>` URLs exactly as before. The client feeds
+   * this to `setAudioRevisions` from `@ssi/core`.
+   */
+  audioRevisions?: Record<string, number>
 }
 
 // ============================================================================

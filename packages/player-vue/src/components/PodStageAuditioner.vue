@@ -125,6 +125,7 @@ function stage0Plays(tierKey: string): AudPlay[] {
     role: tp.role,
   }))
 }
+import { buildAudioUrl } from '@ssi/core'
 
 // ── build the play list for one main Stage 1-9 (the stagePlaylist, once) ────
 function mainStagePlays(stage: number): AudPlay[] {
@@ -204,7 +205,7 @@ async function runFlat(items: Array<AudPlay & { stageKey: string; localIndex: nu
   for (const it of items) {
     if (token !== runToken) return
     nowStageKey.value = it.stageKey; nowIndex.value = it.localIndex
-    el.src = `/api/audio/${it.audioId}`; el.playbackRate = it.speed || 1; el.load()
+    el.src = buildAudioUrl(it.audioId); el.playbackRate = it.speed || 1; el.load()
     await playToEnd(el)
     if (it.gapAfterMs && token === runToken) await sleep(it.gapAfterMs)
   }

@@ -31,6 +31,7 @@
  */
 
 import type { Cycle, Round } from './playerTypes'
+import { buildAudioUrl } from './audioRevisions'
 import {
   legosById,
   phrasesByLegoAndRole,
@@ -673,7 +674,10 @@ function baseCycle(o: BaseCycleOpts): Cycle {
 // ============================================================================
 
 function defaultAudioUrl(id: string): string {
-  return `/api/audio/${id}`
+  // Revision-aware: emits `/api/audio/<id>?v=<rev>` for a clip that has been
+  // repaired in place, and the bare `/api/audio/<id>` otherwise. See
+  // ./audioRevisions.ts for why the revision rides in the URL.
+  return buildAudioUrl(id)
 }
 
 /**

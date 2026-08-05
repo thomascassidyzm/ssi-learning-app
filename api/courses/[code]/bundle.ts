@@ -50,6 +50,7 @@ import type {
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { getAudioRevisions } from '../../_utils/audioRevisions'
 
 /**
  * Identifies the shared generator's assembly-algorithm CODE version, echoed
@@ -345,7 +346,8 @@ export default async function handler(
     // 8 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
     // of physics; collapsing into Promise.all keeps the whole bundle
     // assemble at ~150-300ms instead of 8× that.
-    const [courseRes, shapeRes, legosRes, phrasesRes, roundsRes, seedsRes, podsRes, bookendsRes] = await Promise.all([
+    // audioRevisions rides this batch — keyed on course_code, no extra hop.
+    const [courseRes, shapeRes, legosRes, phrasesRes, roundsRes, seedsRes, podsRes, bookendsRes, audioRevisions] = await Promise.all([
       supabase
         .from('courses')
         .select('content_version, target_lang, pricing_tier, is_community')
@@ -397,6 +399,7 @@ export default async function handler(
         .select('id, role, duration_ms')
         .eq('course_code', code)
         .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
+      getAudioRevisions(supabase, code),
     ])
 
     if (courseRes.error) {
@@ -715,6 +718,8 @@ export default async function handler(
       roundMap,
       pods,
     }
+    // Repaired clips only; absent means all at revision 1 (bare URLs).
+    if (Object.keys(audioRevisions).length > 0) bundle.audioRevisions = audioRevisions
     if (previewOnly) bundle.previewOnly = true
 
     res.setHeader(

@@ -17,10 +17,9 @@ import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 
-const audioUrl = (uuid: string | undefined): string => {
-  if (!uuid) return ''
-  return `/api/audio/${uuid}`
-}
+// Revision-aware — `/api/audio/<id>?v=<rev>` for a clip repaired in place,
+// bare `/api/audio/<id>` otherwise. See @ssi/core audioRevisions.ts.
+const audioUrl = (uuid: string | undefined): string => buildAudioUrl(uuid)
 
 /**
  * Target language playback speed configuration.
@@ -55,6 +54,7 @@ export interface TargetSpeedConfig {
   /** @deprecated Use rampSeeds instead. Kept for backwards compat. */
   beltRamp?: boolean
 }
+import { buildAudioUrl } from '@ssi/core'
 
 const MIN_SPEED = 0.7
 

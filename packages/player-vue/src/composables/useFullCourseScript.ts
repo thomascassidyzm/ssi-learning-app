@@ -21,6 +21,7 @@ import {
   generateLearningScript,
   type ScriptItem,
 } from '../providers/generateLearningScript'
+import { buildAudioUrl } from '@ssi/core'
 
 export interface AdaptedAudioRef {
   id: string
@@ -79,7 +80,7 @@ export function useFullCourseScript() {
   const error = ref<string | null>(null)
 
   const audioUrl = (id: string | undefined, courseCode: string): string =>
-    id ? `/api/audio/${id}?courseId=${encodeURIComponent(courseCode)}` : ''
+    buildAudioUrl(id, `courseId=${encodeURIComponent(courseCode)}`)
 
   const audioRef = (id: string | undefined, courseCode: string): AdaptedAudioRef | null =>
     id ? { id, url: audioUrl(id, courseCode) } : null

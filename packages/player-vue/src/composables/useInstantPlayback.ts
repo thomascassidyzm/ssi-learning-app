@@ -80,6 +80,7 @@ export interface BackendCycle {
   }
   is_new: boolean
 }
+import { buildAudioUrl, setAudioRevisions } from '@ssi/core'
 
 export interface RoundMapEntry {
   /** Round index (1-based per spec, matches `course_round_index.round_index`) */
@@ -100,6 +101,8 @@ export interface CyclesResponse {
   version: number
   cycles: BackendCycle[]
   next_lego_id: string | null
+  /** Repaired clips only (revision > 1). Absent = all bare URLs, as before. */
+  audioRevisions?: Record<string, number>
 }
 
 export interface BootstrapResult {
@@ -349,7 +352,14 @@ function sharedJsonGet(url: string): Promise<CoalescedJson> {
         }
         return { ok: false, status: res.status, statusText: res.statusText, data: null }
       }
-      return { ok: true, status: res.status, statusText: res.statusText, data: await res.json() }
+      const body = await res.json()
+      // Publish any repaired-clip revisions into the shared @ssi/core
+      // registry so every audio-URL builder emits /api/audio/<id>?v=<rev>
+      // and the year-long immutable cache is bypassed for exactly those
+      // clips. No-op when the field is absent (the normal case, and every
+      // pre-revision cached payload).
+      setAudioRevisions((body as { audioRevisions?: Record<string, number> })?.audioRevisions)
+      return { ok: true, status: res.status, statusText: res.statusText, data: body }
     } finally {
       clearTimeout(timer)
     }
@@ -426,7 +436,7 @@ export async function prewarmInstantCaches(
     // GETs (same URL shape warmFirstKnownAudio uses), fire-and-forget.
     const c0 = cycles.cycles?.[0]
     for (const id of [c0?.audio?.known_id, c0?.audio?.target1_id, c0?.audio?.target2_id]) {
-      if (id) void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
+      if (id) void fetch(buildAudioUrl(encodeURIComponent(id))).catch(() => {})
     }
   } catch {
     /* best-effort prewarm — a cold mount just pays the round-trips as before */
@@ -731,7 +741,9 @@ export function useInstantPlayback(
       cycles: BackendCycle[]
       next_inf_round: number
       main_loop_count: number
+      audioRevisions?: Record<string, number>
     }
+    setAudioRevisions(json.audioRevisions)
     return {
       cycles: json.cycles,
       nextInfRound: json.next_inf_round,

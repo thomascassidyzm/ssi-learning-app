@@ -32,10 +32,7 @@ import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
-const audioUrl = (uuid: string | undefined): string => {
-  if (!uuid) return ''
-  return `/api/audio/${uuid}`
-}
+const audioUrl = (uuid: string | undefined): string => buildAudioUrl(uuid)
 
 /**
  * INF PLAY adapter — converts BackendCycles emitted by
@@ -81,6 +78,7 @@ export function infPlayCyclesToRounds(
   }
   return rounds
 }
+import { buildAudioUrl } from '@ssi/core'
 
 /**
  * Convert cycles buffered by `useInstantPlayback` into `Round[]`,

@@ -34,6 +34,7 @@ const props = defineProps({
     default: 'eng'
   }
 })
+import { buildAudioUrl } from '@ssi/core'
 
 // Inject providers
 const supabase = inject('supabase', null)
@@ -290,7 +291,7 @@ function shuffle(arr) {
 
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
-  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+  return buildAudioUrl(audioId, `courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
 const initializeAudio = async () => {

@@ -39,7 +39,19 @@ export default async function handler(
     return
   }
 
-  // Get audioId from URL
+  // Get audioId from URL.
+  //
+  // The URL may carry `?v=<revision>` — the in-place audio repair flow.
+  // Repaired clips keep their `course_audio.id` (a new id would CASCADE into
+  // `lego_introductions` and destroy authored intro scripts), so the revision
+  // rides in the query string purely to change the CACHE KEY. Lookup keys on
+  // the path segment only, so `v` is deliberately ignored here — the row we
+  // serve is always the current one for that id, whatever revision the caller
+  // asked for. Nothing to validate, nothing to branch on.
+  //
+  // This is what makes the `immutable` header below safe to KEEP: a given
+  // id+revision URL really does name bytes that never change, and a repair
+  // produces a URL no cache has ever seen. Do not weaken that header.
   const { audioId } = req.query
   if (!audioId || typeof audioId !== 'string') {
     res.status(400).json({ error: 'Missing audioId parameter' })

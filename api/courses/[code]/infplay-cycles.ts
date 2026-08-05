@@ -32,6 +32,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { getAudioRevisions } from '../../_utils/audioRevisions'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -187,7 +188,8 @@ export default async function handler(
     // Fetch course's main-loop LEGOs + USE phrases in parallel.
     // Both are bounded by course size (~600 LEGOs, ~5000 phrases) — fits
     // comfortably in a single Postgres round-trip each.
-    const [legosResult, phrasesResult, courseResult] = await Promise.all([
+    // Rides the parallel batch — keyed on course_code, not on the ids below.
+    const [legosResult, phrasesResult, courseResult, audioRevisions] = await Promise.all([
       supabase
         .from('course_legos')
         .select('seed_number, lego_index, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
@@ -210,6 +212,7 @@ export default async function handler(
         .select('content_version, target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .single(),
+      getAudioRevisions(supabase, code),
     ])
 
     if (legosResult.error) {
@@ -420,6 +423,8 @@ export default async function handler(
       cycles,
       next_inf_round: fromRound + limit,
       main_loop_count: mainLoopCount,
+      // Repaired clips only; absent means all at revision 1 (bare URLs).
+      ...(Object.keys(audioRevisions).length > 0 ? { audioRevisions } : {}),
     })
   } catch (err) {
     console.error('[InfPlayCycles] Unexpected error:', err)

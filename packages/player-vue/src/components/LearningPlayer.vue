@@ -10,6 +10,7 @@ import {
   ENVELOPE_EXTRACTOR_CONSTANTS,
   type ProgressStore,
   type SessionStore,
+  buildAudioUrl,
 } from '@ssi/core'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import type { CourseInfo } from '../composables/useEntitlement'
@@ -3243,8 +3244,8 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   } else if (scriptItem.type === 'component_intro' && scriptItem.target1Id) {
     // Component intros have target1Id/target2Id as bare UUIDs (no audioRefs)
     // Resolve directly via proxy URL — presentation audio handled by playIntroductionAudioDirectly
-    target1AudioUrl = `/api/audio/${scriptItem.target1Id}`
-    target2AudioUrl = scriptItem.target2Id ? `/api/audio/${scriptItem.target2Id}` : undefined
+    target1AudioUrl = buildAudioUrl(scriptItem.target1Id)
+    target2AudioUrl = scriptItem.target2Id ? buildAudioUrl(scriptItem.target2Id) : undefined
     console.log('[scriptItemToPlayableItem] Component intro resolved from UUIDs:', { target1AudioUrl, target2AudioUrl })
   } else {
     // Fallback: Look up audio URLs from cache (lazy loaded)
@@ -4233,7 +4234,7 @@ const playPodSegment = async (
     } catch {}
     audio.play({
       id: audioId,
-      url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+      url: buildAudioUrl(audioId, `courseId=${encodeURIComponent(courseCode.value)}`),
       duration_ms: durationMs,
       // Fusion-rung chunks: an ms slice of the sentence's Take G render.
       ...(slice ? { startMs: slice.startMs, endMs: slice.endMs } : {}),
@@ -4326,7 +4327,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   currentPodLapPlays.value = lap.plays
 
   const courseId = encodeURIComponent(courseCode.value)
-  const audioUrlFor = (id: string) => `/api/audio/${id}?courseId=${courseId}`
+  const audioUrlFor = (id: string) => buildAudioUrl(id, `courseId=${courseId}`)
 
   let playsCompleted = 0
   let abortReason: 'completed' | 'audio_error' | 'cancelled' | 'safety_timeout' = 'completed'
@@ -5183,7 +5184,7 @@ const resolveAudioFromCache = async (
   // CacheFirst on /api/audio/* serves cached bytes when warm.
   return {
     type: 'url',
-    url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+    url: buildAudioUrl(audioId, `courseId=${encodeURIComponent(courseCode.value)}`),
   }
 }
 
@@ -7655,7 +7656,7 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
 
   // Fallback: resolve from presentationAudioId UUID (generateLearningScript emits UUID, not resolved object)
   if (!presentationUrl && scriptItem?.presentationAudioId) {
-    presentationUrl = `/api/audio/${scriptItem.presentationAudioId}`
+    presentationUrl = buildAudioUrl(scriptItem.presentationAudioId)
   }
 
   // Fallback: try audioMap cache (for backwards compatibility with cached scripts)
@@ -7948,7 +7949,7 @@ const playCourseWelcome = async () => {
     // for free. The old direct-S3 paths 404'd whenever the cached record lacked
     // s3_key (the id-based URL pointed at a non-existent root object).
     const audioUrl = w.id
-      ? `/api/audio/${w.id}`
+      ? buildAudioUrl(w.id)
       : `${AUDIO_S3_BASE_URL}/${w.s3_key}`
     const welcomeAudio = {
       id: w.id,
@@ -8127,7 +8128,7 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
   for (const url of urls) {
     if (!url || typeof url !== 'string') continue
     if (url.startsWith('blob:')) continue
-    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+)(?:\?|$)/i)
     if (match) ids.push(match[1])
   }
   return ids
