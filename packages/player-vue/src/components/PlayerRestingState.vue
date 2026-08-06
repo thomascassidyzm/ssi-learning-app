@@ -149,8 +149,10 @@ const setMode = (mode) => {
   border: 0;
   background: transparent;
   border-radius: 999px;
-  /* 44px tall — the thumb-target floor. Measured live on dev: 10px padding
-     came out at 41px, so this is 12px, not a guess. */
+  /* 44px is the thumb-target floor, asserted directly rather than left to
+     padding arithmetic — the rendered height moves with the font, and the
+     padding-only version measured 41px on dev. */
+  min-height: 44px;
   padding: 12px 22px;
   line-height: 1.25;
   font-size: 14px;
