@@ -19,7 +19,7 @@
 
 registry SSiContent:
   version: "1.8.0"
-  last_updated: "2026-06-08"
+  last_updated: "2026-08-06"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -815,7 +815,7 @@ registry SSiContent:
         structure:
           session_duration_minutes: "integer (default: 15)"
           encouragements_enabled: "boolean (default: true)"
-          turbo_mode_enabled: "boolean (default: false)"
+          pace_mode: "'easy' | 'fast' (default: 'fast')"
           volume: "number (default: 1.0)"
 
       created_at:

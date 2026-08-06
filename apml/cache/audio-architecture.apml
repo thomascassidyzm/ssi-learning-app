@@ -338,7 +338,7 @@ spec audio_caching_architecture:
         the slider/bar/labels to the 'keep N% of the course offline' framing.
       why_not_time: >
         Time is misleading twice: INF PLAY makes total offline time infinite, and
-        the 'new' portion stretches with turbo/replay. So the readout is MB (real
+        the 'new' portion stretches with replay. So the readout is MB (real
         cost) + a course-depth bar (the pre-INF-PLAY new learning made visible),
         never a duration.
       course_depth_bar: >

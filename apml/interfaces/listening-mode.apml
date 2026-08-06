@@ -42,7 +42,8 @@ ENTRY_POINT:
     I think it's okay for it to live under the settings". So the tray's
     "Mode — pick one" radio group (HISE / Listening) and its
     selectExperienceMode handler are gone; the tray keeps Pronunciation guide,
-    Turbo and Offline. HISE is simply what the player does when no mode is on.
+    the Easy|Fast pace pick and Offline. HISE is simply what the player does
+    when no mode is on.
   copy_kept_for_reuse: |
     The tray copy stays in the locales as modes.listening / modes.listeningDesc
     ("Listening" / "Audio only, no speaking"), unused for now.

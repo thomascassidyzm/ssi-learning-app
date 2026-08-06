@@ -2,7 +2,7 @@
 # SSI Learning App
 # Version: 2.0.0 (2026-06-08)
 # Status: Production-ready — reconciled to live implementation
-# Last updated: 2026-06-30
+# Last updated: 2026-08-06
 
 ## ============================================================================
 ## OVERVIEW
@@ -111,14 +111,14 @@ CYCLE_PHASES:
     timing:
       source_of_truth: "packages/player-vue/src/playback/computePauseDuration.ts"
       formula: "boot + assembly model — clamp(min_pause_ms, max_pause_ms, boot·beltBoot(p) + assembly·beltAssembly(p)) where assembly = assembly_lin·max(0, ref−assembly_threshold) + assembly_quad·(over/1000)², ref = native reference (avg/target1/sum), p = belt progress 0(White)→1(Green). Legacy knee/two-rate curve still honoured when assembly knobs absent."
-      config_table: "algorithm_config (normal_mode + turbo_boost rows) — admin-tunable without redeploy"
-      bake_fallback: "DEFAULT_NORMAL from useAlgorithmConfig at cycle-bake time (toSimpleRounds / scriptItemToCycle); the live runtime override recomputes with live config so admin changes win"
+      config_table: "algorithm_config (fast_mode + easy_mode rows; fast_mode falls back to the legacy normal_mode row during the promotion window) — admin-tunable without redeploy"
+      bake_fallback: "DEFAULT_FAST from useAlgorithmConfig at cycle-bake time (toSimpleRounds / scriptItemToCycle); the live runtime override recomputes with live config so admin changes win"
       simpleplayer_default: "DEFAULT_PAUSE_DURATION = 6500 ms (bootUpTime 2000 + 0.75 × estimatedTarget 6000) when no baked/override value"
 
     adaptation:
       driver: "useAdaptationEngine.getPauseMultiplier(legoId) — per-LEGO multiplier"
       composed_from: "MetricsTracker + SpikeDetector + MasteryStateMachine (@ssi/core engines, composed directly in the composable — there is NO AdaptationEngine class anymore)"
-      runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — Turbo/adaptation can shorten the pause; flipping mid-round takes effect on the very next pause"
+      runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — the active mode (Easy/Fast) and adaptation can change the pause; switching mid-round takes effect on the very next pause"
       null_safe: "getPauseMultiplier ?? 1.0 — adaptation hydrates off the cold-start critical path"
 
     next_phase: "VOICE_1"
@@ -359,14 +359,22 @@ AUDIO_CONTROLLER:
 
 CONFIGURATION:
   pause_duration:
-    source_of_truth: "computePauseDuration.ts + algorithm_config table (normal_mode / turbo_boost)"
+    source_of_truth: "computePauseDuration.ts + algorithm_config table (fast_mode / easy_mode)"
     formula: "clamp(min_pause_ms, max_pause_ms, pause_base_ms + (t1 + t2) * pause_multiplier)"
-    runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — Turbo/adaptation, applied per cycle"
+    runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — active mode / adaptation, applied per cycle"
     fallback: "DEFAULT_PAUSE_DURATION = 6500 ms when no baked or override value"
 
-  turbo:
-    overrides: "getPauseDuration (shorter pause), getPlaybackSpeedMultiplier (target voices), shouldSkipCycle (cull turboOmit-tagged cycles)"
-    note: "Pure callbacks read at each phase — toggling Turbo mid-round takes effect on the next cycle boundary"
+  learning_modes:
+    ruling: "Aran, 2026-08-06 — exactly TWO modes, Easy and Fast. Turbo is deleted."
+    rows: "algorithm_config.fast_mode (byte-faithful copy of the old normal_mode) and .easy_mode. normal_mode stays live as fast_mode's read fallback during the promotion window; turbo_boost stays in the table but is referenced by NO player code."
+    default: "fast — persisted per learner in localStorage 'ssi-learning-mode'"
+    mode_row_shape: "every pause/playback key, PLUS scriptShape (optional Partial<ScriptShapeConfig> override of the GLOBAL script_shape row) and phraseLengthPreference ('shortest' | 'longest')"
+    layering: "effective shape = { ...global script_shape, ...mode.scriptShape } — computed in ONE place, resolveScriptShape() in useAlgorithmConfig.ts. Fast ships an identity ({}) override, so Fast generates exactly the global row."
+    phrase_length: "BUILD and USE phrases are sorted by target syllable count then truncated at the cap. 'shortest' (default) = today's ascending sort; 'longest' reverses BOTH twin sorts in generateLearningScript.ts so the longest phrases survive truncation."
+    runtime_vs_shape: "pause + speed switch instantly via the runtime overrides (no regen, no round-boundary wait); the scriptShape override can only apply to rounds GENERATED after the switch, so a mid-session switch re-shapes forward, never retroactively."
+    culling: "modes differ by generated OVERRIDE, never by a play-time cull. shouldSkipCycle survives as adaptation v2's mechanism only (playback/adaptationOverrides.ts)."
+    telemetry: "'mode_toggle' { mode, previous } — replaces 'turbo_toggle'. Both names stay in MANUAL_DIAL_EVENT_TYPES so historical events still read as manual overrides."
+    ui: "ModeTray renders an Easy | Fast segmented pick (neither mode is 'off'), emitting setLearningMode through BottomNav -> PlayerContainer -> LearningPlayer.setLearningMode()"
 
   prefetch:
     next_cycle: "SimplePlayer.prefetchNextCycle() at VOICE_2 start — known(high)+voice1/voice2(low), crosses round boundaries"
@@ -418,9 +426,9 @@ INTEGRATION_EXAMPLE:
     simplePlayer.onAudioFailed((event) => { audioFailedBanner.value = event })
 
     simplePlayer.setRuntimeOverrides({
-      getPauseDuration: (cycle) => adaptiveOrTurboPause(cycle),
-      getPlaybackSpeedMultiplier: (cycle) => turboActive ? 1.5 : 1.0,
-      shouldSkipCycle: (cycle) => turboActive && cycle.turboOmit === true,
+      getPauseDuration: (cycle) => adaptiveModePause(cycle),
+      getPlaybackSpeedMultiplier: (cycle) => modeSpeedMultiplier(cycle),
+      shouldSkipCycle: (cycle) => adaptOmitCycleIds.has(cycle.id),
       ensureKnownReady: (cycle) => warmKnownAudio(cycle),
       resolveAudioUrl: (url) => resolveFromCache(url),
     })
