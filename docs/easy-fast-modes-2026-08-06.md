@@ -143,7 +143,27 @@ that tray while I was in it — the tray is for things you flip during a session
 a before-you-start choice one tap deep behind a sliders icon is exactly where Turbo went to
 die and where almost nobody found it.
 
-But it is a small move if you'd rather it sat elsewhere. Screenshot below.
+But it is a small move if you'd rather it sat elsewhere.
+
+Here it is on a phone, both states — Easy selected, then Fast after one tap. This is the
+live dev build, not a mockup:
+
+![Easy selected on the resting screen](img/easy-fast-resting-easy.png)
+
+![Fast selected on the resting screen](img/easy-fast-resting-fast.png)
+
+If the images don't load for you, they're also here:
+https://watson-1.tail4968cb.ts.net/d/ab591529
+
+Verified live on the dev build: the control shows up, one tap flips it either way, the
+selected side is a solid dark pill, the tap target measures exactly 44px, and the choice
+survives a reload. One honest gap — the probe ran in a browser only, so it confirmed the
+choice saves to the device but could **not** confirm it saves to your learner record for
+cross-device. The code writes both; only the device half is proven.
+
+Worth noticing in the screenshot: it opens on **Easy**. That is the new-learner default
+doing its job — a fresh browser has no play history, so it lands on Easy. Your own account,
+which has history, will open on Fast until you tap.
 
 ---
 
