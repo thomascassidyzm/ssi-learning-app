@@ -9,6 +9,10 @@
  *   check via isStrictDescendantGroup(their own govt_admins.group_id, target
  *   id) — never trust a client claim of which group they lead. type/parent_id
  *   stay ssi_admin-only: a leader must never re-parent a group up the tree.
+ *   A rename that would leave two siblings with the same slug answers 409
+ *   `duplicate_name` and writes nothing — the same WARNING POST /api/groups
+ *   gives at creation, never a constraint: the same request re-sent with
+ *   `confirm_duplicate: true` proceeds byte-identically to before.
  * GET (?impact=1): deletion-impact preview (schools/classes/learners in the
  *   group, whether there's real recorded activity) — ssi_admin, OR the
  *   leader of an ANCESTOR group previewing one of their own sub-groups.
@@ -36,6 +40,7 @@ import { computeGroupImpact, deleteGroupCascade } from '../_utils/schoolGroupDel
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
 import { isStrictDescendantGroup } from '../_utils/schoolScope'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -73,6 +78,29 @@ async function resolveAdminOrSubtreeLeader(
   return authResult.userId
 }
 
+/**
+ * The row's own current name and parent, for working out what a PATCH
+ * EFFECTIVELY leaves behind (a patch may change either, both, or neither).
+ * FAILS OPEN like the duplicate lookup itself: null on any error or missing
+ * row means "no warning", never a failed rename.
+ */
+async function readGroupNameAndParent(
+  supabase: SupabaseClient,
+  groupId: string,
+): Promise<{ name: string; parent_id: string | null } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('groups')
+      .select('id, name, parent_id')
+      .eq('id', groupId)
+      .maybeSingle()
+    if (error || !data) return null
+    return { name: String((data as any).name ?? ''), parent_id: ((data as any).parent_id ?? null) as string | null }
+  } catch {
+    return null
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -86,7 +114,7 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   if (req.method === 'PATCH') {
-    const { name, type, parent_id } = req.body || {}
+    const { name, type, parent_id, confirm_duplicate } = req.body || {}
     const wantsNameOnly = name !== undefined && type === undefined && parent_id === undefined
 
     // Try ssi_admin first (can rename/re-type/re-parent anything); fall back
@@ -94,8 +122,10 @@ export default async function handler(
     // request is a name-only change.
     const adminResult = await verifyAdmin(req)
     let callerUserId: string
+    let isAdmin = false
     if (!('error' in adminResult)) {
       callerUserId = adminResult.userId
+      isAdmin = true
     } else {
       const authResult = await verifyAuthToken(req)
       if (!authResult.valid || !authResult.userId) {
@@ -132,6 +162,45 @@ export default async function handler(
         if (await isStrictDescendantGroup(supabase, groupId, parent_id)) {
           res.status(400).json({ error: 'Cannot re-parent a group under its own descendant' })
           return
+        }
+      }
+
+      // Duplicate-name WARNING on rename (never a constraint) — the same rule
+      // POST /api/groups applies at creation, and the same 409 body, so the
+      // client reads it with the one readDuplicateWarning(). Runs AFTER
+      // authorization and the cycle checks and BEFORE the update, so a warned
+      // rename writes nothing at all. `confirm_duplicate: true` skips the
+      // lookup entirely and behaves exactly as this endpoint did before.
+      //
+      // Two things rename has to get right that creation didn't:
+      //  · EXCLUDE THE ROW ITSELF — renaming "Deborah Testing" to
+      //    "deborah-testing" is the same slug on the same row, not a clash.
+      //  · Compare against the EFFECTIVE parent and name after the patch. A
+      //    PATCH may carry both a new name and a new parent_id (ssi_admin
+      //    only), and a pure re-parent that lands a group next to a same-named
+      //    sibling produces exactly the ambiguous path this warning exists for.
+      // Both reads fail open (see _utils/groupSlug.ts): no warning ever costs
+      // someone their rename.
+      if (!confirm_duplicate && (name !== undefined || parent_id !== undefined)) {
+        const current = await readGroupNameAndParent(supabase, groupId)
+        if (current) {
+          const effectiveName = name !== undefined ? String(name).trim() : current.name
+          const effectiveParent = parent_id !== undefined ? (parent_id || null) : current.parent_id
+          const duplicates = (await findSiblingSlugCollisions(supabase, effectiveName, effectiveParent))
+            .filter((d) => d.id !== groupId)
+          if (duplicates.length > 0) {
+            // Same redaction rule as creation: a ROOT collision is with
+            // another tenant's organisation, so a non-admin sees only the name
+            // and the date. A non-root collision is a sibling inside the
+            // subtree this caller has already been validated against.
+            res.status(409).json(
+              duplicateNameBody(duplicates, {
+                detailed: isAdmin || !!effectiveParent,
+                noun: effectiveParent ? 'group' : 'organisation',
+              }),
+            )
+            return
+          }
         }
       }
 

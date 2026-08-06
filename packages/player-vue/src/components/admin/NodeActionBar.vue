@@ -304,21 +304,40 @@ function openRename(): void {
   renameValue.value = props.node.name
   toggle('rename')
 }
-async function submitRename(): Promise<void> {
+// Duplicate-name warning on rename — another group under the SAME parent
+// already slugs to this name. Nothing was renamed; the caller changes the
+// name or confirms, and confirming re-sends with confirm_duplicate: true.
+const renameDuplicateWarning = ref<string | null>(null)
+watch(renameValue, () => { renameDuplicateWarning.value = null })
+
+/**
+ * `confirmDuplicate` MUST be passed with explicit parens by every template
+ * call site — @keyup.enter="submitRename" would hand this the KeyboardEvent,
+ * which is truthy, and silently confirm a duplicate. Pinned by a test.
+ */
+async function submitRename(confirmDuplicate = false): Promise<void> {
   const name = renameValue.value.trim()
   if (!name || isRenaming.value) return
   if (name === props.node.name) { openForm.value = null; return }
   isRenaming.value = true
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name }
+    if (confirmDuplicate === true) body.confirm_duplicate = true
     const resp = await fetch(`/api/groups/${props.node.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, 'group')
+    if (duplicate) {
+      renameDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(`Renamed to "${name}".`)
+    renameDuplicateWarning.value = null
     openForm.value = null
     emit('renamed', name)
     emit('changed')
@@ -498,11 +517,22 @@ function closeDelete(): void {
         {{ isMinting ? 'Minting…' : 'Mint' }}
       </button>
     </div>
-    <div v-else-if="openForm === 'rename'" class="verb-form">
-      <input v-model="renameValue" type="text" class="frost-input" placeholder="New name" @keyup.enter="submitRename" @keyup.escape="openForm = null" />
-      <button class="btn-primary-sm" :disabled="isRenaming || !renameValue.trim()" @click="submitRename">
-        {{ isRenaming ? 'Saving…' : 'Save' }}
-      </button>
+    <div v-else-if="openForm === 'rename'" class="verb-form-block">
+      <div class="verb-form">
+        <input v-model="renameValue" type="text" class="frost-input" placeholder="New name" @keyup.enter="submitRename()" @keyup.escape="openForm = null" />
+        <button class="btn-primary-sm" :disabled="isRenaming || !renameValue.trim()" @click="submitRename()">
+          {{ isRenaming ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+      <div v-if="renameDuplicateWarning" class="duplicate-warning" role="alert">
+        <p class="duplicate-warning-text">{{ renameDuplicateWarning }}</p>
+        <div class="duplicate-warning-actions">
+          <button type="button" class="btn-ghost-sm" @click="renameDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-primary-sm" :disabled="isRenaming" @click="submitRename(true)">
+            {{ isRenaming ? 'Saving…' : 'Go ahead anyway' }}
+          </button>
+        </div>
+      </div>
     </div>
     <div v-else-if="openForm === 'courses'" class="verb-form verb-form-block">
       <NodeEntitlementControl :node-id="entitlementNodeId" :node-type="entitlementNodeType" />

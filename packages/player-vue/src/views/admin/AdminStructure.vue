@@ -215,27 +215,79 @@ function startRename(node: StructureNode): void {
   editingId.value = node.id
   editingName.value = node.name
 }
-function cancelRename(): void { editingId.value = null }
+function cancelRename(): void { editingId.value = null; clearRenameWarning() }
 
-async function saveRename(node: StructureNode): Promise<void> {
-  const newName = editingName.value.trim()
+// Duplicate-name warning on RENAME — the same 409 `duplicate_name` the
+// creation surfaces read, from PATCH /api/groups/:id. Nothing was renamed:
+// the pending rename is held so "Go ahead anyway" can re-send the identical
+// request with confirm_duplicate: true, and "Change the name" re-opens the
+// input on the name they typed.
+const renameDuplicateWarning = ref<string | null>(null)
+const pendingRename = ref<{ node: StructureNode; name: string } | null>(null)
+
+/**
+ * `confirmDuplicate` is an explicit boolean and every template call site
+ * passes it (or nothing) with parens — an @keyup.enter handler called bare
+ * would hand this a KeyboardEvent, which is truthy, and silently confirm a
+ * duplicate with no warning at all. Pinned by a test.
+ */
+async function saveRename(node: StructureNode, confirmDuplicate = false): Promise<void> {
+  const newName = confirmDuplicate
+    ? (pendingRename.value?.name || '')
+    : editingName.value.trim()
   editingId.value = null
-  if (!newName || newName === node.name) return
+  if (!newName || (!confirmDuplicate && newName === node.name)) return
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name: newName }
+    if (confirmDuplicate === true) body.confirm_duplicate = true
     const resp = await fetch(`/api/groups/${node.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, node.parent_id ? 'group' : 'organisation')
+    if (duplicate) {
+      pendingRename.value = { node, name: newName }
+      renameDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || 'Failed to rename')
     setSuccess(`Renamed to "${newName}"`)
+    clearRenameWarning()
     await refetchCurrentLens()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to rename'
   }
 }
+
+function clearRenameWarning(): void {
+  renameDuplicateWarning.value = null
+  pendingRename.value = null
+}
+
+/** "Change the name" — back into the rename input, on the name they typed. */
+function reopenRename(): void {
+  const pending = pendingRename.value
+  renameDuplicateWarning.value = null
+  if (!pending) return
+  editingId.value = pending.node.id
+  editingName.value = pending.name
+  pendingRename.value = null
+}
+
+/** "Go ahead anyway" — the identical PATCH, plus confirm_duplicate. */
+async function confirmRename(): Promise<void> {
+  const pending = pendingRename.value
+  if (!pending) return
+  renameDuplicateWarning.value = null
+  await saveRename(pending.node, true)
+}
+
+// Editing the name is "change the name" — a fresh name always gets a fresh
+// answer from the server, never a stale confirmation (same rule as creation).
+watch(editingName, () => { if (renameDuplicateWarning.value) clearRenameWarning() })
 
 async function updateLabel(node: StructureNode, label: string): Promise<void> {
   if (label === node.label) return
@@ -431,6 +483,15 @@ onMounted(() => { void refresh() })
             <button type="button" class="btn-ghost-sm" :disabled="isCreatingOrg" @click="createOrganisation(true)">
               {{ isCreatingOrg ? 'Adding…' : 'Go ahead anyway' }}
             </button>
+          </div>
+        </div>
+
+        <!-- Same warning, same two ways out, for a RENAME onto a sibling's name. -->
+        <div v-if="renameDuplicateWarning" class="duplicate-warning root-inline-form" role="alert">
+          <p class="duplicate-warning-text">{{ renameDuplicateWarning }}</p>
+          <div class="duplicate-warning-actions">
+            <button type="button" class="btn-ghost-sm" @click="reopenRename()">Change the name</button>
+            <button type="button" class="btn-ghost-sm" @click="confirmRename()">Go ahead anyway</button>
           </div>
         </div>
 
