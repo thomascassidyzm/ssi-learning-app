@@ -154,7 +154,8 @@
 | 89 | App→User | Errors: "Password must be at least 6 characters" / "Passwords do not match" / server error; success → "Password saved" |
 | 90 | App→User | Unverified-primary-email banner (possession-onboarded accounts only) with "Verify now" |
 | 91 | User→App | Click "Verify now" |
-| 92 | App→App | Pre-fills the add-email flow with the primary email and immediately sends an OTP |
+| 92 | App→App | Pre-fills the add-email flow with the primary email and immediately sends an OTP. The already-linked duplicate check (step 95) is **skipped for the account's own still-unverified primary** (`isAlreadyLinkedEmail`, `utils/emailVerifyGuard.ts`) — `ensureLearnerExists()` back-fills the session's own email into `verified_emails` on every load, so applying it uniformly made "Verify now" a dead button that could never send a code |
+| 92a | App→User | Outcome is mirrored **next to the "Verify now" button** (`.setting-status`): the error, or "Code sent — enter it below". The form itself renders under a collapsed section and is off-screen on a phone, so an error rendered only there reads as the button doing nothing |
 | 93 | App→User | "Linked Emails" row (clickable, shows count / "Add another email to sign in with") |
 | 94 | User→App | Type new email, click "Send verification code" |
 | 95 | App→App | Client regex validation; duplicate check against `verifiedEmails`; `supabase.auth.signInWithOtp({ email, shouldCreateUser: true })` |

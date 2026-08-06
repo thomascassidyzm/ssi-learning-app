@@ -2,6 +2,7 @@
 import { ref, provide, onMounted, defineAsyncComponent, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
+import { lastDashboardPath } from './router'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
@@ -46,6 +47,16 @@ installConsoleDedup()
 const route = useRoute()
 const router = useRouter()
 const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
+
+// The immersive player opts out of AppEscape above — a plain learner sees no
+// chrome at all, which is the point. But since the owner ruling of 2026-08-06
+// ("entering the player always gives the navless player"), staff self-practice
+// lands here too, with no shell nav to get home. For those users only — the ones
+// carrying a `ssi-last-dashboard` breadcrumb — show the same low-emphasis pill
+// pointed at their own surface, so they aren't stranded.
+const dashboardEscape = computed(() =>
+  route.name === 'player' ? lastDashboardPath() : null,
+)
 
 // RedeemCode.vue (mounted at /redeem and /group) owns the pendingCode it
 // creates and drives its own inline auth/details UI — the global sign-in
@@ -713,6 +724,7 @@ onMounted(async () => {
   <div class="app-root">
     <router-view />
     <AppEscape v-if="showAppEscape" />
+    <AppEscape v-else-if="dashboardEscape" :to="dashboardEscape" />
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
