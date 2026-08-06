@@ -28,6 +28,8 @@ interface MockAudio {
   // Helpers our tests use to simulate browser behavior
   _endedHandler?: () => void
   _errorHandler?: (e: Event) => void
+  _timeUpdateHandler?: () => void
+  currentTime?: number
 }
 
 function makeMockAudio(): MockAudio {
@@ -48,6 +50,7 @@ function makeMockAudio(): MockAudio {
   a.addEventListener.mockImplementation((event: string, handler: () => void) => {
     if (event === 'ended') a._endedHandler = handler
     if (event === 'error') a._errorHandler = handler as (e: Event) => void
+    if (event === 'timeupdate') a._timeUpdateHandler = handler
   })
   return a
 }
@@ -1333,5 +1336,221 @@ describe('SimplePlayer — never stalls on one item (the ruling)', () => {
 
     expect(failedEvents.map((e) => e.reason)).toEqual(['needs-gesture'])
     expect(player.currentState.isPlaying).toBe(false)
+  })
+})
+
+describe('SimplePlayer — A-22: a dead audio id (404 from the proxy) never stops the session', () => {
+  // The A-22 field case (learner "beunollyn", 2026-08-06): a bare
+  // /api/audio/<uuid> for an audio id with NO ROW in course_audio. The proxy
+  // answers with its 404 HTML page, so the media element gets a resource it
+  // cannot decode and reports MEDIA_ERR_SRC_NOT_SUPPORTED (code 4). A 0.6s
+  // clip cost a 39-second dead stall and the whole session.
+  //
+  // This differs from the "with you" stall these tests were first written for:
+  // that one was a client-side promise that never settled, this one is a real
+  // network 404. Same ruling, different trigger — the fence has to cover both.
+  const MEDIA_ERR_SRC_NOT_SUPPORTED = 4
+
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 8; i++) await Promise.resolve()
+  }
+
+  /**
+   * Drive one 404: the element errors, the player burns its silent retry, the
+   * element errors again. That is the full life of an id that does not exist —
+   * re-fetching a 404 gets another 404.
+   */
+  const fail404Once = async (): Promise<void> => {
+    mockAudio.error = { code: MEDIA_ERR_SRC_NOT_SUPPORTED }
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+  }
+
+  it('a 404 on the PROMPT clip skips that clip and plays on', async () => {
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    expect(player.currentState.phase).toBe('prompt')
+
+    await fail404Once()
+
+    expect(player.currentState.isPlaying).toBe(true)
+    expect(player.currentState.phase).not.toBe('prompt')
+    // Loud, with the diagnostics the admin surfaces group on.
+    expect(failed.map((e) => e.attempt)).toEqual([1, 2])
+    expect(failed.every((e) => e.reason === 'play-error')).toBe(true)
+    expect(failed[1].errorCode).toBe(MEDIA_ERR_SRC_NOT_SUPPORTED)
+    expect(failed[1].role).toBe('known')
+  })
+
+  it('a 404 on a TARGET clip skips that clip and plays on', async () => {
+    // The A-22 clip was a target. Reaching voice1 means the prompt played
+    // fine and only the target id is dead — the common shape when one row of
+    // course_audio went missing rather than a whole cycle.
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    // Prompt plays cleanly, then 'ended' carries us into voice1.
+    mockAudio._endedHandler!()
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+
+    await fail404Once()
+
+    expect(player.currentState.isPlaying).toBe(true)
+    expect(player.currentState.phase).not.toBe('voice1')
+    expect(failed.map((e) => e.role)).toEqual(['target1', 'target1'])
+  })
+
+  it('a cycle whose THREE clips are all dead is walked through, not sat on', async () => {
+    // The worst per-cycle case: the lego lost every one of its three audio
+    // rows. The learner loses this item — that is the puncture — but the
+    // session must drive on to the next round rather than stopping.
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+
+    // prompt, voice1, voice2 — each 404s through retry.
+    for (let i = 0; i < 3 && player.currentState.roundIndex === 0; i++) {
+      await fail404Once()
+      await vi.advanceTimersByTimeAsync(100)
+      await flush()
+    }
+
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.isPlaying).toBe(true)
+    // Every dead role was reported, so the release gate can hear about it.
+    expect(new Set(failed.filter((e) => e.attempt === 2).map((e) => e.role)))
+      .toEqual(new Set(['known', 'target1', 'target2']))
+  })
+
+  it('a whole ROUND of dead audio still leaves the learner driving forward', async () => {
+    // A course whose audio import dropped a contiguous block: every clip in
+    // round 1 is dead, round 2 is healthy. "A puncture on every wheel must
+    // still leave the learner driving forward."
+    const player = new SimplePlayer(['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound))
+    player.play()
+    await flush()
+
+    for (let i = 0; i < 12 && player.currentState.roundIndex === 0; i++) {
+      await fail404Once()
+      await vi.advanceTimersByTimeAsync(100)
+      await flush()
+    }
+
+    expect(player.currentState.roundIndex).toBeGreaterThan(0)
+    expect(player.currentState.isPlaying).toBe(true)
+  })
+
+  it('a 404 is NEVER mistaken for needs-gesture — a missing file is not a tap problem', async () => {
+    // The one halt the ruling keeps is needs-gesture. If a 404 could reach it
+    // the A-22 case would still stop the session, just by another door.
+    // Browsers reject play() for an undecodable source with NotSupportedError.
+    const notSupported = Object.assign(
+      new Error('Failed to load because no supported source was found.'),
+      { name: 'NotSupportedError' },
+    )
+    mockAudio.play = vi.fn().mockRejectedValue(notSupported)
+
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    await vi.advanceTimersByTimeAsync(100)
+    await flush()
+
+    expect(failed.some((e) => e.reason === 'needs-gesture')).toBe(false)
+    // It did not sit on the first clip: it skipped through and reported each
+    // dead clip as a play-error.
+    expect(failed.filter((e) => e.reason === 'play-error' && e.attempt === 2).length)
+      .toBeGreaterThan(0)
+  })
+
+  it('an entirely dead session races to the end in silence — the cost of never aborting', async () => {
+    // ADVERSARIAL: skipping is instantaneous, so a course whose audio is
+    // wholly missing does not stall — it burns the learner's whole queue in
+    // milliseconds with nothing audible. That is the correct trade under the
+    // ruling (a stall is worse), but it is NOT free, and this test pins the
+    // behaviour so the cost stays visible rather than being discovered in the
+    // field a second time. Every skipped clip is reported, which is what the
+    // release gate and the admin diagnostics have to key on.
+    const notSupported = Object.assign(
+      new Error('Failed to load because no supported source was found.'),
+      { name: 'NotSupportedError' },
+    )
+    mockAudio.play = vi.fn().mockRejectedValue(notSupported)
+
+    const player = new SimplePlayer(['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    let completed = false
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+    player.on('session_complete', () => { completed = true })
+
+    player.play()
+    await flush()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flush()
+
+    // Three rounds x three clips, each reported dead — nothing was played and
+    // nothing was hidden.
+    const dead = failed.filter((e) => e.reason === 'play-error' && e.attempt === 2)
+    expect(dead.length).toBe(9)
+    expect(completed).toBe(true)
+    // The silence is COUNTED, so a hollow session is legible downstream
+    // instead of looking like nine unrelated one-off punctures.
+    expect(dead[dead.length - 1].consecutiveSkips).toBe(9)
+  })
+
+  it('one bad clip among healthy ones is a puncture, not a silent session', async () => {
+    // The counter must not cry wolf: a single dead clip surrounded by working
+    // audio has to read as consecutiveSkips=1, and it must reset once real
+    // playback progress is observed again.
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    await fail404Once()
+
+    const firstSkip = failed.find((e) => e.attempt === 2)!
+    expect(firstSkip.consecutiveSkips).toBe(1)
+
+    // The next clip plays properly — timeupdate reports real progress.
+    mockAudio.error = null
+    mockAudio.currentTime = 0.4
+    mockAudio._timeUpdateHandler?.()
+    await flush()
+
+    // A later, unrelated dead clip starts the count again from one.
+    await fail404Once()
+    const laterSkip = failed.filter((e) => e.attempt === 2).pop()!
+    expect(laterSkip.consecutiveSkips).toBe(1)
   })
 })
