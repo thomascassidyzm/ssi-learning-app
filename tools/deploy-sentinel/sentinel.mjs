@@ -134,6 +134,34 @@ function githubDeployState(sha) {
   }
 }
 
+// Live play probe: drives production in a real headless browser and verifies a
+// learner can load, play, and that the client's telemetry POST lands. The
+// deterministic confirm/refute for a volume crater (which false-alarms at
+// small-N traffic hours — twice, 2026-08-01 and 2026-08-06). Returns
+// { ran, ok, detail }; ran:false when no browser/libs exist on this machine.
+function playProbe() {
+  const chromeDirs = ['chromium-1234', 'chromium-1228', 'chromium-1208']
+    .map((d) => join(process.env.HOME, '.cache/ms-playwright', d, 'chrome-linux64/chrome'))
+  const chrome = chromeDirs.find((p) => existsSync(p))
+  const libs = join(process.env.HOME, '.ssi-sentinel-libs')
+  const script = join(REPO, 'packages/player-vue/e2e/deploy-sentinel-play-probe.mjs')
+  if (!chrome || !existsSync(libs) || !existsSync(script)) {
+    return { ran: false, detail: 'no headless browser on this machine' }
+  }
+  try {
+    const out = execFileSync('node', [script], {
+      cwd: join(REPO, 'packages/player-vue'),
+      env: { ...process.env, CHROME_BIN: chrome, LD_LIBRARY_PATH: libs },
+      encoding: 'utf8', timeout: 150000,
+    })
+    const verdict = JSON.parse(out.trim().split('\n').pop())
+    return { ran: true, ok: verdict.ok === true, detail: JSON.stringify(verdict).slice(0, 300) }
+  } catch (e) {
+    const out = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
+    return { ran: true, ok: false, detail: out.slice(0, 300) }
+  }
+}
+
 async function liveBuildNumber() {
   const r = await fetchText(`${PROD}/version.json?sentinel=${now()}`, {}, 15000)
   if (r.status !== 200) return null
@@ -288,6 +316,19 @@ async function tick() {
     }
   }
 
+  // (d) one scheduled live play-through per window, ~25 min in (after the SW/CDN
+  // settle) — catches a client-side crash deterministically, hours before the
+  // volume verdict could.
+  if (!win.playProbe && win.deployLiveAt && now() - win.deployLiveAt > 25 * 60 * 1000) {
+    const probe = playProbe()
+    win.playProbe = { at: iso(now()), ...probe }
+    log(`scheduled play probe: ${JSON.stringify(win.playProbe)}`)
+    if (probe.ran && !probe.ok) {
+      await alertOnce('probe:live-play',
+        `DEPLOY FALLOUT after ${short}: a real browser play-through of saysomethingin.app FAILED — ${probe.detail}. Learners likely can't play.`)
+    }
+  }
+
   // (b) telemetry — every ~15 min
   let tele = win.lastTelemetry || null
   if (now() - (win.lastTelemetryAt || 0) >= TELEMETRY_EVERY_MS) {
@@ -295,9 +336,18 @@ async function tick() {
     tele = await telemetryVerdict(win)
     win.lastTelemetry = tele
     log(`telemetry: ${JSON.stringify(tele)}`)
-    if (tele.verdict === 'crater') {
-      await alertOnce('telemetry',
-        `Possible fallout from tonight's deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}. This can mean learners can't load or play. Worth a quick look at saysomethingin.app.`)
+    if (tele.verdict === 'crater' && !win.alerted['telemetry']) {
+      // Volume craters false-alarm at small-N hours: confirm with a real
+      // browser play-through before waking Tom. Probe passes => demote to a
+      // note; probe fails or can't run => the alert stands.
+      const probe = playProbe()
+      if (probe.ran && probe.ok) {
+        win.craterRefuted = { at: iso(now()), tele, probe: probe.detail }
+        log(`crater verdict REFUTED by live play probe: ${probe.detail}`)
+      } else {
+        await alertOnce('telemetry',
+          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
+      }
     }
   }
 
@@ -311,7 +361,9 @@ async function tick() {
           : tele.verdict === 'too-quiet'
             ? `telemetry: this hour is naturally quiet in prior weeks (${tele.baseline?.join('/')}) — volume not judged`
             : `telemetry: ${tele.window} events vs quietest-recent-week ${tele.baselineRef} — healthy`
-      const probeLine = `probes: ${probes.filter((p) => p.ok).length}/${probes.length} green`
+      const probeLine = `probes: ${probes.filter((p) => p.ok).length}/${probes.length} green` +
+        (win.playProbe?.ran ? `; live play-through ${win.playProbe.ok ? 'passed' : 'FAILED'}` : '') +
+        (win.craterRefuted ? '; low volume was double-checked by a live play-through — app healthy' : '')
       const deployLine = win.deployLiveAt
         ? `deploy ${short} live at ${iso(win.deployLiveAt)}`
         : `deploy ${short} NEVER confirmed live` // unreachable without an alert, but honest

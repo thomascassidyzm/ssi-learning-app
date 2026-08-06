@@ -26,6 +26,19 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    `/api/courses/available`, `/api/audio/<known-good id>`, and an OPTIONS on
    `/api/player-events` (no fake events are ever written). A probe alerts after
    2 consecutive failing ticks.
+4. **Live play-through** — a real headless-browser session
+   (`packages/player-vue/e2e/deploy-sentinel-play-probe.mjs`) loads production,
+   starts the player, and verifies zero JS errors + the client's telemetry POST
+   returns 2xx. Runs once per window (~25 min after deploy-live) and again as
+   the confirm/refute step whenever the volume check says crater — volume alone
+   false-alarmed twice (2026-08-01 quiet Friday midnight; 2026-08-06 school
+   learners finishing before lunch), because with a handful of concurrent users
+   the volume signal is statistically meaningless at most hours. A passing
+   play-through demotes a crater to a note; a failing one alerts loudly.
+   Needs the playwright chromium under `~/.cache/ms-playwright` plus the
+   nspr/nss libs in `~/.ssi-sentinel-libs` (extracted from the Ubuntu debs —
+   no root needed); without them the leg reports unavailable and volume alerts
+   stand un-gated.
 
 ## Outcome routing
 
