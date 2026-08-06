@@ -32,11 +32,11 @@ export interface SimplePlayerRuntimeOverrides {
    * after a brief threshold so the learner sees an explanation instead
    * of a silent PROMPT.
    *
-   * Implementations MUST bound the wait (5s is a reasonable ceiling).
-   * If the override rejects or times out, we fall through to playAudio
-   * and the existing retry-once-then-halt machinery takes over — so a
-   * permanent network failure still surfaces as a clean halt, not a
-   * deadlocked player. */
+   * The engine bounds this itself (ENSURE_KNOWN_READY_TIMEOUT_MS) — an
+   * implementation that never settles cannot strand the learner in
+   * 'buffering'. Past the bound, or on rejection, we fall through to the play
+   * attempt; if bytes really never arrive, the clip is retried once and then
+   * SKIPPED so the session continues (the ruling), never halted. */
   ensureKnownReady?: (cycle: Cycle) => Promise<void>
   /**
    * Optional URL resolver called just before playAudio for known / target1
@@ -88,14 +88,14 @@ export interface AudioFailedEvent {
    *   tab); play() rejected with NotAllowedError. UI prompts "tap to
    *   resume" and a user tap restores playback. The browser will not
    *   play ANY audio until that tap, so we must halt.
-   * - 'play-error': audio element fired `error` (bad UUID / 404 / decode
-   *   / CORS / blob-URL race against the per-cycle resolver). Emitted twice
-   *   per cycle in the failure path: once with attempt=1 just before
-   *   the silent retry, and once with attempt=2 if the retry also
-   *   fails. The attempt=2 emission accompanies a halt — the player
-   *   pauses and the UI offers tap-to-retry — because advancing the
-   *   phase machine while no sound came out lies to the learner about
-   *   what they just heard.
+   * - 'play-error': the clip could not be played (bad UUID / 404 / decode /
+   *   CORS / blob-URL race against the per-cycle resolver / a hung URL
+   *   resolve caught by the phase watchdog). Emitted twice per cycle in the
+   *   failure path: once with attempt=1 just before the silent retry, and
+   *   once with attempt=2 if the retry also fails. attempt=2 accompanies a
+   *   SKIP, not a halt — the player plays what it has and moves on, loudly
+   *   logged (see skipFailedClip and the ruling block below). Telemetry
+   *   shape is unchanged so admin diagnostics keep grouping on it.
    */
   reason: 'needs-gesture' | 'play-error'
   /**
@@ -109,13 +109,86 @@ export interface AudioFailedEvent {
   cycleId?: string
   /** HTMLMediaElement.error?.code if available (1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED). */
   errorCode?: number
-  /** 1 = first try, 2 = retry. attempt=2 in a 'play-error' event means we've halted. */
+  /** 1 = first try, 2 = retry. attempt=2 in a 'play-error' event means the
+   * clip was skipped (playback continued). */
   attempt?: 1 | 2
   lastError?: string
+  /**
+   * How many clips in a row have now been skipped without a single one
+   * playing (reset by the first real playback progress). 1 is a puncture —
+   * expected, survivable, the ruling in action. A large and climbing number
+   * means the learner is being driven through SILENCE: the session will still
+   * reach 'session_complete', but nothing was audible.
+   *
+   * This exists because never-aborting has a cost that a stall did not have.
+   * A stall was at least self-evident to the learner. Skipping is instant, so
+   * a course with a wholly missing audio block races to a "session complete"
+   * screen in milliseconds having taught nothing. The player must NOT stop —
+   * that is settled — so the counter is how the failure stays loud instead:
+   * it rides the existing telemetry to the release gate and the admin
+   * diagnostics, which is where a hollow course is supposed to be caught.
+   */
+  consecutiveSkips?: number
 }
 
 // Fallback: bootUpTime(2000) + scaleFactor(0.75) × estimatedTarget(6000) = 6500ms
 const DEFAULT_PAUSE_DURATION = 6500
+
+// ---------------------------------------------------------------------------
+// THE RULING: the player plays what it has.
+//
+// A clip that fails to load, is missing, or is slow must be SKIPPED so the
+// session continues. It must NEVER stall. The two bounds below are what make
+// that structural rather than aspirational.
+//
+// Field report (Aran, 2026-08-06, German, item "with you"): playback hard-
+// stopped on one item and would not restart; skipping BACK re-entered the
+// stall every time; only skipping FORWARD past it recovered; all practice for
+// that item was lost. The server resolved all three clips fine — this was a
+// CLIENT stall.
+//
+// Root cause: startPhase() awaits `resolveUrl()` (the resolveAudioUrl runtime
+// override) before every prompt / voice1 / voice2, with NO timeout and NO
+// timer armed anywhere. The stall watchdog (armSafetyTimer) only exists once
+// playAudio() has been reached, so during that await the engine has phase set,
+// isPlaying true, and not a single timer running. If the override's promise
+// never settles, the session is dead where it stands — no audio, no advance,
+// no error, nothing to retry.
+//
+// The override is live for every learner (LearningPlayer's cachePlayOnline is
+// on unless ?stream), and resolves through AudioCache.getWavBlobUrl → an mp3→
+// WAV decode. getWavBlobUrl MEMOISES the in-flight promise per audio id, so a
+// single non-settling decode poisons that ONE id permanently: replaying the
+// item re-awaits the same dead promise (skip BACK reproduces), while every
+// other id is untouched (skip FORWARD escapes). That is exactly the reported
+// asymmetry.
+//
+// Fix, in two layers:
+//   1. resolveUrl() is bounded — past the ceiling we fall back to the original
+//      network URL, which is always playable.
+//   2. A PHASE WATCHDOG covers the whole window from phase entry to the moment
+//      playAudio() actually assigns a src. Nothing inside that window — this
+//      await, ensureKnownReady, or anything added later — can outlive the
+//      bound: the watchdog fires, logs loudly, and SKIPS the clip by routing
+//      through the normal onAudioEnded advance.
+// The cache layer carries its own bound too (AudioCache.getWavBlobUrl), so the
+// poisoned-memo class is closed at source as well as survived here.
+// ---------------------------------------------------------------------------
+
+/** Ceiling on the resolveAudioUrl override. Documented as "must resolve
+ * cheaply (sub-ms)"; 4s is orders of magnitude of headroom, and past it the
+ * original network URL is strictly better than waiting. */
+const RESOLVE_URL_TIMEOUT_MS = 4_000
+
+/** Ceiling on the ensureKnownReady pre-PROMPT gate. Its own docblock already
+ * requires implementations to bound themselves at ~5s; the engine now enforces
+ * that rather than trusting it. */
+const ENSURE_KNOWN_READY_TIMEOUT_MS = 5_000
+
+/** Ceiling on "phase entered → audio element actually told to play". Covers
+ * every await on the path, present and future. Generous enough that a slow-
+ * but-working resolve (bounded at 4s above) still lands inside it. */
+const PHASE_START_TIMEOUT_MS = 8_000
 
 // ---------------------------------------------------------------------------
 // Background-safe PAUSE phase.
@@ -160,6 +233,14 @@ const SILENT_CLIP_DURATION_S = 12
 
 const SILENT_PAUSE_CLIP = buildSilentWavDataUri(SILENT_CLIP_DURATION_S)
 
+/**
+ * Consecutive skipped clips at which the log escalates from "a puncture" to
+ * "this session is running silent". Three is one whole cycle's worth of clips
+ * (prompt + both target voices), i.e. the learner has now been shown a full
+ * item they could not hear any part of.
+ */
+const CONSECUTIVE_SKIP_ALARM = 3
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -179,12 +260,21 @@ export class SimplePlayer {
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  // Clips skipped back-to-back with no audible playback in between. See
+  // AudioFailedEvent.consecutiveSkips for why this is tracked.
+  private consecutiveSkips: number = 0
   // playGeneration the currently-armed play-path safety watchdog belongs to,
   // and the highest currentTime seen for it. The watchdog is a STALL detector:
   // each timeupdate that shows real progress reschedules it, so a healthy clip
   // that legitimately runs past the window is never truncated. See armSafetyTimer.
   private safetyGen: number = 0
   private lastAudioCurrentTime: number = 0
+  // Phase-start watchdog: armed on entry to every audio-bearing phase, cleared
+  // the moment playAudio() reaches the element. Guarantees the ruling — no
+  // await between phase entry and audio can strand the session. See the
+  // "THE RULING" block above.
+  private phaseWatchdogTimer: ReturnType<typeof setTimeout> | null = null
+  private phaseWatchdogToken: number = 0
   // True only while the silent pause clip is sounding on this.audio. Lets the
   // 'ended' hub and the teardown chokepoint tell a pause clip apart from a real
   // voice clip.
@@ -343,6 +433,7 @@ export class SimplePlayer {
       errorCode,
       attempt,
       lastError,
+      consecutiveSkips: this.consecutiveSkips,
     }
   }
 
@@ -370,8 +461,20 @@ export class SimplePlayer {
       return
     }
 
-    // Retry already burned (or no URL to retry against) — halt.
-    this.tripPlayError(errorCode, lastError)
+    // Retry already burned (or no URL to retry against) — SKIP this clip and
+    // carry on. This used to halt the session (pause + tap-to-retry chip) on
+    // the reasoning that "advancing while no sound came out lies to the
+    // learner about what they just heard". Tom's standing ruling overrides
+    // that: the player plays what it has, and a clip that cannot be played is
+    // skipped so the session continues. A permanently-unplayable clip (a
+    // revoked/empty blob URL, a decode the device refuses) otherwise halts on
+    // the SAME item every single replay — a reproducible hard stop on one
+    // item, which is precisely what the ruling exists to prevent.
+    //
+    // 'needs-gesture' still halts (tripGestureRequired): there the browser
+    // will not play ANY audio until the learner taps, so skipping would burn
+    // the whole session in silence rather than lose one clip.
+    this.skipFailedClip(errorCode, lastError)
   }
 
   /**
@@ -409,30 +512,49 @@ export class SimplePlayer {
         this.tripGestureRequired(err.message || 'autoplay blocked')
         return
       }
-      // Retry failed — halt with the play-error reason.
-      this.tripPlayError(undefined, err?.message)
+      // Retry failed — skip this clip, don't halt (see skipFailedClip).
+      this.skipFailedClip(undefined, err?.message)
     })
     this.safetyTimer = setTimeout(() => {
       if (gen !== this.playGeneration) return
-      console.warn('[SimplePlayer] Safety timeout on retry — halting')
-      this.tripPlayError(undefined, 'safety-timeout-after-retry')
+      console.warn('[SimplePlayer] Safety timeout on retry — skipping this clip')
+      this.skipFailedClip(undefined, 'safety-timeout-after-retry')
     }, 10_000)
   }
 
   /**
-   * Halt the player after a failed retry. Same shape as
-   * tripGestureRequired: pause audio, clear timers, drop isPlaying, emit
-   * audio_failed. UI surfaces a "tap to retry" affordance bound to the
-   * same resume() flow as the gesture-required path.
+   * The clip cannot be played (retry burned, or nothing to retry against).
+   * Log loudly, keep the telemetry contract (audio_failed attempt=2, which is
+   * what the admin diagnostics group on), and ADVANCE — the phase machine
+   * moves on exactly as if the clip had finished, so the session continues.
+   *
+   * Deliberately does NOT touch isPlaying: the ruling is that playback
+   * continues. A halt here is what produced Aran's dead session on "with you".
    */
-  private tripPlayError(errorCode: number | undefined, lastError?: string): void {
-    console.warn('[SimplePlayer] Audio playback failed after retry — halting session')
-    this.audio.pause()
-    this.clearPauseTimer()
-    this.clearSafetyTimer()
-    this.clearLingerTimer()
-    this.updateState({ isPlaying: false })
+  private skipFailedClip(errorCode: number | undefined, lastError?: string): void {
+    const cycle = this.currentCycle
+    // Counted before the emit so the telemetry payload carries this skip.
+    this.consecutiveSkips++
+    if (this.consecutiveSkips >= CONSECUTIVE_SKIP_ALARM) {
+      console.error(
+        `[SimplePlayer] ${this.consecutiveSkips} clips skipped in a row with nothing audible — ` +
+        `this session is running SILENT. The player will not stop (standing ruling), but this ` +
+        `course has a dead audio block and should never have passed the release gate.`,
+      )
+    }
+    console.error(
+      `[SimplePlayer] Audio unplayable after retry — SKIPPING this clip and continuing. ` +
+      `phase=${this.state.phase} role=${this.phaseToRole()} legoId=${cycle?.legoId} ` +
+      `cycleId=${cycle?.id} known="${cycle?.known?.text}" target="${cycle?.target?.text}" ` +
+      `errorCode=${errorCode} lastError=${lastError}`,
+    )
     this.emit('audio_failed', this.buildFailedContext(errorCode, 2, lastError))
+    this.audio.pause()
+    this.clearSafetyTimer()
+    // Retry budget is per clip — the next clip gets its own.
+    this.retryAttempted = false
+    this.retryUrl = null
+    this.onAudioEnded()
   }
 
   // Event emitter
@@ -897,6 +1019,13 @@ export class SimplePlayer {
 
     this.emit('phase_changed', { phase, cycle: this.currentCycle, round: this.currentRound })
 
+    // Arm the phase-start watchdog for every audio-bearing phase, BEFORE any
+    // await below. From here until playAudio() assigns a src there is now
+    // always a live bound — see the "THE RULING" block at the top of the file.
+    if (phase === 'prompt' || phase === 'voice1' || phase === 'voice2') {
+      this.armPhaseWatchdog()
+    }
+
     // Safety check: ensure we have the required data before playing
     const currentCycle = this.currentCycle
 
@@ -944,12 +1073,20 @@ export class SimplePlayer {
           if (ensureReady && !isSingleAudioCycle) {
             this.updateState({ phase: 'buffering' })
             try {
-              await ensureReady(currentCycle)
+              // Bounded: an override that never settles must not strand the
+              // learner in 'buffering' forever. The phase watchdog would
+              // eventually skip the clip anyway; this lands the common case on
+              // the play attempt instead, which is the better outcome.
+              await this.withBound(
+                ensureReady(currentCycle),
+                ENSURE_KNOWN_READY_TIMEOUT_MS,
+                'ensureKnownReady',
+                undefined,
+              )
             } catch (err) {
-              // Override rejected or timed out. Fall through to play
-              // attempt — if bytes really never arrive, the audio
-              // element's retry-once-then-halt path will produce a
-              // proper learner-visible halt instead of silent skip.
+              // Override rejected or timed out. Fall through to the play
+              // attempt — if bytes really never arrive, the element's
+              // retry-once-then-SKIP path keeps the session moving.
               console.warn('[SimplePlayer] ensureKnownReady rejected; falling through to play attempt', err)
             }
             // Bail if we were stopped, skipped, or moved on during the
@@ -1034,12 +1171,68 @@ export class SimplePlayer {
     const resolver = this.runtimeOverrides.resolveAudioUrl
     if (!resolver) return url
     try {
-      const resolved = await resolver(url)
+      // Bounded. The override is documented as "must resolve cheaply (sub-ms)"
+      // but it runs an IndexedDB read + an mp3→WAV decode; a decode that never
+      // settles used to hang this await forever with no timer armed anywhere —
+      // the stall this fix exists to kill. Past the ceiling we play the
+      // original network URL, which is always a valid resource.
+      const resolved = await this.withBound(resolver(url), RESOLVE_URL_TIMEOUT_MS, 'resolveAudioUrl', url)
       return resolved || url
     } catch (err) {
       console.warn('[SimplePlayer] resolveAudioUrl threw; using original URL', err)
       return url
     }
+  }
+
+  /**
+   * Race a promise against a ceiling, resolving to `onTimeout` if the ceiling
+   * is reached. Never leaves a dangling timer. Used for every await that sits
+   * between phase entry and audio actually playing — those are the ones that
+   * can strand the session.
+   */
+  private withBound<T>(promise: Promise<T>, ms: number, label: string, onTimeout: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const bound = new Promise<T>((resolve) => {
+      timer = setTimeout(() => {
+        console.error(`[SimplePlayer] ${label} exceeded its ${ms}ms bound — continuing without it`)
+        resolve(onTimeout)
+      }, ms)
+    })
+    return Promise.race([promise, bound]).finally(() => {
+      if (timer) clearTimeout(timer)
+    })
+  }
+
+  /**
+   * Arm the phase-start watchdog. Fires if this phase never reaches
+   * playAudio() (which clears it via clearSafetyTimer) within the bound —
+   * i.e. something on the resolve path hung. On fire we log loudly and SKIP
+   * the clip by routing through the normal advance, per the ruling.
+   */
+  private armPhaseWatchdog(): void {
+    this.clearPhaseWatchdog()
+    const token = ++this.phaseWatchdogToken
+    this.phaseWatchdogTimer = setTimeout(() => {
+      this.phaseWatchdogTimer = null
+      if (token !== this.phaseWatchdogToken || !this.state.isPlaying) return
+      const cycle = this.currentCycle
+      console.error(
+        `[SimplePlayer] PHASE WATCHDOG: phase=${this.state.phase} never reached audio within ` +
+        `${PHASE_START_TIMEOUT_MS}ms (audio URL resolution hung) — SKIPPING this clip and continuing. ` +
+        `legoId=${cycle?.legoId} cycleId=${cycle?.id} known="${cycle?.known?.text}" target="${cycle?.target?.text}"`,
+      )
+      this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'phase-watchdog-resolve-hang'))
+      this.onAudioEnded()
+    }, PHASE_START_TIMEOUT_MS)
+  }
+
+  /** Disarm the phase-start watchdog and invalidate any already-queued fire. */
+  private clearPhaseWatchdog(): void {
+    if (this.phaseWatchdogTimer) {
+      clearTimeout(this.phaseWatchdogTimer)
+      this.phaseWatchdogTimer = null
+    }
+    ++this.phaseWatchdogToken
   }
 
   private warmedUrls = new Set<string>()
@@ -1100,14 +1293,14 @@ export class SimplePlayer {
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen
-    // Reset retry state on every fresh play. retryAttempted only stays
-    // true between the first failure and either (a) the retry succeeding
-    // or (b) playAudio being called again for a different URL.
-    if (this.retryUrl !== url) {
-      this.retryAttempted = false
-      this.retryUrl = url
-      this.retryIsTarget = isTarget
-    }
+    // Reset retry state on EVERY fresh play — the retry budget is per play
+    // attempt, not per URL. Gating this on `retryUrl !== url` meant a clip
+    // that had already burned its retry once (spaced repetition replays the
+    // same audio; resume() replays the same prompt) skipped straight to the
+    // failure path on its next attempt, with no second chance.
+    this.retryAttempted = false
+    this.retryUrl = url
+    this.retryIsTarget = isTarget
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
     // Runtime override (Turbo) can multiply the baked rate; the override is
@@ -1182,6 +1375,8 @@ export class SimplePlayer {
     const t = this.audio.currentTime
     if (t > this.lastAudioCurrentTime) {
       this.lastAudioCurrentTime = t
+      // Real, audible progress — the run of skipped clips (if any) is over.
+      this.consecutiveSkips = 0
       this.armSafetyTimer(this.safetyGen)
     }
   }
@@ -1270,6 +1465,12 @@ export class SimplePlayer {
       clearTimeout(this.safetyTimer)
       this.safetyTimer = null
     }
+    // Single chokepoint for the phase-start watchdog too. Every path that
+    // stops or supersedes a phase already calls this (playAudio, pause, stop,
+    // stopForReposition, onAudioEnded, tripGestureRequired, retryCurrentAudio),
+    // so the watchdog is disarmed exactly when it stops being the thing
+    // protecting the learner — and re-armed by the next startPhase.
+    this.clearPhaseWatchdog()
   }
 
   private clearLingerTimer(): void {

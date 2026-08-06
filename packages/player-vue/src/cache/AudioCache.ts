@@ -25,6 +25,20 @@ const DB_VERSION = 1
 const STORE = 'audio'
 const STATS_TTL_MS = 5000
 
+// Ceiling on the offline WAV read (IndexedDB fetch + mp3→WAV decode).
+//
+// Same disease as the fetch timeout in doFetchAndStore, one layer up: this
+// promise is MEMOISED per audio id in `wavUrlInflight`, so if it never settles
+// every future request for that id gets handed the same dead promise. The
+// playback path awaits it before assigning a src, which is how one clip took a
+// whole session down (Aran, 2026-08-06, German "with you") and why replaying
+// the item re-entered the stall while every other item played fine.
+// ctx.decodeAudioData is the unbounded primitive underneath — WebKit will not
+// always settle it (an interrupted audio session, a payload it chokes on).
+// Past the ceiling we resolve null and the caller falls back to the network
+// URL, exactly as it does for a plain cache miss.
+const WAV_READ_TIMEOUT_MS = 5000
+
 interface AudioRow {
   id: string
   blob: Blob
@@ -446,7 +460,7 @@ export class AudioCacheImpl implements AudioCache {
     // and one object URL, so a racing caller can't leak a second URL.
     const existing = this.wavUrlInflight.get(id)
     if (existing) return existing
-    const work = (async (): Promise<string | null> => {
+    const read = (async (): Promise<string | null> => {
       await this.init()
       if (!this.db) return null
       const row = await this.db.get(STORE, id)
@@ -454,9 +468,30 @@ export class AudioCacheImpl implements AudioCache {
       const wav = await bytesToWavBlob(await row.blob.arrayBuffer())
       if (!wav) return null
       const url = URL.createObjectURL(wav)
+      // A timed-out read keeps running, so a second read for the same id can
+      // land first. Keep the winner and revoke the loser rather than leaking a
+      // blob URL nobody holds.
+      const winner = this.wavUrlCache.get(id)
+      if (winner) {
+        URL.revokeObjectURL(url)
+        return winner
+      }
+      // Cached even if the race below already timed out — a late decode still
+      // benefits the next replay of this clip.
       this.wavUrlCache.set(id, url)
       return url
-    })().finally(() => {
+    })()
+    // Hard ceiling (see WAV_READ_TIMEOUT_MS). Guarantees this memoised promise
+    // ALWAYS settles, so a hung decode can never strand the playback path.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const bound = new Promise<string | null>((resolve) => {
+      timer = setTimeout(() => {
+        console.error(`[AudioCache] getWavBlobUrl(${id}) exceeded ${WAV_READ_TIMEOUT_MS}ms — falling back to the network URL`)
+        resolve(null)
+      }, WAV_READ_TIMEOUT_MS)
+    })
+    const work = Promise.race([read, bound]).finally(() => {
+      if (timer) clearTimeout(timer)
       this.wavUrlInflight.delete(id)
     })
     this.wavUrlInflight.set(id, work)
