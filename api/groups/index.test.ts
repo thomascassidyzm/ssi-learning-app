@@ -29,13 +29,17 @@ let govtAdminRow: any
 // 'leader-group' is the leader's own governed group; 'leader-sub' is a real
 // sub-group of it; 'other-group' is unrelated.
 let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+// Rows the duplicate-name lookup (findSiblingSlugCollisions) reads back. Empty
+// by default so every pre-existing test keeps the exact behaviour it asserted.
+let existingGroups: any[] = []
 const GROUP_PARENTS: Record<string, string | null> = { 'leader-group': null, 'leader-sub': 'leader-group', 'other-group': null }
 const forestRows = () => Object.entries(GROUP_PARENTS).map(([id, parent_id]) => ({ id, parent_id }))
 
 function makeChainable(table: string) {
   let eqVal: unknown
+  let selectCols = ''
   const builder: any = {
-    select: () => builder,
+    select: (cols?: string) => { selectCols = cols || ''; return builder },
     order: () => builder,
     not: () => builder,
     eq: (_col: string, val: unknown) => { eqVal = val; return builder },
@@ -50,7 +54,13 @@ function makeChainable(table: string) {
       }
       return Promise.resolve({ data: null, error: null })
     },
-    then: (resolve: any) => resolve({ data: table === 'groups' && eqVal === undefined ? forestRows() : [], error: null }),
+    then: (resolve: any) => {
+      // Two different list reads hit `groups`: the parent_id forest walk
+      // (selects id, parent_id) and the duplicate-name lookup (selects the
+      // name/created_at/path it needs to warn). Tell them apart by columns.
+      if (table === 'groups' && selectCols.includes('name')) return resolve({ data: existingGroups, error: null })
+      return resolve({ data: table === 'groups' && eqVal === undefined ? forestRows() : [], error: null })
+    },
   }
   return builder
 }
@@ -78,6 +88,7 @@ beforeEach(async () => {
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   govtAdminRow = null
   groupPaths = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+  existingGroups = []
   vi.resetModules()
   handler = (await import('./index')).default
 })
@@ -245,5 +256,97 @@ describe('POST /api/groups — group-leader sub-group authority (2026-08-01)', (
     await handler(req, res)
     expect(res.statusCode).toBe(201)
     expect(insertCalls[0].obj.platform_status).toBeUndefined()
+  })
+})
+
+describe('POST /api/groups — duplicate-name WARNING (Deborah, 2026-08-06)', () => {
+  const deborah = { id: 'org-1', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z', path: 'deborah-testing' }
+
+  beforeEach(() => {
+    // Non-admin self-serve root creator, no existing leadership.
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = null
+    existingGroups = [deborah]
+  })
+
+  it('409s a colliding root org with code duplicate_name and creates NOTHING', async () => {
+    const req = makeReq('POST', { name: 'Deborah Testing' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.code).toBe('duplicate_name')
+    expect(insertCalls).toHaveLength(0)
+  })
+
+  it.each(['Deborah Testing', 'deborah testing', 'Deborah-Testing'])('the slug variant %s collides', async (name) => {
+    const req = makeReq('POST', { name })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+  })
+
+  it('"Deborah Testing 2" is a different org and creates normally', async () => {
+    const req = makeReq('POST', { name: 'Deborah Testing 2' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls.find((c) => c.table === 'groups')).toBeTruthy()
+  })
+
+  it('confirm_duplicate: true creates it AND still makes the creator its leader', async () => {
+    const req = makeReq('POST', { name: 'Deborah Testing', confirm_duplicate: true })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls.find((c) => c.table === 'groups').obj).toMatchObject({ name: 'Deborah Testing', type: 'organisation' })
+    expect(insertCalls.find((c) => c.table === 'govt_admins').obj).toMatchObject({ user_id: 'leader-1', group_id: 'group-new' })
+  })
+
+  it('confirm_duplicate on a NON-colliding name changes nothing — it is not a way to switch the check off', async () => {
+    const req = makeReq('POST', { name: 'Cardiff Council', confirm_duplicate: true })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls.find((c) => c.table === 'groups').obj).toMatchObject({ name: 'Cardiff Council' })
+  })
+
+  it('redacts the other tenant: a non-admin root creator gets the name and date only, never the id or path', async () => {
+    const req = makeReq('POST', { name: 'Deborah Testing' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.body.duplicates).toEqual([{ name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z' }])
+  })
+
+  it('an ssi_admin sees the full row', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('POST', { name: 'Deborah Testing' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.duplicates[0]).toMatchObject({ id: 'org-1', path: 'deborah-testing' })
+  })
+
+  it('the one-org-per-leader 409 still fires first and stays DISTINGUISHABLE — no duplicate_name code on it', async () => {
+    govtAdminRow = { group_id: 'leader-group' }
+    const req = makeReq('POST', { name: 'Deborah Testing' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.code).toBeUndefined()
+    expect(res.body.error).toContain('one organisation per leader')
+    expect(insertCalls).toHaveLength(0)
+  })
+
+  it('a sub-group collision under the caller\'s own parent warns, with full detail', async () => {
+    govtAdminRow = { group_id: 'leader-group' }
+    existingGroups = [{ id: 'y7', name: 'Year 7', created_at: '2026-07-01T10:00:00Z', path: 'L/year-7' }]
+    const req = makeReq('POST', { name: 'Year 7', parent_id: 'leader-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.code).toBe('duplicate_name')
+    expect(res.body.error).toContain('a group called "Year 7"')
+    expect(res.body.duplicates[0]).toMatchObject({ id: 'y7' })
+    expect(insertCalls).toHaveLength(0)
   })
 })
