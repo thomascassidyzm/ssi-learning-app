@@ -1,0 +1,24 @@
+{
+  "id": "hand-over-the-lead",
+  "title": "Hand a class over to another teacher",
+  "personas": ["teacher"],
+  "place": { "route": "class-detail" },
+  "steps": [
+    {
+      "anchor": "class-teachers",
+      "say": "One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-teacher-make-lead",
+      "say": "**Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-teachers",
+      "say": "Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.",
+      "advance": { "on": "next" },
+      "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+    }
+  ]
+}

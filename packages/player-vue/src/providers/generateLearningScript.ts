@@ -22,6 +22,7 @@ import {
   normalizeMaxPhraseLengthFraction,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
+import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 
 export interface ScriptItem {
   uuid: string
@@ -267,6 +268,27 @@ async function fetchAllPracticePhrases(
 // completes long before its output is consumed (INF-PLAY boundary / warm
 // cache / resume repair).
 const WALK_SLICE_BUDGET_MS = 40
+
+/**
+ * Prompt identity for the A-64 consecutive-repeat cap: what the learner
+ * actually hears as "the same thing again".
+ *
+ * Default per Tom's brief — normalised known text paired with normalised target
+ * text, the same notion `getPhraseId` uses for within-round de-duplication.
+ * Listening items are the one case that notion cannot see: a pod sentence play
+ * carries no known text and a pod translation carries no target text, so two
+ * plays of the same clip at different speeds ('ps' vs 'ps2x') would otherwise
+ * look like different prompts. For those we fall back to the audio ids, which
+ * is the honest answer — it is the same clip.
+ */
+export function scriptItemIdentity(item: ScriptItem): string {
+  const norm = (text: string | null | undefined): string =>
+    text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
+  const known = norm(item.knownText)
+  const target = norm(item.targetText)
+  if (known || target) return `${known}|${target}`
+  return `audio:${item.knownAudioId ?? ''}|${item.target1Id ?? ''}`
+}
 
 export const yieldToEventLoop = (): Promise<void> => {
   const sched = (globalThis as any).scheduler
@@ -1741,6 +1763,46 @@ export async function generateLearningScript(
     return true
   })
 
+  // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
+  // "No mode should ever repeat the same prompt more than twice consecutively."
+  //
+  // The consecutive-duplicate pass above is stricter than the law for ordinary
+  // cycles, but it lets intro/debut/pod/bookend types straight through — so a
+  // pod lap whose stage playlist fires the same clip three times, or any future
+  // emitter, can still breach. This pass is the floor that cannot be breached:
+  // it runs downstream of every script-shape value (Easy mode's doubled
+  // n1PhraseCount included) and of the pod stage playlists in algorithm_config.
+  //
+  // Re-interleaving is confined to a single round: rounds are the player's unit
+  // of position, so an item must never migrate across a round boundary. Each
+  // round is seeded with the previous round's tail so the law also holds at the
+  // seam. Totals survive wherever a round holds anything to interleave with.
+  const roundCapped: ScriptItem[] = []
+  let capTail: string[] = []
+  let capDropped = 0
+  let capReordered = 0
+  let currentRound: number | null = null
+  let roundBuffer: ScriptItem[] = []
+  const flushRound = () => {
+    if (roundBuffer.length === 0) return
+    const capped = capConsecutiveRepeats(roundBuffer, scriptItemIdentity, { seed: capTail })
+    capTail = capped.tail
+    capDropped += capped.dropped.length
+    if (capped.reordered) capReordered++
+    roundCapped.push(...capped.items)
+    roundBuffer = []
+  }
+  for (const item of playableItems) {
+    await yieldTick()
+    if (currentRound !== null && item.roundNumber !== currentRound) flushRound()
+    currentRound = item.roundNumber
+    roundBuffer.push(item)
+  }
+  flushRound()
+  if (capReordered > 0 || capDropped > 0) {
+    console.info(`[generateLearningScript] A-64 cap: re-interleaved ${capReordered} round(s)${capDropped > 0 ? `, dropped ${capDropped} rep(s) with nothing to interleave against` : ''}`)
+  }
+
   if (introsSkippedForAudio > 0 || debutsSkippedForAudio > 0 || droppedByText > 0) {
     console.info(`[generateLearningScript] Suppressed ${introsSkippedForAudio} intros / ${debutsSkippedForAudio} debuts for missing audio (their rounds still play), ${droppedByText} missing-text cycles`)
   }
@@ -1755,7 +1817,7 @@ export async function generateLearningScript(
     try { return !!(import.meta as any)?.env?.DEV } catch { return false }
   })()
   if (isDevBuild) {
-    const validationReport = validateLearningScript(playableItems)
+    const validationReport = validateLearningScript(roundCapped)
     if (!validationReport.valid) {
       console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
     }
@@ -1767,18 +1829,18 @@ export async function generateLearningScript(
   }
 
   // Recount rounds from playable items
-  const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
+  const playableRoundCount = new Set(roundCapped.map(i => i.roundNumber)).size
   // Where the INF-PLAY revival tail begins = count of PLAYABLE main-loop rounds.
   // mainLoopLastRound is the generator's own boundary (set right before the
   // revival loop); counting distinct playable roundNumbers at-or-below it gives
   // the true current course size, with unbuilt/no-audio rounds already filtered
   // out. This is what the player must use to find the tail — never a DB count.
   const mainLoopRoundCount = new Set(
-    playableItems.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
+    roundCapped.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
   ).size
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
+  console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
+  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
 }

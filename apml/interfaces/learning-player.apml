@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.25 (2026-08-06)
+# Version: 2.1.26 (2026-08-06)
 # Status: Production-ready
 
 ## ============================================================================
@@ -999,6 +999,16 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.26:
+    date: "2026-08-06"
+    title: "A-64 — no mode plays the same prompt three times in a row"
+    changes:
+      - "Tom's ruling, verbatim: 'no mode should ever repeat the same prompt more than twice consecutively'. A DESIGN LAW binding every mode — the 4-phase player in Easy and Fast, Listening mode / the pods, infinite play, and every degraded fallback path. Two in a row is legal; three is not, under any configuration. Full spec: apml/playback/consecutive-repeat-law.apml."
+      - "ONE enforcement point rather than per-mode caps: packages/player-vue/src/playback/capConsecutiveRepeats.ts — a pure, unit-tested helper that re-interleaves an ordered sequence so no identity appears more than twice consecutively. It MOVES reps rather than deleting them; a feasibility lookahead makes the greedy optimal, so a rep is dropped only when no ordering could have kept it (n differing items separate at most 2*(n+1) copies of one identity)."
+      - "generateLearningScript.ts: a final PER-ROUND cap pass over the playable item list (scriptItemIdentity), each round seeded with the previous round's tail so the seam holds while no item ever migrates across a round boundary. This is a FLOOR, not a repair — the pre-existing consecutive-duplicate pass already collapsed adjacent identical ordinary cycles, so the main loop and the infinite-play tail were already lawful (verified by removing the cap and watching the regression tests still pass). The cap exists so no future emitter and no algorithm_config script_shape value, Easy mode's doubled n1PhraseCount included, can breach."
+      - "usePodLapScheduler.ts nextLap(): the real breach, now closed. A pod whose active cohorts hold a single sentence emits a playlist ending on that clip (stage 8 = ['ps2x','ps2x']) and the next lap restarts on it — three in a row, reproduced in test. Pod plays are identified by AUDIO ID so 'ps' and 'ps2x' correctly count as the same prompt. The previous lap's tail carries into the next lap unless bookends separate them; minKeep:1 means a degenerate one-clip lap is reduced and logged, never emptied."
+      - "useOfflinePlay.ts getNextPlayableCycle(): the degradation ladder no longer hands back a cycle that has already played twice while any other cached cycle exists. Level 3 ('repeat') is the single place the law yields — with literally one cached cycle, keeping the session alive wins and the breach is logged as a warning rather than passing silently."
+
   v2.1.25:
     date: "2026-08-06"
     title: "Listening exercises go straight in — the pod-start reminder popup is deleted"

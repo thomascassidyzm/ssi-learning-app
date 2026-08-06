@@ -22,7 +22,11 @@ describe('pack shape', () => {
 
 describe('walksFor (offer filtering)', () => {
   it('filters by persona × place × kind', () => {
-    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual(['run-class-session'])
+    // Class detail is the teacher's whole desk: running a session, and the
+    // three co-teaching capabilities (A-74) — sharing, inviting, handover.
+    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
+      'hand-over-the-lead', 'invite-a-supply-teacher', 'run-class-session', 'share-a-class',
+    ])
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])
     // node-home kinds: invite-first-teacher is school-only; ways-in covers groups too
