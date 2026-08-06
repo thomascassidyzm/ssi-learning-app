@@ -48,6 +48,12 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTre
 import { ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 import { provisionPersona } from '../../_utils/provisionPersona'
+import {
+  PERSONAL_SIGNIN_OUTCOME,
+  tallyPersonalSignins,
+  usesForLink,
+  type PersonalSigninTally,
+} from '../../_utils/personalLinkUses'
 import { sendInviteEmail, isMailable } from '../../_utils/sendInviteEmail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -292,11 +298,28 @@ export default async function handler(
       if (subtree.classes.length) orClauses.push(`grants_class_id.in.(${subtree.classes.map((c) => c.id).join(',')})`)
       const { data: codeRows, error } = await supabase
         .from('invite_codes')
-        .select('code, code_type, metadata, max_uses, use_count, expires_at, is_active, created_at, created_by, grants_group_id, grants_school_id, grants_class_id')
+        .select('id, code, code_type, metadata, max_uses, use_count, expires_at, is_active, created_at, created_by, grants_group_id, grants_school_id, grants_class_id')
         .or(orClauses.join(','))
         .order('created_at', { ascending: false })
         .limit(500)
       if (error) throw error
+
+      // A personal link's use_count can never move (see personalLinkUses.ts):
+      // its sign-ins live in the possession_mint_attempts audit log instead.
+      // One batched read over just the personal rows keeps the ledger honest
+      // without a schema change or a second counter to keep in step.
+      const personalIds = (codeRows || [])
+        .filter((r: any) => r.metadata?.personal_auth_user_id)
+        .map((r: any) => r.id as string)
+      let signins = new Map<string, PersonalSigninTally>()
+      if (personalIds.length) {
+        const { data: attempts } = await supabase
+          .from('possession_mint_attempts')
+          .select('invite_code_id, created_at')
+          .eq('outcome', PERSONAL_SIGNIN_OUTCOME)
+          .in('invite_code_id', personalIds)
+        signins = tallyPersonalSignins((attempts || []) as any)
+      }
 
       // Resolve creator display names in one query (auth uids → learners).
       const creatorIds = [...new Set((codeRows || []).map((r: any) => r.created_by).filter(Boolean))]
@@ -337,12 +360,18 @@ export default async function handler(
               kind: 'group',
             }
           }
+          // Exhaustion stays keyed on use_count deliberately: it must predict
+          // what the SERVER will do, and every gate (redeem.ts and
+          // possession-redeem.ts alike) tests max_uses against use_count. A
+          // personal link therefore never shows 'exhausted' — which is true,
+          // because it never can be.
           const exhausted = row.max_uses !== null && row.use_count >= row.max_uses
           const expired = !!row.expires_at && new Date(row.expires_at).getTime() <= now
           const status = !row.is_active ? 'revoked' : expired ? 'expired' : exhausted ? 'exhausted' : 'active'
+          const isPersonal = !!row.metadata?.personal_auth_user_id
           return {
             role,
-            species: row.metadata?.personal_auth_user_id ? 'personal' : 'shareable',
+            species: isPersonal ? 'personal' : 'shareable',
             personalName: row.metadata?.personal_name ?? null,
             // Present only when this person has a real address on file — the
             // ledger's "resend" affordance keys off it.
@@ -350,7 +379,7 @@ export default async function handler(
             code: row.code,
             url: `${origin}/${redeemPathForRole(role)}/${row.code}`,
             where,
-            uses: { count: row.use_count, max: row.max_uses },
+            uses: usesForLink(row, isPersonal, signins),
             status,
             createdAt: row.created_at,
             createdBy: creatorName.get(row.created_by) || null,
