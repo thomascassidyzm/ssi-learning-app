@@ -1,9 +1,10 @@
 /**
  * The intro-audio contract on the instant-playback path.
  *
- * Three behaviours land here, all from the 2026-08-04 diagnosis:
- *  1. `component_intro` cycles are rendered (they were never emitted, so the
- *     adapter's handling of them had never been exercised).
+ * Three behaviours land here:
+ *  1. `component_intro` cycles are REFUSED — components are never introduced
+ *     (Tom, 2026-08-06). The 2026-08-04 test asserting they render is
+ *     deliberately flipped; this is the render-side backstop for the ruling.
  *  2. The `presentation_id || known_id` fallback is REACHABLE — it used to be
  *     dead code because the endpoint omitted known_id from intro cycles, so a
  *     LEGO with no narration produced an empty prompt URL and silent skip.
@@ -39,8 +40,8 @@ beforeEach(() => {
 })
 afterEach(() => setIntroAudioTelemetrySink(null))
 
-describe('toPlayerCycle — component_intro', () => {
-  it('renders a component_intro with its presentation clip as the prompt', () => {
+describe('toPlayerCycle — components are never introduced (Tom, 2026-08-06)', () => {
+  it('refuses a fully-playable component_intro', () => {
     const c = toPlayerCycle(
       cycle({
         id: 'S0005L02_component_intro_1',
@@ -50,17 +51,14 @@ describe('toPlayerCycle — component_intro', () => {
         audio: { known_id: 'k', target1_id: 't1', target2_id: 't2', presentation_id: 'cpres' },
       }),
     )
-    expect(c).not.toBeNull()
-    // The "as in" narration takes the prompt slot, not the known clip.
-    expect(c!.known.audioUrl).toBe('/api/audio/cpres')
-    expect(c!.target.voice1Url).toBe('/api/audio/t1')
-    // Intro-shaped: no production pause, linger to read the reveal.
-    expect(c!.pauseDuration).toBe(0)
-    expect(c!.lingerMs).toBe(2000)
+    // Every clip it needs exists; it is still dropped. The ruling is about
+    // what a component IS, not about whether its audio happens to be complete.
+    expect(c).toBeNull()
+    // Silent by rule, not by fault — nothing for the health board.
     expect(reported).toHaveLength(0)
   })
 
-  it('drops a component_intro with no target voices rather than emitting a hole', () => {
+  it('refuses a component_intro with no target voices too', () => {
     const c = toPlayerCycle(
       cycle({ type: 'component_intro', audio: { presentation_id: 'cpres' } }),
     )

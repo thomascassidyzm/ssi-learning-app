@@ -19,9 +19,10 @@
  *     as `toSimpleRounds` — runtime overrides recompute it from live
  *     algorithm_config at play time, so this fallback is only seen by
  *     environments without live config
- *   - `component_intro` IS emitted (since 2026-08-04) — the M-LEGO
- *     per-piece "as in" narrations. It shares the intro treatment here:
- *     presentation audio takes the prompt slot, no pause.
+ *   - `component_intro` is DROPPED (Tom's ruling, 2026-08-06: "Components
+ *     do NOT get introduced"). The cycles endpoint no longer emits it; this
+ *     adapter refuses it as a backstop. Components reach the learner only as
+ *     visual tiles on the intro/debut cards, never as their own cycle.
  *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
  *     curve from `toSimpleRounds`. It MUST be: the runtime override in
  *     LearningPlayer only ever CANCELS a baked ramp (Easy does), it never
@@ -201,10 +202,14 @@ export function toPlayerCycle(
    *  instead, which is authoritative and always present. */
   seedNumber: number = bc.seed_number,
 ): Cycle | null {
-  // `component_intro` is an introduction too — the per-piece "as in"
-  // narration for one component of an M-LEGO. It gets the same treatment
-  // as `intro`: presentation audio in the prompt slot, no production pause.
-  const isIntro = bc.type === 'intro' || bc.type === 'component_intro'
+  // COMPONENTS ARE NEVER INTRODUCED (Tom, 2026-08-06). The cycles endpoint
+  // stopped emitting `component_intro` on that ruling; this is the render-side
+  // backstop, so a component introduction cannot reach a learner even if some
+  // producer starts emitting one again. Dropping it here is safe: `null` is
+  // the adapter's existing "unplayable cycle" return and callers already skip.
+  if (bc.type === 'component_intro') return null
+
+  const isIntro = bc.type === 'intro'
   const isListening = bc.type === 'listening'
 
   // Baked target-voice speed for this cycle's belt band. Drives BOTH the
