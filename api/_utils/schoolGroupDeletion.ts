@@ -29,6 +29,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { descendantIds, type ParentLinked } from './groupSubtree'
 
 export interface DeletionImpact {
   classCount: number
@@ -141,16 +142,13 @@ export async function computeGroupImpact(supabase: SupabaseClient, groupId: stri
   if (groupErr) throw new Error(`groups read failed: ${groupErr.message}`)
   if (!group) throw new Error('Group not found')
 
-  let descendants: { id: string; name: string }[] = []
-  if (group.path) {
-    const { data: rows, error: subErr } = await supabase
-      .from('groups')
-      .select('id, name, path')
-      .like('path', `${group.path}/%`)
-    if (subErr) throw new Error(`groups subtree read failed: ${subErr.message}`)
-    descendants = (rows || []).map((r) => ({ id: r.id as string, name: r.name as string }))
-  }
-  const subtreeIds = [groupId, ...descendants.map((d) => d.id)]
+  const { data: forest, error: forestErr } = await supabase.from('groups').select('id, name, parent_id')
+  if (forestErr) throw new Error(`groups subtree read failed: ${forestErr.message}`)
+  const nameById = new Map((forest || []).map((r) => [r.id as string, r.name as string]))
+  const subtreeIds = descendantIds((forest || []) as ParentLinked[], groupId)
+  const descendants = subtreeIds
+    .filter((id) => id !== groupId)
+    .map((id) => ({ id, name: nameById.get(id) ?? 'Unnamed' }))
 
   // One query per FK lane: schools attached anywhere in the subtree by
   // parent (group_id) or by own node (node_group_id).
@@ -228,8 +226,13 @@ export async function deleteSchoolCascade(supabase: SupabaseClient, schoolId: st
  * 2026-07-18: one recursive node — "every level can delete the things it
  * created and everything below them", so deleting a node takes its subtree).
  *
- * Walks the trigger-maintained `path` ('/'-separated slugs) to find every
- * descendant group, deepest-first. Per group: a school whose OWN node
+ * Walks `parent_id` to find every descendant group, deepest-first. NOT the
+ * slug `path`: nothing makes a slug unique, and two orgs both named "Deborah
+ * Testing" both had `path = 'deborah-testing'` live (2026-08-06) — so a
+ * `path LIKE '<root>/%'` walk would have swept the OTHER tenant's children
+ * into this deletion. A delete is the one place a cross-tenant subtree match
+ * is unrecoverable, so it uses the same parent_id resolver as every other
+ * subtree consumer (groupSubtree.ts). Per group: a school whose OWN node
  * (`node_group_id`) is that group is deleted via the full school cascade —
  * under the one-node model the school IS the node; they live and die
  * together. Schools merely *parented* there without a node in the subtree
@@ -246,17 +249,13 @@ export async function deleteGroupCascade(supabase: SupabaseClient, groupId: stri
   if (rootErr) throw new Error(`groups read failed: ${rootErr.message}`)
   if (!root) return
 
-  let subtree: { id: string; path: string | null }[] = [{ id: root.id as string, path: root.path as string | null }]
-  if (root.path) {
-    const { data: descendants, error: subErr } = await supabase
-      .from('groups')
-      .select('id, path')
-      .like('path', `${root.path}/%`)
-    if (subErr) throw new Error(`groups subtree read failed: ${subErr.message}`)
-    subtree = subtree.concat((descendants || []) as { id: string; path: string | null }[])
-  }
-  // deepest-first so no child row ever blocks its parent's delete
-  subtree.sort((a, b) => (b.path?.length ?? 0) - (a.path?.length ?? 0))
+  const { data: forest, error: forestErr } = await supabase.from('groups').select('id, parent_id')
+  if (forestErr) throw new Error(`groups subtree read failed: ${forestErr.message}`)
+  // descendantIds returns root-first, level by level, so reversing it is
+  // deepest-first — no child row ever blocks its parent's delete.
+  const subtree = descendantIds((forest || []) as ParentLinked[], groupId)
+    .map((id) => ({ id }))
+    .reverse()
 
   for (const group of subtree) {
     const { error: unlinkErr } = await supabase

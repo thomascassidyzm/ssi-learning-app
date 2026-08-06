@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { computeGroupImpact } from './schoolGroupDeletion'
 
-interface GroupRow { id: string; name: string; path: string | null }
+interface GroupRow { id: string; name: string; path: string | null; parent_id?: string | null }
 interface SchoolRow { id: string; school_name: string; group_id: string | null; node_group_id: string | null }
 
 function makeSupabase(opts: {
@@ -24,7 +24,13 @@ function makeSupabase(opts: {
   return {
     from: (table: string) => {
       const b: any = { _filters: {} as Record<string, unknown> }
-      b.select = vi.fn(() => b)
+      // A bare `groups` select (no filter) is the forest fetch the parent_id
+      // subtree walk makes — resolve it straight away.
+      b.select = vi.fn((cols: string) => (
+        table === 'groups' && typeof cols === 'string' && cols.includes('parent_id')
+          ? Promise.resolve({ data: opts.groups, error: null })
+          : b
+      ))
       b.eq = vi.fn((col: string, val: unknown) => { b._filters[col] = val; return b })
       b.is = vi.fn(() => b)
       b.maybeSingle = vi.fn(async () => ({
@@ -71,9 +77,9 @@ describe('computeGroupImpact — subtree-honest preview', () => {
   it('splits deleted school-nodes from orphaned legacy attachments across the subtree', async () => {
     const supabase = makeSupabase({
       groups: [
-        { id: 'prog', name: 'IME Demo Programme', path: 'ime' },
-        { id: 'region', name: 'Pilot Districts Region', path: 'ime/region' },
-        { id: 'school-node', name: 'Ysgol y Bont', path: 'ime/region/bont' },
+        { id: 'prog', name: 'IME Demo Programme', path: 'ime', parent_id: null },
+        { id: 'region', name: 'Pilot Districts Region', path: 'ime/region', parent_id: 'prog' },
+        { id: 'school-node', name: 'Ysgol y Bont', path: 'ime/region/bont', parent_id: 'region' },
       ],
       schools: [
         // own node inside the subtree → deleted
@@ -108,7 +114,7 @@ describe('computeGroupImpact — subtree-honest preview', () => {
 
   it('leaf group with nothing below reports zeros and no descendants', async () => {
     const supabase = makeSupabase({
-      groups: [{ id: 'lone', name: 'Lone Group', path: 'lone' }],
+      groups: [{ id: 'lone', name: 'Lone Group', path: 'lone', parent_id: null }],
       schools: [],
     })
     const impact = await computeGroupImpact(supabase, 'lone')
