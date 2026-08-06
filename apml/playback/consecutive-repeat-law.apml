@@ -1,0 +1,147 @@
+# APML Playback: The consecutive-repeat law (A-64)
+# SSI Learning App
+# Version: 1.0.0
+# Last updated: 2026-08-06
+# Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
+#         packages/player-vue/src/providers/generateLearningScript.ts
+#         packages/player-vue/src/composables/usePodLapScheduler.ts
+#         packages/player-vue/src/composables/useOfflinePlay.ts
+
+## ============================================================================
+## THE LAW
+## ============================================================================
+
+SPECIFICATION:
+  name: "No prompt three times in a row"
+  ruling: |
+    Tom, 2026-08-06, clearing plate item A-64, verbatim:
+
+      "no mode should ever repeat the same prompt more than twice
+       consecutively"
+
+    It binds EVERY mode: the 4-phase learning player in Easy and Fast,
+    Listening mode / the pods, infinite play, and every degraded or fallback
+    playback path. Two identical prompts back to back is legal. Three is not,
+    under any configuration.
+  scope: |
+    CONSECUTIVENESS ONLY. Spaced repetition is untouched — a phrase may be
+    revisited any number of times across a session, and total repetition
+    counts are preserved wherever the arithmetic allows. The fix for a third
+    consecutive play is to RE-INTERLEAVE it (move it past a differing item),
+    never to delete it. A rep is dropped only when there is genuinely nothing
+    to interleave against.
+  identity: |
+    "The same prompt" = identical normalised known text paired with identical
+    normalised target text (the getPhraseId notion). Listening items are the
+    exception: a pod sentence play carries no known text and a pod translation
+    carries no target text, so pod plays are identified by AUDIO ID — which
+    makes 'ps' and 'ps2x' (the same clip at 1× and 2×) correctly the same
+    prompt.
+
+## ============================================================================
+## THE ENFORCEMENT POINT
+## ============================================================================
+
+COMPONENT:
+  file: "packages/player-vue/src/playback/capConsecutiveRepeats.ts"
+  exports:
+    - "capConsecutiveRepeats(items, identityOf, options) → { items, dropped, tail, reordered, forcedKeeps }"
+    - "findConsecutiveBreach(items, identityOf, max) → index | -1"
+  purity: "Pure. No I/O, no mutation of the input."
+  algorithm: |
+    Earliest legal item that keeps the remainder schedulable. Walk the queue
+    and emit the first remaining item that neither creates a third consecutive
+    repeat nor strands the tail. Input order survives except where the law
+    forces a swap.
+
+    The feasibility lookahead is load-bearing: an identity with c copies fits
+    only if c <= max * (others + 1) - trailing_run. Plain first-legal-wins
+    emits A,B,B out of A,B,B,A,B,B,B and then has to drop a B; the lookahead
+    finds B,B,A,B,B,A,B and keeps all seven. With it, a rep is dropped only
+    when NO ordering could have kept it.
+  options:
+    max: "Identical items allowed back to back. Default 2 — the law."
+    seed: "Identities immediately preceding this sequence, so the cap holds across a boundary the caller processes in separate calls."
+    minKeep: "Never return fewer than N items even if the law would empty the sequence. Keeping the session alive outranks the cap; such items are counted in forcedKeeps."
+
+## ============================================================================
+## APPLICATION SITES
+## ============================================================================
+
+SITE:
+  name: "Main learning script + infinite play"
+  file: "packages/player-vue/src/providers/generateLearningScript.ts"
+  placement: |
+    A final per-round pass over the playable item list, after the
+    consecutive-duplicate dedup and the missing-text filter, before the
+    round recount and return.
+  round_confinement: |
+    Re-interleaving NEVER crosses a round boundary — rounds are the player's
+    unit of position. Each round is capped separately and seeded with the
+    previous round's tail, so the law holds at the seam without an item ever
+    migrating between rounds.
+  identity_fn: "scriptItemIdentity (exported from the same module)"
+  status: |
+    A FLOOR, not a repair. The pre-existing consecutive-duplicate pass already
+    collapses adjacent identical ordinary cycles to one, so the main loop and
+    the infinite-play tail were already lawful — verified by removing the cap
+    and watching the A-64 regression tests still pass. The cap exists so that
+    no future emitter, no algorithm_config script_shape value (Easy mode's
+    doubled n1PhraseCount included) and no listening item type can breach.
+
+SITE:
+  name: "Listening mode pod laps"
+  file: "packages/player-vue/src/composables/usePodLapScheduler.ts"
+  placement: "nextLap(), on the composed play list, after buildMainStage."
+  breach_it_closes: |
+    THE real breach. A pod whose active cohorts hold a single sentence emits a
+    playlist that ends on that clip (stage 8 = ['ps2x','ps2x']) and the next
+    lap restarts on the same clip. Verified three-in-a-row without the cap.
+  cross_lap: |
+    The previous lap's tail is carried into the next lap as `seed`, because
+    laps run back to back. It is NOT carried when bookends are present — the
+    intro/outro clips genuinely separate the two laps.
+  degenerate_lap: |
+    minKeep: 1. A one-clip lap arriving on top of a tail that already holds
+    two of it is reduced rather than emptied, and the shortfall is logged. A
+    lap never returns zero plays.
+  configuration_independence: |
+    Applied downstream of resolveStageConfig, so an admin-saved stage playlist
+    in algorithm_config.pods cannot breach the law.
+
+SITE:
+  name: "Offline degradation ladder"
+  file: "packages/player-vue/src/composables/useOfflinePlay.ts"
+  placement: "getNextPlayableCycle(), across all three degradation levels."
+  behaviour: |
+    A cycle that has already played twice in a row is excluded from the
+    scheduled pick and from the belt-only pool while any other cached cycle
+    exists. Level 3 ('repeat') is the one place the law yields: with literally
+    one cached cycle, keeping the session alive wins, and the breach is logged
+    as a warning rather than passing silently.
+
+## ============================================================================
+## TESTS
+## ============================================================================
+
+TESTS:
+  - file: "packages/player-vue/src/playback/capConsecutiveRepeats.test.ts"
+    covers: |
+      Unit behaviour plus a 400-case property sweep: output never contains
+      three consecutive equal identities, nothing is invented or duplicated,
+      and totals are preserved whenever max*(others+1) allows.
+  - file: "packages/player-vue/src/providers/a64ConsecutivePromptCap.test.ts"
+    covers: |
+      The A-64 case directly — Easy-mode script shape (n1PhraseCount 6,
+      useConsolidationCount 4, maxBuildPhrases 14, maxSpacedRepPhrases 24)
+      against USE pools of 1, 2 and 3 phrases, for the main loop and the
+      infinite-play tail, plus the default (Fast) shape.
+  - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
+    covers: |
+      Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened
+      across consecutive laps into the sequence the learner actually hears.
+
+## ============================================================================
+## Last updated: 2026-08-06
+## APML v2.0.0
+## ============================================================================
