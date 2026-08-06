@@ -19,15 +19,27 @@ their account. We email them a six-digit code, they type it in, and they're back
 There's no password to remember and nothing to have set up in advance. That is the
 default route and it works for every learner from day one.
 
-**If they'd rather use a password**, they can. On that same screen there's a link
-reading "Use password instead", which swaps the code box for a password box. That
-only works once they've set a password — which is exactly what you did in Settings, and
-it does take effect straight away. Setting one is entirely optional; the email code
-route keeps working whether or not they have a password.
+**There's also a third route that's worth knowing about, and it's the easiest one to
+give people: the original invite link keeps working.** It isn't single-use. Until it's
+revoked or expires, clicking the same link in that same email signs them straight back
+in. If a learner asks "what do I do next time", "keep the email and tap the link again"
+is a true and very short answer.
+
+**About the password you set.** It works, and it took effect straight away — but only
+on the learner side of the app, where the sign-in screen offers "Use password instead"
+next to the email-code box. The **school dashboard sign-in screen doesn't offer a
+password box at all** — it's email-and-code only, by design, and it says so on the page:
+we don't store student passwords. So if you set a password and then try to sign in at
+the dashboard, you'll find nowhere to type it. That's not your account misbehaving.
+Whether the dashboard should offer a password is a product question we're putting to
+Tom rather than quietly changing.
+
+For now, the honest guidance for a school: **the email code is the route that works
+everywhere.** A password is a convenience on the learner app only.
 
 So the short answer you can give an administrator: *their email address is their
-account. Next time, if they're ever asked, they enter that email and we send them a
-code. A password is optional and can be set in Settings.*
+account. Most of the time they'll still be logged in. If they're ever asked, they enter
+that email and we send them a code — or they tap the original invite link again.*
 
 One thing worth telling learners up front: it has to be the **same email address the
 invite went to**. A different address would start a brand-new, empty account rather
@@ -61,11 +73,14 @@ button you pressed, where you can see it.
    "Code sent — enter it below" appear immediately under the address, and a six-digit
    code should arrive by email within a minute or so. Type it into the box that opens
    below and the "unverified" tag should go away.
-2. Sign out, then sign back in with the email address and the password you set. It
-   should let you straight in.
-3. Sign out again and sign in the default way instead — enter the email, get the code,
-   type it in. This is the route most learners will use, so it's the one worth being
-   confident about.
+2. Sign out, then sign back in by entering your email and typing the code we send. This
+   is the route most learners will actually use, so it's the one worth being confident
+   about — and it's the only one offered on the dashboard sign-in screen.
+3. Tap the original invite link in the first email again, and check it takes you back in
+   rather than starting something new. If that works, it's the simplest instruction to
+   give a whole class.
+4. If you want to try the password: do it on the learner side of the app, not the
+   dashboard, where the sign-in screen shows "Use password instead".
 
 If the code from step 1 doesn't arrive, that's a mail delivery question rather than a
 button question, and it's worth telling us which email provider the address is on —
