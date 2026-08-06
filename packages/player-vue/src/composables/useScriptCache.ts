@@ -447,11 +447,23 @@ const doCheckContentVersion = async (
     // re-download by themselves, while every unchanged clip stays cached. That
     // is what makes a hard drop affordable here: it costs one small JSON
     // refetch, not a course re-download.
+    // A device that cached the course BEFORE this lane existed has no stored
+    // stamp, so "first sight" would wave through exactly the stale entries we
+    // are here to kill — the state Tom's device was in on 2026-08-06. So an
+    // entry of UNKNOWN audio vintage is dropped once too, which retroactively
+    // heals every device cached before the stamp existed (same reasoning as
+    // the content_stamp lane's pre-stamp entries). A genuinely new device has
+    // no cached script and is therefore never affected.
     if (liveAudioStamp) {
       const audioStampKey = `${AUDIO_STAMP_PREFIX}${courseCode}`
       const storedAudioStamp = localStorage.getItem(audioStampKey)
-      if (storedAudioStamp && storedAudioStamp !== liveAudioStamp) {
-        console.log(`[ScriptCache] Audio stamp moved (${storedAudioStamp} → ${liveAudioStamp}) — dropping ${courseCode} script cache so repaired clips are re-fetched at their new revision`)
+      const unknownVintage = !storedAudioStamp && (await getCachedScript(courseCode)) !== null
+      if ((storedAudioStamp && storedAudioStamp !== liveAudioStamp) || unknownVintage) {
+        console.log(
+          unknownVintage
+            ? `[ScriptCache] ${courseCode} script cached before audio stamps existed — dropping once so repaired clips are re-fetched at their new revision`
+            : `[ScriptCache] Audio stamp moved (${storedAudioStamp} → ${liveAudioStamp}) — dropping ${courseCode} script cache so repaired clips are re-fetched at their new revision`
+        )
         try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
         staleScripts.delete(courseCode)
         invalidated = true
