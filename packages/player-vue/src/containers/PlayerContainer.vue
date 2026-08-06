@@ -644,7 +644,6 @@ onMounted(() => {
             :course="activeCourse"
             @close="closeSettings"
             @openExplorer="openExplorerOverlay"
-            @openListening="closeSettings(); handleToggleListening()"
           />
         </div>
       </div>

@@ -367,12 +367,16 @@ LEARNING_MODE:
 LISTENING_OVERLAY:
   source: "packages/player-vue/src/components/ListeningOverlay.vue"
   entry: |
-    Settings → Tools → "Listening mode" ONLY (2026-08-06). SettingsScreen
-    emits openListening; PlayerContainer closes settings and calls
-    handleListeningToggle. The mode tray no longer offers it — Aran found a
-    listening-mode popup in the player flow distracting. Exit is unchanged:
-    the transport back/play button (BottomNav exitListeningMode). Full detail:
-    apml/interfaces/listening-mode.apml ENTRY_POINT.
+    The mode tray (ModeTray.vue) ONLY — a "Listening mode" on/off row sitting
+    between Pronunciation guide and Offline mode, ungated. Tom's ruling
+    (2026-08-06, 22:38Z): listening mode belongs in the place learners already
+    knew, and Settings is the WRONG home for it — so the Settings → Tools row
+    that briefly held it, and its openListening emit, are GONE. The row emits
+    toggleListening → BottomNav → PlayerContainer.handleToggleListening →
+    LearningPlayer.handleListeningToggle, which opens when closed and closes
+    when open, so one row is the whole round trip. The transport back/play
+    button (BottomNav exitListeningMode) is unchanged as the other way out.
+    Full detail: apml/interfaces/listening-mode.apml ENTRY_POINT.
   tabs: |
     Dialogues | Core | All — in that order, Dialogues is the DEFAULT view
     (Tom 2026-06-07). Dialogues = Layer 2 pod scenes (useListeningPods,

@@ -85,15 +85,18 @@ await page.waitForTimeout(2500)
 check('same row exits listening mode', await overlay.count() === 0)
 await page.screenshot({ path: `${OUT}4-back-out.png` })
 
-// 5. Settings keeps its row as a second, discoverable route (Tom's default:
-//    leave it — it costs nothing and does not disagree with the tray).
+// 5. Settings must NOT carry a listening row. Tom's ruling (2026-08-06,
+//    22:38Z): listening mode goes back where learners already knew to find it
+//    — the mode tray — and "NOT IN SETTINGS". This assertion is deliberately
+//    the inverse of what it said this afternoon: the earlier version asserted
+//    the Settings row was present, which is the placement Tom rejected.
 await page.locator('.bottom-nav button[title="Settings"]').click().catch(() => {})
 await page.waitForTimeout(1200)
 check(
-  'Settings still carries a "Listening mode" row',
-  await page.locator('.setting-row.clickable', { hasText: /listening mode/i }).count() > 0
+  'Settings carries NO "Listening mode" row',
+  await page.locator('.setting-row.clickable', { hasText: /listening mode/i }).count() === 0
 )
-await page.screenshot({ path: `${OUT}5-settings-row.png` })
+await page.screenshot({ path: `${OUT}5-settings-no-row.png` })
 
 check('no page errors', errors.length === 0, errors.join(' | '))
 await browser.close()

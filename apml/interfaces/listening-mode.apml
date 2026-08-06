@@ -57,12 +57,17 @@ ENTRY_POINT:
          PlayerContainer.handleExitListeningMode() → LearningPlayer
          .exitListeningMode(), which closes the overlay AND stops audio.
     Path 2 is unchanged and remains the primary exit inside the overlay.
-  second_route_settings: |
-    Settings → Tools → 'Listening mode' (SettingsScreen.vue) is KEPT as a
-    duplicate route. It emits 'openListening'; PlayerContainer closes settings
-    and calls the same handleToggleListening(). It costs nothing, it cannot
-    disagree with the tray (both read the one overlay flag), and it gives a
-    second discoverable path. Deliberate duplication, not an oversight.
+  no_settings_route: |
+    There is NO listening row in Settings, by ruling. Tom, 2026-08-06 22:38Z:
+    "LISTENING MODE MUST GO BACK IN ITS PREVIOUS PLACE IN THE UI, NOT IN
+    SETTINGS." The tray is the previous place — it is where the control lived
+    before d81fedac moved it out (as a 'Mode — pick one' radio item, under the
+    same tray trigger), so restoring it there restores the placement learners
+    already knew. The Settings → Tools row that d81fedac added as its
+    replacement home, its 'openListening' emit on SettingsScreen, and
+    PlayerContainer's @openListening handler are all REMOVED. Do not
+    reintroduce a Settings route as "a second discoverable path": that reading
+    is what this ruling overturned. One control, one place.
   visibility_gate: |
     The row is NOT gated on showListeningBtn / localStorage 'ssi-mode-listening'.
     That flag defaults to false and is written by developer settings and the

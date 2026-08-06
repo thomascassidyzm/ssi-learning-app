@@ -21,7 +21,7 @@ import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from 
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
 import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -1922,25 +1922,13 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
-          <!-- Listening mode. This is its ONLY entry point (Aran, 2026-08-06):
-               offering it from the player's mode popup was distracting, so the
-               control lives here and the popup no longer carries it. Opening
-               closes settings and hands off to PlayerContainer, which flips the
-               player into listening mode exactly as the tray used to. -->
-          <div class="setting-row clickable" @click="emit('openListening')">
-            <div class="setting-info">
-              <span class="setting-label">{{ t('settings.listeningMode') }}</span>
-              <span class="setting-desc">{{ t('settings.listeningModeDesc') }}</span>
-            </div>
-            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-          </div>
-
+          <!-- NO listening-mode row here. Tom's ruling (2026-08-06, 22:38Z):
+               listening mode goes back where learners already knew to find it —
+               the player's mode tray — and Settings is the WRONG home for it.
+               This row was d81fedac's replacement home; it is deliberately gone.
+               The one entry point is the ModeTray on/off row, which is also the
+               way back out, so the round trip lives on one surface. -->
           <template v-if="showViewScript">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="emit('openExplorer')">
               <div class="setting-info">
                 <span class="setting-label">View Script</span>
@@ -1953,11 +1941,11 @@ const confirmReset = async () => {
                 <line x1="16" y1="17" x2="8" y2="17"/>
               </svg>
             </div>
+
+            <div class="divider"></div>
           </template>
 
           <template v-if="hasAdminRole">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="toggleQaMode">
               <div class="setting-info">
                 <span class="setting-label">QA Mode</span>
@@ -1969,10 +1957,13 @@ const confirmReset = async () => {
                 </div>
               </div>
             </div>
+
+            <div class="divider"></div>
           </template>
 
-          <div class="divider"></div>
-
+          <!-- Dividers lead each optional row's own template above, so this
+               always-present row never lands under an orphan rule when both
+               View Script and QA Mode are hidden. -->
           <div class="setting-row clickable" @click="toggleAdaptation">
             <div class="setting-info">
               <span class="setting-label">Personalised pacing</span>
