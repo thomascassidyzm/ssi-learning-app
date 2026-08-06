@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `ce9a82740ba2` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `b26c1e68be11` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -11,11 +11,20 @@ Personas: teacher · place: class-detail
 3. [`class-teachers` · next] Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.
    - terminal: That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.
 
+## install-the-app — Put the app on your device
+
+Personas: leader · place: node-home (org/group/school)
+
+1. [`account-card` · next] **Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.
+2. [`account-install` · next] This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.
+3. [`account-install` · next] If your browser can do it in one tap, the button does it. If it cannot, the button walks you through your browser's own menu instead — and you can remove the app again any time, like any other app.
+   - terminal: Nothing here is one-time — if you said no on your first visit, this row is still waiting whenever you change your mind.
+
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
 Personas: teacher · place: class-detail
 
-1. [`class-coteacher-link` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
+1. [`class-teachers` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
 3. [`class-join-link` · next] Keep it apart from this one. This is the **student** link — anyone who opens it joins the class as a learner. One link makes a colleague, the other makes a pupil, so send them to the right people.
    - terminal: Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing.
@@ -68,6 +77,15 @@ Personas: teacher · place: class-detail
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
 3. [`class-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
    - terminal: When you're ready, tap Play as class for real — this tour never starts a session for you.
+
+## set-your-password — Set or change your password
+
+Personas: leader · place: node-home (org/group/school)
+
+1. [`account-card` · next] **Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited.
+2. [`account-password` · next] If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.
+3. [`account-password` · next] Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.
+   - terminal: That is the whole thing — one password, always changeable, always in the same place.
 
 ## share-a-class — Share a class with a colleague
 

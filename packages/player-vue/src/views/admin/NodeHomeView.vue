@@ -16,6 +16,7 @@ import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/com
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+import YourAccount from '@/components/admin/YourAccount.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
 import { nodeKindOf } from '@/explainer/evaluateRules'
 import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
@@ -634,6 +635,13 @@ const listPayload = computed(() => {
                every link minted anywhere in this subtree, with copy /
                revoke / re-mint. The management face of the link system. -->
           <WaysInLedger v-if="!isClass && home.node" ref="ledgerEl" :node-id="home.node.id" />
+
+          <!-- YOUR ACCOUNT — the leader's own sign-in and their own device
+               (founder ruling 2026-08-06). Ways in is how OTHER people get
+               in; this is how YOU get back in. Member surface only: on the
+               admin mount an ssi_admin is looking at someone else's node,
+               and their own account is not what this page is about. -->
+          <YourAccount v-if="member && !isClass && home.node" />
         </div>
       </div>
     </template>
