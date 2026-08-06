@@ -91,7 +91,7 @@ export function beltSpeed(seedNumber: number): number {
  *
  * The value is BAKED onto the cycle as `cycle.playbackSpeed`. Two runtime
  * consumers depend on it being the truth of what the voice plays at:
- *   • The mode override's `getPlaybackSpeedMultiplier` cancels it (target / baked).
+ *   • The mode's `getPlaybackSpeedMultiplier` cancels it (target / baked).
  *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
  *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
  *     and hands a beginner the fully-tapered green-belt pause.
@@ -234,9 +234,9 @@ function* toSimpleRoundsGen(
           voice1Url: isBookend ? '' : audioUrl(i.target1Id),
           voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
         },
-        // Expose raw target durations so the runtime mode override can
-        // recompute pauseDuration with their own formula instead of just
-        // scaling the baked value.
+        // Expose raw target durations so runtime overrides (the active
+        // learning mode) can recompute pauseDuration with their own formula
+        // instead of just scaling the baked value.
         ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its

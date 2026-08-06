@@ -56,6 +56,7 @@ import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig, type LearningMode } from '../composables/useAlgorithmConfig'
+import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -522,7 +523,10 @@ const runGenerateScript = (
     // Per-mode script shape: the global script_shape row with the active
     // mode's overlay on top. Fast carries no overlay ⇒ unchanged.
     scriptShapeForMode(learningMode.value),
-    activeModeConfig.value.phrase_length_preference ?? 'shortest',
+    // Phrase-length CAP for the active mode — a fraction of the longest
+    // phrase in the whole course. Fast is uncapped (1.0) and so provably
+    // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
+    activeModeConfig.value.maxPhraseLengthFraction ?? 1,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -1463,6 +1467,12 @@ const isPlaying = computed(() => simplePlayer.isPlaying.value)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+/** Flips true once the saved-progress read for this learner+course has RESOLVED
+ *  — which is what lets "this learner has never played" be told apart from
+ *  "their progress hasn't loaded yet". Both look like null otherwise, and
+ *  acting on the second would hand an existing learner the new-learner default.
+ *  Consumed only by applyNewLearnerModeDefault() further down. */
+const progressHistoryResolved = ref(false)
 // Cursor LEGO ID from the enrollment row (last_completed_lego_id).
 // Reactive copy of the DB value — the canonical "where is the cursor"
 // signal for the resting-state journey-bar comparison. DON'T derive
@@ -1495,7 +1505,9 @@ watch(
   () => [courseCode.value, learnerId.value],
   async () => {
     if (!progressStore?.value || !learnerId.value || !courseCode.value) return
-    if (isGuestLearner.value) return
+    // A guest has no server-side history by definition — that IS a resolved
+    // "never played", not a pending read, so the mode default may act on it.
+    if (isGuestLearner.value) { progressHistoryResolved.value = true; return }
     try {
       const saved = await loadSavedProgress()
       if (saved) {
@@ -1518,6 +1530,7 @@ watch(
         currentMode.value = 'main'
         infplayRoundIndex.value = 0
       }
+      progressHistoryResolved.value = true
     } catch { /* silent */ }
   },
   { immediate: true }
@@ -9298,7 +9311,7 @@ const handleSkipToPrevBelt = async () => {
 // FAST is the default for everyone and is behaviourally identical to the
 // old "normal" mode, so a learner who never touches the toggle sees no
 // change at all. EASY doubles the thinking time (runtime, next cycle
-// boundary) and doubles the reps / prefers the longest phrase (script
+// boundary) and doubles the reps and HALVES the longest phrase (script
 // shape, next script build).
 // ============================================
 const learningMode = ref<LearningMode>('fast')
@@ -9332,6 +9345,65 @@ restoreLearningMode()
 watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
   if (mode === 'easy' || mode === 'fast') learningMode.value = mode
 })
+
+/** Has this learner ever expressed a mode preference — on the learner row
+ *  (cross-device) or on this device? An explicit choice outranks any default,
+ *  forever, so this gates the new-learner default below. */
+const hasChosenLearningMode = (): boolean => {
+  const stored = auth?.learner?.value?.preferences?.learning_mode
+  if (stored === 'easy' || stored === 'fast') return true
+  try {
+    const local = localStorage.getItem(LEARNING_MODE_KEY)
+    return local === 'easy' || local === 'fast'
+  } catch { return false }
+}
+
+/**
+ * NEW-LEARNER DEFAULT (Aran's ruling via Tom, 2026-08-06).
+ *
+ * A learner with NO play history starts on EASY. A learner who is already
+ * playing keeps TODAY'S behaviour — Fast — so nobody's course silently slows
+ * down underneath them mid-flight. That asymmetry is the whole point, and it
+ * is why the module default above cannot simply become 'easy': it has to stay
+ * Fast so every pre-existing learner, and every path that reads the mode
+ * before progress resolves, lands on the unchanged experience.
+ *
+ * Gated on progressHistoryResolved: before the saved-progress read returns,
+ * "no history" and "not loaded yet" are both null, and acting on the second
+ * would put an existing learner on Easy — exactly what the ruling forbids.
+ *
+ * Tom has flagged this default as his to overturn. It is built as ruled.
+ */
+let newLearnerDefaultApplied = false
+
+const applyNewLearnerModeDefault = () => {
+  if (newLearnerDefaultApplied) return
+  if (!progressHistoryResolved.value) return
+  newLearnerDefaultApplied = true
+  const mode = resolveNewLearnerMode({
+    progressResolved: true,
+    hasChosenMode: hasChosenLearningMode(),
+    highestCompletedLegoId: highestCompletedLegoId.value,
+    lastCompletedLegoId: lastCompletedLegoIdRef.value,
+    highestCompletedRoundIndex: highestCompletedRoundIndex.value,
+    completedRounds: completedRounds.value,
+  })
+  if (!mode) return
+  learningMode.value = mode
+  // Persisted to both stores so the learner is never re-defaulted once they DO
+  // have history, and a second device reads the same mode.
+  //
+  // Deliberately NOT routed through setLearningMode(): that logs a manual pace
+  // judgement to behaviouralEvidence ("this is too fast"), and a silent default
+  // is not a judgement — feeding it in would poison the signal with an event
+  // the learner never made. It also keeps this clear of the temporal dead zone,
+  // since setLearningMode is declared further down and this watcher can fire
+  // synchronously during setup for a guest.
+  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked — session default still applies */ }
+  auth?.updatePreferences?.({ learning_mode: mode })
+}
+
+watch(progressHistoryResolved, () => applyNewLearnerModeDefault(), { immediate: true })
 
 // ============================================
 // RUNTIME PAUSE / SPEED OVERRIDES
@@ -10008,7 +10080,7 @@ const exitAllModes = () => {
  *     speed, because those go through the runtime overrides above, which are
  *     read fresh at every phase.
  *   • NEXT SCRIPT BUILD (next session, or a course switch): the doubled reps
- *     and the longest-phrase preference, because those are baked into the
+ *     and the halved phrase-length cap, because those are baked into the
  *     script at generation time. We deliberately do NOT force a blocking
  *     mid-session regeneration — a full-course walk is six course-wide
  *     queries, and stalling a learner mid-round to reshape a round they are
@@ -14000,7 +14072,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
-          activeModeConfig.value.phrase_length_preference ?? 'shortest',
+          activeModeConfig.value.maxPhraseLengthFraction ?? 1,
         )
       }
     } finally {

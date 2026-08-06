@@ -1,112 +1,120 @@
-/**
- * Easy / Fast learning modes (Aran's ruling 2026-08-06, Turbo retired).
- *
- * The two things worth pinning down here are the two things a regression
- * would be silent about: that FAST is still byte-for-byte the old normal
- * mode, and that EASY really is "double the time, double the reps, longest
- * phrase" rather than merely "different".
- */
 import { describe, it, expect } from 'vitest'
-import { DEFAULT_FAST, DEFAULT_EASY, DEFAULT_SCRIPT_SHAPE } from './useAlgorithmConfig'
-import { computePauseDuration } from '../playback/computePauseDuration'
+import { ref } from 'vue'
+import {
+  useAlgorithmConfig,
+  resolveScriptShape,
+  DEFAULT_FAST,
+  DEFAULT_EASY,
+  DEFAULT_LEARNING_MODE,
+  MODE_CONFIG_KEY,
+} from './useAlgorithmConfig'
 
-describe('Fast mode is the old normal mode, unchanged', () => {
-  it('plays at native speed with no culling and full spaced rep', () => {
-    expect(DEFAULT_FAST.playback_speed).toBe(1.0)
-    expect(DEFAULT_FAST.spaced_rep_fraction).toBe(1.0)
-    expect(DEFAULT_FAST.debut_phrases_fraction).toBe(1.0)
-    expect(DEFAULT_FAST.skip_voice2).toBe(false)
+// Easy / Fast learning modes (Aran's ruling 2026-08-06 — exactly two modes,
+// Turbo deleted). The contract these tests hold:
+//   - 'fast_mode' is read with a live fallback to 'normal_mode' so an old
+//     bundle and a new bundle both work during the promotion window;
+//   - Fast is provably unchanged: its scriptShape override is the identity
+//     and its phrase-length cap is 1.0 = uncapped (today's behaviour);
+//   - a mode's scriptShape layers over the GLOBAL script_shape row in exactly
+//     one place, resolveScriptShape.
+
+const GLOBAL_SHAPE = {
+  spacedRepOffsets: [1, 2, 3, 5, 8],
+  maxBuildPhrases: 7,
+  useConsolidationCount: 2,
+  maxSpacedRepPhrases: 12,
+  n1PhraseCount: 3,
+}
+
+/** Minimal Supabase stub: one `algorithm_config` table read. */
+const fakeSupabase = (rows: Array<{ key: string; config: any }>) =>
+  ref({
+    from: () => ({ select: async () => ({ data: rows, error: null }) }),
   })
 
-  it('carries no script-shape overlay, so it uses the global shape as-is', () => {
-    expect(DEFAULT_FAST.script_shape).toBeUndefined()
+const load = async (rows: Array<{ key: string; config: any }>) => {
+  const api = useAlgorithmConfig(fakeSupabase(rows))
+  // Bust the module-level 5-minute cache shared across instances.
+  api.invalidateCache()
+  await api.loadConfigs(true)
+  return api
+}
+
+describe('learning modes — Easy / Fast', () => {
+  it('defaults to fast, and the two modes map to their row keys', () => {
+    expect(DEFAULT_LEARNING_MODE).toBe('fast')
+    expect(MODE_CONFIG_KEY).toEqual({ easy: 'easy_mode', fast: 'fast_mode' })
   })
 
-  it('keeps the shortest-first phrase order', () => {
-    // Absent means 'shortest' at every call site.
-    expect(DEFAULT_FAST.phrase_length_preference ?? 'shortest').toBe('shortest')
+  it('Fast is provably unchanged: identity shape override, uncapped phrases', () => {
+    expect(DEFAULT_FAST.scriptShape).toEqual({})
+    expect(DEFAULT_FAST.maxPhraseLengthFraction).toBe(1.0)
+    expect(resolveScriptShape(GLOBAL_SHAPE, DEFAULT_FAST)).toEqual(GLOBAL_SHAPE)
   })
 
-  it('retains the belt taper on long phrases', () => {
-    expect(DEFAULT_FAST.pause_belt_assembly).toBe(0.8)
-  })
-})
-
-describe('Easy mode — double the time', () => {
-  // Every pause term is 2x its Fast counterpart.
-  it.each([
-    'pause_boot_ms',
-    'pause_assembly_lin',
-    'pause_multiplier',
-    'min_pause_ms',
-    'max_pause_ms',
-  ] as const)('%s is exactly double Fast', (key) => {
-    const fast = DEFAULT_FAST[key] as number
-    const easy = DEFAULT_EASY[key] as number
-    expect(easy).toBeCloseTo(fast * 2, 6)
+  it('Easy differs by OVERRIDE, and only in the keys it names', () => {
+    const easy = resolveScriptShape(GLOBAL_SHAPE, DEFAULT_EASY)
+    // Named keys win — the four rep counts, each roughly DOUBLE the global
+    // value (Aran 2026-08-06: "double the reps"). These mirror the seeded
+    // easy_mode DB row, which is authoritative; the defaults here only apply
+    // when that row cannot be read, so they must not disagree with it.
+    expect(easy.maxBuildPhrases).toBe(DEFAULT_EASY.scriptShape!.maxBuildPhrases)
+    expect(easy.useConsolidationCount).toBe(DEFAULT_EASY.scriptShape!.useConsolidationCount)
+    expect(easy.maxSpacedRepPhrases).toBe(DEFAULT_EASY.scriptShape!.maxSpacedRepPhrases)
+    expect(easy.n1PhraseCount).toBe(DEFAULT_EASY.scriptShape!.n1PhraseCount)
+    // …and the spaced-rep schedule itself falls through untouched: Easy rides
+    // the global Fibonacci offsets, it does not invent its own.
+    expect(easy.spacedRepOffsets).toBe(GLOBAL_SHAPE.spacedRepOffsets)
+    expect(DEFAULT_EASY.scriptShape!.spacedRepOffsets).toBeUndefined()
   })
 
-  it('switches the belt taper OFF so the gap never shrinks with rank', () => {
-    // Fast tapers long phrases to 0.8 by Green; Easy holds them at full length.
-    expect(DEFAULT_FAST.pause_belt_assembly).toBe(0.8)
-    expect(DEFAULT_EASY.pause_belt_assembly).toBe(1.0)
-    expect(DEFAULT_EASY.pause_belt_boot).toBe(1.0)
+  it('resolveScriptShape is the identity when a mode carries no override', () => {
+    expect(resolveScriptShape(GLOBAL_SHAPE, null)).toEqual(GLOBAL_SHAPE)
+    expect(resolveScriptShape(GLOBAL_SHAPE, {})).toEqual(GLOBAL_SHAPE)
   })
 
-  it('does not slow the voice down — the extra time is thinking time', () => {
-    expect(DEFAULT_EASY.playback_speed).toBe(1.0)
+  it('reads fast_mode when the DB has been promoted', async () => {
+    const { fastConfig, modeConfig } = await load([
+      { key: 'fast_mode', config: { min_pause_ms: 111 } },
+      { key: 'normal_mode', config: { min_pause_ms: 999 } },
+    ])
+    expect(fastConfig.value.min_pause_ms).toBe(111)
+    expect(modeConfig('fast').min_pause_ms).toBe(111)
   })
 
-  it('gives a genuinely longer real pause across the phrase-length curve', () => {
-    // Exercise the actual helper, not just the numbers, at White belt (speed
-    // 0.8 is the belt proxy) for a short, medium and long phrase.
-    for (const [t1, t2] of [[600, 600], [1500, 1500], [3000, 3000]]) {
-      const fast = computePauseDuration(t1, t2, DEFAULT_FAST, 0.8)
-      const easy = computePauseDuration(t1, t2, DEFAULT_EASY, 0.8)
-      expect(easy).toBeGreaterThan(fast)
-      // "Roughly double" — the clamps mean it is not exactly 2x everywhere,
-      // but it must never collapse back towards Fast.
-      expect(easy / fast).toBeGreaterThan(1.5)
-    }
-  })
-})
-
-describe('Easy mode — double the reps', () => {
-  it('doubles every phrase-count knob against the global script shape', () => {
-    const overlay = DEFAULT_EASY.script_shape
-    expect(overlay).toBeDefined()
-    expect(overlay!.maxBuildPhrases).toBe(DEFAULT_SCRIPT_SHAPE.maxBuildPhrases * 2)
-    expect(overlay!.useConsolidationCount).toBe(DEFAULT_SCRIPT_SHAPE.useConsolidationCount * 2)
-    expect(overlay!.maxSpacedRepPhrases).toBe(DEFAULT_SCRIPT_SHAPE.maxSpacedRepPhrases * 2)
-    expect(overlay!.n1PhraseCount).toBe(DEFAULT_SCRIPT_SHAPE.n1PhraseCount * 2)
+  it('falls back to normal_mode when fast_mode is not in the DB yet', async () => {
+    // A new bundle against a DB that has not been promoted: the learner must
+    // still get the tuned normal_mode curve, not the baked defaults.
+    const { fastConfig } = await load([{ key: 'normal_mode', config: { min_pause_ms: 999 } }])
+    expect(fastConfig.value.min_pause_ms).toBe(999)
   })
 
-  it('leaves the Fibonacci ladder alone — that is WHEN, not how many', () => {
-    expect(DEFAULT_EASY.script_shape!.spacedRepOffsets).toBeUndefined()
-  })
-})
-
-describe('Easy mode — longest phrase', () => {
-  it('asks the generator for the longest available phrase', () => {
-    expect(DEFAULT_EASY.phrase_length_preference).toBe('longest')
-  })
-})
-
-describe('Turbo is genuinely gone', () => {
-  it('neither mode carries the culling knobs', () => {
-    for (const cfg of [DEFAULT_FAST, DEFAULT_EASY]) {
-      expect((cfg as unknown as Record<string, unknown>).fibKeep).toBeUndefined()
-      expect((cfg as unknown as Record<string, unknown>).buildKeep).toBeUndefined()
-      expect((cfg as unknown as Record<string, unknown>).useKeep).toBeUndefined()
-    }
+  it('never reads turbo_boost, even when the row is still in the table', async () => {
+    const { fastConfig, easyConfig } = await load([
+      { key: 'normal_mode', config: { min_pause_ms: 999 } },
+      { key: 'turbo_boost', config: { min_pause_ms: 1, playback_speed: 1.25 } },
+    ])
+    expect(fastConfig.value.min_pause_ms).toBe(999)
+    expect(fastConfig.value.playback_speed).toBe(1.0)
+    expect(easyConfig.value.playback_speed).toBe(1.0)
   })
 
-  it('neither mode thins the learner\'s round', () => {
-    // Turbo shipped 0.33 / 0.5 here. Both modes now give the full session.
-    for (const cfg of [DEFAULT_FAST, DEFAULT_EASY]) {
-      expect(cfg.spaced_rep_fraction).toBe(1.0)
-      expect(cfg.debut_phrases_fraction).toBe(1.0)
-      expect(cfg.skip_voice2).toBe(false)
-    }
+  it('field-merges a partial easy_mode row over the defaults', async () => {
+    const { easyConfig } = await load([
+      { key: 'easy_mode', config: { min_pause_ms: 1500, maxPhraseLengthFraction: 0.75 } },
+    ])
+    expect(easyConfig.value.min_pause_ms).toBe(1500)
+    expect(easyConfig.value.maxPhraseLengthFraction).toBe(0.75)
+    // Untouched fields still come from DEFAULT_EASY.
+    expect(easyConfig.value.pause_boot_ms).toBe(DEFAULT_EASY.pause_boot_ms)
+  })
+
+  it('an admin can layer a shape override onto a mode from the DB', async () => {
+    const { modeConfig } = await load([
+      { key: 'easy_mode', config: { scriptShape: { maxSpacedRepPhrases: 4 } } },
+    ])
+    const shape = resolveScriptShape(GLOBAL_SHAPE, modeConfig('easy'))
+    expect(shape.maxSpacedRepPhrases).toBe(4)
+    expect(shape.maxBuildPhrases).toBe(GLOBAL_SHAPE.maxBuildPhrases)
   })
 })

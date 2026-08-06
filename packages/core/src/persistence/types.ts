@@ -38,7 +38,7 @@ export interface LearnerPreferences {
   encouragements_enabled: boolean;
   /** Which of the two learner-facing modes is active. 'fast' is the default
    *  and is the historical "normal" mode; 'easy' doubles the thinking time
-   *  and the reps and prefers the longest phrase. Replaced
+   *  and the reps and HALVES the longest phrase. Replaced
    *  `turbo_mode_enabled` on 2026-08-06 when Turbo was retired. Optional so
    *  a learner row written before that date still typechecks — absent
    *  reads as 'fast'. */

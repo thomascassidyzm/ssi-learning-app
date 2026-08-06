@@ -815,7 +815,7 @@ registry SSiContent:
         structure:
           session_duration_minutes: "integer (default: 15)"
           encouragements_enabled: "boolean (default: true)"
-          learning_mode: "'easy' | 'fast' (optional; absent reads as 'fast'). The two learner-facing modes — replaced turbo_mode_enabled 2026-08-06 when Turbo was retired. 'fast' IS the former normal mode and is the default for everyone; 'easy' doubles the thinking time and the reps and prefers the longest phrase."
+          learning_mode: "'easy' | 'fast' (optional; absent reads as 'fast'). The two learner-facing modes — replaced turbo_mode_enabled 2026-08-06 when Turbo was retired. 'fast' IS the former normal mode; 'easy' doubles the thinking time, doubles the reps and HALVES the phrase-length cap. Default is asymmetric (2026-08-06): a learner with NO play history starts on 'easy'; anyone already playing stays on 'fast' so nothing slows down mid-course."
           volume: "number (default: 1.0)"
 
       created_at:

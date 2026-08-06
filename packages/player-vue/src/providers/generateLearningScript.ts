@@ -15,6 +15,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateLearningScript } from './validateLearningScript'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
+// The phrase-length cap lives with the mode config it comes from — ONE place,
+// next to resolveScriptShape (Aran's correction, 2026-08-06).
+import {
+  capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
+  normalizeMaxPhraseLengthFraction,
+  MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
+} from '../composables/useAlgorithmConfig'
 
 export interface ScriptItem {
   uuid: string
@@ -66,12 +73,6 @@ export interface ScriptItem {
   listeningSeedNumber?: number
 }
 
-// Turbo mode was retired 2026-08-06 (Aran's ruling, relayed by Tom): two
-// learner-facing modes only, easy and fast. Its cycle-culling (turboOmit +
-// fibKeep/buildKeep/useKeep) is gone with it — no learner now gets a
-// thinned-out round. Easy mode goes the other way, adding reps via the
-// per-mode `script_shape` overlay in useAlgorithmConfig.
-
 /**
  * Default per-round script shape — mirrored to algorithm_config.script_shape.
  * Changing these reshapes every round generated after the change.
@@ -115,12 +116,6 @@ export const SEED_PHASE_START_OFFSET = 144
 export function reviewItemIsSeed(offset: number): boolean {
   return offset >= SEED_PHASE_START_OFFSET
 }
-
-/** Which practice phrase the generator reaches for first when it has a
- *  choice. 'shortest' is the long-standing behaviour (Fast); 'longest'
- *  (Easy) reverses the BUILD/USE sorts so the learner gets the fullest
- *  phrase available. Mirrors ModeConfig.phrase_length_preference. */
-export type PhraseLengthPreference = 'shortest' | 'longest'
 
 // Role → runtime playback rate for Layer-2 pod plays (emitPodLap, retained
 // for hot-fix rollback — see the comment above emitPodLap). All audio
@@ -317,9 +312,13 @@ export async function generateLearningScript(
   infinitePlayLookahead: number = 50,
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
-  /** Easy mode passes 'longest'; Fast (and every legacy caller) gets the
-   *  historical shortest-first ordering. */
-  phraseLengthPreference: PhraseLengthPreference = 'shortest',
+  /**
+   * Cap on phrase length for the active learning mode, as a fraction of the
+   * longest phrase available for each LEGO. 1.0 (the default) is uncapped and
+   * reproduces the pre-2026-08-06 behaviour exactly; Easy ships 0.5.
+   * See capPhrasesByLength() — the one place the rule lives.
+   */
+  maxPhraseLengthFraction: number = 1,
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -344,10 +343,13 @@ export async function generateLearningScript(
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
   const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
 
-  // Phrase-length preference — Easy mode asks for the longest phrase
-  // available, Fast keeps the historical shortest-first walk. Applied as a
-  // sign flip on the syllable-count comparators below.
-  const LENGTH_SORT_SIGN = phraseLengthPreference === 'longest' ? -1 : 1
+  // Phrase-length cap (mode row). The ceiling is ABSOLUTE and COURSE-WIDE —
+  // a fraction of the longest phrase in the whole course, measured in
+  // characters of target text — computed once below, after the phrase pools
+  // are known. 1.0 = uncapped = historic behaviour; Easy ships 0.5. Ordering
+  // is always shortest-first; the cap only removes the long tail.
+  const PHRASE_LENGTH_FRACTION = normalizeMaxPhraseLengthFraction(maxPhraseLengthFraction)
+  const phraseLengthOf = (p: Phrase): number => phraseTextLength(p.target_text)
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
@@ -366,6 +368,12 @@ export async function generateLearningScript(
     const vowelClusters = targetText.toLowerCase().match(/[aeiouyáéíóúàèìòùâêîôûäëïöü]+/gi)
     return vowelClusters ? vowelClusters.length : 1
   }
+
+  /** A phrase's target syllable count: the stored value, else derived. */
+  const phraseSyllables = (phrase: {
+    target_syllable_count?: number
+    target_text?: string | null
+  }): number => phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
 
   // Query tables directly - audio IDs stored on each row, no joins needed.
   // ALL course-content queries are course-wide — no startSeed/endSeed
@@ -745,12 +753,29 @@ export async function generateLearningScript(
     group.practice = []
   }
 
-  // Sort BUILD phrases by syllable count
+  // Sort BUILD phrases shortest-first and apply the mode's phrase-length cap
+  // — the twin of the USE sort below; both must move together or a round's
+  // BUILD and USE halves disagree about length. capPhrasesByLength falls back
+  // to that LEGO's shortest phrases rather than starve the round. The floor is
+  // the methodology's per-LEGO minimum (4 BUILD / 5 USE), NOT the round's
+  // ceiling: passing the ceiling makes the guard swallow the cap on every LEGO
+  // smaller than it, which is most of them (BUILD pools average 3.2 phrases).
+  // One ceiling for the whole run, from every pool the learner can meet.
+  const PHRASE_LENGTH_LIMIT = PHRASE_LENGTH_FRACTION >= 1
+    ? Infinity
+    : courseMaxPhraseLength<Phrase>(
+        [...phrasesByLego.values()].flatMap((g) => [g.build, g.use]),
+        phraseLengthOf,
+      ) * PHRASE_LENGTH_FRACTION
+
   for (const [, group] of phrasesByLego.entries()) {
-    group.build.sort((a, b) => LENGTH_SORT_SIGN * (
-      (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-      (b.target_syllable_count || countTargetSyllables(b.target_text))
-    ))
+    group.build = capPhrasesByLength<Phrase>(
+      group.build,
+      phraseSyllables,
+      phraseLengthOf,
+      PHRASE_LENGTH_LIMIT,
+      MIN_BUILD_PHRASES_AFTER_CAP,
+    )
   }
 
   // Organize LEGOs by seed
@@ -1241,10 +1266,16 @@ export async function generateLearningScript(
 
       // Fill remaining BUILD slots with USE phrases (BUILD priority > CONSOLIDATE)
       // CONSOLIDATE can repeat BUILD phrases if needed — filling 7 BUILD is non-negotiable
-      const sortedUsePhrases = [...phrases.use].sort((a, b) => LENGTH_SORT_SIGN * (
-        (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-        (b.target_syllable_count || countTargetSyllables(b.target_text))
-      ))
+      // Twin of the BUILD sort above — same shortest-first order, same cap.
+      // 'needed' is only the slots still unfilled, so the starvation guard
+      // measures against what this round actually has to place.
+      const sortedUsePhrases = capPhrasesByLength<Phrase>(
+        phrases.use,
+        phraseSyllables,
+        phraseLengthOf,
+        PHRASE_LENGTH_LIMIT,
+        MIN_USE_PHRASES_AFTER_CAP,
+      )
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1272,10 +1303,21 @@ export async function generateLearningScript(
         })
       }
 
-      // Initialize LEGO state
+      // Initialize LEGO state.
+      // The review pool gets the SAME cap. It has to: spaced rep walks this
+      // pool round-robin (useIndex % length), so it is the only place a LEGO's
+      // LONGEST phrases ever reach the learner — the debut BUILD/USE fills
+      // above take a shortest-first prefix and would ignore a cap entirely.
+      // Guard against an N-1 review's worth, the largest single draw.
       legoState.set(legoKey, {
         lastRound: roundNumber,
-        usePhrases: [...phrases.use],
+        usePhrases: capPhrasesByLength<Phrase>(
+          phrases.use,
+          phraseSyllables,
+          phraseLengthOf,
+          PHRASE_LENGTH_LIMIT,
+          MIN_USE_PHRASES_AFTER_CAP,
+        ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego
       })

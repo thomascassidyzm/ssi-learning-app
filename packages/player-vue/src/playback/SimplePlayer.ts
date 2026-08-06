@@ -12,18 +12,20 @@ import type { Cycle, Round } from '@ssi/core'
 
 /**
  * Runtime overrides that LearningPlayer can supply to apply mode-dependent
- * timing (Turbo) without baking it into the script. Pure callbacks — the
- * engine reads them at the moment of each phase, so flipping Turbo
- * mid-round takes effect on the very next pause / voice phase.
+ * timing (the Easy / Fast learning modes) without baking it into the script.
+ * Pure callbacks — the engine reads them at the moment of each phase, so
+ * flipping mode mid-round takes effect on the very next pause / voice phase.
  */
 export interface SimplePlayerRuntimeOverrides {
   /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
   getPauseDuration?: (cycle: Cycle) => number | undefined
   /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
   getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
-  /** Return true to skip this cycle entirely (advance to the next). Used by Turbo to
-   * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
-   * Turbo mid-round shortens the remaining round on the next cycle boundary. */
+  /** Return true to skip this cycle entirely (advance to the next). Consulted
+   * before starting any phase, so a mid-round change shortens the remaining
+   * round on the next cycle boundary. Retired Turbo used this to cull its
+   * tagged cycles; adaptation v2 is the only remaining caller — the Easy /
+   * Fast modes differ by script-shape OVERRIDE, never by a cull. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
   /**
    * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
@@ -216,7 +218,7 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // (owned at LearningPlayer level via useAudioSessionKeepalive) is left exactly
 // as-is underneath.
 //
-// The existing dynamic/Turbo pause-duration timer is kept as a trim/backstop:
+// The existing dynamic/mode pause-duration timer is kept as a trim/backstop:
 // whichever of (clip 'ended', trim timer) fires first advances, guarded by
 // playGeneration against a double advance.
 //
@@ -226,8 +228,8 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // an empty src iOS treats as nothing).
 
 // Fixed clip length, comfortably longer than any realistic pause (DEFAULT is
-// 6500ms; adaptive/Turbo never exceed it by much). The trim timer cuts it
-// short for the actual dynamic/Turbo pause; the natural 'ended' is the
+// 6500ms; adaptive/mode pauses never exceed it by much). The trim timer cuts
+// it short for the actual dynamic/mode pause; the natural 'ended' is the
 // background backstop when the timer is frozen.
 const SILENT_CLIP_DURATION_S = 12
 
@@ -613,7 +615,7 @@ export class SimplePlayer {
 
   /**
    * Replace the runtime overrides. Used when LearningPlayer wants to
-   * supply Turbo-aware callbacks after the player has been constructed,
+   * supply mode-aware callbacks after the player has been constructed,
    * e.g. once the algorithm config has loaded from Supabase.
    */
   setRuntimeOverrides(overrides: SimplePlayerRuntimeOverrides): void {
@@ -843,7 +845,7 @@ export class SimplePlayer {
     // skipped, the round is empty in this mode — advance to the next.
     const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
     if (startIdx === -1) {
-      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped under Turbo, advancing`)
+      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped by the runtime cull, advancing`)
       this.updateState({ isPlaying: true })
       this.advanceRound()
       return
@@ -908,7 +910,7 @@ export class SimplePlayer {
   }
 
   // Mirror of findNextPlayableCycleIndex, walking backwards. Used by
-  // stepCycle(-1) so a Turbo-culled cycle is skipped over when stepping
+  // stepCycle(-1) so a runtime-culled cycle is skipped over when stepping
   // back rather than landing on a cycle that won't play.
   private findPrevPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
@@ -932,7 +934,7 @@ export class SimplePlayer {
    * the step is a no-op — the caller owns what happens off the edge
    * (the header forward enters INF PLAY; nothing precedes the start).
    *
-   * Turbo-skipped cycles are honoured via find{Next,Prev}PlayableCycleIndex
+   * Runtime-culled cycles are honoured via find{Next,Prev}PlayableCycleIndex
    * so a single tap lands on the next *playable* cycle, never a culled one.
    * Routes through jumpToRound so play-state preservation, audio teardown
    * and cycle clamping all reuse the audited path.
@@ -1303,7 +1305,7 @@ export class SimplePlayer {
     this.retryIsTarget = isTarget
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
-    // Runtime override (Turbo) can multiply the baked rate; the override is
+    // The mode runtime override can multiply the baked rate; the override is
     // expected to gate itself on cycle type so it doesn't double up on
     // listening cycles that already have an explicit speed.
     let rate = 1.0
@@ -1312,8 +1314,8 @@ export class SimplePlayer {
       const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
       rate *= multiplier
     }
-    // Speed >1.05× is unexpected on speaking cycles (Turbo only goes
-    // to 1.25×) but expected on L1 ps2x and L2 pod-stage 2× plays.
+    // Speed >1.05× is unexpected on speaking cycles (neither Easy nor Fast
+    // exceeds 1.0×) but expected on L1 ps2x and L2 pod-stage 2× plays.
     // Only warn for non-listening cycles to keep the console useful.
     const isExpectedFastCycle = this.currentCycle?.type === 'listening'
       || this.currentCycle?.type === 'pod'
@@ -1383,7 +1385,7 @@ export class SimplePlayer {
 
   private startPausePhase(): void {
     const cycle = this.currentCycle
-    // Runtime override (Turbo) can shorten the pause; if it returns
+    // The mode runtime override can shorten the pause; if it returns
     // undefined, fall back to the baked cycle.pauseDuration.
     const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
     const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION

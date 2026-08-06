@@ -316,13 +316,23 @@ LEARNING_MODE:
 
   modes:
     fast:
-      default: true
+      default: "For EXISTING learners only — see default_by_history below."
       semantics: "Behaviourally identical to the pre-2026-08-06 `normal` mode — a learner who never touches the toggle sees no change at all. Keeps the baked belt speed ramp (getPlaybackSpeedMultiplier returns 1.0) and the global script_shape unchanged."
     easy:
       semantics: "Gentler. Three independent knobs, all admin-tunable via algorithm_config."
       time: "Every pause term is 2x Fast (boot, assembly slope, floor, ceiling, multiplier) AND the belt taper is off (pause_belt_boot / pause_belt_assembly both 1.0 vs Fast's 0.8 assembly taper). Audio plays at native 1.0x — Easy cancels the beginner belt speed ramp, never speeds the voice past 1.0x."
       reps: "A per-mode `script_shape` overlay doubles the phrase-count knobs — maxBuildPhrases 14, useConsolidationCount 4, maxSpacedRepPhrases 24, n1PhraseCount 6 (vs Fast's 7/2/12/3). `spacedRepOffsets` is deliberately NOT doubled: the Fibonacci ladder is WHEN a review fires, not how many reps it gives."
-      length: "`phrase_length_preference: 'longest'` reverses the shortest-first BUILD/USE sorts in generateLearningScript, so the learner gets the fullest phrase available."
+      length: "`maxPhraseLengthFraction: 0.5` — a CAP, not a sort direction. The ceiling is ABSOLUTE and COURSE-WIDE: 0.5 x the longest phrase in the whole course, measured in CHARACTERS of target text. Ordering stays shortest-first everywhere (so Fast, at 1.0 = uncapped, is provably byte-identical to before). Measured reasons for characters-not-syllables and course-wide-not-per-LEGO: target_syllable_count is NULL across whole courses and the syllable fallback returns 1 for non-Latin scripts, and BUILD pools average ~3.2 phrases so a per-LEGO ceiling never bit. A STARVATION GUARD keeps >=4 BUILD / >=5 USE per LEGO — phrase volume is a hard methodology rail, so the cap yields to it. Invalid/missing degrades to 1.0 (uncapped), never to a cap."
+
+  default_by_history:
+    rule: "ASYMMETRIC (Aran via Tom, 2026-08-06). A learner with NO play history starts on EASY. A learner with ANY play history keeps TODAY'S behaviour — FAST — so nothing silently slows down mid-course for anyone already playing."
+    why_module_default_stays_fast: "`DEFAULT_LEARNING_MODE` remains 'fast' deliberately: every pre-existing learner, and every path that reads the mode BEFORE progress resolves, must land on the unchanged experience. Easy is applied as a decision on top, never as the base."
+    decision: "composables/newLearnerMode.ts — `resolveNewLearnerMode()`, a pure function returning the mode to apply or NULL for leave-alone. Returns null (not 'fast') on every leave-alone path so the caller never writes a mode it did not decide, which would clobber a choice still arriving from the learner row."
+    gate: "Gated on `progressHistoryResolved` — before the saved-progress read returns, 'no history' and 'not loaded yet' are both empty; acting on the second would put an existing learner on Easy. A guest resolves TRUE synchronously (no server history by definition); a FAILED read never resolves."
+    history_signals: "highest_completed_lego_id | last_completed_lego_id | highestCompletedRoundIndex !== null (round 0 is real play) | completedRounds > 0"
+    explicit_choice_wins: "If the learner has ever chosen a mode (learner row OR localStorage), the default never fires — in either direction, forever."
+    not_a_behavioural_signal: "Applied WITHOUT routing through setLearningMode(), so it emits no `learning_mode_toggle`: a silent default is not a learner judgement and must not enter the manual-dial evidence stream."
+    status: "Tom has flagged this default as overridable by him; built as ruled, not yet challenged."
 
   control:
     surface: "Segmented Easy | Fast control on the RESTING SCREEN (PlayerRestingState.vue) — the mode you pick BEFORE you start, not a mid-session tray toggle. Rendered only when isPlayerReady; pointer-events re-enabled locally because .resting-state is pointer-events:none."
@@ -340,7 +350,7 @@ LEARNING_MODE:
 
   timing_of_effect:
     immediate: "Pause / thinking time and playback speed — they go through SimplePlayer runtime overrides read fresh at every phase, so they land on the next cycle boundary."
-    next_script_build: "Doubled reps + longest-phrase preference — baked at script-generation time, so they land on the next session or a course switch. No blocking mid-session regeneration by design. generateScript's dedupe key includes the mode so the other mode's cached walk is never served."
+    next_script_build: "Doubled reps + the halved phrase-length cap — baked at script-generation time, so they land on the next session or a course switch. No blocking mid-session regeneration by design. generateScript's dedupe key includes the mode so the other mode's cached walk is never served."
 
   analytics: "player_events `learning_mode_toggle` with payload { mode } (replaced `turbo_toggle`). Also fed to useBehaviouralEvidence as a MANUAL DIAL — the learner outranking the engine — which sets manualOverrideActive for adaptation v2 and never enters a unit's difficulty series."
 
