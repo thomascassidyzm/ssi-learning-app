@@ -113,6 +113,22 @@ export interface AudioFailedEvent {
    * clip was skipped (playback continued). */
   attempt?: 1 | 2
   lastError?: string
+  /**
+   * How many clips in a row have now been skipped without a single one
+   * playing (reset by the first real playback progress). 1 is a puncture —
+   * expected, survivable, the ruling in action. A large and climbing number
+   * means the learner is being driven through SILENCE: the session will still
+   * reach 'session_complete', but nothing was audible.
+   *
+   * This exists because never-aborting has a cost that a stall did not have.
+   * A stall was at least self-evident to the learner. Skipping is instant, so
+   * a course with a wholly missing audio block races to a "session complete"
+   * screen in milliseconds having taught nothing. The player must NOT stop —
+   * that is settled — so the counter is how the failure stays loud instead:
+   * it rides the existing telemetry to the release gate and the admin
+   * diagnostics, which is where a hollow course is supposed to be caught.
+   */
+  consecutiveSkips?: number
 }
 
 // Fallback: bootUpTime(2000) + scaleFactor(0.75) × estimatedTarget(6000) = 6500ms
@@ -217,6 +233,14 @@ const SILENT_CLIP_DURATION_S = 12
 
 const SILENT_PAUSE_CLIP = buildSilentWavDataUri(SILENT_CLIP_DURATION_S)
 
+/**
+ * Consecutive skipped clips at which the log escalates from "a puncture" to
+ * "this session is running silent". Three is one whole cycle's worth of clips
+ * (prompt + both target voices), i.e. the learner has now been shown a full
+ * item they could not hear any part of.
+ */
+const CONSECUTIVE_SKIP_ALARM = 3
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -236,6 +260,9 @@ export class SimplePlayer {
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  // Clips skipped back-to-back with no audible playback in between. See
+  // AudioFailedEvent.consecutiveSkips for why this is tracked.
+  private consecutiveSkips: number = 0
   // playGeneration the currently-armed play-path safety watchdog belongs to,
   // and the highest currentTime seen for it. The watchdog is a STALL detector:
   // each timeupdate that shows real progress reschedules it, so a healthy clip
@@ -406,6 +433,7 @@ export class SimplePlayer {
       errorCode,
       attempt,
       lastError,
+      consecutiveSkips: this.consecutiveSkips,
     }
   }
 
@@ -505,6 +533,15 @@ export class SimplePlayer {
    */
   private skipFailedClip(errorCode: number | undefined, lastError?: string): void {
     const cycle = this.currentCycle
+    // Counted before the emit so the telemetry payload carries this skip.
+    this.consecutiveSkips++
+    if (this.consecutiveSkips >= CONSECUTIVE_SKIP_ALARM) {
+      console.error(
+        `[SimplePlayer] ${this.consecutiveSkips} clips skipped in a row with nothing audible — ` +
+        `this session is running SILENT. The player will not stop (standing ruling), but this ` +
+        `course has a dead audio block and should never have passed the release gate.`,
+      )
+    }
     console.error(
       `[SimplePlayer] Audio unplayable after retry — SKIPPING this clip and continuing. ` +
       `phase=${this.state.phase} role=${this.phaseToRole()} legoId=${cycle?.legoId} ` +
@@ -1338,6 +1375,8 @@ export class SimplePlayer {
     const t = this.audio.currentTime
     if (t > this.lastAudioCurrentTime) {
       this.lastAudioCurrentTime = t
+      // Real, audible progress — the run of skipped clips (if any) is over.
+      this.consecutiveSkips = 0
       this.armSafetyTimer(this.safetyGen)
     }
   }
