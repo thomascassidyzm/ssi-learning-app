@@ -37,13 +37,14 @@ export function formatCreatedOn(iso?: string | null): string {
 export function duplicateWarningMessage(
   duplicates: DuplicateInfo[] | undefined,
   noun = 'organisation',
+  action: 'Creating' | 'Renaming' = 'Creating',
 ): string {
   const first = duplicates?.[0]
   const name = first?.name || ''
   const on = formatCreatedOn(first?.created_at)
   const when = on ? `, created on ${on}` : ''
   const article = noun === 'organisation' ? 'an' : 'a'
-  return `There's already ${article} ${noun} called "${name}"${when}. Creating this one will give you two with the same name.`
+  return `There's already ${article} ${noun} called "${name}"${when}. ${action} this one will give you two with the same name.`
 }
 
 /**
@@ -55,10 +56,11 @@ export function readDuplicateWarning(
   status: number,
   body: unknown,
   noun = 'organisation',
+  action: 'Creating' | 'Renaming' = 'Creating',
 ): { message: string; duplicates: DuplicateInfo[] } | null {
   if (status !== 409) return null
   const data = body as { code?: string; duplicates?: DuplicateInfo[] } | null
   if (!data || data.code !== 'duplicate_name') return null
   const duplicates = Array.isArray(data.duplicates) ? data.duplicates : []
-  return { message: duplicateWarningMessage(duplicates, noun), duplicates }
+  return { message: duplicateWarningMessage(duplicates, noun, action), duplicates }
 }

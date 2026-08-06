@@ -330,7 +330,7 @@ async function submitRename(confirmDuplicate = false): Promise<void> {
       body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
-    const duplicate = readDuplicateWarning(resp.status, data, 'group')
+    const duplicate = readDuplicateWarning(resp.status, data, 'group', 'Renaming')
     if (duplicate) {
       renameDuplicateWarning.value = duplicate.message
       return

@@ -247,7 +247,7 @@ async function saveRename(node: StructureNode, confirmDuplicate = false): Promis
       body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
-    const duplicate = readDuplicateWarning(resp.status, data, node.parent_id ? 'group' : 'organisation')
+    const duplicate = readDuplicateWarning(resp.status, data, node.parent_id ? 'group' : 'organisation', 'Renaming')
     if (duplicate) {
       pendingRename.value = { node, name: newName }
       renameDuplicateWarning.value = duplicate.message
