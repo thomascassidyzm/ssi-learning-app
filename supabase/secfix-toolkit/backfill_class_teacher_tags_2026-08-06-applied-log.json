@@ -1,0 +1,581 @@
+{
+ "mode": "applied",
+ "before": {
+  "classes_total": 62,
+  "lead_pointer_no_tag": 47,
+  "both": 13,
+  "neither": 2,
+  "orphan_tags": 11,
+  "class_teachers_rows": 13
+ },
+ "after": {
+  "classes_total": 62,
+  "lead_pointer_no_tag": 0,
+  "both": 60,
+  "neither": 2,
+  "orphan_tags": 0,
+  "class_teachers_rows": 60
+ },
+ "inserts": [
+  {
+   "class_id": "5c1b7454-2fe6-4295-b979-892b0d9c0301",
+   "class_name": "My class",
+   "teacher_user_id": "9c8308d3-052c-4991-b995-41490a2bb58f",
+   "school_id": null,
+   "tag_value": "CLASS:5c1b7454-2fe6-4295-b979-892b0d9c0301",
+   "action": "insert_lead_tag",
+   "tag_id": "371c9298-8c6b-464b-bce1-95c623227a1f",
+   "reactivated": false
+  },
+  {
+   "class_id": "320b4d6d-e9ee-4765-9b1a-e267b02b8604",
+   "class_name": "My class",
+   "teacher_user_id": "c6538832-9634-4491-a852-f61a213e80ea",
+   "school_id": null,
+   "tag_value": "CLASS:320b4d6d-e9ee-4765-9b1a-e267b02b8604",
+   "action": "insert_lead_tag",
+   "tag_id": "6f53cdc5-186e-4c7b-8563-678cadffc4b8",
+   "reactivated": false
+  },
+  {
+   "class_id": "51df4fb0-c88c-4bc0-a110-27d14d898bb2",
+   "class_name": "TT001",
+   "teacher_user_id": "c6538832-9634-4491-a852-f61a213e80ea",
+   "school_id": null,
+   "tag_value": "CLASS:51df4fb0-c88c-4bc0-a110-27d14d898bb2",
+   "action": "insert_lead_tag",
+   "tag_id": "3e1f98fe-2a14-493f-b250-2fcbaea4032c",
+   "reactivated": false
+  },
+  {
+   "class_id": "ca2cacc0-0cdd-4129-a7b1-6ecfebfe11b5",
+   "class_name": "My class",
+   "teacher_user_id": "5cb90643-f42d-4ccb-bfc7-24cc6e24a4fb",
+   "school_id": null,
+   "tag_value": "CLASS:ca2cacc0-0cdd-4129-a7b1-6ecfebfe11b5",
+   "action": "insert_lead_tag",
+   "tag_id": "8792ca4f-8324-4896-b489-d32f8bb1a8dd",
+   "reactivated": false
+  },
+  {
+   "class_id": "33e2523d-4c00-4966-bb76-c9ee5e4a15bd",
+   "class_name": "Tuesday morning",
+   "teacher_user_id": "5cb90643-f42d-4ccb-bfc7-24cc6e24a4fb",
+   "school_id": null,
+   "tag_value": "CLASS:33e2523d-4c00-4966-bb76-c9ee5e4a15bd",
+   "action": "insert_lead_tag",
+   "tag_id": "d5887dbe-2fc6-4ee5-9f6e-ba8688f4170b",
+   "reactivated": false
+  },
+  {
+   "class_id": "29692584-9edc-4f01-a421-3dcc8f8a2cdc",
+   "class_name": "Grade 7A",
+   "teacher_user_id": "5592e4f7-2c9e-4d2b-9a23-7aa9653700be",
+   "school_id": "2fd27c83-936f-4810-a88b-7d7b32315cee",
+   "tag_value": "CLASS:29692584-9edc-4f01-a421-3dcc8f8a2cdc",
+   "action": "insert_lead_tag",
+   "tag_id": "52a7c8d9-90c3-4711-82c9-79f95674cde1",
+   "reactivated": false
+  },
+  {
+   "class_id": "c236de50-3838-4be7-b330-7947681ff298",
+   "class_name": "Grade 6B",
+   "teacher_user_id": "254d61b7-dc83-4fcd-8168-5c240bc9a9d3",
+   "school_id": "2fd27c83-936f-4810-a88b-7d7b32315cee",
+   "tag_value": "CLASS:c236de50-3838-4be7-b330-7947681ff298",
+   "action": "insert_lead_tag",
+   "tag_id": "ba890dcb-a84e-4a12-9056-21e26a7478f8",
+   "reactivated": false
+  },
+  {
+   "class_id": "a9c15ee2-fa90-478d-be81-e4823ec76f21",
+   "class_name": "Grade 6A",
+   "teacher_user_id": "7761a3df-ffb8-4dc2-804d-5af212f7a301",
+   "school_id": "08ae8828-8ee3-48d9-8443-00d8f815b8ec",
+   "tag_value": "CLASS:a9c15ee2-fa90-478d-be81-e4823ec76f21",
+   "action": "insert_lead_tag",
+   "tag_id": "78fe0854-dc85-43c2-bbd3-c0ec2307c829",
+   "reactivated": false
+  },
+  {
+   "class_id": "911ef143-f4d5-40a3-a181-21f2a4e535c8",
+   "class_name": "Grade 6B",
+   "teacher_user_id": "4e3e6246-76f6-4477-990d-90c9ee457b04",
+   "school_id": "08ae8828-8ee3-48d9-8443-00d8f815b8ec",
+   "tag_value": "CLASS:911ef143-f4d5-40a3-a181-21f2a4e535c8",
+   "action": "insert_lead_tag",
+   "tag_id": "bf697383-22b7-493c-ad0c-7eb85f7390ac",
+   "reactivated": false
+  },
+  {
+   "class_id": "717e90b5-0ce4-4790-b938-acfd3b97ab2c",
+   "class_name": "My class",
+   "teacher_user_id": "47e3a3fc-526c-482c-9418-b2b6b44e67a0",
+   "school_id": null,
+   "tag_value": "CLASS:717e90b5-0ce4-4790-b938-acfd3b97ab2c",
+   "action": "insert_lead_tag",
+   "tag_id": "a49e3967-6346-49a3-ac98-e4f027f2c1cc",
+   "reactivated": false
+  },
+  {
+   "class_id": "1cc5cde0-0540-4b4e-9cde-afc6c790c572",
+   "class_name": "My class",
+   "teacher_user_id": "f25a7c97-3d38-42a5-a5c5-868d7ff2fa29",
+   "school_id": null,
+   "tag_value": "CLASS:1cc5cde0-0540-4b4e-9cde-afc6c790c572",
+   "action": "insert_lead_tag",
+   "tag_id": "bff4729e-1188-44a0-affe-c35d412eda04",
+   "reactivated": false
+  },
+  {
+   "class_id": "76b663d2-9ca7-45ee-935c-0287a26f1647",
+   "class_name": "11A",
+   "teacher_user_id": "2dc2bd91-7c30-48e8-ac05-e023e03bc65d",
+   "school_id": "29a77af4-4be2-41bb-a0ac-e00160a23c2e",
+   "tag_value": "CLASS:76b663d2-9ca7-45ee-935c-0287a26f1647",
+   "action": "insert_lead_tag",
+   "tag_id": "5ad1a525-1878-47e0-9dd3-b6dbf92fd4d9",
+   "reactivated": false
+  },
+  {
+   "class_id": "361115c8-8feb-4132-8664-598f0bf7701a",
+   "class_name": "8B",
+   "teacher_user_id": "3008f793-765e-4382-b7f1-6ebcd6efc9ef",
+   "school_id": "29a77af4-4be2-41bb-a0ac-e00160a23c2e",
+   "tag_value": "CLASS:361115c8-8feb-4132-8664-598f0bf7701a",
+   "action": "insert_lead_tag",
+   "tag_id": "53ae2e2d-d89e-4d0d-8fac-1bb6808ae396",
+   "reactivated": false
+  },
+  {
+   "class_id": "38a8ae15-bd44-4540-93b6-492ae2cefa42",
+   "class_name": "Year 3",
+   "teacher_user_id": "2dc2bd91-7c30-48e8-ac05-e023e03bc65d",
+   "school_id": "29a77af4-4be2-41bb-a0ac-e00160a23c2e",
+   "tag_value": "CLASS:38a8ae15-bd44-4540-93b6-492ae2cefa42",
+   "action": "insert_lead_tag",
+   "tag_id": "7e1dc6d8-d171-4dd4-ba3f-8916d892750b",
+   "reactivated": false
+  },
+  {
+   "class_id": "541b2e86-4f99-4b9a-8d15-932c57b306a0",
+   "class_name": "9A",
+   "teacher_user_id": "5a77aa14-37a8-4aec-913e-be1f853be5e3",
+   "school_id": "c268d89d-2ff2-4d60-ae27-669d5ff25429",
+   "tag_value": "CLASS:541b2e86-4f99-4b9a-8d15-932c57b306a0",
+   "action": "insert_lead_tag",
+   "tag_id": "2cb343d6-1010-4fa4-8ad5-d1591450a707",
+   "reactivated": false
+  },
+  {
+   "class_id": "37dc43d8-a9a8-4c3a-a7b6-05bfc2c3b3f9",
+   "class_name": "Year 5",
+   "teacher_user_id": "e7c161eb-645f-46b6-9211-d046a8595595",
+   "school_id": "c268d89d-2ff2-4d60-ae27-669d5ff25429",
+   "tag_value": "CLASS:37dc43d8-a9a8-4c3a-a7b6-05bfc2c3b3f9",
+   "action": "insert_lead_tag",
+   "tag_id": "ed6aafa4-0641-4bc5-9f35-96202bdc2fe0",
+   "reactivated": false
+  },
+  {
+   "class_id": "1c99123a-b60f-4766-bf0f-5e8ca15146a3",
+   "class_name": "Year 4",
+   "teacher_user_id": "5a77aa14-37a8-4aec-913e-be1f853be5e3",
+   "school_id": "c268d89d-2ff2-4d60-ae27-669d5ff25429",
+   "tag_value": "CLASS:1c99123a-b60f-4766-bf0f-5e8ca15146a3",
+   "action": "insert_lead_tag",
+   "tag_id": "156a8c28-9437-45a2-8620-0954185f94a5",
+   "reactivated": false
+  },
+  {
+   "class_id": "0beed829-a901-4d01-a3b1-776f619cb501",
+   "class_name": "My class",
+   "teacher_user_id": "18f02b35-4316-4fda-87cc-f91723c3c7c1",
+   "school_id": null,
+   "tag_value": "CLASS:0beed829-a901-4d01-a3b1-776f619cb501",
+   "action": "insert_lead_tag",
+   "tag_id": "5ae55457-73a1-457a-a05e-fc45eeac0794",
+   "reactivated": false
+  },
+  {
+   "class_id": "a475861d-4933-46da-b992-c55d3aa64886",
+   "class_name": "My class",
+   "teacher_user_id": "54409f06-7406-42d5-93ff-772e46a02b12",
+   "school_id": null,
+   "tag_value": "CLASS:a475861d-4933-46da-b992-c55d3aa64886",
+   "action": "insert_lead_tag",
+   "tag_id": "4524a159-9d3a-4cce-8800-b6d89aa1542d",
+   "reactivated": false
+  },
+  {
+   "class_id": "8a4c2082-7f61-441b-9821-2802efe91757",
+   "class_name": "Grade 6B",
+   "teacher_user_id": "d5a359a2-c5ae-4443-ae01-7804a9075a08",
+   "school_id": "014de6c0-7913-4c84-8da2-113f59cc2640",
+   "tag_value": "CLASS:8a4c2082-7f61-441b-9821-2802efe91757",
+   "action": "insert_lead_tag",
+   "tag_id": "27b45abb-a8ea-4600-b197-ad12aeac332d",
+   "reactivated": false
+  },
+  {
+   "class_id": "479f5493-7a41-4111-a6de-7a9403ea9a44",
+   "class_name": "Grade 6A",
+   "teacher_user_id": "4c6794a9-ead9-4309-9e28-d44f9032a0ae",
+   "school_id": "014de6c0-7913-4c84-8da2-113f59cc2640",
+   "tag_value": "CLASS:479f5493-7a41-4111-a6de-7a9403ea9a44",
+   "action": "insert_lead_tag",
+   "tag_id": "ef71b8fb-ce6b-41b4-8732-c249f4c51e1c",
+   "reactivated": false
+  },
+  {
+   "class_id": "8cddbb41-c2a0-47b3-b37a-08a6c17ac2ce",
+   "class_name": "Grade 7A",
+   "teacher_user_id": "eed46c81-7f99-4031-a21c-4c3aed4bd196",
+   "school_id": "8e4f7fdc-03dc-445f-a428-082562cf6a56",
+   "tag_value": "CLASS:8cddbb41-c2a0-47b3-b37a-08a6c17ac2ce",
+   "action": "insert_lead_tag",
+   "tag_id": "906e776f-7852-4380-8531-6dbffea1e628",
+   "reactivated": false
+  },
+  {
+   "class_id": "85a57a26-6929-4efe-a6dd-04700a9eb7c0",
+   "class_name": "Grade 8A",
+   "teacher_user_id": "5592e4f7-2c9e-4d2b-9a23-7aa9653700be",
+   "school_id": "2fd27c83-936f-4810-a88b-7d7b32315cee",
+   "tag_value": "CLASS:85a57a26-6929-4efe-a6dd-04700a9eb7c0",
+   "action": "insert_lead_tag",
+   "tag_id": "e846f9f2-a810-47ae-9758-b012b221bfc9",
+   "reactivated": false
+  },
+  {
+   "class_id": "9cd70259-ae5b-43e0-9ee7-571df22d7e37",
+   "class_name": "Grade 7A",
+   "teacher_user_id": "b3b25e02-b4de-411c-815a-428a71c71089",
+   "school_id": "08ae8828-8ee3-48d9-8443-00d8f815b8ec",
+   "tag_value": "CLASS:9cd70259-ae5b-43e0-9ee7-571df22d7e37",
+   "action": "insert_lead_tag",
+   "tag_id": "6009117c-96d4-4a96-8cf5-56f43927e7f1",
+   "reactivated": false
+  },
+  {
+   "class_id": "1ae2332f-7254-43c9-9dd2-9414af27ab28",
+   "class_name": "Grade 8A",
+   "teacher_user_id": "e8f8f189-6f41-4760-98c5-98fe1b7630c5",
+   "school_id": "df9a7eb0-2236-4d79-861d-b4784ccea1b4",
+   "tag_value": "CLASS:1ae2332f-7254-43c9-9dd2-9414af27ab28",
+   "action": "insert_lead_tag",
+   "tag_id": "bf8219a9-29eb-4955-8c72-f6e8b2366370",
+   "reactivated": false
+  },
+  {
+   "class_id": "26a60fd3-a029-4bae-8c53-fd950b68b9f0",
+   "class_name": "Grade 7B",
+   "teacher_user_id": "e8f8f189-6f41-4760-98c5-98fe1b7630c5",
+   "school_id": "df9a7eb0-2236-4d79-861d-b4784ccea1b4",
+   "tag_value": "CLASS:26a60fd3-a029-4bae-8c53-fd950b68b9f0",
+   "action": "insert_lead_tag",
+   "tag_id": "bc1a496a-e701-45d3-bdf6-02b66ab2b2cd",
+   "reactivated": false
+  },
+  {
+   "class_id": "02503883-3f5e-48c3-82c2-243158925288",
+   "class_name": "Grade 6A",
+   "teacher_user_id": "f3a9c5b0-addc-412f-a57a-830140244ae1",
+   "school_id": "df9a7eb0-2236-4d79-861d-b4784ccea1b4",
+   "tag_value": "CLASS:02503883-3f5e-48c3-82c2-243158925288",
+   "action": "insert_lead_tag",
+   "tag_id": "4ac87c40-6630-4be3-b1f5-20ab23168c4b",
+   "reactivated": false
+  },
+  {
+   "class_id": "e4d7f68f-d123-4e3d-89c6-88bf9ba7c6ab",
+   "class_name": "Grade 7A",
+   "teacher_user_id": "d5a359a2-c5ae-4443-ae01-7804a9075a08",
+   "school_id": "014de6c0-7913-4c84-8da2-113f59cc2640",
+   "tag_value": "CLASS:e4d7f68f-d123-4e3d-89c6-88bf9ba7c6ab",
+   "action": "insert_lead_tag",
+   "tag_id": "82451539-ed2a-4d2a-a868-5b34a48f9fcc",
+   "reactivated": false
+  },
+  {
+   "class_id": "fc2fbb99-8c2c-4643-8e78-5b36b23aa3fe",
+   "class_name": "Grade 6B",
+   "teacher_user_id": "eed46c81-7f99-4031-a21c-4c3aed4bd196",
+   "school_id": "8e4f7fdc-03dc-445f-a428-082562cf6a56",
+   "tag_value": "CLASS:fc2fbb99-8c2c-4643-8e78-5b36b23aa3fe",
+   "action": "insert_lead_tag",
+   "tag_id": "17ce828c-5715-4216-898b-8fc3ba0979e9",
+   "reactivated": false
+  },
+  {
+   "class_id": "55705c2f-f525-4f2b-97f6-c8b6007e3c23",
+   "class_name": "7A French",
+   "teacher_user_id": "752903f2-c676-439c-a92a-14f5420594fd",
+   "school_id": "66b0e6b7-5e8c-4421-8994-57e9bd8e5295",
+   "tag_value": "CLASS:55705c2f-f525-4f2b-97f6-c8b6007e3c23",
+   "action": "insert_lead_tag",
+   "tag_id": "f55f9c5f-2c4b-44f0-adfa-c570c77ab77c",
+   "reactivated": false
+  },
+  {
+   "class_id": "29539031-9cf8-4795-91cf-b8b502d41467",
+   "class_name": "7B Spanish",
+   "teacher_user_id": "68893083-849c-41f5-927f-87ee24d4333e",
+   "school_id": "66b0e6b7-5e8c-4421-8994-57e9bd8e5295",
+   "tag_value": "CLASS:29539031-9cf8-4795-91cf-b8b502d41467",
+   "action": "insert_lead_tag",
+   "tag_id": "9750dd1c-1af1-40de-ab61-ec0421fd8382",
+   "reactivated": false
+  },
+  {
+   "class_id": "2b7c6b97-7d3e-497f-b9fc-573272475e08",
+   "class_name": "8A French",
+   "teacher_user_id": "1e72288d-0d59-46d9-bfce-5284e2a5b04a",
+   "school_id": "d0827b36-c8b9-4752-894b-5f3d3cd6e5b9",
+   "tag_value": "CLASS:2b7c6b97-7d3e-497f-b9fc-573272475e08",
+   "action": "insert_lead_tag",
+   "tag_id": "2a7465d5-edd5-499e-aad2-d0a233da675f",
+   "reactivated": false
+  },
+  {
+   "class_id": "5b53e987-7349-4f41-b549-cd6f5bfac703",
+   "class_name": "Grade 8 German",
+   "teacher_user_id": "3e84c530-d9be-4874-925d-e755e0c938f1",
+   "school_id": "d0827b36-c8b9-4752-894b-5f3d3cd6e5b9",
+   "tag_value": "CLASS:5b53e987-7349-4f41-b549-cd6f5bfac703",
+   "action": "insert_lead_tag",
+   "tag_id": "b014c510-a0ae-40a7-ab3c-c4cc6e539d21",
+   "reactivated": false
+  },
+  {
+   "class_id": "c33dc385-a26b-40b3-a955-3e81248b4909",
+   "class_name": "9A French",
+   "teacher_user_id": "3e84c530-d9be-4874-925d-e755e0c938f1",
+   "school_id": "d0827b36-c8b9-4752-894b-5f3d3cd6e5b9",
+   "tag_value": "CLASS:c33dc385-a26b-40b3-a955-3e81248b4909",
+   "action": "insert_lead_tag",
+   "tag_id": "a89b83db-0cd5-47d2-ba70-85d6d379c402",
+   "reactivated": false
+  },
+  {
+   "class_id": "0a2e030b-1cbf-41b4-9b9e-5ff43336fe98",
+   "class_name": "Grade 9 Mandarin",
+   "teacher_user_id": "5e71f4c7-b981-473a-a91a-0da65f4d739d",
+   "school_id": "d0827b36-c8b9-4752-894b-5f3d3cd6e5b9",
+   "tag_value": "CLASS:0a2e030b-1cbf-41b4-9b9e-5ff43336fe98",
+   "action": "insert_lead_tag",
+   "tag_id": "8a04b1d6-14c1-4263-b2f7-cf927cdf83da",
+   "reactivated": false
+  },
+  {
+   "class_id": "7535ac1a-7b94-4fe0-bed6-20cd963db78d",
+   "class_name": "Year 6 Spanish",
+   "teacher_user_id": "dc3c2083-8b06-4125-94aa-eda0577be4dd",
+   "school_id": "dc902d34-137c-48e5-a702-918d93b322df",
+   "tag_value": "CLASS:7535ac1a-7b94-4fe0-bed6-20cd963db78d",
+   "action": "insert_lead_tag",
+   "tag_id": "d37d753d-b4cb-4215-894f-d4b58c1ca429",
+   "reactivated": false
+  },
+  {
+   "class_id": "5a13defd-757f-4bd6-b6cc-cf11f63b4caa",
+   "class_name": "Welsh Club",
+   "teacher_user_id": "dc3c2083-8b06-4125-94aa-eda0577be4dd",
+   "school_id": "dc902d34-137c-48e5-a702-918d93b322df",
+   "tag_value": "CLASS:5a13defd-757f-4bd6-b6cc-cf11f63b4caa",
+   "action": "insert_lead_tag",
+   "tag_id": "c77961a9-978e-4cb8-8aa5-13196c10d068",
+   "reactivated": false
+  },
+  {
+   "class_id": "f91ab99f-2c59-4529-b75a-2ccb096eea0c",
+   "class_name": "Year 7 Spanish",
+   "teacher_user_id": "ac7400d7-02df-416f-b0b9-f089fecbefc6",
+   "school_id": "dc902d34-137c-48e5-a702-918d93b322df",
+   "tag_value": "CLASS:f91ab99f-2c59-4529-b75a-2ccb096eea0c",
+   "action": "insert_lead_tag",
+   "tag_id": "0105db71-1564-45ef-a739-7aeafd07bd0f",
+   "reactivated": false
+  },
+  {
+   "class_id": "74307ba1-815d-4d4a-b64a-7278dbef864d",
+   "class_name": "My class",
+   "teacher_user_id": "76005c02-2266-4964-ab7c-a20465d26527",
+   "school_id": null,
+   "tag_value": "CLASS:74307ba1-815d-4d4a-b64a-7278dbef864d",
+   "action": "insert_lead_tag",
+   "tag_id": "803f7035-b3c4-445c-9483-e0c2f4293215",
+   "reactivated": false
+  },
+  {
+   "class_id": "eeb989f5-a21b-4919-a15d-e277da04283c",
+   "class_name": "TestT Grade 5",
+   "teacher_user_id": "76005c02-2266-4964-ab7c-a20465d26527",
+   "school_id": null,
+   "tag_value": "CLASS:eeb989f5-a21b-4919-a15d-e277da04283c",
+   "action": "insert_lead_tag",
+   "tag_id": "c980c443-3ede-4ccc-b9dc-72fe377cc3f6",
+   "reactivated": false
+  },
+  {
+   "class_id": "3227d637-9272-4b0d-9555-19148ed9b0ff",
+   "class_name": "Rang a Cúig",
+   "teacher_user_id": "41d0a18d-44fa-4993-8fe7-cd67458b58ed",
+   "school_id": "3978af23-19ef-4cf9-ab94-0e716e64a6ed",
+   "tag_value": "CLASS:3227d637-9272-4b0d-9555-19148ed9b0ff",
+   "action": "insert_lead_tag",
+   "tag_id": "d9950917-f777-42a0-92a2-29cbfb2b5c15",
+   "reactivated": false
+  },
+  {
+   "class_id": "0fdb8712-3935-4dd3-8705-19e1d9259839",
+   "class_name": "Rang a Trí",
+   "teacher_user_id": "41d0a18d-44fa-4993-8fe7-cd67458b58ed",
+   "school_id": "3978af23-19ef-4cf9-ab94-0e716e64a6ed",
+   "tag_value": "CLASS:0fdb8712-3935-4dd3-8705-19e1d9259839",
+   "action": "insert_lead_tag",
+   "tag_id": "b8216041-7ff3-4667-8df0-af86fa5a0ebb",
+   "reactivated": false
+  },
+  {
+   "class_id": "a2480d97-82a3-4955-b188-b238a3191bba",
+   "class_name": "Rang a Ceathair",
+   "teacher_user_id": "28c0a3a0-2b4f-42e0-8c79-0d68ca8b6a89",
+   "school_id": "3978af23-19ef-4cf9-ab94-0e716e64a6ed",
+   "tag_value": "CLASS:a2480d97-82a3-4955-b188-b238a3191bba",
+   "action": "insert_lead_tag",
+   "tag_id": "01b85072-fadf-4423-9b5d-7a6dfaf00cbb",
+   "reactivated": false
+  },
+  {
+   "class_id": "a5a3c684-71be-4365-83d2-8bb6826d4fb9",
+   "class_name": "Year 8 Red",
+   "teacher_user_id": "f9b11168-8afe-4405-9b31-3708229167a7",
+   "school_id": "cc0ba726-942b-474c-9037-735008529a45",
+   "tag_value": "CLASS:a5a3c684-71be-4365-83d2-8bb6826d4fb9",
+   "action": "insert_lead_tag",
+   "tag_id": "25c8fb1d-bd1c-42e7-b1e0-3aff78fdc3f9",
+   "reactivated": false
+  },
+  {
+   "class_id": "60aba508-148d-446d-b74d-f0646a033f71",
+   "class_name": "Year 7 Blue",
+   "teacher_user_id": "2bb637a7-5e36-4614-aed6-aebcaee24b4a",
+   "school_id": "cc0ba726-942b-474c-9037-735008529a45",
+   "tag_value": "CLASS:60aba508-148d-446d-b74d-f0646a033f71",
+   "action": "insert_lead_tag",
+   "tag_id": "0fb3a260-2065-45ba-808b-d9797bd3c3cd",
+   "reactivated": false
+  },
+  {
+   "class_id": "5e11528f-eab8-4d99-96ad-ef0fa945ece8",
+   "class_name": "Blwyddyn 6",
+   "teacher_user_id": "18a17b9f-f7df-4312-a66c-bca5e8d50468",
+   "school_id": "38f85a1e-814f-49de-8452-e676555e5dbf",
+   "tag_value": "CLASS:5e11528f-eab8-4d99-96ad-ef0fa945ece8",
+   "action": "insert_lead_tag",
+   "tag_id": "792357ee-b222-43b7-9f3f-803367ff9425",
+   "reactivated": false
+  },
+  {
+   "class_id": "ed167b89-1c3b-4958-8bae-809d82f7af9f",
+   "class_name": "Blwyddyn 5",
+   "teacher_user_id": "c43793d8-8727-4b25-80ff-c7396dc62e85",
+   "school_id": "38f85a1e-814f-49de-8452-e676555e5dbf",
+   "tag_value": "CLASS:ed167b89-1c3b-4958-8bae-809d82f7af9f",
+   "action": "insert_lead_tag",
+   "tag_id": "fd6105ba-44e3-40e4-b43b-9d34aca4b7c9",
+   "reactivated": false
+  }
+ ],
+ "orphans": [
+  {
+   "id": "af67bacc-56ed-402b-bc9b-66eb4e5f1b83",
+   "user_id": "d3dc1989-000c-4942-bcac-3b19ff43e315",
+   "tag_value": "CLASS:606a31ee-0685-4109-8176-d023a9559eb1",
+   "added_at": "2026-06-10T02:22:41.210Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "50b0a4c1-1750-4973-bb00-934a0d0c6a1c",
+   "user_id": "7275e46a-1521-4cd7-a405-87c45e40663b",
+   "tag_value": "CLASS:6cd8d7e0-4f27-4f8a-b346-90f9403e48c8",
+   "added_at": "2026-06-10T02:22:41.210Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "f9fd063a-0957-4323-8eae-e10bbe06d2bd",
+   "user_id": "7275e46a-1521-4cd7-a405-87c45e40663b",
+   "tag_value": "CLASS:4b204b1b-5dba-4c9f-a683-6a4d2ea07cba",
+   "added_at": "2026-06-10T02:22:41.210Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "1a3ac39a-71a6-405b-a708-d3588fe22aa5",
+   "user_id": "d4e0564a-beb3-46a2-938f-899eff4de890",
+   "tag_value": "CLASS:0c9e0e5c-0b52-40ef-b609-ebca0626916a",
+   "added_at": "2026-06-10T02:23:08.971Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "fb0be76f-a22d-4d36-aa2e-4b4103a2e537",
+   "user_id": "f927f41c-3e64-4ae6-b158-f567ac699ac9",
+   "tag_value": "CLASS:72aec9d0-71fd-44c1-bbcf-e691b5977a7d",
+   "added_at": "2026-06-10T02:23:08.971Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "d158c10b-5cf3-48b8-a65a-6934f59b59d9",
+   "user_id": "a052b440-ee61-4ccc-bd1f-0edd36a65b32",
+   "tag_value": "CLASS:0d4168fe-3bbf-47b5-957d-f3c59793add9",
+   "added_at": "2026-06-10T02:23:25.287Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "82cc620c-ee88-430f-9493-8207cc1db4cb",
+   "user_id": "7014d12b-2a37-4021-b32a-d94456b67b13",
+   "tag_value": "CLASS:5f12e5d6-c8a9-4903-bc66-efe770fa5caf",
+   "added_at": "2026-06-10T02:23:25.287Z",
+   "added_by": "migration:first-class-class",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "e9f1cedf-8a99-4ab2-93ff-055b57b46586",
+   "user_id": "47f72a39-f84c-4220-8df8-56b8077d9459",
+   "tag_value": "CLASS:b88c4678-3f4d-41a2-b0b5-a5b07fc5533a",
+   "added_at": "2026-06-17T11:25:05.941Z",
+   "added_by": "47f72a39-f84c-4220-8df8-56b8077d9459",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "22a50b59-142b-4b22-88fe-658280443958",
+   "user_id": "ffe17850-5e7a-4310-b381-b2896368192f",
+   "tag_value": "CLASS:8a9360f9-9659-4db0-9f44-870eee764e0b",
+   "added_at": "2026-07-14T13:52:30.972Z",
+   "added_by": "ffe17850-5e7a-4310-b381-b2896368192f",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "c5cad7a0-91f0-4284-96b3-40e281378eba",
+   "user_id": "c7feba80-9fa7-4da6-863b-9d8dac4a1bdf",
+   "tag_value": "CLASS:ecdbe16b-a89b-4603-a2cc-916c970bec4b",
+   "added_at": "2026-07-15T15:00:26.467Z",
+   "added_by": "c7feba80-9fa7-4da6-863b-9d8dac4a1bdf",
+   "action": "soft_delete_orphan"
+  },
+  {
+   "id": "d006fa00-82ec-4bba-8944-ada55805b59c",
+   "user_id": "71c55899-48fa-4eef-bc5e-0a01dc7be816",
+   "tag_value": "CLASS:80f34724-88a2-4e2a-b172-f596e792f189",
+   "added_at": "2026-07-16T20:23:16.837Z",
+   "added_by": "71c55899-48fa-4eef-bc5e-0a01dc7be816",
+   "action": "soft_delete_orphan"
+  }
+ ]
+}
