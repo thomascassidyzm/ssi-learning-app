@@ -1,0 +1,29 @@
+{
+  "id": "share-a-class",
+  "title": "Share a class with a colleague",
+  "personas": ["teacher"],
+  "place": { "route": "class-detail" },
+  "steps": [
+    {
+      "anchor": "class-teachers",
+      "say": "A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-teacher-add",
+      "say": "**Add a co-teacher** is how you share it. Nobody is added until you pick a name and confirm.",
+      "advance": { "on": "click" }
+    },
+    {
+      "anchor": "class-teacher-picker",
+      "say": "You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-teachers",
+      "say": "What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.",
+      "advance": { "on": "next" },
+      "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+    }
+  ]
+}

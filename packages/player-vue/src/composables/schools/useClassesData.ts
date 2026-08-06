@@ -107,6 +107,13 @@ export interface ClassTeacherWriteResult {
   error: string | null
 }
 
+/** A minted class-scoped co-teacher link — `code` is null whenever `ok` is false. */
+export interface CoTeacherLinkResult {
+  ok: boolean
+  code: string | null
+  error: string | null
+}
+
 export interface ClassSession {
   id: string
   class_id: string
@@ -763,6 +770,39 @@ export function useClassesData() {
     return callClassTeachersApi({ class_id: classId, action: 'remove', target_user_id: targetUserId })
   }
 
+  /**
+   * Mint a CLASS-SCOPED co-teacher link (A-74) — the supply-teacher lane.
+   *
+   * The invite/redeem half shipped 2026-08-06 (api/invite/create.ts teacher +
+   * grants_class_id; api/code/redeem.ts writes the class tag alongside the
+   * school one) with no button anywhere to reach it. The school is SERVER-
+   * derived from the class — we never send one — and redemption never touches
+   * the lead pointer, so the colleague arrives as a co-teacher of this one
+   * class, not as its lead and not as a teacher of the whole school.
+   */
+  async function createCoTeacherLink(classId: string): Promise<CoTeacherLinkResult> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { ok: false, code: null, error: 'You are not signed in.' }
+      const resp = await fetch('/api/invite/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code_type: 'teacher', grants_class_id: classId }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok || !data.code) {
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] co-teacher link mint failed:', message)
+        return { ok: false, code: null, error: message }
+      }
+      return { ok: true, code: data.code as string, error: null }
+    } catch (err) {
+      console.error('[ClassesData] co-teacher link fetch error:', err)
+      return { ok: false, code: null, error: err instanceof Error ? err.message : 'Failed to reach the server' }
+    }
+  }
+
   async function createClass(params: {
     class_name: string
     course_code: string
@@ -934,6 +974,7 @@ export function useClassesData() {
     deleteClass,
     addClassTeacher,
     removeClassTeacher,
+    createCoTeacherLink,
     startClassSession,
     endClassSession,
     getClassSessions,
