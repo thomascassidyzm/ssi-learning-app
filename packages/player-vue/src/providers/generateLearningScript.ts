@@ -1157,6 +1157,13 @@ export async function generateLearningScript(
         ...(legoComponents ? { components: legoComponents } : {}),
         ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
       })
+      // The debut IS the bare LEGO — claim it so no later phase replays it. Some
+      // courses carry a build row whose text equals its own LEGO (deu_for_eng
+      // S0001L01 'I want / ich will'); playing that as a BUILD breaks the rule that
+      // a BUILD is the new LEGO plugged into ALREADY-KNOWN vocabulary, and burns a
+      // build slot a real phrase should have had. Mirrors the dashboard generator
+      // (services/learning-script-generator.cjs).
+      usedPhrasesThisRound.add(getPhraseId(lego.known_text, lego.target_text))
 
       // Phase 3: BUILD phrases up to 7
       let practiceCount = 0
@@ -1164,9 +1171,11 @@ export async function generateLearningScript(
 
       for (const phrase of phrases.build) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
+        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+        // Skip BEFORE consuming a build slot, so a skipped row costs nothing.
+        if (usedPhrasesThisRound.has(phraseId)) continue
         cycleNum++
         practiceCount++
-        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         usedPhrasesThisRound.add(phraseId)
         emitItem({
           uuid: `${legoKey}_build_${cycleNum}`,
