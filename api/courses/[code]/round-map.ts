@@ -16,6 +16,10 @@
  *     pipeline on course_legos mutations)
  *   - courses.version (auto-bumped by trigger in 20260518_courses_version_stamp.sql)
  *
+ * The map is truncated at the course's BUILT boundary (`_utils/courseBoundary`)
+ * — MVP courses author more seeds than they have audio for, and the round map
+ * is what the client actually walks, so this is where the course ends.
+ *
  * Response shape:
  *   {
  *     course_code: string,
@@ -35,6 +39,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { courseMaxSeed } from '../../_utils/courseBoundary'
 
 // Mirror the env-var pattern from api/audio/[audioId].ts: VITE_ fallback,
 // .trim() for trailing-newline tolerance on copy-pasted dashboard secrets.
@@ -119,6 +124,19 @@ export default async function handler(
       return
     }
 
+    // 3. Stop the map at the course's BUILT boundary. MVP courses author 668
+    //    seeds but only generate audio for the first 300 (see
+    //    _utils/courseBoundary.ts) — serving the tail walks the learner into
+    //    rounds whose intro has no clip. Truncating here is the single choke
+    //    point, because the client's round map IS the walk: tier-3 prefetch
+    //    finds no next round and the player reaches its normal end-of-course
+    //    state instead of silence.
+    const maxSeed = courseMaxSeed(code)
+    const boundedRows =
+      maxSeed === null
+        ? rows
+        : rows.filter((r: { seed_number: number }) => r.seed_number <= maxSeed)
+
     // Edge-cache aggressively. The URL is not version-stamped, so a refresh of
     // the materialised view + a courses.version bump will be picked up by the
     // frontend on its next round-trip — but stale-while-revalidate keeps the
@@ -127,7 +145,7 @@ export default async function handler(
     res.status(200).json({
       course_code: code,
       version: (courseRow as { version: number }).version,
-      rounds: rows.map((r: { round_index: number; lego_id: string; seed_number: number }) => ({
+      rounds: boundedRows.map((r: { round_index: number; lego_id: string; seed_number: number }) => ({
         r: r.round_index,
         legoId: r.lego_id,
         seed: r.seed_number,

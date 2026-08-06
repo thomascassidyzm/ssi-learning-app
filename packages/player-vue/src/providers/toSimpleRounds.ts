@@ -16,6 +16,7 @@ import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -71,19 +72,34 @@ function seedNumberFromId(seedId: string): number {
  *
  *   White 0.8 → Yellow 0.9 → Orange 0.95 → Green+ 1.0
  */
-function beltSpeed(seedNumber: number): number {
+export function beltSpeed(seedNumber: number): number {
   if (seedNumber < 8) return 0.8    // White  (seeds 1-7)
   if (seedNumber < 20) return 0.9   // Yellow (seeds 8-19)
   if (seedNumber < 40) return 0.95  // Orange (seeds 20-39)
   return 1.0                        // Green+ (seeds 40+)
 }
 
-/** Compute final playback speed for an item */
-function computePlaybackSpeed(
-  _type: string,
+/**
+ * Final baked target-voice speed for a cycle at `seedNumber`.
+ *
+ * THE one speed curve. Both round-builders call it — the legacy
+ * `toSimpleRounds` (script-gen path) and `backendCyclesToRounds` (the
+ * instant-playback path). Keeping it in one exported place is what stops
+ * the two builders drifting apart again: they were out of sync from the
+ * instant-playback cutover until 2026-08-04, and every learner on the new
+ * path silently played at a flat 1.0×.
+ *
+ * The value is BAKED onto the cycle as `cycle.playbackSpeed`. Two runtime
+ * consumers depend on it being the truth of what the voice plays at:
+ *   • Turbo's `getPlaybackSpeedMultiplier` cancels it (target / baked).
+ *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
+ *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
+ *     and hands a beginner the fully-tapered green-belt pause.
+ * So the curve must be applied HERE, at bake time — a play-time-only
+ * multiplier would fix the voice and leave the pause wrong.
+ */
+export function computeCycleSpeed(
   seedNumber: number,
-  _roundNumber: number,
-  _reviewOf: number | undefined,
   config: TargetSpeedConfig
 ): number {
   const base = config.globalSpeed ?? 1.0
@@ -94,6 +110,17 @@ function computePlaybackSpeed(
   // Native speed courses: apply the single belt-based ramp (new + review alike)
   const speed = Math.round(base * beltSpeed(seedNumber) * 100) / 100
   return Math.max(MIN_SPEED, Math.min(speed, base))
+}
+
+/** Compute final playback speed for a script item */
+function computePlaybackSpeed(
+  _type: string,
+  seedNumber: number,
+  _roundNumber: number,
+  _reviewOf: number | undefined,
+  config: TargetSpeedConfig
+): number {
+  return computeCycleSpeed(seedNumber, config)
 }
 
 /**
@@ -157,9 +184,24 @@ function* toSimpleRoundsGen(
       // Intro/component_intro: use presentationAudioId as prompt audio
       // ("The Spanish for 'want', as in 'I want to learn', is:")
       // Regular items: use knownAudioId (the known-language prompt)
-      const promptAudioId = (i.type === 'intro' || i.type === 'component_intro')
+      const isIntroLike = i.type === 'intro' || i.type === 'component_intro'
+      const promptAudioId = isIntroLike
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
+
+      // The fallback point. Until 2026-08-04 this branch was silent in both
+      // senses: it quietly degraded to known audio (or to nothing), and it
+      // emitted no telemetry, so a course-wide presentation-audio gap was
+      // invisible until a learner reported it. See introAudioTelemetry.ts.
+      if (isIntroLike && !i.presentationAudioId) {
+        reportIntroAudioMissing({
+          legoId: i.legoKey,
+          cycleId: i.uuid,
+          cycleType: i.type,
+          tier: i.knownAudioId ? 'known_fallback' : 'silent',
+          source: 'script',
+        })
+      }
 
       // Target speed: explicit (listening mode) → context-aware ramp → 1.0
       const speed = i.playbackSpeed ?? computePlaybackSpeed(

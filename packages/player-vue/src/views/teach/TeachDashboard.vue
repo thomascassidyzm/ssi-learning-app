@@ -676,7 +676,7 @@ async function submitRecipient() {
         <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">/ mo</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Accrued this month</span>
+        <span class="stone-label">Accrued balance</span>
         <span class="stone-value frost-mono-nums">£{{ accruedPounds }}</span>
       </FrostCard>
     </div>
@@ -904,14 +904,15 @@ async function submitRecipient() {
       <div class="section-head">
         <span class="frost-section-title">Earnings</span>
         <p class="section-sub">
-          You earn £{{ COMMISSION_PER_STUDENT }}/student/month, paid in arrears via
-          Wise once your accrued balance reaches £{{ payoutThresholdPounds }}.
+          You earn £{{ COMMISSION_PER_STUDENT }}/student/month. Paid monthly by Wise
+          once your balance passes £{{ payoutThresholdPounds }} and the refund period
+          has completed.
         </p>
       </div>
 
       <div class="earnings-grid">
         <div class="earnings-block">
-          <span class="earnings-label">Accrued this month</span>
+          <span class="earnings-label">Accrued balance</span>
           <span class="earnings-amount frost-mono-nums">£{{ accruedPounds }}</span>
         </div>
         <div class="earnings-block">
@@ -950,8 +951,9 @@ async function submitRecipient() {
 
       <div v-if="payoutError" class="error">{{ payoutError }}</div>
       <div v-if="payoutQueued" class="payout-queued">
-        Payout queued for the next run. We'll send your accrued balance to your
-        Wise account at the next monthly payout.
+        Payout queued for the next monthly run. We'll send the part of your
+        balance whose refund period has completed to your Wise account. Anything
+        still inside its refund period stays held and goes out on a later run.
       </div>
 
       <div class="payout-actions">
@@ -964,7 +966,8 @@ async function submitRecipient() {
           {{ payoutRecipient ? 'Request Wise payout' : 'Set up Wise payout' }}
         </Button>
         <p v-if="!canRequestPayout" class="payout-hint">
-          Reach £{{ payoutThresholdPounds }} accrued to enable payouts.
+          Paid monthly once your balance passes £{{ payoutThresholdPounds }} and
+          the refund period has completed.
         </p>
       </div>
 

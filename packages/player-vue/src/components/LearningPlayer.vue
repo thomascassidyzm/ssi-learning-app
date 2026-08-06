@@ -99,6 +99,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
+import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -1280,6 +1281,28 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)?.userId?.value ?? null) : null))
 const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
+
+// Intro/presentation audio never reaches SimplePlayer's audio_failed path —
+// a missing presentation clip isn't an error, it's an empty URL and a skipped
+// phase. The round-building adapters report it instead, through a module-level
+// sink so those pure functions stay free of Vue. Wired here because playerLog
+// is what stamps course_code / session_id / user attribution on the row.
+// Deduped per cycle id: a round can be rebuilt several times per session
+// (tier-3 top-ups, INF PLAY refreshes) and the gap is a property of the
+// CONTENT, so one report per cycle per session is the useful signal.
+const introAudioMissingReported = new Set<string>()
+setIntroAudioTelemetrySink((e) => {
+  if (introAudioMissingReported.has(e.cycleId)) return
+  introAudioMissingReported.add(e.cycleId)
+  logEvent('intro_audio_missing', {
+    legoId: e.legoId,
+    cycleId: e.cycleId,
+    cycleType: e.cycleType,
+    tier: e.tier,
+    source: e.source,
+  })
+})
+onUnmounted(() => setIntroAudioTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -1529,6 +1552,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           const refreshed = infPlayCyclesToRounds(
             instantPlayback.infPlayCycles.value as any,
             mainLoopCount,
+            currentTargetSpeedConfig(),
           )
           if (refreshed.length > totalLoaded) {
             // Diff by roundNumber against the engine's truth — slice(totalLoaded)
@@ -1551,6 +1575,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           instantPlayback.getBufferedCyclesForLego,
           map,
           instantPlayback.isLegoComplete,
+          currentTargetSpeedConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -8210,7 +8235,12 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
   for (const url of urls) {
     if (!url || typeof url !== 'string') continue
     if (url.startsWith('blob:')) continue
-    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    // A replaced clip arrives as `<uuid>.vN` (per-clip versioned refs — see
+    // api/_utils/audioAccess.ts). The suffix is part of the id: it is what
+    // AudioCache keys the blob by, so it must survive this round-trip intact.
+    // Without `.vN` in the class this match failed outright and the offline
+    // collector silently gathered nothing for every revised clip.
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+(?:\.v\d+)?)$/i)
     if (match) ids.push(match[1])
   }
   return ids
@@ -12378,11 +12408,13 @@ onMounted(async () => {
             ? infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopBoundary(),  // boundary from the canonical round-map (single source of truth)
+                currentTargetSpeedConfig(),
               )
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
                 map,
                 instantPlayback.isLegoComplete,
+                currentTargetSpeedConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12484,6 +12516,7 @@ onMounted(async () => {
                   instantPlayback.getBufferedCyclesForLego,
                   refreshedMap,
                   instantPlayback.isLegoComplete,
+                  currentTargetSpeedConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -12518,6 +12551,7 @@ onMounted(async () => {
               const refreshedRounds = infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopCount,
+                currentTargetSpeedConfig(),
               )
               if (refreshedRounds.length > initialRounds.length) {
                 const newRounds = refreshedRounds.slice(initialRounds.length) as any

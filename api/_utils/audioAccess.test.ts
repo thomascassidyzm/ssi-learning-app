@@ -63,3 +63,103 @@ describe('audioAccess entitlement token (dedicated secret)', () => {
     expect(verifyEntitlementToken(token)).toBeNull()
   })
 })
+
+const UUID = '11111111-2222-3333-4444-555555555555'
+
+describe('per-clip versioned audio refs', () => {
+  it('parses a bare uuid as "current revision"', async () => {
+    const { parseAudioRef } = await import('./audioAccess')
+    expect(parseAudioRef(UUID)).toEqual({ id: UUID, revision: null })
+  })
+
+  it('parses a versioned ref into id + revision', async () => {
+    const { parseAudioRef } = await import('./audioAccess')
+    expect(parseAudioRef(`${UUID}.v2`)).toEqual({ id: UUID, revision: 2 })
+    expect(parseAudioRef(`${UUID}.v37`)).toEqual({ id: UUID, revision: 37 })
+  })
+
+  it('rejects malformed refs', async () => {
+    const { parseAudioRef, isValidAudioId } = await import('./audioAccess')
+    expect(parseAudioRef(`${UUID}.v0`)).toBeNull()
+    expect(parseAudioRef(`${UUID}.v`)).toBeNull()
+    expect(parseAudioRef(`${UUID}.vx`)).toBeNull()
+    expect(parseAudioRef('not-a-uuid')).toBeNull()
+    expect(isValidAudioId('not-a-uuid')).toBe(false)
+  })
+
+  it('accepts both bare and versioned refs as valid audio ids', async () => {
+    const { isValidAudioId, isBareUuid } = await import('./audioAccess')
+    expect(isValidAudioId(UUID)).toBe(true)
+    expect(isValidAudioId(`${UUID}.v2`)).toBe(true)
+    // The bare-uuid check stays strict for callers that need it.
+    expect(isBareUuid(`${UUID}.v2`)).toBe(false)
+    expect(isBareUuid(UUID)).toBe(true)
+  })
+
+  it('leaves revision 1 as a bare uuid so existing URLs and caches are untouched', async () => {
+    const { buildAudioRef } = await import('./audioAccess')
+    expect(buildAudioRef(UUID, 1)).toBe(UUID)
+    expect(buildAudioRef(UUID, null)).toBe(UUID)
+    expect(buildAudioRef(UUID, undefined)).toBe(UUID)
+    expect(buildAudioRef(UUID, 2)).toBe(`${UUID}.v2`)
+  })
+
+  it('round-trips build → parse', async () => {
+    const { buildAudioRef, parseAudioRef } = await import('./audioAccess')
+    expect(parseAudioRef(buildAudioRef(UUID, 4))).toEqual({ id: UUID, revision: 4 })
+  })
+})
+
+/** Minimal Supabase stub: only the `course_audio_revisions` select path. */
+function revisionsStub(rows: unknown[]) {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => Promise.resolve({ data: rows, error: null }),
+      }),
+    }),
+  } as never
+}
+
+describe('resolveRevisionS3Key — old refs serve old bytes', () => {
+  const LEDGER = [
+    { revision: 2, previous_revision: 1, previous_s3_key: 'mastered/OLD.mp3', new_s3_key: 'repair-candidates/NEW.mp3' },
+  ]
+
+  it('short-circuits when the requested revision is already current', async () => {
+    const { resolveRevisionS3Key } = await import('./audioAccess')
+    const r = await resolveRevisionS3Key(revisionsStub([]), UUID, 2, 2, 'repair-candidates/NEW.mp3')
+    expect(r).toEqual({ s3Key: 'repair-candidates/NEW.mp3', exact: true })
+  })
+
+  it('resolves a superseded revision to the key it used to point at', async () => {
+    const { resolveRevisionS3Key } = await import('./audioAccess')
+    const r = await resolveRevisionS3Key(revisionsStub(LEDGER), UUID, 1, 2, 'repair-candidates/NEW.mp3')
+    // This is the free rollback: ref .v1 still serves the pre-repair bytes.
+    expect(r).toEqual({ s3Key: 'mastered/OLD.mp3', exact: true })
+  })
+
+  it('resolves a revision to the key the swap that produced it wrote', async () => {
+    const { resolveRevisionS3Key } = await import('./audioAccess')
+    const r = await resolveRevisionS3Key(revisionsStub(LEDGER), UUID, 2, 3, 'mastered/NEWEST.mp3')
+    expect(r).toEqual({ s3Key: 'repair-candidates/NEW.mp3', exact: true })
+  })
+
+  it('falls back to the current key rather than failing when the ledger cannot answer', async () => {
+    const { resolveRevisionS3Key } = await import('./audioAccess')
+    const r = await resolveRevisionS3Key(revisionsStub([]), UUID, 9, 2, 'mastered/CURRENT.mp3')
+    // Always-play outranks exactness: a newest-good clip beats silence.
+    expect(r).toEqual({ s3Key: 'mastered/CURRENT.mp3', exact: false })
+  })
+})
+
+describe('applyAudioRef', () => {
+  it('stamps revised ids and leaves unrevised ones alone', async () => {
+    const { applyAudioRef } = await import('./audioAccess')
+    const refs = new Map([[UUID, `${UUID}.v2`]])
+    expect(applyAudioRef(refs, UUID)).toBe(`${UUID}.v2`)
+    expect(applyAudioRef(refs, 'other-id')).toBe('other-id')
+    expect(applyAudioRef(refs, null)).toBeNull()
+    expect(applyAudioRef(refs, undefined)).toBeNull()
+  })
+})

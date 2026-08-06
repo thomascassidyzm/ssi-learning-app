@@ -32,6 +32,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -251,7 +252,14 @@ export default async function handler(
       return
     }
 
-    const legoRows: LegoRow[] = (legosResult.data || []).map((r: any) => ({
+    // Per-clip versioned refs — see the note in cycles.ts. Replaced clips get
+    // `<uuid>.vN` before these ids become `/api/audio/${id}` URLs downstream.
+    const audioRefs = await fetchRevisedAudioRefs(supabase, code)
+
+    const legoRows: LegoRow[] = stampRowAudioRefs(
+      audioRefs,
+      (legosResult.data || []) as any[]
+    ).map((r: any) => ({
       seed_number: r.seed_number,
       lego_index: r.lego_index,
       lego_id: buildLegoId(r.seed_number, r.lego_index),
@@ -264,7 +272,10 @@ export default async function handler(
       target1_duration_ms: r.target1_duration_ms,
       target2_duration_ms: r.target2_duration_ms,
     }))
-    const phraseRows: PhraseRow[] = (phrasesResult.data || []) as PhraseRow[]
+    const phraseRows: PhraseRow[] = stampRowAudioRefs(
+      audioRefs,
+      (phrasesResult.data || []) as unknown as PhraseRow[]
+    )
     const mainLoopCount = legoRows.length
     const version = (courseResult.data as any).content_version ?? 1
 

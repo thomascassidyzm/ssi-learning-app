@@ -105,7 +105,7 @@ export const PARTNER_DOORS: Record<string, PartnerDoorCopy> = {
     deal: [
       { label: 'You pay', value: '£15 a month', note: 'to teach — and you get the full course yourself' },
       { label: 'Your students pay', value: '£10 a month', note: 'each, directly — you never handle their money' },
-      { label: 'You get back', value: '£5 a month', note: 'for every student, for every month they stay' },
+      { label: 'You get back', value: '£5 a month', note: 'for every student, for every month they stay — paid once your balance passes £100' },
     ],
     // Break-even framing, lifted from the live /tutors page ("Three students at
     // £10 a month covers your £15 subscription — everyone after that is
@@ -133,7 +133,10 @@ export const PARTNER_DOORS: Record<string, PartnerDoorCopy> = {
       },
       {
         title: 'Get paid',
-        body: 'Every completed student-month accrues £5 to you, and pays out by bank transfer.',
+        // Under-promise, per the founder ruling 2026-08-03: the payout is
+        // conditional (threshold + refund window), so the step says so rather
+        // than implying a monthly transfer regardless of balance.
+        body: 'Every completed student-month accrues £5 to you. Paid monthly by bank transfer once your balance passes £100 and the refund period has completed.',
       },
     ],
     practicalities: [
