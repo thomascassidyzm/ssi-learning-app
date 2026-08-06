@@ -119,6 +119,36 @@ describe('useClassesData — co-teachers', () => {
     }))
   })
 
+  it('mints a CLASS-scoped co-teacher link and never sends a school of its own', async () => {
+    const cd = await setup()
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ code: 'SUPPLY1' }) }))
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    const result = await cd.createCoTeacherLink('c1')
+
+    expect(result).toEqual({ ok: true, code: 'SUPPLY1', error: null })
+    // The school is SERVER-derived from the class — sending one from the
+    // client is exactly the `SCHOOL:null` garbage that derivation prevents.
+    expect(fetchMock).toHaveBeenCalledWith('/api/invite/create', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ code_type: 'teacher', grants_class_id: 'c1' }),
+    }))
+  })
+
+  it('reports the server\'s refusal of a co-teacher link instead of a dead link', async () => {
+    const cd = await setup()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: 'Only a teacher of this class or its school admin can create co-teacher codes for this class' }),
+    })) as any)
+
+    const result = await cd.createCoTeacherLink('c1')
+
+    expect(result.ok).toBe(false)
+    expect(result).toMatchObject({ error: expect.stringContaining('Only a teacher of this class') })
+  })
+
   it('says so plainly when there is no session, rather than reporting a phantom success', async () => {
     const cd = await setup({}, null)
     const result = await cd.addClassTeacher('c1', 'u-supply', { lead: true })
