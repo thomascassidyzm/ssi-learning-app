@@ -9,7 +9,9 @@
  *   - IDENTITY     → node {name, label, demo, commercial trial/paid state}
  *   - STATS ROW    → node.rollup (subtree totals via computeNodeExtras — the
  *                    SAME resolver as the tree/table lenses) + practiceHours
- *                    (subtree school_summary sum, the group-dashboard story)
+ *                    (subtree school_summary sum PLUS directly group-attached
+ *                    people's sessions — a group with no school still has
+ *                    practice, and learnerCount already counts those people)
  *   - CHILDREN     → children (direct child nodes, each with rollups), or the
  *                    subtree-wide lens payload when ?lens= is set
  *   - VERBS        → client-side, calling the existing invite/create endpoints
@@ -28,6 +30,8 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTre
 import { computeNodeExtras, type NodeExtras } from '../../_utils/groupRollups'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { chunk } from '../../_utils/schoolScope'
+import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
+import { descendantIds } from '../../_utils/groupSubtree'
 import { sortByName } from '../../_utils/alphaSort'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -47,10 +51,6 @@ interface NodeRef { id: string; name: string; label: string; is_demo: boolean; h
 
 function toRef(g: GroupRow, schoolNodeIds: Set<string>): NodeRef {
   return { id: g.id, name: g.name, label: g.type, is_demo: g.is_demo, hasSchool: schoolNodeIds.has(g.id) }
-}
-
-function inSubtree(path: string | null | undefined, rootPath: string): boolean {
-  return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
 }
 
 /**
@@ -155,10 +155,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // Subtree membership + subtree school ids (node bridge ∪ legacy parent
-    // attachment — same union groupRollups counts through).
-    const subtreeIds = nodeRow.path
-      ? allGroups.filter((g) => inSubtree(g.path, nodeRow.path!)).map((g) => g.id)
-      : [nodeId]
+    // attachment — same union groupRollups counts through). Membership walks
+    // parent_id, never the slug path: two orgs of the same name share a slug,
+    // and a path match then folds the other tenant into this one's numbers.
+    const subtreeIds = descendantIds(allGroups, nodeId)
     const subtreeIdSet = new Set(subtreeIds)
 
     const childRows = sortByName(
@@ -181,18 +181,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }
       }
     })
-    const practiceHoursPromise = schoolsPromise.then(async () => {
-      let hours = 0
-      await Promise.all(chunk(schoolRows.map((s) => s.id)).map(async (batch) => {
-        const { data } = await svc.from('school_summary').select('school_id, total_practice_hours').in('school_id', batch)
-        for (const r of data ?? []) hours += Number((r as any).total_practice_hours) || 0
-      }))
-      return hours
-    })
-    // CLASS PRACTICE rollup — classes practising together across the subtree
-    // (class_sessions), the primary school metric. Same class-id union as the
-    // lenses: node-attached (group_id) ∪ legacy school-attached.
-    const classPracticePromise = schoolsPromise.then(async () => {
+    // Subtree class ids — node-attached (group_id) ∪ legacy school-attached.
+    // Shared by the class-practice rollup and the direct-member practice term.
+    const classIdsPromise = schoolsPromise.then(async () => {
       const classIds = new Set<string>()
       await Promise.all([
         ...chunk(subtreeIds).map(async (batch) => {
@@ -204,6 +195,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           for (const c of data ?? []) classIds.add((c as any).id)
         }),
       ])
+      return classIds
+    })
+    // PRACTICE HOURS — subtree school_summary sum PLUS the practice of people
+    // attached directly to the group nodes with no school/class under them.
+    // Without that second term an org whose people were invited straight into
+    // the group reports 0h forever while `learnerCount` says 1+, and the
+    // explainer's org-not-started rule tells its leader nobody has practised
+    // (live defect, 2026-08-06 — see api/_utils/directMemberPractice.ts).
+    const practiceHoursPromise = schoolsPromise.then(async () => {
+      let hours = 0
+      const classIds = await classIdsPromise
+      await Promise.all([
+        ...chunk(schoolRows.map((s) => s.id)).map(async (batch) => {
+          const { data } = await svc.from('school_summary').select('school_id, total_practice_hours').in('school_id', batch)
+          for (const r of data ?? []) hours += Number((r as any).total_practice_hours) || 0
+        }),
+        directMemberPracticeSeconds(svc, {
+          subtreeGroupIds: subtreeIds,
+          subtreeSchoolIds: schoolRows.map((s) => s.id),
+          subtreeClassIds: [...classIds],
+        }).then((seconds) => { hours += seconds / 3600 }),
+      ])
+      return hours
+    })
+    // CLASS PRACTICE rollup — classes practising together across the subtree
+    // (class_sessions), the primary school metric.
+    const classPracticePromise = classIdsPromise.then(async (classIds) => {
       let seconds = 0
       let sessions7d = 0
       const active7d = new Set<string>()

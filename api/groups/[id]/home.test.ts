@@ -305,6 +305,42 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
   })
 
+  // ─── FIELD DEFECT 2026-08-06: an org whose people are invited straight into
+  // the group (no school, no class) reported 0h practice forever while
+  // learnerCount said 1, so the explainer's org-not-started rule told its
+  // leader "none of them has practised yet" minutes after a real session. ───
+  it('a group-attached learner with NO school counts towards the org practice hours', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.groups.push({ id: 'deb-org', name: 'Deborah Testing', type: 'organisation', parent_id: null, path: 'deborah-testing', is_demo: false, is_test: false })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:deb-org', role_in_context: 'student', user_id: 'test-person-uid', removed_at: null })
+    TABLES.learners.push({ id: 'test-person-learner', user_id: 'test-person-uid', display_name: 'Test Person 1' })
+    TABLES.sessions = [
+      { learner_id: 'test-person-learner', duration_seconds: 182 },
+      { learner_id: 'test-person-learner', duration_seconds: 61 },
+    ]
+    const res = makeRes()
+    await handler(makeReq('deb-org'), res)
+    expect(res.statusCode).toBe(200)
+    // The person is counted as a learner…
+    expect(res.body.node.rollup.learnerCount).toBe(1)
+    // …and so is their practice: 243s → 0.1h. The pair (learnerCount > 0,
+    // practiceHours === 0) is what fired the false "nobody has practised".
+    expect(res.body.practiceHours).toBe(0.1)
+  })
+
+  it('a school-shaped org still reports exactly its school_summary hours — no double count', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The same person carries BOTH a group tag on the programme and their
+    // existing class tag inside it; school_summary already sees them.
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'student', user_id: 'student-uid-1', removed_at: null })
+    TABLES.learners.push({ id: 'learner-1', user_id: 'student-uid-1', display_name: 'Asha' })
+    TABLES.sessions = [{ learner_id: 'learner-1', duration_seconds: 7200 }]
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.practiceHours).toBe(135.1)
+  })
+
   it('lens=schools returns the subtree-wide schools list with teacher names', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
