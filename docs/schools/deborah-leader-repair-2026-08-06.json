@@ -1,0 +1,33 @@
+{
+  "apply": true,
+  "written": [
+    {
+      "groupId": "b7878832-ffbb-4190-84cb-8cc5ce62c5bd",
+      "userId": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+      "why": "govt_admins leader of this group",
+      "tagId": "fdaa4c6a-d47b-48fe-81df-539cd4d42c44",
+      "applied": true,
+      "name": "Sra Deborah",
+      "group": "Deborah Testing"
+    },
+    {
+      "groupId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+      "userId": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+      "why": "govt_admins leader of this group",
+      "tagId": "58390b6f-8760-440a-9f34-004382523308",
+      "applied": true,
+      "name": "Deb Test Manager",
+      "group": "Deborah Testing"
+    },
+    {
+      "groupId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+      "userId": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+      "why": "explicit --also",
+      "tagId": "1a081ecc-315e-415a-b2ab-ad10f9c41170",
+      "applied": true,
+      "name": "Sra Deborah",
+      "group": "Deborah Testing"
+    }
+  ],
+  "skipped": []
+}
