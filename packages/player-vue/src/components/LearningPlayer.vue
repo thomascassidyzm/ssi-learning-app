@@ -55,6 +55,8 @@ import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFI
 import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
+import { computeListeningSpeed } from '../providers/toSimpleRounds'
+import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
 import { useAlgorithmConfig, type LearningMode } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
@@ -3598,6 +3600,10 @@ const l1Scheduler = supabase?.value
       courseCode: courseCode,
       learnerId: learnerId,
       config: l1Config,
+      // Belt ramp on target clips (Tom 2026-08-06) — the SAME course speed
+      // config the speaking rounds bake with, so listening can never drift
+      // away from the speaking curve.
+      targetSpeed: computed(() => currentTargetSpeedConfig()),
     })
   : null
 
@@ -4438,7 +4444,37 @@ const podDelay = (ms: number) => ms <= 0
  * audio isn't cached yet, the gap manifests audibly and shows up in
  * audio_play telemetry as a long `elapsedMs`.
  */
-const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
+const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
+  // BELT RAMP on target clips (Tom 2026-08-06: "LIStening exercises are way too
+  // fast initially — they need to follow the belt speed gating"). Applied HERE,
+  // once, because every listening surface that isn't Layer-1 funnels through
+  // this one runtime — Layer-2 pods, Stage-0 sequences and fusion drills alike,
+  // several of which hard-code 1.0. Pods activate at main round 5, so a
+  // white-belt learner really was meeting 1.0× target audio.
+  //
+  // It's a MULTIPLIER on the play's own role rate, never a replacement: a pod's
+  // 0.8 / 1.0 / 1.5 / 2.0 stage progression is a deliberate per-SENTENCE
+  // pedagogy (maturity of that sentence), independent of the learner's belt, so
+  // a 2× stretch rep stays a fast rep relative to wherever the learner is.
+  // Keyed on the LEARNER's current seed because a pod sentence has no seed
+  // number of its own — the one place listening can't mirror the speaking side's
+  // per-item keying. Layer-1 plays already carry their own per-seed ramped rate
+  // (buildSeedPlays) and are skipped here so nothing is ramped twice.
+  const lap: PodLap = (() => {
+    const anchor = beltAnchorSeed.value
+    if (anchor == null) return inputLap
+    const speedCfg = currentTargetSpeedConfig()
+    return {
+      ...inputLap,
+      plays: inputLap.plays.map((p) => {
+        const play = p as PodPlay
+        if (play.isLayer1) return play
+        if (!isTargetRole(play.playRole as PodPlayRole)) return play
+        return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
+      }),
+    }
+  })()
+
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
@@ -5081,7 +5117,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
   // played as its comprehensible-input sandwich (target → known → target →
-  // target, all @1×; see buildSeedPlays). No ratchet: the lap is a pure function of
+  // target; target clips belt-ramped, see buildSeedPlays). No ratchet: the lap is a pure function of
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
