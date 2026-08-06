@@ -33,6 +33,13 @@ export interface Teacher {
   joined_at: string
 }
 
+/** A teacher as a PICKABLE name — the co-teacher panel needs nothing more. */
+export interface TeacherOption {
+  user_id: string
+  learner_id: string
+  display_name: string
+}
+
 const teachers = ref<Teacher[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -192,6 +199,36 @@ export function useTeachersData() {
     }
   }
 
+  /**
+   * The teachers who could be added to a class — the co-teacher picker's
+   * source. Class-scoped and membership-authorised server-side
+   * (`/api/school/roster?class_id=`), NOT school-scoped: a supply teacher
+   * holds only a CLASS: tag, so they have no resolvable "home school" and
+   * `fetchTeachers` above would return them nothing at all.
+   *
+   * Returns names only. Errors are RETURNED, never swallowed — the panel says
+   * "couldn't load the staff list" rather than showing a silently empty one.
+   */
+  async function fetchClassTeacherCandidates(
+    classId: string,
+  ): Promise<{ candidates: TeacherOption[]; error: string | null }> {
+    if (isDemoMode.value) return { candidates: [], error: null }
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { candidates: [], error: 'You are not signed in.' }
+
+      const res = await fetch(`/api/school/roster?class_id=${encodeURIComponent(classId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return { candidates: [], error: data?.error || `Request failed: ${res.status}` }
+      return { candidates: (data.teachers ?? []) as TeacherOption[], error: null }
+    } catch (err) {
+      return { candidates: [], error: err instanceof Error ? err.message : 'Failed to load teachers' }
+    }
+  }
+
   // Remove a teacher from the school — server-mediated (api/school/remove-staff.ts).
   // The old direct client `user_tags.update()` silently no-opped under
   // own-row RLS when the caller wasn't the target (2026-07-16 teacher-loop
@@ -221,6 +258,7 @@ export function useTeachersData() {
 
     // Actions
     fetchTeachers,
+    fetchClassTeacherCandidates,
     removeTeacher,
   }
 }

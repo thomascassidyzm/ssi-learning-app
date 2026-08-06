@@ -17,10 +17,28 @@
  * zeros" bug (group-summary.ts) — same fix: resolve the caller's own school
  * server-side (resolveVisibleScope) and read under the SERVICE ROLE, so
  * authorization is enforced HERE (caller's own school only), not by RLS.
+ *
+ * TWO MODES:
+ *
+ *   GET /api/school/roster
+ *     The school rollup above. A school_admin gets their whole school. A
+ *     TEACHER gets the school's staff list, but only the students of classes
+ *     THEY teach — founder ruling 2026-07-30: a teacher's scope is their own
+ *     classes, never the whole school. (Their staff list stays school-wide:
+ *     it carries no pupil data and it is what the co-teacher picker needs.)
+ *
+ *   GET /api/school/roster?class_id=<uuid>
+ *     Teacher-lookup mode for the co-teacher panel (ClassDetail.vue). Returns
+ *     the NAMES of the teachers who could be added to that class — nothing
+ *     else: no pupil rows, no per-teacher aggregates. Authorised by
+ *     MEMBERSHIP of that class (the same rule api/teacher/class-teachers.ts
+ *     uses for the write), not by school-admin status, so the supply teacher
+ *     who holds only a CLASS: tag — no SCHOOL: tag, therefore no resolvable
+ *     home school — can still pick a colleague.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, schoolIdForAdmin, chunk } from '../_utils/schoolScope'
 
@@ -46,6 +64,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const svc = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
+    const classIdParam = typeof req.query?.class_id === 'string' ? req.query.class_id.trim() : ''
+    if (classIdParam) {
+      await handleClassTeacherLookup(svc, auth.userId, classIdParam, res)
+      return
+    }
+
     const scope = await resolveVisibleScope(svc, auth.userId)
     if (scope.role !== 'school_admin' && scope.role !== 'teacher') {
       res.status(403).json({ error: 'Not school staff' })
@@ -87,8 +111,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (teacherTagsErr) throw teacherTagsErr
     if (classTeachersErr) throw classTeachersErr
 
-    const teacherUserIds = (teacherTags ?? []).map((t: any) => t.user_id).filter(Boolean)
+    // A school's staff = SCHOOL: tag holders UNION anyone who actually teaches
+    // one of its classes. The tag alone misses the supply/co-teacher who was
+    // added straight onto a class (a CLASS: tag, no SCHOOL: tag) — they taught
+    // real lessons and were invisible on their own school's roster.
     const joinDates = new Map((teacherTags ?? []).map((t: any) => [t.user_id, t.added_at]))
+    const teacherIdSet = new Set<string>((teacherTags ?? []).map((t: any) => t.user_id).filter(Boolean))
+    for (const ct of classTeachers ?? []) {
+      const uid = (ct as any).teacher_user_id as string
+      if (uid) teacherIdSet.add(uid)
+    }
+    const teacherUserIds = [...teacherIdSet]
 
     const students: any[] = []
     for (const batch of chunk(classIds)) {
@@ -109,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     for (const ct of classTeachers ?? []) {
       const uid = (ct as any).teacher_user_id as string
       const cid = (ct as any).class_id as string
-      if (!uid || !cid || !teacherUserIds.includes(uid)) continue
+      if (!uid || !cid || !teacherIdSet.has(uid)) continue
       const set = teacherClasses.get(uid) ?? new Set<string>()
       set.add(cid)
       teacherClasses.set(uid, set)
@@ -162,11 +195,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }).sort((a: any, b: any) => a.display_name.localeCompare(b.display_name))
     }
 
+    // Founder ruling 2026-07-30: a teacher's scope is their OWN classes, never
+    // the whole school. The per-teacher aggregates above stay school-wide (they
+    // are counts, not identities — that's what a staff list is for), but the
+    // pupil ROWS a teacher gets back are only ever their own classes'.
+    const visibleStudents = scope.role === 'teacher'
+      ? students.filter((p: any) => scope.classIds.includes(p.class_id))
+      : students
+
     res.setHeader('Cache-Control', 'no-store')
     res.status(200).json({
       school: school ?? null,
       teachers,
-      students: students.map((p: any) => ({
+      students: visibleStudents.map((p: any) => ({
         user_id: p.student_user_id,
         learner_id: p.learner_id,
         display_name: p.student_name,
@@ -184,4 +225,120 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     console.error('[roster] error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
+}
+
+/**
+ * `?class_id=` mode — the candidate teachers for a class's co-teacher picker.
+ *
+ * Deliberately NARROW: names only, no pupil rows, no aggregates. The candidate
+ * set is the staff of the class's school (SCHOOL: tag holders UNION anyone
+ * teaching one of that school's classes — the same union the rollup uses); for
+ * a class with no school (the tutor lane) it degrades to the class's own
+ * teachers, which is honest rather than empty.
+ */
+async function handleClassTeacherLookup(
+  svc: SupabaseClient,
+  callerUserId: string,
+  classId: string,
+  res: VercelResponse,
+): Promise<void> {
+  const { data: cls } = await svc
+    .from('classes')
+    .select('id, teacher_user_id, school_id')
+    .eq('id', classId)
+    .maybeSingle()
+
+  if (!cls) {
+    res.status(404).json({ error: 'Class not found' })
+    return
+  }
+
+  // Membership authz — the pattern at api/teacher/class-teachers.ts:99-134.
+  // A caller who may not manage this class's teachers may not enumerate its
+  // candidates either.
+  let authorized = (cls as any).teacher_user_id === callerUserId
+
+  if (!authorized) {
+    const { data: callerTag } = await svc
+      .from('user_tags')
+      .select('id')
+      .eq('tag_type', 'class')
+      .eq('tag_value', `CLASS:${classId}`)
+      .eq('role_in_context', 'teacher')
+      .eq('user_id', callerUserId)
+      .is('removed_at', null)
+      .maybeSingle()
+    if (callerTag) authorized = true
+  }
+
+  if (!authorized) {
+    const { data: caller } = await svc
+      .from('learners')
+      .select('platform_role, educational_role')
+      .eq('user_id', callerUserId)
+      .maybeSingle()
+    if ((caller as any)?.platform_role === 'ssi_admin' || (caller as any)?.educational_role === 'god') {
+      authorized = true
+    }
+  }
+
+  if (!authorized && (cls as any).school_id) {
+    const { data: school } = await svc
+      .from('schools')
+      .select('admin_user_id')
+      .eq('id', (cls as any).school_id)
+      .maybeSingle()
+    if ((school as any)?.admin_user_id === callerUserId) authorized = true
+  }
+
+  if (!authorized) {
+    res.status(403).json({ error: 'Not a teacher of this class' })
+    return
+  }
+
+  const schoolId = (cls as any).school_id as string | null
+  const candidateIds = new Set<string>()
+
+  if (schoolId) {
+    const { data: schoolClasses } = await svc
+      .from('classes')
+      .select('id')
+      .eq('school_id', schoolId)
+      .eq('is_active', true)
+    const schoolClassIds = (schoolClasses ?? []).map((c: any) => c.id).filter(Boolean)
+
+    const [{ data: schoolTags }, { data: rels }] = await Promise.all([
+      svc.from('user_tags')
+        .select('user_id')
+        .eq('tag_value', `SCHOOL:${schoolId}`)
+        .eq('tag_type', 'school')
+        .eq('role_in_context', 'teacher')
+        .is('removed_at', null),
+      schoolClassIds.length
+        ? svc.from('class_teachers').select('teacher_user_id').in('class_id', schoolClassIds)
+        : Promise.resolve({ data: [] as any[] } as any),
+    ])
+    for (const t of schoolTags ?? []) if ((t as any).user_id) candidateIds.add((t as any).user_id)
+    for (const r of rels ?? []) if ((r as any).teacher_user_id) candidateIds.add((r as any).teacher_user_id)
+  } else {
+    const { data: rels } = await svc
+      .from('class_teachers')
+      .select('teacher_user_id')
+      .eq('class_id', classId)
+    for (const r of rels ?? []) if ((r as any).teacher_user_id) candidateIds.add((r as any).teacher_user_id)
+  }
+
+  let teachers: any[] = []
+  if (candidateIds.size) {
+    const { data: learners } = await svc
+      .from('learners')
+      .select('id, user_id, display_name')
+      .in('user_id', [...candidateIds])
+    teachers = (learners ?? [])
+      .map((l: any) => ({ user_id: l.user_id, learner_id: l.id, display_name: l.display_name || 'Unnamed teacher' }))
+      .sort((a: any, b: any) => a.display_name.localeCompare(b.display_name))
+  }
+
+  res.setHeader('Cache-Control', 'no-store')
+  res.status(200).json({ class_id: classId, school_id: schoolId, teachers })
 }

@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.5.0"
+  version: "1.6.0"
   date: "2026-08-06"
   author: "Tom Cassidy"
   status: "draft"
@@ -603,6 +603,22 @@ principle GroupRollupServerMediated:
     endpoint instead of querying the views directly; the legacy
     region_code-only fallback (no live govt_admin uses it) is untouched.
 
+principle RosterScopeByRole:
+  statement: |
+    GET /api/school/roster answers "who is the staff here" for both school
+    staff roles, but a TEACHER caller gets pupil rows only for classes they
+    actually teach — founder ruling 2026-07-30: a teacher's scope is their own
+    classes, never the whole school. Their STAFF list stays school-wide: it
+    carries no pupil data, and it is what the co-teacher picker needs.
+  since: "2026-08-06 (A-74)"
+
+  staff_union: |
+    A school's teachers = SCHOOL: tag holders UNION anyone teaching one of
+    that school's classes. The tag alone missed the supply/co-teacher added
+    straight onto a class (a CLASS: tag, no SCHOOL: tag): they taught real
+    lessons and were invisible on their own school's roster, and with no
+    SCHOOL: tag they have no join date, which is reported blank, never faked.
+
 principle TeacherOwnPracticeVisible:
   statement: |
     A teacher's OWN practice (their learner's sessions rows) is a
@@ -996,6 +1012,45 @@ flow CoTeacherJoin:
     The same membership test replaced the lead-pointer-only check that stopped
     a co-teacher minting STUDENT codes for their own class — while
     api/school/delete-class.ts already let them delete it.
+
+flow CoTeacherPanel:
+  trigger: "A teacher opens a class and shares it with a colleague"
+  since: "2026-08-06 (A-74)"
+  surface: "packages/player-vue/src/views/schools/ClassDetail.vue — Teachers rail card, behind the !isAdminView guard the class's other write verbs use"
+
+  premise: |
+    The data model has been plural since 2026-06-13 and the write endpoint
+    (POST /api/teacher/class-teachers) shipped with it. Only the button was
+    missing. No new endpoint for the write, no new table, no schema change.
+
+  renders:
+    - "Every teacher of the class, the lead marked, the caller marked '(you)'"
+    - "Add a co-teacher — a picker over the school's staff"
+    - "Remove — soft-removes the class/teacher tag; the server hands the lead on"
+    - "Make lead — 'add' with set_lead on someone already there, which is idempotent"
+
+  data_path: |
+    useClassesData.fetchClassDetail already populated ClassInfo.teachers from
+    the class_teachers view; the classDetail computed DROPPED it on the way
+    through, which is why no view could render it. Fixed.
+
+  teacher_lookup:
+    endpoint: "GET /api/school/roster?class_id={id}"
+    why: |
+      addClassTeacher needs a target_user_id and a plain teacher has no
+      client-readable source of 'my colleagues'. This mode is class-scoped and
+      MEMBERSHIP-authorised (the api/teacher/class-teachers.ts pattern), NOT
+      school-admin gated — a supply teacher holds only a CLASS: tag, so they
+      have no resolvable home school and a school-scoped lookup returns them
+      nothing.
+    returns: "teacher NAMES only — user_id, learner_id, display_name. No pupil rows, no aggregates."
+    refuses: "401 unauthenticated; 403 any caller who is not a teacher of that class, its school admin, or ssi_admin; 404 unknown class"
+
+  honest_failure: |
+    Every write returns { ok, error } (ClassTeacherWriteResult), and the panel
+    prints the server's reason. A failed staff-list lookup says so rather than
+    rendering an empty picker — an empty list and a broken list must never
+    look the same to a teacher.
 
 flow StudentJoin:
   trigger: "User enters class join code"
