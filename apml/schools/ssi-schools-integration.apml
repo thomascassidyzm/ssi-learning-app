@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.4.0"
+  version: "1.5.0"
   date: "2026-08-06"
   author: "Tom Cassidy"
   status: "draft"
@@ -945,6 +945,57 @@ flow TeacherJoin:
         - "School name"
         - "Empty classes list"
         - "Create class button"
+
+flow CoTeacherJoin:
+  trigger: "A teacher of a class invites a co-teacher / supply teacher into it"
+  since: "2026-08-06 (A-74)"
+
+  premise: |
+    teacher<->class is a user_tags relationship
+    (tag_type='class', tag_value='CLASS:{id}', role_in_context='teacher'),
+    surfaced by the class_teachers view. classes.teacher_user_id is a DEMOTED
+    denormalised LEAD POINTER, not ownership — a co-teacher joining never
+    rewrites it. Background: docs/methodology/class-first-class-citizen.md.
+
+  steps:
+    1_mint:
+      action: "POST /api/invite/create with code_type='teacher' and grants_class_id"
+      authorization: |
+        MEMBERSHIP, never ownership: the lead pointer, OR an active class
+        teacher tag, OR ssi_admin/god, OR the class's school admin. Canonical
+        shape at api/teacher/class-teachers.ts:104-113.
+      server_derived:
+        - "grants_school_id is read off the class row, never from the payload"
+      why_derived: |
+        Redemption needs both grants so the co-teacher's dashboard resolves
+        scope; deriving it also makes a literal SCHOOL:null tag unreachable.
+
+    2_capture:
+      action: "GET /api/code/validate names the CLASS, not just the school"
+      why: "A generic school invite gives a supply teacher no way to tell which class they are joining"
+
+    3_redeem:
+      action: "POST /api/code/redeem writes BOTH tags"
+      creates:
+        - "user_tags tag_type='school', tag_value='SCHOOL:{school_id}', role_in_context='teacher'"
+        - "user_tags tag_type='class',  tag_value='CLASS:{class_id}',  role_in_context='teacher'"
+      never_writes:
+        - "classes.teacher_user_id (the lead keeps the lead pointer)"
+      dedup: |
+        Keyed on the CLASS tag, not the school tag — a teacher already in the
+        school must still be able to redeem a link for a class they are not yet
+        on, or they would be told 'already redeemed' and get nothing.
+
+  degenerate_grants: |
+    A teacher code scoped to no school, class or group — or a student code
+    scoped to no class or group — is REFUSED at redemption. The old behaviour
+    wrote literal 'SCHOOL:null' / 'CLASS:null' tags: memberships that grant
+    nothing while counting as memberships in every query that reads user_tags.
+
+  related_guard: |
+    The same membership test replaced the lead-pointer-only check that stopped
+    a co-teacher minting STUDENT codes for their own class — while
+    api/school/delete-class.ts already let them delete it.
 
 flow StudentJoin:
   trigger: "User enters class join code"
