@@ -259,9 +259,14 @@ async function ensureAuthUser(email){
   if(!u) throw new Error(`auth user neither created nor found: ${email} (${cu.status})`)
   return u.id
 }
+// SCOPED (2026-08-06): only THIS suite's scenario personas. It used to match every
+// '+demo.' address, which also deleted the IME programme's login personas
+// ('+demo.ime.*', '+demo.ime.metro.*') that generate-ime-demo.cjs owns and
+// documents as safe from this script.
 async function deleteDemoAuthUsers(){
+  const prefixes=SCENARIOS.map(s=>`+demo.${s.key}.`)
   const ls=await authReq('GET','/auth/v1/admin/users?page=1&per_page=1000')
-  const demos=(ls.body?.users||[]).filter(u=>u.email&&u.email.includes('+demo.'))
+  const demos=(ls.body?.users||[]).filter(u=>u.email&&prefixes.some(p=>u.email.includes(p)))
   for(const u of demos) await authReq('DELETE',`/auth/v1/admin/users/${u.id}`)
   return demos.length
 }
@@ -282,24 +287,57 @@ async function deleteDemoAuthUsers(){
   const TELEMETRY=colChk.rowCount>0
   if(!TELEMETRY) console.warn('⚠ telemetry schema absent (learner_lego_metrics.recent_latency_samples) — apply migrations 20260613_*/20260614_* to get difficulty curves. Skipping telemetry generation; rest of suite proceeds.')
 
-  // ---- RESET: wipe every trace of is_demo data, then demo auth users ----
-  console.log('— RESET is_demo data —')
+  // ---- RESET: wipe this suite's OWN scenarios, then its own demo auth users ----
+  // SCOPED (2026-08-06), was a blanket `where is_demo`. The blanket form predated
+  // the sibling demo worlds that now also carry is_demo — the IME Demo Programme
+  // (generate-ime-demo.cjs), Coastal (generate-coastal-region.cjs) and Metro
+  // (enrich-ime-world.cjs) trees, plus the org/workplace demo nodes. Those have
+  // their own scoped generators and this script cannot rebuild them, so a blanket
+  // reset here destroyed data it could not restore. It also FK-failed outright
+  // once govt_admins started pointing at demo groups. Scope = exactly what this
+  // script creates: the three scenario schools (by name), their group, their
+  // classes/learners, and its own 'demo-suite'-tagged rows.
+  console.log('— RESET this suite\'s demo scenarios —')
+  const SCENARIO_SCHOOL_NAMES=SCENARIOS.map(s=>s.school.name)
+  const SCENARIO_GROUP_NAMES=SCENARIOS.filter(s=>s.group).map(s=>s.group.name)
   await q('begin')
+  const schoolIds=(await q(`select id, admin_user_id from public.schools where is_demo and school_name = any($1::text[])`,[SCENARIO_SCHOOL_NAMES])).rows
+  const sIds=schoolIds.map(r=>r.id)
+  const classRows=sIds.length?(await q(`select id, teacher_user_id from public.classes where school_id = any($1::uuid[])`,[sIds])).rows:[]
+  const cIds=classRows.map(r=>r.id)
+  const groupIds=(await q(`select id from public.groups where is_demo and name = any($1::text[])`,[SCENARIO_GROUP_NAMES])).rows.map(r=>r.id)
+  // learner identities in scope: scenario staff (school admin + class teachers)
+  // plus students, which are exactly this script's own 'demo-suite' class tags.
+  const staffUids=[...new Set([...schoolIds.map(r=>r.admin_user_id),...classRows.map(r=>r.teacher_user_id)].filter(Boolean))]
+  const studentUids=cIds.length?(await q(
+    `select user_id from public.user_tags where added_by='demo-suite' and tag_type='class' and tag_value = any($1::text[])`,
+    [cIds.map(id=>`CLASS:${id}`)])).rows.map(r=>r.user_id):[]
+  const ownUids=[...new Set([...staffUids,...studentUids])]
+  const ownLearnerIds=ownUids.length?(await q(`select id from public.learners where is_demo and user_id = any($1::text[])`,[ownUids])).rows.map(r=>r.id):[]
+
   const r1=await q(`delete from public.user_tags where added_by='demo-suite'`)
   // telemetry first: player_events keys on the learner PK (NOT auth uid — see CLAUDE.md);
   // learner_lego_metrics cascades when learners go, but we delete explicitly for clarity.
   let rPE={rowCount:0}, rLLM={rowCount:0}
-  if(TELEMETRY){
-    rPE =await q(`delete from public.player_events where user_id in (select id from public.learners where is_demo)`)
-    rLLM=await q(`delete from public.learner_lego_metrics where learner_id in (select id from public.learners where is_demo)`)
+  if(TELEMETRY && ownLearnerIds.length){
+    rPE =await q(`delete from public.player_events where user_id = any($1::uuid[])`,[ownLearnerIds])
+    rLLM=await q(`delete from public.learner_lego_metrics where learner_id = any($1::uuid[])`,[ownLearnerIds])
   }
-  const r2=await q(`delete from public.classes where school_id in (select id from public.schools where is_demo)`)
-  const r3=await q(`delete from public.schools where is_demo`)
-  const r4=await q(`delete from public.groups where is_demo`)
-  const r5=await q(`delete from public.learners where is_demo`)
+  // invite_codes point at classes/schools by FK — clear them before their targets.
+  if(cIds.length) await q(`delete from public.invite_codes where grants_class_id = any($1::uuid[])`,[cIds])
+  if(sIds.length) await q(`delete from public.invite_codes where grants_school_id = any($1::uuid[])`,[sIds])
+  if(groupIds.length) await q(`delete from public.invite_codes where grants_group_id = any($1::uuid[])`,[groupIds])
+  const r2=cIds.length?await q(`delete from public.classes where id = any($1::uuid[])`,[cIds]):{rowCount:0}
+  // The schools and groups rows themselves SURVIVE and are reused below. They are
+  // durable ORG IDENTITY, not per-run content: the group tree hangs off them
+  // (groups.parent_id, schools.node_group_id — the school-node rows created by the
+  // org-hierarchy work), govt_admins point at them, and this script knows nothing
+  // about node linkage, so deleting them destroyed a tree it could not rebuild
+  // (and FK-failed on both groups_parent_id_fkey and govt_admins_group_id_fkey).
+  const r5=ownLearnerIds.length?await q(`delete from public.learners where id = any($1::uuid[])`,[ownLearnerIds]):{rowCount:0}
   await q('commit')
   const nAuth=await deleteDemoAuthUsers()
-  console.log(`  tags:${r1.rowCount} playerEvents:${rPE.rowCount} legoMetrics:${rLLM.rowCount} classes:${r2.rowCount} schools:${r3.rowCount} groups:${r4.rowCount} learners:${r5.rowCount} authUsers:${nAuth}`)
+  console.log(`  tags:${r1.rowCount} playerEvents:${rPE.rowCount} legoMetrics:${rLLM.rowCount} classes:${r2.rowCount} learners:${r5.rowCount} (schools/groups reused: ${sIds.length}/${groupIds.length}) authUsers:${nAuth}`)
   if(resetOnly){ await db.end(); console.log('reset-only done'); return }
 
   const creds=[`# SSi demo suite credentials — generated ${new Date().toISOString().slice(0,10)}`,
@@ -326,18 +364,36 @@ async function deleteDemoAuthUsers(){
     for(let i=0;i<teacherUids.length;i++)
       await q(`update public.learners set display_name=$1, educational_role='teacher', is_demo=true where user_id=$2`,[sc.teachers[i].name,teacherUids[i]])
 
-    // org
+    // org — REUSE the surviving group/school rows (see the reset note): they carry
+    // org identity the reset deliberately preserves, so re-inserting would both
+    // stack duplicates and orphan the node tree that points at the old ids.
     let groupId=null
     if(sc.group){
-      groupId=uuid()
-      // name_confirmed=true: a deliberately-chosen demo name, not a leader's
-      // placeholder guess — see generate-ime-demo.cjs for the same fix.
-      await q(`insert into public.groups (id, name, is_demo, is_test, name_confirmed) values ($1,$2,true,true,true)`,[groupId,sc.group.name])
+      const ex=await q(`select id from public.groups where is_demo and name=$1 limit 1`,[sc.group.name])
+      if(ex.rowCount){ groupId=ex.rows[0].id }
+      else {
+        groupId=uuid()
+        // name_confirmed=true: a deliberately-chosen demo name, not a leader's
+        // placeholder guess — see generate-ime-demo.cjs for the same fix.
+        await q(`insert into public.groups (id, name, is_demo, is_test, name_confirmed) values ($1,$2,true,true,true)`,[groupId,sc.group.name])
+      }
     }
-    const schoolId=uuid()
-    await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
-             values ($1,$2,$3,$4,$5,$6,$7,true,true)`,
-      [schoolId, sc.school.name, adminUid, sc.school.region, `DEMO-${sc.key.toUpperCase().slice(0,2)}-T`, `DEMO-${sc.key.toUpperCase().slice(0,2)}-A`, groupId])
+    const tCode=`DEMO-${sc.key.toUpperCase().slice(0,2)}-T`, aCode=`DEMO-${sc.key.toUpperCase().slice(0,2)}-A`
+    const exS=await q(`select id from public.schools where is_demo and school_name=$1 limit 1`,[sc.school.name])
+    let schoolId
+    if(exS.rowCount){
+      schoolId=exS.rows[0].id
+      // staff auth users are recreated each run, so the admin_user_id must be
+      // repointed; group_id is coalesced so an existing region link is kept.
+      await q(`update public.schools set admin_user_id=$2, region_code=$3, teacher_join_code=$4, admin_join_code=$5,
+               group_id=coalesce(group_id,$6), is_demo=true, is_test=true where id=$1`,
+        [schoolId, adminUid, sc.school.region, tCode, aCode, groupId])
+    } else {
+      schoolId=uuid()
+      await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
+               values ($1,$2,$3,$4,$5,$6,$7,true,true)`,
+        [schoolId, sc.school.name, adminUid, sc.school.region, tCode, aCode, groupId])
+    }
     await q(`insert into public.user_tags (user_id, tag_type, tag_value, role_in_context, added_by) values ($1,'school',$2,'admin','demo-suite')`,
       [adminUid,`SCHOOL:${schoolId}`])
     for(const t of teacherUids)
@@ -555,7 +611,10 @@ async function deleteDemoAuthUsers(){
   }
   await db.end()
 
+  // ~/Desktop only exists on Tom's Mac; on the Linux boxes the run used to die
+  // here AFTER every DB write had committed. Create the dir rather than fail.
   const credPath=path.join(os.homedir(),'Desktop',`SSi-demo-credentials-${new Date().toISOString().slice(0,10)}.md`)
+  fs.mkdirSync(path.dirname(credPath),{recursive:true})
   fs.writeFileSync(credPath,creds.join('\n'))
   console.log(`\nDONE: ${totals.students} students, ${totals.sessions} sessions, ${totals.seedRows} seed rows, ${totals.legoRows} lego rows, ${totals.classSessions} class sessions`)
   if(TELEMETRY){
