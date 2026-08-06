@@ -44,6 +44,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial, isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
@@ -359,9 +360,37 @@ export default async function handler(
           .single()
         if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
         else if (firstClass) {
-          const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
-          if ('error' in learnerResult) {
-            console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+          // Dual-write the teacher↔class RELATIONSHIP alongside the lead
+          // pointer. Pointer-only writes are how 47 of 62 live classes ended
+          // up needing a backfill; without this the backfill just rots again.
+          // This convenience class is deliberately non-fatal to onboarding,
+          // but the failure is NOT swallowed into a half-made class: we roll
+          // the seconds-old, empty class back rather than leave a rotten row.
+          const tagResult = await ensureClassTeacherTag(
+            supabase,
+            firstClass.id,
+            auth.userId,
+            auth.userId,
+          )
+          if ('error' in tagResult) {
+            console.error(
+              '[onboarding/provision] class/teacher tag failed — rolling back first class:',
+              tagResult.error,
+            )
+            const { error: delErr } = await supabase.from('classes').delete().eq('id', firstClass.id)
+            if (delErr) {
+              console.error(
+                '[onboarding/provision] rollback of class',
+                firstClass.id,
+                'FAILED — it has a lead pointer with no teacher tag:',
+                delErr.message,
+              )
+            }
+          } else {
+            const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
+            if ('error' in learnerResult) {
+              console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+            }
           }
         }
       }
