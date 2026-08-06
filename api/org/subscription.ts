@@ -14,7 +14,7 @@
  *
  * Returns:
  *   {
- *     org: { id, name, platform_status, platform_expires_at, seats, member_count } | null,
+ *     org: { id, name, type, platform_status, platform_expires_at, seats, member_count } | null,
  *     gate: { active: boolean, trial_days_remaining: number },
  *   }
  *
@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const [{ data: group }, platformState] = await Promise.all([
-      supabase.from('groups').select('id, name').eq('id', groupId).maybeSingle(),
+      supabase.from('groups').select('id, name, type').eq('id', groupId).maybeSingle(),
       readOrgPlatformState(supabase, groupId),
     ])
 
@@ -119,6 +119,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       org: {
         id: group.id,
         name: (group as any).name ?? null,
+        // The node's kind — 'organisation' for the org lane, 'region' /
+        // 'programme' for the government/schools lane. `educational_role`
+        // is 'govt_admin' for BOTH, so this is the only honest way the
+        // client can tell an org leader from a schools admin and offer the
+        // right dashboard door (useOrgLeadership.ts, 2026-08-06).
+        type: (group as any).type ?? null,
         platform_status: status,
         platform_expires_at: expiresAt,
         seats: platformState?.seats ?? null,
