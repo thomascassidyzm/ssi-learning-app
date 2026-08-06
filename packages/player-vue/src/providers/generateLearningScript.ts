@@ -17,7 +17,11 @@ import { validateLearningScript } from './validateLearningScript'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
 // The phrase-length cap lives with the mode config it comes from — ONE place,
 // next to resolveScriptShape (Aran's correction, 2026-08-06).
-import { capPhrasesByLength } from '../composables/useAlgorithmConfig'
+import {
+  capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
+  normalizeMaxPhraseLengthFraction,
+  MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
+} from '../composables/useAlgorithmConfig'
 
 export interface ScriptItem {
   uuid: string
@@ -339,10 +343,13 @@ export async function generateLearningScript(
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
   const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
 
-  // Phrase-length cap (mode row), as a fraction of each LEGO's longest
-  // phrase. 1.0 = uncapped = historic behaviour; Easy ships 0.5. Ordering is
-  // always shortest-first — the cap only removes the long tail of the pool.
-  const PHRASE_LENGTH_FRACTION = maxPhraseLengthFraction
+  // Phrase-length cap (mode row). The ceiling is ABSOLUTE and COURSE-WIDE —
+  // a fraction of the longest phrase in the whole course, measured in
+  // characters of target text — computed once below, after the phrase pools
+  // are known. 1.0 = uncapped = historic behaviour; Easy ships 0.5. Ordering
+  // is always shortest-first; the cap only removes the long tail.
+  const PHRASE_LENGTH_FRACTION = normalizeMaxPhraseLengthFraction(maxPhraseLengthFraction)
+  const phraseLengthOf = (p: Phrase): number => phraseTextLength(p.target_text)
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
@@ -749,13 +756,25 @@ export async function generateLearningScript(
   // Sort BUILD phrases shortest-first and apply the mode's phrase-length cap
   // — the twin of the USE sort below; both must move together or a round's
   // BUILD and USE halves disagree about length. capPhrasesByLength falls back
-  // to the whole (shortest-first) pool rather than starve the round.
+  // to that LEGO's shortest phrases rather than starve the round. The floor is
+  // the methodology's per-LEGO minimum (4 BUILD / 5 USE), NOT the round's
+  // ceiling: passing the ceiling makes the guard swallow the cap on every LEGO
+  // smaller than it, which is most of them (BUILD pools average 3.2 phrases).
+  // One ceiling for the whole run, from every pool the learner can meet.
+  const PHRASE_LENGTH_LIMIT = PHRASE_LENGTH_FRACTION >= 1
+    ? Infinity
+    : courseMaxPhraseLength<Phrase>(
+        [...phrasesByLego.values()].flatMap((g) => [g.build, g.use]),
+        phraseLengthOf,
+      ) * PHRASE_LENGTH_FRACTION
+
   for (const [, group] of phrasesByLego.entries()) {
     group.build = capPhrasesByLength<Phrase>(
       group.build,
       phraseSyllables,
-      PHRASE_LENGTH_FRACTION,
-      MAX_BUILD_PHRASES,
+      phraseLengthOf,
+      PHRASE_LENGTH_LIMIT,
+      MIN_BUILD_PHRASES_AFTER_CAP,
     )
   }
 
@@ -1253,8 +1272,9 @@ export async function generateLearningScript(
       const sortedUsePhrases = capPhrasesByLength<Phrase>(
         phrases.use,
         phraseSyllables,
-        PHRASE_LENGTH_FRACTION,
-        Math.max(0, MAX_BUILD_PHRASES - practiceCount),
+        phraseLengthOf,
+        PHRASE_LENGTH_LIMIT,
+        MIN_USE_PHRASES_AFTER_CAP,
       )
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
@@ -1294,8 +1314,9 @@ export async function generateLearningScript(
         usePhrases: capPhrasesByLength<Phrase>(
           phrases.use,
           phraseSyllables,
-          PHRASE_LENGTH_FRACTION,
-          N1_PHRASE_COUNT,
+          phraseLengthOf,
+          PHRASE_LENGTH_LIMIT,
+          MIN_USE_PHRASES_AFTER_CAP,
         ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego

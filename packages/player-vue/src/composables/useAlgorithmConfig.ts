@@ -64,8 +64,8 @@ export interface ModeConfig {
    */
   scriptShape?: Partial<ScriptShapeConfig>
   /**
-   * Cap on phrase LENGTH, expressed as a fraction of the LONGEST phrase
-   * available for that LEGO. Range (0, 1].
+   * Cap on phrase LENGTH, expressed as a fraction of the longest phrase in
+   * the WHOLE COURSE (not per-LEGO — see courseMaxPhraseLength). Range (0, 1].
    *   1.0 — uncapped; today's exact behaviour. Fast ships 1.0, so Fast is
    *         provably unchanged.
    *   0.5 — Easy: half the longest possible phrase (Aran, 2026-08-06).
@@ -231,38 +231,46 @@ export const DEFAULT_FAST: ModeConfig = {
  * calibrated by ear. Every value is a DB row (`algorithm_config.easy_mode`),
  * so retuning Easy is a Supabase edit, not a deploy.
  *
- * The shape of the bet: Easy gives more thinking time AND more repetition of
- * fewer distinct phrases — it does not slow the audio down (playback stays
- * 1.0×, because slowed speech teaches a register nobody speaks).
+ * These MIRROR the seeded DB rows (Popty's scripts/learning-modes/
+ * create-mode-rows.cjs) and are pitched at roughly a learner's FIRST 10 HOURS,
+ * adjusting upwards from there (Aran, 2026-08-06). Aran's three seeds: double
+ * the time, double the reps, halve the longest possible phrase. On the time he
+ * added that it "does not need to be dramatic", so the doubling is confined to
+ * boot + floor and deliberately does NOT touch the assembly slope or the
+ * ceiling — doubling those too would compound into a sluggish gap on long
+ * sentences. Easy does not slow the audio (playback stays 1.0×, because slowed
+ * speech teaches a register nobody speaks).
  */
 export const DEFAULT_EASY: ModeConfig = {
   playback_speed: 1.0,
   pause_reference: 'avg',
-  // ~20% more boot and assembly than Fast, and the belt taper is gentler
-  // (0.9 vs 0.8) so the extra thinking time does not evaporate by Green.
-  pause_boot_ms: 1200,
-  pause_assembly_threshold_ms: 1000,
-  pause_assembly_lin: 3.0,
-  pause_assembly_quad: 0,
-  pause_belt_boot: 1.0,
-  pause_belt_assembly: 0.9,
+  // DOUBLE the time, confined to boot + floor (see above).
+  pause_boot_ms: 4000,
+  pause_assembly_threshold_ms: 750,
+  pause_assembly_lin: 3.5,
+  pause_assembly_quad: 75,
+  pause_belt_boot: 0.8,
+  pause_belt_assembly: 0.95,
   pause_base_ms: 0,
   pause_multiplier: 1.05,
-  min_pause_ms: 900,
+  min_pause_ms: 2000,
   max_pause_ms: 15000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false,
-  // Fewer distinct BUILD phrases per round, more consolidation and a heavier
-  // N-1 review — "go round again" rather than "meet more".
+  // DOUBLE the reps, against the global script_shape values (7/2/12/3).
+  // These mirror the seeded easy_mode DB row exactly; the row is authoritative
+  // and these only apply when it cannot be read.
   scriptShape: {
-    maxBuildPhrases: 5,
-    useConsolidationCount: 3,
-    n1PhraseCount: 4,
+    maxBuildPhrases: 14,
+    useConsolidationCount: 4,
+    maxSpacedRepPhrases: 24,
+    n1PhraseCount: 6,
   },
-  // Halve the longest possible phrase (Aran, 2026-08-06). Phrases still arrive
-  // shortest-first; this just cuts the long tail off the pool, with the
-  // starvation guard in capPhrasesByLength standing behind it.
+  // HALVE the longest possible phrase (Aran, 2026-08-06) — a fraction of the
+  // COURSE's longest phrase, measured in characters. Phrases still arrive
+  // shortest-first; the cap only cuts the long tail, with the starvation guard
+  // in capPhrasesByLength standing behind it.
   maxPhraseLengthFraction: 0.5,
 }
 
@@ -291,36 +299,84 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
 }
 
 /**
- * Sort a LEGO's candidate phrase pool shortest-first and cap it at
- * `fraction` × the longest phrase in that pool.
+ * How the CAP measures phrase length: CHARACTERS of target text.
+ *
+ * Not syllables, and this is measured rather than assumed. On real data
+ * (ara_for_eng, 11,340 phrases): `target_syllable_count` is NULL for every
+ * row, and the `countTargetSyllables` fallback is a Latin vowel-cluster
+ * heuristic that returns 1 for every Arabic phrase — it special-cases CJK but
+ * not Arabic. A syllable-based ceiling therefore computed to 0.5 and the cap
+ * silently did nothing. Character length is always present and works in every
+ * script.
+ *
+ * The shortest-first SORT still uses syllables, exactly as it always has.
+ * Only the cap's measure is characters. Mirrors `phraseLengthOf` in Popty's
+ * services/learning-modes.cjs.
+ */
+export function phraseTextLength(text: string | null | undefined): number {
+  return (text || '').length
+}
+
+/**
+ * The longest phrase in the COURSE — the "longest possible phrase" the cap
+ * fraction is a fraction OF.
+ *
+ * Course-wide, deliberately, NOT per-LEGO. A per-LEGO pool max was implemented
+ * first and is useless on real data: BUILD pools average 3.2 phrases
+ * (ara_for_eng, 1,384 pools), so half-the-pool-max left under one eligible
+ * phrase and the starvation guard fired on 100% of LEGOs — the cap never bit
+ * at all. Mirrors `courseMaxPhraseLength` in Popty's learning-modes.cjs.
+ */
+export function courseMaxPhraseLength<T>(
+  phraseLists: Iterable<readonly T[] | null | undefined>,
+  lengthOf: (phrase: T) => number,
+): number {
+  let max = 0
+  for (const list of phraseLists) {
+    if (!list) continue
+    for (const p of list) {
+      const n = lengthOf(p)
+      if (n > max) max = n
+    }
+  }
+  return max
+}
+
+/**
+ * Sort a LEGO's candidate phrase pool shortest-first and cap it at an
+ * ABSOLUTE length ceiling computed once per run from the whole course.
  *
  * THE single place the phrase-length cap lives (Aran, 2026-08-06: Easy halves
  * the longest possible phrase). The rules, in order:
- *   1. poolMax = the greatest target syllable count in the pool;
- *   2. limit   = poolMax × fraction;
- *   3. keep phrases whose syllable count ≤ limit;
- *   4. STARVATION GUARD — if that leaves fewer phrases than the round needs,
- *      fall back to the SHORTEST phrases available (i.e. the whole pool,
- *      shortest-first, which the caller truncates). A length cap must never
- *      empty a round or starve a LEGO;
- *   5. sorting is ALWAYS shortest-first — there is no sort-direction knob.
- *      This is what makes fraction = 1.0 byte-identical to the pre-2026-08-06
- *      behaviour.
+ *   1. sort shortest-first by SYLLABLES — unchanged, historic, and what makes
+ *      an uncapped run byte-identical to the pre-2026-08-06 behaviour;
+ *   2. drop phrases whose target text is longer than `limit` CHARACTERS;
+ *   3. STARVATION GUARD — if that leaves fewer than `minKeep`, return the
+ *      shortest `minKeep` instead. `minKeep` is the methodology's per-LEGO
+ *      phrase floor (4 BUILD / 5 USE), deliberately NOT the round's ceiling:
+ *      passing the ceiling makes the guard swallow the cap on every LEGO
+ *      smaller than it, which is most of them. Phrase volume is a hard rail —
+ *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
+ *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
+ *      historic sort.
  */
 export function capPhrasesByLength<T>(
   phrases: readonly T[],
   syllablesOf: (phrase: T) => number,
-  fraction: number | null | undefined,
-  needed: number,
+  lengthOf: (phrase: T) => number,
+  limit: number,
+  minKeep: number,
 ): T[] {
   const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
-  const f = normalizeMaxPhraseLengthFraction(fraction)
-  if (f >= 1 || sorted.length === 0) return sorted
-  const poolMax = syllablesOf(sorted[sorted.length - 1])
-  const limit = poolMax * f
-  const capped = sorted.filter((phrase) => syllablesOf(phrase) <= limit)
-  return capped.length < needed ? sorted : capped
+  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
+  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
+  return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
 }
+
+/** Methodology per-LEGO phrase floors the cap must never breach (ralph: >=4
+ *  BUILD, >=5 USE — "fewer phrases is a FAIL"). */
+export const MIN_BUILD_PHRASES_AFTER_CAP = 4
+export const MIN_USE_PHRASES_AFTER_CAP = 5
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,

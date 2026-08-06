@@ -54,12 +54,18 @@ describe('learning modes — Easy / Fast', () => {
 
   it('Easy differs by OVERRIDE, and only in the keys it names', () => {
     const easy = resolveScriptShape(GLOBAL_SHAPE, DEFAULT_EASY)
-    // Named keys win…
+    // Named keys win — the four rep counts, each roughly DOUBLE the global
+    // value (Aran 2026-08-06: "double the reps"). These mirror the seeded
+    // easy_mode DB row, which is authoritative; the defaults here only apply
+    // when that row cannot be read, so they must not disagree with it.
     expect(easy.maxBuildPhrases).toBe(DEFAULT_EASY.scriptShape!.maxBuildPhrases)
     expect(easy.useConsolidationCount).toBe(DEFAULT_EASY.scriptShape!.useConsolidationCount)
-    // …everything else falls through to the global row untouched.
+    expect(easy.maxSpacedRepPhrases).toBe(DEFAULT_EASY.scriptShape!.maxSpacedRepPhrases)
+    expect(easy.n1PhraseCount).toBe(DEFAULT_EASY.scriptShape!.n1PhraseCount)
+    // …and the spaced-rep schedule itself falls through untouched: Easy rides
+    // the global Fibonacci offsets, it does not invent its own.
     expect(easy.spacedRepOffsets).toBe(GLOBAL_SHAPE.spacedRepOffsets)
-    expect(easy.maxSpacedRepPhrases).toBe(GLOBAL_SHAPE.maxSpacedRepPhrases)
+    expect(DEFAULT_EASY.scriptShape!.spacedRepOffsets).toBeUndefined()
   })
 
   it('resolveScriptShape is the identity when a mode carries no override', () => {
