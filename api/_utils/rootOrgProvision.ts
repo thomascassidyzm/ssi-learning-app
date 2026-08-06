@@ -8,7 +8,8 @@
  * Does exactly what the self-serve lane in api/groups/index.ts always did:
  * insert a root `groups` row (type 'organisation', stamped with the 30-day
  * org trial via orgTrialStamp), fail open onto the pre-migration schema, then
- * mint the caller's govt_admins leader row. On a leader-insert failure it
+ * mint the caller's govt_admins leader row AND their leader membership tag
+ * (groupLeaderTag — founder ruling 2026-08-06). On a leader-insert failure it
  * rolls back the just-created group rather than stranding an orphaned root
  * the caller can't see or manage.
  *
@@ -20,6 +21,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { orgTrialStamp } from './orgPlatform'
 import { isMissingPlatformSchema } from './schoolPlatformTrial'
+import { ensureGroupLeaderTag } from './groupLeaderTag'
 
 export interface RootOrg {
   id: string
@@ -62,6 +64,14 @@ export async function createRootOrgAndLeader(
     await supabase.from('groups').delete().eq('id', data.id)
     throw leaderError
   }
+
+  // …and make that leadership a MEMBERSHIP too (founder ruling 2026-08-06:
+  // the creator of an org becomes its first manager). govt_admins is authz
+  // only — every people list in the org UI reads user_tags, which is why
+  // creators used to end up governing a group they weren't in. Best-effort:
+  // the org and its authz row are already sound, and the read side unions
+  // govt_admins, so a failure here costs visibility, never the org.
+  await ensureGroupLeaderTag(supabase, { groupId: data.id, userId, addedBy: userId })
 
   return {
     id: data.id,

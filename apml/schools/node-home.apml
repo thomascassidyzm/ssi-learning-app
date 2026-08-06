@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-06 (practice hours count directly group-attached people; subtree = parent_id, not slug path)
+# Last updated: 2026-08-06 (creator becomes first manager; the node names its leader)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
@@ -99,6 +99,14 @@ data:
   subtree_membership: parent_id walk (api/_utils/groupSubtree.descendantIds), NEVER the slug path —
     compute_group_path() slugifies the name and nothing makes it unique, so two same-named orgs
     shared one path live (2026-08-06) and each one's rollup swallowed the other's people
+  leaders: who leads THIS node — govt_admins ∪ the leader membership tag
+    (user_tags tag_type='group', role_in_context='admin'), names resolved via learners.
+    Founder ruling 2026-08-06: the creator of a group/org IS its first manager. Before
+    this, leadership lived only in govt_admins — which no lens reads — so a creator
+    governed a group whose page showed no manager anywhere while the ways-in ledger
+    right below it printed their own name against the link they had minted.
+    Rendered "Led by <names>"; a root with no leader says "No group leader yet"
+    rather than rendering nothing (an absent line and an absent leader looked identical).
   practice_hours: subtree school_summary sum (incl. staff practice)
     + directly group-attached people's sessions (api/_utils/directMemberPractice.ts) — a group whose
       people were invited straight in (user_tags tag_type='group', no school, no class) has no
