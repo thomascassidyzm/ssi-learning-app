@@ -341,6 +341,50 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.practiceHours).toBe(135.1)
   })
 
+  // ─── Founder ruling 2026-08-06: a node must name its manager. Leadership
+  // lived only in govt_admins, which no lens reads — so the creator of an org
+  // governed a group whose page showed no manager anywhere. ───
+  it('names the node leader from govt_admins — an org created BEFORE the ruling still shows its manager', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.learners.push({ user_id: 'leader-1', display_name: 'Sra Deborah' })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.leaders).toEqual([{ user_id: 'leader-1', name: 'Sra Deborah' }])
+  })
+
+  it('names a leader carried only by the membership tag, and never duplicates one held in both', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.learners.push({ user_id: 'leader-1', display_name: 'Sra Deborah' })
+    TABLES.learners.push({ user_id: 'leader-2', display_name: 'Ana Ortiz' })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-1', removed_at: null })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-2', removed_at: null })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.leaders).toEqual([
+      { user_id: 'leader-2', name: 'Ana Ortiz' },
+      { user_id: 'leader-1', name: 'Sra Deborah' },
+    ])
+  })
+
+  it('a leader tag does not inflate teacherCount or learnerCount', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-1', removed_at: null })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.body.node.rollup.teacherCount).toBe(2)
+    expect(res.body.node.rollup.learnerCount).toBe(2)
+  })
+
+  it('reports an empty leaders list for a node nobody leads — the page can say so out loud', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.govt_admins = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.body.leaders).toEqual([])
+  })
+
   it('lens=schools returns the subtree-wide schools list with teacher names', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()

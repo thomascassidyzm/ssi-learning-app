@@ -175,6 +175,33 @@ role govt_admin:
         region_code: "text (e.g., 'wales', 'brittany', 'basque')"
         organization_name: "text"
         verified_at: "timestamptz"
+      # AUTHZ ONLY. govt_admins answers "may this caller act here?" and is read
+      # by groupTreeAuth and nothing else. Every people count and people list in
+      # the org UI reads user_tags — so a leader recorded ONLY here governs a
+      # group they are not a member of, and the org page names no manager at all
+      # (live defect, 2026-08-06).
+      membership_twin:
+        table: "user_tags"
+        row: "tag_type 'group', tag_value 'GROUP:<id>', role_in_context 'admin'"
+        why: |
+          Founder ruling (Tom, 2026-08-06): the CREATOR of a group/org
+          automatically becomes its first MANAGER (group leader). Written at
+          creation by api/_utils/groupLeaderTag.ensureGroupLeaderTag, wired into
+          createRootOrgAndLeader (root orgs, /orgs signup) and POST /api/groups
+          (sub-groups). ssi_admins are exempt — they create groups they do not lead.
+        role_value: |
+          'admin', not 'leader': the live check constraint
+          user_tags_role_in_context_check admits exactly admin|teacher|student.
+          A SCHOOL: tag with role 'admin' already means "administers this school",
+          so a GROUP: tag with role 'admin' means "administers this group". NOT
+          'teacher' — that lands the leader in teacherCount. Grants nothing:
+          every reader of role 'admin' filters tag_type='school' first.
+        reads: |
+          groupLeaderTag.leadersForNodes UNIONS govt_admins with the tag, so orgs
+          created before the ruling still name their leader without a backfill.
+          Surfaced as `leaders` on GET /api/groups/:id/home, rendered "Led by …"
+          on the node home (and "No group leader yet" on a leaderless root —
+          absence must be loud, not silent).
 
 role school_admin:
   name: "School Administrator"

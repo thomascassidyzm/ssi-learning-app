@@ -12,8 +12,9 @@
  *     on trust from the client.
  *   · ANY authenticated user creating a ROOT org (founder ruling 2026-08-02,
  *     groups all the way down: "anyone who creates one becomes its GROUP
- *     LEADER by default") — the caller's govt_admins row is minted in the
- *     same request. One org per leader (govt_admins is one-row-per-user
+ *     LEADER by default") — the caller's govt_admins row AND their leader
+ *     membership tag (founder ruling 2026-08-06: the creator of a group is
+ *     its first manager) are minted in the same request. One org per leader (govt_admins is one-row-per-user
  *     across the whole org stack), so a caller who already leads a group
  *     gets a clear 409, not a silently re-pointed leadership.
  */
@@ -25,6 +26,7 @@ import { orgTrialStamp } from '../_utils/orgPlatform'
 import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
+import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 
 /**
  * ssi_admin/god first; fall back to a group-leader whose OWN governed group
@@ -198,6 +200,16 @@ export default async function handler(
       }
 
       if (error) throw error
+
+      // The creator of a group becomes its first manager (founder ruling
+      // 2026-08-06) — the same rule createRootOrgAndLeader applies to a root
+      // org, applied to a sub-group. A leader already holds authority over
+      // their whole subtree, so this adds no permission; it makes them a
+      // visible member of the group they just made, instead of an anonymous
+      // one. Skipped for ssi_admins, who create groups they do not lead.
+      if (!isAdmin) {
+        await ensureGroupLeaderTag(supabase, { groupId: (data as { id: string }).id, userId: caller.userId })
+      }
 
       res.status(201).json({ group: data })
     } catch (error) {

@@ -32,6 +32,7 @@ import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { chunk } from '../../_utils/schoolScope'
 import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
+import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -243,12 +244,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         classCount: classIds.size,
       }
     })
-    const [, extras, practiceHours, classPractice] = await Promise.all([
+    // WHO LEADS THIS NODE. The org page could name the leader of a group
+    // nowhere at all: leadership lived only in govt_admins, which is authz and
+    // is read by no lens. A creator therefore governed a group that listed no
+    // manager (founder ruling 2026-08-06 — the creator IS the first manager).
+    // Unioned across govt_admins + the leader membership tag so orgs created
+    // before the ruling still name theirs.
+    const leadersPromise = leadersForNodes(svc, [nodeId])
+    const [, extras, practiceHours, classPractice, leadersByNode] = await Promise.all([
       schoolsPromise,
       computeNodeExtras(svc, [nodeId, ...childRows.map((c) => c.id)], allGroups),
       practiceHoursPromise,
       classPracticePromise,
+      leadersPromise,
     ])
+    const leaderUids = [...(leadersByNode.get(nodeId) || [])]
+    const leaderNames = await namesForAuthUids(svc, leaderUids)
+    const leaders = leaderUids
+      .map((uid) => ({ user_id: uid, name: leaderNames.get(uid) || 'Unnamed' }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
     const schoolNodeIds = new Set(schoolRows.map((s) => s.node_group_id).filter(Boolean) as string[])
     const subtreeSchoolIds = schoolRows.map((s) => s.id)
 
@@ -663,6 +678,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       siblings,
       children: childRows.map(withExtras),
       practiceHours: Math.round(practiceHours * 10) / 10,
+      leaders,
       classPractice,
       ...(lensPayload || {}),
     })
