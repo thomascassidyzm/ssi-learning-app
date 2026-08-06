@@ -1172,3 +1172,14 @@ verdict); kills the recurring cost of Tom being woken by false craters.
 **Search width:** visible-options.
 **Decided by:** agent (under Watson's incident directive; rollback explicitly NOT taken — the
 deploy was verified healthy end-to-end).
+
+## 2026-08-06 — co-teaching consumes NO paid seat, for now
+**Ruling (Tom, 2026-08-06, verbatim):** "co-teaching consumes NO paid seat, for now. Nothing currently enforces teacher seats at all, so no seat-consumption or pricing logic should be built into co-teaching -- keep the code neutral on pricing. This is an explicitly OPEN commercial question to revisit if/when teacher seats become enforced; fully reversible then."
+**Move:** A-74 co-teaching panel + class-scoped invite + route guards shipped 2026-08-06 without seat-gating. The implementation keeps no pricing side-effect or enforcement — a class can have unlimited co-teachers, they all gain full roster + analytics access, no charge surfaces anywhere client or server. The decision reserves the pricing shape for later when the school seat model becomes load-bearing.
+**Better:** the pedagogy is immediate (co-teachers access their classes today); the commercial shape is orthogonal and has no learner-facing surface to block on.
+**Simpler:** zero pricing logic to ship, gate, test, or maintain today. The co-teach flow is indistinguishable from the lead-teacher path; the money question is deferred.
+**Cheaper (total):** nothing to build, test, or keep in sync — the platform enforces no seat count today, so co-teaching is "free" by construction.
+**Searched & rejected:** seat-gating in the invite redemption or class-teacher write path — both rejected: nothing stops multiple teachers on a class now anyway (RLS is own-row, not ownership-unique), so enforcement wouldn't be novel; the gate would be theatre until seat billing actually exists.
+**Open question (Tom's words):** when/if teacher seats become enforced, this is fully reversible — add a gate at the seat boundary (redemption or role-add), price the seat tier, done. The neutral code today makes that trivial.
+**Search width:** founder-ruled.
+**Decided by:** founder.
