@@ -299,13 +299,19 @@ describe('POST /api/invite/create — permission gates per code_type', () => {
     expect(insert.obj.grants_school_id).toBe('school-1')
   })
 
-  it('a CO-teacher (class relationship, not the lead pointer) can create a co-teacher code for that class', async () => {
+  // Deliberately flipped 2026-08-06 by the founder ruling — "any group leader
+  // or the current teacher of the class can add the co-teacher". Minting a
+  // co-teacher link ADDS a co-teacher, so it is not a teaching verb: a plain
+  // co-teacher may teach the class but may not recruit into it. Minting a
+  // STUDENT code stays open to every teacher of the class (guard S1, above).
+  it('a CO-teacher (class relationship, not the lead pointer) CANNOT create a co-teacher code for that class', async () => {
     classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
     classTeacherTags = [{ tag_value: 'CLASS:class-1', user_id: 'leader-1', role_in_context: 'teacher' }]
     const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-1' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.statusCode).toBe(201)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
   })
 
   it('ignores a client-supplied grants_school_id on a class-scoped teacher code', async () => {
