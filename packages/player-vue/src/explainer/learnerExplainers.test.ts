@@ -130,7 +130,10 @@ describe('learner explainer copy — How this works covers using the app', () =>
     expect(headings).toMatch(/changing course/i)
     const text = learnerFacingStrings(HOW_THIS_WORKS_LEARNER).join(' ')
     expect(text).toMatch(/listening is audio only/i)
-    expect(text).toMatch(/turbo/i)
+    // Turbo retired 2026-08-06 — the copy names the two modes that replaced it.
+    expect(text).toMatch(/\beasy\b/i)
+    expect(text).toMatch(/\bfast\b/i)
+    expect(text).not.toMatch(/turbo/i)
     expect(text).toMatch(/offline/i)
     expect(text).toMatch(/library/i)
   })

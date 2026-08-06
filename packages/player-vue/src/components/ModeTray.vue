@@ -16,7 +16,6 @@ const { t } = useI18n()
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
-  isTurboMode: { type: Boolean, default: false },
   isOfflineMode: { type: Boolean, default: false },
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
@@ -26,7 +25,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -58,12 +57,7 @@ const closeTray = () => {
 
 // Is any mode active?
 const hasActiveMode = computed(() =>
-  props.isListeningMode || props.isPronunciationMode || props.isTurboMode
-)
-
-// Can turbo be used? Not in listening or pronunciation
-const turboAvailable = computed(() =>
-  !props.isListeningMode && !props.isPronunciationMode
+  props.isListeningMode || props.isPronunciationMode
 )
 
 // The "Mode — pick one" radio group (HISE / Listening) and its
@@ -76,15 +70,8 @@ const turboAvailable = computed(() =>
 const activeModeIcon = computed(() => {
   if (props.isListeningMode) return 'listening'
   if (props.isPronunciationMode) return 'pronunciation'
-  if (props.isTurboMode) return 'turbo'
   return null
 })
-
-const handleMode = (mode: string) => {
-  closeTray() // selection closes the tray — no second tap to get going
-  const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
-  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
-}
 
 // Offline is special: tapping it hands off to the full-screen depth picker
 // ("how much of the course to carry"). Close the tray first so the picker is
@@ -118,9 +105,6 @@ const handleOffline = () => {
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-      </svg>
-      <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
       <!-- Default: sliders icon -->
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -160,27 +144,8 @@ const handleOffline = () => {
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
-        <!-- Turbo toggle -->
-        <button
-          class="tray-item"
-          :class="{ active: isTurboMode, unavailable: !turboAvailable }"
-          :disabled="!turboAvailable"
-          @click="handleMode('turbo')"
-        >
-          <div class="tray-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
-          </div>
-          <div class="tray-label">
-            <span class="tray-name">{{ t('modes.turboBoost') }}</span>
-            <span class="tray-desc">{{ t('modes.turboDesc') }}</span>
-          </div>
-          <div class="tray-toggle" :class="{ on: isTurboMode }">
-            <div class="tray-toggle-knob"></div>
-          </div>
-        </button>
-
+        <!-- Easy / Fast lives on the player's resting screen (the mode you
+             pick before you start), not here. Turbo was retired 2026-08-06. -->
         <!-- Offline mode toggle — play from downloaded audio (no network) -->
         <button
           class="tray-item"
@@ -229,7 +194,7 @@ const handleOffline = () => {
          position:fixed content below the shell's own top nav — a body-level
          Teleport escapes that containing block and re-joins the ROOT stacking
          context, where it painted ABOVE the (locally z-indexed) tray and
-         silently ate every tap on Turbo/Offline/Listening. Staying local
+         silently ate every tap on Offline/Listening. Staying local
          keeps the backdrop in the SAME containing block as the tray itself,
          so the 102-vs-103 z-index order holds in both embedded and
          standalone play. -->
@@ -440,7 +405,7 @@ const handleOffline = () => {
   font-weight: 600;
 }
 
-/* Toggle switch for Turbo */
+/* Toggle switch for the tray items */
 .tray-toggle {
   width: 36px;
   height: 20px;

@@ -64,24 +64,13 @@ export interface ScriptItem {
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
   listeningSeedNumber?: number
-  /** Skip this cycle when Turbo is active. Set on:
-   *   - 4th–7th BUILD phrases (Turbo keeps the first 3)
-   *   - 2nd CONSOLIDATE/USE phrase (Turbo keeps 1)
-   *   - spaced_rep phrases at alternate fib offsets (skip 5, 13, 34, 89; keep 1, 2, 3, 8, 21, 55)
-   * intro/debut/listening/pod/bookend cycles are never tagged. */
-  turboOmit?: boolean
 }
 
-/**
- * Default Turbo culling rules — mirrored to algorithm_config.turbo_boost.
- * fibKeep: indices into SPACED_REP_OFFSETS that Turbo keeps; default
- *   {0,1,2,4,6,8} = N-1, N-2, N-3, N-8, N-21, N-55 (skip the rest).
- * buildKeep: how many BUILD phrases per LEGO Turbo keeps (rest tagged).
- * useKeep: how many CONSOLIDATE/USE phrases per LEGO Turbo keeps.
- */
-export const DEFAULT_TURBO_FIB_KEEP = [0, 1, 2, 4, 6, 8]
-export const DEFAULT_TURBO_BUILD_KEEP = 3
-export const DEFAULT_TURBO_USE_KEEP = 1
+// Turbo mode was retired 2026-08-06 (Aran's ruling, relayed by Tom): two
+// learner-facing modes only, easy and fast. Its cycle-culling (turboOmit +
+// fibKeep/buildKeep/useKeep) is gone with it — no learner now gets a
+// thinned-out round. Easy mode goes the other way, adding reps via the
+// per-mode `script_shape` overlay in useAlgorithmConfig.
 
 /**
  * Default per-round script shape — mirrored to algorithm_config.script_shape.
@@ -127,13 +116,11 @@ export function reviewItemIsSeed(offset: number): boolean {
   return offset >= SEED_PHASE_START_OFFSET
 }
 
-/** Subset of turbo_boost config fields used at script-generation time
- *  (cycle tagging). Other fields like playback_speed apply at runtime. */
-export interface TurboCullConfig {
-  fibKeep?: number[]
-  buildKeep?: number
-  useKeep?: number
-}
+/** Which practice phrase the generator reaches for first when it has a
+ *  choice. 'shortest' is the long-standing behaviour (Fast); 'longest'
+ *  (Easy) reverses the BUILD/USE sorts so the learner gets the fullest
+ *  phrase available. Mirrors ModeConfig.phrase_length_preference. */
+export type PhraseLengthPreference = 'shortest' | 'longest'
 
 // Role → runtime playback rate for Layer-2 pod plays (emitPodLap, retained
 // for hot-fix rollback — see the comment above emitPodLap). All audio
@@ -330,7 +317,9 @@ export async function generateLearningScript(
   infinitePlayLookahead: number = 50,
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
-  turboCull: TurboCullConfig = {},
+  /** Easy mode passes 'longest'; Fast (and every legacy caller) gets the
+   *  historical shortest-first ordering. */
+  phraseLengthPreference: PhraseLengthPreference = 'shortest',
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -355,12 +344,10 @@ export async function generateLearningScript(
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
   const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
 
-  // Turbo culling — DB-tweakable via algorithm_config.turbo_boost
-  // (fibKeep, buildKeep, useKeep). Defaults preserved for any consumer
-  // that omits the param.
-  const TURBO_FIB_KEEP = new Set(turboCull.fibKeep ?? DEFAULT_TURBO_FIB_KEEP)
-  const TURBO_BUILD_KEEP = turboCull.buildKeep ?? DEFAULT_TURBO_BUILD_KEEP
-  const TURBO_USE_KEEP = turboCull.useKeep ?? DEFAULT_TURBO_USE_KEEP
+  // Phrase-length preference — Easy mode asks for the longest phrase
+  // available, Fast keeps the historical shortest-first walk. Applied as a
+  // sign flip on the syllable-count comparators below.
+  const LENGTH_SORT_SIGN = phraseLengthPreference === 'longest' ? -1 : 1
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
@@ -760,10 +747,10 @@ export async function generateLearningScript(
 
   // Sort BUILD phrases by syllable count
   for (const [, group] of phrasesByLego.entries()) {
-    group.build.sort((a, b) =>
+    group.build.sort((a, b) => LENGTH_SORT_SIGN * (
       (a.target_syllable_count || countTargetSyllables(a.target_text)) -
       (b.target_syllable_count || countTargetSyllables(b.target_text))
-    )
+    ))
   }
 
   // Organize LEGOs by seed
@@ -1123,7 +1110,6 @@ export async function generateLearningScript(
         fibPosition: base.fibPosition,
         reviewOf: base.reviewOf,
         playbackSpeed: 1.0,
-        ...(TURBO_FIB_KEEP.has(base.fibPosition) ? {} : { turboOmit: true }),
       })
     }
   }
@@ -1250,16 +1236,15 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
       // Fill remaining BUILD slots with USE phrases (BUILD priority > CONSOLIDATE)
       // CONSOLIDATE can repeat BUILD phrases if needed — filling 7 BUILD is non-negotiable
-      const sortedUsePhrases = [...phrases.use].sort((a, b) =>
+      const sortedUsePhrases = [...phrases.use].sort((a, b) => LENGTH_SORT_SIGN * (
         (a.target_syllable_count || countTargetSyllables(a.target_text)) -
         (b.target_syllable_count || countTargetSyllables(b.target_text))
-      )
+      ))
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1284,7 +1269,6 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
@@ -1384,7 +1368,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1408,7 +1391,6 @@ export async function generateLearningScript(
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
-          ...(consolidateCount > TURBO_USE_KEEP ? { turboOmit: true } : {}),
         })
       }
       // First pass: unused USE phrases
@@ -1634,7 +1616,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
