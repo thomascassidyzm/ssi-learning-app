@@ -54,6 +54,17 @@ import {
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
+import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+
+/**
+ * A-64 (Tom, 2026-08-06): "no mode should ever repeat the same prompt more than
+ * twice consecutively". A pod play's prompt is the clip it plays, so identity is
+ * the audio id — 'ps' and 'ps2x' are the same clip at different speeds and count
+ * as the same prompt, which is exactly the run the law is aimed at (stage 4's
+ * ['ps','trans','ps2x','ps2x'] is legal; stage 8's ['ps2x','ps2x'] repeated on
+ * the very next lap is not).
+ */
+const podPlayIdentity = (play: PodPlay): string => play.audioId
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
 // ListeningOverlay, PodStageAuditioner, tests) keep their import paths.
@@ -381,6 +392,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   /** Independent ratchet counter. Increments only on completed laps. */
   const completedPodRounds = ref<number>(0)
 
+  /** Audio ids of the last plays emitted, so the A-64 cap holds across the
+   *  lap boundary (laps run back to back in Listening mode). */
+  let lastLapTail: string[] = []
+
   // ── Shared two-doors exposure counter (learner_pod_state) ────────────────
   // sentence_id → exposures COMPLETED across both doors (pod laps + Listening
   // Drill). A sentence's stage maths use max(derived alive, stored + 1) so a
@@ -676,10 +691,32 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     if (plays.length === 0) return null
 
     const hasBookends = !!(introAudio.value && outroAudio.value)
+
+    // A-64 floor. Applied here, downstream of the admin-editable stage
+    // playlists in algorithm_config, so no saved playlist can breach the law.
+    // The seed carries the previous lap's tail across the boundary — laps run
+    // back to back in Listening mode, so a one-sentence pod ending ['ps2x',
+    // 'ps2x'] and restarting on the same clip is a real three-in-a-row. When
+    // bookends play between laps they genuinely separate the two, so the seed
+    // is not carried. minKeep: 1 means a degenerate single-clip lap is never
+    // emptied — the session stays alive and the shortfall is logged.
+    const capped = capConsecutiveRepeats(plays, podPlayIdentity, {
+      seed: hasBookends ? [] : lastLapTail,
+      minKeep: 1,
+    })
+    lastLapTail = capped.tail
+    if (capped.dropped.length > 0 || capped.forcedKeeps > 0) {
+      console.debug(
+        `[usePodLapScheduler] A-64 cap: lap ${podRound} dropped ${capped.dropped.length} surplus consecutive play(s)` +
+        `${capped.forcedKeeps > 0 ? `, ${capped.forcedKeeps} kept to avoid an empty lap` : ''}` +
+        ` (pool too small to re-interleave)`,
+      )
+    }
+
     return {
       podRound,
       intro: hasBookends ? introAudio.value : null,
-      plays,
+      plays: capped.items,
       outro: hasBookends ? outroAudio.value : null,
     }
   }
