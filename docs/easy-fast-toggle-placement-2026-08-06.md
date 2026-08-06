@@ -117,6 +117,31 @@ one. That is a taste call about the first impression of the product, so it is yo
 
 ---
 
+## Have a look at it yourself
+
+**<https://ssi-learning-app-git-dev-zenjin.vercel.app>** — open it on your phone, let the
+player screen settle, and look **just under the White Belt pill**. That is the switch:
+`Easy | Fast`, with Fast lit by default.
+
+I could not embed the screenshots in this page, so that link is the real thing rather than a
+picture of it.
+
+### What I actually checked on dev, in a real browser at phone size
+
+Passing: the switch is there, it offers Easy and Fast, **Fast is selected by default**,
+tapping Easy selects it, the choice survives a full reload, Turbo is gone from the sliders
+tray, and no page errors.
+
+**Two cosmetic faults the probe caught, both since fixed:** at White Belt the selected pill
+was rendering white-on-white, so you could not see which mode you were on; and the buttons
+came out at 41px, under the 44px thumb-target floor. Both fixes are merged and green, and I
+re-measured the corrected control in a browser at 44px with white-on-dark text. **Dev's
+deploy was lagging by the time I finished, so those last two fixes may not be on that URL
+yet when you look** — if the selected mode looks blank, that is the deploy catching up, not
+the fix missing.
+
+---
+
 *Built 2026-08-06 on the learner-app side. The Popty/admin side — authoring the actual
 `easy_mode` and `fast_mode` rows and deleting `turbo_boost` — is the separate piece of work and
 is not covered here.*
