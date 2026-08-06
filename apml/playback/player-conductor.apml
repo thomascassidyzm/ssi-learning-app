@@ -1,6 +1,6 @@
 # APML v1.0.0 - PlayerConductor (SimplePlayer transition ownership)
 # SSI Learning App
-# Last Updated: 2026-07-28
+# Last Updated: 2026-08-06
 
 spec player_conductor_architecture:
   version: "1.0.0"
@@ -139,3 +139,62 @@ spec player_conductor_architecture:
     - Plan 019 (docs/... LearningPlayer.vue region extraction) resumes as
       the follow-on once this settles further, per the decision doc's
       recommended sequencing.
+
+  engine_never_stalls_invariant: |
+    ADDED 2026-08-06. The conductor's "every transient state has a BOUNDED
+    exit" discipline now extends DOWN into SimplePlayer itself, because the
+    conductor could not see the hole: the engine's own startPhase() awaited
+    the resolveAudioUrl override before every prompt/voice1/voice2 with no
+    timeout and no timer armed anywhere. The stall watchdog (armSafetyTimer)
+    only exists once playAudio has been reached, so during that await the
+    engine had a phase set, isPlaying true, and nothing running at all. From
+    the conductor's seat that reads as a perfectly healthy 'playing' state.
+
+    Field report (Aran, 2026-08-06, German, item "with you"): playback hard-
+    stopped on that one item and would not restart; skipping BACK reproduced
+    it every time; only skipping FORWARD past it recovered; all practice for
+    the item was lost. The server resolved all three clips correctly, so the
+    stall was client-side. The asymmetry is the signature of a per-audio-id
+    memoised promise: AudioCache.getWavBlobUrl caches its IN-FLIGHT decode by
+    id (wavUrlInflight), so a single non-settling mp3->WAV decode poisons
+    exactly one id permanently — replaying the item re-awaits the same dead
+    promise, every other id is untouched.
+
+    THE RULING (Tom, standing): the player plays what it has. A clip that
+    fails to load, is missing, or is slow is SKIPPED so the session
+    continues. It must NEVER stall.
+
+    Enforced by four bounds, all in packages/player-vue:
+      - playback/SimplePlayer.ts resolveUrl(): the resolveAudioUrl override
+        is raced against RESOLVE_URL_TIMEOUT_MS (4s); past it the original
+        network URL is played, which is always a valid resource.
+      - playback/SimplePlayer.ts startPhase(): a PHASE WATCHDOG
+        (PHASE_START_TIMEOUT_MS, 8s) is armed on entry to every audio-bearing
+        phase and cleared only when playAudio() assigns a src. Nothing in
+        that window — this await, the ensureKnownReady gate, or anything
+        added later — can outlive the bound. On fire it logs loudly, emits
+        audio_failed(attempt=2), and advances via onAudioEnded.
+      - playback/SimplePlayer.ts skipFailedClip(): replaces the old
+        tripPlayError HALT. After the silent retry is burned the clip is
+        SKIPPED and playback continues; the audio_failed telemetry shape is
+        unchanged so admin diagnostics keep grouping on it. The single
+        remaining halt is 'needs-gesture' (tripGestureRequired) — there the
+        browser will play NOTHING until the learner taps, so skipping would
+        burn the whole session in silence rather than lose one clip.
+      - cache/AudioCache.ts getWavBlobUrl(): the memoised read (IndexedDB +
+        mp3->WAV decode, whose ctx.decodeAudioData is the unbounded WebKit
+        primitive underneath) is raced against WAV_READ_TIMEOUT_MS (5s) so
+        that promise ALWAYS settles. On timeout it resolves null and the
+        caller falls back to the network URL, exactly as for a cache miss.
+        This closes the poisoned-memo class at source; the engine bounds
+        above survive it regardless.
+
+    Also fixed alongside: playAudio() reset its retry budget only when the
+    URL changed, so a clip that had already burned its retry once (spaced
+    repetition replays the same audio; resume() replays the same prompt) got
+    no second chance on its next attempt. The budget is now per play attempt.
+
+    Regressions: playback/SimplePlayer.test.ts, describe "never stalls on one
+    item (the ruling)" — a never-settling resolveAudioUrl, an every-await-
+    hangs backstop, an always-erroring audio element, and the needs-gesture
+    halt that must survive.
