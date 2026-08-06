@@ -411,7 +411,7 @@ onMounted(() => { void refresh() })
         <div v-if="showAddOrg" class="structure-inline-form root-inline-form">
           <input
             v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
-            @keyup.enter="createOrganisation" @keyup.escape="showAddOrg = false"
+            @keyup.enter="createOrganisation()" @keyup.escape="showAddOrg = false"
           />
           <select v-model="newOrgLabel" class="frost-select">
             <option value="organisation">organisation</option>

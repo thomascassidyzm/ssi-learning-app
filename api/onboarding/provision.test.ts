@@ -209,6 +209,59 @@ describe('POST /api/onboarding/provision — org track', () => {
     expect(writes.learners.some((w) => w.op === 'update' && w.payload.educational_role === 'govt_admin')).toBe(true)
   })
 
+  it('WARNS on a duplicate org name at the /orgs door — 409 duplicate_name, and no org, no leader row, no role change', async () => {
+    responders.govt_admins = () => ({ data: null, error: null })
+    responders.groups = (calls) =>
+      calls.some((c) => c[0] === 'select' && String(c[1]).includes('name'))
+        ? { data: [{ id: 'org-1', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z', path: 'deborah-testing' }], error: null }
+        : undefined
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'deborah testing' } }), res)
+
+    expect(res._status).toBe(409)
+    expect(res._json.code).toBe('duplicate_name')
+    // Another tenant's org — name and date only.
+    expect(res._json.duplicates).toEqual([{ name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z' }])
+    expect(writes.groups).toBeUndefined()
+    expect(writes.govt_admins).toBeUndefined()
+    // The signup must not be left half-done: no govt_admin role stamped either.
+    expect(writes.learners?.some((w) => w.op === 'update')).toBeFalsy()
+  })
+
+  it('confirm_duplicate: true creates the second org anyway — legitimate duplicates are allowed', async () => {
+    responders.govt_admins = () => ({ data: null, error: null })
+    responders.groups = (calls) => {
+      if (calls.some((c) => c[0] === 'insert')) {
+        return { data: { id: 'group-2', name: 'Deborah Testing', platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z' }, error: null }
+      }
+      if (calls.some((c) => c[0] === 'select' && String(c[1]).includes('name'))) {
+        return { data: [{ id: 'org-1', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z', path: 'deborah-testing' }], error: null }
+      }
+      return undefined
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Deborah Testing', confirm_duplicate: true } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.redirect).toBe('/org/group-2')
+    expect(writes.govt_admins[0].payload).toMatchObject({ user_id: 'auth-op-1', group_id: 'group-2' })
+  })
+
+  it('a RETURNING leader is never warned about their own org — they are handed it back, as before', async () => {
+    responders.govt_admins = () => ({ data: { group_id: 'group-existing' }, error: null })
+    responders.groups = () => ({
+      data: { platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z', seats: null },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Cardiff Council' } }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.existing).toBe(true)
+  })
+
   it('a caller who already leads a group is handed back their existing org, not re-provisioned', async () => {
     responders.govt_admins = () => ({ data: { group_id: 'group-existing' }, error: null })
     responders.groups = () => ({
