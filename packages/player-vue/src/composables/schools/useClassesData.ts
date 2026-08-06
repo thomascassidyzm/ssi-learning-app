@@ -101,6 +101,12 @@ export interface ClassDeleteResult {
   impact?: ClassDeleteImpact
 }
 
+/** The honest result of a teacher↔class write: never a bare "it failed". */
+export interface ClassTeacherWriteResult {
+  ok: boolean
+  error: string | null
+}
+
 export interface ClassSession {
   id: string
   class_id: string
@@ -473,6 +479,10 @@ export function useClassesData() {
       course_code: currentClass.value.course_code,
       school_id: currentClass.value.school_id,
       teacher_user_id: currentClass.value.teacher_user_id,
+      // The class's FULL teacher set (lead + co-taught). fetchClassDetail has
+      // always populated it; this computed used to drop it on the way through,
+      // which is why no view could render "who teaches this class".
+      teachers: currentClass.value.teachers ?? [],
       student_join_code: currentClass.value.student_join_code,
       current_seed: currentClass.value.current_seed,
       last_lego_id: currentClass.value.last_lego_id,
@@ -631,18 +641,23 @@ export function useClassesData() {
   // Service-role write for teacher↔class relationships (RLS forbids a client
   // teacher-tag insert). Used by createClass to seed the lead, and by the
   // teacher-management surface to add / remove / hand over teachers.
+  //
+  // Returns the REAL result, message included — a bare boolean left the panel
+  // with nothing honest to say when a write was refused, and "it didn't work"
+  // with no reason is one step away from the false-"Saved" class this codebase
+  // bans (RLS doctrine rule 8).
   async function callClassTeachersApi(body: {
     class_id: string
     action: 'add' | 'remove'
     target_user_id: string
     set_lead?: boolean
-  }): Promise<boolean> {
+  }): Promise<ClassTeacherWriteResult> {
     try {
       const { data: { session } } = await client.auth.getSession()
       const token = session?.access_token
       if (!token) {
         console.warn('[ClassesData] No auth token; skipping class-teacher write')
-        return false
+        return { ok: false, error: 'You are not signed in.' }
       }
       const resp = await fetch('/api/teacher/class-teachers', {
         method: 'POST',
@@ -651,13 +666,14 @@ export function useClassesData() {
       })
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
-        console.error('[ClassesData] class-teacher write failed:', data.error || resp.status)
-        return false
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] class-teacher write failed:', message)
+        return { ok: false, error: message }
       }
-      return true
+      return { ok: true, error: null }
     } catch (err) {
       console.error('[ClassesData] class-teacher fetch error:', err)
-      return false
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to reach the server' }
     }
   }
 
@@ -738,12 +754,12 @@ export function useClassesData() {
     classId: string,
     targetUserId: string,
     opts?: { lead?: boolean }
-  ): Promise<boolean> {
+  ): Promise<ClassTeacherWriteResult> {
     return callClassTeachersApi({ class_id: classId, action: 'add', target_user_id: targetUserId, set_lead: opts?.lead })
   }
 
   /** Soft-remove a teacher from a class; the server hands the lead on if needed. */
-  async function removeClassTeacher(classId: string, targetUserId: string): Promise<boolean> {
+  async function removeClassTeacher(classId: string, targetUserId: string): Promise<ClassTeacherWriteResult> {
     return callClassTeachersApi({ class_id: classId, action: 'remove', target_user_id: targetUserId })
   }
 
@@ -833,7 +849,8 @@ export function useClassesData() {
       // route — the live RLS forbids a client teacher-tag insert. Makes the
       // relationship the source of truth so the new class appears under
       // membership reads, not only via the lead pointer.
-      const teacherLinked = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      const teacherLink = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      const teacherLinked = teacherLink.ok
       if (!teacherLinked) {
         // The teacher↔class relationship row never got written. The class row
         // exists (so we still return it and show it), but membership reads

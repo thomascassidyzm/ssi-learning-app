@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport, type ClassDeleteImpact } from '@/composables/schools/useClassesData'
+import { useTeachersData, type TeacherOption } from '@/composables/schools/useTeachersData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
@@ -37,7 +38,10 @@ const {
   renameClass: renameClassApi,
   fetchClassDeleteImpact,
   deleteClass: deleteClassApi,
+  addClassTeacher,
+  removeClassTeacher,
 } = useClassesData()
+const { fetchClassTeacherCandidates } = useTeachersData()
 const { viewingSchool } = useSchoolData()
 const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
@@ -358,6 +362,108 @@ async function confirmDeleteClass(typedName: string) {
   handleBack()
 }
 
+// ── Co-teachers ───────────────────────────────────────────────────────────
+// A class can be taught by several teachers (user_tags class/teacher rows,
+// surfaced by the class_teachers view); classes.teacher_user_id is only a
+// denormalised LEAD pointer. The data model has been plural since 2026-06-13
+// and the write endpoint has shipped — this panel is the missing button.
+const teacherCandidates = ref<TeacherOption[]>([])
+const teacherPanelError = ref('')
+const teacherBusy = ref(false)
+const showAddTeacher = ref(false)
+const pickedTeacherId = ref('')
+
+const teacherNames = computed(() => {
+  const map = new Map<string, string>()
+  for (const t of teacherCandidates.value) map.set(t.user_id, t.display_name)
+  return map
+})
+
+const classTeachers = computed(() => {
+  const list = classDetail.value?.teachers ?? []
+  return [...list]
+    .map(t => ({
+      user_id: t.user_id,
+      is_lead: t.is_lead,
+      // Never invent a name: an unresolved teacher shows as unnamed rather
+      // than silently vanishing from the list.
+      name: teacherNames.value.get(t.user_id) || 'Unnamed teacher',
+      is_me: t.user_id === selectedUser.value?.user_id,
+    }))
+    .sort((a, b) => (Number(b.is_lead) - Number(a.is_lead)) || a.name.localeCompare(b.name))
+})
+
+// Candidates minus the people already on the class.
+const addableTeachers = computed(() => {
+  const already = new Set((classDetail.value?.teachers ?? []).map(t => t.user_id))
+  return teacherCandidates.value.filter(t => !already.has(t.user_id))
+})
+
+async function loadTeacherCandidates(): Promise<void> {
+  const classId = classIdParam.value
+  if (!classId || isAdminView) return
+  const { candidates, error } = await fetchClassTeacherCandidates(classId)
+  teacherCandidates.value = candidates
+  // A failed lookup is REPORTED, not shown as an empty picker — an empty list
+  // and a broken list must never look the same to a teacher.
+  teacherPanelError.value = error ? `Couldn't load the staff list. ${error}` : ''
+}
+
+async function addTeacher(): Promise<void> {
+  const targetUserId = pickedTeacherId.value
+  if (!targetUserId || teacherBusy.value) return
+  teacherBusy.value = true
+  teacherPanelError.value = ''
+  const result = await addClassTeacher(classData.value.id, targetUserId)
+  teacherBusy.value = false
+  if (!result.ok) {
+    teacherPanelError.value = `Couldn't add that teacher. ${result.error ?? ''}`.trim()
+    return
+  }
+  pickedTeacherId.value = ''
+  showAddTeacher.value = false
+  await fetchClassDetail(classData.value.id)
+}
+
+async function removeTeacher(teacher: { user_id: string; name: string }): Promise<void> {
+  if (teacherBusy.value) return
+  if (!confirm(`Remove ${teacher.name} from this class? They keep their account — they just stop seeing this class.`)) return
+  teacherBusy.value = true
+  teacherPanelError.value = ''
+  const result = await removeClassTeacher(classData.value.id, teacher.user_id)
+  teacherBusy.value = false
+  if (!result.ok) {
+    teacherPanelError.value = `Couldn't remove that teacher. ${result.error ?? ''}`.trim()
+    return
+  }
+  await fetchClassDetail(classData.value.id)
+}
+
+// Lead handover falls straight out of the existing endpoint: `add` with
+// set_lead on someone already on the class is idempotent and just moves the
+// lead pointer.
+async function makeLead(teacher: { user_id: string; name: string }): Promise<void> {
+  if (teacherBusy.value) return
+  teacherBusy.value = true
+  teacherPanelError.value = ''
+  const result = await addClassTeacher(classData.value.id, teacher.user_id, { lead: true })
+  teacherBusy.value = false
+  if (!result.ok) {
+    teacherPanelError.value = `Couldn't hand over the lead. ${result.error ?? ''}`.trim()
+    return
+  }
+  await fetchClassDetail(classData.value.id)
+}
+
+onMounted(loadTeacherCandidates)
+watch(classIdParam, (classId, previous) => {
+  if (classId && classId !== previous) {
+    teacherCandidates.value = []
+    teacherPanelError.value = ''
+    void loadTeacherCandidates()
+  }
+})
+
 const deleteImpactLines = computed(() => {
   const impact = deleteImpact.value
   if (!impact) return []
@@ -546,6 +652,67 @@ const deleteImpactLines = computed(() => {
           <div class="schools-kicker rail-kicker">Practice min/student/week</div>
           <Bench v-if="classReport" :data="benchData" unit="m" />
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
+        </div>
+
+        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card">
+          <div class="schools-kicker rail-kicker">Teachers</div>
+
+          <ul v-if="classTeachers.length" class="teacher-list">
+            <li v-for="t in classTeachers" :key="t.user_id" class="teacher-row">
+              <span class="teacher-name">
+                {{ t.name }}<span v-if="t.is_me" class="teacher-you"> (you)</span>
+                <span v-if="t.is_lead" class="teacher-lead">lead</span>
+              </span>
+              <span class="teacher-actions">
+                <button
+                  v-if="!t.is_lead"
+                  type="button"
+                  class="btn-text teacher-action"
+                  :disabled="teacherBusy"
+                  @click="makeLead(t)"
+                >
+                  Make lead
+                </button>
+                <button
+                  type="button"
+                  class="btn-text teacher-action teacher-action-remove"
+                  :disabled="teacherBusy"
+                  @click="removeTeacher(t)"
+                >
+                  Remove
+                </button>
+              </span>
+            </li>
+          </ul>
+          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
+          <p v-else class="rail-note schools-subtle">No teachers are linked to this class yet.</p>
+
+          <template v-if="!showAddTeacher">
+            <button type="button" class="btn-ghost btn-small teacher-add-open" @click="showAddTeacher = true">
+              Add a co-teacher
+            </button>
+          </template>
+          <template v-else>
+            <select v-model="pickedTeacherId" class="teacher-select" :disabled="teacherBusy">
+              <option value="">Choose a teacher…</option>
+              <option v-for="t in addableTeachers" :key="t.user_id" :value="t.user_id">
+                {{ t.display_name }}
+              </option>
+            </select>
+            <p v-if="!addableTeachers.length" class="rail-note schools-subtle">
+              Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.
+            </p>
+            <div class="teacher-add-actions">
+              <button type="button" class="btn-ghost btn-small" :disabled="!pickedTeacherId || teacherBusy" @click="addTeacher">
+                {{ teacherBusy ? 'Adding…' : 'Add' }}
+              </button>
+              <button type="button" class="btn-text teacher-action" :disabled="teacherBusy" @click="showAddTeacher = false; pickedTeacherId = ''">
+                Cancel
+              </button>
+            </div>
+          </template>
+
+          <p v-if="teacherPanelError" class="teacher-error">{{ teacherPanelError }}</p>
         </div>
 
         <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
@@ -835,6 +1002,86 @@ const deleteImpactLines = computed(() => {
   font-size: 10.5px;
   color: var(--schools-fg-2);
   text-transform: capitalize;
+}
+
+.teacher-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teacher-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.teacher-name { min-width: 0; }
+.teacher-you { color: var(--schools-fg-2); }
+
+.teacher-lead {
+  margin-left: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--schools-red);
+  border: 1px solid var(--schools-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.teacher-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex: none;
+}
+
+.teacher-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11.5px;
+  color: var(--schools-fg-2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.teacher-action:disabled { opacity: 0.5; cursor: default; }
+.teacher-action-remove:hover { color: var(--schools-red-deep); }
+
+.teacher-add-open {
+  align-self: flex-start;
+  margin-top: 12px;
+}
+
+.teacher-select {
+  margin-top: 12px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-family: var(--font-body);
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  color: var(--schools-fg);
+}
+
+.teacher-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.teacher-error {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--schools-red);
 }
 
 .join-card {

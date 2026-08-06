@@ -38,8 +38,9 @@ function makeChainable(table: string) {
     select: () => builder,
     eq: (col: string, val: unknown) => { rows = rows.filter((r) => r[col] === val); return builder },
     in: (col: string, vals: unknown[]) => { rows = rows.filter((r) => vals.includes(r[col])); return builder },
-    is: () => builder,
+    is: (col: string) => { rows = rows.filter((r) => r[col] == null); return builder },
     order: () => builder,
+    limit: (n: number) => { rows = rows.slice(0, n); return builder },
     maybeSingle: () => { single = true; return builder },
     then: (resolve: any) => Promise.resolve({ data: single ? (rows[0] ?? null) : rows, error: null }).then(resolve),
   }
@@ -50,8 +51,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-function makeReq(): VercelRequest {
-  return { method: 'GET', query: {}, headers: { authorization: 'Bearer tok' } } as any
+function makeReq(query: Record<string, string> = {}): VercelRequest {
+  return { method: 'GET', query, headers: { authorization: 'Bearer tok' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -72,17 +73,23 @@ beforeEach(async () => {
       { school_id: 's1', school_name: 'Sunrise', admin_user_id: null, teacher_count: 2, class_count: 3, student_count: 3, total_practice_hours: 3, has_admin: true },
     ],
     classes: [
-      { id: 'c1', school_id: 's1', is_active: true },
-      { id: 'c2', school_id: 's1', is_active: true },
-      { id: 'c3', school_id: 's1', is_active: true },
+      { id: 'c1', school_id: 's1', is_active: true, teacher_user_id: 'ut1' },
+      { id: 'c2', school_id: 's1', is_active: true, teacher_user_id: 'ut1' },
+      { id: 'c3', school_id: 's1', is_active: true, teacher_user_id: 'ut2' },
+      // A tutor-lane class: no school at all.
+      { id: 'c9', school_id: null, is_active: true, teacher_user_id: 'ut9' },
     ],
+    schools: [{ id: 's1', admin_user_id: 'admin-1' }],
     user_tags: [
-      { user_id: 'ut1', added_at: '2025-01-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null },
-      { user_id: 'ut2', added_at: '2025-02-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null },
+      { id: 't1', user_id: 'ut1', added_at: '2025-01-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null },
+      { id: 't2', user_id: 'ut2', added_at: '2025-02-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null },
+      // The supply teacher: on class c2, never given a SCHOOL: tag.
+      { id: 't3', user_id: 'ut3', added_at: '2025-03-01', tag_value: 'CLASS:c2', tag_type: 'class', role_in_context: 'teacher', removed_at: null },
     ],
     class_teachers: [
       { class_id: 'c1', teacher_user_id: 'ut1' },
       { class_id: 'c2', teacher_user_id: 'ut1' },
+      { class_id: 'c2', teacher_user_id: 'ut3' },
       { class_id: 'c3', teacher_user_id: 'ut2' },
     ],
     class_student_progress: [
@@ -93,6 +100,9 @@ beforeEach(async () => {
     learners: [
       { id: 'l1', user_id: 'ut1', display_name: 'Zara Teacher' },
       { id: 'l2', user_id: 'ut2', display_name: 'Alice Teacher' },
+      { id: 'l3', user_id: 'ut3', display_name: 'Supply Teacher' },
+      { id: 'l9', user_id: 'ut9', display_name: 'Tutor Teacher' },
+      { id: 'la', user_id: 'admin-1', display_name: 'School Admin', platform_role: null, educational_role: 'school_admin' },
     ],
     sessions: [
       { learner_id: 'l1', duration_seconds: 241 },
@@ -110,8 +120,35 @@ describe('GET /api/school/roster', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.school.school_id).toBe('s1')
-    expect(res.body.teachers).toHaveLength(2)
+    // 3 = the two SCHOOL:-tagged teachers plus the supply teacher who only
+    // ever got a CLASS: tag (guard S8 — they used to be invisible here).
+    expect(res.body.teachers).toHaveLength(3)
     expect(res.body.students).toHaveLength(3)
+  })
+
+  it('includes a class-only teacher (CLASS: tag, no SCHOOL: tag) on the school roster', async () => {
+    const req = makeReq()
+    const res = makeRes()
+    await handler(req, res)
+    const supply = res.body.teachers.find((t: any) => t.display_name === 'Supply Teacher')
+    expect(supply).toBeTruthy()
+    expect(supply.class_count).toBe(1)
+    // No SCHOOL: tag means no join date to report — reported as blank, not faked.
+    expect(supply.joined_at).toBe('')
+  })
+
+  it('gives a TEACHER caller only their OWN classes\' students (founder ruling 2026-07-30)', async () => {
+    scope = { ...scope, role: 'teacher', classIds: ['c3'], schoolIds: [] }
+    schoolIdForAdminResult = 's1'
+    const req = makeReq()
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    // c3 holds only Cai; Alice and Bob are in c1, which this teacher does not teach.
+    expect(res.body.students.map((s: any) => s.display_name)).toEqual(['Cai'])
+    // The staff list stays school-wide — it carries no pupil data and it is
+    // what the co-teacher picker needs.
+    expect(res.body.teachers.length).toBe(3)
   })
 
   it('attributes class/student/hour counts per teacher via the class_teachers relationship', async () => {
@@ -140,7 +177,7 @@ describe('GET /api/school/roster', () => {
     const req = makeReq()
     const res = makeRes()
     await handler(req, res)
-    expect(res.body.teachers.map((t: any) => t.display_name)).toEqual(['Alice Teacher', 'Zara Teacher'])
+    expect(res.body.teachers.map((t: any) => t.display_name)).toEqual(['Alice Teacher', 'Supply Teacher', 'Zara Teacher'])
     expect(res.body.students.map((s: any) => s.display_name)).toEqual(['Alice', 'Bob', 'Cai'])
   })
 
@@ -179,6 +216,79 @@ describe('GET /api/school/roster', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(401)
+  })
+
+  // ── ?class_id= — the co-teacher picker's lookup ────────────────────────
+  describe('?class_id= teacher lookup', () => {
+    it('returns the school\'s teacher NAMES — and no pupil data — to a teacher of that class', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'ut1' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.teachers.map((t: any) => t.display_name))
+        .toEqual(['Alice Teacher', 'Supply Teacher', 'Zara Teacher'])
+      // Names only: no aggregates, no students, anywhere in the payload.
+      expect(Object.keys(res.body.teachers[0])).toEqual(['user_id', 'learner_id', 'display_name'])
+      expect(res.body.students).toBeUndefined()
+    })
+
+    it('authorises a co-teacher who holds only a CLASS: tag (the supply-teacher case)', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'ut3' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.teachers.length).toBe(3)
+    })
+
+    it('authorises the class\'s school admin', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'admin-1' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(200)
+    })
+
+    it('403s an authenticated NON-member of the class', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'stranger' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(403)
+    })
+
+    it('403s a teacher of a DIFFERENT class in the same school', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'ut2' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(403)
+    })
+
+    it('401s an unauthenticated caller before touching the class', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: false, error: 'no token' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('404s an unknown class', async () => {
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'nope' }), res)
+      expect(res.statusCode).toBe(404)
+    })
+
+    it('falls back to the class\'s own teachers for a school-less tutor class', async () => {
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'ut9' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c9' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.school_id).toBeNull()
+      expect(res.body.teachers).toEqual([])
+    })
   })
 
   it('405s a non-GET request', async () => {
