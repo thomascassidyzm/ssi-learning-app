@@ -100,6 +100,7 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
+import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -4166,7 +4167,6 @@ const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 // rotating "positive" icon (strength / power / learning / effort). Instruction →
 // a short, varied "back to the science" caption. Welcome keeps its own
 // "listen to your guide" path. Tom 2026-06-02.
-type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
 const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
 
 // Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
@@ -4196,9 +4196,13 @@ const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructio
 // existing "listen to your guide" message, so only instruction/encouragement
 // flip this. Pods/L1 listening have their own overlays and don't set
 // currentCommentaryType.
+// Defensive by design (2026-08-06): anything that ISN'T the welcome shows the
+// wave, including a clip whose type is missing or unrecognised — an unknown
+// interjection degrades to "guide is speaking", never to the blank card that
+// falling through to the un-started next LEGO produces. Rule lives in
+// playback/interjectionDisplay.ts so it can be unit-tested.
 const showInterjection = computed(() =>
-  playingCommentaryAudio.value &&
-  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
+  shouldShowInterjection(playingCommentaryAudio.value, currentCommentaryType.value)
 )
 
 /**
@@ -17105,8 +17109,14 @@ defineExpose({
   width: 5px;
   height: 100%;
   border-radius: 3px;
-  background: var(--belt-color, #b08968);
-  opacity: 0.5;
+  /* Belt-tinted but ALWAYS ink-anchored. A bare var(--belt-color) rendered the
+     whole card blank on the Mist white surface (2026-08-06, product owner, 8
+     min into French): white belt IS #ffffff, so five white bars and a white
+     caption sat invisibly on a white card — the "empty box" bug. Blending
+     towards the ink keeps the belt accent while guaranteeing contrast for every
+     belt, white and yellow included. Same idiom as .hero-target under Mist. */
+  background: color-mix(in srgb, var(--belt-color, #b08968) 55%, #2C2622);
+  opacity: 0.55;
   transform: scaleY(0.3);
   transform-origin: center;
   animation: wave-bar 1.5s ease-in-out infinite;
@@ -17117,8 +17127,8 @@ defineExpose({
 .interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
 .interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
 @keyframes wave-bar {
-  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
-  50%      { transform: scaleY(1);   opacity: 0.9; }
+  0%, 100% { transform: scaleY(0.3); opacity: 0.55; }
+  50%      { transform: scaleY(1);   opacity: 1; }
 }
 /* The whole box breathes softly while the guide speaks — "comes alive". */
 .hero-glass.is-interjection {
@@ -17133,7 +17143,9 @@ defineExpose({
   font-size: var(--text-base);
   font-weight: 400;
   letter-spacing: 0.02em;
-  color: var(--belt-color, #b08968);
+  /* Ink-anchored for the same reason as .wbar above — a white-belt learner got
+     white caption text on the white Mist card. */
+  color: color-mix(in srgb, var(--belt-color, #b08968) 35%, #2C2622);
   opacity: 0.9;
   animation: interjection-in 360ms ease-out;
 }
