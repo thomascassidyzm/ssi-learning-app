@@ -1,7 +1,7 @@
 {
   "ruling": "Tom, 2026-08-06: \"Ok cool - remove for Deborah\" — remove the EMPTY duplicate \"Deborah Testing\" org 049679a1, keep b7878832 (05 Aug, holds the learner and the practice). Accepted cost: the +mgr@ account (9358d7a5, \"Deb Test Manager\") loses its leader seat.",
   "provenance": "docs/schools/deborah-leader-repair-2026-08-06.json (Deborah field-report worker #2)",
-  "runAt": "2026-08-06T11:07:48.557Z",
+  "runAt": "2026-08-06T11:08:35.390Z",
   "ranBy": "scripts/remove-duplicate-deborah-org.mts (Claude worker, Kai account)",
   "removedOrgId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
   "survivingOrgId": "b7878832-ffbb-4190-84cb-8cc5ce62c5bd",
