@@ -34,6 +34,14 @@
  *    options, so the shapes are calibrated against those defaults. The shapes
  *    are the CANONICAL, TESTED makeLatencySeries from @ssi/core
  *    (packages/core/src/learning/syntheticSeries.ts), not magic numbers here.
+ *  - VAD COVERAGE (added 2026-08-06, founder ruling): only ~50% of learners
+ *    carry VAD data — "not everyone in a class will end up getting their own
+ *    account". Per-class uptake is drawn in 40-60% and flipped per learner, so
+ *    it reads like a real roster rather than every-other. VAD learners get
+ *    learner_lego_metrics rows AND cycle_prosody events (real envelope
+ *    extractor, @ssi/core extractEnvelopeMetadata); the rest get NO row at all
+ *    in those tables — no zeros, no empty-but-present rows — which is exactly
+ *    how a real no-mic learner presents and exercises the UI's empty states.
  *
  * BUILD DEPENDENCY (telemetry step): this script requires the built @ssi/core
  * CJS dist, so run `pnpm --filter @ssi/core build` before generating. (There is
@@ -89,9 +97,9 @@ const uuid=()=>{const h='0123456789abcdef';let s='';for(let i=0;i<36;i++){if(i==
 // REQUIRES @ssi/core TO BE BUILT FIRST:  pnpm --filter @ssi/core build
 //   (we require the built CJS dist; there is no workspace symlink for @ssi/core
 //    in the repo-root node_modules, so we resolve it by relative path.)
-let makeLatencySeries
+let makeLatencySeries, extractEnvelopeMetadata, ENVELOPE_EXTRACTOR_CONSTANTS
 try {
-  ({ makeLatencySeries } = require('../../packages/core/dist/index.js'))
+  ({ makeLatencySeries, extractEnvelopeMetadata, ENVELOPE_EXTRACTOR_CONSTANTS } = require('../../packages/core/dist/index.js'))
 } catch (e) {
   console.error('✗ Could not load @ssi/core from packages/core/dist — build it first: pnpm --filter @ssi/core build')
   throw e
@@ -106,6 +114,79 @@ const MASTERY_BY_ARCHETYPE = {
 }
 const DEVICE_CLASS = ['class_play','homework']  // demo schools = class-led + homework
 const DEVICE_TYPE  = ['mobile','tablet','desktop']
+
+// ---------- VAD coverage (founder ruling, 2026-08-06) ----------
+// "the fake demo data generator function should generate VAD data for around
+// 50% of learners in schools - reflecting that not everyone in a class will
+// end up getting their own account."
+//
+// So VAD data is a PER-LEARNER coin flip, not every-other: each class draws
+// its own uptake rate around the 50% mark (some classes got more devices /
+// more parental consents than others), then each learner in it flips against
+// that rate. A learner WITHOUT VAD gets NO rows at all in the VAD-fed tables
+// — no learner_lego_metrics, no cycle_prosody — because that is exactly how a
+// real no-VAD learner presents: the write path is `recordCycle`, which only
+// ever fires on a VAD latency (LearningPlayer.vue ~line 11826), so there are
+// no zero rows and no empty-but-present rows to find. That way the UI's real
+// empty states get exercised by half the demo roster.
+const VAD_RATE_RANGE = [0.40, 0.60]
+const classVadRate = () => VAD_RATE_RANGE[0] + rnd()*(VAD_RATE_RANGE[1]-VAD_RATE_RANGE[0])
+
+// ---------- prosody telemetry (cycle_prosody demo fuel) ----------
+// The envelope numbers are NOT hand-written here. We synthesise the plausible
+// rAF-rate {t, db} energy trace that the live VAD hands its extractor, then
+// run the REAL `extractEnvelopeMetadata` from @ssi/core — so demo rows carry
+// the same field set, the same 0–100 contour encoding, the same weighting
+// rules and the same `extractorVersion` a real learner's mic produces. Same
+// principle as makeLatencySeries above: no magic numbers in this script.
+function prosodyEnvelope(durationMs){
+  const syllables = Math.max(1, Math.round(durationMs/260))
+  const samples = []
+  for(let t=0;t<durationMs;t+=16){         // ~60fps, the VAD's rAF cadence
+    const lobe = Math.abs(Math.sin((t/durationMs)*syllables*Math.PI))  // one energy lobe per syllable
+    const arc  = Math.sin(Math.PI*Math.min(1,t/durationMs))            // utterance-level rise/fall
+    samples.push({ t, db: -58 + 34*lobe*arc + (rnd()-0.5)*3 })
+  }
+  return extractEnvelopeMetadata(samples, durationMs)
+}
+
+// One cycle_prosody payload for a voiced speaking cycle on `legoId`, shaped
+// exactly like LearningPlayer.vue's logEvent('cycle_prosody', …) call.
+function prosodyPayload(legoId){
+  const learnerDurationMs = between(700,2600)
+  const target1DurationMs = between(1100,2400)
+  const env = prosodyEnvelope(learnerDurationMs)
+  const responseLatencyMs = between(-350,1400)      // negative = started during the prompt
+  const speechStartMs = Math.max(0, responseLatencyMs)
+  return {
+    cycleId: uuid(),
+    cycleType: pick(['build','use','debut','spaced_rep']),
+    legoId,
+    seedId: legoId.slice(0,5),
+    audioId: uuid(),
+    responseLatencyMs,
+    learnerDurationMs,
+    durationDeltaMs: learnerDurationMs - target1DurationMs,
+    speechStartMs,
+    speechEndMs: speechStartMs + learnerDurationMs,
+    startedDuringPrompt: responseLatencyMs < 0,
+    stillSpeakingAtVoice1: rnd() < 0.18,
+    peakEnergyDb: Math.round((-24 + rnd()*8)*10)/10,
+    averageEnergyDb: Math.round((-38 + rnd()*8)*10)/10,
+    envelope: {
+      durationMs: env.durationMs,
+      peakCount: env.peakCount,
+      peakToMeanRatio: Math.round(env.peakToMeanRatio*1000)/1000,
+      meanPeakWidthMs: Math.round(env.meanPeakWidthMs*10)/10,
+      sampleCount: env.sampleCount,
+      weight: Math.round(env.weight*1000)/1000,
+      contour: env.contour ?? null,
+      contourGridMs: env.contourGridMs ?? null,
+    },
+    extractorVersion: ENVELOPE_EXTRACTOR_CONSTANTS.version,
+    playbackSpeed: 1.0,
+  }
+}
 
 // ---------- scenarios ----------
 const IRISH_FIRST=['Aoife','Cian','Saoirse','Oisín','Niamh','Fionn','Caoimhe','Darragh','Róisín','Tadhg','Clodagh','Eoin','Aisling','Cathal','Méabh','Rónán','Sadhbh','Donncha','Laoise','Páidí','Gráinne','Lorcán','Bláthnaid','Séamus','Éabha','Colm']
@@ -224,7 +305,7 @@ async function deleteDemoAuthUsers(){
   const creds=[`# SSi demo suite credentials — generated ${new Date().toISOString().slice(0,10)}`,
                `Password for ALL staff (API/password login): ${STAFF_PASSWORD}`,
                `App login: email OTP — codes arrive at ${EMAIL_BASE}@gmail.com via + addressing.`,'']
-  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0,legoMetrics:0,playerEvents:0,struggling:0,easing:0,steady:0}
+  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0,legoMetrics:0,playerEvents:0,struggling:0,easing:0,steady:0,vadLearners:0,noVadLearners:0,prosodyEvents:0}
 
   for(const sc of SCENARIOS){
     console.log(`\n— SCENARIO: ${sc.key} (${sc.courseCode}) —`)
@@ -288,6 +369,10 @@ async function deleteDemoAuthUsers(){
         [`DEMO-${sc.key.toUpperCase().slice(0,2)}-${ci+3}`,adminUid,classId],
       )
 
+      // This class's own VAD uptake rate (see VAD_RATE_RANGE) — drawn once
+      // per class, flipped per learner below.
+      const vadRate=classVadRate()
+
       // class-play history: teacher-led sessions over the past month
       const nCs=between(6,14)
       for(let k=0;k<nCs;k++){
@@ -305,6 +390,11 @@ async function deleteDemoAuthUsers(){
         const lid=uuid(), suid=uuid()
         const stage=studentStage(cls.classSeed)
         const lastPracticed=new Date(now-stage.recencyDays*DAY-between(0,8)*3600000)
+        // Did this learner ever get their own account/mic? Drives ALL
+        // VAD-fed data below; false means the VAD tables simply have no row
+        // for them, which is how a real no-VAD learner presents.
+        const hasVad=rnd()<vadRate
+        if(hasVad)totals.vadLearners++; else totals.noVadLearners++
         await q(`insert into public.learners (id, user_id, display_name, educational_role, is_demo, created_at)
                  values ($1,$2,$3,'student',true,$4)`,
           [lid,suid,name,new Date(termStart).toISOString()])
@@ -364,53 +454,63 @@ async function deleteDemoAuthUsers(){
         if(TELEMETRY && stage.recencyDays<=28 && legoRows.length>0){
           // the most recent ~6–12 legos this student practiced (highest seeds = newest)
           const recent=legoRows.slice(-between(6,12))
-          // assign this student a primary archetype, drawing down the scenario budget
-          let primary='steady'
-          if(strugglersLeft>0 && rnd()<0.6){ primary='struggling'; strugglersLeft-- }
-          else if(easersLeft>0 && rnd()<0.6){ primary='easing'; easersLeft-- }
-          const llmRows=[]
-          for(let li=0;li<recent.length;li++){
-            const legoId=recent[li][1]
-            // the student's most-recent lego carries the primary signal; the rest
-            // are mostly steady with the odd echo, so each named student reads cleanly.
-            const archetype = li===recent.length-1 ? primary
-              : (primary!=='steady' && rnd()<0.25 ? primary : 'steady')
-            const series=difficultySeries(archetype)
-            const mean=series.reduce((a,b)=>a+b,0)/series.length
-            const ms=pick(MASTERY_BY_ARCHETYPE[archetype])
-            const dclass=pick(DEVICE_CLASS)
-            // last_seen scattered within the student's recent activity (<=30d), per lego
-            const seenMs=Math.min(now-3600000, lastPracticed.getTime()-between(0,4)*DAY-between(0,12)*3600000)
-            const nextDue=new Date(now+between(1,9)*DAY).toISOString()
-            llmRows.push([
-              lid, legoId, sc.courseCode, ms,
-              archetype==='steady'?between(2,5):0,            // consecutive_smooth
-              archetype==='steady'?between(1,4):0,            // consecutive_fast
-              series.length,                                  // n_samples
-              new Date(seenMs).toISOString(),                 // last_seen_at
-              Math.round(mean*100)/100,                       // mean_latency_ms (normalized ms/char)
-              Math.round((archetype==='struggling'?0.45:archetype==='easing'?0.7:0.82)*100)/100, // mean_exec_score
-              archetype==='struggling'?between(1,4):between(0,1), // skip_back_count
-              archetype==='easing'?between(1,3):between(0,1),     // skip_forward_count
-              nextDue,
-              JSON.stringify({[dclass]:series.length}),       // device_class_mix
-              JSON.stringify(series),                         // recent_latency_samples
-            ])
-            if(archetype==='struggling')totals.struggling++; else if(archetype==='easing')totals.easing++; else totals.steady++
+          // VAD-fed tables (learner_lego_metrics) — half the roster only. The
+          // archetype budget is drawn down inside the branch too: a no-VAD
+          // learner can't carry a difficulty archetype (nothing measures one),
+          // so spending a struggling/easing slot on them would silently thin
+          // the board.
+          if(hasVad){
+            // assign this student a primary archetype, drawing down the scenario budget
+            let primary='steady'
+            if(strugglersLeft>0 && rnd()<0.6){ primary='struggling'; strugglersLeft-- }
+            else if(easersLeft>0 && rnd()<0.6){ primary='easing'; easersLeft-- }
+            const llmRows=[]
+            for(let li=0;li<recent.length;li++){
+              const legoId=recent[li][1]
+              // the student's most-recent lego carries the primary signal; the rest
+              // are mostly steady with the odd echo, so each named student reads cleanly.
+              const archetype = li===recent.length-1 ? primary
+                : (primary!=='steady' && rnd()<0.25 ? primary : 'steady')
+              const series=difficultySeries(archetype)
+              const mean=series.reduce((a,b)=>a+b,0)/series.length
+              const ms=pick(MASTERY_BY_ARCHETYPE[archetype])
+              const dclass=pick(DEVICE_CLASS)
+              // last_seen scattered within the student's recent activity (<=30d), per lego
+              const seenMs=Math.min(now-3600000, lastPracticed.getTime()-between(0,4)*DAY-between(0,12)*3600000)
+              const nextDue=new Date(now+between(1,9)*DAY).toISOString()
+              llmRows.push([
+                lid, legoId, sc.courseCode, ms,
+                archetype==='steady'?between(2,5):0,            // consecutive_smooth
+                archetype==='steady'?between(1,4):0,            // consecutive_fast
+                series.length,                                  // n_samples
+                new Date(seenMs).toISOString(),                 // last_seen_at
+                Math.round(mean*100)/100,                       // mean_latency_ms (normalized ms/char)
+                Math.round((archetype==='struggling'?0.45:archetype==='easing'?0.7:0.82)*100)/100, // mean_exec_score
+                archetype==='struggling'?between(1,4):between(0,1), // skip_back_count
+                archetype==='easing'?between(1,3):between(0,1),     // skip_forward_count
+                nextDue,
+                JSON.stringify({[dclass]:series.length}),       // device_class_mix
+                JSON.stringify(series),                         // recent_latency_samples
+              ])
+              if(archetype==='struggling')totals.struggling++; else if(archetype==='easing')totals.easing++; else totals.steady++
+            }
+            for(let i=0;i<llmRows.length;i+=50){
+              const chunk=llmRows.slice(i,i+50)
+              const vals=chunk.map((_,j)=>{const b=j*15;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::jsonb,$${b+15}::jsonb)`}).join(',')
+              await q(`insert into public.learner_lego_metrics
+                       (learner_id, lego_id, course_code, mastery_state, consecutive_smooth, consecutive_fast,
+                        n_samples, last_seen_at, mean_latency_ms, mean_exec_score, skip_back_count, skip_forward_count,
+                        next_due_at, device_class_mix, recent_latency_samples) values ${vals}`,chunk.flat())
+            }
+            totals.legoMetrics+=llmRows.length
           }
-          for(let i=0;i<llmRows.length;i+=50){
-            const chunk=llmRows.slice(i,i+50)
-            const vals=chunk.map((_,j)=>{const b=j*15;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::jsonb,$${b+15}::jsonb)`}).join(',')
-            await q(`insert into public.learner_lego_metrics
-                     (learner_id, lego_id, course_code, mastery_state, consecutive_smooth, consecutive_fast,
-                      n_samples, last_seen_at, mean_latency_ms, mean_exec_score, skip_back_count, skip_forward_count,
-                      next_due_at, device_class_mix, recent_latency_samples) values ${vals}`,chunk.flat())
-          }
-          totals.legoMetrics+=llmRows.length
 
           // bounded player_events: a handful of audio_play + phase_skip + tap_skip
-          // per session window, plus one session_complete. user_id = learner PK.
-          const peRows=[]
+          // per session window, plus one session_complete — these are NOT
+          // VAD-derived (they log for every learner, mic or no mic), so every
+          // student in this block gets them. cycle_prosody, which IS the VAD
+          // corpus, is added per session below for VAD learners only.
+          const peRows=[], prosRows=[]
           for(const w of sessionWindows){
             const sessionId=uuid()
             const dev=pick(DEVICE_TYPE)
@@ -424,8 +524,22 @@ async function deleteDemoAuthUsers(){
             if(rnd()<0.3)
               peRows.push([lid,sc.courseCode,sessionId,'tap_skip',JSON.stringify({legoId:someLego()}),dev,at()])
             peRows.push([lid,sc.courseCode,sessionId,'session_complete',JSON.stringify({cyclesCompleted:between(20,80)}),dev,new Date(w.end).toISOString()])
+            // VAD corpus: one cycle_prosody row per voiced speaking cycle in
+            // the real player, sampled down to a handful per session here so
+            // the demo stays bounded. VAD learners only — absent entirely for
+            // the rest, which is what the no-mic learner really looks like.
+            if(hasVad && prosRows.length<14){
+              const nPros=between(2,5)
+              for(let p=0;p<nPros;p++)
+                prosRows.push([lid,sc.courseCode,sessionId,'cycle_prosody',JSON.stringify(prosodyPayload(someLego())),dev,at()])
+            }
             if(peRows.length>=22) break   // hard cap ~25 events/student to stay bounded
           }
+          // Prosody rows are capped on their own budget, so a VAD learner's
+          // ordinary events aren't crowded out of the 22 and the two halves of
+          // the roster stay comparable on everything except VAD.
+          peRows.push(...prosRows)
+          totals.prosodyEvents+=prosRows.length
           for(let i=0;i<peRows.length;i+=50){
             const chunk=peRows.slice(i,i+50)
             const vals=chunk.map((_,j)=>{const b=j*7;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5}::jsonb,$${b+6},$${b+7})`}).join(',')
@@ -444,9 +558,12 @@ async function deleteDemoAuthUsers(){
   const credPath=path.join(os.homedir(),'Desktop',`SSi-demo-credentials-${new Date().toISOString().slice(0,10)}.md`)
   fs.writeFileSync(credPath,creds.join('\n'))
   console.log(`\nDONE: ${totals.students} students, ${totals.sessions} sessions, ${totals.seedRows} seed rows, ${totals.legoRows} lego rows, ${totals.classSessions} class sessions`)
-  if(TELEMETRY)
+  if(TELEMETRY){
     console.log(`TELEMETRY: ${totals.legoMetrics} learner_lego_metrics rows (${totals.struggling} struggling / ${totals.easing} easing / ${totals.steady} steady series), ${totals.playerEvents} player_events`)
-  else
+    const vadPct=totals.students?Math.round(100*totals.vadLearners/totals.students):0
+    console.log(`VAD: ${totals.vadLearners}/${totals.students} learners (${vadPct}%) carry VAD data — ${totals.prosodyEvents} cycle_prosody events; ${totals.noVadLearners} learners have NO rows in any VAD-fed table (real empty state)`)
+  } else {
     console.log('TELEMETRY: skipped (recent_latency_samples column absent — apply migrations 20260613_*/20260614_*)')
+  }
   console.log(`credentials -> ${credPath}`)
 })().catch(e=>{ console.error('FATAL:',e.message); process.exit(1) })

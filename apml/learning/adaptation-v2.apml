@@ -1,8 +1,21 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.7.0 (distinction-network criticality: forward-reuse centrality supersedes intro-order)
-# Last updated: 2026-08-03
+# Version: 0.7.1 (demo VAD coverage ~50%)
+# Last updated: 2026-08-06
+#
+# 2026-08-06 (founder ruling — demo VAD coverage):
+# - The schools demo generator (scripts/demo-data/generate-demo-suite.cjs) now
+#   seeds VAD data for only ~50% of learners: "not everyone in a class will end
+#   up getting their own account". Each class draws its own uptake rate in
+#   40-60%, then each learner flips against it (per-learner random, never
+#   every-other). VAD learners get learner_lego_metrics rows AND cycle_prosody
+#   events (payload built through the REAL @ssi/core extractEnvelopeMetadata,
+#   so contour/weight/extractorVersion match the live capture); learners
+#   without VAD get NO row in either table — matching production, where the
+#   only writer is recordCycle behind a VAD latency, so the surfaces that read
+#   these tables (AdminUserDetail's mastery section, the difficulty-turns
+#   board) exercise their genuine empty states on half the demo roster.
 #
 # 2026-07-31 (founder ruling — criticality rewired, see docs/DECISIONS.md for
 # the verbatim ruling):
