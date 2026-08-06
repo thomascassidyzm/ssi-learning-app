@@ -8235,7 +8235,12 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
   for (const url of urls) {
     if (!url || typeof url !== 'string') continue
     if (url.startsWith('blob:')) continue
-    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    // A replaced clip arrives as `<uuid>.vN` (per-clip versioned refs — see
+    // api/_utils/audioAccess.ts). The suffix is part of the id: it is what
+    // AudioCache keys the blob by, so it must survive this round-trip intact.
+    // Without `.vN` in the class this match failed outright and the offline
+    // collector silently gathered nothing for every revised clip.
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+(?:\.v\d+)?)$/i)
     if (match) ids.push(match[1])
   }
   return ids
