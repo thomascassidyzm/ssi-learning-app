@@ -11,6 +11,12 @@ import { verifyAuthToken } from '../_utils/auth'
 import { generateCode } from '../_utils/codeGen'
 import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+import {
+  canManageClassTeachers,
+  canTeachClass,
+  fetchClassAuthRow,
+  type ClassAuthRow,
+} from '../_utils/classTeacherAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -20,66 +26,23 @@ if (!supabaseUrl) {
 }
 
 /**
- * Class-teacher authorization — a MEMBERSHIP test, never an ownership test.
+ * Class-teacher authorization for this file's two class-scoped lanes.
  *
- * teacher↔class is `user_tags(tag_type='class', role_in_context='teacher')`,
- * surfaced by the `class_teachers` view; `classes.teacher_user_id` is a
- * DEMOTED denormalised lead pointer, not ownership
- * (docs/methodology/class-first-class-citizen.md). Checking only the lead
- * pointer here is what stopped a co-teacher minting a student code for their
- * own class while `api/school/delete-class.ts` already let them DELETE it.
+ * The predicates themselves live in ../_utils/classTeacherAuth.ts, shared with
+ * api/teacher/class-teachers.ts so the two co-teaching write paths cannot
+ * drift. Two different questions are asked here, and they are NOT the same:
  *
- * Shape copied from the canonical site, api/teacher/class-teachers.ts:99-134:
- * lead pointer → class relationship → platform admin → the class's school admin.
+ *   - a STUDENT code is a teaching verb: every active teacher of the class may
+ *     mint one, co-teachers included (guard S1, A-74) => canTeachClass.
+ *   - a CO-TEACHER link changes who teaches the class, so it obeys the founder
+ *     ruling of 2026-08-06 — the current (lead) teacher, or any group leader
+ *     above the class, or a platform admin => canManageClassTeachers.
  */
-async function authorizeClassTeacher(
+async function loadClassFor(
   supabase: SupabaseClient,
   classId: string,
-  userId: string
-): Promise<{ classRow: { id: string; teacher_user_id: string | null; school_id: string | null } | null; authorized: boolean }> {
-  const { data: cls } = await supabase
-    .from('classes')
-    .select('id, teacher_user_id, school_id')
-    .eq('id', classId)
-    .maybeSingle()
-  if (!cls) return { classRow: null, authorized: false }
-  const classRow = cls as unknown as { id: string; teacher_user_id: string | null; school_id: string | null }
-
-  let authorized = classRow.teacher_user_id === userId
-
-  if (!authorized) {
-    const { data: callerTag } = await supabase
-      .from('user_tags')
-      .select('id')
-      .eq('tag_type', 'class')
-      .eq('tag_value', `CLASS:${classId}`)
-      .eq('role_in_context', 'teacher')
-      .eq('user_id', userId)
-      .is('removed_at', null)
-      .maybeSingle()
-    if (callerTag) authorized = true
-  }
-
-  if (!authorized) {
-    const { data: caller } = await supabase
-      .from('learners')
-      .select('platform_role, educational_role')
-      .eq('user_id', userId)
-      .maybeSingle()
-    const role = caller as unknown as { platform_role?: string; educational_role?: string } | null
-    if (role?.platform_role === 'ssi_admin' || role?.educational_role === 'god') authorized = true
-  }
-
-  if (!authorized && classRow.school_id) {
-    const { data: school } = await supabase
-      .from('schools')
-      .select('admin_user_id')
-      .eq('id', classRow.school_id)
-      .maybeSingle()
-    if ((school as unknown as { admin_user_id?: string } | null)?.admin_user_id === userId) authorized = true
-  }
-
-  return { classRow, authorized }
+): Promise<ClassAuthRow | null> {
+  return fetchClassAuthRow(supabase, classId)
 }
 
 export default async function handler(
@@ -210,20 +173,22 @@ export default async function handler(
       }
     } else if (code_type === 'teacher') {
       if (grants_class_id) {
-        // CLASS-SCOPED co-teacher link (A-74). A teacher of the class — or its
-        // school admin — invites a co-teacher / supply teacher straight into
+        // CLASS-SCOPED co-teacher link (A-74). The class's lead teacher — or a
+        // leader above it — invites a co-teacher / supply teacher straight into
         // that one class. The school grant is SERVER-DERIVED from the class so
         // redemption can write the school tag alongside the class one and the
         // co-teacher's dashboard resolves scope; it is never taken from the
         // payload on this lane, and never left null (a `SCHOOL:null` tag is
         // exactly the silent garbage this derivation prevents).
-        const { classRow, authorized } = await authorizeClassTeacher(supabase, grants_class_id as string, userId)
+        const classRow = await loadClassFor(supabase, grants_class_id as string)
         if (!classRow) {
           res.status(404).json({ error: 'Class not found' })
           return
         }
-        if (!authorized) {
-          res.status(403).json({ error: 'Only a teacher of this class or its school admin can create co-teacher codes for this class' })
+        // Minting this link ADDS a co-teacher, so it takes the ruling's
+        // principals — not every teacher of the class.
+        if (!(await canManageClassTeachers(supabase, userId, classRow))) {
+          res.status(403).json({ error: 'Only the class teacher or a leader above the class can create co-teacher codes for this class' })
           return
         }
         derivedGrantsSchoolId = classRow.school_id ?? null
@@ -250,9 +215,9 @@ export default async function handler(
       }
       // MEMBERSHIP, not ownership — a co-teacher must be able to mint student
       // codes for a class they co-teach (guard S1, A-74). See
-      // authorizeClassTeacher above.
-      const { classRow, authorized } = await authorizeClassTeacher(supabase, grants_class_id as string, userId)
-      if (!classRow || !authorized) {
+      // canTeachClass above.
+      const classRow = await loadClassFor(supabase, grants_class_id as string)
+      if (!classRow || !(await canTeachClass(supabase, userId, classRow))) {
         res.status(403).json({ error: 'Only a teacher of this class can create student codes for this class' })
         return
       }
