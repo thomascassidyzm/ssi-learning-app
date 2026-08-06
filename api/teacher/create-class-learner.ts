@@ -11,7 +11,9 @@
  * user_id can never satisfy `learners_insert_self` (auth.uid() match).
  *
  * Auth: verifyAuthToken + caller must be one of:
- *   - the class's teacher_user_id
+ *   - an active teacher of the class — the class_teachers relationship
+ *     (user_tags CLASS:<id>/teacher) OR the demoted lead pointer
+ *     classes.teacher_user_id. Co-teachers count.
  *   - an ssi_admin / god (platform admin)
  *   - the school_admin of the class's school (admin_user_id on schools row)
  * (same authorization shape as create-class-join-code.ts)
@@ -80,7 +82,22 @@ export default async function handler(
       return
     }
 
+    // Teacher of the class = the class_teachers relationship OR the demoted
+    // lead pointer. Canonical membership pattern: class-teachers.ts:104-113.
     let authorized = cls.teacher_user_id === callerUserId
+
+    if (!authorized) {
+      const { data: callerTag } = await supabase
+        .from('user_tags')
+        .select('id')
+        .eq('tag_type', 'class')
+        .eq('tag_value', `CLASS:${cls.id}`)
+        .eq('role_in_context', 'teacher')
+        .eq('user_id', callerUserId)
+        .is('removed_at', null)
+        .maybeSingle()
+      if (callerTag) authorized = true
+    }
 
     if (!authorized) {
       const { data: caller } = await supabase

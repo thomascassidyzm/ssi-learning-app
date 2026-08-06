@@ -25,6 +25,14 @@ let DB: {
   classes: Array<{ id: string; teacher_user_id: string; school_id: string | null }>
   learners: Array<{ user_id: string; platform_role: string | null; educational_role: string | null }>
   schools: Array<{ id: string; admin_user_id: string | null }>
+  user_tags: Array<{
+    id: string
+    user_id: string
+    tag_type: string
+    tag_value: string
+    role_in_context: string
+    removed_at: string | null
+  }>
 }
 
 function makeChainable(table: string) {
@@ -32,6 +40,7 @@ function makeChainable(table: string) {
   const builder: any = {
     select: () => builder,
     eq: (col: string, val: unknown) => { rows = rows.filter((r) => r[col] === val); return builder },
+    is: (col: string) => { rows = rows.filter((r) => r[col] == null); return builder },
     single: async () => (rows[0] ? { data: rows[0], error: null } : { data: null, error: { message: 'not found' } }),
     maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
   }
@@ -65,6 +74,7 @@ beforeEach(async () => {
     classes: [{ id: 'class-1', teacher_user_id: 'teacher-1', school_id: null }],
     learners: [],
     schools: [],
+    user_tags: [],
   }
 })
 
@@ -85,6 +95,38 @@ describe('POST /api/teacher/create-class-learner', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(403)
     expect(ensureSpy).not.toHaveBeenCalled()
+  })
+
+  it('allows a CO-TEACHER holding an active class/teacher tag (A-74)', async () => {
+    authResult = { valid: true, userId: 'co-teacher-1' }
+    DB.user_tags = [{
+      id: 'tag-1',
+      user_id: 'co-teacher-1',
+      tag_type: 'class',
+      tag_value: 'CLASS:class-1',
+      role_in_context: 'teacher',
+      removed_at: null,
+    }]
+    const req = makeReq({ class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('refuses a co-teacher whose tag has been soft-removed', async () => {
+    authResult = { valid: true, userId: 'co-teacher-1' }
+    DB.user_tags = [{
+      id: 'tag-1',
+      user_id: 'co-teacher-1',
+      tag_type: 'class',
+      tag_value: 'CLASS:class-1',
+      role_in_context: 'teacher',
+      removed_at: '2026-02-01T00:00:00.000Z',
+    }]
+    const req = makeReq({ class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
   })
 
   it('allows the school_admin of the class\'s school', async () => {
