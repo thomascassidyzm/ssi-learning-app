@@ -57,6 +57,7 @@ Class creation now writes both halves, so it can't rot again.
 - **A co-teacher's own class list was empty** — both places that build it only ever matched the single "lead teacher" field.
 - **A co-teacher couldn't create a student join code** for their own class — while already being allowed to *delete* the class entirely. That absurdity is gone.
 - **One person's teacher invite silently did nothing.** A defect could mint a link that pointed at no school; redeeming it wrote a meaningless record. It had already fired once, on 19 July. That account has no activity and never got access; I've retired the junk record and closed the hole.
+- **And 12 dead invite codes were still live.** All minted in a single 24-minute test session on 16 July, all granting nothing at all, all still redeemable — one of them is the redemption above. Redemption now refuses them outright, and I've deactivated all 12 so nobody is handed a code that leads nowhere. 19 teacher codes remain live, every one properly scoped.
 - **The endpoint the whole feature rests on had no tests.** It has 26 now.
 
 ---
@@ -73,4 +74,6 @@ Everything is proven by tests and by direct measurement against the live databas
 
 ## Checks
 
-Core build, both typechecks, **1,087 API tests**, **1,617 player tests**, lint at zero errors — all green.
+Core build, both typechecks, **1,087 API tests**, **1,617 player tests**, lint at zero errors — all green, re-run on the final commit after every worker had landed.
+
+Two workers reported broken tests in their own write-ups. Those were transient: four agents were editing one working tree at once, so each briefly saw another's half-finished edit. Re-verified on the final commit — nothing is broken.
