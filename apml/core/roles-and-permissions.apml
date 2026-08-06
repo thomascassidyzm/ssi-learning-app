@@ -4,7 +4,7 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.5.0"
+  version: "1.6.0"
   date: "2026-08-06"
   author: "Tom Cassidy & Claude"
   status: "specification"
@@ -1069,15 +1069,50 @@ principle ClassTeachingIsARelationship:
     background: "docs/methodology/class-first-class-citizen.md"
 
   authorization_rule: |
-    Every server guard that asked "is this the class's teacher?" must ask
-    "is this AN ACTIVE TEACHER OF THIS CLASS?" — the relationship OR the lead
-    pointer. Canonical implementation: api/teacher/class-teachers.ts.
+    TWO different questions, and they do not have the same answer.
+
+    (1) MAY I TEACH THIS CLASS? — a membership test over every ACTIVE teacher,
+        the relationship OR the lead pointer. Governs the day-to-day teaching
+        verbs: minting a student join code, creating the class learner entity,
+        seeing the class on your own list. Predicate: canTeachClass().
+
+    (2) MAY I CHANGE WHO TEACHES THIS CLASS? — founder ruling 2026-08-06,
+        verbatim: "any group leader or the current teacher of the class can add
+        the co-teacher I think". So: the CURRENT (lead) teacher of that class,
+        OR any group leader ABOVE it in the hierarchy — the class's school
+        admin, or a govt_admin whose governed group is the class's group / the
+        school's group or node, or an ancestor of either — OR an ssi_admin/god.
+        NOT every teacher of the class, and NOT every teacher in the school.
+        Predicate: canManageClassTeachers().
+
+    One exception, which is not managing anyone else: a co-teacher may remove
+    THEMSELVES, i.e. leave a class they were added to.
+
+    Both predicates live in ONE place, api/_utils/classTeacherAuth.ts, shared by
+    every call site so the two co-teaching write paths cannot drift.
   guarded_endpoints:
-    - "api/teacher/class-teachers.ts — add / remove / set_lead (service-role; the write path)"
+    - "api/teacher/class-teachers.ts — add / remove / set_lead (service-role; the write path) => canManageClassTeachers, plus self-removal"
+    - "api/invite/create.ts (code_type teacher + grants_class_id) — the class-scoped co-teacher link => canManageClassTeachers"
+    - "api/invite/create.ts (code_type student + grants_class_id) — student join codes => canTeachClass"
     - "api/teacher/create-class-join-code.ts — co-teachers may mint a class's join code"
     - "api/teacher/create-class-learner.ts — co-teachers may mint the class learner entity"
     - "api/teacher/classes.ts (GET) — personal class list UNIONS co-taught classes"
     - "api/teacher/me.ts (GET) — same union; a co-teacher's dashboard is never silently empty"
+  database_half: |
+    RLS cannot be allowed to contradict the ruling. user_tags_insert is
+    god-only for role_in_context='teacher', which is why adding a co-teacher is
+    server-mediated at all. user_tags_update carries a class-membership
+    disjunct so a co-teacher can remove a STUDENT client-side (the ClassDetail
+    roster write) — 20260806b_co_teacher_manage_ruling.sql narrows that
+    disjunct to non-teacher/non-admin rows, so a co-teacher cannot reinstate a
+    removed co-teacher or unseat the lead straight from the browser. The
+    lead-pointer and school_admin branches keep full authority over teacher
+    rows. Canary: supabase/secfix-toolkit/canary_co_teacher_manage_ruling.cjs.
+  client_half: |
+    ClassDetail.vue's teacher panel hides Add-a-co-teacher, Make-lead and the
+    co-teacher link from anyone who is not lead-or-leader, and shows a
+    co-teacher a Leave button instead of Remove. The server is the gate; the
+    panel just never offers a verb that would 403.
 
   lifecycle:
     dual_write: |
@@ -1108,6 +1143,7 @@ principle ClassTeachingIsARelationship:
       page and one name reads better than a list; co-teachers are not shown.
 
   out_of_scope:
+    - "Whether a leader ABOVE the class should also inherit the day-to-day teaching verbs (student codes, learner entities) — the ruling speaks only to adding co-teachers, so canTeachClass was deliberately left unwidened"
     - "Teacher-seat billing — nothing enforces schools.teacher_seats; an unresolved commercial question"
     - "A distinct supply / observer / read-only role — add-then-remove already gives a bounded stint"
     - "Group-level co-leadership, and multiple school admins — separate, larger designs"
@@ -1117,6 +1153,17 @@ principle ClassTeachingIsARelationship:
 # =============================================================================
 
 version_history:
+  v1.6.0:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "WHO MAY ADD A CO-TEACHER — founder ruling 2026-08-06 encoded: the class's CURRENT (lead) teacher, or any group leader ABOVE the class (school admin, or a govt_admin of the class's group / the school's group or node / any ancestor), or an ssi_admin/god"
+      - "Split the one old 'active teacher of this class' guard into TWO predicates in api/_utils/classTeacherAuth.ts — canTeachClass (teaching verbs, unchanged, every co-teacher) and canManageClassTeachers (who-teaches-here, the ruling)"
+      - "NARROWED: a plain co-teacher can no longer add another co-teacher, hand the lead over, remove a colleague, or mint a class-scoped co-teacher link. They may still leave the class themselves"
+      - "WIDENED: an org/group leader above the class in the hierarchy can now do all of it — previously only the school's own admin_user_id could"
+      - "RLS lockstep: 20260806b_co_teacher_manage_ruling.sql narrows user_tags_update's class-membership disjunct to non-teacher rows, so the browser cannot route around the endpoint. Canary-applied live, 8/8 green"
+      - "ClassDetail.vue hides the management verbs from a co-teacher and offers Leave instead of Remove"
+
   v1.5.0:
     date: "2026-08-06"
     author: "Claude"
