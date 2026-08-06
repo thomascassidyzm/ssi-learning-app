@@ -8417,8 +8417,9 @@ const prepareAndJump = async (
           audioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
         )
         // 5s ceiling so a permanent network failure can't deadlock the skip.
-        // Past the ceiling we fall through and let SimplePlayer's existing
-        // ensureKnownReady + retry-once-then-halt machinery handle it cleanly.
+        // Past the ceiling we fall through and let SimplePlayer's bounded
+        // resolve + phase watchdog + retry-once-then-SKIP machinery handle it
+        // cleanly — the destination plays, or is skipped, but never stalls.
         await Promise.race([
           ensurePromise,
           new Promise<void>((resolve) => setTimeout(resolve, 5000)),
