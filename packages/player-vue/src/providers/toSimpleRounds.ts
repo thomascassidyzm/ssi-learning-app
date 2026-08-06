@@ -17,6 +17,7 @@ import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
+import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -285,7 +286,12 @@ function* toSimpleRoundsGen(
   // Sort by roundNumber to maintain learning sequence
   rounds.sort((a, b) => a.roundNumber - b.roundNumber)
 
-  return rounds
+  // A-64 floor (Tom, 2026-08-06): no mode plays the same prompt more than
+  // twice consecutively. generateLearningScript already caps its own output,
+  // but this adapter drops cycles whose audio is missing — which can pull two
+  // previously separated prompts together — so the last word belongs here,
+  // immediately before SimplePlayer receives the rounds.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 export function toSimpleRounds(

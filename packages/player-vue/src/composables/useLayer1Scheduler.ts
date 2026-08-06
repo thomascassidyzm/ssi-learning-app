@@ -53,6 +53,7 @@
  */
 
 import { ref, shallowRef, type Ref } from 'vue'
+import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 
@@ -114,7 +115,13 @@ export function buildSeedPlays(seed: L1SeedAudio, playlist: Layer1SlotRole[] = D
       case 'known': if (knownId) plays.push({ seedNumber, audioId: knownId, text: knownText, role: 'trans', playbackSpeed: L1_ROLE_SPEED.trans }); break
     }
   }
-  return plays
+  // A-64 floor (Tom, 2026-08-06): no mode plays the same prompt more than
+  // twice consecutively. The shipped DEFAULT_SEED_PLAYLIST happens to be
+  // lawful (t1·known·t2·t1 — the t2·t1 pair is two of the same clip, which is
+  // legal), but the playlist is admin-tunable from the Listening config page,
+  // so a saved ['known','t1','t1','t2'] would emit three identical target
+  // plays with nothing to stop it. The cap makes that unreachable.
+  return capConsecutiveRepeats(plays, p => p.audioId).items
 }
 
 export interface Layer1Config {
