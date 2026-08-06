@@ -15,16 +15,27 @@
  *   remove — soft-delete (removed_at) target's class/teacher tag. If they were
  *            the lead pointer, hand the lead to another active teacher, else null.
  *
- * Auth: verifyAuthToken + caller must be one of:
- *   - an active teacher of the class (relationship OR the lead pointer)
- *   - an ssi_admin / god (platform admin)
- *   - the school_admin of the class's school
+ * Auth (founder ruling 2026-08-06 — "any group leader or the current teacher
+ * of the class can add the co-teacher"): verifyAuthToken + caller must be one of:
+ *   - the CURRENT (lead) teacher of the class
+ *   - any group leader ABOVE the class — its school admin, or a govt_admin
+ *     whose governed group contains the class at any depth
+ *   - an ssi_admin / god (platform admin support bypass)
+ * One exception, which is not managing anyone else: a co-teacher may remove
+ * THEMSELVES, i.e. leave a class they were added to.
+ * The predicate itself lives in ../_utils/classTeacherAuth.ts — shared with
+ * the co-teacher invite lane so the two cannot drift.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { rejectIfViewAs } from '../_utils/actAsGuard'
+import {
+  canManageClassTeachers,
+  fetchClassAuthRow,
+  isActiveClassTeacher,
+} from '../_utils/classTeacherAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -85,56 +96,24 @@ export default async function handler(
   const tagValue = `CLASS:${classId}`
 
   try {
-    const { data: cls, error: classError } = await supabase
-      .from('classes')
-      .select('id, teacher_user_id, school_id')
-      .eq('id', classId)
-      .single()
+    const cls = await fetchClassAuthRow(supabase, classId)
 
-    if (classError || !cls) {
+    if (!cls) {
       res.status(404).json({ error: 'Class not found' })
       return
     }
 
-    // ── Authorize: teacher of the class (relationship or lead), platform admin,
-    //    or the class's school admin. ───────────────────────────────────────
-    let authorized = cls.teacher_user_id === callerUserId
+    // ── Authorize: the lead teacher, any leader above the class, or a platform
+    //    admin (the ruling). Leaving a class you co-teach is self-service. ───
+    const isSelfRemoval = action === 'remove' && targetUserId === callerUserId
+    const authorized = isSelfRemoval
+      ? await isActiveClassTeacher(supabase, callerUserId, cls.id)
+      : await canManageClassTeachers(supabase, callerUserId, cls)
 
     if (!authorized) {
-      const { data: callerTag } = await supabase
-        .from('user_tags')
-        .select('id')
-        .eq('tag_type', 'class')
-        .eq('tag_value', tagValue)
-        .eq('role_in_context', 'teacher')
-        .eq('user_id', callerUserId)
-        .is('removed_at', null)
-        .maybeSingle()
-      if (callerTag) authorized = true
-    }
-
-    if (!authorized) {
-      const { data: caller } = await supabase
-        .from('learners')
-        .select('platform_role, educational_role')
-        .eq('user_id', callerUserId)
-        .maybeSingle()
-      if (caller?.platform_role === 'ssi_admin' || caller?.educational_role === 'god') {
-        authorized = true
-      }
-    }
-
-    if (!authorized && cls.school_id) {
-      const { data: school } = await supabase
-        .from('schools')
-        .select('admin_user_id')
-        .eq('id', cls.school_id)
-        .maybeSingle()
-      if (school?.admin_user_id === callerUserId) authorized = true
-    }
-
-    if (!authorized) {
-      res.status(403).json({ error: 'Not authorized to manage teachers for this class' })
+      res.status(403).json({
+        error: 'Only the class teacher or a leader above the class can manage its teachers',
+      })
       return
     }
 

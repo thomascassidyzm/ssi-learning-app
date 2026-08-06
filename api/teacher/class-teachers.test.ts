@@ -3,9 +3,11 @@
  * whole co-teaching story rests on (A-74). It had no test file at all.
  *
  * Covers:
- *   - the authorization matrix: lead pointer, co-teacher relationship,
- *     ssi_admin/god, school_admin of the class's school, and refusal for a
- *     non-member;
+ *   - the authorization matrix under the founder ruling of 2026-08-06 ("any
+ *     group leader or the current teacher of the class can add the
+ *     co-teacher"): the lead pointer, any leader above the class
+ *     (school_admin, govt_admin of an ancestor group), ssi_admin/god, and
+ *     refusal for a plain co-teacher and for a non-member;
  *   - `add` idempotency and reactivation of a soft-removed tag (the
  *     `unique_active_tag UNIQUE (user_id, tag_type, tag_value)` constraint is
  *     TOTAL, not partial, so a removed row must be reactivated, never
@@ -37,9 +39,11 @@ interface TagRow {
 }
 
 let DB: {
-  classes: Array<{ id: string; teacher_user_id: string | null; school_id: string | null }>
+  classes: Array<{ id: string; teacher_user_id: string | null; school_id: string | null; group_id?: string | null }>
   learners: Array<{ user_id: string; platform_role: string | null; educational_role: string | null }>
-  schools: Array<{ id: string; admin_user_id: string | null }>
+  schools: Array<{ id: string; admin_user_id: string | null; group_id?: string | null; node_group_id?: string | null }>
+  govt_admins: Array<{ user_id: string; group_id: string | null }>
+  groups: Array<{ id: string; parent_id: string | null }>
   user_tags: TagRow[]
 }
 
@@ -149,9 +153,11 @@ beforeEach(async () => {
   handler = (await import('./class-teachers')).default
   authResult = { valid: true, userId: 'lead-1' }
   DB = {
-    classes: [{ id: 'class-1', teacher_user_id: 'lead-1', school_id: null }],
+    classes: [{ id: 'class-1', teacher_user_id: 'lead-1', school_id: null, group_id: null }],
     learners: [],
     schools: [],
+    govt_admins: [],
+    groups: [],
     user_tags: [],
   }
 })
@@ -166,13 +172,16 @@ describe('POST /api/teacher/class-teachers — authorization matrix', () => {
     expect(activeTags().map((t) => t.user_id)).toContain('new-teacher')
   })
 
-  it('allows a CO-TEACHER holding an active class/teacher tag', async () => {
+  // THE RULING (2026-08-06): a plain co-teacher may TEACH the class but may
+  // not change who else teaches it. Only the lead teacher and the leaders
+  // above the class recruit.
+  it('REFUSES a co-teacher holding an active class/teacher tag', async () => {
     authResult = { valid: true, userId: 'co-1' }
     DB.user_tags = [tag({ user_id: 'co-1' })]
     const res = makeRes()
     await handler(makeReq(body), res)
-    expect(res.statusCode).toBe(200)
-    expect(activeTags().map((t) => t.user_id)).toContain('new-teacher')
+    expect(res.statusCode).toBe(403)
+    expect(activeTags().map((t) => t.user_id)).not.toContain('new-teacher')
   })
 
   it('refuses a co-teacher whose tag has been soft-REMOVED', async () => {
@@ -181,6 +190,76 @@ describe('POST /api/teacher/class-teachers — authorization matrix', () => {
     const res = makeRes()
     await handler(makeReq(body), res)
     expect(res.statusCode).toBe(403)
+  })
+
+  it('allows any active teacher when the class has NO lead pointer at all', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: null, school_id: null, group_id: null }
+    authResult = { valid: true, userId: 'co-1' }
+    DB.user_tags = [tag({ user_id: 'co-1' })]
+    const res = makeRes()
+    await handler(makeReq(body), res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it("allows a govt_admin leading the school's own node", async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1', group_id: null }
+    DB.schools = [{ id: 'school-1', admin_user_id: 'admin-1', group_id: null, node_group_id: 'node-1' }]
+    DB.groups = [{ id: 'node-1', parent_id: null }]
+    DB.govt_admins = [{ user_id: 'leader-1', group_id: 'node-1' }]
+    authResult = { valid: true, userId: 'leader-1' }
+    const res = makeRes()
+    await handler(makeReq(body), res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('allows a govt_admin leading an ANCESTOR group of the class', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1', group_id: null }
+    DB.schools = [{ id: 'school-1', admin_user_id: 'admin-1', group_id: null, node_group_id: 'node-1' }]
+    DB.groups = [{ id: 'council', parent_id: null }, { id: 'node-1', parent_id: 'council' }]
+    DB.govt_admins = [{ user_id: 'leader-1', group_id: 'council' }]
+    authResult = { valid: true, userId: 'leader-1' }
+    const res = makeRes()
+    await handler(makeReq(body), res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('refuses a govt_admin leading a SIDEWAYS group', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1', group_id: null }
+    DB.schools = [{ id: 'school-1', admin_user_id: 'admin-1', group_id: null, node_group_id: 'node-1' }]
+    DB.groups = [
+      { id: 'council', parent_id: null },
+      { id: 'node-1', parent_id: 'council' },
+      { id: 'other-school', parent_id: 'council' },
+    ]
+    DB.govt_admins = [{ user_id: 'leader-2', group_id: 'other-school' }]
+    authResult = { valid: true, userId: 'leader-2' }
+    const res = makeRes()
+    await handler(makeReq(body), res)
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('lets a co-teacher REMOVE THEMSELVES — leaving is not managing', async () => {
+    authResult = { valid: true, userId: 'co-1' }
+    DB.user_tags = [tag({ user_id: 'co-1' })]
+    const res = makeRes()
+    await handler(
+      makeReq({ class_id: 'class-1', action: 'remove', target_user_id: 'co-1' }),
+      res,
+    )
+    expect(res.statusCode).toBe(200)
+    expect(activeTags().map((t) => t.user_id)).not.toContain('co-1')
+  })
+
+  it('refuses a co-teacher removing SOMEBODY ELSE', async () => {
+    authResult = { valid: true, userId: 'co-1' }
+    DB.user_tags = [tag({ user_id: 'co-1' }), tag({ user_id: 'co-2' })]
+    const res = makeRes()
+    await handler(
+      makeReq({ class_id: 'class-1', action: 'remove', target_user_id: 'co-2' }),
+      res,
+    )
+    expect(res.statusCode).toBe(403)
+    expect(activeTags().map((t) => t.user_id)).toContain('co-2')
   })
 
   it('allows an ssi_admin', async () => {
@@ -200,7 +279,7 @@ describe('POST /api/teacher/class-teachers — authorization matrix', () => {
   })
 
   it("allows the school_admin of the class's school", async () => {
-    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1' }
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1', group_id: null }
     DB.schools = [{ id: 'school-1', admin_user_id: 'admin-1' }]
     authResult = { valid: true, userId: 'admin-1' }
     const res = makeRes()
@@ -209,7 +288,7 @@ describe('POST /api/teacher/class-teachers — authorization matrix', () => {
   })
 
   it("refuses the admin of a DIFFERENT school", async () => {
-    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1' }
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'lead-1', school_id: 'school-1', group_id: null }
     DB.schools = [{ id: 'school-1', admin_user_id: 'admin-1' }, { id: 'school-2', admin_user_id: 'admin-2' }]
     authResult = { valid: true, userId: 'admin-2' }
     const res = makeRes()

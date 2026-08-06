@@ -15341,12 +15341,12 @@ CREATE POLICY user_tags_update ON public.user_tags FOR UPDATE TO authenticated U
   WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
    FROM (public.classes c
      LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_class_teacher(c.id))))))) WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (EXISTS ( SELECT 1
+  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR (public.is_class_teacher(c.id) AND (user_tags.role_in_context IS DISTINCT FROM 'teacher'::text) AND (user_tags.role_in_context IS DISTINCT FROM 'admin'::text)))))))) WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (EXISTS ( SELECT 1
    FROM public.schools s
   WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
    FROM (public.classes c
      LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_class_teacher(c.id)))))));
+  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR (public.is_class_teacher(c.id) AND (user_tags.role_in_context IS DISTINCT FROM 'teacher'::text) AND (user_tags.role_in_context IS DISTINCT FROM 'admin'::text))))))));
 
 
 --
