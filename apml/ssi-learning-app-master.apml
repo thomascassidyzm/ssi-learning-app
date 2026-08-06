@@ -377,7 +377,7 @@ app SSiLearningApp:
 
     user_to_system:
       status: "complete"
-      coverage: "Play/pause, skip, revisit, Easy/Fast mode pick, listening mode"
+      coverage: "Play/pause, skip, revisit, Easy/Fast pace switch, listening mode"
       documented_in: "interfaces/learning-player.apml"
 
     system_to_system:

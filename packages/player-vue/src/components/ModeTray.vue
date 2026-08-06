@@ -169,9 +169,20 @@ const handleOffline = () => {
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
-        <!-- Pace: Easy | Fast. Exactly two modes (Aran 2026-08-06) — a
-             segmented pick, not an on/off toggle, because neither is "off". -->
-        <div class="tray-item tray-item--static" :class="{ unavailable: !paceAvailable }">
+        <!-- Pace: an ON/OFF STYLE SWITCH (Aran, 2026-08-06) — one tap flips
+             Easy <-> Fast. Switch ON = Fast, because Fast is the one you jump
+             UP to: Easy is the comfortable starting place, Fast is the
+             heroic gear. The row itself is the control, so the flip is a
+             single tap anywhere on it, exactly like the rows around it. -->
+        <button
+          class="tray-item"
+          :class="{ active: !isEasy, unavailable: !paceAvailable }"
+          role="switch"
+          :aria-checked="!isEasy"
+          :aria-label="t('modes.pace')"
+          :disabled="!paceAvailable"
+          @click.stop="chooseMode(isEasy ? 'fast' : 'easy')"
+        >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
@@ -181,25 +192,16 @@ const handleOffline = () => {
             <span class="tray-name">{{ t('modes.pace') }}</span>
             <span class="tray-desc">{{ isEasy ? t('modes.easyDesc') : t('modes.fastDesc') }}</span>
           </div>
-          <div class="pace-segments" role="radiogroup" :aria-label="t('modes.pace')">
-            <button
-              class="pace-segment"
-              :class="{ on: isEasy }"
-              role="radio"
-              :aria-checked="isEasy"
-              :disabled="!paceAvailable"
-              @click.stop="chooseMode('easy')"
-            >{{ t('modes.easy') }}</button>
-            <button
-              class="pace-segment"
-              :class="{ on: !isEasy }"
-              role="radio"
-              :aria-checked="!isEasy"
-              :disabled="!paceAvailable"
-              @click.stop="chooseMode('fast')"
-            >{{ t('modes.fast') }}</button>
+          <!-- The two words flank the switch so the live state is readable at
+               a glance without an explanation — the knob says which side. -->
+          <div class="pace-switch">
+            <span class="pace-word" :class="{ on: isEasy }">{{ t('modes.easy') }}</span>
+            <div class="tray-toggle" :class="{ on: !isEasy }">
+              <div class="tray-toggle-knob"></div>
+            </div>
+            <span class="pace-word" :class="{ on: !isEasy }">{{ t('modes.fast') }}</span>
           </div>
-        </div>
+        </button>
 
         <!-- Offline mode toggle — play from downloaded audio (no network) -->
         <button
@@ -391,49 +393,25 @@ const handleOffline = () => {
   cursor: not-allowed;
 }
 
-/* The pace row is a container, not a button — its two segments are the
-   controls, so it must not take the button hover/active affordances. */
-.tray-item--static {
-  cursor: default;
-}
-
-.tray-item--static:hover,
-.tray-item--static:active {
-  background: transparent;
-}
-
-/* Easy | Fast segmented pick. Exactly two modes, neither of them "off",
-   so this reads as a choice rather than a switch. */
-.pace-segments {
+/* Easy / Fast on-off style switch (Aran, 2026-08-06). One control, one tap,
+   with both words visible so the live state needs no explanation. */
+.pace-switch {
   display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  padding: 2px;
-  gap: 2px;
 }
 
-.pace-segment {
-  border: none;
-  background: transparent;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
+.pace-word {
+  font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: #6B6560;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  color: #A09A94;
+  transition: color 0.15s ease;
 }
 
-.pace-segment.on {
-  background: #fff;
+.pace-word.on {
   color: #16a34a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
-.pace-segment:disabled {
-  cursor: not-allowed;
 }
 
 .tray-icon {
