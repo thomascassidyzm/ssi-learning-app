@@ -42,7 +42,7 @@
  * which powers the Pause Lab preview.
  *
  * The parameters live on a ModeConfig row in the `algorithm_config` table
- * (`normal_mode` and `turbo_boost`) so an admin can tune them via the dashboard
+ * (`fast_mode` and `easy_mode`) so an admin can tune them via the dashboard
  * without a redeploy. Both the SimplePlayer's `setTimeout` and the on-screen
  * countdown ring call into this helper, so admin tweaks affect the visible
  * countdown AND the actual gap in lockstep.

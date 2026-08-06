@@ -63,11 +63,11 @@ export const HOW_THIS_WORKS_LEARNER: ExplainerSection = {
     {
       heading: 'The different ways to use it',
       body: [
-        'Speaking is the main one, and it is what you get by default. Turbo and Offline live behind the sliders button at the bottom of the player, and Listening lives in Settings.',
+        'Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces, and you pick between them on the player screen before you start. Offline lives behind the sliders button at the bottom of the player, and Listening lives in Settings.',
       ],
       points: [
         'Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.',
-        'Turbo tightens the pace and trims the repetition, for when it is all feeling a bit easy.',
+        'Fast is the standard pace. Easy gives you about double the thinking time and more repetition, for when you want longer to get the words out.',
         'Offline downloads a chunk of the course onto your phone, so it plays with no signal at all.',
       ],
     },

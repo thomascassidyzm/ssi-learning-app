@@ -15,7 +15,7 @@
  *     cycles array of that LEGO's Round)
  *   - audio URLs are the `/api/audio/<uuid>` proxy paths the SimplePlayer
  *     already consumes
- *   - pauseDuration is baked here using the same DEFAULT_NORMAL fallback
+ *   - pauseDuration is baked here using the same DEFAULT_FAST fallback
  *     as `toSimpleRounds` — runtime overrides recompute it from live
  *     algorithm_config at play time, so this fallback is only seen by
  *     environments without live config
@@ -38,7 +38,7 @@
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
 
@@ -293,7 +293,7 @@ export function toPlayerCycle(
       : computePauseDuration(
           bc.durations.target1_ms ?? 0,
           bc.durations.target2_ms ?? 0,
-          DEFAULT_NORMAL,
+          DEFAULT_FAST,
           speed,
         ),
     // Linger after voice2 on intros so the learner can read the reveal.

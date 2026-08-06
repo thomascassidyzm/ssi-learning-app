@@ -7,13 +7,14 @@
     "pronunciation": "Fuaimniú",
     "guideShown": "Treoir os cionn na scripte",
     "nativeOnly": "Script dhúchais amháin",
-    "turboBoost": "Turbo",
-    "turboDesc": "Luas níos tapúla, níos lú athrá",
     "offline": "Mód as líne",
     "offlineDesc": "Seinn ó fhuaim íoslódáilte",
     "hiseDesc": "Cleachtaí Cainte Ard-Déine",
     "listening": "Éisteacht",
-    "listeningDesc": "Fuaim amháin, gan labhairt"
+    "listeningDesc": "Fuaim amháin, gan labhairt",
+    "easy": "Easy",
+    "fast": "Fast",
+    "learningModeLabel": "Learning mode"
   },
   "courseSelector": {
     "title": "Roghnaigh do Chúrsa",
@@ -201,7 +202,6 @@
     "tapToPause": "Tapáil le sos a chur",
     "tapToStart": "Tapáil le tosú",
     "phaseFlow": "Éist → Labhair → Éist → Féach",
-    "skipReplayTurbo": "Scipeáil, Athsheinm, Turbo",
     "tapAnywhere": "tapáil áit ar bith le tosú"
   },
   "driving": {

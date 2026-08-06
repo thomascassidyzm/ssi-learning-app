@@ -7,7 +7,7 @@
  *
  * Pause duration: see computePauseDuration.ts — single helper driven by the
  * admin-controlled ModeConfig (algorithm_config table). The baked value below
- * uses DEFAULT_NORMAL as a fallback; LearningPlayer's runtime override
+ * uses DEFAULT_FAST as a fallback; LearningPlayer's runtime override
  * recomputes from the live config so admin tweaks affect both the visible
  * countdown and the actual setTimeout in lockstep.
  */
@@ -15,7 +15,7 @@
 import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 
 const audioUrl = (uuid: string | undefined): string => {
@@ -91,7 +91,7 @@ export function beltSpeed(seedNumber: number): number {
  *
  * The value is BAKED onto the cycle as `cycle.playbackSpeed`. Two runtime
  * consumers depend on it being the truth of what the voice plays at:
- *   • Turbo's `getPlaybackSpeedMultiplier` cancels it (target / baked).
+ *   • The mode override's `getPlaybackSpeedMultiplier` cancels it (target / baked).
  *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
  *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
  *     and hands a beginner the fully-tapered green-belt pause.
@@ -234,15 +234,11 @@ function* toSimpleRoundsGen(
           voice1Url: isBookend ? '' : audioUrl(i.target1Id),
           voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
         },
-        // Expose raw target durations so runtime overrides (Turbo) can
+        // Expose raw target durations so the runtime mode override can
         // recompute pauseDuration with their own formula instead of just
         // scaling the baked value.
         ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
-        // Turbo skip flag — set on 4th–7th BUILD, 2nd USE, alternate fib
-        // spaced rep. SimplePlayer's shouldSkipCycle override (gated on
-        // turboActive) decides whether to actually skip at play time.
-        ...(i.turboOmit ? { turboOmit: true } : {}),
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its
         // "no audio, skipping" warnings for the phases left empty by design.
         ...((isBookend || isPod || i.type === 'listening' || isSeedSandwich) ? { singleAudio: true } : {}),
@@ -252,7 +248,7 @@ function* toSimpleRoundsGen(
         // cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod || isSeedSandwich)
           ? 0
-          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL, speed),
+          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_FAST, speed),
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),
