@@ -758,14 +758,28 @@ export async function generateLearningScript(
     target2_duration_ms?: number
   }
   const allLegosRaw = (legosResult.data || []) as Lego[]
-  // Invariant: a cycle must never present without all three audio IDs.
-  // Partial-import courses (e.g. Greek 2026-04) had LEGOs with NULL target
-  // audio, which caused silent-play + circuit-breaker halts. Skip those
-  // rows here so the session only schedules playable cycles.
-  const allLegos = allLegosRaw.filter(
-    l => l.known_audio_id && l.target1_audio_id && l.target2_audio_id
-  )
-  const legosSkippedForAudio = allLegosRaw.length - allLegos.length
+  // Invariant (unchanged): never SCHEDULE an unplayable cycle. Partial-import
+  // courses (e.g. Greek 2026-04) had LEGOs with NULL target audio, which
+  // caused silent play.
+  //
+  // What changed 2026-08-06 is the GRANULARITY. This used to drop the whole
+  // LEGO from the walk, which cost far more than the missing clip: round
+  // numbers are assigned after this point, so one gap slid every later round
+  // down by one and re-paired the entire Fibonacci review schedule
+  // (fra_for_eng, from round 47), and a partial import amputated the course
+  // outright (ara_lb_for_eng lost 776 of 1414 rounds — the player simply
+  // stopped). A course must always play what it HAS.
+  //
+  // So every LEGO now keeps its round and its round NUMBER and enters
+  // legoState for later review; the audio invariant is enforced per ITEM at
+  // emit time (introIsPlayable / debutIsPlayable below), exactly as phrase
+  // rows already are. A round that loses its intro/debut keeps its build,
+  // use, review and consolidate cycles. If a round ends up with nothing
+  // playable at all, toSimpleRounds drops it (its `cycles.length === 0`
+  // guard) and SimplePlayer — which walks rounds by array index, not by
+  // round number — carries on; it also advances defensively on an empty
+  // round, so a hole can't stall playback.
+  const allLegos = allLegosRaw
 
   // Backfill missing presentation_audio_id from course_audio / lego_introductions
   // Some courses have presentation audio generated but not yet linked to course_legos
@@ -818,14 +832,14 @@ export async function generateLearningScript(
     legosBySeed.get(lego.seed_number)!.push(lego)
   }
 
-  // Diagnostic: report what was loaded and what was skipped for missing audio.
+  // Diagnostic: report what was loaded. Per-item audio suppression is counted
+  // during the walk and reported after it (introsSkippedForAudio /
+  // debutsSkippedForAudio) — a LEGO short of one clip no longer costs a round.
   if (allLegosRaw.length === 0) {
     console.warn(`[generateLearningScript] No LEGOs found for course "${courseCode}"`)
-  } else if (allLegos.length === 0) {
-    console.warn(`[generateLearningScript] ALL ${allLegosRaw.length} LEGOs for "${courseCode}" are missing audio IDs — skipped, course will not play`)
-  } else if (legosSkippedForAudio > 0) {
-    console.warn(`[generateLearningScript] Skipped ${legosSkippedForAudio}/${allLegosRaw.length} LEGOs for "${courseCode}" (missing audio IDs)`)
   }
+  let introsSkippedForAudio = 0
+  let debutsSkippedForAudio = 0
 
   const sortedSeedNums = Array.from(legosBySeed.keys()).sort((a, b) => a - b)
   interface LegoState {
@@ -1114,49 +1128,66 @@ export async function generateLearningScript(
       const legoComponents = componentsByLego.get(phraseKey)
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
 
+      // Per-ITEM audio invariant (see the allLegos comment above). The intro
+      // plays prompt → target1 → target2 with no pause, so it needs a prompt
+      // clip (presentation, or known as the documented fallback) and the first
+      // target voice; a missing second voice is a phase SimplePlayer skips
+      // gracefully, as bookends already rely on. The debut asks the learner to
+      // produce, so it needs all three — the same rule toSimpleRounds applies
+      // to every non-intro cycle, applied here so we never schedule one it
+      // would only drop.
+      const introIsPlayable = !!(introAudioId && lego.target1_audio_id)
+      const debutIsPlayable = !!(lego.known_audio_id && lego.target1_audio_id && lego.target2_audio_id)
+      if (!introIsPlayable) introsSkippedForAudio++
+      if (!debutIsPlayable) debutsSkippedForAudio++
+
       // Phase 1: INTRO
       // The M-LEGO is the cognitive unit. For M-LEGOs the per-component breakdown
       // is rendered as ghost text under each target word (visual scaffolding) — we
       // do NOT pre-introduce components with their own audio cycles. A-LEGOs just
       // get a standard intro.
-      cycleNum++
-      emitItem({
-        uuid: `${legoKey}_intro_${cycleNum}`,
-        cycleNum, roundNumber, seedId, legoKey,
-        seedCode: seedId, legoCode: legoNum,
-        type: 'intro',
-        knownText: lego.known_text,
-        targetText: lego.target_text_roman || lego.target_text,
-        ...nativeFields(lego),
-        presentationAudioId: introAudioId,
-        target1Id: lego.target1_audio_id,
-        target2Id: lego.target2_audio_id,
-        target1DurationMs: lego.target1_duration_ms,
-        target2DurationMs: lego.target2_duration_ms,
-        isNew: true,
-        ...(legoComponents ? { components: legoComponents } : {}),
-        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
-      })
+      if (introIsPlayable) {
+        cycleNum++
+        emitItem({
+          uuid: `${legoKey}_intro_${cycleNum}`,
+          cycleNum, roundNumber, seedId, legoKey,
+          seedCode: seedId, legoCode: legoNum,
+          type: 'intro',
+          knownText: lego.known_text,
+          targetText: lego.target_text_roman || lego.target_text,
+          ...nativeFields(lego),
+          presentationAudioId: introAudioId,
+          target1Id: lego.target1_audio_id,
+          target2Id: lego.target2_audio_id,
+          target1DurationMs: lego.target1_duration_ms,
+          target2DurationMs: lego.target2_duration_ms,
+          isNew: true,
+          ...(legoComponents ? { components: legoComponents } : {}),
+          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+        })
+      }
 
       // Phase 2: DEBUT
-      cycleNum++
-      emitItem({
-        uuid: `${legoKey}_debut_${cycleNum}`,
-        cycleNum, roundNumber, seedId, legoKey,
-        seedCode: seedId, legoCode: legoNum,
-        type: 'debut',
-        knownText: lego.known_text,
-        targetText: lego.target_text_roman || lego.target_text,
-        ...nativeFields(lego),
-        knownAudioId: lego.known_audio_id,
-        target1Id: lego.target1_audio_id,
-        target2Id: lego.target2_audio_id,
-        target1DurationMs: lego.target1_duration_ms,
-        target2DurationMs: lego.target2_duration_ms,
-        isNew: true,
-        ...(legoComponents ? { components: legoComponents } : {}),
-        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
-      })
+      if (debutIsPlayable) {
+        cycleNum++
+        emitItem({
+          uuid: `${legoKey}_debut_${cycleNum}`,
+          cycleNum, roundNumber, seedId, legoKey,
+          seedCode: seedId, legoCode: legoNum,
+          type: 'debut',
+          knownText: lego.known_text,
+          targetText: lego.target_text_roman || lego.target_text,
+          ...nativeFields(lego),
+          knownAudioId: lego.known_audio_id,
+          target1Id: lego.target1_audio_id,
+          target2Id: lego.target2_audio_id,
+          target1DurationMs: lego.target1_duration_ms,
+          target2DurationMs: lego.target2_duration_ms,
+          isNew: true,
+          ...(legoComponents ? { components: legoComponents } : {}),
+          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+        })
+      }
       // The debut IS the bare LEGO — claim it so no later phase replays it. Some
       // courses carry a build row whose text equals its own LEGO (deu_for_eng
       // S0001L01 'I want / ich will'); playing that as a BUILD breaks the rule that
@@ -1630,22 +1661,17 @@ export async function generateLearningScript(
 
   const removedCount = items.length - dedupedItems.length
 
-  // Filter out incomplete rounds (LEGOs that exist but have no audio yet — unbuilt seeds)
-  // Group items by round, check if the round's intro/debut has a target1Id
-  const roundHasAudio = new Set<number>()
-  const roundMissingAudio = new Set<number>()
-  for (const item of dedupedItems) {
-    if ((item.type === 'intro' || item.type === 'debut' || item.type === 'component_intro') && item.target1Id) {
-      roundHasAudio.add(item.roundNumber)
-    }
-    if ((item.type === 'intro' || item.type === 'debut' || item.type === 'component_intro') && !item.target1Id) {
-      roundMissingAudio.add(item.roundNumber)
-    }
-  }
-  // Drop rounds that have no audio at all (unbuilt seeds), and drop individual
-  // cycles missing required text (partially-built phrases). Per-cycle filtering
-  // preserves the good cycles in a partially-incomplete round; whole-round
-  // filtering preserves nothing if even one cycle is good.
+  // Drop individual cycles missing required text (partially-built phrases).
+  // Per-cycle filtering preserves the good cycles in a partially-incomplete
+  // round; whole-round filtering preserves nothing if even one cycle is good.
+  //
+  // The whole-round "no audio at all" drop that used to live here was removed
+  // 2026-08-06 with the per-LEGO audio filter it partnered: it keyed off an
+  // intro/debut with no target1Id, and killed that round's build, use, review
+  // and consolidate cycles with it — the second of the two amputations. Intros
+  // and debuts are now only EMITTED when their own audio resolves, so a round
+  // with an audio hole simply arrives without them and keeps everything else;
+  // a round left with nothing at all is dropped downstream by toSimpleRounds.
   //
   // Listening items (pod/bookend) are exempt: pod sentence plays have empty
   // knownText, pod translation plays have empty targetText, and bookends
@@ -1653,10 +1679,8 @@ export async function generateLearningScript(
   // is for unbuilt LEGO/phrase rows, not for listening cycles whose missing
   // side reflects their play role.
   const TEXT_CHECK_EXEMPT = new Set(['pod', 'listen_intro', 'listen_outro', 'listening'])
-  const incompleteByAudio = new Set([...roundMissingAudio].filter(r => !roundHasAudio.has(r)))
   let droppedByText = 0
   const playableItems = dedupedItems.filter(item => {
-    if (incompleteByAudio.has(item.roundNumber)) return false
     if (TEXT_CHECK_EXEMPT.has(item.type)) return true
     const knownOk = typeof item.knownText === 'string' && item.knownText.trim().length > 0
     const targetOk = typeof item.targetText === 'string' && item.targetText.trim().length > 0
@@ -1667,8 +1691,8 @@ export async function generateLearningScript(
     return true
   })
 
-  if (incompleteByAudio.size > 0 || droppedByText > 0) {
-    console.info(`[generateLearningScript] Filtered ${incompleteByAudio.size} no-audio rounds, ${droppedByText} missing-text cycles`)
+  if (introsSkippedForAudio > 0 || debutsSkippedForAudio > 0 || droppedByText > 0) {
+    console.info(`[generateLearningScript] Suppressed ${introsSkippedForAudio} intros / ${debutsSkippedForAudio} debuts for missing audio (their rounds still play), ${droppedByText} missing-text cycles`)
   }
 
   // Validate generated script integrity in dev mode only — production cold
@@ -1705,6 +1729,6 @@ export async function generateLearningScript(
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
+  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
   return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
 }
