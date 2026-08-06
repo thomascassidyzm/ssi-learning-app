@@ -1,6 +1,7 @@
 # Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
 # Last updated: 2026-08-06 (card genre extracted to WalkCard.vue, shared with the org
-#               onboarding gate — one teaching voice, two mounts)
+#               onboarding gate — one teaching voice, two mounts; the password and
+#               install actions get a permanent home and become real pack walks)
 # Spec source: docs/walkthrough-engine-scout.md (founder-ratified build spec)
 
 vision: >
@@ -66,21 +67,29 @@ genre_reuse:  # 2026-08-06
     (a PROMPT: always escapable). The password step could not be an engine
     walk without breaking compile gate 7 (never-auto-play), so it borrows the
     genre only. See apml/schools/node-home.apml manager_onboarding_gate.
-  open_gap: >
-    These two actions are NOT yet in the pack, so How-this-works does not
-    offer them. Doing so needs a durable anchor on node-home — the gate's own
-    fields exist only while it is open — i.e. a permanent account surface that
-    does not exist today. Flagged to the founder rather than invented.
+  gap_closed: >  # founder ruling 2026-08-06, superseding the open_gap flagged above
+    CLOSED. The durable anchor now exists: components/admin/YourAccount.vue —
+    a permanent "Your account" card on the member node home, where a leader
+    sets or changes their password and installs the app AT ANY TIME, not only
+    at first login. Its three anchors (account-card · account-password ·
+    account-install) sit on ROW containers rather than buttons, so they exist
+    in every state — including "already installed", where there is no button
+    to point at — and the two pack walks below can never find nothing.
+    ManagerOnboardingGate is UNCHANGED: it stays the front door for a
+    brand-new manager, and this is the second, permanent home for the same two
+    actions afterwards.
 
 real_data_ruling: >
   Walks run on the real page over real data. Show-and-point by default; click
   steps only on safe/reversible verbs (compiler-enforced denylist); admins
   rehearse write-heavy flows inside demo orgs.
 
-walks_v1 (6):
+walks_v1 (8):
   - invite-first-teacher: node-home (school) — admin/leader/school_admin
   - run-class-session: class-detail — teacher
   - invite-first-person: node-home (org) — admin/leader — the NEUTRAL-dressing twin of invite-first-teacher: same anchors, group-leader/learner vocabulary (founder gap 2026-08-03, orgs at schools parity)
   - ways-in: node-home (org/group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap; the ledger is dressing-neutral, so the org kind is offered it too)
   - reading-insights: node-insights — admin/leader/school_admin
   - invites-desk: admin-invites — admin (show-and-point only)
+  - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
+  - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind
