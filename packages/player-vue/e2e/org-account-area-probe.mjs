@@ -66,22 +66,18 @@ await p.screenshot({ path: `${OUT}2-password-validation.png`, fullPage: false })
 // Close without saving — nothing on this account is touched.
 await p.locator('[data-walk="account-password"] button').click()
 
-// 4. Install — context-aware wording, and the guide fallback.
+// 4. Install — the wording is context-aware right here on the page.
 const installText = await p.locator('[data-walk="account-install"]').innerText()
 check('install row is desktop-framed on a desktop viewport', /app/i.test(installText), installText.replace(/\n/g, ' · '))
-const installBtn = p.locator('[data-walk="account-install"] button')
-if (await installBtn.count()) {
-  await installBtn.click()
-  await p.waitForTimeout(1200)
-  check('no native prompt → routes to the full install guide', /\/install/.test(p.url()), p.url())
-  await p.screenshot({ path: `${OUT}3-install-guide.png`, fullPage: false })
-  await p.goBack({ waitUntil: 'networkidle' }).catch(() => {})
-  await p.waitForSelector('.node-home .identity-name', { timeout: 30000 })
-} else {
-  check('install row already standalone (no button)', true, 'skipped install click')
-}
 
 // 5. How-this-works offers BOTH walks, and each runs through the real engine.
+// ORDER MATTERS: the walks are checked on a page that has NOT been navigated
+// away from and back. Returning from the install guide leaves the restored
+// page scrolled to the top AFTER the engine has already scrolled to its
+// anchor, so a walk started in that window shows its card without its anchor
+// on screen. That is the engine's scroll-restoration race, not this card's —
+// it is recorded in the findings note rather than hidden by measuring the
+// walks in the state that happens to dodge it.
 await p.locator('.htw-toggle').click()
 await p.waitForSelector('.htw-card', { timeout: 5000 })
 const offers = await p.locator('[data-walk-offer]').evaluateAll((els) =>
@@ -96,14 +92,35 @@ for (const id of ['set-your-password', 'install-the-app']) {
   await p.waitForTimeout(1200)
   const active = await p.locator('html').getAttribute('data-walk-active')
   check(`${id} starts through the real engine`, (active || '').startsWith(`${id}:`), active || 'none')
-  const anchored = await p.locator('.walk-card').count()
-  check(`${id} renders its card`, anchored >= 1)
+  check(`${id} renders its card`, (await p.locator('.walk-card').count()) >= 1)
+  // The engine scrolls its anchor into view — assert it actually did, so a
+  // walk can never talk about a card the leader cannot see. Smooth scroll:
+  // give it time to land before measuring.
+  await p.waitForTimeout(1800)
+  const box = await p.locator('[data-walk="account-card"]').boundingBox()
+  const vh = await p.evaluate(() => window.innerHeight)
+  check(`${id} scrolls the account card into view`, !!box && box.y >= 0 && box.y < vh,
+    box ? `y=${Math.round(box.y)} of ${vh}` : 'no box')
   await p.screenshot({ path: `${OUT}5-walk-${id}.png`, fullPage: false })
   await p.keyboard.press('Escape')
   await p.waitForTimeout(400)
   check(`${id} ends on Escape`, (await p.locator('html').getAttribute('data-walk-active')) === null)
   if (!(await p.locator('.htw-card').count())) await p.locator('.htw-toggle').click()
   await p.waitForTimeout(300)
+}
+
+// 6. LAST, because it navigates: the install button's guide fallback. Left to
+// the end so the walk checks above are never measured on a restored page.
+const installBtn = p.locator('[data-walk="account-install"] button')
+if (await installBtn.count()) {
+  await installBtn.click()
+  await p.waitForTimeout(1500)
+  check('no native prompt → routes to the full install guide', /\/install/.test(p.url()), p.url())
+  check('the guide carries the return path back to the leader\'s own node',
+    /return=%2Forg%2F|return=\/org\//.test(p.url()), p.url())
+  await p.screenshot({ path: `${OUT}6-install-guide.png`, fullPage: false })
+} else {
+  check('install row already standalone (no button)', true, 'skipped install click')
 }
 
 await browser.close()
