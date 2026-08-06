@@ -80,6 +80,27 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
     dies — new device, cleared storage, a phone reset — there is no way back
     into the organisation they just built.
 
+    PRESENTED AS TWO GUIDED WALK-THROUGHS (founder taste call 2026-08-06
+    22:38Z, binding on the UX): "not a bare form or a naked prompt" — each is
+    a PURPOSE SENTENCE FIRST, then under five paced steps to done, in the
+    walkthrough engine's own card genre. The genre is shared LITERALLY via
+    components/admin/WalkCard.vue, extracted from WalkOverlay.vue in the same
+    pass, so there is one teaching voice rather than two lookalikes.
+      · password walk: why (you came in by a link that will not last) → the
+        two fields → done. Three beats, no escape on any of them.
+      · install walk: why (context-aware by device) → do it. Two beats,
+        escapable throughout.
+    WHY IT IS NOT AN ENGINE WALK — the engine is an INVITATION system: it
+    never auto-plays (compile gate 7 makes startWalk-outside-@click a build
+    failure), never traps the page, and anchors to elements already on screen.
+    The password step fires unbidden, blocks, and has no skip. Routing it
+    through the engine would have meant breaking the never-auto-play gate,
+    which is load-bearing. It therefore borrows the genre, not the mechanism.
+    OPEN: engine-pack coverage (walks offered from How-this-works) needs a
+    DURABLE anchor — the gate's own fields exist only while it is open — which
+    means a permanent account surface on the node that does not exist yet.
+    Flagged to Tom rather than invented.
+
     TWO BEATS, deliberately different in kind:
       1. PASSWORD — a GATE. No skip, no close. Intercepts the three verbs a
          manager holds (Invite a person · Get a shareable link · Add a group),

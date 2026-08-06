@@ -50,7 +50,9 @@ function setupFetch(renameResponse?: (body: any) => any) {
 function mountBar() {
   return mount(NodeActionBar, {
     props: { node: { id: 'group-a', name: 'Gwynedd', label: 'group' } },
-    global: { stubs: { NodeEntitlementControl: true, ConfirmDeleteModal: true } },
+    // ManagerOnboardingGate reaches for the router; these specs mount without
+    // one and never open the gate, so stub it out rather than warn per test.
+    global: { stubs: { NodeEntitlementControl: true, ConfirmDeleteModal: true, ManagerOnboardingGate: true } },
   })
 }
 

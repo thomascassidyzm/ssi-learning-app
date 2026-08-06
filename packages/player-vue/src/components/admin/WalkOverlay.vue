@@ -10,6 +10,7 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWalkthrough, ANCHOR_TIMEOUT_MS, effectiveAdvance } from '@/walkthrough/useWalkthrough'
 import { placeCard, isAnchorUsable, PAD } from '@/walkthrough/overlayPlacement'
+import WalkCard from '@/components/admin/WalkCard.vue'
 
 const { activeWalk, stepIndex, showingTerminal, currentStep, stopWalk, next, back } = useWalkthrough()
 const route = useRoute()
@@ -168,12 +169,8 @@ const cardStyle = computed(() => {
   return placeCard(unanchored ? null : rect.value, window.innerWidth, window.innerHeight, safeTop.value)
 })
 
-// Markdown-lite: **bold** only, escaped first (same rule as HowThisWorks).
-function renderSay(text: string): string {
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-}
-
+// Markdown-lite rendering of `say` now lives in WalkCard.vue with the rest of
+// the card genre.
 const cardText = computed(() => {
   if (showingTerminal.value) return activeWalk.value?.steps[activeWalk.value.steps.length - 1]?.terminal ?? ''
   return currentStep.value?.say ?? ''
@@ -196,26 +193,23 @@ const nextLabel = computed(() => {
       <div class="walk-pulse"></div>
     </div>
 
-    <div class="walk-card" :style="cardStyle" data-walk-card>
-      <div class="walk-card-head">
-        <span class="walk-kicker">{{ activeWalk.title }}</span>
-        <button type="button" class="walk-close" aria-label="Skip tour" @click="stopWalk">×</button>
-      </div>
-      <!-- eslint-disable-next-line vue/no-v-html — compiled repo pack content, escaped in renderSay -->
-      <p class="walk-say" v-html="renderSay(cardText)"></p>
-      <p v-if="isClickStep" class="walk-hint">Tap the highlighted button to continue — or skip.</p>
-      <div class="walk-foot">
-        <div class="walk-dots">
-          <span
-            v-for="(s, i) in activeWalk.steps" :key="s.anchor + i"
-            class="walk-dot" :class="{ 'is-active': !showingTerminal && i === stepIndex, 'is-done': showingTerminal || i < stepIndex }"
-          ></span>
-        </div>
-        <div class="walk-nav">
-          <button v-if="stepIndex > 0 || showingTerminal" type="button" class="walk-btn" @click="back">Back</button>
-          <button v-if="!isClickStep" type="button" class="walk-btn walk-btn-primary" @click="next">{{ nextLabel }}</button>
-        </div>
-      </div>
+    <!-- The card genre itself lives in WalkCard.vue, shared with the org
+         lane's onboarding gate so there is ONE teaching voice, not two. -->
+    <div class="walk-card-mount" :style="cardStyle">
+      <WalkCard
+        :kicker="activeWalk.title"
+        :say="cardText"
+        :step-count="activeWalk.steps.length"
+        :step-index="stepIndex"
+        :all-done="showingTerminal"
+        :show-back="stepIndex > 0 || showingTerminal"
+        :show-next="!isClickStep"
+        :next-label="nextLabel"
+        :hint="isClickStep ? 'Tap the highlighted button to continue — or skip.' : ''"
+        @back="back"
+        @next="next"
+        @skip="stopWalk"
+      />
     </div>
   </div>
 </template>
@@ -241,48 +235,5 @@ const nextLabel = computed(() => {
   100% { transform: scale(1.12); opacity: 0; }
 }
 
-.walk-card {
-  position: fixed;
-  pointer-events: auto;
-  background: #fff;
-  border: 1px solid rgba(44, 38, 34, 0.10);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 8px 30px rgba(44, 38, 34, 0.18);
-  padding: 14px 16px 12px;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.walk-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.walk-kicker {
-  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
-  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--schools-red, #DB1E17);
-}
-.walk-close {
-  background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1;
-  font-size: 18px; color: var(--schools-fg-3, #8A8078);
-}
-.walk-close:hover { color: var(--schools-fg, #0F1212); }
-.walk-say { margin: 0; font-size: var(--text-sm, 14px); line-height: 1.55; color: var(--schools-fg-2, #555); }
-.walk-say :deep(strong) { color: var(--ink-primary, #2C2622); font-weight: 600; }
-.walk-hint { margin: 0; font-size: var(--text-xs, 12px); color: var(--schools-fg-3, #8A8078); font-style: italic; }
-
-.walk-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.walk-dots { display: flex; gap: 5px; }
-.walk-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: rgba(44, 38, 34, 0.18);
-  transition: all 0.2s ease;
-}
-.walk-dot.is-active { background: var(--schools-red, #DB1E17); transform: scale(1.35); }
-.walk-dot.is-done { background: rgba(219, 30, 23, 0.45); }
-
-.walk-nav { display: flex; gap: 6px; }
-.walk-btn {
-  padding: 6px 14px; font: inherit; font-size: var(--text-xs, 12px); font-weight: 600;
-  border-radius: var(--radius-full, 999px); border: 1px solid rgba(44, 38, 34, 0.14);
-  background: rgba(44, 38, 34, 0.04); color: var(--schools-fg-2, #555); cursor: pointer;
-}
-.walk-btn:hover { background: rgba(44, 38, 34, 0.10); }
-.walk-btn-primary { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
-.walk-btn-primary:hover { background: #c01812; }
+.walk-card-mount { position: fixed; pointer-events: none; }
 </style>
