@@ -1,0 +1,81 @@
+{
+  "apply": true,
+  "runAt": "2026-08-06T11:08:35.390Z",
+  "removedOrgId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+  "survivingOrgId": "b7878832-ffbb-4190-84cb-8cc5ce62c5bd",
+  "emptinessProof": {
+    "groupId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+    "groupName": "Deborah Testing",
+    "schoolCount": 0,
+    "schoolNames": [],
+    "descendantGroupCount": 0,
+    "descendantGroupNames": [],
+    "orphanedSchoolCount": 0,
+    "orphanedSchoolNames": [],
+    "classCount": 0,
+    "sessionCount": 0,
+    "learnerCount": 0,
+    "teacherCount": 0,
+    "hasRealActivity": false
+  },
+  "touched": [
+    {
+      "table": "govt_admins",
+      "id": "7e1e625d-e53d-4cc8-b0cd-d10ce8a66730",
+      "action": "deleted",
+      "user_id": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+      "undo": "INSERT the exported row verbatim"
+    },
+    {
+      "table": "user_tags",
+      "id": "1a081ecc-315e-415a-b2ab-ad10f9c41170",
+      "action": "soft-deleted",
+      "user_id": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+      "undo": "update user_tags set removed_at = null where id = '1a081ecc-315e-415a-b2ab-ad10f9c41170';"
+    },
+    {
+      "table": "user_tags",
+      "id": "58390b6f-8760-440a-9f34-004382523308",
+      "action": "soft-deleted",
+      "user_id": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+      "undo": "update user_tags set removed_at = null where id = '58390b6f-8760-440a-9f34-004382523308';"
+    },
+    {
+      "table": "groups",
+      "id": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+      "action": "deleted",
+      "undo": "INSERT the exported row verbatim (see restoreProcedure)"
+    }
+  ],
+  "postChecks": {
+    "doomedGroupRowsRemaining": 0,
+    "survivingGroupIntact": true,
+    "survivingLeaderTagIntact": {
+      "id": "fdaa4c6a-d47b-48fe-81df-539cd4d42c44",
+      "user_id": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+      "tag_type": "group",
+      "tag_value": "GROUP:b7878832-ffbb-4190-84cb-8cc5ce62c5bd",
+      "role_in_context": "admin",
+      "added_by": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+      "added_at": "2026-08-06T10:33:34.828421+00:00",
+      "removed_at": null
+    },
+    "survivingGovtAdmins": [
+      {
+        "id": "193015c7-40da-4eeb-8c8a-fdbc220327fd",
+        "user_id": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+        "region_code": null,
+        "organization_name": "Deborah Testing",
+        "created_at": "2026-08-05T21:37:58.704325+00:00",
+        "created_by": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+        "invite_code_id": null,
+        "group_id": "b7878832-ffbb-4190-84cb-8cc5ce62c5bd"
+      }
+    ],
+    "managerAccountLeftHolding": {
+      "govt_admins": [],
+      "live_tags": []
+    }
+  },
+  "undoOneLiner": "Re-insert the exported groups + govt_admins rows, then: update user_tags set removed_at = null where id in ('1a081ecc-315e-415a-b2ab-ad10f9c41170', '58390b6f-8760-440a-9f34-004382523308');"
+}
