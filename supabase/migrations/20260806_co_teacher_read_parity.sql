@@ -18,7 +18,11 @@
 -- to prevent.
 --
 -- Root cause, read out of the LIVE database (`pg_get_functiondef` /
--- `pg_policies`) rather than the checked-in dump, which had drifted:
+-- `pg_policies`). Note for the record: `supabase/schema.sql` was NOT stale here
+-- — it matched live byte-for-byte. The earlier "already fixed, no work needed"
+-- reading of the dump was a MISREAD OF WHICH BRANCH carried the disjunct, not
+-- drift. Both branches mention `class_teachers`/`is_class_teacher`; only one of
+-- them gates pupils. Read the branch, not the grep hit:
 --
 --   `can_view_learner_data(uuid)` has TWO teacher branches.
 --     * the `class_learner_id` branch (the class's own aggregate learner row)
@@ -120,7 +124,7 @@ $function$;
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS user_tags_select ON public.user_tags;
 CREATE POLICY user_tags_select ON public.user_tags
-  FOR SELECT
+  FOR SELECT TO authenticated
   USING (
     user_id = (SELECT auth.uid())::text
     OR public.is_god_user()
@@ -143,7 +147,7 @@ CREATE POLICY user_tags_select ON public.user_tags
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS user_tags_update ON public.user_tags;
 CREATE POLICY user_tags_update ON public.user_tags
-  FOR UPDATE
+  FOR UPDATE TO authenticated
   USING (
     user_id = (SELECT auth.uid())::text
     OR public.is_god_user()

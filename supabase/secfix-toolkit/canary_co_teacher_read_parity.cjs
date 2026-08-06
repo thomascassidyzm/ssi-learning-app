@@ -132,11 +132,26 @@ const bad = (n, d) => { fail++; console.log(`  ❌ ${n} — ${d}`); };
     const coBefore = await measure(CO_TEACHER);
     show('co-teacher', coBefore);
 
+    // Is the fix already live? Once applied, the bug cannot reproduce — so this
+    // canary doubles as a re-runnable REGRESSION check. Only demand the bug on a
+    // DB that has not had the migration yet; otherwise an "already fixed" result
+    // is the correct answer, not a failure.
+    const alreadyFixed = (await q(`SELECT count(*)::int n FROM pg_proc
+      WHERE proname = 'can_view_learner_data'
+        AND pg_get_functiondef(oid) LIKE '%is_class_teacher(c.id)%'`)).rows[0].n > 0;
+
     const gapSurfaces = Object.keys(SURFACES).filter(k => k !== 'roster tags');
     const blindBefore = gapSurfaces.every(k => coBefore[k] === 0);
-    blindBefore
-      ? ok('bug reproduced: co-teacher reads 0 pupil rows on every gated surface')
-      : bad('bug NOT reproduced', `co-teacher already sees ${JSON.stringify(coBefore)} — migration may be a no-op; STOP and re-read the live function`);
+    if (alreadyFixed) {
+      console.log('  ℹ️  fix already live — running as a REGRESSION check, not a first apply');
+      blindBefore
+        ? bad('REGRESSION', 'fix is live but the co-teacher reads 0 pupil rows — parity has been lost')
+        : ok('co-teacher already at parity (fix live, no regression)');
+    } else {
+      blindBefore
+        ? ok('bug reproduced: co-teacher reads 0 pupil rows on every gated surface')
+        : bad('bug NOT reproduced', `co-teacher already sees ${JSON.stringify(coBefore)} — migration may be a no-op; STOP and re-read the live function`);
+    }
 
     // ---- 3. apply -----------------------------------------------------------
     console.log('\n[3] applying 20260806_co_teacher_read_parity.sql (in txn)');
@@ -182,6 +197,24 @@ const bad = (n, d) => { fail++; console.log(`  ❌ ${n} — ${d}`); };
       if (coAfter[k] === leadAfter[k]) ok(`co-teacher at parity: ${k} = ${coAfter[k]}`);
       else bad(`NO PARITY: ${k}`, `co-teacher ${coAfter[k]} vs lead ${leadAfter[k]}`);
     }
+
+    // POLICY SHAPE — a rewritten policy must keep the roles it had.
+    // `CREATE POLICY ... FOR SELECT` with no `TO` clause silently defaults to
+    // PUBLIC, which is a wider grant than the `TO authenticated` it replaced.
+    // That actually happened on the first apply of this migration; the table
+    // GRANTs still shut anon out, so there was no exposure, but the drift was
+    // real and unintended. Assert the roles explicitly so it cannot recur.
+    for (const p of ['user_tags_select', 'user_tags_update']) {
+      const r = (await q(`SELECT roles::text FROM pg_policies
+                          WHERE tablename='user_tags' AND policyname=$1`, [p])).rows[0];
+      r && r.roles === '{authenticated}'
+        ? ok(`${p} still TO authenticated`)
+        : bad(`${p} role drift`, `roles = ${r ? r.roles : 'POLICY MISSING'} (expected {authenticated})`);
+    }
+    // and anon must remain shut out at the grant layer regardless
+    const anonGrants = (await q(`SELECT count(*)::int n FROM information_schema.role_table_grants
+                                 WHERE table_name='user_tags' AND grantee='anon'`)).rows[0].n;
+    anonGrants === 0 ? ok('anon has no grants on user_tags') : bad('anon granted on user_tags', `${anonGrants} grants`);
 
     // A learner's own row is untouched by any of this
     const anyLearner = (await q(`SELECT id, user_id FROM public.learners

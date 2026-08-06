@@ -49,7 +49,7 @@ $function$
 
 DROP POLICY IF EXISTS user_tags_select ON public.user_tags;
 CREATE POLICY user_tags_select ON public.user_tags
-  FOR SELECT
+  FOR SELECT TO authenticated
   USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR is_god_user() OR (EXISTS ( SELECT 1
    FROM schools s
   WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
@@ -59,7 +59,7 @@ CREATE POLICY user_tags_select ON public.user_tags
 
 DROP POLICY IF EXISTS user_tags_update ON public.user_tags;
 CREATE POLICY user_tags_update ON public.user_tags
-  FOR UPDATE
+  FOR UPDATE TO authenticated
   USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR is_god_user() OR (EXISTS ( SELECT 1
    FROM schools s
   WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
