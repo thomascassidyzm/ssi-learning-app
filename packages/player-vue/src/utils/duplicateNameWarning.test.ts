@@ -27,6 +27,12 @@ describe('duplicateWarningMessage', () => {
   it('says group for a sub-group collision', () => {
     expect(duplicateWarningMessage([{ name: 'Year 7' }], 'group')).toContain('a group called "Year 7"')
   })
+
+  it('says Renaming, not Creating, on the rename path', () => {
+    expect(duplicateWarningMessage([{ name: 'Deborah Testing' }], 'organisation', 'Renaming')).toBe(
+      'There\'s already an organisation called "Deborah Testing". Renaming this one will give you two with the same name.',
+    )
+  })
 })
 
 describe('readDuplicateWarning', () => {
@@ -50,5 +56,9 @@ describe('readDuplicateWarning', () => {
 
   it('survives a 409 with the code but no duplicates array', () => {
     expect(readDuplicateWarning(409, { code: 'duplicate_name' })?.duplicates).toEqual([])
+  })
+
+  it('passes the action through to the message', () => {
+    expect(readDuplicateWarning(409, body, 'organisation', 'Renaming')?.message).toContain('Renaming this one')
   })
 })

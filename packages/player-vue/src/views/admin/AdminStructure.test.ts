@@ -542,7 +542,7 @@ describe('AdminStructure — duplicate-name warning on rename', () => {
     // Enter is what submitted the rename above; it must have warned, not confirmed.
     expect(patches).toHaveLength(1)
     expect(patches[0]).toEqual({ name: 'Deborah Testing' })
-    expect(wrapper.text()).toContain('will give you two with the same name')
+    expect(wrapper.text()).toContain('Renaming this one will give you two with the same name')
   })
 
   it('"Go ahead anyway" re-sends the SAME rename with confirm_duplicate', async () => {
@@ -575,7 +575,7 @@ describe('AdminStructure — duplicate-name warning on rename', () => {
     const patches = setupRenameFetch()
     const wrapper = await mountStructure()
     await renameTo(wrapper, 'Deborah Testing')
-    expect(wrapper.text()).toContain('will give you two with the same name')
+    expect(wrapper.text()).toContain('Renaming this one will give you two with the same name')
 
     await wrapper.findAll('button').find((b: any) => b.text() === 'Change the name')!.trigger('click')
     await flushPromises()

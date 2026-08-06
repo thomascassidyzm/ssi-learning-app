@@ -130,7 +130,7 @@ describe('NodeActionBar — duplicate-name warning on rename', () => {
     setupFetch()
     const wrapper = mountBar()
     await openRenameAndSubmit(wrapper, 'Ward 1')
-    expect(wrapper.text()).toContain('will give you two with the same name')
+    expect(wrapper.text()).toContain('Renaming this one will give you two with the same name')
 
     await wrapper.find('input.frost-input').setValue('Ward 2')
     await flushPromises()
