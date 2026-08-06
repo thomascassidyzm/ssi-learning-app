@@ -450,6 +450,19 @@ describe('AdminStructure — duplicate org-name warning (Deborah, 2026-08-06)', 
     expect(wrapper.text()).not.toContain('will give you two with the same name')
   })
 
+  it('pressing Enter never counts as confirmation — the KeyboardEvent must not become confirm_duplicate', async () => {
+    const posts = setupCreateFetch()
+    const wrapper = await mountStructure()
+    await wrapper.findAll('button').find((b: any) => b.text().includes('Add organisation'))!.trigger('click')
+    await wrapper.find('input.frost-input').setValue('Deborah Testing')
+    await flushPromises()
+    await wrapper.find('input.frost-input').trigger('keyup.enter')
+    await flushPromises()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].confirm_duplicate).toBeUndefined()
+    expect(wrapper.text()).toContain('will give you two with the same name')
+  })
+
   it('a non-colliding name creates with no confirmation step at all', async () => {
     const posts: any[] = []
     fetchMock = vi.fn(async (url: string, init?: any) => {
