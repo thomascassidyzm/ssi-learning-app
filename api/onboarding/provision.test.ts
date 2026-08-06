@@ -41,6 +41,7 @@ function makeChainable(table: string) {
     select: (cols: string) => { calls.push(['select', cols]); return builder },
     insert: (obj: unknown) => { calls.push(['insert', obj]); recordWrite(table, 'insert', obj); return builder },
     update: (obj: unknown) => { calls.push(['update', obj]); recordWrite(table, 'update', obj); return builder },
+    delete: () => { calls.push(['delete']); recordWrite(table, 'delete', null); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
@@ -146,6 +147,51 @@ describe('POST /api/onboarding/provision — operator-capture guard', () => {
     expect(res._status).toBe(200)
     expect(res._json.role).toBe('teacher')
     expect(writes.teachers).toHaveLength(1)
+  })
+
+  it('DUAL-WRITES the class/teacher tag alongside the lead pointer on the first class (A-74)', async () => {
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-n', display_name: 'Aran', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    responders.teachers = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'teacher-n' }, error: null } : { data: null, error: null }
+    responders.classes = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'class-n' }, error: null } : undefined
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'tutor', course_code: 'eng_for_fra' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.classes.some((w) => w.op === 'insert' && w.payload.teacher_user_id === 'auth-op-1')).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      user_id: 'auth-op-1',
+      tag_type: 'class',
+      tag_value: 'CLASS:class-n',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('ROLLS THE CLASS BACK when the teacher tag fails — never a lead pointer with no tag', async () => {
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-n', display_name: 'Aran', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    responders.teachers = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'teacher-n' }, error: null } : { data: null, error: null }
+    responders.classes = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'class-n' }, error: null } : undefined
+    responders.user_tags = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: null, error: { message: 'boom' } } : { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'tutor', course_code: 'eng_for_fra' } }), res)
+
+    // Onboarding itself still succeeds — the first class is a convenience, and
+    // its failure must not strand a new tutor at the door.
+    expect(res._status).toBe(200)
+    expect(writes.classes.some((w) => w.op === 'delete')).toBe(true)
   })
 
   it('refuses the org track for an ssi_admin too', async () => {

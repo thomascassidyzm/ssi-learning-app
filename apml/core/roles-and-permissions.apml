@@ -4,7 +4,7 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.4.1"
+  version: "1.5.0"
   date: "2026-08-06"
   author: "Tom Cassidy & Claude"
   status: "specification"
@@ -1049,10 +1049,84 @@ principle DangerVerbGuards:
       guard: "guard copy at the Save button — save publishes, the send system reads the table live"
 
 # =============================================================================
+# CO-TEACHING — TEACHER↔CLASS IS A RELATIONSHIP (A-74)
+# =============================================================================
+
+principle ClassTeachingIsARelationship:
+  statement: "A class may have several teachers. classes.teacher_user_id is a DEMOTED lead pointer, not ownership."
+
+  storage:
+    relationship: "user_tags(tag_type='class', tag_value='CLASS:<uuid>', role_in_context='teacher', removed_at NULL = active)"
+    view: "class_teachers — user_tags JOIN classes, exposing class_id, teacher_user_id, added_at, added_by, is_lead"
+    lead_pointer: |
+      classes.teacher_user_id is a denormalised convenience: who to NAME when a
+      surface needs exactly one teacher. It never decides who may act.
+    constraint: |
+      unique_active_tag UNIQUE (user_id, tag_type, tag_value) is TOTAL, not
+      partial — a soft-removed row still occupies the slot, so re-adding a
+      teacher REACTIVATES it and never inserts a duplicate. Do not partial-index
+      it: the Paddle webhook's onConflict arbiter depends on the current shape.
+    background: "docs/methodology/class-first-class-citizen.md"
+
+  authorization_rule: |
+    Every server guard that asked "is this the class's teacher?" must ask
+    "is this AN ACTIVE TEACHER OF THIS CLASS?" — the relationship OR the lead
+    pointer. Canonical implementation: api/teacher/class-teachers.ts.
+  guarded_endpoints:
+    - "api/teacher/class-teachers.ts — add / remove / set_lead (service-role; the write path)"
+    - "api/teacher/create-class-join-code.ts — co-teachers may mint a class's join code"
+    - "api/teacher/create-class-learner.ts — co-teachers may mint the class learner entity"
+    - "api/teacher/classes.ts (GET) — personal class list UNIONS co-taught classes"
+    - "api/teacher/me.ts (GET) — same union; a co-teacher's dashboard is never silently empty"
+
+  lifecycle:
+    dual_write: |
+      Every class-creation path writes the CLASS:<id>/teacher tag ALONGSIDE the
+      lead pointer, via api/_utils/classTeacherTag.ts. Pointer-only creation is
+      how 47 of 62 live classes ended up needing the A-74 backfill; without the
+      dual-write the backfill simply rots again.
+      Sites: api/teacher/classes.ts (POST), api/onboarding/provision.ts (first
+      tutor class), and the client-side schools insert.
+    honest_failure: |
+      A tag-write failure is never swallowed into a false success. The teacher
+      API 500s; onboarding rolls the seconds-old convenience class back rather
+      than leave a lead pointer with no relationship row.
+    revocation: |
+      api/school/remove-staff.ts CASCADES: removing a teacher from a school
+      soft-deletes their CLASS:<id>/teacher tags for that school's classes and
+      hands on any lead pointer they hold. Without the cascade a removed teacher
+      kept class-level tags and therefore kept pupil-data visibility through
+      resolveVisibleScope. Strictly scoped to the caller's own school — classes
+      at other schools and personal tutor classes (school_id IS NULL) untouched.
+
+  caps_and_public_surfaces:
+    class_cap: |
+      The 10-class tutor cap counts classes.teacher_user_id, i.e. classes you
+      LEAD — co-teaching someone else's class never inflates your own cap.
+    public_join_page: |
+      api/teacher/by-code.ts deliberately names the LEAD only. It is a public
+      page and one name reads better than a list; co-teachers are not shown.
+
+  out_of_scope:
+    - "Teacher-seat billing — nothing enforces schools.teacher_seats; an unresolved commercial question"
+    - "A distinct supply / observer / read-only role — add-then-remove already gives a bounded stint"
+    - "Group-level co-leadership, and multiple school admins — separate, larger designs"
+
+# =============================================================================
 # VERSION HISTORY
 # =============================================================================
 
 version_history:
+  v1.5.0:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "Added ClassTeachingIsARelationship (A-74 co-teaching) — teacher<->class lives in user_tags/class_teachers; classes.teacher_user_id is a demoted LEAD POINTER, never ownership"
+      - "Server guards ask 'is this an active teacher of this class?' (relationship OR lead): create-class-join-code, create-class-learner; teacher class lists (classes GET, me GET) union co-taught classes so a co-teacher is never silently empty"
+      - "Class creation DUAL-WRITES the CLASS:<id>/teacher tag alongside the lead pointer (api/_utils/classTeacherTag.ts), with honest failure — 500 on the teacher API, class rollback in onboarding"
+      - "school/remove-staff CASCADES to class-level teacher tags and hands on the lead pointer — a removed teacher previously kept pupil-data visibility via resolveVisibleScope"
+      - "Documented the settled taste calls: the 10-class cap counts LEAD classes only; the public /with/{code} page names the lead only"
+
   v1.4.1:
     date: "2026-08-06"
     author: "Claude"
