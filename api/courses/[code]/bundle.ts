@@ -50,6 +50,7 @@ import type {
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
 
 /**
  * Identifies the shared generator's assembly-algorithm CODE version, echoed
@@ -448,10 +449,25 @@ export default async function handler(
       console.warn('[Bundle] course_seeds query failed (non-fatal):', seedsRes.error.message)
     }
 
-    const legoRows: LegoRow[] = (legosRes.data || []) as unknown as LegoRow[]
-    const phraseRows: PhraseRow[] = (phrasesRes.data || []) as unknown as PhraseRow[]
+    // Per-clip versioned refs — see the note in cycles.ts. This is the offline
+    // download path, where it matters most: AudioCache keys blobs by audio id,
+    // so without a versioned id a learner who downloaded a damaged clip would
+    // keep it forever regardless of what the URL said.
+    const audioRefs = await fetchRevisedAudioRefs(supabase, code)
+
+    const legoRows: LegoRow[] = stampRowAudioRefs(
+      audioRefs,
+      (legosRes.data || []) as unknown as LegoRow[]
+    )
+    const phraseRows: PhraseRow[] = stampRowAudioRefs(
+      audioRefs,
+      (phrasesRes.data || []) as unknown as PhraseRow[]
+    )
     const roundRows: RoundIndexRow[] = (roundsRes.data || []) as unknown as RoundIndexRow[]
-    const seedRows: SeedRow[] = (seedsRes.data || []) as unknown as SeedRow[]
+    const seedRows: SeedRow[] = stampRowAudioRefs(
+      audioRefs,
+      (seedsRes.data || []) as unknown as SeedRow[]
+    )
     const courseRow = courseRes.data as unknown as CourseRow
     const version = (courseRow.content_version ?? 1)
 
@@ -636,7 +652,9 @@ export default async function handler(
     // Skipped entirely if the course has no pods row, OR the caller is on
     // the free-preview slice — Layer 2 listening content is premium-only,
     // never shipped to an unentitled caller.
-    const podRows: PodRow[] = previewOnly ? [] : ((podsRes?.data || []) as unknown as PodRow[])
+    const podRows: PodRow[] = previewOnly
+      ? []
+      : stampRowAudioRefs(audioRefs, (podsRes?.data || []) as unknown as PodRow[])
     const bookendRows: Array<{ id: string; role: string; duration_ms: number | null }> =
       (bookendsRes?.data || []) as unknown as Array<{ id: string; role: string; duration_ms: number | null }>
 
@@ -653,7 +671,10 @@ export default async function handler(
           sentencesRes.error.message,
         )
       } else {
-        podSentenceRows = (sentencesRes.data || []) as unknown as PodSentenceRow[]
+        podSentenceRows = stampRowAudioRefs(
+          audioRefs,
+          (sentencesRes.data || []) as unknown as PodSentenceRow[]
+        )
       }
     }
 
