@@ -96,6 +96,16 @@ about its own purpose is just now stale. The telemetry does still feed the per-l
 view, which reads the table directly. Worth knowing if you were expecting to demo that board
 off this data.
 
+**The school dashboard has no per-learner VAD view to check.** The admin user page is the only
+surface that shows this data. Clicking through to a student from the schools Students view
+lands on a class-level analytics screen whose own copy says *"per-learner rates aren't
+available yet, so this shows the whole class instead"* — a self-disclosed stub, pre-existing
+and nothing to do with this run. The two learners render identically there because that screen
+isn't per-learner yet. Worth knowing if you expected a teacher to see this split.
+
+*(Adjacent, tiny: the `/schools/student-progress` route listed in CLAUDE.md is no longer in the
+router. The `StudentProgressView.vue` component file is still there, orphaned.)*
+
 **Demo students cannot show the learner-facing mirror.** They are synthetic identities with no
 login by design, so the prosody panel a real learner sees on their own profile cannot be
 exercised with them. Only the staff personas can log in.
