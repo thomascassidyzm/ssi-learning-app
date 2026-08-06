@@ -58,19 +58,31 @@ A full backup of every demo row was taken before the run and is kept at
 
 ---
 
-## How the empty half looks in the app
+## How both halves look in the app — checked live, not assumed
 
-The surface that shows this is the admin user view for an individual learner. Its "Adaptive
-pause mastery" section is drawn only when the learner has mastery rows at all — so a no-VAD
-learner shows **no section**, which is a real absence rather than a row of zeros. That is the
-behaviour we wanted, and it is what the code does.
+Driven in a real browser on the dev deployment, signed in as a real admin, on two matched
+learners from the same class (Rang a Trí, Gaelscoil na Mara). The telemetry lives behind the
+"Show diagnostics" toggle on the admin user page.
 
-Two matched learners in the same class, if you want to look:
+**The learner with VAD** — Saoirse Ó Flaithearta,
+`/admin/users/82cf5384-4791-4f6d-a5aa-8546d51a943a` — shows a populated section:
 
-- **Has VAD** — Saoirse Ó Flaithearta, `/admin/users/82cf5384-4791-4f6d-a5aa-8546d51a943a`
-- **Has none** — Lorcán Nic Gearailt, `/admin/users/0216ee57-5979-446d-bb5c-5306dc96d3f4`
+> **Adaptive pause mastery** · 12 LEGOs
+> Acquisition: 1 · Consolidating: 2 · Confident: 5 · Mastered: 4
 
-Both in Rang a Trí, Gaelscoil na Mara.
+**The learner without** — Lorcán Nic Gearailt,
+`/admin/users/0216ee57-5979-446d-bb5c-5306dc96d3f4` — shows **no such section at all**. Not a
+row of zeros, not an empty table, not a placeholder: the section simply isn't drawn. That is
+the code's own rule — it renders only when the learner has mastery rows — and it is exactly
+the honest picture we were after. No broken values, no NaN, no undefined anywhere on either
+page.
+
+Both learners otherwise look identical and healthy: real course card, real belt, real position,
+real practice time. The difference between them is only the thing it should be.
+
+Both personas also resolve correctly through the real server path: the demo school admin lands
+on Gaelscoil na Mara, and the demo teacher gets their two classes with the right names and
+course. So the regenerated data is properly wired, not just present in tables.
 
 ---
 
@@ -87,6 +99,13 @@ off this data.
 **Demo students cannot show the learner-facing mirror.** They are synthetic identities with no
 login by design, so the prosody panel a real learner sees on their own profile cannot be
 exercised with them. Only the staff personas can log in.
+
+**One cosmetic oddity, pre-existing and not caused by this run.** On the admin user page, the
+top tiles read "Lifetime 0m · Last active never" while the course card just below says
+"Practice 3h 46m · Last 1d ago" for the same learner, and "Recent activity" reads 0 for every
+demo learner including ones with thousands of events. Both are demo learners being excluded
+from the aggregate sources those tiles read, so they'd look the same before today. It only
+matters if you plan to show that page to someone — the contradiction is visible.
 
 ---
 
