@@ -12,18 +12,19 @@ import type { Cycle, Round } from '@ssi/core'
 
 /**
  * Runtime overrides that LearningPlayer can supply to apply mode-dependent
- * timing (Turbo) without baking it into the script. Pure callbacks — the
- * engine reads them at the moment of each phase, so flipping Turbo
- * mid-round takes effect on the very next pause / voice phase.
+ * timing (the active learning mode) without baking it into the script. Pure
+ * callbacks — the engine reads them at the moment of each phase, so switching
+ * mode mid-round takes effect on the very next pause / voice phase.
  */
 export interface SimplePlayerRuntimeOverrides {
   /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
   getPauseDuration?: (cycle: Cycle) => number | undefined
   /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
   getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
-  /** Return true to skip this cycle entirely (advance to the next). Used by Turbo to
-   * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
-   * Turbo mid-round shortens the remaining round on the next cycle boundary. */
+  /** Return true to skip this cycle entirely (advance to the next). Used by
+   * adaptation v2 to cull cycles its RoundPlan trims. Consulted before starting
+   * any phase, so a plan change shortens the remaining round on the next cycle
+   * boundary. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
   /**
    * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
@@ -200,7 +201,7 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // (owned at LearningPlayer level via useAudioSessionKeepalive) is left exactly
 // as-is underneath.
 //
-// The existing dynamic/Turbo pause-duration timer is kept as a trim/backstop:
+// The existing dynamic pause-duration timer is kept as a trim/backstop:
 // whichever of (clip 'ended', trim timer) fires first advances, guarded by
 // playGeneration against a double advance.
 //
@@ -210,8 +211,8 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // an empty src iOS treats as nothing).
 
 // Fixed clip length, comfortably longer than any realistic pause (DEFAULT is
-// 6500ms; adaptive/Turbo never exceed it by much). The trim timer cuts it
-// short for the actual dynamic/Turbo pause; the natural 'ended' is the
+// 6500ms; adaptive pauses never exceed it by much). The trim timer cuts it
+// short for the actual dynamic pause; the natural 'ended' is the
 // background backstop when the timer is frozen.
 const SILENT_CLIP_DURATION_S = 12
 
@@ -576,7 +577,7 @@ export class SimplePlayer {
 
   /**
    * Replace the runtime overrides. Used when LearningPlayer wants to
-   * supply Turbo-aware callbacks after the player has been constructed,
+   * supply mode-aware callbacks after the player has been constructed,
    * e.g. once the algorithm config has loaded from Supabase.
    */
   setRuntimeOverrides(overrides: SimplePlayerRuntimeOverrides): void {
@@ -802,11 +803,11 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Skip leading turboOmit cycles when Turbo is on. If every cycle is
-    // skipped, the round is empty in this mode — advance to the next.
+    // Skip leading culled cycles. If every cycle is skipped, the round is
+    // empty under the current plan — advance to the next.
     const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
     if (startIdx === -1) {
-      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped under Turbo, advancing`)
+      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped, advancing`)
       this.updateState({ isPlaying: true })
       this.advanceRound()
       return
@@ -871,7 +872,7 @@ export class SimplePlayer {
   }
 
   // Mirror of findNextPlayableCycleIndex, walking backwards. Used by
-  // stepCycle(-1) so a Turbo-culled cycle is skipped over when stepping
+  // stepCycle(-1) so a culled cycle is skipped over when stepping
   // back rather than landing on a cycle that won't play.
   private findPrevPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
@@ -895,7 +896,7 @@ export class SimplePlayer {
    * the step is a no-op — the caller owns what happens off the edge
    * (the header forward enters INF PLAY; nothing precedes the start).
    *
-   * Turbo-skipped cycles are honoured via find{Next,Prev}PlayableCycleIndex
+   * Culled cycles are honoured via find{Next,Prev}PlayableCycleIndex
    * so a single tap lands on the next *playable* cycle, never a culled one.
    * Routes through jumpToRound so play-state preservation, audio teardown
    * and cycle clamping all reuse the audited path.
@@ -1266,7 +1267,7 @@ export class SimplePlayer {
     this.retryIsTarget = isTarget
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
-    // Runtime override (Turbo) can multiply the baked rate; the override is
+    // The mode's runtime override can multiply the baked rate; the override is
     // expected to gate itself on cycle type so it doesn't double up on
     // listening cycles that already have an explicit speed.
     let rate = 1.0
@@ -1275,7 +1276,7 @@ export class SimplePlayer {
       const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
       rate *= multiplier
     }
-    // Speed >1.05× is unexpected on speaking cycles (Turbo only goes
+    // Speed >1.05× is unexpected on speaking cycles (a mode override only goes
     // to 1.25×) but expected on L1 ps2x and L2 pod-stage 2× plays.
     // Only warn for non-listening cycles to keep the console useful.
     const isExpectedFastCycle = this.currentCycle?.type === 'listening'
@@ -1344,7 +1345,7 @@ export class SimplePlayer {
 
   private startPausePhase(): void {
     const cycle = this.currentCycle
-    // Runtime override (Turbo) can shorten the pause; if it returns
+    // The mode's runtime override can shorten the pause; if it returns
     // undefined, fall back to the baked cycle.pauseDuration.
     const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
     const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
@@ -1356,7 +1357,7 @@ export class SimplePlayer {
     // now-playing session asserted and the advance firing while the tab is
     // backgrounded / the screen is locked, exactly as the pod lap's real
     // clips do. The clip is longer than any realistic pause; the trim timer
-    // cuts it to the precise dynamic/Turbo duration. See buildSilentWavDataUri.
+    // cuts it to the precise dynamic duration. See buildSilentWavDataUri.
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen
     this.pauseClipActive = true
@@ -1377,7 +1378,7 @@ export class SimplePlayer {
       // Ditto — fall through to the timer.
     }
 
-    // Trim timer: bounds the (longer) clip to the exact dynamic/Turbo pause
+    // Trim timer: bounds the (longer) clip to the exact dynamic pause
     // duration. While foregrounded this fires on time; while backgrounded iOS
     // may throttle it, in which case the clip's own 'ended' (or the visibility
     // catch-up) carries the advance instead.
@@ -1497,9 +1498,9 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Find the next non-skipped cycle. Lets Turbo cull tagged cycles
+    // Find the next non-skipped cycle. Lets adaptation v2 cull cycles
     // mid-round: the current cycle finishes, then the runtime override
-    // jumps over any turboOmit'd cycles before the next prompt.
+    // jumps over any culled cycles before the next prompt.
     const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
       this.updateState({ cycleIndex: nextIdx })

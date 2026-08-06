@@ -156,7 +156,7 @@ describe('useBehaviouralEvidence — event → evidence mapping', () => {
     expect(recorded).toHaveLength(0)
   })
 
-  it('manual-dial events (turbo_toggle, belt_skip) never enter a unit series but set the override flag', () => {
+  it('manual-dial events (mode_toggle, belt_skip) never enter a unit series but set the override flag', () => {
     const { sink, recorded } = fakeSink()
     const be = useBehaviouralEvidence(sink, nowMs)
     expect(be.isManualOverrideActive()).toBe(false)

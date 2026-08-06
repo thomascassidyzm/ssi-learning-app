@@ -20,7 +20,8 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // beginner played at flat 1.0× where the curve says 0.8×.
 //
 // It went unnoticed because the play-time override
-// (`getPlaybackSpeedMultiplier`) only ever CANCELS a baked ramp for Turbo — it
+// (`getPlaybackSpeedMultiplier`) only ever CANCELS a baked ramp for a mode
+// that overrides the speed — it
 // never applies one — so an unbaked cycle just plays flat forever, with no
 // error and no log.
 //
@@ -196,21 +197,21 @@ describe('belt speed ramp — pause taper coupling', () => {
   })
 })
 
-describe('belt speed ramp — Turbo cancellation is not double-applied', () => {
-  // Turbo's override returns `target / baked`, and SimplePlayer multiplies it
+describe('belt speed ramp — mode speed cancellation is not double-applied', () => {
+  // The mode override returns `target / baked`, and SimplePlayer multiplies it
   // back by the baked speed. Now that the instant path bakes a real ramp, that
-  // round-trip must still land on exactly the Turbo target — this is the
+  // round-trip must still land on exactly the mode's target — this is the
   // failure mode the alternative fix (applying the curve at play time) would
   // have introduced.
-  const turboMultiplier = (baked: number | undefined, turboSpeed: number) => {
-    const target = Math.min(turboSpeed, 1.0)
+  const modeSpeedMultiplier = (baked: number | undefined, modeSpeed: number) => {
+    const target = Math.min(modeSpeed, 1.0)
     return target / (baked ?? 1.0)
   }
 
   it.each(BANDS)('lands on 1.0× at seed $seed regardless of the baked ramp', ({ seed }) => {
     const cycle = instantCycleFor(seed, NATIVE_COURSE)
     const baked = cycle.playbackSpeed ?? 1.0
-    const effective = baked * turboMultiplier(cycle.playbackSpeed, 1.25)
+    const effective = baked * modeSpeedMultiplier(cycle.playbackSpeed, 1.25)
     expect(effective).toBeCloseTo(1.0, 10)
   })
 })

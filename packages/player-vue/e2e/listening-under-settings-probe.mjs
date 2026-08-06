@@ -34,7 +34,8 @@ await page.addInitScript(() => {
 await page.goto(BASE, { waitUntil: 'networkidle' }).catch(() => {})
 await page.waitForTimeout(4000)
 
-// 1. The mode popup opens and carries Turbo/Offline but no listening row.
+// 1. The mode popup opens and carries the Easy/Fast pace pick and Offline,
+//    but no listening row.
 const trigger = page.locator('.mode-trigger')
 check('mode popup trigger present', await trigger.count() > 0, page.url())
 await trigger.first().click().catch(() => {})
@@ -44,7 +45,7 @@ check('mode popup opens', await tray.count() > 0)
 const trayText = await tray.innerText().catch(() => '')
 check('popup has no listening row', !/listening/i.test(trayText), trayText.replace(/\n/g, ' | '))
 check('popup has no "Mode — pick one" group', !/pick one|HISE/i.test(trayText))
-check('popup keeps its other controls', /turbo/i.test(trayText) && /offline/i.test(trayText))
+check('popup keeps its other controls', /pace/i.test(trayText) && /offline/i.test(trayText))
 await page.screenshot({ path: `${OUT}1-mode-popup.png` })
 await page.keyboard.press('Escape').catch(() => {})
 await page.locator('.tray-backdrop').click().catch(() => {})

@@ -1,4 +1,4 @@
-// Inspect the mode tray (Turbo / Offline / Listening) in play-as-class mode
+// Inspect the mode tray (pace Easy|Fast / Offline / Listening) in play-as-class mode
 // and in the staff-own Learn button flow, on a real running instance.
 import { readFileSync } from 'node:fs'
 import { chromium } from '@playwright/test'
@@ -74,12 +74,13 @@ async function inspectTray(page, label) {
     console.log(`${label}: item="${name?.trim()}" class="${cls}" disabled=${disabled} opacity=${opacity} pointerEvents=${pointerEvents}`)
   }
 
-  // Try clicking Turbo and see if state actually changes
-  const turboItem = page.locator('.tray-item', { hasText: 'Turbo' }).first()
-  if (await turboItem.count()) {
-    const beforeClass = await turboItem.getAttribute('class')
+  // Try picking Easy and see if state actually changes
+  const paceItem = page.locator('.tray-item', { hasText: 'Pace' }).first()
+  const easyBtn = paceItem.locator('.pace-segment', { hasText: 'Easy' }).first()
+  if (await easyBtn.count()) {
+    const beforeClass = await paceItem.getAttribute('class')
     const beforeIcon = await page.locator('.mode-trigger').first().getAttribute('class')
-    await turboItem.click({ timeout: 5000 }).catch(e => console.log(`${label}: turbo NON-FORCE click error:\n`, e.message))
+    await easyBtn.click({ timeout: 5000 }).catch(e => console.log(`${label}: pace NON-FORCE click error:\n`, e.message))
     await page.waitForTimeout(200)
     const midIcon = await page.locator('.mode-trigger').first().getAttribute('class')
     const exposedState = await page.evaluate(() => {
@@ -92,7 +93,7 @@ async function inspectTray(page, label) {
         if (!inst || seen.has(inst) || depth > 12) return null
         seen.add(inst)
         names.push(inst.type?.__name || inst.type?.name || '?')
-        if (inst.exposed && 'turboActive' in inst.exposed) return inst
+        if (inst.exposed && 'learningMode' in inst.exposed) return inst
         // children via subTree
         const kids = []
         const collect = (vnode) => {
@@ -112,8 +113,8 @@ async function inspectTray(page, label) {
       if (!startInst) return { found: false, reason: 'no __vueParentComponent on .player-container' }
       const found = walk(startInst, 0)
       if (found) {
-        const ta = found.exposed.turboActive
-        return { found: true, turboActive: ta && 'value' in ta ? ta.value : ta, names }
+        const lm = found.exposed.learningMode
+        return { found: true, learningMode: lm && 'value' in lm ? lm.value : lm, names }
       }
       return { found: false, names }
     })
@@ -124,9 +125,9 @@ async function inspectTray(page, label) {
     if (await triggerNow.isVisible().catch(() => false)) {
       await triggerNow.click({ timeout: 3000 }).catch(() => {})
       await page.waitForTimeout(300)
-      const afterItem = page.locator('.tray-item', { hasText: 'Turbo' }).first()
+      const afterItem = page.locator('.tray-item', { hasText: 'Pace' }).first()
       const afterClass = await afterItem.getAttribute('class').catch(() => null)
-      console.log(`${label}: turbo click beforeIcon="${beforeIcon}" midIcon="${midIcon}" before="${beforeClass}" after="${afterClass}"`)
+      console.log(`${label}: pace click beforeIcon="${beforeIcon}" midIcon="${midIcon}" before="${beforeClass}" after="${afterClass}"`)
     }
   }
 
