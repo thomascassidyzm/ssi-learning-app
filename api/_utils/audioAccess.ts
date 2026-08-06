@@ -349,6 +349,47 @@ export function applyAudioRef(
   return refs.get(audioId) ?? audioId
 }
 
+/** The denormalised audio-id columns content routes hand to the player. */
+export const AUDIO_ID_COLUMNS = [
+  'known_audio_id',
+  'target1_audio_id',
+  'target2_audio_id',
+  'presentation_audio_id',
+  // Pod / bookend clip columns (bundle.ts). Stamping is driven by the revised
+  // map, so a column whose id is not a revised course_audio clip is left alone.
+  'intro_audio_id',
+  'outro_audio_id',
+  'target_audio_id',
+  'explainer_audio_id',
+] as const
+
+/**
+ * Stamp revised refs onto the audio-id columns of fetched content rows, before
+ * anything downstream turns them into `/api/audio/${id}` URLs. Doing it here —
+ * once per route, on the rows — rather than at the ~12 URL-building call sites
+ * is what keeps the player untouched by this migration.
+ *
+ * Returns fresh objects; the input rows are not mutated. A no-op (and no copy)
+ * when the course has no revised clips, which is the overwhelming common case.
+ */
+export function stampRowAudioRefs<T>(refs: Map<string, string>, rows: T[]): T[] {
+  if (refs.size === 0) return rows
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row
+    const src = row as Record<string, unknown>
+    let next: Record<string, unknown> | null = null
+    for (const col of AUDIO_ID_COLUMNS) {
+      const current = src[col]
+      if (typeof current !== 'string') continue
+      const stamped = refs.get(current)
+      if (!stamped) continue
+      if (!next) next = { ...src }
+      next[col] = stamped
+    }
+    return (next ?? row) as T
+  })
+}
+
 // ── Entitlement gate (premium-past-preview only) ────────────────────────
 //
 // CANONICAL pricing model: a course is PREMIUM when its target language is in

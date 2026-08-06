@@ -42,6 +42,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 import { courseMaxSeed } from '../../_utils/courseBoundary'
+import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -319,8 +320,15 @@ export default async function handler(
       maxSeed === null ? list : list.filter((x) => x.seed_number <= maxSeed)
 
     const rounds = withinCeiling(payload.rounds)
-    const legoRows = withinCeiling(payload.legos || [])
-    const phraseRows = withinCeiling(payload.phrases || [])
+
+    // Per-clip versioned refs. A clip that has been replaced gets `<uuid>.vN`
+    // here, before anything turns these ids into `/api/audio/${id}` URLs — so
+    // the new bytes reach devices that already cached the old ones, in both the
+    // browser's HTTP cache (keyed by URL) and AudioCache (keyed by audio id).
+    // Unrevised clips keep their bare uuid and their existing cache entries.
+    const audioRefs = await fetchRevisedAudioRefs(supabase, code)
+    const legoRows = stampRowAudioRefs(audioRefs, withinCeiling(payload.legos || []))
+    const phraseRows = stampRowAudioRefs(audioRefs, withinCeiling(payload.phrases || []))
 
     // Index for O(1) lookup during the per-LEGO walk.
     const legoByKey = new Map<string, CourseLegoRow>()
