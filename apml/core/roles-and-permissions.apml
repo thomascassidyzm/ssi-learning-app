@@ -738,8 +738,10 @@ interface AdminActAs:
       their real roster requires being them. Govt scope resolves group_id /
       group_path (canonical group-tree scope), region_code as legacy fallback.
     queries: |
-      Run under the admin's own Supabase session (RLS off today; when it
-      returns, the ssi_admin bypass covers any scope). No forged JWT.
+      Run under the admin's own Supabase session. RLS is live on the schools
+      org tables (verified 2026-08-06 — was off when this line was first
+      written); the ssi_admin bypass in those policies covers any scope.
+      No forged JWT.
     persistence: |
       sessionStorage 'ssi-acting-as' — a reload keeps act-as within the tab,
       and it clears when the tab closes. Restored on App mount.
@@ -1051,6 +1053,12 @@ principle DangerVerbGuards:
 # =============================================================================
 
 version_history:
+  v1.4.1:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "Corrected AdminActAs query note: RLS is now live on the schools org tables (was off when originally documented) — the ssi_admin bypass in those policies is what covers act-as scope, not an absence of RLS"
+
   v1.3.0:
     date: "2026-07-28"
     author: "Tom Cassidy & Claude"
