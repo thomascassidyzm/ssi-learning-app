@@ -290,7 +290,7 @@ const DEFAULT_PODS: PodsConfig = {
   podActivationRound: 5,
 }
 
-const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
+export const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
   spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
   maxBuildPhrases: 7,
   useConsolidationCount: 2,
