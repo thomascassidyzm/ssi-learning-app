@@ -34,15 +34,19 @@ await page.goto(`${BASE}/?podview=1`, { waitUntil: 'networkidle' }).catch(() => 
 await page.waitForTimeout(5000)
 
 // Start the pod lap: with ?podview=1 the play tap goes straight into one.
-await page.locator('.play-button, .bottom-nav .play-btn, button[aria-label*="lay"]').first()
-  .click({ timeout: 5000 }).catch(() => {})
+// The transport's centre button is the play control (BottomNav .center-btn);
+// a resting-state start button may sit in front of it on first load.
+const start = page.locator('.player-resting-state button, .resting-cta').first()
+if (await start.count()) await start.click({ timeout: 5000 }).catch(() => {})
+await page.waitForTimeout(1000)
+await page.locator('.bottom-nav .center-btn').first().click({ timeout: 8000 }).catch(() => {})
 
 // Watch the whole opening of the lap. The old transient showed for its first
-// ~4s, so sampling across 12s is what would have caught it.
+// ~4s, so sampling across 30s is what would have caught it.
 let sawReminder = false
 let sawTeleprompter = false
 let sawAmbient = false
-for (let i = 0; i < 24; i++) {
+for (let i = 0; i < 60; i++) {
   await page.waitForTimeout(500)
   if (await page.locator('.pod-listening-reminder').count()) sawReminder = true
   if (await page.locator('.pod-turn-display').count()) sawTeleprompter = true
