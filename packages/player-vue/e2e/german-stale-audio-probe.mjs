@@ -67,7 +67,7 @@ await page.addInitScript(() => {
   if (desc?.set) {
     Object.defineProperty(HTMLMediaElement.prototype, 'src', {
       ...desc,
-      set(v) { try { window.__audioSrcs.push({ src: String(v).slice(0, 300), t: Math.round(performance.now()) }) } catch {} return desc.set.call(this, v) },
+      set(v) { try { window.__audioSrcs.push({ src: String(v).slice(0, 300), t: Math.round(performance.now()) }) } catch {} desc.set.call(this, v) },
     })
   }
   const origPlay = HTMLMediaElement.prototype.play
