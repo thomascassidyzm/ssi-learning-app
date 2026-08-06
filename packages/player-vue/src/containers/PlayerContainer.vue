@@ -345,6 +345,12 @@ const totalSeeds = computed(() => {
 // the local per-course estimate, and never the old audio-playback-seconds number.
 // For a signed-in learner we read the server value (same definition as admin);
 // guests / offline fall back to the local session-history estimate.
+// Also the encouragement-taper signal (owner ruling 2026-08-06): it is passed
+// to LearningPlayer RAW — server value or null — deliberately WITHOUT the
+// belt-progress fallback below, because that fallback is per-course and
+// 30-day-windowed (useBeltProgress reads `ssi-session-history-<courseCode>`),
+// so it is not a cumulative cross-course number. null there means "unknown",
+// which the taper reads as "beginner".
 const serverEngagedMinutes = ref(null)
 // True when serverEngagedMinutes is a position-derived backup estimate (no
 // session logs yet) rather than logged time — never set for the local
@@ -548,6 +554,7 @@ onMounted(() => {
       :embedded="isTeachEmbedded"
       :course="activeCourse"
       :previewLegoIndex="previewLegoIndex"
+      :cumulativeLearningMinutes="serverEngagedMinutes"
       :isVisible="currentScreen === 'player'"
       @close="handleGoHome"
     />

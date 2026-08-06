@@ -65,39 +65,66 @@ const BASE_INTERVAL_CYCLES = Math.round(BASE_INTERVAL_MINUTES * CYCLES_PER_MINUT
 const INTERVAL_JITTER = 0.3
 
 /**
- * Encouragement taper (owner ruling 2026-07-24): random encouragements are
- * welcome early but patronising for an experienced learner — they dial DOWN
- * with experience and switch fully OFF past a threshold. Experience is the
- * seed number of the learner's current position (belt thresholds are
- * seed-denominated; default off-point = 8, the first belt equivalent —
- * Yellow). Instructions (the once-ever science bits) are never tapered.
+ * Encouragement taper (owner ruling 2026-08-06, superseding 2026-07-24):
+ * random encouragements are welcome early but patronising for an experienced
+ * learner — they dial DOWN with experience and switch fully OFF past a
+ * threshold. Experience is the learner's CUMULATIVE LEARNING TIME ACROSS ALL
+ * COURSES, not their position in the course in front of them.
+ *
+ * Why the re-denomination: the 2026-07-24 shape measured experience in seeds
+ * of the CURRENT course, so a veteran of hundreds of hours starting a brand
+ * new course was treated as a total beginner and got the full beginner
+ * cadence (Tom, live on staging 2026-08-06, seed 2 of German: "I got Aran's
+ * random encouragement — despite being 100s of hours into learning across all
+ * my courses… they'll become tedious after about 30 hours of learning across
+ * all courses"). What makes an encouragement patronising is how much learning
+ * the person has done in total, so that is what the taper is denominated in.
+ *
+ * Instructions (the once-ever science bits) are never tapered.
  * Admin-tunable via algorithm_config key 'meta_commentary'.
  */
 export interface EncouragementTaperConfig {
-  /** Seed position where the taper starts (full frequency below this). */
-  taperStartSeeds: number
-  /** Seed position at/past which encouragements are fully off. */
-  offAtSeeds: number
+  /** Cumulative cross-course minutes where the taper starts (full frequency below). */
+  taperStartMinutes: number
+  /** Cumulative cross-course minutes at/past which encouragements are fully off. */
+  offAtMinutes: number
 }
 
 export const DEFAULT_ENCOURAGEMENT_TAPER: EncouragementTaperConfig = {
-  taperStartSeeds: 0,
-  offAtSeeds: 8,
+  taperStartMinutes: 600, // 10 hours — the decay begins
+  offAtMinutes: 1800, // 30 hours — Tom's number; fully off
 }
 
 /**
- * Multiplier applied to the encouragement fire interval for a learner at
- * `seeds`. 1 below the taper start, growing smoothly (1/(1-p)) through the
- * taper zone, Infinity (= off) at/past `offAtSeeds`. Pure — unit-tested.
+ * Read a taper config defensively. Only the two known keys are honoured, and
+ * anything missing/non-numeric falls back to the default — so a stale
+ * algorithm_config row still carrying the old SEED-denominated keys
+ * (taperStartSeeds/offAtSeeds) yields the new defaults rather than nonsense.
+ */
+function normalizeTaperConfig(cfg: Partial<EncouragementTaperConfig> | null | undefined): EncouragementTaperConfig {
+  const num = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback
+  return {
+    taperStartMinutes: num(cfg?.taperStartMinutes, DEFAULT_ENCOURAGEMENT_TAPER.taperStartMinutes),
+    offAtMinutes: num(cfg?.offAtMinutes, DEFAULT_ENCOURAGEMENT_TAPER.offAtMinutes),
+  }
+}
+
+/**
+ * Multiplier applied to the encouragement fire interval for a learner with
+ * `minutes` of cumulative cross-course learning time. 1 below the taper start,
+ * growing smoothly (1/(1-p)) through the taper zone, Infinity (= off) at/past
+ * `offAtMinutes`. Pure — unit-tested.
  */
 export function encouragementIntervalMultiplier(
-  seeds: number,
-  cfg: EncouragementTaperConfig = DEFAULT_ENCOURAGEMENT_TAPER,
+  minutes: number,
+  cfg: Partial<EncouragementTaperConfig> | null | undefined = DEFAULT_ENCOURAGEMENT_TAPER,
 ): number {
-  const start = Math.max(0, cfg.taperStartSeeds)
-  const off = cfg.offAtSeeds
-  if (off <= start) return seeds >= off ? Infinity : 1 // degenerate config: hard cutoff
-  const p = (seeds - start) / (off - start)
+  const { taperStartMinutes, offAtMinutes } = normalizeTaperConfig(cfg)
+  const start = Math.max(0, taperStartMinutes)
+  const off = offAtMinutes
+  if (off <= start) return minutes >= off ? Infinity : 1 // degenerate config: hard cutoff
+  const p = (minutes - start) / (off - start)
   if (p <= 0) return 1
   if (p >= 1) return Infinity
   return 1 / (1 - p)
@@ -122,9 +149,11 @@ export class MetaCommentaryService {
   private nextFireAtCycles = 0 // 0 → rolled lazily on first round
 
   // Encouragement taper inputs — pushed by the caller (LearningPlayer) from
-  // algorithm_config + the current playing position. Session-scoped.
+  // algorithm_config + the learner's cumulative cross-course learning time.
+  // Session-scoped. 0 = genuine beginner, which is also what an UNKNOWN
+  // cumulative time resolves to (see setCumulativeLearningMinutes).
   private taper: EncouragementTaperConfig = DEFAULT_ENCOURAGEMENT_TAPER
-  private experienceSeeds = 0
+  private cumulativeLearningMinutes = 0
 
   // Encouragement rotation (session-scoped): a shuffled cursor through the
   // pool so each is heard once per lap before any repeat, and the cursor
@@ -252,7 +281,7 @@ export class MetaCommentaryService {
         this.globalState.instructionsComplete ||
         this.globalState.instructionIndex >= this.instructions.length
       const required = inEncouragementPhase
-        ? this.nextFireAtCycles * encouragementIntervalMultiplier(this.experienceSeeds, this.taper)
+        ? this.nextFireAtCycles * encouragementIntervalMultiplier(this.cumulativeLearningMinutes, this.taper)
         : this.nextFireAtCycles
       if (!Number.isFinite(required) || this.cyclesSinceLastFire < required) return null
     }
@@ -325,15 +354,22 @@ export class MetaCommentaryService {
     return a
   }
 
-  /** Push the live taper config (from algorithm_config 'meta_commentary'). */
-  setEncouragementTaper(cfg: EncouragementTaperConfig | null | undefined): void {
-    this.taper = cfg ?? DEFAULT_ENCOURAGEMENT_TAPER
+  /** Push the live taper config (from algorithm_config 'meta_commentary').
+   *  Normalized defensively so a stale seed-denominated row can't produce
+   *  nonsense. */
+  setEncouragementTaper(cfg: Partial<EncouragementTaperConfig> | null | undefined): void {
+    this.taper = normalizeTaperConfig(cfg)
   }
 
-  /** Push the learner's current experience (seed number of the playing
-   *  position) — drives the encouragement taper. */
-  setExperienceSeeds(seeds: number): void {
-    this.experienceSeeds = Math.max(0, seeds || 0)
+  /** Push the learner's cumulative learning time ACROSS ALL COURSES — the
+   *  experience signal driving the encouragement taper (owner ruling
+   *  2026-08-06). `null` means UNKNOWN (guest, offline, or the server number
+   *  hasn't landed yet), which is treated as a beginner: the far likelier
+   *  person behind a missing signal, and over-encouraging a beginner is a much
+   *  smaller sin than patronising a veteran. */
+  setCumulativeLearningMinutes(minutes: number | null | undefined): void {
+    this.cumulativeLearningMinutes =
+      typeof minutes === 'number' && Number.isFinite(minutes) ? Math.max(0, minutes) : 0
   }
 
   /**

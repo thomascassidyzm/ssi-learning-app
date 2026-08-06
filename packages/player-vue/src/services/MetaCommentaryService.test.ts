@@ -209,37 +209,62 @@ describe('setLearnerId re-key', () => {
 // Encouragement taper
 // ---------------------------------------------------------------------------
 
+// The unit is CUMULATIVE CROSS-COURSE LEARNING MINUTES (owner ruling
+// 2026-08-06), not the current course's seed position. Defaults: full
+// frequency below 600 min (10h), off at/past 1800 min (30h).
+const HOURS = 60
+
 describe('encouragementIntervalMultiplier', () => {
-  it('is 1 (full frequency) at the start of the course', () => {
+  it('is 1 (full frequency) for a genuine beginner', () => {
     expect(encouragementIntervalMultiplier(0)).toBe(1)
+    expect(encouragementIntervalMultiplier(5 * HOURS)).toBe(1) // still under the start
   })
   it('stretches the interval smoothly through the taper zone', () => {
-    expect(encouragementIntervalMultiplier(4)).toBeCloseTo(2) // halfway → 2×
-    expect(encouragementIntervalMultiplier(6)).toBeCloseTo(4) // 3/4 → 4×
+    expect(encouragementIntervalMultiplier(20 * HOURS)).toBeCloseTo(2) // halfway → 2×
+    expect(encouragementIntervalMultiplier(25 * HOURS)).toBeCloseTo(4) // 3/4 → 4×
   })
-  it('is off (Infinity) at and past the threshold', () => {
-    expect(encouragementIntervalMultiplier(8)).toBe(Infinity)
-    expect(encouragementIntervalMultiplier(400)).toBe(Infinity)
+  it('grows monotonically with cumulative time through the zone', () => {
+    const points = [11, 15, 20, 25, 29].map((h) => encouragementIntervalMultiplier(h * HOURS))
+    points.forEach((m) => expect(m).toBeGreaterThan(1))
+    for (let i = 1; i < points.length; i++) expect(points[i]).toBeGreaterThan(points[i - 1])
+  })
+  it('is off (Infinity) at and past Toms 30-hour threshold', () => {
+    expect(encouragementIntervalMultiplier(30 * HOURS)).toBe(Infinity)
+    expect(encouragementIntervalMultiplier(500 * HOURS)).toBe(Infinity)
   })
   it('respects a custom taper window', () => {
-    const cfg = { taperStartSeeds: 10, offAtSeeds: 20 }
-    expect(encouragementIntervalMultiplier(5, cfg)).toBe(1)
-    expect(encouragementIntervalMultiplier(15, cfg)).toBeCloseTo(2)
-    expect(encouragementIntervalMultiplier(25, cfg)).toBe(Infinity)
+    const cfg = { taperStartMinutes: 100, offAtMinutes: 200 }
+    expect(encouragementIntervalMultiplier(50, cfg)).toBe(1)
+    expect(encouragementIntervalMultiplier(150, cfg)).toBeCloseTo(2)
+    expect(encouragementIntervalMultiplier(250, cfg)).toBe(Infinity)
   })
   it('degenerate config (off <= start) is a hard cutoff', () => {
-    const cfg = { taperStartSeeds: 5, offAtSeeds: 5 }
-    expect(encouragementIntervalMultiplier(4, cfg)).toBe(1)
-    expect(encouragementIntervalMultiplier(5, cfg)).toBe(Infinity)
+    const cfg = { taperStartMinutes: 300, offAtMinutes: 300 }
+    expect(encouragementIntervalMultiplier(299, cfg)).toBe(1)
+    expect(encouragementIntervalMultiplier(300, cfg)).toBe(Infinity)
+  })
+  it('ignores a stale seed-denominated config and uses the new defaults', () => {
+    // A pre-2026-08-06 algorithm_config row. Honouring `offAtSeeds: 8` as
+    // minutes would kill encouragements after 8 minutes of learning.
+    const stale = { taperStartSeeds: 0, offAtSeeds: 8 } as any
+    expect(encouragementIntervalMultiplier(0, stale)).toBe(1)
+    expect(encouragementIntervalMultiplier(60, stale)).toBe(1) // 1h in: still full
+    expect(encouragementIntervalMultiplier(30 * HOURS, stale)).toBe(Infinity)
+  })
+  it('missing/garbage keys do not throw', () => {
+    expect(() => encouragementIntervalMultiplier(60, {} as any)).not.toThrow()
+    expect(encouragementIntervalMultiplier(60, {} as any)).toBe(1)
+    expect(encouragementIntervalMultiplier(60, { offAtMinutes: NaN } as any)).toBe(1)
+    expect(encouragementIntervalMultiplier(60, null)).toBe(1)
   })
 })
 
 describe('taper gating in onRoundComplete', () => {
-  async function encouragementPhaseService(seeds: number) {
+  async function encouragementPhaseService(minutes: number | null) {
     // 0 instructions ⇒ straight to encouragement phase.
     const svc = new MetaCommentaryService(fakeProvider(0, 3), LEARNER_UUID, null)
     await svc.initialize()
-    svc.setExperienceSeeds(seeds)
+    svc.setCumulativeLearningMinutes(minutes)
     return svc
   }
 
@@ -250,14 +275,33 @@ describe('taper gating in onRoundComplete', () => {
     expect(roundsElapsed).toBe(6) // 55-cycle interval / 10 cycles per round
   })
 
+  it('treats an unknown (null) cumulative time as a beginner', async () => {
+    // Guest / offline / server number not landed yet — over-encouraging a
+    // beginner beats patronising a veteran, and a beginner is the likelier
+    // person behind a missing signal.
+    const svc = await encouragementPhaseService(null)
+    const { commentary } = playUntilFire(svc)
+    expect(commentary?.type).toBe('encouragement')
+  })
+
   it('stretches the gap mid-taper', async () => {
-    const svc = await encouragementPhaseService(4) // halfway → 2× interval
+    const svc = await encouragementPhaseService(20 * HOURS) // halfway → 2× interval
     const { roundsElapsed } = playUntilFire(svc)
     expect(roundsElapsed).toBe(11) // 110 cycles instead of 55
   })
 
-  it('never fires past the off threshold (default: first belt, 8 seeds)', async () => {
-    const svc = await encouragementPhaseService(8)
+  it('never fires past the off threshold (default: 30 cumulative hours)', async () => {
+    const svc = await encouragementPhaseService(30 * HOURS)
+    const { commentary } = playUntilFire(svc, 10, 500)
+    expect(commentary).toBeNull()
+  })
+
+  // REGRESSION — Tom's bug, staging 2026-08-06. He was on SEED 2 of a brand new
+  // German course with hundreds of hours across all his other courses, and got
+  // Aran's beginner encouragement. Position in the current course must have NO
+  // say; only cumulative cross-course time does. Must never break silently.
+  it('REGRESSION: seed 2 of a fresh course + 100h cumulative ⇒ no encouragement', async () => {
+    const svc = await encouragementPhaseService(100 * HOURS)
     const { commentary } = playUntilFire(svc, 10, 500)
     expect(commentary).toBeNull()
   })
@@ -265,25 +309,33 @@ describe('taper gating in onRoundComplete', () => {
   it('never tapers instructions — the science bits play regardless of experience', async () => {
     const svc = new MetaCommentaryService(fakeProvider(3, 3), LEARNER_UUID, null)
     await svc.initialize()
-    svc.setExperienceSeeds(400) // black belt
-    const { commentary } = playUntilFire(svc)
+    svc.setCumulativeLearningMinutes(100 * HOURS) // the same veteran
+    const { commentary, roundsElapsed } = playUntilFire(svc)
     expect(commentary?.type).toBe('instruction')
     expect((commentary as any).position).toBe(0)
+    expect(roundsElapsed).toBe(6) // base cadence, untapered
   })
 
   it('admin config override moves the threshold', async () => {
-    const svc = await encouragementPhaseService(50)
-    svc.setEncouragementTaper({ taperStartSeeds: 0, offAtSeeds: 100 })
+    const svc = await encouragementPhaseService(100 * HOURS)
+    svc.setEncouragementTaper({ taperStartMinutes: 0, offAtMinutes: 500 * HOURS })
     const { commentary } = playUntilFire(svc, 10, 500)
     expect(commentary?.type).toBe('encouragement')
   })
 
   it('null config falls back to the default taper', async () => {
-    const svc = await encouragementPhaseService(8)
+    const svc = await encouragementPhaseService(30 * HOURS)
     svc.setEncouragementTaper(null)
-    expect(encouragementIntervalMultiplier(8, DEFAULT_ENCOURAGEMENT_TAPER)).toBe(Infinity)
+    expect(encouragementIntervalMultiplier(30 * HOURS, DEFAULT_ENCOURAGEMENT_TAPER)).toBe(Infinity)
     const { commentary } = playUntilFire(svc, 10, 500)
     expect(commentary).toBeNull()
+  })
+
+  it('a stale seed-denominated config does not silently kill encouragements', async () => {
+    const svc = await encouragementPhaseService(60) // 1 hour of learning
+    svc.setEncouragementTaper({ taperStartSeeds: 0, offAtSeeds: 8 } as any)
+    const { commentary } = playUntilFire(svc)
+    expect(commentary?.type).toBe('encouragement')
   })
 })
 

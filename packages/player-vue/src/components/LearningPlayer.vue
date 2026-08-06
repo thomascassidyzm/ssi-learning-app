@@ -256,6 +256,15 @@ const props = defineProps({
   isVisible: {
     type: Boolean,
     default: true
+  },
+  // The learner's cumulative learning time across ALL courses, in minutes —
+  // the encouragement-taper signal (owner ruling 2026-08-06). Supplied by
+  // PlayerContainer from /api/me/engaged-time. null = UNKNOWN (guest, offline,
+  // or the fetch hasn't landed), NOT zero-with-confidence — the service treats
+  // unknown as "beginner", which is the safe read for a missing signal.
+  cumulativeLearningMinutes: {
+    type: Number as PropType<number | null>,
+    default: null
   }
 })
 
@@ -4876,11 +4885,12 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // untouched. Tom 2026-05-29.
   if (metaCommentary && !beltJustEarned.value && currentMode.value !== 'infplay') {
     const cyclesInRound = completedRound?.cycles?.length ?? 0
-    // Push the live taper knobs + current experience (seed of the round just
-    // played) so the encouragement taper sees where the learner actually is.
+    // Push the live taper knobs + the learner's CUMULATIVE cross-course
+    // learning time (owner ruling 2026-08-06). Not the seed of the current
+    // course: a veteran starting a fresh course is not a beginner. null (guest,
+    // offline, or the server number not landed yet) = unknown ⇒ beginner.
     metaCommentary.setEncouragementTaper(metaCommentaryConfig.value?.encouragementTaper)
-    const experienceSeed = getSeedFromLegoId(completedRound?.legoId ?? completedLegoId ?? null)
-    if (experienceSeed != null) metaCommentary.setExperienceSeeds(experienceSeed)
+    metaCommentary.setCumulativeLearningMinutes(props.cumulativeLearningMinutes)
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,
