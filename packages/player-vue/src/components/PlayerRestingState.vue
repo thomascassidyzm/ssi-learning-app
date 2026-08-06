@@ -104,7 +104,6 @@ const setMode = (mode) => {
       <div
         v-if="isPlayerReady"
         class="mode-switch"
-        :style="{ '--belt-accent': belt.color }"
         role="group"
         :aria-label="t('modes.learningModeLabel', 'Learning mode')"
       >
@@ -150,8 +149,10 @@ const setMode = (mode) => {
   border: 0;
   background: transparent;
   border-radius: 999px;
-  /* >=44px tall with the padding below — thumb-sized, per the phone-first bar. */
-  padding: 10px 22px;
+  /* 44px tall — the thumb-target floor. Measured live on dev: 10px padding
+     came out at 41px, so this is 12px, not a guess. */
+  padding: 12px 22px;
+  line-height: 1.25;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -161,8 +162,11 @@ const setMode = (mode) => {
 }
 
 .mode-switch-btn.active {
-  background: var(--belt-accent, #2f2b28);
-  color: #fff;
+  /* Deliberately NOT the belt accent: at White Belt that is near-white, and
+     the selected label vanished into its own pill (caught on dev, 2026-08-06).
+     The dark ink reads at every belt. */
+  background: var(--text-primary, #2f2b28);
+  color: var(--bg-primary, #fff);
 }
 
 /* ===== Full resting state (when paused) ===== */
