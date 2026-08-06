@@ -13,6 +13,12 @@
  * service-role remove path, scoped to school-level staff instead of
  * class-level.
  *
+ * Removing a teacher CASCADES to their class-level teacher relationships for
+ * that school's classes (soft-delete, plus lead-pointer handover). Without the
+ * cascade, "removed" staff kept `CLASS:<id>/teacher` tags and therefore kept
+ * pupil-data visibility through resolveVisibleScope — a live authz hole once
+ * co-teaching made those tags load-bearing.
+ *
  * Auth: verifyAuthToken, then caller must resolve to the SAME school as
  * target_user_id's active school/teacher tag, via schools.admin_user_id or a
  * user_tags SCHOOL: tag with role_in_context 'admin' (same admin-only
@@ -95,9 +101,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    const removedAt = new Date().toISOString()
+
     const { error: rmErr } = await supabase
       .from('user_tags')
-      .update({ removed_at: new Date().toISOString() })
+      .update({ removed_at: removedAt })
       .eq('id', targetTag.id)
 
     if (rmErr) {
@@ -106,7 +114,133 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    res.status(200).json({ ok: true })
+    // --- CASCADE: revoke their class-level teacher tags for THIS school. ---
+    // Dropping only the SCHOOL: tag left a removed teacher with live
+    // CLASS:<id>/teacher relationship rows, and resolveVisibleScope grants
+    // learner-data visibility from those — so "removed" staff kept seeing
+    // pupil dashboards for every class they co-taught. Soft-delete, same
+    // shape as the school tag; scoped to the caller's own school's classes so
+    // a teacher's classes at OTHER schools (or their personal tutor classes,
+    // school_id IS NULL) are untouched.
+    // Driven from the TEACHER's own tags (a handful) rather than the school's
+    // class list (which can run to hundreds) — the `.in()` filter then stays
+    // small enough never to strain a PostgREST URL.
+    const cascade = { removed: 0 }
+    const { data: theirClassTags, error: tagsErr } = await supabase
+      .from('user_tags')
+      .select('id, tag_value')
+      .eq('user_id', targetUserId)
+      .eq('tag_type', 'class')
+      .eq('role_in_context', 'teacher')
+      .is('removed_at', null)
+
+    if (tagsErr) {
+      console.error('[school/remove-staff] class-tag lookup for cascade failed:', tagsErr)
+      res.status(500).json({
+        error: 'Removed from school, but failed to revoke their class access — please retry',
+        detail: tagsErr.message,
+      })
+      return
+    }
+
+    const tagByClassId = new Map<string, string>()
+    for (const t of theirClassTags || []) {
+      const classId = String(t.tag_value || '').replace('CLASS:', '')
+      if (classId) tagByClassId.set(classId, t.id)
+    }
+
+    if (tagByClassId.size > 0) {
+      // Keep only the ones belonging to THIS school — classes at other schools,
+      // and their personal tutor classes (school_id IS NULL), stay untouched.
+      const { data: ourClasses, error: classesErr } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('school_id', callerSchoolId)
+        .in('id', [...tagByClassId.keys()])
+
+      if (classesErr) {
+        console.error('[school/remove-staff] class lookup for cascade failed:', classesErr)
+        res.status(500).json({
+          error: 'Removed from school, but failed to revoke their class access — please retry',
+          detail: classesErr.message,
+        })
+        return
+      }
+
+      const tagIds = (ourClasses || [])
+        .map((c: any) => tagByClassId.get(c.id))
+        .filter((id): id is string => !!id)
+
+      if (tagIds.length > 0) {
+        const { error: cascadeErr } = await supabase
+          .from('user_tags')
+          .update({ removed_at: removedAt })
+          .in('id', tagIds)
+
+        if (cascadeErr) {
+          // Loud, never swallowed: the school tag is gone but class-level access
+          // may still stand. That is a live authz hole, not a cosmetic failure.
+          console.error('[school/remove-staff] class-tag cascade failed:', cascadeErr)
+          res.status(500).json({
+            error: 'Removed from school, but failed to revoke their class access — please retry',
+            detail: cascadeErr.message,
+          })
+          return
+        }
+        cascade.removed = tagIds.length
+      }
+    }
+
+    // Hand on the lead pointer for any class of this school they still lead —
+    // classes.teacher_user_id is a denormalised pointer, and leaving a removed
+    // teacher named on it keeps them authorised by the lead disjunct.
+    const { data: ledClasses, error: ledErr } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('school_id', callerSchoolId)
+      .eq('teacher_user_id', targetUserId)
+
+    if (ledErr) {
+      console.error('[school/remove-staff] lead-pointer lookup failed:', ledErr)
+      res.status(500).json({
+        error: 'Removed from school, but failed to revoke their class access — please retry',
+        detail: ledErr.message,
+      })
+      return
+    }
+
+    for (const led of ledClasses || []) {
+      const { data: others } = await supabase
+        .from('user_tags')
+        .select('user_id')
+        .eq('tag_type', 'class')
+        .eq('tag_value', `CLASS:${led.id}`)
+        .eq('role_in_context', 'teacher')
+        .is('removed_at', null)
+        .neq('user_id', targetUserId)
+        .limit(1)
+
+      const nextLead = others && others.length > 0 ? others[0].user_id : null
+      const { error: leadErr } = await supabase
+        .from('classes')
+        .update({ teacher_user_id: nextLead })
+        .eq('id', led.id)
+
+      if (leadErr) {
+        console.error('[school/remove-staff] lead handover failed for class', led.id, leadErr)
+        res.status(500).json({
+          error: 'Removed from school, but failed to revoke their class access — please retry',
+          detail: leadErr.message,
+        })
+        return
+      }
+    }
+
+    res.status(200).json({
+      ok: true,
+      class_tags_removed: cascade.removed,
+      classes_lead_handed_over: (ledClasses || []).length,
+    })
   } catch (err: any) {
     console.error('[school/remove-staff] Error:', err)
     res.status(500).json({ error: err?.message || 'Internal server error' })
