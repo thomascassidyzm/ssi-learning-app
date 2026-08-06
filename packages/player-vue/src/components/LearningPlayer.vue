@@ -526,7 +526,7 @@ const runGenerateScript = (
     // ships an identity override, so Fast generates exactly what the global
     // row says — provably unchanged.
     resolveScriptShape(scriptShapeConfig.value, mode),
-    mode.phraseLengthPreference ?? 'shortest',
+    mode.maxPhraseLengthFraction ?? 1,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -13982,7 +13982,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
           resolveScriptShape(scriptShapeConfig.value, mode),
-          mode.phraseLengthPreference ?? 'shortest',
+          mode.maxPhraseLengthFraction ?? 1,
         )
       }
     } finally {

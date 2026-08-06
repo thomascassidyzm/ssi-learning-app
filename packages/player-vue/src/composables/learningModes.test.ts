@@ -14,7 +14,7 @@ import {
 //   - 'fast_mode' is read with a live fallback to 'normal_mode' so an old
 //     bundle and a new bundle both work during the promotion window;
 //   - Fast is provably unchanged: its scriptShape override is the identity
-//     and its phrase-length preference is 'shortest' (today's behaviour);
+//     and its phrase-length cap is 1.0 = uncapped (today's behaviour);
 //   - a mode's scriptShape layers over the GLOBAL script_shape row in exactly
 //     one place, resolveScriptShape.
 
@@ -46,9 +46,9 @@ describe('learning modes — Easy / Fast', () => {
     expect(MODE_CONFIG_KEY).toEqual({ easy: 'easy_mode', fast: 'fast_mode' })
   })
 
-  it('Fast is provably unchanged: identity shape override, shortest phrases', () => {
+  it('Fast is provably unchanged: identity shape override, uncapped phrases', () => {
     expect(DEFAULT_FAST.scriptShape).toEqual({})
-    expect(DEFAULT_FAST.phraseLengthPreference).toBe('shortest')
+    expect(DEFAULT_FAST.maxPhraseLengthFraction).toBe(1.0)
     expect(resolveScriptShape(GLOBAL_SHAPE, DEFAULT_FAST)).toEqual(GLOBAL_SHAPE)
   })
 
@@ -95,10 +95,10 @@ describe('learning modes — Easy / Fast', () => {
 
   it('field-merges a partial easy_mode row over the defaults', async () => {
     const { easyConfig } = await load([
-      { key: 'easy_mode', config: { min_pause_ms: 1500, phraseLengthPreference: 'longest' } },
+      { key: 'easy_mode', config: { min_pause_ms: 1500, maxPhraseLengthFraction: 0.75 } },
     ])
     expect(easyConfig.value.min_pause_ms).toBe(1500)
-    expect(easyConfig.value.phraseLengthPreference).toBe('longest')
+    expect(easyConfig.value.maxPhraseLengthFraction).toBe(0.75)
     // Untouched fields still come from DEFAULT_EASY.
     expect(easyConfig.value.pause_boot_ms).toBe(DEFAULT_EASY.pause_boot_ms)
   })

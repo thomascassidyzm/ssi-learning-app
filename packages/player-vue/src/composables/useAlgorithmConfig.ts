@@ -64,16 +64,17 @@ export interface ModeConfig {
    */
   scriptShape?: Partial<ScriptShapeConfig>
   /**
-   * Which end of the phrase-length distribution survives truncation.
-   * BUILD and USE phrases are sorted by target syllable count and then cut at
-   * the cap; 'shortest' (the default, and today's exact behaviour) keeps the
-   * short ones, 'longest' reverses the sort so the longest phrases survive.
+   * Cap on phrase LENGTH, expressed as a fraction of the LONGEST phrase
+   * available for that LEGO. Range (0, 1].
+   *   1.0 — uncapped; today's exact behaviour. Fast ships 1.0, so Fast is
+   *         provably unchanged.
+   *   0.5 — Easy: half the longest possible phrase (Aran, 2026-08-06).
+   * Applied by `capPhrasesByLength()` below — the ONE place the rule lives.
+   * Sorting is always shortest-first; this is a CAP, not a sort direction.
+   * A missing or invalid value degrades to 1.0 (uncapped), never to a cap.
    */
-  phraseLengthPreference?: PhraseLengthPreference
+  maxPhraseLengthFraction?: number
 }
-
-/** Which end of the phrase-length distribution survives the per-round cap. */
-export type PhraseLengthPreference = 'shortest' | 'longest'
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
 export type LearningMode = 'easy' | 'fast'
@@ -218,7 +219,8 @@ export const DEFAULT_FAST: ModeConfig = {
   // Identity override: Fast generates EXACTLY the global script_shape, so its
   // behaviour is provably unchanged from the pre-2026-08-06 'normal_mode'.
   scriptShape: {},
-  phraseLengthPreference: 'shortest',
+  // Uncapped phrase length — Fast meets exactly the phrases it always did.
+  maxPhraseLengthFraction: 1.0,
 }
 
 /**
@@ -258,7 +260,10 @@ export const DEFAULT_EASY: ModeConfig = {
     useConsolidationCount: 3,
     n1PhraseCount: 4,
   },
-  phraseLengthPreference: 'shortest',
+  // Halve the longest possible phrase (Aran, 2026-08-06). Phrases still arrive
+  // shortest-first; this just cuts the long tail off the pool, with the
+  // starvation guard in capPhrasesByLength standing behind it.
+  maxPhraseLengthFraction: 0.5,
 }
 
 /**
@@ -272,6 +277,49 @@ export function resolveScriptShape(
   mode?: Pick<ModeConfig, 'scriptShape'> | null,
 ): ScriptShapeConfig {
   return { ...global, ...(mode?.scriptShape || {}) }
+}
+
+/**
+ * Coerce a mode's `maxPhraseLengthFraction` into (0, 1].
+ * Anything missing, non-finite, ≤0 or >1 degrades to 1.0 — UNCAPPED, i.e. the
+ * historic behaviour. A bad DB value must never silently shorten a course.
+ */
+export function normalizeMaxPhraseLengthFraction(fraction?: number | null): number {
+  if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return 1
+  if (fraction <= 0 || fraction > 1) return 1
+  return fraction
+}
+
+/**
+ * Sort a LEGO's candidate phrase pool shortest-first and cap it at
+ * `fraction` × the longest phrase in that pool.
+ *
+ * THE single place the phrase-length cap lives (Aran, 2026-08-06: Easy halves
+ * the longest possible phrase). The rules, in order:
+ *   1. poolMax = the greatest target syllable count in the pool;
+ *   2. limit   = poolMax × fraction;
+ *   3. keep phrases whose syllable count ≤ limit;
+ *   4. STARVATION GUARD — if that leaves fewer phrases than the round needs,
+ *      fall back to the SHORTEST phrases available (i.e. the whole pool,
+ *      shortest-first, which the caller truncates). A length cap must never
+ *      empty a round or starve a LEGO;
+ *   5. sorting is ALWAYS shortest-first — there is no sort-direction knob.
+ *      This is what makes fraction = 1.0 byte-identical to the pre-2026-08-06
+ *      behaviour.
+ */
+export function capPhrasesByLength<T>(
+  phrases: readonly T[],
+  syllablesOf: (phrase: T) => number,
+  fraction: number | null | undefined,
+  needed: number,
+): T[] {
+  const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
+  const f = normalizeMaxPhraseLengthFraction(fraction)
+  if (f >= 1 || sorted.length === 0) return sorted
+  const poolMax = syllablesOf(sorted[sorted.length - 1])
+  const limit = poolMax * f
+  const capped = sorted.filter((phrase) => syllablesOf(phrase) <= limit)
+  return capped.length < needed ? sorted : capped
 }
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
