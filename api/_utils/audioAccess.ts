@@ -57,6 +57,8 @@ export type AudioRow = {
   duration_ms: number
   course_code?: string | null
   lego_id?: string | null
+  /** Current revision of this clip; absent on shared_audio, which is not revisioned. */
+  audio_revision?: number | null
 }
 
 /**
@@ -81,10 +83,105 @@ export function validateAudioRecord(row: unknown): { ok: true; value: AudioRecor
   return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: r.duration_ms } }
 }
 
-/** Strict UUID format check, shared by both endpoints. */
+// ── Per-clip versioned audio refs ───────────────────────────────────────
+//
+// An audio ref is either a bare uuid (meaning "whatever revision is current")
+// or a uuid with a revision suffix, `<uuid>.v<N>`, naming one exact revision.
+//
+// Why the revision rides in the ID rather than in a `?v=` query string:
+// there are TWO caches downstream and they key differently. The browser's HTTP
+// cache keys by URL — a query string would bust it. But `AudioCache`
+// (IndexedDB `ssi-audio-cache-v2`) keys by audio *id*, and never looks at the
+// URL at all, so a query string leaves every offline learner on stale bytes
+// for good. Versioning the id moves both, because the id IS the cache key and
+// it is also the thing every `/api/audio/${id}` call site interpolates. That
+// is also why no player code changed for this: the ~12 sites that build audio
+// URLs interpolate a string, and the string now carries its own version.
+//
+// A bare uuid stays valid forever. Only clips that have actually been revised
+// ever grow a suffix, so the 2.5M unrevised clips keep their existing URLs and
+// nobody re-downloads audio that did not change.
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const AUDIO_REF_REGEX = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.v([1-9][0-9]{0,4}))?$/i
+
+export interface AudioRef {
+  /** The bare row id, always a uuid. */
+  id: string
+  /** The revision the caller asked for, or null for "current". */
+  revision: number | null
+}
+
+/**
+ * Split an audio ref into its id and requested revision. Returns null if the
+ * ref is not a well-formed uuid or `uuid.vN`.
+ */
+export function parseAudioRef(ref: string): AudioRef | null {
+  const m = AUDIO_REF_REGEX.exec(ref)
+  if (!m) return null
+  return { id: m[1], revision: m[2] ? Number(m[2]) : null }
+}
+
+/**
+ * Build the learner-facing ref for a clip. Revision 1 (and unknown) stays a
+ * bare uuid so existing URLs — and existing cache entries — are untouched.
+ */
+export function buildAudioRef(id: string, revision: number | null | undefined): string {
+  return revision && revision > 1 ? `${id}.v${revision}` : id
+}
+
+/** Accepts a bare uuid or a versioned `uuid.vN` ref, shared by both endpoints. */
 export function isValidAudioId(audioId: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  return uuidRegex.test(audioId)
+  return AUDIO_REF_REGEX.test(audioId)
+}
+
+/** Strict bare-uuid check, for callers that must not accept a version suffix. */
+export function isBareUuid(value: string): boolean {
+  return UUID_REGEX.test(value)
+}
+
+/**
+ * Resolve the S3 key for one exact revision of a clip.
+ *
+ * `course_audio_revisions` is the ledger `services/audio-repair-core.cjs`
+ * writes on every accepted swap: one row per swap, carrying both sides of it.
+ * So revision N's key is either the `new_s3_key` of the swap that PRODUCED N,
+ * or the `previous_s3_key` of the swap that SUPERSEDED it — whichever we find.
+ * That is what makes an old URL keep serving its old bytes, which is the free
+ * rollback: nothing is deleted, so pointing back at an old ref is enough.
+ *
+ * If the ledger cannot answer, we fall back to the row's current key rather
+ * than failing. A learner hearing the newest good clip is always better than a
+ * learner hearing silence — the always-play invariant outranks exactness here.
+ */
+export async function resolveRevisionS3Key(
+  supabase: SupabaseClient,
+  audioId: string,
+  requestedRevision: number,
+  currentRevision: number | null | undefined,
+  currentS3Key: string
+): Promise<{ s3Key: string; exact: boolean }> {
+  if (requestedRevision === (currentRevision ?? 1)) return { s3Key: currentS3Key, exact: true }
+
+  const { data } = await supabase
+    .from('course_audio_revisions')
+    .select('revision, previous_revision, previous_s3_key, new_s3_key')
+    .eq('audio_id', audioId)
+
+  const rows = (data || []) as Array<{
+    revision: number | null
+    previous_revision: number | null
+    previous_s3_key: string | null
+    new_s3_key: string | null
+  }>
+
+  const produced = rows.find((r) => r.revision === requestedRevision && r.new_s3_key)
+  if (produced?.new_s3_key) return { s3Key: produced.new_s3_key, exact: true }
+
+  const superseded = rows.find((r) => r.previous_revision === requestedRevision && r.previous_s3_key)
+  if (superseded?.previous_s3_key) return { s3Key: superseded.previous_s3_key, exact: true }
+
+  return { s3Key: currentS3Key, exact: false }
 }
 
 /**
@@ -93,15 +190,19 @@ export function isValidAudioId(audioId: string): boolean {
  */
 export async function lookupAudioRecord(
   supabase: SupabaseClient,
-  audioId: string
+  audioRef: string
 ): Promise<{ row: AudioRow | null; fromCourseAudio: boolean; error: { message?: string } | null }> {
   let row: AudioRow | null = null
   let error: { message?: string } | null = null
   let fromCourseAudio = false
 
+  // The ref may carry a revision suffix; the DB is keyed by the bare uuid.
+  const parsed = parseAudioRef(audioRef)
+  const audioId = parsed ? parsed.id : audioRef
+
   const r = await supabase
     .from('course_audio')
-    .select('id, s3_key, duration_ms, course_code, lego_id')
+    .select('id, s3_key, duration_ms, course_code, lego_id, audio_revision')
     .eq('id', audioId)
     .maybeSingle()
   row = r.data as AudioRow | null
@@ -109,6 +210,7 @@ export async function lookupAudioRecord(
   if (row) fromCourseAudio = true
 
   if (!row) {
+    // shared_audio is cross-course meta content and is not revisioned.
     const shared = await supabase
       .from('shared_audio')
       .select('id, s3_key, duration_ms')
@@ -116,6 +218,19 @@ export async function lookupAudioRecord(
       .maybeSingle()
     row = shared.data as AudioRow | null
     if (!row) error = shared.error || error
+  }
+
+  // An explicit revision means "serve exactly these bytes" — the old URL that
+  // makes a rollback free. Only consult the ledger when it differs from current.
+  if (row && fromCourseAudio && parsed?.revision) {
+    const { s3Key } = await resolveRevisionS3Key(
+      supabase,
+      audioId,
+      parsed.revision,
+      row.audio_revision,
+      row.s3_key
+    )
+    row = { ...row, s3_key: s3Key }
   }
 
   return { row, fromCourseAudio, error }
@@ -129,32 +244,109 @@ export async function lookupAudioRecord(
  */
 export async function lookupAudioRecordsBatch(
   supabase: SupabaseClient,
-  audioIds: string[]
+  audioRefs: string[]
 ): Promise<Map<string, { row: AudioRow; fromCourseAudio: boolean }>> {
   const results = new Map<string, { row: AudioRow; fromCourseAudio: boolean }>()
-  if (audioIds.length === 0) return results
+  if (audioRefs.length === 0) return results
+
+  // Refs may carry revision suffixes. Query on the bare uuids, but key the
+  // results by the ref the caller gave us, so the caller can match them up
+  // without knowing anything about versioning.
+  const byId = new Map<string, string[]>()
+  for (const ref of audioRefs) {
+    const parsed = parseAudioRef(ref)
+    const id = parsed ? parsed.id : ref
+    const refs = byId.get(id)
+    if (refs) refs.push(ref)
+    else byId.set(id, [ref])
+  }
+  const audioIds = [...byId.keys()]
 
   const { data: courseRows } = await supabase
     .from('course_audio')
-    .select('id, s3_key, duration_ms, course_code, lego_id')
+    .select('id, s3_key, duration_ms, course_code, lego_id, audio_revision')
     .in('id', audioIds)
 
   for (const row of (courseRows || []) as AudioRow[]) {
-    results.set(row.id, { row, fromCourseAudio: true })
+    for (const ref of byId.get(row.id) || []) {
+      results.set(ref, { row, fromCourseAudio: true })
+    }
   }
 
-  const missingIds = audioIds.filter((id) => !results.has(id))
+  const missingIds = audioIds.filter((id) => !(byId.get(id) || []).some((ref) => results.has(ref)))
   if (missingIds.length > 0) {
     const { data: sharedRows } = await supabase
       .from('shared_audio')
       .select('id, s3_key, duration_ms')
       .in('id', missingIds)
     for (const row of (sharedRows || []) as AudioRow[]) {
-      results.set(row.id, { row, fromCourseAudio: false })
+      for (const ref of byId.get(row.id) || []) {
+        results.set(ref, { row, fromCourseAudio: false })
+      }
     }
   }
 
+  // Pinned revisions resolve against the ledger. Only refs that actually name a
+  // non-current revision cost a query, so the common all-current batch stays at
+  // the same two round trips it has always been.
+  for (const [ref, entry] of results) {
+    const parsed = parseAudioRef(ref)
+    if (!parsed?.revision || !entry.fromCourseAudio) continue
+    if (parsed.revision === (entry.row.audio_revision ?? 1)) continue
+    const { s3Key } = await resolveRevisionS3Key(
+      supabase,
+      parsed.id,
+      parsed.revision,
+      entry.row.audio_revision,
+      entry.row.s3_key
+    )
+    results.set(ref, { row: { ...entry.row, s3_key: s3Key }, fromCourseAudio: true })
+  }
+
   return results
+}
+
+/**
+ * Build the id → versioned-ref map for one course.
+ *
+ * Content routes hand the player audio ids taken from denormalised FK columns
+ * (`course_legos.target1_audio_id` and friends), which know nothing about
+ * revisions. Rather than join every one of those against `course_audio`, we
+ * fetch only the clips in this course that have actually been revised — 95 of
+ * 2.5M estate-wide at the time of writing — and stamp just those. Everything
+ * else keeps its bare uuid, so unrevised audio keeps its URL and its cache.
+ *
+ * Returns an empty map on any error: a missed suffix costs one learner one
+ * stale clip, whereas failing the route costs them the whole course.
+ */
+export async function fetchRevisedAudioRefs(
+  supabase: SupabaseClient,
+  courseCode: string
+): Promise<Map<string, string>> {
+  const refs = new Map<string, string>()
+  try {
+    const { data, error } = await supabase
+      .from('course_audio')
+      .select('id, audio_revision')
+      .eq('course_code', courseCode)
+      .gt('audio_revision', 1)
+    if (error || !data) return refs
+    for (const row of data as Array<{ id: string; audio_revision: number | null }>) {
+      refs.set(row.id, buildAudioRef(row.id, row.audio_revision))
+    }
+  } catch {
+    return refs
+  }
+  return refs
+}
+
+/** Apply a revised-ref map to one audio id, leaving unrevised ids untouched. */
+export function applyAudioRef(
+  refs: Map<string, string>,
+  audioId: string | null | undefined
+): string | null {
+  if (!audioId) return audioId ?? null
+  return refs.get(audioId) ?? audioId
 }
 
 // ── Entitlement gate (premium-past-preview only) ────────────────────────
