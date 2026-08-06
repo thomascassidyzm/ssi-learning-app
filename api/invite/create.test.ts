@@ -20,6 +20,9 @@ let govtAdminRow: any
 let learnerRow: any
 let schoolRow: any
 let classRow: any
+// Active class-teacher relationships (the user_tags rows the class_teachers
+// view is built from) — the MEMBERSHIP source of truth since A-74.
+let classTeacherTags: Array<{ tag_value: string; user_id: string; role_in_context: string }> = []
 let insertedRows: any[] = []
 // Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
 // 'leader-group' is the leader's own governed group; 'leader-sub' is a real
@@ -37,15 +40,29 @@ function makeChainable(table: string) {
     select: () => builder,
     insert: (obj: unknown) => { insertedRows.push({ table, obj }); return builder },
     eq: (col: string, val: unknown) => { filters[col] = val; return builder },
+    is: (col: string, val: unknown) => { filters[col] = val; return builder },
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
       if (table === 'schools') {
-        const match = schoolRow && schoolRow.id === filters.id && schoolRow.admin_user_id === filters.admin_user_id
+        // Two shapes: the school-admin ownership probe filters on BOTH id and
+        // admin_user_id; the class-membership fallback reads admin_user_id off
+        // the school by id alone.
+        const match = schoolRow && schoolRow.id === filters.id
+          && (filters.admin_user_id === undefined || schoolRow.admin_user_id === filters.admin_user_id)
         return Promise.resolve({ data: match ? schoolRow : null, error: null })
       }
       if (table === 'classes') {
-        const match = classRow && classRow.id === filters.id && classRow.teacher_user_id === filters.teacher_user_id
+        // Since A-74 the handler looks the class up by id ALONE and authorizes
+        // by membership (lead pointer / class tag / admin), so this mock no
+        // longer pretends a non-lead caller cannot see the row.
+        const match = classRow && classRow.id === filters.id
         return Promise.resolve({ data: match ? classRow : null, error: null })
+      }
+      if (table === 'user_tags') {
+        const match = classTeacherTags.some(
+          (t) => t.tag_value === filters.tag_value && t.user_id === filters.user_id && t.role_in_context === filters.role_in_context
+        )
+        return Promise.resolve({ data: match ? { id: 'tag-1' } : null, error: null })
       }
       if (table === 'groups') {
         const path = groupPaths[filters.id as string]
@@ -92,6 +109,7 @@ beforeEach(async () => {
   learnerRow = null
   schoolRow = null
   classRow = null
+  classTeacherTags = []
   groupPaths = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
   handler = (await import('./create')).default
 })
@@ -260,11 +278,62 @@ describe('POST /api/invite/create — permission gates per code_type', () => {
     expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
   })
 
-  it('rejects a teacher code with no grants_school_id', async () => {
+  it('rejects a teacher code with neither grants_school_id nor grants_class_id', async () => {
     const req = makeReq({ code_type: 'teacher' })
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(400)
+  })
+
+  it('lead teacher creates a CLASS-SCOPED co-teacher code, with the school derived from the class', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'leader-1', school_id: 'school-1' }
+    const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.code_type).toBe('teacher')
+    expect(insert.obj.grants_class_id).toBe('class-1')
+    // Server-derived from the class — the redemption needs it to write the
+    // school tag alongside the class one.
+    expect(insert.obj.grants_school_id).toBe('school-1')
+  })
+
+  it('a CO-teacher (class relationship, not the lead pointer) can create a co-teacher code for that class', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
+    classTeacherTags = [{ tag_value: 'CLASS:class-1', user_id: 'leader-1', role_in_context: 'teacher' }]
+    const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('ignores a client-supplied grants_school_id on a class-scoped teacher code', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'leader-1', school_id: 'school-1' }
+    const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-1', grants_school_id: 'school-someone-elses' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.grants_school_id).toBe('school-1')
+  })
+
+  it('rejects a stranger creating a co-teacher code for a class they have no relationship with', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
+    schoolRow = { id: 'school-1', admin_user_id: 'someone-else' }
+    const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('404s a co-teacher code for a class that does not exist', async () => {
+    const req = makeReq({ code_type: 'teacher', grants_class_id: 'class-gone' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(404)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
   })
 
   it('teacher creates a student code for their own class', async () => {
@@ -278,9 +347,42 @@ describe('POST /api/invite/create — permission gates per code_type', () => {
     expect(insert.obj.grants_class_id).toBe('class-1')
   })
 
-  it('rejects a teacher creating a student code for a class they do not teach', async () => {
-    classRow = { id: 'class-1', teacher_user_id: 'someone-else' }
+  it('GUARD S1: a CO-teacher can create a student code for a class they co-teach', async () => {
+    // The lead pointer is someone else; the caller holds an active class
+    // teacher relationship. Before A-74 this 403'd — while the same co-teacher
+    // was already allowed to DELETE the class (api/school/delete-class.ts).
+    classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
+    classTeacherTags = [{ tag_value: 'CLASS:class-1', user_id: 'leader-1', role_in_context: 'teacher' }]
     const req = makeReq({ code_type: 'student', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.code_type).toBe('student')
+    expect(insert.obj.grants_class_id).toBe('class-1')
+  })
+
+  it('the class school admin can create a student code for a class they do not personally teach', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
+    schoolRow = { id: 'school-1', admin_user_id: 'leader-1' }
+    const req = makeReq({ code_type: 'student', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('rejects a non-member creating a student code for a class they do not teach', async () => {
+    classRow = { id: 'class-1', teacher_user_id: 'someone-else', school_id: 'school-1' }
+    schoolRow = { id: 'school-1', admin_user_id: 'someone-else' }
+    const req = makeReq({ code_type: 'student', grants_class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('rejects a student code for a class that does not exist', async () => {
+    const req = makeReq({ code_type: 'student', grants_class_id: 'class-gone' })
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)

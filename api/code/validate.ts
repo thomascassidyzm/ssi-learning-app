@@ -39,7 +39,13 @@ async function checkAlreadyRedeemed(
     return !!data
   }
 
-  if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
+  if (codeType === 'teacher' && inviteRow.grants_class_id) {
+    // Class-scoped co-teacher code (A-74): the CLASS tag is what this link
+    // grants, so it is what "already redeemed" means. Matching the school tag
+    // instead would wave through any teacher already in the school and send
+    // them to /schools without ever writing their class access.
+    if (await hasTag('class', `CLASS:${inviteRow.grants_class_id}`)) return landing
+  } else if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
     if (await hasTag('school', `SCHOOL:${inviteRow.grants_school_id}`)) return landing
   } else if (codeType === 'student' && inviteRow.grants_class_id) {
     if (await hasTag('class', `CLASS:${inviteRow.grants_class_id}`)) return landing
@@ -255,6 +261,20 @@ export default async function handler(
           .eq('id', inviteRow.grants_school_id)
           .single()
         context.schoolName = school?.school_name
+      } else if (codeType === 'teacher' && inviteRow.grants_class_id) {
+        // Class-scoped co-teacher link (A-74) — name the CLASS, not just the
+        // school, or the capture screen reads as a generic school invite and
+        // the supply teacher cannot tell which class they are joining.
+        const { data: classRow } = await supabase
+          .from('classes')
+          .select('class_name, course_code, schools(school_name)')
+          .eq('id', inviteRow.grants_class_id)
+          .maybeSingle()
+        if (classRow) {
+          context.className = classRow.class_name
+          context.schoolName = (classRow.schools as any)?.school_name
+          context.courseName = classRow.course_code
+        }
       } else if (codeType === 'teacher' && inviteRow.grants_school_id) {
         const { data: school } = await supabase
           .from('schools')
