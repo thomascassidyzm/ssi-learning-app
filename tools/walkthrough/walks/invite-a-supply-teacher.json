@@ -1,0 +1,24 @@
+{
+  "id": "invite-a-supply-teacher",
+  "title": "Invite a teacher who isn't here yet",
+  "personas": ["teacher"],
+  "place": { "route": "class-detail" },
+  "steps": [
+    {
+      "anchor": "class-coteacher-link",
+      "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-coteacher-link",
+      "say": "**Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-join-link",
+      "say": "Keep it apart from this one. This is the **student** link — anyone who opens it joins the class as a learner. One link makes a colleague, the other makes a pupil, so send them to the right people.",
+      "advance": { "on": "next" },
+      "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing."
+    }
+  ]
+}

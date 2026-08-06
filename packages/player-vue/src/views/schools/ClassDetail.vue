@@ -40,6 +40,7 @@ const {
   deleteClass: deleteClassApi,
   addClassTeacher,
   removeClassTeacher,
+  createCoTeacherLink,
 } = useClassesData()
 const { fetchClassTeacherCandidates } = useTeachersData()
 const { viewingSchool } = useSchoolData()
@@ -455,11 +456,31 @@ async function makeLead(teacher: { user_id: string; name: string }): Promise<voi
   await fetchClassDetail(classData.value.id)
 }
 
+// The class-scoped co-teacher link — the supply-teacher lane. Unlike the
+// student join code, this is minted on demand rather than standing: it puts
+// one colleague into THIS class and its school, and never moves the lead.
+const coTeacherLink = ref('')
+const coTeacherLinkBusy = ref(false)
+
+async function mintCoTeacherLink(): Promise<void> {
+  if (coTeacherLinkBusy.value || !classData.value.id) return
+  coTeacherLinkBusy.value = true
+  teacherPanelError.value = ''
+  const result = await createCoTeacherLink(classData.value.id)
+  coTeacherLinkBusy.value = false
+  if (!result.ok || !result.code) {
+    teacherPanelError.value = `Couldn't create a co-teacher link. ${result.error ?? ''}`.trim()
+    return
+  }
+  coTeacherLink.value = `${window.location.origin}/redeem/${result.code}`
+}
+
 onMounted(loadTeacherCandidates)
 watch(classIdParam, (classId, previous) => {
   if (classId && classId !== previous) {
     teacherCandidates.value = []
     teacherPanelError.value = ''
+    coTeacherLink.value = ''
     void loadTeacherCandidates()
   }
 })
@@ -654,7 +675,7 @@ const deleteImpactLines = computed(() => {
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
         </div>
 
-        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card">
+        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card" data-walk="class-teachers">
           <div class="schools-kicker rail-kicker">Teachers</div>
 
           <ul v-if="classTeachers.length" class="teacher-list">
@@ -668,6 +689,7 @@ const deleteImpactLines = computed(() => {
                   v-if="!t.is_lead"
                   type="button"
                   class="btn-text teacher-action"
+                  data-walk="class-teacher-make-lead"
                   :disabled="teacherBusy"
                   @click="makeLead(t)"
                 >
@@ -688,12 +710,12 @@ const deleteImpactLines = computed(() => {
           <p v-else class="rail-note schools-subtle">No teachers are linked to this class yet.</p>
 
           <template v-if="!showAddTeacher">
-            <button type="button" class="btn-ghost btn-small teacher-add-open" @click="showAddTeacher = true">
+            <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
               Add a co-teacher
             </button>
           </template>
           <template v-else>
-            <select v-model="pickedTeacherId" class="teacher-select" :disabled="teacherBusy">
+            <select v-model="pickedTeacherId" class="teacher-select" data-walk="class-teacher-picker" :disabled="teacherBusy">
               <option value="">Choose a teacher…</option>
               <option v-for="t in addableTeachers" :key="t.user_id" :value="t.user_id">
                 {{ t.display_name }}
@@ -711,6 +733,22 @@ const deleteImpactLines = computed(() => {
               </button>
             </div>
           </template>
+
+          <div class="teacher-link-block" data-walk="class-coteacher-link">
+            <p class="rail-note schools-subtle">
+              Colleague not on the staff list yet? Send them a link into this class.
+            </p>
+            <InviteLinkField v-if="coTeacherLink" :url="coTeacherLink" />
+            <button
+              v-else
+              type="button"
+              class="btn-ghost btn-small"
+              :disabled="coTeacherLinkBusy || !classData.id"
+              @click="mintCoTeacherLink"
+            >
+              {{ coTeacherLinkBusy ? 'Creating…' : 'Create a co-teacher link' }}
+            </button>
+          </div>
 
           <p v-if="teacherPanelError" class="teacher-error">{{ teacherPanelError }}</p>
         </div>
@@ -1075,6 +1113,16 @@ const deleteImpactLines = computed(() => {
   align-items: center;
   gap: 10px;
   margin-top: 10px;
+}
+
+.teacher-link-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--schools-line, rgba(44, 38, 34, 0.12));
+}
+
+.teacher-link-block .rail-note {
+  margin: 0 0 8px;
 }
 
 .teacher-error {
