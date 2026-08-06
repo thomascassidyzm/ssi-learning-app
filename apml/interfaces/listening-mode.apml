@@ -45,10 +45,18 @@ ENTRY_POINT:
     Turbo and Offline. HISE is simply what the player does when no mode is on.
   copy_kept_for_reuse: |
     The tray copy stays in the locales as modes.listening / modes.listeningDesc
-    ("Listening" / "Audio only, no speaking"), unused for now, for the intro-
-    messaging protocol Aran floated in the same message ("maybe intro messages
-    via text each time?"). That protocol is NOT built. The settings row uses the
-    already-translated settings.listeningMode / settings.listeningModeDesc.
+    ("Listening" / "Audio only, no speaking"), unused for now.
+  in_flow_ruling: |
+    Tom, 2026-08-06, settling the messaging question Aran raised: a listening
+    exercise goes STRAIGHT IN with the audio, introduced by the spoken "now
+    just listen for a while" — no popup, no modal, nothing persistent, because
+    the screen is needed for the displayed text. The pod-start reminder
+    transient is deleted (see learning-player.apml v2.1.25). The preparation
+    guidance survives where it does not interrupt: the learner explainer's
+    "What the listening stretches ask of you", and this settings entry.
+  locale_keys: |
+    The settings row uses the already-translated settings.listeningMode /
+    settings.listeningModeDesc.
 
 ## ============================================================================
 ## TABS

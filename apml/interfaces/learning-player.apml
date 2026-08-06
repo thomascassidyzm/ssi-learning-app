@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.19 (2026-07-14)
+# Version: 2.1.25 (2026-08-06)
 # Status: Production-ready
 
 ## ============================================================================
@@ -941,6 +941,15 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.25:
+    date: "2026-08-06"
+    title: "Listening exercises go straight in — the pod-start reminder popup is deleted"
+    changes:
+      - "Aran, via Tom: the popup that opened a listening exercise was distracting, and it stood on the screen the displayed text needs. Tom's ruling: 'perhaps we just don't bother with it — just go straight in with the audio into now just listen for a while'. So the one-shot pod-listening-reminder transient (usePodListeningReminder + its banner, styles and test) is DELETED. A lap now opens on its own spoken bookend and nothing else."
+      - "The lap's on-screen surfaces are now exactly two: PodTurnDisplay's teleprompter (L2 only — L1 cups stay audio-only) and the small textless ambient headphones mark, which runs the whole lap instead of only after the transient faded. No instruction text appears during a lap at all. PodTurnDisplay's reminderTopInset prop is gone with the band it reserved."
+      - "The preparation content SURVIVES the popup (Tom: neither he nor Aran asked to delete it). It lives in the learner explainer 'How this works' as 'What the listening stretches ask of you' — the birdsong line, in the learner voice — and the fuller listening home is Settings → Tools → Listening mode. The explainer's modes list was corrected in the same pass: Listening is in Settings now, not behind the sliders button."
+      - "Unchanged: main-cycle listening types (listen_intro / listening / listen_outro, playingPodLapAudio=false) still show the passive-attention phase hint in the hero card — it is an inline hint on an otherwise-idle card, not a popup over the dialogue."
+
   v2.1.24:
     date: "2026-07-31"
     title: "Settings 'What's new' is fed by the release train — shipped notes bundled at build time"
