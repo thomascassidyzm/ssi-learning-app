@@ -1,9 +1,10 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
-# Version: 1.1.0
-# Last updated: 2026-07-10
+# Version: 1.2.0
+# Last updated: 2026-08-06
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts
+#         packages/player-vue/src/components/SettingsScreen.vue (entry point)
 
 ## ============================================================================
 ## OVERVIEW
@@ -23,6 +24,31 @@ SPECIFICATION:
     a summarised copy of it — a second, drifting engine was the root cause of
     the listening-vs-main-flow mismatch (Tom, 2026-06-12). The two learner
     modes here are deliberately simple and TARGET-ONLY.
+
+## ============================================================================
+## ENTRY POINT
+## ============================================================================
+
+ENTRY_POINT:
+  where: "Settings → Tools → 'Listening mode' (SettingsScreen.vue)"
+  flow: |
+    SettingsScreen emits 'openListening' → PlayerContainer closes settings and
+    calls LearningPlayer.handleListeningToggle() → showListeningOverlay = true.
+    Leaving is unchanged: the transport's back/play button (BottomNav
+    exitListeningMode) closes the overlay and stops audio.
+  not_in_the_player_flow: |
+    The mode popup (ModeTray) no longer offers listening. Aran, 2026-08-06:
+    "don't think the 'listening mode' popup is a good idea, it was distracting,
+    I think it's okay for it to live under the settings". So the tray's
+    "Mode — pick one" radio group (HISE / Listening) and its
+    selectExperienceMode handler are gone; the tray keeps Pronunciation guide,
+    Turbo and Offline. HISE is simply what the player does when no mode is on.
+  copy_kept_for_reuse: |
+    The tray copy stays in the locales as modes.listening / modes.listeningDesc
+    ("Listening" / "Audio only, no speaking"), unused for now, for the intro-
+    messaging protocol Aran floated in the same message ("maybe intro messages
+    via text each time?"). That protocol is NOT built. The settings row uses the
+    already-translated settings.listeningMode / settings.listeningModeDesc.
 
 ## ============================================================================
 ## TABS

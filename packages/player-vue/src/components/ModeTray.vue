@@ -61,33 +61,16 @@ const hasActiveMode = computed(() =>
   props.isListeningMode || props.isPronunciationMode || props.isTurboMode
 )
 
-// Is any experience mode (non-Standard) active?
-const hasExperienceMode = computed(() =>
-  props.isListeningMode || props.isPronunciationMode
-)
-
 // Can turbo be used? Not in listening or pronunciation
 const turboAvailable = computed(() =>
   !props.isListeningMode && !props.isPronunciationMode
 )
 
-// Select an experience mode — deactivates others if a different one is active.
-// Selecting ALWAYS closes the tray (Tom 2026-06-11): leaving it open forced a
-// second tap (outside to dismiss, then again to start the mode you just chose).
-const selectExperienceMode = (mode: 'normal' | 'listening' | 'pronunciation') => {
-  closeTray()
-  if (mode === 'normal') {
-    if (props.isListeningMode) emit('toggleListening')
-    else if (props.isPronunciationMode) emit('togglePronunciation')
-    return
-  }
-  if (mode === 'listening' && props.isListeningMode) return emit('toggleListening')
-  if (mode === 'pronunciation' && props.isPronunciationMode) return emit('togglePronunciation')
-  if (props.isListeningMode) emit('toggleListening')
-  if (props.isPronunciationMode) emit('togglePronunciation')
-  if (mode === 'listening') emit('toggleListening')
-  if (mode === 'pronunciation') emit('togglePronunciation')
-}
+// The "Mode — pick one" radio group (HISE / Listening) and its
+// selectExperienceMode handler were removed 2026-08-06 (Aran): offering
+// listening mode from a popup in the player flow was distracting. Listening
+// is entered from Settings → Tools now, and left the way it always was —
+// the transport's back/play button (BottomNav exitListeningMode).
 
 // Active mode icon for the trigger button
 const activeModeIcon = computed(() => {
@@ -230,46 +213,12 @@ const handleOffline = () => {
           </div>
         </button>
 
-        <div class="tray-divider"></div>
-
-        <!-- Experience Mode (mutually exclusive radio group) -->
-        <div class="tray-section-header">Mode — pick one</div>
-
-        <button
-          class="tray-item tray-item--radio"
-          :class="{ active: !hasExperienceMode }"
-          @click="selectExperienceMode('normal')"
-        >
-          <div class="tray-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v6l4 2"/>
-            </svg>
-          </div>
-          <div class="tray-label">
-            <span class="tray-name">HISE</span>
-            <span class="tray-desc">{{ t('modes.hiseDesc') }}</span>
-          </div>
-          <div class="radio-indicator" :class="{ on: !hasExperienceMode }"></div>
-        </button>
-
-        <button
-          class="tray-item tray-item--radio"
-          :class="{ active: isListeningMode }"
-          @click="selectExperienceMode('listening')"
-        >
-          <div class="tray-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-          </div>
-          <div class="tray-label">
-            <span class="tray-name">{{ t('modes.listening') }}</span>
-            <span class="tray-desc">{{ t('modes.listeningDesc') }}</span>
-          </div>
-          <div class="radio-indicator" :class="{ on: isListeningMode }"></div>
-        </button>
+        <!-- Listening mode is NOT offered here (Aran, 2026-08-06): a mode
+             popup in the player flow was distracting. The control lives under
+             Settings → Tools → Listening mode, which opens the same overlay
+             via PlayerContainer's openListening handler. The old tray copy
+             (modes.listening / modes.listeningDesc, translated in every
+             locale) is kept for the intro-messaging protocol still to come. -->
 
       </div>
     </Transition>
@@ -520,49 +469,6 @@ const handleOffline = () => {
 
 .tray-toggle.on .tray-toggle-knob {
   transform: translateX(16px);
-}
-
-/* Radio indicator for mutually exclusive modes */
-.radio-indicator {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.2);
-  background: transparent;
-  flex-shrink: 0;
-  position: relative;
-  transition: border-color 0.15s ease;
-}
-
-.radio-indicator.on {
-  border-color: #16a34a;
-}
-
-.radio-indicator.on::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
-}
-
-.tray-item--radio {
-  padding: 8px 12px;
-}
-
-/* Section header */
-.tray-section-header {
-  padding: 8px 14px 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #A09A94;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* Backdrop */

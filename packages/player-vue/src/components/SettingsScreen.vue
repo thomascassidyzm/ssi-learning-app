@@ -1881,6 +1881,22 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <!-- Listening mode. This is its ONLY entry point (Aran, 2026-08-06):
+               offering it from the player's mode popup was distracting, so the
+               control lives here and the popup no longer carries it. Opening
+               closes settings and hands off to PlayerContainer, which flips the
+               player into listening mode exactly as the tray used to. -->
+          <div class="setting-row clickable" @click="emit('openListening')">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.listeningMode') }}</span>
+              <span class="setting-desc">{{ t('settings.listeningModeDesc') }}</span>
+            </div>
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+
           <template v-if="showViewScript">
             <div class="divider"></div>
 
