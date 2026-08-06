@@ -52,6 +52,24 @@ Two places, both flagged deliberately rather than hidden:
 - **Two in a row is allowed, three is not** — the plain reading of the ruling.
 - **Re-interleave over drop**, always, wherever anything exists to interleave with.
 
+## Verified live on dev
+
+Not "verified" as a word — here is what was actually done.
+
+A probe (`packages/player-vue/e2e/a64-consecutive-prompt-probe.mjs`) wraps `HTMLMediaElement.prototype.play` inside the page and records the src of every clip at the moment it starts, in order. That measures what the learner **hears**, not what the generator intended. Silent-gap WAVs are excluded as transport padding.
+
+Run against `https://ssi-learning-app-git-dev-zenjin.vercel.app/?course=fra_for_eng&mode=easy`, a fresh guest session wiped with `?reset=1` so it starts at the very beginning of the course — the configuration Tom heard the four-in-a-row in. Ten minutes of continuous play:
+
+| | |
+|---|---|
+| clips played | 193 |
+| distinct clips | 114 |
+| **longest run of one clip back to back** | **2** |
+| breaches (runs of 3+) | 0 |
+| JS errors | 0 |
+
+The same probe run against the pre-fix build gave the same answer — longest run 2 — which is the live confirmation of finding 1 above: the main learning script was already lawful before this change.
+
 ## Tests
 
 - `packages/player-vue/src/playback/capConsecutiveRepeats.test.ts` — unit behaviour plus a 400-case property sweep: the output never contains three consecutive equal identities, nothing is invented or duplicated, and totals survive whenever the arithmetic allows.
