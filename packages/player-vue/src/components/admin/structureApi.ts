@@ -37,7 +37,13 @@ export interface StructureApi {
   editingId: Ref<string | null>
   editingName: Ref<string>
   startRename(node: StructureNode): void
-  saveRename(node: StructureNode): Promise<void>
+  /**
+   * `confirmDuplicate` is the "Go ahead anyway" answer to the duplicate-name
+   * warning — set ONLY by that button. Every other call site must pass it with
+   * explicit parens (or omit it): a bare @keyup.enter handler would hand this
+   * the KeyboardEvent, which is truthy, and confirm the duplicate silently.
+   */
+  saveRename(node: StructureNode, confirmDuplicate?: boolean): Promise<void>
   cancelRename(): void
   updateLabel(node: StructureNode, label: string): Promise<void>
   openDashboard(node: StructureNode): void

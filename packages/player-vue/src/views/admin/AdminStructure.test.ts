@@ -482,3 +482,144 @@ describe('AdminStructure — duplicate org-name warning (Deborah, 2026-08-06)', 
     expect(wrapper.text()).not.toContain('Go ahead anyway')
   })
 })
+
+/**
+ * The same warning on RENAME (2026-08-06) — PATCH /api/groups/:id answers the
+ * same 409 `duplicate_name`, read by the same readDuplicateWarning, with the
+ * same two ways out. A rename warning that looked or behaved differently from
+ * a create warning on the same screen would be a defect.
+ */
+describe('AdminStructure — duplicate-name warning on rename', () => {
+  const dupBody = {
+    error: 'server sentence',
+    code: 'duplicate_name',
+    duplicates: [{ id: 'group-b', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z' }],
+  }
+
+  // 409s the first PATCH, 200s any PATCH carrying confirm_duplicate.
+  function setupRenameFetch() {
+    const patches: any[] = []
+    fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/groups/group-a') && init?.method === 'PATCH') {
+        const body = JSON.parse(init.body)
+        patches.push(body)
+        if (body.confirm_duplicate) {
+          return { ok: true, status: 200, json: async () => ({ group: { id: 'group-a', name: body.name } }) }
+        }
+        return { ok: false, status: 409, json: async () => dupBody }
+      }
+      if (url.includes('/api/groups/tree')) return { ok: true, status: 200, json: async () => ({ roots: [makeNode()] }) }
+      return { ok: true, status: 200, json: async () => ({ rows: [], total: 0, page: 1, pageSize: 25 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return patches
+  }
+
+  async function renameTo(wrapper: any, name: string) {
+    await clickOverflowItem(wrapper, 'Rename')
+    const input = wrapper.find('.structure-rename-input')
+    await input.setValue(name)
+    await input.trigger('keyup.enter')
+    await flushPromises()
+  }
+
+  it('shows the warning instead of a raw error, and renames nothing', async () => {
+    const patches = setupRenameFetch()
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Deborah Testing')
+
+    expect(wrapper.text()).toContain('There\'s already an organisation called "Deborah Testing"')
+    expect(wrapper.text()).toContain('created on 5 August 2026')
+    expect(wrapper.text()).not.toContain('server sentence')
+    expect(patches).toHaveLength(1)
+    expect(patches[0].confirm_duplicate).toBeUndefined()
+  })
+
+  it('pressing Enter never counts as confirmation — the KeyboardEvent must not become confirm_duplicate', async () => {
+    const patches = setupRenameFetch()
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Deborah Testing')
+    // Enter is what submitted the rename above; it must have warned, not confirmed.
+    expect(patches).toHaveLength(1)
+    expect(patches[0]).toEqual({ name: 'Deborah Testing' })
+    expect(wrapper.text()).toContain('will give you two with the same name')
+  })
+
+  it('"Go ahead anyway" re-sends the SAME rename with confirm_duplicate', async () => {
+    const patches = setupRenameFetch()
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Deborah Testing')
+
+    await wrapper.findAll('button').find((b: any) => b.text().includes('Go ahead anyway'))!.trigger('click')
+    await flushPromises()
+
+    expect(patches).toHaveLength(2)
+    expect(patches[1]).toMatchObject({ name: 'Deborah Testing', confirm_duplicate: true })
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+  })
+
+  it('"Change the name" reopens the rename input on the typed name and sends nothing', async () => {
+    const patches = setupRenameFetch()
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Deborah Testing')
+
+    await wrapper.findAll('button').find((b: any) => b.text() === 'Change the name')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+    expect(wrapper.find('.structure-rename-input').exists()).toBe(true)
+    expect((wrapper.find('.structure-rename-input').element as HTMLInputElement).value).toBe('Deborah Testing')
+    expect(patches).toHaveLength(1)
+  })
+
+  it('a fresh name after the warning is sent fresh — never as a confirmation', async () => {
+    const patches = setupRenameFetch()
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Deborah Testing')
+    expect(wrapper.text()).toContain('will give you two with the same name')
+
+    await wrapper.findAll('button').find((b: any) => b.text() === 'Change the name')!.trigger('click')
+    await flushPromises()
+    const input = wrapper.find('.structure-rename-input')
+    await input.setValue('Deborah Testing 2')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+
+    await input.trigger('keyup.enter')
+    await flushPromises()
+    expect(patches).toHaveLength(2)
+    expect(patches[1]).toEqual({ name: 'Deborah Testing 2' })
+  })
+
+  it('a non-colliding rename goes straight through, no confirmation step', async () => {
+    const patches: any[] = []
+    fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/groups/group-a') && init?.method === 'PATCH') {
+        patches.push(JSON.parse(init.body))
+        return { ok: true, status: 200, json: async () => ({ group: { id: 'group-a', name: 'Cardiff Council' } }) }
+      }
+      if (url.includes('/api/groups/tree')) return { ok: true, status: 200, json: async () => ({ roots: [makeNode()] }) }
+      return { ok: true, status: 200, json: async () => ({ rows: [], total: 0, page: 1, pageSize: 25 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Cardiff Council')
+
+    expect(patches).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('Go ahead anyway')
+  })
+
+  it('leaves the OTHER errors on the endpoint alone — a 403 still surfaces as an error', async () => {
+    fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/groups/group-a') && init?.method === 'PATCH') {
+        return { ok: false, status: 403, json: async () => ({ error: 'You do not govern this group' }) }
+      }
+      if (url.includes('/api/groups/tree')) return { ok: true, status: 200, json: async () => ({ roots: [makeNode()] }) }
+      return { ok: true, status: 200, json: async () => ({ rows: [], total: 0, page: 1, pageSize: 25 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = await mountStructure()
+    await renameTo(wrapper, 'Anything')
+    expect(wrapper.text()).toContain('You do not govern this group')
+    expect(wrapper.text()).not.toContain('Go ahead anyway')
+  })
+})
