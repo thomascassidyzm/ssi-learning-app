@@ -4,7 +4,7 @@ import type { ScriptItem } from '../providers/generateLearningScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from './computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 
 // REGRESSION (2026-08-04): the belt speed ramp silently stopped applying for
 // every learner.
@@ -186,12 +186,12 @@ describe('belt speed ramp — pause taper coupling', () => {
     const runtimePause = (c: typeof white) => computePauseDuration(
       c.target1DurationMs ?? 0,
       c.target2DurationMs ?? 0,
-      DEFAULT_NORMAL,
+      DEFAULT_FAST,
       c.playbackSpeed ?? 1,
     )
     // The pre-fix behaviour is what `?? 1` collapses to — assert the fix
     // actually moves the runtime pause off that value.
-    const asGreen = computePauseDuration(T1_MS, T2_MS, DEFAULT_NORMAL, 1)
+    const asGreen = computePauseDuration(T1_MS, T2_MS, DEFAULT_FAST, 1)
     expect(runtimePause(white)).toBeGreaterThan(asGreen)
   })
 })

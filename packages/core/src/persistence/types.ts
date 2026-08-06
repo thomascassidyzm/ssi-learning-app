@@ -36,8 +36,8 @@ export interface LearnerPreferences {
   session_duration_minutes: number;
   /** Whether to show encouragements */
   encouragements_enabled: boolean;
-  /** Whether turbo mode is enabled */
-  turbo_mode_enabled: boolean;
+  /** Learning pace mode — 'fast' is the default (today's behaviour). */
+  pace_mode: 'easy' | 'fast';
   /** Volume level (0-1) */
   volume: number;
   /** Last accessed course code (cross-device persistence) */

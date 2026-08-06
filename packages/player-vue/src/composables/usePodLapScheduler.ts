@@ -25,7 +25,7 @@
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
  *   • Course reset → counter back to 0 (and pod_activation_round back to NULL)
- *   • Turbo → explicit increment without playing (skipAhead method)
+ *   • Admin/debug → explicit increment without playing (skipAhead method)
  *
  * `pod_activation_round` (added 2026-05-03) still gates the main-round at
  * which pods START FIRING for that user.
@@ -809,7 +809,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
-   * Turbo path: bump the counter without playing. UI affordance is out of
+   * Explicit-advance path: bump the counter without playing. UI affordance is out of
    * scope; this just exposes the increment so a settings toggle or shortcut
    * can call it.
    */

@@ -12,8 +12,11 @@
     "pronunciation": "Pronunciation",
     "guideShown": "Guide shown above the script",
     "nativeOnly": "Native script only",
-    "turboBoost": "Turbo Boost",
-    "turboDesc": "Faster pace, less repetition",
+    "pace": "Pace",
+    "easy": "Easy",
+    "fast": "Fast",
+    "easyDesc": "More thinking time, more repetition",
+    "fastDesc": "The normal pace",
     "offline": "Offline mode",
     "offlineDesc": "Play from downloaded audio",
     "hiseDesc": "High Intensity Speaking Exercises",
@@ -213,7 +216,6 @@
     "tapToPause": "Tap to pause",
     "tapToStart": "Tap to start",
     "phaseFlow": "Listen → Speak → Listen → See",
-    "skipReplayTurbo": "Skip, Replay, Turbo",
     "tapAnywhere": "tap anywhere to start"
   },
   "driving": {

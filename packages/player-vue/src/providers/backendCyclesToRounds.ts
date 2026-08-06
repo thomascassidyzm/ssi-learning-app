@@ -15,7 +15,7 @@
  *     cycles array of that LEGO's Round)
  *   - audio URLs are the `/api/audio/<uuid>` proxy paths the SimplePlayer
  *     already consumes
- *   - pauseDuration is baked here using the same DEFAULT_NORMAL fallback
+ *   - pauseDuration is baked here using the same DEFAULT_FAST fallback
  *     as `toSimpleRounds` — runtime overrides recompute it from live
  *     algorithm_config at play time, so this fallback is only seen by
  *     environments without live config
@@ -24,7 +24,7 @@
  *     presentation audio takes the prompt slot, no pause.
  *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
  *     curve from `toSimpleRounds`. It MUST be: the runtime override in
- *     LearningPlayer only ever CANCELS a baked ramp (for Turbo), it never
+ *     LearningPlayer only ever CANCELS a baked ramp (per mode), it never
  *     applies one — and the runtime pause override reads
  *     `cycle.playbackSpeed` as its belt proxy. See the note on
  *     `computeCycleSpeed`
@@ -38,7 +38,7 @@
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
 
@@ -256,7 +256,7 @@ export function toPlayerCycle(
   //    curves at play time. That keeps this adapter pure."
   // That assumption was FALSE and cost every learner their belt ramp from the
   // instant-playback cutover until 2026-08-04. `getPlaybackSpeedMultiplier`
-  // only CANCELS a baked ramp (for Turbo); it never applies one. The speed is
+  // only CANCELS a baked ramp (per mode); it never applies one. The speed is
   // now baked above, from the course's real `voice_config.target_speed` which
   // the caller threads in as `targetSpeed`.
 
@@ -293,12 +293,12 @@ export function toPlayerCycle(
       : computePauseDuration(
           bc.durations.target1_ms ?? 0,
           bc.durations.target2_ms ?? 0,
-          DEFAULT_NORMAL,
+          DEFAULT_FAST,
           speed,
         ),
     // Linger after voice2 on intros so the learner can read the reveal.
     ...(isIntro ? { lingerMs: 2000 } : {}),
-    // Raw target durations exposed so runtime overrides (Turbo) can
+    // Raw target durations exposed so runtime overrides (mode) can
     // recompute the pause with their own formula instead of just
     // scaling the baked value. Matches `toSimpleRounds`.
     ...(bc.durations.target1_ms ? { target1DurationMs: bc.durations.target1_ms } : {}),
@@ -326,7 +326,7 @@ export function toPlayerCycle(
     ...(Array.isArray(bc.display_tiling) && bc.display_tiling.length > 0 ? { displayTiling: bc.display_tiling } : {}),
     // Baked belt/global speed. Omitted at exactly 1.0 so the wire shape
     // matches `toSimpleRounds` (which also only sets it when != 1.0) and
-    // Turbo's `target / baked` cancellation reads the same default.
+    // The mode's `target / baked` cancellation reads the same default.
     ...(speed !== 1.0 ? { playbackSpeed: speed } : {}),
   }
 

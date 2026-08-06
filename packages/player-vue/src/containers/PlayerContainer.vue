@@ -237,9 +237,9 @@ const handleToggleScript = () => {
   }
 }
 
-const handleToggleTurbo = () => {
-  if (learningPlayerRef.value?.toggleTurbo) {
-    learningPlayerRef.value.toggleTurbo()
+const handleSetLearningMode = (mode) => {
+  if (learningPlayerRef.value?.setLearningMode) {
+    learningPlayerRef.value.setLearningMode(mode)
   }
 }
 
@@ -616,7 +616,7 @@ onMounted(() => {
       :isPlayerReady="isPlayerReady"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
-      :isTurboMode="learningPlayerRef?.turboActive ?? false"
+      :learningMode="learningPlayerRef?.learningMode ?? 'fast'"
       :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
@@ -627,7 +627,7 @@ onMounted(() => {
       @toggleListening="handleToggleListening"
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
-      @toggleTurbo="handleToggleTurbo"
+      @setLearningMode="handleSetLearningMode"
       @toggleOffline="handleToggleOffline"
       @revisit="handleRevisit"
       @skip="handleSkip"

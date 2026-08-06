@@ -7,8 +7,11 @@
     "pronunciation": "Fuaimniú",
     "guideShown": "Treoir os cionn na scripte",
     "nativeOnly": "Script dhúchais amháin",
-    "turboBoost": "Turbo",
-    "turboDesc": "Luas níos tapúla, níos lú athrá",
+    "pace": "Luas",
+    "easy": "Éasca",
+    "fast": "Tapa",
+    "easyDesc": "Níos mó ama machnaimh, níos mó athrá",
+    "fastDesc": "An gnáthluas",
     "offline": "Mód as líne",
     "offlineDesc": "Seinn ó fhuaim íoslódáilte",
     "hiseDesc": "Cleachtaí Cainte Ard-Déine",
@@ -201,7 +204,6 @@
     "tapToPause": "Tapáil le sos a chur",
     "tapToStart": "Tapáil le tosú",
     "phaseFlow": "Éist → Labhair → Éist → Féach",
-    "skipReplayTurbo": "Scipeáil, Athsheinm, Turbo",
     "tapAnywhere": "tapáil áit ar bith le tosú"
   },
   "driving": {

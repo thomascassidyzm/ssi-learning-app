@@ -16,7 +16,8 @@ const { t } = useI18n()
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
-  isTurboMode: { type: Boolean, default: false },
+  /** Active learning mode — 'easy' | 'fast'. Fast is the default. */
+  learningMode: { type: String, default: 'fast' },
   isOfflineMode: { type: Boolean, default: false },
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
@@ -26,7 +27,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'setLearningMode', 'toggleOffline', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -58,13 +59,21 @@ const closeTray = () => {
 
 // Is any mode active?
 const hasActiveMode = computed(() =>
-  props.isListeningMode || props.isPronunciationMode || props.isTurboMode
+  props.isListeningMode || props.isPronunciationMode || props.learningMode === 'easy'
 )
 
-// Can turbo be used? Not in listening or pronunciation
-const turboAvailable = computed(() =>
+// The pace choice only applies to speaking play — not in listening or
+// pronunciation, where the pause model isn't what's running.
+const paceAvailable = computed(() =>
   !props.isListeningMode && !props.isPronunciationMode
 )
+
+const isEasy = computed(() => props.learningMode === 'easy')
+
+const chooseMode = (mode: 'easy' | 'fast') => {
+  closeTray()
+  emit('setLearningMode', mode)
+}
 
 // The "Mode — pick one" radio group (HISE / Listening) and its
 // selectExperienceMode handler were removed 2026-08-06 (Aran): offering
@@ -76,14 +85,14 @@ const turboAvailable = computed(() =>
 const activeModeIcon = computed(() => {
   if (props.isListeningMode) return 'listening'
   if (props.isPronunciationMode) return 'pronunciation'
-  if (props.isTurboMode) return 'turbo'
+  if (props.learningMode === 'easy') return 'easy'
   return null
 })
 
 const handleMode = (mode: string) => {
   closeTray() // selection closes the tray — no second tap to get going
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
-  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
+  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleOffline')
 }
 
 // Offline is special: tapping it hands off to the full-screen depth picker
@@ -119,8 +128,8 @@ const handleOffline = () => {
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
       </svg>
-      <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      <svg v-else-if="activeModeIcon === 'easy'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
       </svg>
       <!-- Default: sliders icon -->
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -160,26 +169,37 @@ const handleOffline = () => {
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
-        <!-- Turbo toggle -->
-        <button
-          class="tray-item"
-          :class="{ active: isTurboMode, unavailable: !turboAvailable }"
-          :disabled="!turboAvailable"
-          @click="handleMode('turbo')"
-        >
+        <!-- Pace: Easy | Fast. Exactly two modes (Aran 2026-08-06) — a
+             segmented pick, not an on/off toggle, because neither is "off". -->
+        <div class="tray-item tray-item--static" :class="{ unavailable: !paceAvailable }">
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">{{ t('modes.turboBoost') }}</span>
-            <span class="tray-desc">{{ t('modes.turboDesc') }}</span>
+            <span class="tray-name">{{ t('modes.pace') }}</span>
+            <span class="tray-desc">{{ isEasy ? t('modes.easyDesc') : t('modes.fastDesc') }}</span>
           </div>
-          <div class="tray-toggle" :class="{ on: isTurboMode }">
-            <div class="tray-toggle-knob"></div>
+          <div class="pace-segments" role="radiogroup" :aria-label="t('modes.pace')">
+            <button
+              class="pace-segment"
+              :class="{ on: isEasy }"
+              role="radio"
+              :aria-checked="isEasy"
+              :disabled="!paceAvailable"
+              @click.stop="chooseMode('easy')"
+            >{{ t('modes.easy') }}</button>
+            <button
+              class="pace-segment"
+              :class="{ on: !isEasy }"
+              role="radio"
+              :aria-checked="!isEasy"
+              :disabled="!paceAvailable"
+              @click.stop="chooseMode('fast')"
+            >{{ t('modes.fast') }}</button>
           </div>
-        </button>
+        </div>
 
         <!-- Offline mode toggle — play from downloaded audio (no network) -->
         <button
@@ -229,7 +249,7 @@ const handleOffline = () => {
          position:fixed content below the shell's own top nav — a body-level
          Teleport escapes that containing block and re-joins the ROOT stacking
          context, where it painted ABOVE the (locally z-indexed) tray and
-         silently ate every tap on Turbo/Offline/Listening. Staying local
+         silently ate every tap on the pace/Offline/Listening items. Staying local
          keeps the backdrop in the SAME containing block as the tray itself,
          so the 102-vs-103 z-index order holds in both embedded and
          standalone play. -->
@@ -371,6 +391,51 @@ const handleOffline = () => {
   cursor: not-allowed;
 }
 
+/* The pace row is a container, not a button — its two segments are the
+   controls, so it must not take the button hover/active affordances. */
+.tray-item--static {
+  cursor: default;
+}
+
+.tray-item--static:hover,
+.tray-item--static:active {
+  background: transparent;
+}
+
+/* Easy | Fast segmented pick. Exactly two modes, neither of them "off",
+   so this reads as a choice rather than a switch. */
+.pace-segments {
+  display: flex;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px;
+  gap: 2px;
+}
+
+.pace-segment {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: #6B6560;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pace-segment.on {
+  background: #fff;
+  color: #16a34a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.pace-segment:disabled {
+  cursor: not-allowed;
+}
+
 .tray-icon {
   width: 32px;
   height: 32px;
@@ -440,7 +505,7 @@ const handleOffline = () => {
   font-weight: 600;
 }
 
-/* Toggle switch for Turbo */
+/* Toggle switch */
 .tray-toggle {
   width: 36px;
   height: 20px;

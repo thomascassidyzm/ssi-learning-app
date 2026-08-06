@@ -106,7 +106,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // instead — a fresh conductor is created alongside each new player in
   // initialize() so the two always point at the same live engine.
   let conductor: PlayerConductor | null = null
-  // Runtime overrides survive across initialize() calls so wiring Turbo
+  // Runtime overrides survive across initialize() calls so wiring the mode
   // before any rounds load still applies once playback starts.
   let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
   const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
@@ -220,7 +220,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const clearAudioFailed = () => { audioFailed.value = null }
 
   /**
-   * Replace the runtime overrides (Turbo-aware pause / speed callbacks).
+   * Replace the runtime overrides (mode-aware pause / speed callbacks).
    * Stored locally so a later initialize() call gets them too. Live player
    * (if any) is updated in place so toggles take effect on the next phase.
    */

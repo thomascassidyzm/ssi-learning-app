@@ -376,7 +376,7 @@ export function useAuth(): AuthState & AuthActions {
     return {
       session_duration_minutes: 30,
       encouragements_enabled: true,
-      turbo_mode_enabled: false,
+      pace_mode: 'fast',
       volume: 1.0,
     }
   }

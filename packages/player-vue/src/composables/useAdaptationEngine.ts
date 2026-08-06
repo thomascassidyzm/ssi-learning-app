@@ -117,7 +117,7 @@ export interface PlanRoundInput {
   roundLegoOrdinal: number
   /** Total LEGOs in the course — the criticality-fraction denominator. */
   courseLegoCount: number
-  /** True once the learner has exercised a manual dial (belt_skip/turbo_toggle) this session. */
+  /** True once the learner has exercised a manual dial (belt_skip/mode_toggle) this session. */
   manualOverrideActive: boolean
   /**
    * Forward-reuse centrality percentile per LEGO id (0..1, 1 = biggest hub)

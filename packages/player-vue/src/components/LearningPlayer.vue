@@ -55,7 +55,12 @@ import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFI
 import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
-import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import {
+  useAlgorithmConfig,
+  resolveScriptShape,
+  DEFAULT_LEARNING_MODE,
+  type LearningMode,
+} from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -388,11 +393,10 @@ const contribution = useContribution(supabase as any)
 // counter tap or the belt-pill tap.
 const showProgressModal = ref(false)
 
-// Algorithm config - admin-tweakable parameters (Turbo Boost, Normal mode pause, etc.)
+// Algorithm config - admin-tweakable parameters (Easy/Fast mode pause, etc.)
 const {
   loadConfigs: loadAlgorithmConfigs,
-  turboConfig,
-  normalConfig,
+  modeConfig,
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
@@ -425,8 +429,8 @@ const infPlayLookaheadFloor = (): number => {
 
 /**
  * Wrapper for generateSimpleScript that threads the live algorithm_config
- * triple (listening, scriptShape, turbo cull) into every script-generation
- * call. Pass `listeningOverride` only when you need the per-learner pod
+ * triple (listening, the mode-resolved scriptShape, phrase-length preference)
+ * into every script-generation call. Pass `listeningOverride` only when you need the per-learner pod
  * activation pin merged on top.
  */
 // In-flight walk dedupe. Concurrent callers whose inputs produce the same
@@ -472,7 +476,9 @@ const generateScript = (
   // expansion watcher's call and the handoff's) which would split the key and
   // defeat the dedupe — while the counter only moves when INF-PLAY expansion
   // deliberately bumps it, which is exactly when a fresh walk IS wanted.
-  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
+  // The mode is part of the key: Easy and Fast resolve to different script
+  // shapes, so a mode switch must never be served a cached walk of the other.
+  const dedupeKey = `${courseCode.value}|${learningMode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
   if (inFlightScript && inFlightScript.key === dedupeKey) {
     return inFlightScript.promise
   }
@@ -491,7 +497,7 @@ const generateScript = (
 const runGenerateScript = (
   listeningOverride?: ListeningConfigType,
 ) => {
-  const tc = turboConfig.value
+  const mode = activeModeConfig.value
   // Pod activation default lives on PodsConfig (admin UI is in L2 section).
   // Merge it into the listening shape the generator consumes. Precedence:
   //   1. listeningOverride.podActivationRound (per-learner pin path)
@@ -515,8 +521,12 @@ const runGenerateScript = (
     courseCode.value,
     infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
-    scriptShapeConfig.value,
-    { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+    // Per-mode shape = global script_shape with the mode's override layered
+    // on top (resolveScriptShape is the ONE place that merge happens). Fast
+    // ships an identity override, so Fast generates exactly what the global
+    // row says — provably unchanged.
+    resolveScriptShape(scriptShapeConfig.value, mode),
+    mode.phraseLengthPreference ?? 'shortest',
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -1242,7 +1252,7 @@ const simplePlayer = useSimplePlayer()
 // Brain-view telemetry. Feeds Agent A's pairings store: every cycle that
 // actually plays through bumps `fire_count` for its primary LEGO + any
 // constituent A-LEGOs of an M-LEGO. Drives the v2 brain timelapse:
-// thicker synapses + mastery tier. Skipped cycles (Turbo) never fire
+// thicker synapses + mastery tier. Skipped cycles never fire
 // `cycle_completed`, so we automatically only count what the learner
 // heard.
 // Agent A's composable takes no args — pulls supabase via inject. We pass
@@ -1916,15 +1926,10 @@ simplePlayer.onCycleCompleted((cycle) => {
 
   // Trigger reward animation
   const { points, bonusLevel } = calculateCyclePoints()
-  const multipliedPoints = Math.round(points * sessionMultiplier.value)
-  sessionPoints.value += multipliedPoints
-  triggerRewardAnimation(multipliedPoints, bonusLevel)
-
-  // Track turbo usage
+  sessionPoints.value += points
+  triggerRewardAnimation(points, bonusLevel)
   totalCycles.value++
-  if (turboActive.value) {
-    turboCycles.value++
-  }
+
 
   // Record to session tracking (for analytics)
   const completedItem = currentPlayableItem.value
@@ -3644,9 +3649,8 @@ const currentPodTurn = computed(() => {
 const userStoppedDuringLap = ref(false)
 // Set true when the learner presses skip *during* a pod lap. Distinct from
 // userStoppedDuringLap: skip means "advance to the next round" (so resume
-// fires), stop means "stay paused". In Turbo mode a skip also bumps the
-// pod ratchet so the same sentences don't resurface; in regular mode the
-// ratchet stays put so the listening work still has to be done.
+// fires), stop means "stay paused". The ratchet stays put on a skip either
+// way, so the listening work still has to be done.
 const podLapSkippedByUser = ref(false)
 // When the learner stops *during* a pod lap, we bookmark the lap here so
 // the next play tap re-fires it (with omitIntro=true so the bookend
@@ -3836,19 +3840,15 @@ const triggerRewardAnimation = (points, bonusLevel) => {
 // Session points total
 const sessionPoints = ref(0)
 
-// Turbo cycle tracking for session multiplier
+// Cycles completed this session — reported on class_sessions.cycles_completed.
 const totalCycles = ref(0)
-const turboCycles = ref(0)
 
-// Session multiplier based on turbo usage (hidden formula)
-const sessionMultiplier = computed(() => {
-  if (totalCycles.value < 5) return 1.0 // Need minimum cycles before multiplier kicks in
-  const turboPercent = turboCycles.value / totalCycles.value
-  // Tiered multiplier - reward consistent turbo usage
-  if (turboPercent >= 0.75) return 1.5 // 75%+ turbo = 1.5x
-  if (turboPercent >= 0.50) return 1.25 // 50%+ turbo = 1.25x
-  return 1.0
-})
+// The Turbo-usage session-points multiplier was DELETED with Turbo
+// (2026-08-06). It existed to reward opting INTO the harder mode; with Fast
+// as the DEFAULT mode, keying it on Fast would hand every learner a 1.5×
+// for doing nothing. Deleting it leaves today's default (non-Turbo) learner's
+// points exactly unchanged — only the Turbo inflation goes. sessionMultiplier
+// is therefore gone; points are points.
 
 // ============================================
 // BELT PROGRESSION SYSTEM
@@ -4767,7 +4767,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       roundLegoId: nextRoundFull.legoId,
       roundLegoOrdinal,
       courseLegoCount,
-      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || modeChosenThisSession.value,
       unitCentralityPercentile: legoCentralityPercentile.value ?? undefined,
     })
     const applyingAdaptationV2 = !adaptationV2Config.value.shadow
@@ -5003,14 +5003,6 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           podScheduler.markLapCompleted().catch((err) => {
             console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
           })
-        } else if (podLapSkippedByUser.value && turboActive.value) {
-          // Turbo skip: bump the ratchet so the same sentences don't keep
-          // resurfacing. Regular skip leaves the counter — listening work
-          // still has to be done next session.
-          podScheduler.skipAhead(1).catch((err) => {
-            console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
-          })
-          console.log('[LearningPlayer] Pod lap skipped in Turbo, ratchet advanced')
         } else {
           // Regular skip, audio error, or user stop — counter stays so the
           // same lap plays next session ("the listening work has to be done").
@@ -5458,15 +5450,15 @@ const clearSkipPrepDialog = () => {
 watch(() => simplePlayer.phase.value, (phase) => {
   // Both the visible countdown and the SimplePlayer's setTimeout go through
   // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
-  // affect both in lockstep. cfg is normalConfig or turboConfig — the live
-  // values from the DB, with DEFAULT_NORMAL/DEFAULT_TURBO as fallback.
+  // affect both in lockstep. cfg is the active mode's row — the live values
+  // from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
   if (phase === 'pause') {
     const cycle = simplePlayer.currentCycle.value
-    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
+    const cfg = activeModeConfig.value
     // Effective speed matches getPauseDuration: belt ramp in Normal, native
-    // 1.0× in Turbo (no belt ramp, never faster than 1.0×). Keeps the ring and
+    // the mode's own speed when it overrides the ramp. Keeps the ring and
     // the real gap in lockstep.
-    const spd = turboActive.value ? Math.min(turboConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
+    const spd = cycle ? modeEffectiveSpeed(cycle as any) : 1
     const duration = computePauseDuration(
       cycle?.target1DurationMs ?? 0,
       cycle?.target2DurationMs ?? 0,
@@ -7186,18 +7178,13 @@ const handleCycleEvent = async (event) => {
         }
       }
 
-      // Track turbo usage for session multiplier
+
       totalCycles.value++
-      if (turboActive.value) {
-        turboCycles.value++
-      }
 
       // Trigger floating reward animation (Ink Spirit)
       const { points, bonusLevel } = calculateCyclePoints()
-      // Apply session multiplier (hidden from user - they just see higher points)
-      const multipliedPoints = Math.round(points * sessionMultiplier.value)
-      sessionPoints.value += multipliedPoints
-      triggerRewardAnimation(multipliedPoints, bonusLevel)
+      sessionPoints.value += points
+      triggerRewardAnimation(points, bonusLevel)
 
       // Record progress if database is available
       if (completedItem) {
@@ -7519,10 +7506,6 @@ const handleResume = async () => {
       if (completed) {
         podScheduler?.markLapCompleted().catch((err) => {
           console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
-        })
-      } else if (podLapSkippedByUser.value && turboActive.value) {
-        podScheduler?.skipAhead(1).catch((err) => {
-          console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
         })
       }
       podLapSkippedByUser.value = false
@@ -8469,8 +8452,7 @@ const handleSkip = async () => {
   // let handleRoundBoundary's resume() advance into the next round.
   // Don't fall through to jumpToRound — simplePlayer is already queued
   // at the next round (advanceRound bumped roundIndex when it was
-  // paused for the lap/commentary). Turbo's ratchet bump for pod laps
-  // lives in handleRoundBoundary so this stays a thin signal.
+  // paused for the lap/commentary).
   if (playingPodLapAudio.value || playingCommentaryAudio.value) {
     console.log('[LearningPlayer] Skip during inter-round audio — cancelling')
     if (playingPodLapAudio.value) podLapSkippedByUser.value = true
@@ -9308,32 +9290,54 @@ const handleSkipToPrevBelt = async () => {
   }
 }
 
-// Mode toggles
-const turboActive = ref(false)
-const turboPopupShownThisSession = ref(false)
+// ============================================
+// LEARNING MODE — Easy / Fast (Aran's ruling 2026-08-06: exactly two modes)
+//
+// Fast is the default and is a byte-faithful continuation of the old
+// 'normal_mode'. Easy is the gentler mode. Turbo is deleted.
+//
+// The mode drives TWO things:
+//   1. Pause + speed, at runtime, via the overrides below — a switch takes
+//      effect on the very next pause / voice phase, no regen, no waiting for
+//      a round boundary.
+//   2. Script SHAPE, via ModeConfig.scriptShape layered over the global
+//      script_shape row (resolveScriptShape). Shape can only apply to rounds
+//      GENERATED after the switch, so a mid-session switch re-shapes from the
+//      next generated batch onward, not retroactively. This replaces Turbo's
+//      per-cycle `turboOmit` cull: modes now differ by OVERRIDE, not by cull.
+// ============================================
+const LEARNING_MODE_KEY = 'ssi-learning-mode'
 
-// ============================================
-// RUNTIME PAUSE / SPEED OVERRIDES
-// Both Normal and Turbo modes compute pause from the active ModeConfig
-// (algorithm_config table, admin-tweakable). Selection switches on
-// turboActive at runtime — toggling Turbo takes effect on the very next
-// pause / voice phase, no script regen, no round-boundary wait.
-// Listening/pod cycles keep their explicit zero-pause regardless.
-// ============================================
-const TURBO_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
+const readStoredLearningMode = (): LearningMode => {
+  try {
+    const v = localStorage.getItem(LEARNING_MODE_KEY)
+    if (v === 'easy' || v === 'fast') return v
+  } catch { /* storage blocked — session default still works */ }
+  return DEFAULT_LEARNING_MODE
+}
+
+const learningMode = ref<LearningMode>(readStoredLearningMode())
+/** The live ModeConfig for whichever mode is active. */
+const activeModeConfig = computed(() => modeConfig(learningMode.value))
+/** True once the learner has moved the pace dial themselves this session —
+ *  the adaptation engine yields to a learner who has expressed a judgement. */
+const modeChosenThisSession = ref(false)
+
+// Cycle types that never take a mode pause / speed change: they carry their
+// own purposeful timing (intros, listening, pods).
+const MODE_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
 
 simplePlayer.setRuntimeOverrides({
   getPauseDuration: (cycle) => {
     // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
     if (!cycle.pauseDuration) return cycle.pauseDuration
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
+    if (cycle.type && MODE_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
     // Recompute pause from raw target durations using the active mode's config.
     // Single source of truth — same helper drives the visible countdown.
-    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    // Effective speed = what the voice ACTUALLY plays at. Normal: the baked
-    // belt ramp. Turbo: native 1.0× — drops the belt ramp but never exceeds
-    // 1.0×. Pause is sized off actual play time = raw / speed.
-    const spd = turboActive.value ? Math.min(turboConfig.value.playback_speed, 1.0) : (cycle.playbackSpeed ?? 1)
+    const cfg = activeModeConfig.value
+    // Effective speed = what the voice ACTUALLY plays at, so the pause is
+    // sized off actual play time = raw / speed. See modeSpeedMultiplier.
+    const spd = modeEffectiveSpeed(cycle)
     const base = computePauseDuration(
       cycle.target1DurationMs ?? 0,
       cycle.target2DurationMs ?? 0,
@@ -9351,31 +9355,14 @@ simplePlayer.setRuntimeOverrides({
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
-  getPlaybackSpeedMultiplier: (cycle) => {
-    if (!turboActive.value) return 1.0
-    // Don't double up on listening/pod cycles that already have a
-    // purposeful 2.0× speed — turbo on top would give 2.5×.
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
-    // Turbo plays at native 1.0× regardless of belt — it drops the beginner
-    // belt ramp but NEVER speeds the voice past 1.0×. The multiplier is
-    // relative to the baked belt-ramp speed, so cancel it: baked × (target /
-    // baked) = target, with target = min(turbo speed, 1.0).
-    const target = Math.min(turboConfig.value.playback_speed, 1.0)
-    const baked = cycle.playbackSpeed ?? 1.0
-    return target / baked
-  },
+  getPlaybackSpeedMultiplier: (cycle) => modeSpeedMultiplier(cycle),
   shouldSkipCycle: (cycle) => {
     // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
-    // says to skip this round (mirrors turboOmit exactly, computed live at
-    // the round boundary instead of at script-gen time — see
-    // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
-    // no-op unless the engine is enabled AND applying.
+    // says to skip this round, computed live at the round boundary. Empty set
+    // in shadow/disabled mode, so this is a no-op unless the engine is
+    // enabled AND applying. (This is now the ONLY cull: the Easy/Fast modes
+    // differ by generated shape, never by skipping cycles at play time.)
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
-
-    // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
-    // alternate-fib spaced rep. Tagging happens at script generation;
-    // this just gates on the live Turbo flag.
-    if (turboActive.value && cycle.turboOmit === true) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
@@ -9541,8 +9528,6 @@ const listeningCeilingSeed = computed<number | null>(() => {
 // Session controls" — no separate UI, no separate engine. The paid
 // "download for offline" feature covers the deliberate no-signal case.
 
-// Mode explanation popups
-const showTurboPopup = ref(false)
 
 // Belt skip feedback state (showBeltModal merged into showProgressModal above)
 const isSkippingBelt = ref(false)
@@ -9984,41 +9969,49 @@ const exitAllModes = () => {
   handlePause()
 }
 
-// Show turbo explanation popup (first time in session) or toggle directly
-const handleTurboClick = () => {
-  if (turboActive.value) {
-    // Already on - just toggle off
-    toggleTurbo()
-  } else if (turboPopupShownThisSession.value) {
-    // Popup already shown this session - just toggle on directly
-    toggleTurbo()
-  } else {
-    // First time this session - show explanation popup
-    showTurboPopup.value = true
-  }
+/**
+ * Effective playback speed for a cycle under the active mode — what the voice
+ * ACTUALLY plays at, which is what the pause must be sized against.
+ *
+ * A mode only overrides the baked belt ramp when its row asks for a speed
+ * other than 1.0. Both shipped modes are 1.0, so the belt ramp stands exactly
+ * as it did before Turbo was deleted; an admin can still make a mode override
+ * it from the DB (the old Turbo mechanism, now mode-general).
+ */
+const modeEffectiveSpeed = (cycle: { type?: string; playbackSpeed?: number }): number => {
+  const baked = cycle?.playbackSpeed ?? 1
+  const want = activeModeConfig.value.playback_speed
+  if (!want || want === 1.0) return baked
+  if (cycle?.type && MODE_BYPASS_TYPES.has(cycle.type)) return baked
+  // Never speed the voice past native 1.0x — the ramp is a beginner aid, not
+  // a ceiling to blow through.
+  return Math.min(want, 1.0)
 }
 
-// Confirm and enable turbo mode
-const confirmTurbo = () => {
-  showTurboPopup.value = false
-  turboPopupShownThisSession.value = true  // Don't show popup again this session
-  turboActive.value = true
-  logEvent('turbo_toggle', { enabled: true, firstTime: true })
-  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: true }, null)
+/** Multiplier relative to the cycle's BAKED rate: baked x (target/baked) = target. */
+const modeSpeedMultiplier = (cycle: { type?: string; playbackSpeed?: number }): number => {
+  const baked = cycle?.playbackSpeed ?? 1
+  const eff = modeEffectiveSpeed(cycle)
+  return baked ? eff / baked : 1
 }
 
-// Close turbo popup without enabling
-const closeTurboPopup = () => {
-  showTurboPopup.value = false
-  turboPopupShownThisSession.value = true  // They've seen it, don't show again
-}
-
-const toggleTurbo = () => {
-  turboActive.value = !turboActive.value
-  // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
-  // off = backing off. A no-mic behavioural signal.
-  logEvent('turbo_toggle', { enabled: turboActive.value })
-  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: turboActive.value }, null)
+/**
+ * Set the learning mode. Persisted so the choice survives a reload, and
+ * logged as a manual pace dial (the no-mic behavioural signal that used to
+ * ride on 'turbo_toggle'). Pause/speed apply on the next phase; the mode's
+ * script-shape override applies to rounds generated after this point.
+ */
+const setLearningMode = (mode: LearningMode) => {
+  if (learningMode.value === mode) return
+  const previous = learningMode.value
+  learningMode.value = mode
+  modeChosenThisSession.value = true
+  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked — session choice still applies */ }
+  // Manual pace control — 'fast' = "this is too easy" (confidence/boredom),
+  // 'easy' = backing off. The same signal Turbo's toggle carried, now naming
+  // the mode actually chosen rather than a boolean that no longer describes it.
+  logEvent('mode_toggle', { mode, previous })
+  behaviouralEvidence.onPlayerEvent('mode_toggle', { mode, previous }, null)
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
@@ -11972,7 +11965,7 @@ onMounted(async () => {
   // ============================================
   const loadAllData = async () => {
     try {
-      // Load algorithm configs (Turbo Boost settings, etc.) - non-blocking
+      // Load algorithm configs (Easy/Fast mode settings, etc.) - non-blocking
       loadAlgorithmConfigs().catch(err => {
         console.warn('[LearningPlayer] Failed to load algorithm configs, using defaults:', err)
       })
@@ -13984,12 +13977,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
         freshResult = await eagerScript.scriptPromise.value
       } else {
         console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
-        const tc = turboConfig.value
+        const mode = activeModeConfig.value
         freshResult = await generateSimpleScript(
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
-          scriptShapeConfig.value,
-          { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+          resolveScriptShape(scriptShapeConfig.value, mode),
+          mode.phraseLengthPreference ?? 'shortest',
         )
       }
     } finally {
@@ -14156,8 +14149,8 @@ defineExpose({
   hasRomanizedText,
   isNativeScript,
   toggleScriptMode,
-  toggleTurbo,
-  turboActive,
+  setLearningMode,
+  learningMode,
   toggleOffline,
   offlineActive,
   sessionSeconds,
@@ -14945,28 +14938,6 @@ defineExpose({
       </div>
     </header>
 
-    <!-- Turbo Mode Explanation Popup -->
-    <Transition name="fade">
-      <div v-if="showTurboPopup" class="mode-popup-overlay" @click.self="closeTurboPopup">
-        <div class="mode-popup">
-          <div class="mode-popup-icon mode-popup-icon--turbo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
-          </div>
-          <h3 class="mode-popup-title">Turbo Mode</h3>
-          <p class="mode-popup-desc">
-            Turbo mode reduces the pause time between phrases, giving you less thinking time.
-            It also gives you fewer repetitions.
-            It's great for building fluency once you're comfortable with the material.
-          </p>
-          <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeTurboPopup">Cancel</button>
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmTurbo">Enable Turbo</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
 
     <!-- Listening Mode Overlay -->
     <Transition name="listening-overlay">
@@ -15016,7 +14987,7 @@ defineExpose({
           
           <div class="debug-section-title">Timing</div>
           <div class="debug-row"><span class="debug-label">Pause:</span> {{ Math.round(pauseDurationRef) }}ms</div>
-          <div class="debug-row"><span class="debug-label">Turbo:</span> {{ turboActive ? 'ON' : 'OFF' }}</div>
+          <div class="debug-row"><span class="debug-label">Mode:</span> {{ learningMode }}</div>
           <div class="debug-row"><span class="debug-label">Adaptation:</span> {{ isAdaptationActive ? 'ON' : 'OFF' }}</div>
           
           <div class="debug-section-title" v-if="lastTimingResult?.speech_detected">Last Response</div>
@@ -15703,7 +15674,7 @@ defineExpose({
   /* Touch target: always 44px min for accessibility */
   --btn-touch-target: 44px;
 
-  /* Mode buttons (listening, turbo) */
+  /* Mode buttons (listening, pace) */
   --mode-btn-size: 36px;
   --mode-btn-icon: 16px;
 
@@ -17802,11 +17773,6 @@ button.phase-segment:active:not(.is-active) {
 .mode-popup-icon svg {
   width: 28px;
   height: 28px;
-}
-
-.mode-popup-icon--turbo {
-  background: var(--gold-soft);
-  color: var(--gold);
 }
 
 .mode-popup-icon--listening {

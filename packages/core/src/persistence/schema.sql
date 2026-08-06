@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS learners (
   preferences JSONB NOT NULL DEFAULT '{
     "session_duration_minutes": 15,
     "encouragements_enabled": true,
-    "turbo_mode_enabled": false,
+    "pace_mode": "fast",
     "volume": 1.0
   }'::jsonb,
 

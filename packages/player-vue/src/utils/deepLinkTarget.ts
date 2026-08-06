@@ -224,7 +224,7 @@ export function resolveDeepLinkTarget(
  * The point of the launch is fidelity, so the reviewer hears precisely what a
  * learner hears.
  *
- * The DB side already holds: algorithm_config (normal_mode, turbo_boost,
+ * The DB side already holds: algorithm_config (fast_mode, easy_mode,
  * script_shape/speed, pods, listening, stage0, adaptation_v2) is fetched every
  * boot, and the old course-level "Open Learning App" link injects nothing but
  * ?course=. What diverges is the reviewer's own localStorage — playback speed,
