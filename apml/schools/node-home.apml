@@ -1,6 +1,6 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
 # Last updated: 2026-08-06 (creator becomes first manager; the node names its leader;
-#               duplicate-name warning on Add-a-group)
+#               duplicate-name warning on Add-a-group and on Rename)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
@@ -64,7 +64,9 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
   # group already exists and when, and offers "Change the name" or "Go ahead
   # anyway" — the latter re-sends with confirm_duplicate: true. Warning only:
   # legitimate duplicates are allowed once a human has said so. Scope is
-  # same-parent, so a "Year 7" under a different school never warns. Full
+  # same-parent, so a "Year 7" under a different school never warns. The
+  # RENAME verb warns the same way off PATCH /api/groups/:id — same 409, same
+  # two ways out, and never about the row being renamed itself. Full
   # contract: apml/core/roles-and-permissions.apml duplicate_name_warning.
   # The admin "Class tools" page is DEAD (founder ruling 2026-07-19): it
   # duplicated the class node home with zero admin-usable verbs. Its route

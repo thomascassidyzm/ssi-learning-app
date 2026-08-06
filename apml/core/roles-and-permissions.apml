@@ -4,7 +4,7 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.4.0"
+  version: "1.4.1"
   date: "2026-08-06"
   author: "Tom Cassidy & Claude"
   status: "specification"
@@ -203,14 +203,15 @@ role govt_admin:
           on the node home (and "No group leader yet" on a leaderless root —
           absence must be loud, not silent).
 
-      # DUPLICATE-NAME WARNING at creation (2026-08-06). Deborah made two orgs
+      # DUPLICATE-NAME WARNING at creation AND rename (2026-08-06). Deborah made two orgs
       # both called "Deborah Testing" and nothing told her — both slugged to
       # `deborah-testing`, which is what let a path-string subtree match count
       # each org's people into the other's rollup.
       duplicate_name_warning:
         rule: |
-          A create whose name slugs onto an EXISTING SIBLING's slug answers
-          409 { code: 'duplicate_name', duplicates: [...] } and writes nothing.
+          A create OR RENAME whose name slugs onto an EXISTING SIBLING's slug
+          answers 409 { code: 'duplicate_name', duplicates: [...] } and writes
+          nothing.
           The same request re-sent with confirm_duplicate: true skips the check
           and proceeds byte-identically to before. WARNING, never a constraint:
           no unique index, no forced rename, no auto-suggested name. Two orgs
@@ -234,16 +235,32 @@ role govt_admin:
           full row (id, path).
         fails_open: |
           Any error in the duplicate lookup means NO WARNING, never a failed
-          creation. A warning is a nicety; a blocked signup is a lost customer.
+          creation or rename. A warning is a nicety; a blocked signup is a lost
+          customer. On the rename path this covers TWO reads — the sibling
+          lookup and the row's own name/parent read; either failing skips the
+          warning and lets the write proceed.
+        rename_specifics: |
+          PATCH /api/groups/:id runs the check after authorization and after the
+          re-parent cycle checks, before the update — a warned rename writes
+          nothing. Two things creation didn't have to do:
+            · EXCLUDE THE ROW ITSELF (id !== the patched group), so renaming
+              "Deborah Testing" to "deborah-testing" on the same row is silent.
+            · Compare against the EFFECTIVE name and parent AFTER the patch —
+              the supplied value where the request carries one, the row's own
+              current value otherwise. So a pure re-parent (ssi_admin only) that
+              lands a group beside a same-named sibling warns too.
         covered_paths: |
           POST /api/groups (both the self-serve root lane and the admin/leader
-          lane) and POST /api/onboarding/provision's 'org' track (the /orgs
-          signup door). Client: AdminStructure "+ Add organisation",
-          NodeActionBar "Add a group", Onboarding's org door — all via
+          lane), POST /api/onboarding/provision's 'org' track (the /orgs signup
+          door), and PATCH /api/groups/:id (rename — ssi_admin and leader
+          lanes alike). Client: AdminStructure "+ Add organisation" and its
+          row rename, NodeActionBar "Add a group" and its Rename verb,
+          Onboarding's org door — all via
           utils/duplicateNameWarning.readDuplicateWarning, which distinguishes
           this 409 from the "one organisation per leader for now" 409 on the
-          `code`, never the status. PATCH /api/groups/:id (rename) is NOT
-          covered and can still produce a colliding slug.
+          `code`, never the status. Every confirm parameter is passed with
+          explicit parens at the call site: a bare @keyup.enter handler would
+          hand it the KeyboardEvent, which is truthy, and confirm silently.
 
 role school_admin:
   name: "School Administrator"
