@@ -307,6 +307,50 @@ TILE_ASSEMBLY:
     prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
 
 ## ============================================================================
+## LEARNING MODE — EASY / FAST (2026-08-06)
+## ============================================================================
+
+LEARNING_MODE:
+  description: "The two learner-facing modes. Turbo was RETIRED 2026-08-06; there is exactly `easy` and `fast`."
+  source: "packages/player-vue/src/components/LearningPlayer.vue (learningMode ref, isEasyMode computed, setLearningMode/toggleLearningMode) + components/PlayerRestingState.vue (the control)"
+
+  modes:
+    fast:
+      default: true
+      semantics: "Behaviourally identical to the pre-2026-08-06 `normal` mode — a learner who never touches the toggle sees no change at all. Keeps the baked belt speed ramp (getPlaybackSpeedMultiplier returns 1.0) and the global script_shape unchanged."
+    easy:
+      semantics: "Gentler. Three independent knobs, all admin-tunable via algorithm_config."
+      time: "Every pause term is 2x Fast (boot, assembly slope, floor, ceiling, multiplier) AND the belt taper is off (pause_belt_boot / pause_belt_assembly both 1.0 vs Fast's 0.8 assembly taper). Audio plays at native 1.0x — Easy cancels the beginner belt speed ramp, never speeds the voice past 1.0x."
+      reps: "A per-mode `script_shape` overlay doubles the phrase-count knobs — maxBuildPhrases 14, useConsolidationCount 4, maxSpacedRepPhrases 24, n1PhraseCount 6 (vs Fast's 7/2/12/3). `spacedRepOffsets` is deliberately NOT doubled: the Fibonacci ladder is WHEN a review fires, not how many reps it gives."
+      length: "`phrase_length_preference: 'longest'` reverses the shortest-first BUILD/USE sorts in generateLearningScript, so the learner gets the fullest phrase available."
+
+  control:
+    surface: "Segmented Easy | Fast control on the RESTING SCREEN (PlayerRestingState.vue) — the mode you pick BEFORE you start, not a mid-session tray toggle. Rendered only when isPlayerReady; pointer-events re-enabled locally because .resting-state is pointer-events:none."
+    wiring: "PlayerRestingState props :learning-mode, emits set-learning-mode -> LearningPlayer.setLearningMode(mode)"
+    copy: "locales modes.easy / modes.fast / modes.learningModeLabel"
+    not_in_tray: "ModeTray no longer carries a mode entry for this — the Turbo row and its explanation popup were deleted with Turbo."
+
+  persistence:
+    source_of_truth: "learner preferences `learning_mode: 'easy' | 'fast'` (optional; absent reads as 'fast') — replaced `turbo_mode_enabled`"
+    fallback: "localStorage key `ssi-learning-mode` for signed-out learners; the learner row wins once auth resolves (watched)"
+
+  config:
+    rows: "algorithm_config `fast_mode` + `easy_mode` (was `normal_mode` + `turbo_boost`)"
+    backward_compatible: "fast_mode falls back to the legacy normal_mode row; easy_mode falls back to DEFAULT_EASY layered over the tuned fast/normal values. A missing row can never break playback. The player writes no rows."
+
+  timing_of_effect:
+    immediate: "Pause / thinking time and playback speed — they go through SimplePlayer runtime overrides read fresh at every phase, so they land on the next cycle boundary."
+    next_script_build: "Doubled reps + longest-phrase preference — baked at script-generation time, so they land on the next session or a course switch. No blocking mid-session regeneration by design. generateScript's dedupe key includes the mode so the other mode's cached walk is never served."
+
+  analytics: "player_events `learning_mode_toggle` with payload { mode } (replaced `turbo_toggle`). Also fed to useBehaviouralEvidence as a MANUAL DIAL — the learner outranking the engine — which sets manualOverrideActive for adaptation v2 and never enters a unit's difficulty series."
+
+  retired_with_turbo:
+    cycle_cull: "`turboOmit` is GONE from ScriptItem, Cycle and toSimpleRounds — no learner gets a thinned-out round any more. SimplePlayer's generic shouldSkipCycle hook remains and is used by adaptation v2 alone."
+    points_multiplier: "The turbo-usage session points multiplier is retired — sessionMultiplier is a flat 1.0, which is what every non-Turbo learner already got."
+    pod_ratchet: "The pod-lap ratchet bump on skip (usePodLapScheduler.skipAhead, previously Turbo-only) is no longer called from the player."
+    historical_events: "MANUAL_DIAL_EVENT_TYPES still contains 'turbo_toggle' ONLY so evidence replayed from pre-2026-08-06 sessions still counts as a manual dial."
+
+## ============================================================================
 ## LISTENING OVERLAY (headphones mode)
 ## ============================================================================
 
