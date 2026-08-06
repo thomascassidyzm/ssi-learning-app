@@ -75,23 +75,26 @@ describe('SchoolsTopBar — play-as-class identity', () => {
     expect(wrapper.find('.pac-exit').exists()).toBe(true)
   })
 
-  it('does NOT show the play-as-class identity for staff self-practice (same route, no ?class=)', async () => {
+  it('a class-less arrival on the play route never becomes a session — it leaves the route entirely', async () => {
     // A stale payload can linger from a previous session; without a matching
-    // ?class= query it must NOT be treated as a live class session.
+    // ?class= query it must NOT be treated as a live class session. Since the
+    // owner ruling of 2026-08-06 this case no longer even renders a wrapped
+    // player: /schools/play is play-as-class only, so a class-less arrival
+    // (stale bookmark, hand-typed URL) is redirected to the immersive player.
     localStorage.setItem(
       'ssi-active-class',
       JSON.stringify({ id: 'class-6s', name: '6S', course_code: 'cym_for_eng' }),
     )
     await router.push('/schools/play')
     await router.isReady()
+    expect(router.currentRoute.value.name).toBe('player')
+
     const wrapper = mount(SchoolsTopBar, {
       global: { plugins: [router], provide: { auth: null } },
     })
-
     expect(wrapper.find('.pac-class').exists()).toBe(false)
-    // Normal chrome: tabs + Learn button present.
-    expect(wrapper.find('nav.tabs').exists()).toBe(true)
-    expect(wrapper.find('a.learn-btn').exists()).toBe(true)
+    // And no Learn button — you're already in the player.
+    expect(wrapper.find('a.learn-btn').exists()).toBe(false)
   })
 
   it('does NOT show the identity when the stored class id does not match ?class=', async () => {

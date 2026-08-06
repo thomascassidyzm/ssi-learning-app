@@ -32,6 +32,12 @@ export interface ActiveClassSession {
 // bar stays above the player.
 const PLAY_ROUTE_NAMES = ['schools-play', 'teach-play']
 
+// Every route that renders the player, embedded or not — the two above plus the
+// immersive standalone player at '/'. Used to drop the Learn button from the
+// shells: you don't offer "Learn" to someone already inside the player (owner
+// ruling 2026-08-06).
+const PLAYER_ROUTE_NAMES = [...PLAY_ROUTE_NAMES, 'player']
+
 export function usePlayAsClassContext() {
   const route = useRoute()
   const router = useRouter()
@@ -76,6 +82,9 @@ export function usePlayAsClassContext() {
 
   const className = computed(() => activeClass.value?.name || '')
 
+  /** True on any route that renders the player, class session or not. */
+  const isOnPlayerRoute = computed(() => PLAYER_ROUTE_NAMES.includes(route.name as string))
+
   /**
    * Leave the class session and return home. Clears the stored payload +
    * ?class= query (mirrors PlayerContainer.clearClassContext) so a later
@@ -96,5 +105,5 @@ export function usePlayAsClassContext() {
     await router.push(backTo)
   }
 
-  return { activeClass, className, isPlayingAsClass, exitClassSession }
+  return { activeClass, className, isPlayingAsClass, isOnPlayerRoute, exitClassSession }
 }

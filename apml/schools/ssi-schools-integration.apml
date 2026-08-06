@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.3.0"
-  date: "2026-08-05"
+  version: "1.4.0"
+  date: "2026-08-06"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -362,16 +362,44 @@ principle SchoolCreationOnePrimitive:
     (DashboardView.vue still lists them, read-only). No new leader surface
     mints new ones.
 
-principle StaffHomeIsDashboard:
+principle OnePlayerOneDoor:
   statement: |
-    Owner ruling 2026-07-16: any school-staff role (teacher, school_admin,
-    govt_admin — useUserRole's hasSchoolRole) landing on the bare root route
-    "/" belongs on "/schools" instead, reaching the player only via the
-    dashboard's own Learn button (the schools-framed "/schools/play" route,
-    SchoolsTopBar always above the player). Learners/students keep landing in
-    the bare player at "/" — this principle is staff-only.
+    Owner ruling 2026-08-06: ENTERING THE PLAYER ALWAYS GIVES THE IMMERSIVE,
+    NAVLESS PLAYER at "/" — and no Learn button renders while you are already
+    in the player. The same player had been reachable as two different screens
+    depending on the door: navless via "/", wrapped in schools chrome via the
+    Learn button's "/schools/play". Converged on the navless one.
 
-  gap_closed: |
+    Consequences, as shipped:
+      - SchoolsTopBar's Learn pill and its user-menu "My player" both target
+        "/" (they targeted "/schools/play"); TopNav's Learn button and mobile
+        "My Learning" already did.
+      - Both bars drop every self-practice launcher on any route that renders
+        the player — "player" ("/"), "schools-play", "teach-play" — class
+        session live or not (usePlayAsClassContext.isOnPlayerRoute).
+      - The two embedded play routes survive for PLAY-AS-CLASS ONLY, where the
+        bar earns its place by naming which class is live (founder ruling
+        2026-07-18). A global router.beforeEach sends a class-less arrival on
+        either of them to "/" — global, not per-route beforeEnter, because
+        dropping ?class= on the same record does not re-run beforeEnter.
+      - No dead ends: "/" sets meta.hideAppEscape, so a plain learner sees the
+        fully navless player. Staff who arrived from a management surface carry
+        the ssi-last-dashboard breadcrumb, and App.vue shows them the one
+        low-emphasis AppEscape pill (its new `to` prop) back to /schools or
+        /tutors/dashboard.
+    Guarded by SchoolsTopBar.learnButton.test.ts, TopNav.learnButton.test.ts,
+    AppEscape.playerEscape.test.ts, schoolsGuard.test.ts.
+
+  supersedes: |
+    StaffHomeIsDashboard (owner ruling 2026-07-16): staff landing on "/" were
+    redirected to "/schools" and reached the player only through the
+    schools-framed "/schools/play". Its landing half was already reversed by
+    the 2026-07-24 ruling (everyone lands in the player, regardless of role;
+    "/" carries no role-based redirect). This ruling reverses the other half —
+    the framed self-practice route. Kept below for the history that produced
+    the redirect it describes.
+
+  gap_closed_historical: |
     A minted sign-in link (api/admin/create-signin-link.ts) redirects
     Supabase's magic-link verification to the bare app origin (no path — a
     path-specific redirectTo risks falling outside the Supabase project's
@@ -1021,8 +1049,8 @@ interface TeacherDashboard:
       - "Switches the app onto the class's course via App.vue handleCourseSelect BEFORE navigating (never relies on PlayerContainer's onMounted race)"
       - "Writes canonical ssi-active-class payload: id, name, course_code, current_seed, last_lego_id, class_learner_id, teacherUserId, timestamp"
       - "Progress saved to the CLASS's own learner row (class_learner_id), not the staff member"
-      - "SchoolsTopBar stays above the player (PlayerContainer renders as a child of SchoolsContainer)"
-      - "Playing-as identity is a SLIM in-nav chip (PlayAsClassIdentity: live dot + 'Playing as <class>' + demoted school + End session), fitting the bar's standard height — the old large banner swelled the bar (founder, 2026-07-30). Section tabs + hamburger STAY during the session ('every user facing screen should keep the schools dashboard top nav'); only the self-practice Learn launcher and the standalone school label are dropped (the chip carries the school). Guarded by SchoolsTopBar.playAsClass.test.ts."
+      - "SchoolsTopBar stays above the player (PlayerContainer renders as a child of SchoolsContainer). Since 2026-08-06 this route is play-as-class ONLY — self-practice goes to the immersive navless player at '/' (see OnePlayerOneDoor), and a class-less arrival here is redirected there."
+      - "Playing-as identity is a SLIM in-nav chip (PlayAsClassIdentity: live dot + 'Playing as <class>' + demoted school + End session), fitting the bar's standard height — the old large banner swelled the bar (founder, 2026-07-30). Section tabs + hamburger STAY during the session ('every user facing screen should keep the schools dashboard top nav'); only the self-practice launchers (Learn button + 'My player') and the standalone school label are dropped — since 2026-08-06 those launchers are dropped on EVERY player route, not just during a live class session (the chip carries the school). Guarded by SchoolsTopBar.playAsClass.test.ts."
       - "Ending a session (chip End session, or the player's own go-home) lands the schools user on the schools DASHBOARD (/schools); tutors land on /tutors/dashboard (usePlayAsClassContext.exitClassSession + PlayerContainer.handleGoHome, founder ruling 2026-07-30)"
 
   navigation_shell:

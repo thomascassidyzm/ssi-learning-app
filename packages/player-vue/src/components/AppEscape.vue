@@ -11,11 +11,22 @@
 // the shelled containers — schools / teach / admin — which carry their own nav).
 // Low-emphasis by design so it never competes with a focused page's primary
 // action (e.g. "just enter your email").
+//
+// `to` overrides the history-back behaviour with a fixed destination. App.vue
+// uses it on the immersive player for staff who arrived from a management
+// surface (owner ruling 2026-08-06: self-practice always lands on the navless
+// player, so this pill is their one quiet way back to their dashboard).
 import { useRouter } from 'vue-router'
+
+const props = defineProps<{ to?: string; label?: string }>()
 
 const router = useRouter()
 
 function escape() {
+  if (props.to) {
+    router.push(props.to)
+    return
+  }
   // Prefer real back; fall back to the app home when there's nowhere to go back
   // to (cold open of a shared/deep link).
   if (typeof window !== 'undefined' && window.history.length > 1) router.back()
@@ -24,9 +35,14 @@ function escape() {
 </script>
 
 <template>
-  <button type="button" class="app-escape" aria-label="Go back" @click="escape">
+  <button
+    type="button"
+    class="app-escape"
+    :aria-label="props.label ? `Go to ${props.label}` : 'Go back'"
+    @click="escape"
+  >
     <span class="app-escape__chev" aria-hidden="true">←</span>
-    <span class="app-escape__label">Back</span>
+    <span class="app-escape__label">{{ props.label || 'Back' }}</span>
   </button>
 </template>
 

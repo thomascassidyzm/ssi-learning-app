@@ -23,7 +23,7 @@ function rememberDashboard(kind: 'teach' | 'schools'): void {
   }
 }
 
-function lastDashboard(): 'teach' | 'schools' | null {
+export function lastDashboard(): 'teach' | 'schools' | null {
   try {
     const v = localStorage.getItem(LAST_DASHBOARD_KEY)
     return v === 'teach' || v === 'schools' ? v : null
@@ -31,6 +31,28 @@ function lastDashboard(): 'teach' | 'schools' | null {
     return null
   }
 }
+
+/**
+ * The route of the management surface this user last came from, or null for a
+ * plain learner who has never had one.
+ *
+ * Owner ruling 2026-08-06: entering the player ALWAYS gives the immersive,
+ * navless player ('/'). That leaves a teacher/tutor who launched self-practice
+ * from their dashboard with no shell nav to get home, so App.vue uses this
+ * breadcrumb to show the one low-emphasis AppEscape pill back to their surface.
+ * A plain learner returns null here and sees the fully navless player.
+ */
+export function lastDashboardPath(): string | null {
+  const kind = lastDashboard()
+  if (kind === 'teach') return '/tutors/dashboard'
+  if (kind === 'schools') return '/schools'
+  return null
+}
+
+// The two EMBEDDED play routes — the player wrapped in a management shell.
+// Since 2026-08-06 these exist for play-as-class ONLY (see the global guard at
+// the bottom of this file).
+const EMBEDDED_PLAY_ROUTE_NAMES = ['schools-play', 'teach-play']
 
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
@@ -309,7 +331,10 @@ const routes: RouteRecordRaw[] = [
         component: PlayerContainer,
         meta: {
           title: 'Class session',
-          description: 'Run a class learning session — schools top bar stays above the player',
+          description:
+            'Run a class learning session — schools top bar stays above the player. ' +
+            'Play-as-class ONLY (owner ruling 2026-08-06): staff self-practice goes to the ' +
+            'immersive navless player at /, so a class-less arrival here is redirected there.',
         },
       },
       {
@@ -358,7 +383,12 @@ const routes: RouteRecordRaw[] = [
         path: 'play',
         name: 'teach-play',
         component: PlayerContainer,
-        meta: { title: 'Class session', description: 'Run a class learning session — tutor nav stays above the player' },
+        meta: {
+          title: 'Class session',
+          description:
+            'Run a class learning session — tutor nav stays above the player. Play-as-class ' +
+            'ONLY (owner ruling 2026-08-06); a class-less arrival is redirected to /.',
+        },
       },
     ],
   },
@@ -878,6 +908,22 @@ router.beforeEach((to, _from, next) => {
   restoreFromCache()
   if (isInitialized.value && !canAccessAdmin.value) return next('/')
   next()
+})
+
+// Owner ruling 2026-08-06: entering the player ALWAYS gives the immersive,
+// navless player at '/'. The two embedded play routes survive for play-as-class
+// only — there the shell bar earns its place by naming WHICH class is live — and
+// every launcher pushes a `?class=` query. An arrival without one is a stale
+// bookmark or a hand-typed URL; a class-less wrapped player is precisely the
+// two-doors-one-player inconsistency this removes, so send it to '/'.
+//
+// GLOBAL rather than per-route beforeEnter deliberately: a query-only change on
+// the same record (dropping ?class= while staying on /schools/play) does NOT
+// re-run beforeEnter, and that is exactly the case that would slip through.
+router.beforeEach((to, _from, next) => {
+  if (!EMBEDDED_PLAY_ROUTE_NAMES.includes(to.name as string)) return next()
+  if (typeof to.query.class === 'string' && to.query.class) return next()
+  next('/')
 })
 
 // Update document title on navigation

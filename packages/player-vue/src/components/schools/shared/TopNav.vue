@@ -40,7 +40,7 @@ const { canAccessAdmin, hasSchoolRole } = useUserRole()
 // Play-as-class: while a class session is live, the class name is the primary
 // identity (section tabs + Learn/school chrome dropped) so a tutor always knows
 // WHICH class is on screen.
-const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
+const { isPlayingAsClass, isOnPlayerRoute, className, exitClassSession } = usePlayAsClassContext()
 
 declare const __BUILD_NUMBER__: string
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
@@ -224,8 +224,10 @@ const closeMobileMenu = () => {
         Admin
       </button>
 
-      <!-- Learn Button (back to player, hidden in demo + during a class session) -->
-      <button v-if="!isDemoMode && !isPlayingAsClass" class="learn-btn" @click="router.push('/')">
+      <!-- Learn Button (into the immersive player, hidden in demo + on every
+           player route — owner ruling 2026-08-06: no Learn button while you're
+           already in the player, class session or not) -->
+      <button v-if="!isDemoMode && !isOnPlayerRoute" class="learn-btn" @click="router.push('/')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
@@ -330,7 +332,7 @@ const closeMobileMenu = () => {
         Admin
       </router-link>
       <router-link
-        v-if="!isDemoMode"
+        v-if="!isDemoMode && !isOnPlayerRoute"
         to="/"
         class="mobile-menu-item mobile-menu-learn"
         @click="closeMobileMenu"
