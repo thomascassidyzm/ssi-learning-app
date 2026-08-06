@@ -128,11 +128,28 @@ describe('checkContentVersion — audio_stamp lane (hard drop)', () => {
     expect(await getCachedScript(code)).not.toBeNull()
   })
 
-  it('does not drop on first sight of a course', async () => {
+  it('drops an entry of UNKNOWN audio vintage once (the pre-lane device)', async () => {
     const code = courseCode()
     await seedScript(code)
-    // No stored stamp: a device that has never seen this course must not have
-    // its freshly-built cache thrown away.
+    // No stored stamp but a cached script: this device cached the course
+    // before the lane existed, so its audio vintage is unknowable. It is
+    // exactly the state Tom's device was in on 2026-08-06, replaying nine
+    // repaired clips at their old revision. Drop it once.
+    localStorage.setItem(`ssi-content-version-${code}`, VERSION)
+
+    const invalidated = await checkContentVersion(
+      fakeClient({ content_version: VERSION, audio_stamp: STAMP_B }),
+      code
+    )
+
+    expect(invalidated).toBe(true)
+    expect(await getCachedScript(code)).toBeNull()
+    expect(localStorage.getItem(`ssi-audio-stamp-${code}`)).toBe(STAMP_B)
+  })
+
+  it('does not drop for a genuinely new device with no cached script', async () => {
+    const code = courseCode()
+    // No cached script at all — nothing to heal, nothing to throw away.
     localStorage.setItem(`ssi-content-version-${code}`, VERSION)
 
     const invalidated = await checkContentVersion(
@@ -141,8 +158,23 @@ describe('checkContentVersion — audio_stamp lane (hard drop)', () => {
     )
 
     expect(invalidated).toBe(false)
-    expect(await getCachedScript(code)).not.toBeNull()
     expect(localStorage.getItem(`ssi-audio-stamp-${code}`)).toBe(STAMP_B)
+  })
+
+  it('heals only once — the second boot is quiet', async () => {
+    const code = courseCode()
+    await seedScript(code)
+    localStorage.setItem(`ssi-content-version-${code}`, VERSION)
+
+    await checkContentVersion(fakeClient({ content_version: VERSION, audio_stamp: STAMP_B }), code)
+    await seedScript(code)
+    const second = await checkContentVersion(
+      fakeClient({ content_version: VERSION, audio_stamp: STAMP_B }),
+      code
+    )
+
+    expect(second).toBe(false)
+    expect(await getCachedScript(code)).not.toBeNull()
   })
 
   it('drops nothing when the freshness query fails (offline)', async () => {
