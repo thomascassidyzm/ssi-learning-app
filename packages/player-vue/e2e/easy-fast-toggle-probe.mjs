@@ -32,10 +32,18 @@ page.on('pageerror', (e) => errors.push(e.message))
 await page.addInitScript(() => {
   try { localStorage.setItem('ssi-last-course', 'spa_for_eng') } catch { /* ignore */ }
 })
-await page.goto(BASE, { waitUntil: 'networkidle' }).catch(() => {})
 // The belt badge and the mode switch are both gated on isPlayerReady, which
-// waits for progress data — give the player time to finish awakening.
-await page.waitForTimeout(9000)
+// waits for progress data. A fixed wait is a coin-flip on a cold deploy —
+// wait for the control itself, then fall through and let the assertions
+// report honestly if it never arrives.
+const READY_MS = Number(process.env.READY_TIMEOUT_MS || 45000)
+const settle = async () => {
+  await page.locator('.mode-switch').first()
+    .waitFor({ state: 'visible', timeout: READY_MS })
+    .catch(() => {})
+}
+await page.goto(BASE, { waitUntil: 'networkidle' }).catch(() => {})
+await settle()
 
 // 1. The switch is on the resting screen, with both modes offered.
 const sw = page.locator('.mode-switch')
@@ -72,7 +80,7 @@ check('choice persisted to localStorage', stored === 'easy', String(stored))
 
 // 5. It survives a reload (the whole point of persisting it).
 await page.reload({ waitUntil: 'networkidle' }).catch(() => {})
-await page.waitForTimeout(9000)
+await settle()
 check(
   'Easy still selected after reload',
   (await page.locator('.mode-switch-btn', { hasText: /^Easy$/i }).first()

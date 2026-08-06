@@ -132,13 +132,11 @@ Passing: the switch is there, it offers Easy and Fast, **Fast is selected by def
 tapping Easy selects it, the choice survives a full reload, Turbo is gone from the sliders
 tray, and no page errors.
 
-**Two cosmetic faults the probe caught, both since fixed:** at White Belt the selected pill
-was rendering white-on-white, so you could not see which mode you were on; and the buttons
-came out at 41px, under the 44px thumb-target floor. Both fixes are merged and green, and I
-re-measured the corrected control in a browser at 44px with white-on-dark text. **Dev's
-deploy was lagging by the time I finished, so those last two fixes may not be on that URL
-yet when you look** — if the selected mode looks blank, that is the deploy catching up, not
-the fix missing.
+**Two cosmetic faults the probe caught, both fixed and re-verified live:** at White Belt the
+selected pill was rendering white-on-white, so you could not see which mode you were on; and
+the buttons came out at 41px, under the 44px thumb-target floor. Both are fixed, deployed,
+and confirmed on dev — the selected mode is now a dark pill with white text, measured at
+44px. The final run was 10 out of 10 green on the real dev deployment at phone size.
 
 ---
 
