@@ -892,13 +892,6 @@ COMPOSABLES:
     exposure: "Once-ever science bits (owner ruling 2026-07-24): instruction exposure is per-learner SERVER state (learner_meta_commentary_state, own-row RLS; localStorage is only a fast/offline mirror) — a wiped device recovers from the server and never replays a heard bit. The service re-keys via setLearnerId when the real learner id resolves after setup (guest→signed-in, play-as-class), carrying guest progress forward by furthest-wins merge. Backfill for pre-2026-07 learners: gated migration 20260724_backfill_meta_commentary_exposure.sql.gated (spec + tests in services/commentaryBackfillSpec.ts)."
     taper: "Encouragement taper (owner ruling 2026-08-06, superseding 2026-07-24): random encouragements dial down with experience and switch fully OFF past a threshold — the fire interval is multiplied by 1/(1-p) through the taper zone (p = position through it), Infinity beyond. Experience = the learner's CUMULATIVE LEARNING MINUTES ACROSS ALL COURSES, NOT their position in the current course: the seed-denominated version treated a veteran of hundreds of hours starting a fresh course as a total beginner (Tom, staging German seed 2, 2026-08-06). Default window 600→1800 minutes (10h→30h; 30h is the owner's stated tedium point). Signal source: /api/me/engaged-time (admin_practice_minutes RPC, sums sessions.duration_seconds across ALL of the learner's courses), fetched by PlayerContainer and passed to LearningPlayer as the cumulativeLearningMinutes prop; null (guest/offline/not-yet-landed) means UNKNOWN and is treated as beginner. Admin-tunable via algorithm_config key 'meta_commentary' ({encouragementTaper:{taperStartMinutes,offAtMinutes}}); stale seed-denominated keys are ignored in favour of the defaults. Instructions are never tapered; the ?fc dev cheat bypasses the taper."
 
-  interjection_display:
-    purpose: "What the hero card shows while a between-rounds interjection (Aran's voice) is sounding"
-    source: "packages/player-vue/src/components/LearningPlayer.vue (showInterjection, .interjection-display CSS) + packages/player-vue/src/playback/interjectionDisplay.ts"
-    invariant: "The card follows the AUDIO, never the next LEGO — the engine has advanced roundIndex onto the next round but its intro audio hasn't started, so falling through to the normal branch renders an EMPTY card. Display: a five-bar synthetic 'your guide is speaking' wave (not audio-reactive — no AnalyserNode tap, iOS lock risk), plus a short rotating INSTRUCTION_CAPTIONS line for instructions only. Encouragements are wave-only by design (Tom 2026-06-02: calm, non-distracting, just listen)."
-    gating: "shouldShowInterjection(playingCommentaryAudio, type) — playback/interjectionDisplay.ts. ANY commentary that is not the course welcome shows the wave, INCLUDING one whose type is missing or unrecognised: an unknown interjection degrades to 'guide is speaking', never to a blank box. The welcome keeps its own separate 'listen to your guide' surface."
-    contrast: "The wave bars and the instruction caption are ink-anchored (color-mix(in srgb, var(--belt-color) N%, #2C2622)), NEVER a bare var(--belt-color). Regression 2026-08-06 (Tom, staging French, 8 min in): white belt IS #ffffff, so on the Mist white card five white bars and a white caption rendered as a completely empty box. The blend keeps the belt accent while guaranteeing contrast at every belt. Locked by playback/interjectionDisplay.test.ts."
-
   useBeltProgress:
     purpose: "Track belt progression with localStorage + Supabase sync"
     source: "packages/player-vue/src/composables/useBeltProgress.ts"
@@ -1193,6 +1186,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-06 (interjection display: gating + Mist contrast)
+## GENERATED: 2026-01-18 — Last updated: 2026-08-06
 ## APML v2.1.0
 ## ============================================================================

@@ -55,8 +55,6 @@ import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFI
 import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
-import { computeListeningSpeed } from '../providers/toSimpleRounds'
-import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
 import { useAlgorithmConfig, type LearningMode } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
@@ -102,7 +100,6 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
-import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -3600,10 +3597,6 @@ const l1Scheduler = supabase?.value
       courseCode: courseCode,
       learnerId: learnerId,
       config: l1Config,
-      // Belt ramp on target clips (Tom 2026-08-06) — the SAME course speed
-      // config the speaking rounds bake with, so listening can never drift
-      // away from the speaking curve.
-      targetSpeed: computed(() => currentTargetSpeedConfig()),
     })
   : null
 
@@ -4173,6 +4166,7 @@ const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 // rotating "positive" icon (strength / power / learning / effort). Instruction →
 // a short, varied "back to the science" caption. Welcome keeps its own
 // "listen to your guide" path. Tom 2026-06-02.
+type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
 const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
 
 // Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
@@ -4202,13 +4196,9 @@ const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructio
 // existing "listen to your guide" message, so only instruction/encouragement
 // flip this. Pods/L1 listening have their own overlays and don't set
 // currentCommentaryType.
-// Defensive by design (2026-08-06): anything that ISN'T the welcome shows the
-// wave, including a clip whose type is missing or unrecognised — an unknown
-// interjection degrades to "guide is speaking", never to the blank card that
-// falling through to the un-started next LEGO produces. Rule lives in
-// playback/interjectionDisplay.ts so it can be unit-tested.
 const showInterjection = computed(() =>
-  shouldShowInterjection(playingCommentaryAudio.value, currentCommentaryType.value)
+  playingCommentaryAudio.value &&
+  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
 )
 
 /**
@@ -4444,37 +4434,7 @@ const podDelay = (ms: number) => ms <= 0
  * audio isn't cached yet, the gap manifests audibly and shows up in
  * audio_play telemetry as a long `elapsedMs`.
  */
-const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
-  // BELT RAMP on target clips (Tom 2026-08-06: "LIStening exercises are way too
-  // fast initially — they need to follow the belt speed gating"). Applied HERE,
-  // once, because every listening surface that isn't Layer-1 funnels through
-  // this one runtime — Layer-2 pods, Stage-0 sequences and fusion drills alike,
-  // several of which hard-code 1.0. Pods activate at main round 5, so a
-  // white-belt learner really was meeting 1.0× target audio.
-  //
-  // It's a MULTIPLIER on the play's own role rate, never a replacement: a pod's
-  // 0.8 / 1.0 / 1.5 / 2.0 stage progression is a deliberate per-SENTENCE
-  // pedagogy (maturity of that sentence), independent of the learner's belt, so
-  // a 2× stretch rep stays a fast rep relative to wherever the learner is.
-  // Keyed on the LEARNER's current seed because a pod sentence has no seed
-  // number of its own — the one place listening can't mirror the speaking side's
-  // per-item keying. Layer-1 plays already carry their own per-seed ramped rate
-  // (buildSeedPlays) and are skipped here so nothing is ramped twice.
-  const lap: PodLap = (() => {
-    const anchor = beltAnchorSeed.value
-    if (anchor == null) return inputLap
-    const speedCfg = currentTargetSpeedConfig()
-    return {
-      ...inputLap,
-      plays: inputLap.plays.map((p) => {
-        const play = p as PodPlay
-        if (play.isLayer1) return play
-        if (!isTargetRole(play.playRole as PodPlayRole)) return play
-        return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
-      }),
-    }
-  })()
-
+const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
@@ -5117,7 +5077,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
   // played as its comprehensible-input sandwich (target → known → target →
-  // target; target clips belt-ramped, see buildSeedPlays). No ratchet: the lap is a pure function of
+  // target, all @1×; see buildSeedPlays). No ratchet: the lap is a pure function of
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
@@ -17145,14 +17105,8 @@ defineExpose({
   width: 5px;
   height: 100%;
   border-radius: 3px;
-  /* Belt-tinted but ALWAYS ink-anchored. A bare var(--belt-color) rendered the
-     whole card blank on the Mist white surface (2026-08-06, product owner, 8
-     min into French): white belt IS #ffffff, so five white bars and a white
-     caption sat invisibly on a white card — the "empty box" bug. Blending
-     towards the ink keeps the belt accent while guaranteeing contrast for every
-     belt, white and yellow included. Same idiom as .hero-target under Mist. */
-  background: color-mix(in srgb, var(--belt-color, #b08968) 55%, #2C2622);
-  opacity: 0.55;
+  background: var(--belt-color, #b08968);
+  opacity: 0.5;
   transform: scaleY(0.3);
   transform-origin: center;
   animation: wave-bar 1.5s ease-in-out infinite;
@@ -17163,8 +17117,8 @@ defineExpose({
 .interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
 .interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
 @keyframes wave-bar {
-  0%, 100% { transform: scaleY(0.3); opacity: 0.55; }
-  50%      { transform: scaleY(1);   opacity: 1; }
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50%      { transform: scaleY(1);   opacity: 0.9; }
 }
 /* The whole box breathes softly while the guide speaks — "comes alive". */
 .hero-glass.is-interjection {
@@ -17179,9 +17133,7 @@ defineExpose({
   font-size: var(--text-base);
   font-weight: 400;
   letter-spacing: 0.02em;
-  /* Ink-anchored for the same reason as .wbar above — a white-belt learner got
-     white caption text on the white Mist card. */
-  color: color-mix(in srgb, var(--belt-color, #b08968) 35%, #2C2622);
+  color: var(--belt-color, #b08968);
   opacity: 0.9;
   animation: interjection-in 360ms ease-out;
 }

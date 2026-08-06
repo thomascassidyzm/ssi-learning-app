@@ -24,17 +24,13 @@
  *   • Clusters: at every multiple-of-5 seeds/cup the whole cup is re-formed into an
  *     authored, ordered LINGUISTIC grouping (injected via clusterProvider; a
  *     deterministic fallback ships until Aran's templates land). Templates: 5/10/15/20.
- *   • Per-seed sandwich — comprehensible input (Tom + Aran, 2026-07-14):
+ *   • Per-seed sandwich — comprehensible input, ALL at 1× (Tom + Aran, 2026-07-14):
  *     each seed in the poured cup plays a fixed four-slot playlist —
- *       target (voice 1) → known @1× → target (voice 2) → target
+ *       target @1× (voice 1) → known @1× → target @1× (voice 2) → target @1×
  *     — so the learner hears the sentence, then its MEANING, then the sentence
  *     again now understood, then once more. The cup's seeds play their
- *     sandwiches in cup order (cluster then loose); no per-seed decay/tier state.
- *     TARGET clips ride the BELT RAMP — 0.8× white / 0.9× yellow / 0.95× orange
- *     / 1.0× green+, the same `beltSpeed` curve the speaking side bakes, keyed
- *     on each seed's own number (Tom 2026-08-06: "listening exercises are way
- *     too fast initially — they need to follow the belt speed gating"). The
- *     KNOWN clip stays 1.0×: the learner's own language, the meaning anchor.
+ *     sandwiches in cup order (cluster then loose); no per-seed decay/tier state,
+ *     no speed variation.
  *     (History: a per-seed decay ladder (→2026-06-18), a flat 1×/2× pour, then
  *     1×,1× slow-only (06-20) — all TARGET-ONLY and road-tests showed they
  *     delivered no comprehensible input for disconnected seeds, fixed by adding
@@ -59,28 +55,17 @@
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
-import { computeListeningSpeed, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 
 // ============================================================================
 // Pure logic (exported for unit testing — no Vue/Supabase here)
 // ============================================================================
 
-/** Audio role for one Layer-1 play slot. Layer-1 carries no speed-doubled rep
- *  (cut 2026-07-14; see DEFAULT_SEED_PLAYLIST) — the target slots' rate comes
- *  from the BELT RAMP (see L1_ROLE_SPEED / buildSeedPlays). */
+/** Audio role for one Layer-1 play slot. Both roles play at 1.0× — Layer-1
+ *  carries no speed-doubled rep (cut 2026-07-14; see DEFAULT_SEED_PLAYLIST). */
 export type Layer1PlayRole = 'ps' | 'trans'
 
-/**
- * Role → BASE playback rate, before the belt ramp. Single source of truth.
- *
- * Both roles sit at 1.0× here, but only 'trans' actually plays at 1.0×: the
- * known-language clip is the meaning anchor in the learner's own language and
- * is never slowed. The target role's 1.0× is the *role* rate that
- * `computeListeningSpeed` then multiplies by the belt ramp
- * (0.8 → 0.9 → 0.95 → 1.0 across white/yellow/orange/green), so a beginner
- * hears the sentence at 0.8× — Tom, 2026-08-06: "LIStening exercises are way
- * too fast initially… targ lang clips start at 0.8x".
- */
+/** Role → playback rate. Single source of truth. Both roles are 1.0× — the
+ *  known clip (reference material) and the target clip alike. */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, trans: 1.0 }
 
 /** The audio a single seed exposes for its Layer-1 sandwich. */
@@ -116,31 +101,16 @@ export const DEFAULT_SEED_PLAYLIST: Layer1SlotRole[] = ['t1', 'known', 't2', 't1
  * runtime gap matrix already handles these transitions). A seed with no known
  * audio drops `known` slots; t2 falls back to voice 1 when there's no second
  * voice. Pure + exported so it's unit-tested directly.
- *
- * SPEED (Tom, 2026-08-06): the TARGET slots ride the belt ramp — the very same
- * `beltSpeed` curve the speaking side bakes — keyed on the seed's OWN number,
- * exactly as a speaking review of that seed would be. 0.8× white, 0.9× yellow,
- * 0.95× orange, 1.0× green+. The KNOWN slot stays 1.0×: it's the learner's own
- * language and the meaning anchor. `targetSpeed` carries the course's
- * globalSpeed / nativeSpeed, so legacy slow-recorded courses skip the ramp on
- * identical terms to the speaking side. Omitted → native-speed defaults, i.e.
- * the ramp applies (a listening clip with no course info should still be gentle
- * for a beginner rather than silently flat 1.0×, which was the bug).
  */
-export function buildSeedPlays(
-  seed: L1SeedAudio,
-  playlist: Layer1SlotRole[] = DEFAULT_SEED_PLAYLIST,
-  targetSpeed: TargetSpeedConfig = { globalSpeed: 1.0, nativeSpeed: true },
-): L1Play[] {
+export function buildSeedPlays(seed: L1SeedAudio, playlist: Layer1SlotRole[] = DEFAULT_SEED_PLAYLIST): L1Play[] {
   const { seedNumber, target1Id, target2Id, knownId, targetText, knownText } = seed
   const voice2 = target2Id || target1Id
   const list = playlist && playlist.length ? playlist : DEFAULT_SEED_PLAYLIST
-  const psSpeed = computeListeningSpeed(L1_ROLE_SPEED.ps, seedNumber, targetSpeed)
   const plays: L1Play[] = []
   for (const slot of list) {
     switch (slot) {
-      case 't1':   plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps',   playbackSpeed: psSpeed }); break
-      case 't2':   plays.push({ seedNumber, audioId: voice2,    text: targetText, role: 'ps',   playbackSpeed: psSpeed }); break
+      case 't1':   plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps',   playbackSpeed: L1_ROLE_SPEED.ps }); break
+      case 't2':   plays.push({ seedNumber, audioId: voice2,    text: targetText, role: 'ps',   playbackSpeed: L1_ROLE_SPEED.ps }); break
       case 'known': if (knownId) plays.push({ seedNumber, audioId: knownId, text: knownText, role: 'trans', playbackSpeed: L1_ROLE_SPEED.trans }); break
     }
   }
@@ -357,11 +327,10 @@ export interface L1Play {
   /** Display text — target sentence (roman when present) for ps; known
    *  sentence for trans. */
   text: string
-  /** What plays in this slot: 'ps' = target clip, 'trans' = known-language
-   *  clip. Drives the runtime gap matrix. */
+  /** What plays in this slot: 'ps' = target @1×, 'trans' = known-language
+   *  clip @1×. Drives the runtime gap matrix. */
   role: Layer1PlayRole
-  /** Playback rate. 'trans' is always 1.0; 'ps' is the belt-ramped rate from
-   *  computeListeningSpeed (0.8 / 0.9 / 0.95 / 1.0 × the course globalSpeed). */
+  /** Playback rate (mirror of L1_ROLE_SPEED[role]): always 1.0. */
   playbackSpeed: number
 }
 
@@ -373,7 +342,7 @@ export interface L1Lap {
   bucketSize: number
   intro: L1BookendAudio | null
   /** The cup's plays: each seed's sandwich (target → known → target → target,
-   *  target clips belt-ramped) in cup order (cluster then loose). */
+   *  all @1×) in cup order (cluster then loose). */
   plays: L1Play[]
   outro: L1BookendAudio | null
 }
@@ -387,9 +356,6 @@ export interface UseLayer1SchedulerOptions {
   /** Optional authored cluster provider (Aran's templates). Falls back to the
    *  deterministic contiguous grouping when absent or it returns an empty cup. */
   clusterProvider?: Layer1ClusterProvider
-  /** Course target-speed config — drives the belt ramp on target clips
-   *  (Tom 2026-08-06). Reactive; absent → native-speed defaults (ramp on). */
-  targetSpeed?: Ref<TargetSpeedConfig> | TargetSpeedConfig
 }
 
 const unwrap = <T,>(v: Ref<T> | T): T =>
@@ -410,11 +376,6 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
   const outroAudio = ref<L1BookendAudio | null>(null)
 
   const cfg = (): Layer1Config => ({ ...DEFAULT_LAYER1_CONFIG, ...(unwrap(options.config) || {}) })
-
-  /** Course target-speed config (globalSpeed / nativeSpeed) for the belt ramp
-   *  on target clips. Absent → native-speed defaults, so the ramp applies. */
-  const speedCfg = (): TargetSpeedConfig =>
-    unwrap(options.targetSpeed) || { globalSpeed: 1.0, nativeSpeed: true }
 
   /** Round at which the first lap may fire = ordinal of the `activationCount`-th
    *  introduced seed. Infinity when the course has fewer seeds than that. */
@@ -581,7 +542,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
 
     // Each cup seed plays its comprehensible-input sandwich in cup order — the
     // admin-tunable c.seedPlaylist (default: target → known → target(voice 2) →
-    // target, target clips belt-ramped; see buildSeedPlays). Seeds without target audio are
+    // target, all @1×; see buildSeedPlays). Seeds without target audio are
     // skipped entirely; a seed without known audio just drops the known slot.
     // Deterministic by construction (fixed playlist) → resume-safe, no RNG here.
     const seedMap = seeds.value
@@ -596,7 +557,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
         knownId: seed.known_audio_id,
         targetText: seed.target_text_roman || seed.target_text,
         knownText: seed.known_text,
-      }, c.seedPlaylist, speedCfg()))
+      }, c.seedPlaylist))
     }
     if (plays.length === 0) return null
 
@@ -641,7 +602,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
         knownId: seed.known_audio_id,
         targetText: seed.target_text_roman || seed.target_text,
         knownText: seed.known_text,
-      }, c.seedPlaylist, speedCfg()))
+      }, c.seedPlaylist))
     }
     if (plays.length === 0) return null
     const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
