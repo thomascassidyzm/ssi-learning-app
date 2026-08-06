@@ -28,7 +28,7 @@ const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
-const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 const {
   classDetail,
   isLoading: classDetailLoading,
@@ -394,6 +394,16 @@ const classTeachers = computed(() => {
     .sort((a, b) => (Number(b.is_lead) - Number(a.is_lead)) || a.name.localeCompare(b.name))
 })
 
+// Who may change WHO TEACHES this class — founder ruling 2026-08-06: "any
+// group leader or the current teacher of the class can add the co-teacher".
+// A co-teacher teaches the class but does not recruit into it, so they are not
+// shown a verb the server would refuse. The server is the real gate
+// (api/_utils/classTeacherAuth.ts); this only keeps the panel honest.
+const canManageTeachers = computed(() => {
+  if (isGovtAdmin.value || isSchoolAdmin.value) return true
+  return classTeachers.value.some(t => t.is_me && t.is_lead)
+})
+
 // Candidates minus the people already on the class.
 const addableTeachers = computed(() => {
   const already = new Set((classDetail.value?.teachers ?? []).map(t => t.user_id))
@@ -686,7 +696,7 @@ const deleteImpactLines = computed(() => {
               </span>
               <span class="teacher-actions">
                 <button
-                  v-if="!t.is_lead"
+                  v-if="!t.is_lead && canManageTeachers"
                   type="button"
                   class="btn-text teacher-action"
                   data-walk="class-teacher-make-lead"
@@ -696,12 +706,13 @@ const deleteImpactLines = computed(() => {
                   Make lead
                 </button>
                 <button
+                  v-if="canManageTeachers || t.is_me"
                   type="button"
                   class="btn-text teacher-action teacher-action-remove"
                   :disabled="teacherBusy"
                   @click="removeTeacher(t)"
                 >
-                  Remove
+                  {{ canManageTeachers ? 'Remove' : 'Leave' }}
                 </button>
               </span>
             </li>
@@ -709,7 +720,13 @@ const deleteImpactLines = computed(() => {
           <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
           <p v-else class="rail-note schools-subtle">No teachers are linked to this class yet.</p>
 
-          <template v-if="!showAddTeacher">
+          <template v-if="!canManageTeachers">
+            <p class="rail-note schools-subtle">
+              You teach this class alongside its lead teacher. Only the lead teacher or a
+              school leader can bring another colleague in.
+            </p>
+          </template>
+          <template v-else-if="!showAddTeacher">
             <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
               Add a co-teacher
             </button>
@@ -734,7 +751,7 @@ const deleteImpactLines = computed(() => {
             </div>
           </template>
 
-          <div class="teacher-link-block" data-walk="class-coteacher-link">
+          <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
             <p class="rail-note schools-subtle">
               Colleague not on the staff list yet? Send them a link into this class.
             </p>

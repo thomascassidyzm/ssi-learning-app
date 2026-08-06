@@ -1,5 +1,5 @@
 {
-  "version": "ce9a82740ba2",
+  "version": "ec4d8b212965",
   "generatedAt": "2026-08-06",
   "walks": [
     {
@@ -47,7 +47,7 @@
       },
       "steps": [
         {
-          "anchor": "class-coteacher-link",
+          "anchor": "class-teachers",
           "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.",
           "advance": {
             "on": "next"

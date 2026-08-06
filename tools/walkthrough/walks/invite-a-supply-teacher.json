@@ -5,7 +5,7 @@
   "place": { "route": "class-detail" },
   "steps": [
     {
-      "anchor": "class-coteacher-link",
+      "anchor": "class-teachers",
       "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.",
       "advance": { "on": "next" }
     },
