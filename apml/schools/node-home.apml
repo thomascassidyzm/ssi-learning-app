@@ -1,6 +1,7 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
 # Last updated: 2026-08-06 (creator becomes first manager; the node names its leader;
-#               duplicate-name warning on Add-a-group and on Rename)
+#               duplicate-name warning on Add-a-group and on Rename;
+#               password gate + PWA install nudge before an org manager's first add)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
@@ -68,6 +69,48 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
   # RENAME verb warns the same way off PATCH /api/groups/:id — same 409, same
   # two ways out, and never about the row being renamed itself. Full
   # contract: apml/core/roles-and-permissions.apml duplicate_name_warning.
+  manager_onboarding_gate: |
+    An ORG MANAGER must set a password BEFORE their first add (founder ruling
+    2026-08-06, off Deborah's question on the org lane: "Password before
+    adding a group or a learner? and then once they've done that, a context
+    aware install as PWA, on a desktop likely to be a chrome app").
+
+    WHY: a manager arrives by magic link, lands in their organisation and
+    simply stays signed in. They never set a password, so when that session
+    dies — new device, cleared storage, a phone reset — there is no way back
+    into the organisation they just built.
+
+    TWO BEATS, deliberately different in kind:
+      1. PASSWORD — a GATE. No skip, no close. Intercepts the three verbs a
+         manager holds (Invite a person · Get a shareable link · Add a group),
+         all of which pass through NodeActionBar's single toggle() choke
+         point. On success the intercepted verb RESUMES immediately — the
+         manager never has to find the button again.
+      2. INSTALL — a PROMPT, not a gate. Context-aware by device
+         (utils/installPlatform.ts): desktop Chrome says "Chrome app", other
+         desktops say "app", phones say "home screen". Always escapable
+         ("Not now"), dismissal remembered per user in localStorage, skipped
+         entirely when already running standalone. Routes to the existing
+         /install walkthrough carrying ?return=<current path> so the manager
+         lands back on their own node, never the learner home.
+
+    SCOPE — needsPasswordGate(member && leadsOrg && !hasPassword):
+      · `member` = the /org member mount, never the ssi_admin god-view.
+      · `leadsOrg` = useOrgLeadership's server-verified 'organisation' leader
+        row. This is what keeps the gate OUT of the schools lane: /org/:id
+        renders school nodes on the same member mount, so `member` alone would
+        leak it. School admins, teachers and learners are untouched.
+      · `hasPassword` reads user_metadata.has_password — the same flag
+        SettingsScreen reads and useAuth.updatePassword writes. A MISSING flag
+        counts as no password: the safe direction, since the worst case is a
+        manager setting a password they already had. KNOWN LIMIT — that flag
+        is only ever written by our own updatePassword, and Supabase exposes
+        no server-side "this user has a password" signal on the session user.
+      · Validation mirrors SettingsScreen exactly (6 characters, confirm must
+        match); a longer server-side minimum surfaces in Supabase's own words.
+    Surfaces: components/admin/ManagerOnboardingGate.vue (both beats),
+    composables/useManagerOnboarding.ts (decision logic),
+    utils/installPlatform.ts (detection + framing, shared with InstallGuide).
   # The admin "Class tools" page is DEAD (founder ruling 2026-07-19): it
   # duplicated the class node home with zero admin-usable verbs. Its route
   # (/admin/schools/:id/classes/:classId) redirects to /admin/classes/:classId.

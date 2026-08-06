@@ -7,12 +7,15 @@
 // calls the same server endpoints AdminStructure/the retired NodePanel used,
 // then emits `changed` so the host page refetches. No "node"/"entitlement"
 // jargon in any user-facing string (say school/group/courses).
-import { ref, computed, watch } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeEntitlementControl from '@/components/schools/NodeEntitlementControl.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
+import { useOrgLeadership } from '@/composables/useOrgLeadership'
+import { hasPasswordFlag, needsPasswordGate } from '@/composables/useManagerOnboarding'
 
 interface NodeShape {
   id: string
@@ -69,11 +72,59 @@ async function copyShare(): Promise<void> {
 // One inline form open at a time.
 type Form = 'person' | 'invite' | 'group' | 'school' | 'demo' | 'courses' | 'rename' | null
 const openForm = ref<Form>(null)
+
+// ─── Password before the first add (Deborah, 2026-08-06; Tom's ruling
+// "Password before adding a group or a learner?") ───
+// An org manager arrives by magic link and never sets a password, so when
+// that session dies they cannot get back into the organisation they built.
+// The three verbs a manager holds — invite a person, get a shareable link,
+// add a group — are ALL "add a group or a learner", and all three pass
+// through toggle(), which is why the gate lives on this single choke point.
+// Gated on leadsOrg (server-verified 'organisation' leader row), NOT on
+// `member` alone: the member mount also renders school nodes, and the
+// schools lane is deliberately unchanged.
+const auth = inject<any>('auth', null)
+const { leadsOrg, ensureLoaded } = useOrgLeadership()
+onMounted(() => { if (props.member) void ensureLoaded() })
+
+const GATED_VERBS: ReadonlyArray<Exclude<Form, null>> = ['person', 'invite', 'group']
+const gateOpen = ref(false)
+const pendingVerb = ref<Exclude<Form, null> | null>(null)
+
+const mustSetPassword = computed(() =>
+  needsPasswordGate({
+    member: !!props.member,
+    leadsOrg: leadsOrg.value,
+    hasPassword: hasPasswordFlag(auth?.user?.value ?? null),
+  }),
+)
+
 function toggle(f: Exclude<Form, null>): void {
+  if (mustSetPassword.value && GATED_VERBS.includes(f)) {
+    pendingVerb.value = f
+    gateOpen.value = true
+    return
+  }
   openForm.value = openForm.value === f ? null : f
   error.value = null
   notice.value = null
   shareUrl.value = null
+}
+
+/** Password saved — carry straight on into the verb they reached for. */
+function resumePendingVerb(): void {
+  const f = pendingVerb.value
+  pendingVerb.value = null
+  if (!f) return
+  openForm.value = f
+  error.value = null
+  notice.value = null
+  shareUrl.value = null
+}
+
+function closeGate(): void {
+  gateOpen.value = false
+  pendingVerb.value = null
 }
 
 const entitlementNodeId = computed(() => props.node.commercial?.schoolId ?? props.node.id)
@@ -547,6 +598,10 @@ function closeDelete(): void {
       >{{ copied ? 'Copied!' : shareUrl.url }}</button>
       <span v-if="shareUrl" class="share-hint">{{ shareUrl.hint }}</span>
     </div>
+
+    <!-- Password before the first add, then the install nudge. Blocks only
+         the password step; the install step is always escapable. -->
+    <ManagerOnboardingGate :is-open="gateOpen" @passworded="resumePendingVerb" @close="closeGate" />
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"

@@ -1,20 +1,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { detectFromBrowser } from '@/utils/installPlatform'
 
 const router = useRouter()
+const route = useRoute()
 const installPrompt = inject<ReturnType<typeof ref<any>>>('installPrompt', ref(null))
 
-// --- Platform detection ---
-const isStandalone = ref(
-  window.matchMedia('(display-mode: standalone)').matches ||
-  (navigator as any).standalone === true
-)
-const ua = navigator.userAgent
-const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream
-const isAndroid = /Android/.test(ua)
-const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua)
-const isChrome = /Chrome/.test(ua) && !/Edg/.test(ua)
+// --- Platform detection (shared with the org lane's inline install nudge, so
+// the two surfaces can never disagree about what device this is) ---
+const platform = detectFromBrowser()
+const isStandalone = ref(platform.isStandalone)
+const isIOS = platform.isIOS
+const isAndroid = platform.isAndroid
+const isSafari = platform.isSafari
+const isChrome = platform.isChrome
+
+// Where "Done" / "Not now" / the already-installed redirect goes. An org
+// manager sent here mid-onboarding must land back in their organisation, not
+// on the learner home. Same-origin paths only — never bounce off-site.
+const returnTo = computed(() => {
+  const raw = route.query.return
+  const path = typeof raw === 'string' ? raw : ''
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/'
+})
 
 // --- State ---
 const currentStep = ref(0)
@@ -32,7 +41,7 @@ onMounted(() => {
       redirectCountdown.value--
       if (redirectCountdown.value <= 0) {
         clearInterval(interval)
-        router.replace('/')
+        router.replace(returnTo.value)
       }
     }, 1000)
     return
@@ -67,7 +76,7 @@ async function triggerInstall() {
 
 function dismiss() {
   localStorage.setItem('ssi-install-dismissed', Date.now().toString())
-  router.replace('/')
+  router.replace(returnTo.value)
 }
 
 // iOS step count depends on browser
@@ -276,14 +285,16 @@ const shareLocation = computed(() => {
       <div v-else class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
         <h1>Install SaySomethingin</h1>
-        <p class="subtitle">Its own window — no browser tabs, no distractions</p>
+        <p class="subtitle">
+          {{ isChrome ? 'A Chrome app in its own window — no browser tabs, no distractions' : 'Its own window — no browser tabs, no distractions' }}
+        </p>
         <ul class="value-props">
           <li>Opens instantly in its own window</li>
           <li>Works offline — learn anywhere</li>
           <li>Picks up where you left off</li>
         </ul>
         <button v-if="hasNativePrompt" class="install-btn" @click="triggerInstall">
-          Install
+          {{ isChrome ? 'Install the Chrome app' : 'Install the app' }}
         </button>
         <div v-else class="loading-dots" aria-label="Preparing install">
           <span></span><span></span><span></span>
