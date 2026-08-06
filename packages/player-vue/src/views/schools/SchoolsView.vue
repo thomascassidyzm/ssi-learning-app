@@ -9,6 +9,7 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
+import { compareByName } from '@/utils/alphaSort'
 
 const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
@@ -30,7 +31,10 @@ const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
-const sortKey = ref<SortKey>('hours')
+// Alphabetical is the default everywhere (founder ruling 2026-07-30) —
+// metric orders stay available but must be an explicit, visible choice
+// (this dropdown), never the silent default.
+const sortKey = ref<SortKey>('name')
 
 // The ONE refresh protocol: register this page's loader; the navbar button and
 // pull-to-refresh both drive it, and the initial/reactive loads route through
@@ -46,8 +50,8 @@ const filteredSchools = computed<School[]>(() => {
 
   return list.sort((a, b) => {
     if (sortKey.value === 'students') return b.student_count - a.student_count
-    if (sortKey.value === 'name') return a.school_name.localeCompare(b.school_name)
-    return b.total_practice_hours - a.total_practice_hours
+    if (sortKey.value === 'hours') return b.total_practice_hours - a.total_practice_hours
+    return compareByName(a.school_name, b.school_name)
   })
 })
 
@@ -255,9 +259,9 @@ watch(currentUser, (u) => {
             aria-label="Search schools"
           />
           <select v-model="sortKey" class="list-sort" aria-label="Sort schools">
+            <option value="name">Sort by name</option>
             <option value="hours">Sort by hours</option>
             <option value="students">Sort by students</option>
-            <option value="name">Sort by name</option>
           </select>
         </div>
       </div>

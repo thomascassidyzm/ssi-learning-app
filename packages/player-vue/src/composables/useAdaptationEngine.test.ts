@@ -165,4 +165,86 @@ describe('useAdaptationEngine — reactive supabase/learnerId (2026-07-16 shadow
 
     expect(loadedFor).toEqual(['22222222-2222-2222-2222-222222222222'])
   })
+
+  it('a pre-auth flush KEEPS the dirty set, so cycles recorded before auth resolved still persist (2026-08-02: the other half of the fix)', async () => {
+    const learnerId = ref<string | null>(null)
+    const upserted: Record<string, unknown>[] = []
+    const fakeSupabase = {
+      schema() {
+        return {
+          from() {
+            return {
+              select() {
+                return { eq: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }
+              },
+              upsert(payload: Record<string, unknown>[]) {
+                upserted.push(...payload)
+                return Promise.resolve({ error: null })
+              },
+            }
+          },
+        }
+      },
+    }
+
+    const engine = useAdaptationEngine({
+      supabase: ref(fakeSupabase as never),
+      learnerId,
+      courseCode: 'test_course',
+    })
+    await engine.initialize()
+
+    // Ten cycles BEFORE auth resolves — enough to trip the automatic
+    // FLUSH_EVERY_N_CYCLES flush while learnerId is still null.
+    for (let i = 0; i < 10; i++) engine.recordCycle('S0001L01', 1500, 3)
+    await Promise.resolve()
+    expect(upserted).toEqual([]) // nothing written yet — no learner to write it against
+
+    // Auth lands. The next flush must still carry that pre-auth work; before
+    // the fix the pre-auth flush had already cleared `dirty` and the cycles
+    // were gone forever (zero learner_lego_metrics rows, ever).
+    learnerId.value = '33333333-3333-3333-3333-333333333333'
+    await engine.flush()
+
+    expect(upserted.map((r) => r.lego_id)).toContain('S0001L01')
+    expect(upserted[0].learner_id).toBe('33333333-3333-3333-3333-333333333333')
+  })
+
+  it("never attempts a write against the 'demo-learner' fallback id (non-uuid → 22P02)", async () => {
+    const upserted: unknown[] = []
+    const fakeSupabase = {
+      schema() {
+        return {
+          from() {
+            return {
+              select() {
+                return { eq: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }
+              },
+              upsert(payload: unknown[]) {
+                upserted.push(...payload)
+                return Promise.resolve({ error: null })
+              },
+            }
+          },
+        }
+      },
+    }
+
+    const learnerId = ref<string | null>('demo-learner')
+    const engine = useAdaptationEngine({
+      supabase: ref(fakeSupabase as never),
+      learnerId,
+      courseCode: 'test_course',
+    })
+    await engine.initialize()
+    engine.recordCycle('S0001L01', 1500, 3)
+    await engine.flush()
+
+    expect(upserted).toEqual([])
+
+    // ...and the work is retained, not discarded, for the real id.
+    learnerId.value = '44444444-4444-4444-4444-444444444444'
+    await engine.flush()
+    expect(upserted.length).toBeGreaterThan(0)
+  })
 })

@@ -1,6 +1,6 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-07-30
+# Last Updated: 2026-08-04 (component_intro emitted; intro known_id fallback reachable; presentation audio pre-warmed; MVP course boundary)
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -130,6 +130,14 @@ spec lazy_loading_architecture:
       queue" machinery of v1.0.0 no longer exists. The round-map simply has
       no entry past the last round.
 
+      2026-08-04: the round map is therefore ALSO where a course's built
+      boundary is enforced. round-map.ts truncates its rounds at
+      courseMaxSeed(code) (api/_utils/courseBoundary.ts), so an MVP course
+      whose audio stops at seed 300 ends there in exactly the same way a
+      complete course ends at its last round — tier-3 finds no next round and
+      the existing end-of-course path runs. No new screen, no separate
+      "incomplete course" state.
+
     coalesced_boot_fetches: |
       On a COLD course switch, the SAME round-map / cycles GET is requested
       by several callers at once: prewarmInstantCaches (fire-and-forget on
@@ -231,10 +239,57 @@ spec lazy_loading_architecture:
     cycles:
       api: "GET /api/courses/:code/cycles?from=:legoId&limit=N"
       wire_type: |
-        BackendCycle (type: intro | debut | build | use | listening) — distinct
-        from the atomic playback Cycle in types/Cycle.ts; the player converts
-        each backend cycle into one or more atomic PROMPT/PAUSE/VOICE_1/VOICE_2
-        cycles. Carries display_tiling (authored tiles) when present.
+        BackendCycle (type: intro | component_intro | debut | build | use |
+        listening) — distinct from the atomic playback Cycle in types/Cycle.ts;
+        the player converts each backend cycle into one or more atomic
+        PROMPT/PAUSE/VOICE_1/VOICE_2 cycles. Carries display_tiling (authored
+        tiles) when present.
+      per_lego_script_order: |
+        buildLegoCycles emits, for one LEGO:
+          intro -> component_intro(s) -> debut -> BUILDs -> USEs
+        matching TYPE_ORDER in providers/validateLearningScript.ts, so a round
+        assembled by this endpoint validates the same as one from the legacy
+        generateLearningScript path.
+      component_intro: |
+        Added 2026-08-04. The per-piece "as in" narration for one component of
+        an M-LEGO, sourced from course_practice_phrases rows with
+        phrase_role='component' (their own presentation_audio_id):
+
+          lego S0005L02 "to practise speaking" / "fare pratica parlando"
+            "The Italian for: 'to practise', as in — 'to practise speaking', is:"
+            "The Italian for: 'speaking',    as in — 'to practise speaking', is:"
+
+        Rules: introduce=false components are visual-only tiles (rendered under
+        the intro card via lego.components, never played); a component with no
+        prompt audio or no target1 is SKIPPED rather than emitted as a silent
+        hole, matching toPlayerCycle's skip-policy.
+
+        Prior state: never emitted at all, so 1189 authored Italian and 1105
+        Spanish narration clips had never played for any learner. The client
+        (toSimpleRounds, validateLearningScript, scriptItemToCycle,
+        LearningPlayer) had supported the type throughout.
+
+        Requires get_course_cycles_window to project presentation_audio_id and
+        introduce in its phrase payload — migration
+        20260804_course_cycles_window_component_intro.sql.
+      intro_prompt_and_fallback: |
+        An intro's prompt is the presentation narration; the client resolves it
+        as `presentation_id || known_id` (backendCyclesToRounds.toPlayerCycle).
+        Intro cycles carry known_id as a FALLBACK ONLY — never a second clip
+        played alongside. Before 2026-08-04 the endpoint omitted known_id from
+        intro cycles, so the fallback was unreachable and a LEGO with no
+        presentation audio produced an empty prompt URL that SimplePlayer
+        silently skipped. Both intro and component_intro now carry it.
+      course_boundary: |
+        Both this endpoint and round-map truncate at the course's BUILT
+        boundary (api/_utils/courseBoundary.ts). courses.seed_count is the
+        AUTHORED length; MVP courses author 668 seeds but only build audio for
+        the first 300. Capped today: ara_lb_for_eng, ara_eg_for_eng (both
+        measured clean through seed 300, nothing after). Uncapped courses with
+        scattered per-lego gaps (ita_for_eng: 74 legos) are NOT boundary cases
+        — they degrade via the intro known-audio fallback and must play to the
+        end. cycles applies min(previewMaxSeed, builtMaxSeed) so the paywall
+        and content ceilings compose.
       cache: |
         localStorage, validated against the current round-map version on read,
         so a content edit that bumps the version evicts stale cycles.
@@ -268,11 +323,24 @@ spec lazy_loading_architecture:
     prefetch_tiers: |
       Run DURING playback, never blocking:
         - prefetchTier1: rest of the current round's cycles (limit=15).
-        - prefetchTier3: the next round's cycles.
-      The old Tier 2 bulk presentation/listening prefetch was disabled
-      2026-05-23 — that audio JIT-fetches at use time on
+        - prefetchTier3: the next round's cycles, PLUS one audio clip —
+          warmIntroPrompt() fetches the next round's intro prompt
+          (presentation_id || known_id, mirroring toPlayerCycle).
+      The old Tier 2 bulk presentation/listening prefetch stays disabled
+      (2026-05-23) — the rest of that audio JIT-fetches at use time on
       audioCache.persistent.ensure + SW CacheFirst, with
       SimplePlayer.prefetchNextCycle warming the upcoming voices.
+
+      Why that ONE clip is the exception (2026-08-04): presentation is the
+      longest clip in the course (~5.8s vs ~1.3s for known/target), it plays
+      FIRST in a round, and prefetchNextCycle's one-cycle lookahead cannot
+      reach across a round boundary until round N+1 is already in
+      SimplePlayer.rounds — which on the instant path it often isn't yet. It
+      was therefore the only clip class reliably cold at exactly the wrong
+      moment. A cold Italian start measured 10.5s prompt→voice1 vs 6.0s warm,
+      at SimplePlayer's 10s stall watchdog, which drops the phase and skips
+      the intro for the remainder of the session. Fire-and-forget; a prefetch
+      failure never surfaces and never interrupts playback.
 
     inf_play: |
       bootstrapInfPlay(fromRound) is a parallel entry that manufactures a
@@ -286,6 +354,14 @@ spec lazy_loading_architecture:
         Warm the round-map (and position-0 cycles) localStorage caches for a
         course WITHOUT mounting the player, so the next mount's bootstrap() is
         a cache hit instead of two fetches — targets the slow course-switch.
+      audio_precache: |
+        Also plain-GETs cycle 0's audio into the SW CacheFirst layer, in the
+        order presentation_id, known_id, target1_id, target2_id.
+        presentation_id was added 2026-08-04 and is not optional: cycle 0 is
+        always the intro, whose PROMPT is the presentation narration, and
+        intro cycles carry no known audio when a presentation exists — so the
+        previous three-id list warmed everything EXCEPT the clip that plays
+        first.
 
   ## ==========================================================================
   ## ROUND HOSTING  (was SessionController — now SimplePlayer)

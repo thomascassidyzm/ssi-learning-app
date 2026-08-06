@@ -45,13 +45,16 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
  * intentionally distinct from `types/Cycle.ts`'s atomic playback
  * `Cycle` (which is bound to a single PROMPT/PAUSE/VOICE_1/VOICE_2
  * pair). The backend cycle is one element in the round's sequence —
- * intro, debut, build, use, or listening hook — and the player layer
- * is responsible for converting it into one or more atomic
+ * intro, component_intro, debut, build, use, or listening hook — and the
+ * player layer is responsible for converting it into one or more atomic
  * playback cycles.
  */
 export interface BackendCycle {
   id: string
-  type: 'intro' | 'debut' | 'build' | 'use' | 'listening'
+  /** `component_intro` = the per-piece "as in" narration for one component
+   *  of an M-LEGO. Emitted since 2026-08-04; treated as an intro variant by
+   *  `toPlayerCycle` (presentation audio in the prompt slot, no pause). */
+  type: 'intro' | 'component_intro' | 'debut' | 'build' | 'use' | 'listening'
   lego_id: string
   seed_number: number
   known_text: string
@@ -387,6 +390,29 @@ function coalescedJsonGet(url: string, signal?: AbortSignal): Promise<CoalescedJ
 // ============================================================================
 
 /**
+ * Warm the PROMPT clip of the intro cycle in a freshly-fetched batch.
+ *
+ * The intro's prompt is the presentation narration — the longest clip in the
+ * course and the only class never pre-warmed before 2026-08-04. Resolution
+ * mirrors `toPlayerCycle`: `presentation_id || known_id`, so a LEGO missing
+ * its narration warms the clip that will actually be used instead of nothing.
+ *
+ * Deliberately ONE clip: the target voices are short and ride
+ * `SimplePlayer.prefetchNextCycle` comfortably. Fire-and-forget — a prefetch
+ * failure must never surface, let alone interrupt playback.
+ */
+function warmIntroPrompt(cycles: BackendCycle[] | undefined): void {
+  const intro = cycles?.find((c) => c.type === 'intro')
+  const id = intro?.audio?.presentation_id || intro?.audio?.known_id
+  if (!id) return
+  try {
+    void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
+  } catch {
+    /* never let a prefetch escape */
+  }
+}
+
+/**
  * Warm the instant-playback localStorage caches for a course WITHOUT mounting
  * the player, so the next mount's bootstrap() is a cache hit instead of two
  * cold serial network round-trips. Call on course switch (before the player
@@ -424,8 +450,24 @@ export async function prewarmInstantCaches(
     // warmFirstKnownAudio (the ready gate) and the opening PROMPT/VOICE plays
     // hit cache instead of streaming — the dominant cold-switch cost. Plain
     // GETs (same URL shape warmFirstKnownAudio uses), fire-and-forget.
+    //
+    // `presentation_id` FIRST and it is not optional: cycle 0 is always the
+    // intro, whose PROMPT is the presentation narration — and intro cycles
+    // carry no known audio when a presentation exists, so warming
+    // known/target1/target2 alone warmed everything EXCEPT the clip that
+    // actually plays first. Presentation is also the longest clip in the
+    // course (~5.8s vs ~1.3s for the others), so it is simultaneously the
+    // coldest and the most expensive thing to fetch late. A genuinely cold
+    // Italian start measured 10.5s prompt→voice1 against 6.0s warm
+    // (2026-08-04) — right at SimplePlayer's 10s stall watchdog, which drops
+    // the phase and skips the intro for the rest of the session.
     const c0 = cycles.cycles?.[0]
-    for (const id of [c0?.audio?.known_id, c0?.audio?.target1_id, c0?.audio?.target2_id]) {
+    for (const id of [
+      c0?.audio?.presentation_id,
+      c0?.audio?.known_id,
+      c0?.audio?.target1_id,
+      c0?.audio?.target2_id,
+    ]) {
       if (id) void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
     }
   } catch {
@@ -945,9 +987,16 @@ export function useInstantPlayback(
    * The cycle metadata fetch (round queue continuation) stays — it
    * needs to land before round N+1 starts. 2026-05-23: dropped the
    * inline ~15-audio bulk prefetch that followed it (and the old
-   * Tier 2 listening prefetch). Presentation audios don't need to land
-   * that early; JIT fetch + SW CacheFirst + SimplePlayer.prefetchNextCycle
-   * cover the upcoming cycle's audio.
+   * Tier 2 listening prefetch); JIT fetch + SW CacheFirst +
+   * SimplePlayer.prefetchNextCycle cover the upcoming cycle's audio.
+   *
+   * 2026-08-04: that left ONE clip genuinely cold — the next round's INTRO
+   * presentation. It is the longest clip in the course (~5.8s), it plays
+   * first in the round, and `prefetchNextCycle`'s one-cycle lookahead can't
+   * reach it across the round boundary until round N+1 is already in
+   * `SimplePlayer.rounds`, which on the instant path it often isn't yet.
+   * So it is warmed here, and ONLY it — a single fire-and-forget GET, not a
+   * return of the bulk prefetch. Cache-as-you-go is unchanged.
    */
   async function prefetchTier3(): Promise<void> {
     const map = roundMap.value
@@ -967,7 +1016,11 @@ export function useInstantPlayback(
         map.version,
       )
       bufferCycles(response.cycles, response.next_lego_id)
-      // No audio prefetch here — presentation audios JIT-fetch at use time.
+      // Warm the next round's intro prompt — see the note above. The prompt
+      // is `presentation || known`, mirroring `toPlayerCycle`, so a LEGO with
+      // no presentation clip still gets its fallback clip warmed rather than
+      // nothing. Everything else in the round still JIT-fetches at use time.
+      warmIntroPrompt(response.cycles)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {
         console.warn('[InstantPlayback] tier-3 prefetch failed:', err)

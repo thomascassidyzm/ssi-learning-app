@@ -1,16 +1,23 @@
 /**
  * Tests for schoolScope.ts's arbitrary-depth subtree scoping —
- * schoolsForGroupSubtree and isStrictDescendantGroup both rely on
- * path-prefix matching (materialized-path groups tree: org -> region ->
- * district -> school, arbitrary nesting via groups.parent_id/path).
+ * schoolsForGroupSubtree and isStrictDescendantGroup. Both walk `parent_id`
+ * (groupSubtree.descendantIds). They used to match on the slug `path`; that was
+ * changed on 2026-08-06 because slugs are not unique — two orgs both named
+ * "Deborah Testing" both carried path 'deborah-testing' live, so a path match
+ * folded one tenant's people into the other's scope. The assertions below are
+ * the ORIGINAL ones (the tree semantics did not change); the fixture now
+ * carries the real parent links, plus the two collision cases path matching
+ * could never get right.
  *
  * Fixture tree (4 levels deep):
- *   org-1        path "1"
- *     region-1a  path "1.1"
- *       district-1a1  path "1.1.1"
+ *   org-1
+ *     region-1a
+ *       district-1a1
  *         (school-ggc attached here — a great-grandchild group)
- *     region-1b  path "1.2"        <- sideways branch, same parent as region-1a
- *   org-2        path "2"          <- unrelated root
+ *     region-1b               <- sideways branch, same parent as region-1a
+ *   org-2                     <- unrelated root
+ *   org-1-twin                <- SAME NAME as org-1 → SAME slug path, no relation
+ *   org-1-prefix              <- slug is a bare string-prefix sibling
  */
 import { describe, it, expect } from 'vitest'
 import { schoolsForGroupSubtree, isStrictDescendantGroup } from './schoolScope'
@@ -18,21 +25,24 @@ import { schoolsForGroupSubtree, isStrictDescendantGroup } from './schoolScope'
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 
-const GROUP_PATHS: Record<string, string> = {
-  'org-1': '1',
-  'region-1a': '1.1',
-  'district-1a1': '1.1.1',
-  'region-1b': '1.2',
-  'org-2': '2',
-}
+// id -> parent_id. Paths are carried too, deliberately COLLIDING for the twin
+// and prefix rows, so a regression back to path matching fails loudly here.
+const GROUPS: Array<{ id: string; parent_id: string | null; path: string }> = [
+  { id: 'org-1', parent_id: null, path: 'acme' },
+  { id: 'region-1a', parent_id: 'org-1', path: 'acme/north' },
+  { id: 'district-1a1', parent_id: 'region-1a', path: 'acme/north/central' },
+  { id: 'region-1b', parent_id: 'org-1', path: 'acme/south' },
+  { id: 'org-2', parent_id: null, path: 'other' },
+  { id: 'org-1-twin', parent_id: null, path: 'acme' },
+  { id: 'org-1-prefix', parent_id: null, path: 'acme-holdings' },
+]
 
-// group_id -> path prefix a school is attached under (schools.group_id points
-// directly at ONE group; "attached to a great-grandchild" means group_id ===
-// 'district-1a1').
 const SCHOOLS: Array<{ id: string; group_id: string }> = [
   { id: 'school-ggc', group_id: 'district-1a1' }, // great-grandchild of org-1
   { id: 'school-1b', group_id: 'region-1b' }, // sideways branch under org-1
   { id: 'school-org2', group_id: 'org-2' }, // unrelated root
+  { id: 'school-twin', group_id: 'org-1-twin' }, // same-slug, unrelated tenant
+  { id: 'school-prefix', group_id: 'org-1-prefix' }, // prefix-slug, unrelated tenant
 ]
 
 function makeSvc() {
@@ -40,23 +50,8 @@ function makeSvc() {
     from(table: string) {
       if (table === 'groups') {
         const builder: any = {
-          _mode: null as 'get' | 'like' | null,
-          _id: undefined as string | undefined,
-          _prefix: undefined as string | undefined,
           select: () => builder,
-          eq: (_col: string, val: string) => { builder._mode = 'get'; builder._id = val; return builder },
-          like: (_col: string, pattern: string) => { builder._mode = 'like'; builder._prefix = pattern.replace(/%$/, ''); return builder },
-          maybeSingle: () => {
-            const path = GROUP_PATHS[builder._id as string]
-            return Promise.resolve({ data: path ? { path } : null, error: null })
-          },
-          then: (resolve: any) => {
-            const prefix = builder._prefix as string
-            const matches = Object.entries(GROUP_PATHS)
-              .filter(([, p]) => p.startsWith(prefix))
-              .map(([id]) => ({ id }))
-            return resolve({ data: matches, error: null })
-          },
+          then: (resolve: any) => resolve({ data: GROUPS.map((g) => ({ id: g.id, parent_id: g.parent_id })), error: null }),
         }
         return builder
       }
@@ -77,7 +72,7 @@ function makeSvc() {
   } as any
 }
 
-describe('schoolsForGroupSubtree — arbitrary-depth path-prefix matching', () => {
+describe('schoolsForGroupSubtree — arbitrary-depth subtree matching', () => {
   it('includes a school attached to a great-grandchild group in the root org subtree', async () => {
     const schoolIds = await schoolsForGroupSubtree(makeSvc(), 'org-1')
     expect(schoolIds).toContain('school-ggc')
@@ -102,13 +97,25 @@ describe('schoolsForGroupSubtree — arbitrary-depth path-prefix matching', () =
     expect(schoolIds).toEqual(['school-ggc'])
   })
 
-  it('an unknown group id (no path) returns an empty list', async () => {
+  it('an unknown group id returns an empty list', async () => {
     const schoolIds = await schoolsForGroupSubtree(makeSvc(), 'no-such-group')
     expect(schoolIds).toEqual([])
   })
+
+  // ─── The 2026-08-06 collision cases: two roots sharing a slug, and a slug
+  // that is a bare string-prefix of another. Path matching gets both wrong. ───
+  it('excludes an unrelated org that happens to share the same slug path', async () => {
+    const schoolIds = await schoolsForGroupSubtree(makeSvc(), 'org-1')
+    expect(schoolIds).not.toContain('school-twin')
+  })
+
+  it('excludes an unrelated org whose slug is a bare string-prefix sibling', async () => {
+    const schoolIds = await schoolsForGroupSubtree(makeSvc(), 'org-1')
+    expect(schoolIds).not.toContain('school-prefix')
+  })
 })
 
-describe('isStrictDescendantGroup — arbitrary-depth path-prefix matching', () => {
+describe('isStrictDescendantGroup — arbitrary-depth subtree matching', () => {
   it('identifies a great-grandchild as a strict descendant of the root', async () => {
     const result = await isStrictDescendantGroup(makeSvc(), 'org-1', 'district-1a1')
     expect(result).toBe(true)
@@ -137,5 +144,14 @@ describe('isStrictDescendantGroup — arbitrary-depth path-prefix matching', () 
   it('rejects an ancestor being called a descendant of its own child (direction matters)', async () => {
     const result = await isStrictDescendantGroup(makeSvc(), 'district-1a1', 'org-1')
     expect(result).toBe(false)
+  })
+
+  it('rejects an unrelated org sharing the same slug path — it is not below anyone', async () => {
+    expect(await isStrictDescendantGroup(makeSvc(), 'org-1', 'org-1-twin')).toBe(false)
+    expect(await isStrictDescendantGroup(makeSvc(), 'org-1-twin', 'org-1')).toBe(false)
+  })
+
+  it('rejects an unrelated org whose slug is a bare string-prefix sibling', async () => {
+    expect(await isStrictDescendantGroup(makeSvc(), 'org-1', 'org-1-prefix')).toBe(false)
   })
 })

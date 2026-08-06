@@ -12,9 +12,12 @@
 # Works in a throwaway git worktree, so it never touches the live working tree (an agent may be
 # mid-branch in it) and never needs it clean.
 #
-# On --go this also stamps the week's RELEASE NOTES final (tools/release-train/notes/<date>.md):
-# ship date + promoted sha into Thursday's draft, hand edits preserved. Notes are committed to
-# dev, never to main.
+# On --go this also writes the week's RELEASE NOTES final (tools/release-train/notes/<date>.md).
+# FOUNDER RULING 2026-07-31, "accuracy over elegance": the notes are REGENERATED from the range
+# actually promoted (this script passes --base/--head, the only place that knows main's sha before
+# the merge), not merely stamped from Thursday's draft — staging keeps moving after Thursday, so a
+# stamped draft can miss what shipped and claim what didn't. Hand-edited bullets are preserved.
+# Notes are committed to dev, never to main.
 #
 # After the push: the deploy sentinel (tools/deploy-sentinel/, cron'd every 3 min on watson-1)
 # opens a 2h watch window on the new main sha automatically — deploy-live, endpoint probes and
@@ -74,14 +77,15 @@ git -C "$WT" push origin HEAD:main
 NEW=$(git -C "$WT" rev-parse --short HEAD)
 git branch -D _promote_main >/dev/null 2>&1 || true
 
-# Stamp the release notes final: ship date + promoted sha into Thursday's draft (tools/
-# release-train/notes/<draft date>.md), hand edits kept, draft-only coverage section stripped.
-# Committed to dev, never to main. A notes failure must not read as a failed promote — the
-# promote already happened by this line.
-if ! node "$REPO/tools/release-train/release-notes.mjs" \
-      --finalize --sha "$STAGING" --count "$COUNT"; then
-  echo "WARN: release notes were not stamped — run this by hand:"
-  echo "  node tools/release-train/release-notes.mjs --finalize --sha $STAGING --count $COUNT"
+# Write the release notes final, REGENERATED from the range this script just promoted
+# ($MAIN..$STAGING — captured before the merge, which is why the range is passed from here).
+# Hand-edited bullets in Thursday's draft are carried through; the draft-only coverage section
+# never reaches the final. Committed to dev, never to main. A notes failure must not read as a
+# failed promote — the promote already happened by this line.
+NOTES_ARGS=(--finalize --sha "$STAGING" --count "$COUNT" --base "$MAIN" --head "$STAGING")
+if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}"; then
+  echo "WARN: release notes were not written — run this by hand:"
+  echo "  node tools/release-train/release-notes.mjs ${NOTES_ARGS[*]}"
 fi
 
 echo

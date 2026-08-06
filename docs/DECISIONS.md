@@ -886,6 +886,41 @@ empty commit before escalating.**
 **Search width:** none-needed
 **Decided by:** agent
 
+## 2026-07-31 — criticality rewired: distinction-network forward-reuse centrality supersedes intro-order
+**The ruling (Tom, 2026-07-31, verbatim):** "A hub LEGO is a LEGO that is connected to many other
+subsequent LEGOs, or is used in many subsequent phrases… The question is whether this LEGO is
+going to block people from getting to other phrases. And maybe we do some simple maths: Which
+words are showing the most variation in the phrase → Find the number of other phrases that
+contain these words → Use this number as a measure of centrality."
+**Move:** New pure module `packages/core/src/learning/centrality.ts` — per-LEGO forward reuse =
+count of SUBSEQUENT practice phrases + M-LEGO compositions containing the LEGO (token-level
+contiguous containment, rank percentile out). `RatePolicyEngine` now takes an optional
+`unitCentralityPercentile` map as the PRIMARY criticality signal (top `criticalCentralityFraction`
+= resists deferral); intro-order stays as the zero-data fallback. Companion: deferred units get a
+measured return signal — `RoundPlan.returnReady` fires when the unit's neighbourhood (±3
+introduction ordinals) reads easing with none struggling; Fibonacci SR remains the actual return
+mechanism. Player computes the map once per course from the script walk it already fetched
+(`playback/legoCentrality.ts`, INF-PLAY replays deduped) and shadow-logs everything via
+`adaptation_plan` (plan.returnReady + roundLegoCentrality). Shadow mode untouched — nothing
+learner-facing moves.
+**Better:** criticality now measures the thing itself ("blocks the path forward") instead of the
+positional proxy. Measured on spa_for_eng (1,475 LEGOs, 15,212 phrases): 129 of the top-15% hubs
+— que/lo/no/a/de, the structural glue re-introduced mid-course — sit PAST the old 15% frontload
+cutoff and were wrongly deferrable; 207 zero-reuse LEGOs (late vosotros one-offs) are now honestly
+deferrable regardless of position.
+**Simpler:** intro-order is the degenerate case of forward reuse, so one signal subsumes the other
+rather than sitting beside it; no new tables, no new capture, no flags.
+**Cheaper:** one indexed in-memory pass over already-fetched script items — 75ms measured for the
+full Spanish course; zero runtime schema or query cost.
+**Searched & rejected:**
+- Corpus frequency / in-course total reuse — rejected in the original C1 analysis and still: reuse
+  BEHIND the learner blocks nothing; subsequent-only is the ruling's whole point.
+- Persisting a per-course centrality table — rejected: the consumer (shadow-mode ratePolicy) lives
+  where the script items already are; a table is a signal built before its consumer needs it.
+- Raw-substring matching (the pre-rescope component-check mistake) — rejected for token-level
+  containment: "en" must not match inside "bien", elision "qu'il" must still contain "il".
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling
 ## 2026-08-01 — orgs bill on the schools quintet, and the group-leader is the role we already have
 **Move:** The org/workplace lane reuses two things wholesale instead of adding parallel systems.
 (1) **Billing shape:** `groups` gains the *same* five columns `schools` already carries —
@@ -968,6 +1003,11 @@ tolerate-absent code, so it can be applied whenever the live-DB window is quiet.
   long-term but a money-path rewrite with zero current payout volume to justify it; logged
   as the natural follow-up if per-line payout states are ever needed.
 **Search width:** visible-options
+**Decided by:** agent, on an explicit founder spec. ~~OPEN (needs Tom): an annual £100 student
+today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
+silently changed.~~ **RESOLVED 2026-08-02 by founder ruling: tutor-class students are
+monthly-only — the annual option is removed from the tutor lane, so the edge case cannot
+occur. See "tutor-class students: monthly only" below.**
 **Decided by:** agent, on an explicit founder spec. OPEN (needs Tom): an annual £100 student
 today accrues £5 once, not £5×12 as "per completed student-month" implies — flagged, not
 silently changed.
@@ -1038,3 +1078,70 @@ course-PLAY access to their own org; they can administer it immediately, but a f
 decision is needed on whether/how leaders also get learner-side coverage.
 **Search width:** visible-options
 **Decided by:** agent, under founder instruction 2026-08-02 ("BUILD: self-serve /orgs door")
+
+## 2026-08-02 — tutor-class students: monthly only (close the annual rebate edge case)
+**Move:** Founder ruling: to cap rebate exposure, a student joining a TUTOR class may only be
+offered the monthly plan (£10/mo). The £100/yr tutor-student option is removed end to end —
+the `/with/:code` join UI (billing toggle now renders only for school classes; `isAnnual` is
+guarded by `allowAnnual = isSchoolClass`, so the class type resolving async can never leave a
+tutor lane on annual), the client price wiring (`paddleConfig.studentAnnualPriceId` retired;
+the annual branch of `studentPriceId` now only resolves the SCHOOL price), and the server
+assumption (paddle-webhook logs a loud `TUTOR-ANNUAL (retired)` line if a tutor class is ever
+billed on an annual price — entitlement still honoured, since they paid). SCHOOL-class
+students keep both £5/mo and £50/yr, untouched. The Paddle price and the webhook's
+PRICE_CATALOG entry stay so any historical annual tutor subscription keeps resolving. No
+change to the £100 Wise payout threshold (founder confirmed keep).
+**Better:** the rebate model is now true by construction — every tutor-student payment is one
+student-month, so "£5 per completed student-month" needs no special case, and the £100 up-front
+exposure disappears.
+**Simpler:** it DELETES a branch (one price id, one UI state) rather than adding ledger logic
+to amortise an annual payment across 12 accrual lines.
+**Cheaper (total):** zero schema, zero migration, zero cron change; the accrual path
+(transaction.paid → flat £5) is untouched.
+**Searched & rejected:**
+- Amortising annual in the ledger (accrue £5×12 held on staggered hold_until dates) — the
+  "correct" model, but it adds a scheduled-accrual concept to a money path with no volume to
+  justify it, and keeps £100 of refund exposure open. Rejected on all three legs.
+- Accruing £5 once on annual and calling it priced-in — silently pays a tutor 1/12th for an
+  annual student; a trust bug, not a simplification.
+- Server-side hard REJECT of a tutor-annual checkout — the client can no longer start one, and
+  rejecting a webhook for a payment Paddle already collected strands a paying learner. Log
+  loudly, honour entitlement.
+**Gap (honest):** the live count of existing annual tutor-tier students could NOT be verified
+from this session — `scripts/db-read.mjs` uses the anon key and `subscriptions` is RLS'd
+own-row, so it returns `[]` for every query including an unfiltered one. `[]` here is "no
+access", NOT "zero rows". Query for someone with service-role access:
+`select count(*) from subscriptions s join teacher_referrals r on r.subscription_id = s.id
+where r.locked_price_pence = 1000 and s.plan_id = 'pri_01kvaj1ben739erky6zjdjsq22';`
+Existing rows are not touched by this change either way — only the new-purchase surface closed.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling 2026-08-02
+
+## 2026-08-02 — retire /schools2 into a redirect; merge its catalogue into /schools1's picker
+**Move:** Founder ruling: one school signup door, not two. `/schools2` becomes a pure redirect
+to `/schools1` preserving query + hash (the existing `/schools/org/:id → /org/:id` pattern) —
+the URL stays alive forever because external marketing links point at it. The catch: `/schools2`
+was the English-first door listing the FULL catalogue, while `/schools1` (heritage) listed only
+the year-free offer (`isYearTrialCourse`), so a naive redirect would have made every commercial
+course unreachable at signup. So `/schools1`'s course-level dropdown widened to the whole
+catalogue, banded: pinned heritage (Welsh N/S, Irish) → rest of the year-free offer → everything
+else, A–Z within each band. The "Free for a year" badge moves from language-level to
+per-course (`option.yearFree`) so it discriminates WITHIN the merged list instead of labelling
+a whole door.
+**Better:** one door to maintain and to point marketing at; the heritage identity survives at
+the top of the list; nothing became unreachable.
+**Simpler:** deletes a route component mount and a door variant; the merged picker is the pool
+filter removed, not a new branch.
+**Cheaper (total):** no new surface; the door's offer copy was ALREADY per-course
+(`trialDaysFor` → 365 or 30), so a premium course picked on the heritage door truthfully shows
+its 30-day trial with no extra wiring.
+**Searched & rejected:**
+- Redirect only, leave the heritage pool narrow — drops every commercial course from the only
+  school door. This is exactly the "STOP and report" case in the brief; it was avoided because
+  the catalogues ARE mergeable (both course-level, both already per-course priced).
+- Keep /schools2 rendering but unlisted — leaves two doors to drift, which is the thing being
+  retired.
+- A "show all courses" expander under the year-free set — a second interaction to discover a
+  course; the banded single list gets the same ordering benefit for free.
+**Search width:** visible-options
+**Decided by:** agent, on an explicit founder ruling 2026-08-02

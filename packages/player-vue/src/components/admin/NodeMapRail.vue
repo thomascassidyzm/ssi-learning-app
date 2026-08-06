@@ -19,6 +19,14 @@ export interface RailRef {
   label: string
   is_demo?: boolean
   hasSchool?: boolean
+  /** Navigate here instead of the node-home path (flat surfaces, e.g. a
+   * teacher's class rows opening /schools/classes/:id). */
+  path?: string
+  /** Orientation-only row: shown for context, not navigable. The founder
+   * ruling (2026-07-31) — the rail is orientation, not navigation — a
+   * permission-capped user still SEES the level above (e.g. a teacher's
+   * school) even though they can't open it. */
+  inert?: boolean
 }
 
 const props = defineProps<{
@@ -28,20 +36,26 @@ const props = defineProps<{
   children: RailRef[]
   /** 'class' renders the current node as a leaf (no child nav rows). */
   kind?: 'node' | 'class'
+  /** Force member scope (flat /schools views sit outside /org, so
+   * path detection alone would wrongly show the admin escape). OR-semantics:
+   * true forces member; absent/false falls back to path detection — Vue
+   * defaults absent boolean props to false, so ?? can't express this. */
+  member?: boolean
 }>()
 
 const router = useRouter()
 const route = useRoute()
 // Member mount (leader inside /schools) vs admin mount — same rail, links
 // stay within the caller's own scope (see nodeSurfacePaths.ts).
-const member = computed(() => isMemberNodeSurface(route.path))
+const member = computed(() => props.member || isMemberNodeSurface(route.path))
 const showSiblings = computed({
   get: () => siblingsOpenByNode.get(props.node.id) ?? false,
   set: (open: boolean) => { siblingsOpenByNode.set(props.node.id, open) },
 })
 
 function open(ref_: RailRef): void {
-  router.push(groupHomePath(ref_.id, member.value))
+  if (ref_.inert) return
+  router.push(ref_.path || groupHomePath(ref_.id, member.value))
 }
 
 function labelWord(r: RailRef): string {
@@ -66,7 +80,11 @@ function labelWord(r: RailRef): string {
     <span class="schools-kicker rail-kicker">Where you are</span>
     <ol class="rail-list">
       <li v-for="(a, i) in props.ancestors" :key="a.id" class="rail-row is-ancestor" :style="{ '--depth': i }">
-        <button type="button" class="rail-link" @click="open(a)">
+        <span v-if="a.inert" class="rail-link is-inert">
+          <span class="rail-name">{{ a.name }}</span>
+          <span class="rail-label">{{ labelWord(a) }}</span>
+        </span>
+        <button v-else type="button" class="rail-link" @click="open(a)">
           <span class="rail-name">{{ a.name }}</span>
           <span class="rail-label">{{ labelWord(a) }}</span>
         </button>
@@ -140,6 +158,10 @@ function labelWord(r: RailRef): string {
 .rail-link { cursor: pointer; color: var(--schools-fg-2, #555); }
 .rail-link:hover { background: rgba(255, 255, 255, 0.72); color: var(--schools-fg, #0F1212); }
 .rail-link:hover .rail-name { text-decoration: underline; }
+/* Orientation-only rows: same shape, no click affordance. */
+.rail-link.is-inert { cursor: default; }
+.rail-link.is-inert:hover { background: none; color: var(--schools-fg-2, #555); }
+.rail-link.is-inert:hover .rail-name { text-decoration: none; }
 
 .rail-name {
   font-size: var(--text-sm); font-weight: var(--font-medium);

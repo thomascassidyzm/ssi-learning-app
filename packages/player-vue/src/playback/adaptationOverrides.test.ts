@@ -19,6 +19,7 @@ function plan(overrides: Partial<RoundPlan> = {}): RoundPlan {
     consolidateCount: 2,
     spacedRepCap: 12,
     insertBreather: false,
+    returnReady: [],
     pauseMultiplier: () => 1.0,
     ...overrides,
   }

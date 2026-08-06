@@ -41,9 +41,11 @@ let updateCalls: any[] = []
 let deleteCalls: any[] = []
 let ungroupSchoolsError: any = null
 let deleteGroupError: any = null
-// Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
-// sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
+// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
+// group-2 is a real sub-group of group-1; group-3 is unrelated.
 let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+let groupParents: Record<string, string | null> = { 'group-1': null, 'group-2': 'group-1', 'group-3': null }
+const forestRows = () => Object.entries(groupParents).map(([id, parent_id]) => ({ id, parent_id }))
 
 function makeChainable(table: string) {
   let eqVal: unknown
@@ -69,6 +71,10 @@ function makeChainable(table: string) {
       }
       if (table === 'groups' && deleteCalls.some(c => c.table === 'groups')) {
         return resolve({ data: null, error: deleteGroupError })
+      }
+      // Unfiltered `groups` read = the forest fetch behind descendantIds.
+      if (table === 'groups' && eqVal === undefined) {
+        return resolve({ data: forestRows(), error: null })
       }
       return resolve({ data: null, error: null })
     },

@@ -29,7 +29,7 @@ const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = u
 // the bar, which read as the player "taking over"). Only the self-practice
 // Learn launcher is dropped: mid-class-session it's the one affordance that
 // would be actively confusing, and the chip's End session takes its place.
-const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
+const { isPlayingAsClass, isOnPlayerRoute, className, exitClassSession } = usePlayAsClassContext()
 
 const auth = inject<any>('auth', null)
 
@@ -286,11 +286,13 @@ if (typeof document !== 'undefined') {
            every dashboard (consistency law §1.12). -->
       <RefreshButton />
 
-      <!-- Self-practice launcher is dropped while a class session is live — the
-           bar's job in this mode is to name the class and offer the exit. -->
+      <!-- Self-practice launcher. Hidden on every player route — you don't offer
+           "Learn" to someone who is already in the player (owner ruling
+           2026-08-06) — which covers the live class session too, where the bar's
+           job is to name the class and offer the exit. -->
       <router-link
-        v-if="!isPlayingAsClass"
-        to="/schools/play"
+        v-if="!isOnPlayerRoute"
+        to="/"
         class="learn-btn"
         title="Learn — your own practice"
         aria-label="Learn — your own practice"
@@ -317,7 +319,9 @@ if (typeof document !== 'undefined') {
                existed, the only exit in the menu was "Sign out", which reads
                as "sign out of the teacher identity" but kills the whole
                session (founder incident, 2026-07-18). -->
-          <router-link to="/" class="menu-item" @click="closeMenu">My player</router-link>
+          <!-- Same affordance as the Learn button, so it follows the same rule:
+               not offered while you're already in the player (2026-08-06). -->
+          <router-link v-if="!isOnPlayerRoute" to="/" class="menu-item" @click="closeMenu">My player</router-link>
           <button type="button" class="menu-item" @click="signOut">Sign out</button>
         </div>
       </div>

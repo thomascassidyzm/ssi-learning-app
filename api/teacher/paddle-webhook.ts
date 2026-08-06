@@ -976,18 +976,26 @@ export async function handleStudentSubscription(
   }
 
   // Price is decided SERVER-SIDE by the class type, never trusted from the client.
-  // school_id NULL = tutor/ACT class → £10 (1000); set = school class → £5 (500).
-  // Frozen into teacher_referrals.locked_price_pence below; commission gates on it.
+  // school_id AND group_id both NULL = independent tutor/ACT class → £10 (1000);
+  // either set = organisation-owned class → £5 (500). Frozen into
+  // teacher_referrals.locked_price_pence below; commission gates on it.
+  //
+  // group_id is part of the gate because of the COMMISSIONS-NEVER-STACK ruling
+  // (founder, 2026-08-02): if a tutor's class is ever attached inside an org's
+  // group tree (not built today, deliberately not painted out), its students
+  // price as org students and the tutor earns NO per-student commission — the
+  // org seat relationship is the compensation. Commission only ever rides a
+  // student's own tutor-tier payment, never alongside org/school coverage.
   const { data: priceCls } = await supabase
     .from('classes')
-    .select('school_id, course_code')
+    .select('school_id, group_id, course_code')
     .eq('id', classId)
     .maybeSingle()
   if (!priceCls) {
     // Money-safe default under uncertainty: unknown class → school tier (no commission).
     console.error('[paddle-webhook] Class not found deriving price; defaulting to school/no-commission:', classId)
   }
-  const isTutorClass = !!priceCls && priceCls.school_id === null
+  const isTutorClass = !!priceCls && priceCls.school_id === null && priceCls.group_id == null
   const lockedPricePence = isTutorClass ? 1000 : 500
 
   // PRICE-TIER GUARD: confirm the price the customer was actually billed on belongs
@@ -1004,6 +1012,19 @@ export async function handleStudentSubscription(
     )
   } else if (billedPlanId && !priceMeta) {
     console.warn('[paddle-webhook] student_via_teacher billed on unrecognised price id:', billedPlanId)
+  }
+
+  // MONTHLY-ONLY GUARD (founder ruling 2026-08-02): a TUTOR-class student may
+  // only ever be sold the monthly plan — the £5 rebate accrues per paid
+  // transaction, so an annual tutor student would pay 12 months up front and
+  // accrue £5 once. The app no longer offers annual in this lane (WithTeacher.vue
+  // + paddle.ts), so this can only fire on a legacy subscription or a
+  // hand-built checkout. Entitlement is still honoured (they paid); the log is
+  // the audit trail. Commission is unaffected — it rides transaction.paid.
+  if (isTutorClass && priceMeta?.period === 'annual') {
+    console.warn(
+      `[paddle-webhook] TUTOR-ANNUAL (retired): class ${classId} student billed on annual price ${billedPlanId} — tutor lane is monthly-only since 2026-08-02; honouring entitlement, flagged for audit`
+    )
   }
 
   // Get or create the learner for this Supabase user
@@ -1270,11 +1291,17 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   const periodStartIso = periodStart.toISOString().slice(0, 10)
   const periodEndIso = periodEnd.toISOString().slice(0, 10)
 
-  // HELD until the 30-day refund window closes (Tom's decision: never pay out
-  // immediately). hold_until = this transaction's paid_at + 30 days. The payout
-  // cron must only release accruals whose hold_until has passed.
+  // HELD per the founder model (2026-08-02): "£5 per completed student-month,
+  // paid 30 days AFTER the completed month." The transaction pays for a month
+  // of service starting at paid_at; that student-month completes one calendar
+  // month later, and the rebate releases 30 days after THAT — so
+  // hold_until = paid_at + 1 month + 30 days. (Previously paid_at + 30d, which
+  // released at month-completion instead of 30 days after it.) The payout cron
+  // only releases accruals whose hold_until has passed.
   const paidAt = data.billedAt ? new Date(data.billedAt) : now
-  const holdUntil = new Date(paidAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  const monthComplete = new Date(paidAt)
+  monthComplete.setUTCMonth(monthComplete.getUTCMonth() + 1)
+  const holdUntil = new Date(monthComplete.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
   // Atomic HELD accrual via RPC (INSERT … ON CONFLICT (teacher_id, period_start) DO
   // UPDATE accrued_pence += , status→held, hold_until advanced). Combined with the
@@ -1368,6 +1395,71 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
     'pence (£5/attributed student); hold_until:',
     holdUntil
   )
+
+  // Per-student-month LEDGER LINE under the aggregate accrual, so the tutor's
+  // statement can show which student-months earned what. Best-effort: the
+  // aggregate above is the money source of truth; a missing table (pre-
+  // migration) or a duplicate line (webhook retry) is silently tolerated.
+  let learnerDisplay: string | null = null
+  if (sub.learner_id) {
+    const { data: studentLearner } = await supabase
+      .from('learners')
+      .select('display_name')
+      .eq('id', sub.learner_id)
+      .maybeSingle()
+    learnerDisplay = studentLearner?.display_name || null
+  }
+  await recordRebateLedgerLine(supabase, {
+    teacher_id: teacher.id,
+    learner_id: sub.learner_id || null,
+    learner_display: learnerDisplay,
+    class_id: referral.class_id,
+    subscription_id: sub.id,
+    provider_ref: data.id,
+    entry_type: 'accrual',
+    service_month: periodStartIso,
+    amount_pence: teacherTakePence,
+    hold_until: holdUntil,
+  })
+}
+
+// Best-effort insert of a tutor_rebate_ledger line. Idempotent via the
+// (provider_ref, entry_type) unique index; tolerates the table not existing
+// yet (pre-migration) — the aggregate teacher_commissions row is the money
+// source of truth, the ledger only feeds the tutor-facing statement.
+async function recordRebateLedgerLine(
+  supabase: any,
+  line: {
+    teacher_id: string
+    learner_id: string | null
+    learner_display: string | null
+    class_id: string | null
+    subscription_id: string | null
+    provider_ref: string
+    entry_type: 'accrual' | 'reversal' | 'reaccrual'
+    service_month: string
+    amount_pence: number
+    hold_until: string | null
+  }
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('tutor_rebate_ledger')
+      .upsert(line, { onConflict: 'provider_ref,entry_type', ignoreDuplicates: true })
+    if (error) {
+      const missingTable =
+        error.code === '42P01' ||
+        error.code === 'PGRST205' ||
+        /relation .* does not exist|could not find the table/i.test(error.message || '')
+      if (missingTable) {
+        console.warn('[paddle-webhook] tutor_rebate_ledger absent — statement line skipped (pre-migration)')
+      } else {
+        console.error('[paddle-webhook] tutor_rebate_ledger write failed (aggregate unaffected):', error)
+      }
+    }
+  } catch (e: any) {
+    console.error('[paddle-webhook] tutor_rebate_ledger write threw (aggregate unaffected):', e?.message)
+  }
 }
 
 // True when a Supabase/Postgres error indicates a column the migration adds is not
@@ -1534,6 +1626,18 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
       console.warn('[paddle-webhook] re-accrue RPC missing — commission not restored (pre-migration):', teacher.id, periodStartIso)
     }
     console.log('[paddle-webhook] Re-accrued commission for reversed dispute:', 'teacher:', teacher.id, 'period:', periodStartIso, '+', reversePence, 'pence; action:', action)
+    await recordRebateLedgerLine(supabase, {
+      teacher_id: teacher.id,
+      learner_id: sub.learner_id || null,
+      learner_display: null,
+      class_id: referral.class_id,
+      subscription_id: sub.id,
+      provider_ref: data.id,
+      entry_type: 'reaccrual',
+      service_month: periodStartIso,
+      amount_pence: reversePence,
+      hold_until: holdUntil,
+    })
     return
   }
 
@@ -1579,4 +1683,17 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
     'pence; action:',
     action
   )
+
+  await recordRebateLedgerLine(supabase, {
+    teacher_id: teacher.id,
+    learner_id: sub.learner_id || null,
+    learner_display: null,
+    class_id: referral.class_id,
+    subscription_id: sub.id,
+    provider_ref: data.id,
+    entry_type: 'reversal',
+    service_month: periodStartIso,
+    amount_pence: -reversePence,
+    hold_until: null,
+  })
 }

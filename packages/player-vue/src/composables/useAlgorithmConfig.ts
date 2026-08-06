@@ -136,11 +136,13 @@ export interface ListeningModeConfig {
 
 /**
  * Meta-commentary knobs — DB row `algorithm_config` key='meta_commentary'.
- * Encouragement taper (owner ruling 2026-07-24): random encouragements dial
- * down with learner experience and switch fully off past a threshold. Seeds
- * are the experience unit (belt thresholds are seed-denominated); the default
- * off-point 8 = the first belt equivalent (Yellow). Instructions (the
- * once-ever science bits) are never tapered.
+ * Encouragement taper (owner ruling 2026-08-06, superseding 2026-07-24):
+ * random encouragements dial down with learner experience and switch fully off
+ * past a threshold. The experience unit is the learner's CUMULATIVE LEARNING
+ * MINUTES ACROSS ALL COURSES — not their position in the current course, which
+ * made a veteran starting a new course look like a beginner. Defaults: taper
+ * starts at 600 min (10h), off at 1800 min (30h). Instructions (the once-ever
+ * science bits) are never tapered.
  */
 export interface MetaCommentaryConfig {
   encouragementTaper: EncouragementTaperConfig
@@ -312,6 +314,17 @@ const DEFAULT_META_COMMENTARY: MetaCommentaryConfig = {
   encouragementTaper: DEFAULT_ENCOURAGEMENT_TAPER,
 }
 
+/** Read the taper out of a loaded DB row, honouring only the known
+ *  minute-denominated keys — see the call site for why. Exported for tests. */
+export function pickTaper(loaded: any): EncouragementTaperConfig {
+  const num = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback
+  return {
+    taperStartMinutes: num(loaded?.taperStartMinutes, DEFAULT_ENCOURAGEMENT_TAPER.taperStartMinutes),
+    offAtMinutes: num(loaded?.offAtMinutes, DEFAULT_ENCOURAGEMENT_TAPER.offAtMinutes),
+  }
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -387,10 +400,12 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           meta_commentary: {
             ...DEFAULT_META_COMMENTARY,
             ...(loaded.meta_commentary || {}),
-            encouragementTaper: {
-              ...DEFAULT_META_COMMENTARY.encouragementTaper,
-              ...(loaded.meta_commentary?.encouragementTaper || {}),
-            },
+            // Pick ONLY the known (minute-denominated) keys. A stale row still
+            // carrying the pre-2026-08-06 seed keys (taperStartSeeds /
+            // offAtSeeds) must not leak through — it would silently switch
+            // encouragements off after 8 MINUTES. Unknown keys are ignored and
+            // the new defaults stand.
+            encouragementTaper: pickTaper(loaded.meta_commentary?.encouragementTaper),
           },
         }
 

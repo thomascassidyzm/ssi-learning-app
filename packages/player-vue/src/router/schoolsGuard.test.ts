@@ -65,16 +65,26 @@ describe('/schools route guard', () => {
     expect(router.currentRoute.value.fullPath).toBe('/tutors/dashboard')
   })
 
-  it('the /schools/play child route (staff self-practice, embedded under SchoolsTopBar) is covered by the same parent guard — a plain learner is bounced, never reaching it', async () => {
+  it('the /schools/play child route (play-as-class, embedded under SchoolsTopBar) is covered by the same parent guard — a plain learner is bounced, never reaching it', async () => {
     useUserRole().initialize(null, null)
-    await router.push('/schools/play')
+    await router.push({ path: '/schools/play', query: { class: 'c1' } })
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('a school-role user reaches /schools/play directly (the Learn button target)', async () => {
+  // Owner ruling 2026-08-06: /schools/play is play-as-class ONLY — self-practice
+  // now goes to the immersive '/'. A school-role user reaches it WITH a class…
+  it('a school-role user reaches /schools/play with a class session', async () => {
+    useUserRole().initialize(null, 'teacher')
+    await router.push({ path: '/schools/play', query: { class: 'c1' } })
+    expect(router.currentRoute.value.fullPath).toBe('/schools/play?class=c1')
+  })
+
+  // …and WITHOUT one (stale bookmark, hand-typed URL) is sent to the navless
+  // player rather than shown a class-less wrapped player.
+  it('a school-role user hitting /schools/play with no class lands on the immersive player', async () => {
     useUserRole().initialize(null, 'teacher')
     await router.push('/schools/play')
-    expect(router.currentRoute.value.fullPath).toBe('/schools/play')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
   it('restores a role persisted by a prior initialize() call on a fresh (uninitialized) module state', async () => {

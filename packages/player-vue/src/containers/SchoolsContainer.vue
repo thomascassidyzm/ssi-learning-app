@@ -19,6 +19,9 @@ import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import MissionCard from '@/missions/MissionCard.vue'
 import { activatePendingMission } from '@/missions/useMission'
+import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
+import { useSchoolsRail } from '@/composables/schools/useSchoolsRail'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -325,6 +328,15 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 // area below the top bar instead of sitting in a centred card.
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
+
+// WHERE-YOU-ARE rail on the FLAT views (founder ruling 2026-07-31: the rail
+// is orientation, not navigation — it never disappears). Routes opt in via
+// meta.railFrame; useSchoolsRail resolves the tree per role (school node for
+// admins, own-classes scope for teachers) and roles with no node source
+// (legacy rows) stay full-width. The node surfaces (/org/:id) own
+// their rail already and carry no railFrame meta.
+const { rail: schoolsRail, eligible: railEligible } = useSchoolsRail()
+const showRailFrame = computed(() => !!route.meta.railFrame && railEligible.value)
 
 // Nav unification (2026-07-29): the pre-hierarchy flat views are retired for
 // group-scoped leaders — old URLs live on, but land on THE VIEW. /schools/all
@@ -643,7 +655,28 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
                An instant swap has no double-DOM, no leave/enter callbacks,
                nothing to get stuck on: the page renders in place, once. -->
           <router-view v-slot="{ Component }">
-            <component :is="Component" />
+            <!-- Flat views ride inside the WHERE-YOU-ARE rail frame (same
+                 grid as the node home). The frame — and the ONE rail
+                 instance in it — persists across flat-view hops; only the
+                 main pane swaps, so the anchor never flashes or remounts. -->
+            <div v-if="showRailFrame" class="rail-frame">
+              <aside class="rail-col schools-card">
+                <NodeMapRail
+                  v-if="schoolsRail"
+                  :ancestors="schoolsRail.ancestors"
+                  :node="schoolsRail.node"
+                  :siblings="schoolsRail.siblings"
+                  :children="schoolsRail.children"
+                  :kind="schoolsRail.kind"
+                  :member="true"
+                />
+                <NodeMapRailSkeleton v-else />
+              </aside>
+              <div class="rail-main">
+                <component :is="Component" />
+              </div>
+            </div>
+            <component :is="Component" v-else />
           </router-view>
         </SchoolsErrorBoundary>
       </main>
@@ -680,6 +713,26 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
   color: var(--schools-ink, #1c1a17);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
   pointer-events: none;
+}
+
+/* WHERE-YOU-ARE rail frame around the flat views — same grid, same sticky
+   column as NodeHomeView's .node-layout, so a hop between a flat view and a
+   node surface paints the identical tree in the identical place. */
+.rail-frame {
+  display: grid;
+  grid-template-columns: minmax(220px, 290px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.rail-frame .rail-col {
+  padding: var(--space-4);
+  position: sticky;
+  top: calc(110px + env(safe-area-inset-top, 0px));
+}
+.rail-main { min-width: 0; }
+@media (max-width: 900px) {
+  .rail-frame { grid-template-columns: 1fr; }
+  .rail-frame .rail-col { position: static; }
 }
 
 .main-content {

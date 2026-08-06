@@ -31,10 +31,22 @@ export const sh = (cmd, args, opts = {}) =>
 
 // ── the candidate ───────────────────────────────────────────────────────────
 
-export function candidate() {
-  sh('git', ['fetch', 'origin', '--quiet', '--prune'])
+/**
+ * The candidate range. Defaults to `origin/main..origin/staging` — the Thursday question.
+ *
+ * At PROMOTE time the caller passes the range that is ACTUALLY being promoted
+ * ({ base: pre-merge main, head: the staging sha }), because by then staging is already merged
+ * and the default range is empty. Founder ruling 2026-07-31, "accuracy over elegance": the notes
+ * describe the promoted diff, not whatever Thursday guessed at.
+ *
+ * Note what the range gives us for free: a fix-lane commit that went straight to `main` mid-week
+ * is already an ancestor of `main`, so `main..staging` excludes it — immediate-lane fixes stay out
+ * of the notes by construction, exactly as the policy requires. No filter needed.
+ */
+export function candidate({ base = 'origin/main', head = 'origin/staging', fetch = true } = {}) {
+  if (fetch) sh('git', ['fetch', 'origin', '--quiet', '--prune'])
   const raw = sh('git', [
-    'log', '--format=%H\x1f%s\x1f%aI\x1f%an', 'origin/main..origin/staging', '--',
+    'log', '--format=%H\x1f%s\x1f%aI\x1f%an', `${base}..${head}`, '--',
   ])
   const commits = raw ? raw.split('\n').map((l) => {
     const [sha, subject, date, author] = l.split('\x1f')
@@ -42,6 +54,8 @@ export function candidate() {
   }) : []
   return {
     commits,
+    base: sh('git', ['rev-parse', base]),
+    head: sh('git', ['rev-parse', head]),
     stagingSha: sh('git', ['rev-parse', 'origin/staging']),
     mainSha: sh('git', ['rev-parse', 'origin/main']),
     devAhead: Number(sh('git', ['rev-list', '--count', 'origin/staging..origin/dev'])),

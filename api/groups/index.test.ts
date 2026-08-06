@@ -25,10 +25,12 @@ vi.mock('../_utils/auth', () => ({
 
 let insertCalls: any[] = []
 let govtAdminRow: any
-// Path-prefix fixture for isStrictDescendantGroup: 'leader-group' is the
-// leader's own governed group; 'leader-sub' is a real sub-group of it
-// (path 'L.1' starts with 'L'); 'other-group' is unrelated.
+// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
+// 'leader-group' is the leader's own governed group; 'leader-sub' is a real
+// sub-group of it; 'other-group' is unrelated.
 let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+const GROUP_PARENTS: Record<string, string | null> = { 'leader-group': null, 'leader-sub': 'leader-group', 'other-group': null }
+const forestRows = () => Object.entries(GROUP_PARENTS).map(([id, parent_id]) => ({ id, parent_id }))
 
 function makeChainable(table: string) {
   let eqVal: unknown
@@ -37,6 +39,7 @@ function makeChainable(table: string) {
     order: () => builder,
     not: () => builder,
     eq: (_col: string, val: unknown) => { eqVal = val; return builder },
+    is: () => builder,
     insert: (obj: unknown) => { insertCalls.push({ table, obj }); return builder },
     single: () => Promise.resolve({ data: { id: 'group-new', ...(insertCalls[insertCalls.length - 1]?.obj || {}) }, error: null }),
     maybeSingle: () => {
@@ -47,7 +50,7 @@ function makeChainable(table: string) {
       }
       return Promise.resolve({ data: null, error: null })
     },
-    then: (resolve: any) => resolve({ data: [], error: null }),
+    then: (resolve: any) => resolve({ data: table === 'groups' && eqVal === undefined ? forestRows() : [], error: null }),
   }
   return builder
 }
@@ -91,6 +94,47 @@ describe('POST /api/groups', () => {
     const leaderInsert = insertCalls.find((c) => c.table === 'govt_admins')
     expect(groupInsert.obj).toMatchObject({ name: 'Cardiff Council', type: 'organisation' })
     expect(leaderInsert.obj).toMatchObject({ user_id: 'leader-1', group_id: 'group-new', created_by: 'leader-1' })
+  })
+
+  // ─── Founder ruling 2026-08-06: the creator of a group/org automatically
+  // becomes its first MANAGER. govt_admins alone is authz — no lens reads it,
+  // so creators used to govern a group that named no manager anywhere. ───
+  it('CREATOR IS FIRST MANAGER: a self-serve root org also gets the creator a leader MEMBERSHIP tag', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = null
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Cardiff Council' }), res)
+    expect(res.statusCode).toBe(201)
+    const tagInsert = insertCalls.find((c) => c.table === 'user_tags')
+    expect(tagInsert.obj).toMatchObject({
+      user_id: 'leader-1',
+      tag_type: 'group',
+      tag_value: 'GROUP:group-new',
+      role_in_context: 'admin',
+    })
+  })
+
+  it('CREATOR IS FIRST MANAGER: a leader creating a SUB-group becomes its manager too', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = { group_id: 'leader-group' }
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'MFL Department', parent_id: 'leader-group' }), res)
+    expect(res.statusCode).toBe(201)
+    const tagInsert = insertCalls.find((c) => c.table === 'user_tags')
+    expect(tagInsert.obj).toMatchObject({
+      user_id: 'leader-1',
+      tag_type: 'group',
+      tag_value: 'GROUP:group-new',
+      role_in_context: 'admin',
+    })
+  })
+
+  it('an ssi_admin creating a group does NOT become its manager — admins assign leadership by invite', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Some Programme', parent_id: 'leader-group' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls.find((c) => c.table === 'user_tags')).toBeUndefined()
   })
 
   it('requires ssi_admin auth — 401s an unauthenticated caller', async () => {

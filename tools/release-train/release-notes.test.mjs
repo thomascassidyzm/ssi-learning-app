@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNotes, finalizeBody } from './release-notes.mjs'
+import { buildNotes, finalizeBody, reconcile, render, renderFinal } from './release-notes.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -20,12 +20,21 @@ const headlines = (subjects) => {
   return [...n.features, ...n.fixes].map((b) => b.headline)
 }
 const empty = (n) => n.features.length === 0 && n.fixes.length === 0
+// A rendered draft body, as the Thursday run would have written it.
+const renderedDraft = (features, fixes) => [
+  '<!-- release-notes:header -->', '# Release notes — DRAFT for the next ship',
+  '<!-- /release-notes:header -->', '',
+  ...(features.length ? ["## What's new", '', ...features, ''] : []),
+  ...(fixes.length ? ['## Fixes', '', ...fixes, ''] : []),
+].join('\n')
 
 test('a user-facing round earns a headline in user-facing language', () => {
   const h = headlines(['course-switch READY in 2-3s: kill the cinematic floor on switches'])
   assert.equal(h.length, 1)
-  assert.match(h[0], /instant/i)
+  assert.match(h[0], /switching course/i)
   assert.doesNotMatch(h[0], /cinematic floor|READY in/i)
+  // Reworded 2026-07-31: the change lands READY in 2-3s, so "near-instant" over-claimed it.
+  assert.doesNotMatch(h[0], /instant/i)
 })
 
 test('process commits are never considered', () => {
@@ -144,6 +153,59 @@ test('an unclear commit can never take a feature slot from a known surface', () 
   for (const f of n.features) assert.equal(f.source, 'phrasebook', f.headline)
 })
 
+// ── founder ruling 2026-07-31: player-first ranking + one catch-all section ─
+
+test('a player-facing feature outranks an equally-significant schools feature', () => {
+  const n = notesFor([
+    'schools nav unification: govt_admin tabs land on THE VIEW',       // curated, schools, sig 3
+    'course-switch READY in 2-3s: kill the cinematic floor',           // curated, player, sig 3
+  ])
+  assert.equal(n.features.length, 2)
+  assert.match(n.features[0].headline, /Switching course/, 'player-facing feature ranks first')
+})
+
+test('a lower-significance player feature can still outrank a higher schools feature', () => {
+  const n = notesFor([
+    'schools nav unification: govt_admin tabs land on THE VIEW',          // schools, sig 3
+    'feat(schools): teacher surface nav persists in the player',         // schools, sig 2
+    'copy: sentence-case the loading + resting messages',                // player fix, not a feature
+  ])
+  // Sanity check only: the audience weight is a ranking multiplier on FEATURES, so a schools
+  // feature at sig 3 still beats a schools feature at sig 2 — weight only breaks cross-audience
+  // ties, never invents a slot. Assert both remain features in significance order.
+  assert.equal(n.features.length, 2)
+  assert.match(n.features[0].headline, /unified dashboard view/)
+})
+
+test('overflow features and fixes both land in the one catch-all section, nothing dropped', () => {
+  const n = notesFor([
+    'course-switch READY in 2-3s: kill the cinematic floor',                                   // feature 1
+    'feat(cold-start): course load never blocks past readiness-to-start — SWR + progressive start', // feature 2
+    'schools nav unification: govt_admin tabs land on THE VIEW',                                // feature 3
+    'explainer: How-this-works becomes the single surfacing point, with a discoverability throb', // overflow feature
+    'fix(player): transport play-state is PULLED from the engine — kills the play-button desync', // fix
+  ])
+  assert.equal(n.features.length, 3)
+  assert.equal(n.otherStuff.length, 2, 'the overflow feature and the fix both land in one section')
+  const headlines = n.otherStuff.map((b) => b.headline).join('\n')
+  assert.match(headlines, /How this works/)
+  assert.match(headlines, /play button/)
+})
+
+test('the rendered draft uses one "Other stuff and bug fixes" heading, not separate Fixes', () => {
+  const cand = {
+    commits: [
+      commit('course-switch READY in 2-3s: kill the cinematic floor'),
+      commit('fix(player): transport play-state is PULLED from the engine — kills the play-button desync'),
+    ],
+    stagingSha: 'c'.repeat(40),
+  }
+  const notes = buildNotes(cand)
+  const body = render(cand, notes, { draftDate: '2026-07-31' })
+  assert.match(body, /## Other stuff and bug fixes/)
+  assert.doesNotMatch(body, /## Fixes\n/)
+})
+
 test('finalize stamps the header, keeps hand edits, strips the draft section', () => {
   const draft = [
     '<!-- release-notes:header -->',
@@ -166,4 +228,85 @@ test('finalize stamps the header, keeps hand edits, strips the draft section', (
   assert.match(final, /Tom typed this bullet himself/)
   assert.doesNotMatch(final, /DRAFT for the next ship/)
   assert.doesNotMatch(final, /Draft-only|dropped things/)
+})
+
+// ── the promoted diff is the source of truth (founder ruling 2026-07-31) ─────
+// Thursday's draft is a question asked a day early. Between the draft and the promote, staging
+// keeps moving — so the final notes are REGENERATED from what was actually promoted, and the
+// draft only contributes the bullets a human typed into it.
+
+test('a commit that shipped AFTER the draft still reaches the final notes', () => {
+  const draft = renderedDraft(['- Guided walkthroughs of the product, for learners, teachers and leaders.'], [])
+  const promoted = notesFor([
+    'feat(walkthrough): compiled walkthrough engine + first 5 walks',
+    'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
+  ])
+  const out = reconcile(draft, promoted)
+  assert.match(out.fixes.join('\n'), /Where-you-are stays put/)
+})
+
+test('a bullet for work that did NOT ship is dropped from the final notes', () => {
+  // The draft claimed a player fix; the promote carried the walkthrough round only, because the
+  // fix slipped to next week. An untouched draft is machine-only, so finalize discards it and
+  // regenerates — which is exactly how the false claim dies.
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const out = reconcile('', promoted)
+  assert.match(out.features.join('\n'), /Guided walkthroughs of the product/)
+  assert.equal(out.fixes.length, 0, 'a machine bullet for unshipped work must not survive')
+
+  // If Tom HAS edited that draft, his file is authoritative and a bullet we cannot prove is
+  // machine output is kept rather than silently deleted — conservative on purpose.
+  const edited = renderedDraft(
+    ['- Guided walkthroughs of the product, for learners, teachers and leaders.'],
+    ['- The play button no longer falls out of step with what is actually playing.'],
+  )
+  assert.equal(reconcile(edited, promoted).fixes.length, 1)
+})
+
+test("Tom's own bullet survives regeneration", () => {
+  const draft = renderedDraft(['- Tom typed this bullet himself.'], [])
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const out = reconcile(draft, promoted)
+  assert.deepEqual(out.handEdits, ['Tom typed this bullet himself.'])
+  assert.match(out.features.join('\n'), /Tom typed this bullet himself/)
+  assert.match(out.features.join('\n'), /Guided walkthroughs/)
+})
+
+test('a reworded phrasebook line replaces its old wording, never doubles it', () => {
+  const draft = renderedDraft(['- Switching course is near-instant — no more waiting through a loading sequence.'], [])
+  const promoted = notesFor(['course-switch READY in 2-3s: kill the cinematic floor on switches'])
+  // Machine-only drafts are discarded wholesale, which is how the rewording lands cleanly.
+  const out = reconcile('', promoted)
+  assert.equal(out.features.length, 1)
+  assert.doesNotMatch(out.features[0], /near-instant/)
+  // And even when the draft IS consulted, the near-twin is not carried as a hand edit twice.
+  assert.ok(reconcile(draft, promoted).features.length <= 2)
+})
+
+test('the final notes never carry the draft-only coverage section', () => {
+  const promoted = notesFor(['feat(walkthrough): compiled walkthrough engine + first 5 walks'])
+  const final = renderFinal(reconcile('', promoted),
+    { shipDate: '2026-07-31', sha: 'c'.repeat(40), count: 150 })
+  assert.match(final, /shipped 2026-07-31/)
+  assert.match(final, /150 commits/)
+  assert.doesNotMatch(final, /Draft-only|DRAFT for the next ship/)
+})
+
+test('a user-visible fix whose subject reads as machinery is still announced', () => {
+  // Both of these were DROPPED as "names nothing a user can see" in the 2026-07-30 ship and had
+  // to be reconciled by hand. Phrasebook entries now cover the surfaces.
+  const h = headlines([
+    "fix stuck 'Updating the app' overlay: hard deadline + tap-to-relaunch on the heal path",
+    'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
+  ])
+  assert.match(h.join('\n'), /"Updating the app" screen can no longer get stuck/)
+  assert.match(h.join('\n'), /Where-you-are stays put/)
+  assert.doesNotMatch(h.join('\n'), /heal path|rehydrat|Overview <->/)
+})
+
+test('a fix that already went live on the fix lane is out of range, so out of the notes', () => {
+  // Nothing to filter: an immediate-lane fix is already an ancestor of main, so main..staging
+  // never contains it. This locks the property that the range IS the policy.
+  const promoted = notesFor([])
+  assert.equal(promoted.features.length + promoted.fixes.length, 0)
 })

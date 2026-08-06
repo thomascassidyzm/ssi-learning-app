@@ -18,6 +18,7 @@ import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
+import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -750,12 +751,20 @@ const isEmailUnverified = computed(() => {
 // form starts blank instead of pre-filling the junk address.
 const isPrimaryEmailPlaceholder = computed(() => isPlaceholderEmail(primaryEmail.value))
 
+// True while the open email form is verifying the account's OWN primary
+// address rather than adding a second one. Drives the form's copy and, more
+// importantly, mirrors the outcome back up next to the button that was
+// pressed — the form renders below a collapsed section, so on a phone an
+// error down there is invisible and the button reads as doing nothing.
+const verifyingPrimary = ref(false)
+
 function handleVerifyPrimaryEmail() {
   addEmailError.value = ''
   addEmailSuccess.value = false
   addEmailStep.value = 'email'
   addEmailInput.value = isPrimaryEmailPlaceholder.value ? '' : primaryEmail.value
   addEmailOtp.value = ''
+  verifyingPrimary.value = true
   showAddEmailForm.value = true
   if (!isPrimaryEmailPlaceholder.value) handleSendAddEmailOtp()
 }
@@ -769,7 +778,12 @@ const handleSendAddEmailOtp = async () => {
     return
   }
 
-  if (verifiedEmails.value.includes(email)) {
+  if (isAlreadyLinkedEmail({
+    email,
+    primaryEmail: primaryEmail.value,
+    verifiedEmails: verifiedEmails.value,
+    isPrimaryUnverified: isEmailUnverified.value,
+  })) {
     addEmailError.value = 'This email is already linked to your account'
     return
   }
@@ -1528,7 +1542,10 @@ const confirmReset = async () => {
         </span>
       </button>
 
-      <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
+      <!-- What's New — the release train's own notes, bundled at build time from
+           tools/release-train/notes/ (shipped ones only, never a draft), merged
+           with any admin-curated rows (see /admin/release-notes), which win their
+           ship day. useReleaseNotes owns the merge. -->
       <section v-if="releaseNotes.length > 0" class="section whats-new">
         <h3 class="section-title">{{ t('settings.whatsNew') }}</h3>
         <div class="card">
@@ -1675,6 +1692,10 @@ const confirmReset = async () => {
                 <span v-if="!isPrimaryEmailPlaceholder" class="unverified-badge">unverified</span>
               </span>
               <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Add an email so you can sign in on another device' : "We haven't confirmed you can receive mail at this address yet" }}</span>
+              <!-- Outcome shown HERE, at the button that was pressed. The form
+                   itself is below a collapsed section and off-screen on a phone. -->
+              <span v-if="verifyingPrimary && addEmailError" class="setting-status error">{{ addEmailError }}</span>
+              <span v-else-if="verifyingPrimary && addEmailStep === 'otp'" class="setting-status">Code sent — enter it below</span>
             </div>
             <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
               {{ isSendingOtp ? 'Sending...' : (isPrimaryEmailPlaceholder ? 'Add email' : 'Verify now') }}
@@ -1684,7 +1705,7 @@ const confirmReset = async () => {
           <div v-if="isEmailUnverified" class="divider"></div>
 
           <!-- Linked Emails -->
-          <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''">
+          <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''; verifyingPrimary = false">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.linkedEmails') }}</span>
               <span class="setting-desc">{{ verifiedEmails.length > 1 ? `${verifiedEmails.length} emails linked` : 'Add another email to sign in with' }}</span>
@@ -1707,7 +1728,7 @@ const confirmReset = async () => {
             <!-- Step 1: Enter email -->
             <template v-if="addEmailStep === 'email'">
               <div class="inline-form-field">
-                <label class="inline-label">Add another email</label>
+                <label class="inline-label">{{ verifyingPrimary ? 'Verify your email' : 'Add another email' }}</label>
                 <input
                   v-model="addEmailInput"
                   type="email"
@@ -2615,6 +2636,17 @@ const confirmReset = async () => {
 .setting-desc {
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.setting-status {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--success, #22c55e);
+}
+
+.setting-status.error {
+  color: var(--error, #ef4444);
 }
 
 .setting-value {

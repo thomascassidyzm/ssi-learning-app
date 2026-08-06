@@ -158,13 +158,14 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
   }
 
   /** Push live taper config (algorithm_config 'meta_commentary'). */
-  const setEncouragementTaper = (cfg: EncouragementTaperConfig | null | undefined) => {
+  const setEncouragementTaper = (cfg: Partial<EncouragementTaperConfig> | null | undefined) => {
     service.value?.setEncouragementTaper(cfg)
   }
 
-  /** Push current experience (seed number of the playing position). */
-  const setExperienceSeeds = (seeds: number) => {
-    service.value?.setExperienceSeeds(seeds)
+  /** Push the learner's cumulative learning minutes across ALL courses —
+   *  the encouragement-taper signal. null = unknown ⇒ treated as beginner. */
+  const setCumulativeLearningMinutes = (minutes: number | null | undefined) => {
+    service.value?.setCumulativeLearningMinutes(minutes)
   }
 
   /**
@@ -207,7 +208,7 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     onRoundComplete,
     setLearnerId,
     setEncouragementTaper,
-    setExperienceSeeds,
+    setCumulativeLearningMinutes,
     startCommentaryPlayback,
     finishCommentaryPlayback,
     forceNextCommentary,

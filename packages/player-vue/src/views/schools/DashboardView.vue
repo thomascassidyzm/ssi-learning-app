@@ -13,6 +13,8 @@ import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
+import CreateClassModal from '@/components/schools/CreateClassModal.vue'
+import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -74,6 +76,7 @@ const {
   classes: teacherClasses,
   isLoading: classesLoading,
   fetchClasses,
+  createClass,
   getClassReport,
   error: classesFetchError,
 } = useClassesData()
@@ -188,6 +191,62 @@ async function fetchReports() {
       /* benchmark is optional — skip silently */
     }
   }
+}
+
+// FOUNDER RULING (demo pass 2026-07-31): the dashboard's "+ Create class"
+// buttons open the Create New Class modal RIGHT HERE. They used to navigate
+// to My Classes, whose own button then opened the modal — a two-hop dead
+// end. My Classes keeps its button and the ?create=1 deep link for users
+// who navigate there; this is the same create flow, mounted in place.
+const isCreateModalOpen = ref(false)
+const isCreatingClass = ref(false)
+const createClassError = ref<string | null>(null)
+const createdClass = ref<ClassInfo | null>(null)
+const isCreatedModalOpen = ref(false)
+
+async function handleCreateClass(params: { class_name: string; course_code: string }) {
+  if (isCreatingClass.value) return
+  createClassError.value = null
+  const schoolId = currentUser.value?.school_id ?? null
+  // A school admin's account is always tied to a school — a missing id there
+  // is a genuine data problem. A teacher with no school_id is a groupless
+  // tutor (THE-MODEL §1.3/I5), not an error.
+  if (!schoolId && isSchoolAdmin.value) {
+    createClassError.value = 'No school found for your account. Please contact an administrator.'
+    return
+  }
+  isCreatingClass.value = true
+  try {
+    const newClass = await createClass({
+      class_name: params.class_name,
+      course_code: params.course_code,
+      school_id: schoolId,
+    })
+    if (newClass) {
+      isCreateModalOpen.value = false
+      createdClass.value = newClass
+      isCreatedModalOpen.value = true
+    } else {
+      createClassError.value = 'Failed to create class. Please try again.'
+    }
+  } catch {
+    createClassError.value = 'Failed to create class. Please try again.'
+  } finally {
+    isCreatingClass.value = false
+  }
+}
+
+function handleGoToCreatedClass() {
+  if (createdClass.value) {
+    isCreatedModalOpen.value = false
+    sessionStorage.setItem('ssi-class-detail', JSON.stringify(createdClass.value))
+    router.push({ path: schoolsLink('class-detail', { classId: createdClass.value.id }) })
+  }
+}
+
+function closeCreatedModal() {
+  isCreatedModalOpen.value = false
+  createdClass.value = null
 }
 
 // The ONE refresh protocol: one role-aware loader for the whole dashboard,
@@ -380,7 +439,7 @@ async function handlePlayClass(cls: ClassInfo) {
           <button v-if="showMissionAffordance" type="button" class="btn-ghost" @click="handleTryMission">
             Take a guided look
           </button>
-          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-ghost">+ Create class</router-link>
+          <button v-if="!isAdminView" type="button" class="btn-ghost" @click="isCreateModalOpen = true">+ Create class</button>
         </template>
       </Greeting>
 
@@ -426,7 +485,7 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state">
           <p>No classes yet.</p>
-          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play empty-hero-cta">Create your first class</router-link>
+          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">Create your first class</button>
         </div>
       </div>
 
@@ -472,7 +531,7 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state full">
           <p>No classes yet — create one to get your students playing.</p>
-          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play empty-hero-cta">Create your first class</router-link>
+          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">Create your first class</button>
         </div>
       </div>
 
@@ -552,11 +611,12 @@ async function handlePlayClass(cls: ClassInfo) {
         <div class="schools-card">
           <header class="card-header-row">
             <h3 class="arsenal card-header-title">Classes</h3>
-            <router-link
+            <button
               v-if="!isAdminView && teacherClasses.length"
-              to="/schools/classes?create=1"
-              class="card-header-link"
-            >+ Create class</router-link>
+              type="button"
+              class="card-header-link card-header-btn"
+              @click="isCreateModalOpen = true"
+            >+ Create class</button>
             <router-link :to="schoolsLink('classes')" class="card-header-link">View all →</router-link>
           </header>
           <table class="ssi-table">
@@ -599,9 +659,9 @@ async function handlePlayClass(cls: ClassInfo) {
               <tr v-else-if="!teacherClasses.length">
                 <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
-                  <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
+                  <button v-if="!isAdminView" type="button" class="btn-play empty-row-cta" @click="isCreateModalOpen = true">
                     + Create your first class
-                  </router-link>
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -846,6 +906,27 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
       </template>
     </template>
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="createClassError" class="error-toast" @click="createClassError = null">
+          {{ createClassError }}
+        </div>
+      </Transition>
+    </Teleport>
+
+    <CreateClassModal
+      :isOpen="isCreateModalOpen"
+      :submitting="isCreatingClass"
+      @close="isCreateModalOpen = false"
+      @create="handleCreateClass"
+    />
+
+    <ClassCreatedModal
+      :isOpen="isCreatedModalOpen"
+      :classData="createdClass"
+      @close="closeCreatedModal"
+      @goToClass="handleGoToCreatedClass"
+    />
   </div>
 </template>
 
@@ -1142,6 +1223,25 @@ async function handlePlayClass(cls: ClassInfo) {
   text-decoration: none;
 }
 .card-header-link:hover { color: var(--schools-fg); }
+/* Same look as the link it replaced — the create verb is a button now. */
+.card-header-btn { background: none; border: none; padding: 0; font: inherit; font-size: 12px; cursor: pointer; }
+
+.error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--schools-red);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 300;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 .name-group-card, .add-schools-card { margin-bottom: 20px; }
 .name-group-row, .add-schools-row {

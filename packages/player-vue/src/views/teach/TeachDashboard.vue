@@ -74,6 +74,21 @@ const rosterByClass = ref<Record<string, RosterStudent[]>>({})
 const accruedPence = ref(0)
 const pendingPence = ref(0)
 const lifetimePaidPence = ref(0)
+
+// Per-student-month rebate statement (null = ledger not live yet → section hidden)
+interface StatementLine {
+  learner_display: string | null
+  entry_type: string
+  amount_pence: number
+  hold_until: string | null
+  created_at: string
+}
+interface StatementMonth {
+  service_month: string
+  total_pence: number
+  lines: StatementLine[]
+}
+const statement = ref<StatementMonth[] | null>(null)
 const payoutRecipient = ref<PayoutRecipient | null>(null)
 const isRequestingPayout = ref(false)
 const payoutError = ref('')
@@ -177,6 +192,22 @@ const accruedPounds = computed(() => (accruedPence.value / 100).toFixed(2))
 const pendingPounds = computed(() => (pendingPence.value / 100).toFixed(2))
 const lifetimePaidPounds = computed(() => (lifetimePaidPence.value / 100).toFixed(2))
 const payoutThresholdPounds = computed(() => (PAYOUT_THRESHOLD_PENCE / 100).toFixed(0))
+
+function statementMonthLabel(serviceMonth: string): string {
+  const d = new Date(serviceMonth + 'T00:00:00Z')
+  return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+function statementLineStatus(line: StatementLine): string {
+  if (line.amount_pence < 0) return 'Reversed'
+  if (!line.hold_until) return 'Held'
+  const release = new Date(line.hold_until)
+  if (release.getTime() <= Date.now()) return 'Released'
+  return `Held until ${release.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+}
+function statementPounds(pence: number): string {
+  const sign = pence < 0 ? '−' : ''
+  return `${sign}£${(Math.abs(pence) / 100).toFixed(2)}`
+}
 const payoutProgress = computed(() =>
   Math.min(100, Math.round((accruedPence.value / PAYOUT_THRESHOLD_PENCE) * 100))
 )
@@ -323,6 +354,7 @@ async function loadCommissions(token: string): Promise<void> {
       accruedPence.value = data.accrued_pence ?? 0
       pendingPence.value = data.pending_pence ?? 0
       lifetimePaidPence.value = data.lifetime_paid_pence ?? 0
+      statement.value = Array.isArray(data.statement) ? data.statement : null
     }
   } catch {
     // Non-fatal — earnings show £0
@@ -644,7 +676,7 @@ async function submitRecipient() {
         <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">/ mo</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Accrued this month</span>
+        <span class="stone-label">Accrued balance</span>
         <span class="stone-value frost-mono-nums">£{{ accruedPounds }}</span>
       </FrostCard>
     </div>
@@ -872,14 +904,15 @@ async function submitRecipient() {
       <div class="section-head">
         <span class="frost-section-title">Earnings</span>
         <p class="section-sub">
-          You earn £{{ COMMISSION_PER_STUDENT }}/student/month, paid in arrears via
-          Wise once your accrued balance reaches £{{ payoutThresholdPounds }}.
+          You earn £{{ COMMISSION_PER_STUDENT }}/student/month. Paid monthly by Wise
+          once your balance passes £{{ payoutThresholdPounds }} and the refund period
+          has completed.
         </p>
       </div>
 
       <div class="earnings-grid">
         <div class="earnings-block">
-          <span class="earnings-label">Accrued this month</span>
+          <span class="earnings-label">Accrued balance</span>
           <span class="earnings-amount frost-mono-nums">£{{ accruedPounds }}</span>
         </div>
         <div class="earnings-block">
@@ -900,10 +933,27 @@ async function submitRecipient() {
         <div class="threshold-fill" :style="{ width: `${payoutProgress}%` }"></div>
       </div>
 
+      <!-- Per-student-month rebate statement (hidden until the ledger has lines) -->
+      <div v-if="statement && statement.length" class="statement">
+        <span class="statement-title">Statement</span>
+        <div v-for="month in statement" :key="month.service_month" class="statement-month">
+          <div class="statement-month-head">
+            <span>{{ statementMonthLabel(month.service_month) }}</span>
+            <span class="frost-mono-nums">{{ statementPounds(month.total_pence) }}</span>
+          </div>
+          <div v-for="(line, i) in month.lines" :key="i" class="statement-line">
+            <span class="statement-line-who">{{ line.learner_display || 'Student' }}</span>
+            <span class="statement-line-status">{{ statementLineStatus(line) }}</span>
+            <span class="frost-mono-nums">{{ statementPounds(line.amount_pence) }}</span>
+          </div>
+        </div>
+      </div>
+
       <div v-if="payoutError" class="error">{{ payoutError }}</div>
       <div v-if="payoutQueued" class="payout-queued">
-        Payout queued for the next run. We'll send your accrued balance to your
-        Wise account at the next monthly payout.
+        Payout queued for the next monthly run. We'll send the part of your
+        balance whose refund period has completed to your Wise account. Anything
+        still inside its refund period stays held and goes out on a later run.
       </div>
 
       <div class="payout-actions">
@@ -916,7 +966,8 @@ async function submitRecipient() {
           {{ payoutRecipient ? 'Request Wise payout' : 'Set up Wise payout' }}
         </Button>
         <p v-if="!canRequestPayout" class="payout-hint">
-          Reach £{{ payoutThresholdPounds }} accrued to enable payouts.
+          Paid monthly once your balance passes £{{ payoutThresholdPounds }} and
+          the refund period has completed.
         </p>
       </div>
 
@@ -1478,6 +1529,50 @@ async function submitRecipient() {
   background: linear-gradient(90deg, var(--ssi-red), var(--ssi-gold));
   border-radius: var(--radius-full);
   transition: width 0.5s ease;
+}
+
+.statement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.statement-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.statement-month-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: var(--font-semibold);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
+}
+
+.statement-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  padding: var(--space-1) 0;
+}
+
+.statement-line-who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statement-line-status {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
 }
 
 .payout-actions {

@@ -219,10 +219,24 @@ describe('GET /api/groups/:id/home', () => {
     // Teachers read-only, lead flagged and first
     expect(res.body.teachers[0]).toMatchObject({ user_id: 'teacher-uid-1', name: 'Ms Mehta', is_lead: true })
     expect(res.body.teachers.map((t: any) => t.user_id)).toContain('teacher-uid-2')
-    // Students with hours, sorted by practice
+    // Students with hours, alphabetical (a roster, not a ranking — matches
+    // ClassDetail.vue's teacher-facing view of the same class).
     expect(res.body.students.map((s: any) => s.name)).toEqual(['Asha', 'Ravi'])
     expect(res.body.students[0].practice_hours).toBe(2)
     expect(res.body.node.rollup.learnerCount).toBe(2)
+  })
+
+  it('students order alphabetically even when practice hours would rank them differently', async () => {
+    // Ravi now has MORE practice hours than Asha — old behaviour (rank by
+    // hours desc) would put Ravi first; alphabetical keeps Asha first.
+    TABLES.class_student_progress = TABLES.class_student_progress.map((s: any) =>
+      s.learner_id === 'learner-2' ? { ...s, total_practice_seconds: 36000 } : s,
+    )
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('class-1'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.students.map((s: any) => s.name)).toEqual(['Asha', 'Ravi'])
   })
 
   it('TEACHING-DATA PIN: class home carries the belt-bearing roster data + journey/benchmark cards', async () => {
@@ -291,6 +305,86 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
   })
 
+  // ─── FIELD DEFECT 2026-08-06: an org whose people are invited straight into
+  // the group (no school, no class) reported 0h practice forever while
+  // learnerCount said 1, so the explainer's org-not-started rule told its
+  // leader "none of them has practised yet" minutes after a real session. ───
+  it('a group-attached learner with NO school counts towards the org practice hours', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.groups.push({ id: 'deb-org', name: 'Deborah Testing', type: 'organisation', parent_id: null, path: 'deborah-testing', is_demo: false, is_test: false })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:deb-org', role_in_context: 'student', user_id: 'test-person-uid', removed_at: null })
+    TABLES.learners.push({ id: 'test-person-learner', user_id: 'test-person-uid', display_name: 'Test Person 1' })
+    TABLES.sessions = [
+      { learner_id: 'test-person-learner', duration_seconds: 182 },
+      { learner_id: 'test-person-learner', duration_seconds: 61 },
+    ]
+    const res = makeRes()
+    await handler(makeReq('deb-org'), res)
+    expect(res.statusCode).toBe(200)
+    // The person is counted as a learner…
+    expect(res.body.node.rollup.learnerCount).toBe(1)
+    // …and so is their practice: 243s → 0.1h. The pair (learnerCount > 0,
+    // practiceHours === 0) is what fired the false "nobody has practised".
+    expect(res.body.practiceHours).toBe(0.1)
+  })
+
+  it('a school-shaped org still reports exactly its school_summary hours — no double count', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The same person carries BOTH a group tag on the programme and their
+    // existing class tag inside it; school_summary already sees them.
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'student', user_id: 'student-uid-1', removed_at: null })
+    TABLES.learners.push({ id: 'learner-1', user_id: 'student-uid-1', display_name: 'Asha' })
+    TABLES.sessions = [{ learner_id: 'learner-1', duration_seconds: 7200 }]
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.practiceHours).toBe(135.1)
+  })
+
+  // ─── Founder ruling 2026-08-06: a node must name its manager. Leadership
+  // lived only in govt_admins, which no lens reads — so the creator of an org
+  // governed a group whose page showed no manager anywhere. ───
+  it('names the node leader from govt_admins — an org created BEFORE the ruling still shows its manager', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.learners.push({ user_id: 'leader-1', display_name: 'Sra Deborah' })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.leaders).toEqual([{ user_id: 'leader-1', name: 'Sra Deborah' }])
+  })
+
+  it('names a leader carried only by the membership tag, and never duplicates one held in both', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.learners.push({ user_id: 'leader-1', display_name: 'Sra Deborah' })
+    TABLES.learners.push({ user_id: 'leader-2', display_name: 'Ana Ortiz' })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-1', removed_at: null })
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-2', removed_at: null })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.leaders).toEqual([
+      { user_id: 'leader-2', name: 'Ana Ortiz' },
+      { user_id: 'leader-1', name: 'Sra Deborah' },
+    ])
+  })
+
+  it('a leader tag does not inflate teacherCount or learnerCount', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.user_tags.push({ tag_type: 'group', tag_value: 'GROUP:programme', role_in_context: 'admin', user_id: 'leader-1', removed_at: null })
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.body.node.rollup.teacherCount).toBe(2)
+    expect(res.body.node.rollup.learnerCount).toBe(2)
+  })
+
+  it('reports an empty leaders list for a node nobody leads — the page can say so out loud', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.govt_admins = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.body.leaders).toEqual([])
+  })
+
   it('lens=schools returns the subtree-wide schools list with teacher names', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
@@ -304,6 +398,31 @@ describe('GET /api/groups/:id/home', () => {
       practiceHours: 135.1,
     })
     expect(res.body.schools[0].teachers).toEqual(['Mr Rao', 'Ms Mehta'])
+  })
+
+  it('lens=schools orders alphabetically, NOT by practised hours (founder ruling 2026-07-30)', async () => {
+    // A second school with far MORE practice hours than Sunrise but a name
+    // that sorts later — old behaviour (rank by hours) would put it first.
+    TABLES.groups.push({ id: 'zenith-node', name: 'Zenith Academy', type: 'school', parent_id: 'programme', path: 'india/ime/zenith', is_demo: true, is_test: false })
+    TABLES.schools.push({ id: 'school-2', school_name: 'Zenith Academy', group_id: 'programme', node_group_id: 'zenith-node', platform_status: 'trial', trial_course_code: 'hin_for_eng', trial_kind: 'standard', platform_expires_at: null, teacher_seats: 3, is_demo: true, is_test: false })
+    TABLES.school_summary.push({ school_id: 'school-2', school_name: 'Zenith Academy', teacher_count: 1, class_count: 1, student_count: 1, total_practice_hours: 999, has_admin: true })
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme', { lens: 'schools' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.schools.map((s: any) => s.name)).toEqual(['Sunrise Public School', 'Zenith Academy'])
+  })
+
+  it('lens=groups orders alphabetically by name, not by tree path', async () => {
+    // "Alpha Wing" sorts alphabetically before "Sunrise Public School" but
+    // its path (india/ime/school-node/alpha) would sort AFTER the school's
+    // shorter path under old path-based ordering.
+    TABLES.groups.push({ id: 'alpha-wing', name: 'Alpha Wing', type: 'group', parent_id: 'school-node', path: 'india/ime/sunrise/alpha', is_demo: true, is_test: false })
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme', { lens: 'groups' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.groups.map((g: any) => g.name)).toEqual(['Alpha Wing', 'Sunrise Public School'])
   })
 
   it('lens=teachers returns every teacher below with their classes', async () => {

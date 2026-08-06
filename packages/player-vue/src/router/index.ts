@@ -23,7 +23,7 @@ function rememberDashboard(kind: 'teach' | 'schools'): void {
   }
 }
 
-function lastDashboard(): 'teach' | 'schools' | null {
+export function lastDashboard(): 'teach' | 'schools' | null {
   try {
     const v = localStorage.getItem(LAST_DASHBOARD_KEY)
     return v === 'teach' || v === 'schools' ? v : null
@@ -31,6 +31,28 @@ function lastDashboard(): 'teach' | 'schools' | null {
     return null
   }
 }
+
+/**
+ * The route of the management surface this user last came from, or null for a
+ * plain learner who has never had one.
+ *
+ * Owner ruling 2026-08-06: entering the player ALWAYS gives the immersive,
+ * navless player ('/'). That leaves a teacher/tutor who launched self-practice
+ * from their dashboard with no shell nav to get home, so App.vue uses this
+ * breadcrumb to show the one low-emphasis AppEscape pill back to their surface.
+ * A plain learner returns null here and sees the fully navless player.
+ */
+export function lastDashboardPath(): string | null {
+  const kind = lastDashboard()
+  if (kind === 'teach') return '/tutors/dashboard'
+  if (kind === 'schools') return '/schools'
+  return null
+}
+
+// The two EMBEDDED play routes — the player wrapped in a management shell.
+// Since 2026-08-06 these exist for play-as-class ONLY (see the global guard at
+// the bottom of this file).
+const EMBEDDED_PLAY_ROUTE_NAMES = ['schools-play', 'teach-play']
 
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
@@ -197,6 +219,10 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Dashboard',
           description: 'Overview of school learning activity',
+          // railFrame: SchoolsContainer wraps this flat view in the
+          // WHERE-YOU-ARE rail (founder ruling 2026-07-31: the rail is
+          // orientation — it never disappears; see useSchoolsRail.ts).
+          railFrame: true,
         },
       },
       {
@@ -209,6 +235,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Teachers',
           description: 'Manage teachers and their classes',
+          railFrame: true,
         },
       },
       {
@@ -218,6 +245,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Students',
           description: 'View and manage student progress',
+          railFrame: true,
         },
       },
       {
@@ -227,6 +255,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'My Classes',
           description: 'Manage classes and start learning sessions',
+          railFrame: true,
         },
       },
       {
@@ -236,6 +265,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Class Detail',
           description: 'View class roster and settings',
+          railFrame: true,
         },
       },
       {
@@ -252,6 +282,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Analytics',
           description: 'Your class vs the average — the Rate-compare insight tool',
+          railFrame: true,
         },
       },
       {
@@ -261,6 +292,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Settings',
           description: 'School and account settings',
+          railFrame: true,
         },
       },
       {
@@ -299,7 +331,10 @@ const routes: RouteRecordRaw[] = [
         component: PlayerContainer,
         meta: {
           title: 'Class session',
-          description: 'Run a class learning session — schools top bar stays above the player',
+          description:
+            'Run a class learning session — schools top bar stays above the player. ' +
+            'Play-as-class ONLY (owner ruling 2026-08-06): staff self-practice goes to the ' +
+            'immersive navless player at /, so a class-less arrival here is redirected there.',
         },
       },
       {
@@ -348,7 +383,12 @@ const routes: RouteRecordRaw[] = [
         path: 'play',
         name: 'teach-play',
         component: PlayerContainer,
-        meta: { title: 'Class session', description: 'Run a class learning session — tutor nav stays above the player' },
+        meta: {
+          title: 'Class session',
+          description:
+            'Run a class learning session — tutor nav stays above the player. Play-as-class ' +
+            'ONLY (owner ruling 2026-08-06); a class-less arrival is redirected to /.',
+        },
       },
     ],
   },
@@ -366,9 +406,7 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Learning with your teacher' },
   },
   // Signup doors — two roles (school / tutor); the offer is per-course (pricing_tier),
-  // not per-door. /schools1 + /schools2 both run the ONE school flow (kept as two
-  // paths so existing landing-page links don't break). Note: bare /schools is the
-  // school DASHBOARD, not a signup door.
+  // not per-door. Note: bare /schools is the school DASHBOARD, not a signup door.
   {
     path: '/schools1',
     name: 'onboard-school-1',
@@ -376,12 +414,16 @@ const routes: RouteRecordRaw[] = [
     props: { track: 'school' },
     meta: { title: 'Set up your school' },
   },
+  // /schools2 RETIRED (founder ruling 2026-08-02) — one school door, not two.
+  // The URL stays alive FOREVER as a pure redirect because external marketing
+  // links point at it; query + hash are preserved (same pattern as the
+  // /schools/org/:id → /org/:id redirects above). /schools2 was the
+  // English-first door listing the full catalogue, so /schools1's course
+  // dropdown was widened from the year-free set to the WHOLE catalogue
+  // (Onboarding.vue targetOptions) — no course becomes unreachable.
   {
     path: '/schools2',
-    name: 'onboard-school-2',
-    component: Onboarding,
-    props: { track: 'school' },
-    meta: { title: 'Set up your school' },
+    redirect: (to) => ({ path: '/schools1', query: to.query, hash: to.hash }),
   },
   {
     path: '/tutors',
@@ -401,6 +443,19 @@ const routes: RouteRecordRaw[] = [
     props: { track: 'org' },
     meta: { title: 'Set up your organisation' },
   },
+  // PARTNER DOORS — one landing page per partner network, parameterised off
+  // views/marketing/partners.ts (a second partner = one copy entry + one route
+  // line, no new component). Deliberately UNLINKED from every nav and
+  // noindex'd by the component: shareable by URL, not discoverable. Sells the
+  // LIVE tutor model only and CTAs into /tutors — no affiliate offer appears
+  // on it (that lane is undecided, founder exploration 2026-08-03).
+  {
+    path: '/znotes',
+    name: 'partner-znotes',
+    component: () => import('@/views/marketing/PartnerDoor.vue'),
+    props: { partner: 'znotes' },
+    meta: { title: 'Teach English with SSi', hideAppEscape: true },
+  },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
   // login (the global admin guard only fires on /admin + /methodology). It is
@@ -414,6 +469,21 @@ const routes: RouteRecordRaw[] = [
       title: 'Your class',
       description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
       hideAppEscape: true, // carries the full TopNav, so no floating Back needed
+    },
+  },
+  // Learner profile / mirror — founder-commissioned design build 2026-08-03.
+  // PREVIEW: deliberately UNLINKED from every nav, which is the flag — nothing
+  // learner-visible changes until it is wired in, so this can be tasted on dev
+  // without touching a single shipped surface. Lives under App.vue's provides,
+  // so it injects the app's existing course plumbing rather than duplicating it.
+  {
+    path: '/me',
+    name: 'learner-profile',
+    component: () => import('@/views/me/ProfileView.vue'),
+    meta: {
+      title: 'You',
+      description: 'Learner profile, mirror and plan — preview surface',
+      hideAppEscape: true, // carries its own Back-to-learning link
     },
   },
   // Admin panel
@@ -838,6 +908,22 @@ router.beforeEach((to, _from, next) => {
   restoreFromCache()
   if (isInitialized.value && !canAccessAdmin.value) return next('/')
   next()
+})
+
+// Owner ruling 2026-08-06: entering the player ALWAYS gives the immersive,
+// navless player at '/'. The two embedded play routes survive for play-as-class
+// only — there the shell bar earns its place by naming WHICH class is live — and
+// every launcher pushes a `?class=` query. An arrival without one is a stale
+// bookmark or a hand-typed URL; a class-less wrapped player is precisely the
+// two-doors-one-player inconsistency this removes, so send it to '/'.
+//
+// GLOBAL rather than per-route beforeEnter deliberately: a query-only change on
+// the same record (dropping ?class= while staying on /schools/play) does NOT
+// re-run beforeEnter, and that is exactly the case that would slip through.
+router.beforeEach((to, _from, next) => {
+  if (!EMBEDDED_PLAY_ROUTE_NAMES.includes(to.name as string)) return next()
+  if (typeof to.query.class === 'string' && to.query.class) return next()
+  next('/')
 })
 
 // Update document title on navigation

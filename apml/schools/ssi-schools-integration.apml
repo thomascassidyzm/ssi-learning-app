@@ -1,10 +1,10 @@
 # SSi Schools Integration Specification
-# Adaptive Pedagogy Markup Language (APML)
+# AI Projects Markup Language (APML) — intent capture, largely superseded by direct code generation
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.3.0"
-  date: "2026-08-05"
+  version: "1.4.0"
+  date: "2026-08-06"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -197,6 +197,38 @@ principle PersonalLinksAreTheLogin:
     router lands on the role surface. Revocation = is_active; expiry and
     max_uses respected; revoked links fail friendly.
 
+  uses_are_signins_not_redemptions: |
+    Field report 2026-08-06: the ways-in ledger read "USES 0 · ACTIVE" beside
+    a personal link whose recipient was already a member and had practised.
+    Diagnosed live and CONFIRMED STRUCTURAL, not a lost write:
+    invite_codes.use_count is incremented in exactly one place,
+    api/code/redeem.ts — and the personal flow above never calls it
+    (handlePersonalSignIn -> possession-redeem -> router, full stop;
+    possession-redeem's header states it never touches use_count, and that
+    is correct behaviour, not a bug). A personal link's use_count is
+    therefore frozen at 0 for life. Live corroboration: 27/27 personal
+    invite rows at use_count 0, while 37 shareable rows carry real non-zero
+    counts — counting works, it simply does not apply to species 1.
+    The clicks were never lost: possession-redeem audit-logs each successful
+    personal sign-in to possession_mint_attempts (outcome 'personal_signin',
+    invite_code_id + auth_user_id + created_at). The reported link had TWO.
+    FIX (api/_utils/personalLinkUses.ts, wired into the subtree GET branch of
+    api/groups/:id/invites): the ledger payload's `uses` carries a
+    discriminator — shareable rows keep {kind:'redemption', count: use_count}
+    unchanged; personal rows report {kind:'signin', count, lastAt} folded from
+    that audit log in ONE batched query. No schema change, no second counter,
+    no backfill — history already present, so every personal link is right
+    retroactively. WaysInLedger renders a signin count of 0 as "Not yet"
+    (a bare 0 read as "this link is broken"), with the last visit in the
+    cell title. `status` deliberately still keys 'exhausted' off use_count,
+    because that is what every server gate tests — so a personal link never
+    claims to be exhausted, which is true, because it never can be.
+    NOT DONE, same root cause, deliberately out of scope: the ssi_admin
+    audit desk (api/admin/invites -> UnifiedInviteList.vue) still renders the
+    raw useCount, so personal rows read "0 / ∞" there. Also unenforceable by
+    construction: max_uses set on a personal link, since the gate compares it
+    against a use_count that never moves.
+
 principle IdentityCaptureNotGhosts:
   statement: "Species 2 (OPEN shareable links): ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
 
@@ -250,6 +282,20 @@ principle IdentityCaptureNotGhosts:
     NodeActionBar picker: Group leader / School leader / Teacher / Learner.
     Classes are never invited; a class's student link lives on ClassDetail.
 
+principle CreateClassOneTap:
+  statement: "A create-class CTA opens the Create New Class modal in place — never a navigation to a second screen"
+
+  why: |
+    Founder demo finding 2026-07-31: the teacher dashboard's "+ Create
+    class" and "Create your first class" buttons navigated to My Classes,
+    whose own "+ New class" button then opened the modal — a two-hop dead
+    end. DashboardView now mounts the same CreateClassModal/
+    ClassCreatedModal flow TeacherDashboard has and every create CTA opens
+    it directly. My Classes keeps its own button and the ?create=1 deep
+    link for users who navigate there. Pinned by
+    DashboardView.createClassDirect.test.ts (source pin: no create CTA may
+    regress to a router-link).
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 
@@ -269,8 +315,16 @@ principle SingleAuthOnboarding:
     /schools. No second onboarding journey.
 
   self_serve_flow: |
-    /schools1 or /schools2 -> choose a course -> ONE email+OTP ->
+    /schools1 -> choose a course -> ONE email+OTP ->
     POST /api/onboarding/provision (unchanged) -> /schools.
+    /schools2 RETIRED 2026-08-02 (founder ruling): one school door, not two.
+    The URL stays alive forever as a pure redirect to /schools1 (query + hash
+    preserved) because external marketing links point at it. /schools2 was the
+    English-first door listing the FULL catalogue, so /schools1's course-level
+    dropdown widened from the year-free set (isYearTrialCourse) to the whole
+    catalogue — banded pinned-heritage / year-free / rest, with a per-course
+    "Free for a year" badge carried over from /schools2. No course became
+    unreachable at signup.
     The two flows share the SAME trial-provisioning helper but never the
     same route — self-serve picks a course before its trial starts;
     invite-born admins trial with no course lock until they pick one
@@ -340,16 +394,44 @@ principle SchoolCreationOnePrimitive:
     (DashboardView.vue still lists them, read-only). No new leader surface
     mints new ones.
 
-principle StaffHomeIsDashboard:
+principle OnePlayerOneDoor:
   statement: |
-    Owner ruling 2026-07-16: any school-staff role (teacher, school_admin,
-    govt_admin — useUserRole's hasSchoolRole) landing on the bare root route
-    "/" belongs on "/schools" instead, reaching the player only via the
-    dashboard's own Learn button (the schools-framed "/schools/play" route,
-    SchoolsTopBar always above the player). Learners/students keep landing in
-    the bare player at "/" — this principle is staff-only.
+    Owner ruling 2026-08-06: ENTERING THE PLAYER ALWAYS GIVES THE IMMERSIVE,
+    NAVLESS PLAYER at "/" — and no Learn button renders while you are already
+    in the player. The same player had been reachable as two different screens
+    depending on the door: navless via "/", wrapped in schools chrome via the
+    Learn button's "/schools/play". Converged on the navless one.
 
-  gap_closed: |
+    Consequences, as shipped:
+      - SchoolsTopBar's Learn pill and its user-menu "My player" both target
+        "/" (they targeted "/schools/play"); TopNav's Learn button and mobile
+        "My Learning" already did.
+      - Both bars drop every self-practice launcher on any route that renders
+        the player — "player" ("/"), "schools-play", "teach-play" — class
+        session live or not (usePlayAsClassContext.isOnPlayerRoute).
+      - The two embedded play routes survive for PLAY-AS-CLASS ONLY, where the
+        bar earns its place by naming which class is live (founder ruling
+        2026-07-18). A global router.beforeEach sends a class-less arrival on
+        either of them to "/" — global, not per-route beforeEnter, because
+        dropping ?class= on the same record does not re-run beforeEnter.
+      - No dead ends: "/" sets meta.hideAppEscape, so a plain learner sees the
+        fully navless player. Staff who arrived from a management surface carry
+        the ssi-last-dashboard breadcrumb, and App.vue shows them the one
+        low-emphasis AppEscape pill (its new `to` prop) back to /schools or
+        /tutors/dashboard.
+    Guarded by SchoolsTopBar.learnButton.test.ts, TopNav.learnButton.test.ts,
+    AppEscape.playerEscape.test.ts, schoolsGuard.test.ts.
+
+  supersedes: |
+    StaffHomeIsDashboard (owner ruling 2026-07-16): staff landing on "/" were
+    redirected to "/schools" and reached the player only through the
+    schools-framed "/schools/play". Its landing half was already reversed by
+    the 2026-07-24 ruling (everyone lands in the player, regardless of role;
+    "/" carries no role-based redirect). This ruling reverses the other half —
+    the framed self-practice route. Kept below for the history that produced
+    the redirect it describes.
+
+  gap_closed_historical: |
     A minted sign-in link (api/admin/create-signin-link.ts) redirects
     Supabase's magic-link verification to the bare app origin (no path — a
     path-specific redirectTo risks falling outside the Supabase project's
@@ -999,8 +1081,8 @@ interface TeacherDashboard:
       - "Switches the app onto the class's course via App.vue handleCourseSelect BEFORE navigating (never relies on PlayerContainer's onMounted race)"
       - "Writes canonical ssi-active-class payload: id, name, course_code, current_seed, last_lego_id, class_learner_id, teacherUserId, timestamp"
       - "Progress saved to the CLASS's own learner row (class_learner_id), not the staff member"
-      - "SchoolsTopBar stays above the player (PlayerContainer renders as a child of SchoolsContainer)"
-      - "Playing-as identity is a SLIM in-nav chip (PlayAsClassIdentity: live dot + 'Playing as <class>' + demoted school + End session), fitting the bar's standard height — the old large banner swelled the bar (founder, 2026-07-30). Section tabs + hamburger STAY during the session ('every user facing screen should keep the schools dashboard top nav'); only the self-practice Learn launcher and the standalone school label are dropped (the chip carries the school). Guarded by SchoolsTopBar.playAsClass.test.ts."
+      - "SchoolsTopBar stays above the player (PlayerContainer renders as a child of SchoolsContainer). Since 2026-08-06 this route is play-as-class ONLY — self-practice goes to the immersive navless player at '/' (see OnePlayerOneDoor), and a class-less arrival here is redirected there."
+      - "Playing-as identity is a SLIM in-nav chip (PlayAsClassIdentity: live dot + 'Playing as <class>' + demoted school + End session), fitting the bar's standard height — the old large banner swelled the bar (founder, 2026-07-30). Section tabs + hamburger STAY during the session ('every user facing screen should keep the schools dashboard top nav'); only the self-practice launchers (Learn button + 'My player') and the standalone school label are dropped — since 2026-08-06 those launchers are dropped on EVERY player route, not just during a live class session (the chip carries the school). Guarded by SchoolsTopBar.playAsClass.test.ts."
       - "Ending a session (chip End session, or the player's own go-home) lands the schools user on the schools DASHBOARD (/schools); tutors land on /tutors/dashboard (usePlayAsClassContext.exitClassSession + PlayerContainer.handleGoHome, founder ruling 2026-07-30)"
 
   navigation_shell:

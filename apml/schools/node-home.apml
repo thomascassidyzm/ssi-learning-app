@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-02 (terminology dressing: ed-speak is vocabulary, not structure)
+# Last updated: 2026-08-06 (creator becomes first manager; the node names its leader)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
@@ -96,7 +96,24 @@ data:
   id_resolution: group node id | school id (schools.node_group_id, minted on demand) | class id → kind 'class'
   authz: resolveGroupTreeCaller + callerCanSeeGroup; leader scope-trims ancestors/siblings to own subtree
   rollups: shared resolver (api/_utils/groupRollups.computeNodeExtras) — same story as tree/table lenses
-  practice_hours: subtree school_summary sum (incl. staff practice); class level sums class_student_progress
+  subtree_membership: parent_id walk (api/_utils/groupSubtree.descendantIds), NEVER the slug path —
+    compute_group_path() slugifies the name and nothing makes it unique, so two same-named orgs
+    shared one path live (2026-08-06) and each one's rollup swallowed the other's people
+  leaders: who leads THIS node — govt_admins ∪ the leader membership tag
+    (user_tags tag_type='group', role_in_context='admin'), names resolved via learners.
+    Founder ruling 2026-08-06: the creator of a group/org IS its first manager. Before
+    this, leadership lived only in govt_admins — which no lens reads — so a creator
+    governed a group whose page showed no manager anywhere while the ways-in ledger
+    right below it printed their own name against the link they had minted.
+    Rendered "Led by <names>"; a root with no leader says "No group leader yet"
+    rather than rendering nothing (an absent line and an absent leader looked identical).
+  practice_hours: subtree school_summary sum (incl. staff practice)
+    + directly group-attached people's sessions (api/_utils/directMemberPractice.ts) — a group whose
+      people were invited straight in (user_tags tag_type='group', no school, no class) has no
+      school_summary row, so without this term it reported 0h forever while learnerCount said 1+,
+      and the explainer's org-not-started rule told its leader nobody had practised
+    - excludes anyone already reachable through a subtree school/class (no double count)
+    class level sums class_student_progress
 
 layout_stability:  # founder bug 2026-07-20 — "3-4 up and down page wobbles" per rail switch
   # While a load runs, every section HOLDS its geometry; VALUES never show the wrong node.

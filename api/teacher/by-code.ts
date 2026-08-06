@@ -44,7 +44,7 @@ export default async function handler(
     // Look up class by join code
     const { data: classRow, error: classError } = await supabase
       .from('classes')
-      .select('id, class_name, course_code, teacher_user_id, is_active, student_join_code, school_id')
+      .select('id, class_name, course_code, teacher_user_id, is_active, student_join_code, school_id, group_id')
       .eq('student_join_code', code)
       .maybeSingle()
 
@@ -83,7 +83,10 @@ export default async function handler(
       courseIsFree = tier === 'free' || tier === 'community'
     }
 
-    const isSchoolClass = !!classRow.school_id
+    // Org/school-owned = either FK set. Matches the webhook's price derivation
+    // (commissions-never-stack ruling 2026-08-02): a group-attached class shows
+    // and charges the org student price, never the tutor one.
+    const isSchoolClass = !!classRow.school_id || !!classRow.group_id
 
     // Resolve a public display profile for the class's assigned teacher (used by
     // both branches for the "with {teacher}" line).

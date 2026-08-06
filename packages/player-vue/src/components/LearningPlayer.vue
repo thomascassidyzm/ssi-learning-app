@@ -52,7 +52,8 @@ import { useClassAwareProgressStore, type ClassContextForProgress } from '../com
 import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop } from '../providers/generateLearningScript'
+import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop, type ScriptItem } from '../providers/generateLearningScript'
+import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
@@ -98,6 +99,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
+import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -254,6 +256,15 @@ const props = defineProps({
   isVisible: {
     type: Boolean,
     default: true
+  },
+  // The learner's cumulative learning time across ALL courses, in minutes —
+  // the encouragement-taper signal (owner ruling 2026-08-06). Supplied by
+  // PlayerContainer from /api/me/engaged-time. null = UNKNOWN (guest, offline,
+  // or the fetch hasn't landed), NOT zero-with-confidence — the service treats
+  // unknown as "beginner", which is the safe read for a missing signal.
+  cumulativeLearningMinutes: {
+    type: Number as PropType<number | null>,
+    default: null
   }
 })
 
@@ -430,6 +441,27 @@ const infPlayLookaheadFloor = (): number => {
 // lookahead → different key → fresh walk, as before).
 let inFlightScript: { key: string; promise: Promise<any> } | null = null
 
+// Forward-reuse centrality (founder ruling 2026-07-31 — the distinction
+// network's criticality signal, see @ssi/core centrality.ts). Computed once
+// per course from the first full script walk: INF-PLAY expansions only extend
+// the revival tail with replayed content, so the map never changes within a
+// course. Consumed by planRound (shadow mode: logged, never applied).
+let centralityForCourse: string | null = null
+const legoCentralityPercentile = ref<Record<string, number> | null>(null)
+
+const maybeComputeCentrality = (items: ScriptItem[] | undefined, forCourse: string) => {
+  if (!items?.length || centralityForCourse === forCourse) return
+  try {
+    centralityForCourse = forCourse
+    const { percentileByLego } = computeCentralityFromScript(items)
+    legoCentralityPercentile.value = percentileByLego
+  } catch (err) {
+    // Centrality is an enrichment — the criticality guard falls back to
+    // intro-order without it. Never let it break script delivery.
+    console.error('[LearningPlayer] centrality computation failed (falling back to intro-order):', err)
+  }
+}
+
 const generateScript = (
   listeningOverride?: ListeningConfigType,
 ) => {
@@ -447,6 +479,10 @@ const generateScript = (
   }
   const promise = runGenerateScript(listeningOverride)
   inFlightScript = { key: dedupeKey, promise }
+  const walkCourse = courseCode.value
+  promise.then((result) => {
+    if (walkCourse === courseCode.value) maybeComputeCentrality(result?.items, walkCourse)
+  }).catch(() => { /* observers handle their own errors */ })
   promise.finally(() => {
     if (inFlightScript?.promise === promise) inFlightScript = null
   }).catch(() => { /* observers handle their own errors */ })
@@ -1254,6 +1290,28 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)?.userId?.value ?? null) : null))
 const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
+
+// Intro/presentation audio never reaches SimplePlayer's audio_failed path —
+// a missing presentation clip isn't an error, it's an empty URL and a skipped
+// phase. The round-building adapters report it instead, through a module-level
+// sink so those pure functions stay free of Vue. Wired here because playerLog
+// is what stamps course_code / session_id / user attribution on the row.
+// Deduped per cycle id: a round can be rebuilt several times per session
+// (tier-3 top-ups, INF PLAY refreshes) and the gap is a property of the
+// CONTENT, so one report per cycle per session is the useful signal.
+const introAudioMissingReported = new Set<string>()
+setIntroAudioTelemetrySink((e) => {
+  if (introAudioMissingReported.has(e.cycleId)) return
+  introAudioMissingReported.add(e.cycleId)
+  logEvent('intro_audio_missing', {
+    legoId: e.legoId,
+    cycleId: e.cycleId,
+    cycleType: e.cycleType,
+    tier: e.tier,
+    source: e.source,
+  })
+})
+onUnmounted(() => setIntroAudioTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -1503,6 +1561,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           const refreshed = infPlayCyclesToRounds(
             instantPlayback.infPlayCycles.value as any,
             mainLoopCount,
+            currentTargetSpeedConfig(),
           )
           if (refreshed.length > totalLoaded) {
             // Diff by roundNumber against the engine's truth — slice(totalLoaded)
@@ -1525,6 +1584,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           instantPlayback.getBufferedCyclesForLego,
           map,
           instantPlayback.isLegoComplete,
+          currentTargetSpeedConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -4710,6 +4770,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       roundLegoOrdinal,
       courseLegoCount,
       manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+      unitCentralityPercentile: legoCentralityPercentile.value ?? undefined,
     })
     const applyingAdaptationV2 = !adaptationV2Config.value.shadow
     logEvent('adaptation_plan', {
@@ -4720,7 +4781,12 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         consolidateCount: plan.consolidateCount,
         spacedRepCap: plan.spacedRepCap,
         insertBreather: plan.insertBreather,
+        returnReady: plan.returnReady,
       },
+      // Shadow transparency for the criticality rewrite (2026-07-31): which
+      // signal the guard had for this round's LEGO, so logs show would-do
+      // under centrality vs the intro-order fallback.
+      roundLegoCentrality: legoCentralityPercentile.value?.[nextRoundFull.legoId] ?? null,
       difficultyStates: difficulty.map((d) => ({
         unitId: d.unitId,
         state: d.state,
@@ -4819,11 +4885,12 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // untouched. Tom 2026-05-29.
   if (metaCommentary && !beltJustEarned.value && currentMode.value !== 'infplay') {
     const cyclesInRound = completedRound?.cycles?.length ?? 0
-    // Push the live taper knobs + current experience (seed of the round just
-    // played) so the encouragement taper sees where the learner actually is.
+    // Push the live taper knobs + the learner's CUMULATIVE cross-course
+    // learning time (owner ruling 2026-08-06). Not the seed of the current
+    // course: a veteran starting a fresh course is not a beginner. null (guest,
+    // offline, or the server number not landed yet) = unknown ⇒ beginner.
     metaCommentary.setEncouragementTaper(metaCommentaryConfig.value?.encouragementTaper)
-    const experienceSeed = getSeedFromLegoId(completedRound?.legoId ?? completedLegoId ?? null)
-    if (experienceSeed != null) metaCommentary.setExperienceSeeds(experienceSeed)
+    metaCommentary.setCumulativeLearningMinutes(props.cumulativeLearningMinutes)
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,
@@ -8178,7 +8245,12 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
   for (const url of urls) {
     if (!url || typeof url !== 'string') continue
     if (url.startsWith('blob:')) continue
-    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    // A replaced clip arrives as `<uuid>.vN` (per-clip versioned refs — see
+    // api/_utils/audioAccess.ts). The suffix is part of the id: it is what
+    // AudioCache keys the blob by, so it must survive this round-trip intact.
+    // Without `.vN` in the class this match failed outright and the offline
+    // collector silently gathered nothing for every revised clip.
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+(?:\.v\d+)?)$/i)
     if (match) ids.push(match[1])
   }
   return ids
@@ -9736,8 +9808,12 @@ const handleAdaptationConsent = async (granted) => {
   }
 }
 
-// Initialize VAD (must be called from user gesture)
-const initializeVad = async () => {
+// Initialize VAD. The Settings-toggle path runs inside a user gesture and
+// treats a mic denial as the learner declining (consent revoked). Boot-time
+// re-arming for an already-consented learner passes revokeConsentOnDenial:
+// false — a transient failure there must not silently flip the learner's
+// stored consent off.
+const initializeVad = async ({ revokeConsentOnDenial = true } = {}) => {
   if (vadInitialized.value || vadInitializing.value) return true
 
   vadInitializing.value = true
@@ -9756,8 +9832,8 @@ const initializeVad = async () => {
       console.log('[LearningPlayer] VAD + SpeechTimingAnalyzer initialized')
     } else {
       console.warn('[LearningPlayer] VAD initialization failed (mic permission denied?)')
-      // If mic denied, treat as declined consent
-      saveAdaptationConsent(false)
+      // If mic denied on an explicit toggle, treat as declined consent
+      if (revokeConsentOnDenial) saveAdaptationConsent(false)
     }
 
     return success
@@ -11743,6 +11819,18 @@ onMounted(async () => {
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
 
+  // Re-arm the VAD for previously-consented learners on EVERY boot path.
+  // This used to live only inside the legacy cached-script load branch, which
+  // the instant-playback path (early return) never reaches — so consented
+  // learners booted with the VAD dead: no timing windows, no cycle_prosody
+  // events, no recordCycle latency feed, zero learner_lego_metrics rows ever
+  // (2026-08-02 live repro: getUserMedia never called across a full session).
+  // Boot init never revokes consent on failure — a transient mic failure at
+  // boot is not the learner declining (only the Settings toggle path is).
+  if (adaptationConsent.value === true) {
+    void initializeVad({ revokeConsentOnDenial: false }).catch(() => {})
+  }
+
   // Fetch contribution data — display-only, so it waits for READY instead of
   // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
@@ -12330,11 +12418,13 @@ onMounted(async () => {
             ? infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopBoundary(),  // boundary from the canonical round-map (single source of truth)
+                currentTargetSpeedConfig(),
               )
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
                 map,
                 instantPlayback.isLegoComplete,
+                currentTargetSpeedConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12436,6 +12526,7 @@ onMounted(async () => {
                   instantPlayback.getBufferedCyclesForLego,
                   refreshedMap,
                   instantPlayback.isLegoComplete,
+                  currentTargetSpeedConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -12470,6 +12561,7 @@ onMounted(async () => {
               const refreshedRounds = infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopCount,
+                currentTargetSpeedConfig(),
               )
               if (refreshedRounds.length > initialRounds.length) {
                 const newRounds = refreshedRounds.slice(initialRounds.length) as any
@@ -13326,10 +13418,10 @@ onMounted(async () => {
           })()
         )
 
-        // Task: Initialize VAD if previously consented
-        if (adaptationConsent.value === true) {
-          parallelTasks.push(initializeVad().catch(() => {}))
-        }
+        // (VAD re-arm for previously-consented learners is handled
+        // unconditionally at mount, right after loadAdaptationConsent() —
+        // it used to live only here, which the instant-playback path never
+        // reaches.)
 
         // (Ceiling fetch is handled by the unconditional watch on
         // courseCode + learnerId near where the refs are declared — it

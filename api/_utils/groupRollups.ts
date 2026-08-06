@@ -18,11 +18,10 @@
  *     schools.node_group_id (THE-MODEL.md §4) — a per-node attachment, NOT
  *     rolled up (a parent has no single commercial identity).
  *
- * Subtree membership uses the slug path (`compute_group_path()`), matching
- * schoolScope.schoolsForGroupSubtree — but with a '/'-boundary check so a
- * sibling whose slug is a string-prefix ('ime-demo' vs 'ime-demo-two') is not
- * pulled in. The whole groups forest is fetched once (it is small) rather than
- * one path-LIKE query per target.
+ * Subtree membership walks `parent_id` (groupSubtree.descendantIds) — slug
+ * paths are NOT unique, so a path match merges two same-named tenants. The
+ * whole groups forest is fetched once (it is small) rather than one query per
+ * target.
  *
  * Batched with chunk() (schoolScope.ts) so large subtrees don't blow the
  * PostgREST .in() URL cap. Service-role only — call from server-mediated
@@ -31,6 +30,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
+import { descendantIds, type ParentLinked } from './groupSubtree'
 
 export interface NodeRollup {
   childGroupCount: number
@@ -59,12 +59,6 @@ function addPerson(map: Map<string, Set<string>>, nodeId: string, userId: string
   map.get(nodeId)!.add(userId)
 }
 
-/** Is `path` the subtree of `rootPath` (itself or a descendant), with a
- * '/'-boundary so 'a/b' is NOT a descendant of 'a/bc'. */
-function inSubtree(path: string | null | undefined, rootPath: string): boolean {
-  return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
-}
-
 export interface GroupPathRow { id: string; path: string | null; parent_id: string | null }
 
 export async function computeNodeExtras(
@@ -83,29 +77,20 @@ export async function computeNodeExtras(
   // that already hold the forest (home.ts) pass it in and skip the re-fetch.
   const allGroups = preloadedGroups
     ?? ((await svc.from('groups').select('id, path, parent_id')).data as GroupPathRow[] | null)
-  const pathById = new Map<string, string | null>()
   const directChildCount = new Map<string, number>()
   for (const g of allGroups ?? []) {
-    pathById.set((g as any).id, (g as any).path ?? null)
     const pid = (g as any).parent_id as string | null
     if (pid) directChildCount.set(pid, (directChildCount.get(pid) || 0) + 1)
   }
 
   // Descendants (incl. self) per target, and the union of every node we must
-  // compute DIRECT sets for.
+  // compute DIRECT sets for. Resolved through parent_id — two nodes can share
+  // a slug path (groupSubtree.ts header), and a path match then merges tenants.
   const descendantsByTarget = new Map<string, string[]>()
   const allNodeIds = new Set<string>()
   for (const tid of targetNodeIds) {
-    const tpath = pathById.get(tid)
-    const desc: string[] = []
-    if (tpath) {
-      for (const g of allGroups ?? []) {
-        const id = (g as any).id as string
-        if (inSubtree(pathById.get(id), tpath)) { desc.push(id); allNodeIds.add(id) }
-      }
-    } else {
-      desc.push(tid); allNodeIds.add(tid)
-    }
+    const desc = descendantIds((allGroups ?? []) as ParentLinked[], tid)
+    for (const id of desc) allNodeIds.add(id)
     descendantsByTarget.set(tid, desc)
   }
   const nodeIds = [...allNodeIds]

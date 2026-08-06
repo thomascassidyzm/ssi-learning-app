@@ -25,6 +25,7 @@ const SCRIPT_DB_NAME = 'ssi-script-cache'
 const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CONTENT_VERSION_PREFIX = 'ssi-content-version-'
+const AUDIO_STAMP_PREFIX = 'ssi-audio-stamp-'
 
 let scriptDbPromise: Promise<IDBPDatabase> | null = null
 const scriptDb = (): Promise<IDBPDatabase> => {
@@ -421,7 +422,7 @@ const doCheckContentVersion = async (
 
     const { data: course, error } = await supabase
       .from('courses')
-      .select('content_version, content_stamp')
+      .select('content_version, content_stamp, audio_stamp')
       .eq('course_code', courseCode)
       .single()
 
@@ -429,7 +430,46 @@ const doCheckContentVersion = async (
 
     const currentVersion = course.content_version
     const liveStamp = (course as { content_stamp?: string }).content_stamp
+    const liveAudioStamp = (course as { audio_stamp?: string }).audio_stamp
     let invalidated = false
+
+    // ── Audio lane: a clip's BYTES changed under a stable id ───────────────
+    // Distinct from both lanes below. A repaired clip keeps its row id and
+    // gets a new revision, so the API now hands out `<uuid>.vN` — but a script
+    // cached BEFORE the repair still holds the bare `<uuid>` and replays the
+    // damaged audio forever, every request a cache hit, no error anywhere.
+    // Observed live on staging 2026-08-06.
+    //
+    // So this DROPS the script cache rather than marking it stale: SWR would
+    // play the damaged clip for one more session, and damaged is exactly what
+    // we declared it. It deliberately does NOT touch the audio store — with
+    // per-clip versioned refs the repaired clips miss on their new ids and
+    // re-download by themselves, while every unchanged clip stays cached. That
+    // is what makes a hard drop affordable here: it costs one small JSON
+    // refetch, not a course re-download.
+    // A device that cached the course BEFORE this lane existed has no stored
+    // stamp, so "first sight" would wave through exactly the stale entries we
+    // are here to kill — the state Tom's device was in on 2026-08-06. So an
+    // entry of UNKNOWN audio vintage is dropped once too, which retroactively
+    // heals every device cached before the stamp existed (same reasoning as
+    // the content_stamp lane's pre-stamp entries). A genuinely new device has
+    // no cached script and is therefore never affected.
+    if (liveAudioStamp) {
+      const audioStampKey = `${AUDIO_STAMP_PREFIX}${courseCode}`
+      const storedAudioStamp = localStorage.getItem(audioStampKey)
+      const unknownVintage = !storedAudioStamp && (await getCachedScript(courseCode)) !== null
+      if ((storedAudioStamp && storedAudioStamp !== liveAudioStamp) || unknownVintage) {
+        console.log(
+          unknownVintage
+            ? `[ScriptCache] ${courseCode} script cached before audio stamps existed — dropping once so repaired clips are re-fetched at their new revision`
+            : `[ScriptCache] Audio stamp moved (${storedAudioStamp} → ${liveAudioStamp}) — dropping ${courseCode} script cache so repaired clips are re-fetched at their new revision`
+        )
+        try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
+        staleScripts.delete(courseCode)
+        invalidated = true
+      }
+      localStorage.setItem(audioStampKey, liveAudioStamp)
+    }
 
     if (liveStamp) {
       liveContentStamps.set(courseCode, liveStamp)
