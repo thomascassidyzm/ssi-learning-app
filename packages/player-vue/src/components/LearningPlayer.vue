@@ -29,7 +29,6 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
-import { usePodListeningReminder } from '../composables/usePodListeningReminder'
 import { podPlayShowsTurnText, podLapPlayedSentenceIndices, podLapDisplayRange } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
@@ -3631,15 +3630,14 @@ const currentPodTurn = computed(() => {
   if (localIdx < 0 || localIdx >= podScrollSentences.value.length) return null
   return { activeIndex: localIdx }
 })
-// Pod listening reminder — a ONE-SHOT transient ("just listen, like
-// birdsong") shown as each pod lap starts, then faded out. Replaces the old
-// persistent hero-hint-label for pods (2026-07-22): that panel could sit on
-// screen for the whole lap and, being z-index 10 above PodTurnDisplay's 3,
-// covered the dialogue tiles on long pods. The audio's own spoken "now just
-// listen for a while" intro already carries the instruction, so the visual
-// only needs to remind, not persist. Keyed off playingPodLapAudio (set true
-// at the top of every playPodLap call) so it fires once per lap.
-const { visible: podReminderVisible } = usePodListeningReminder(playingPodLapAudio)
+// A listening exercise goes STRAIGHT IN with the audio (Tom, 2026-08-06):
+// no popup, no modal, nothing persistent — the spoken "now just listen for a
+// while" bookend introduces the lap and the screen stays free for the
+// displayed text. The one-shot "just listen, like birdsong" transient that
+// used to open every lap (usePodListeningReminder, 2026-07-22) is deleted;
+// only the small ambient headphones mark remains, in the band PodTurnDisplay
+// keeps clear. The preparation guidance itself lives on in Settings → Tools
+// → Listening mode, and in the phase hint outside pod laps.
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
@@ -14428,7 +14426,6 @@ defineExpose({
       v-if="playingPodLapAudio && currentPodTurn"
       :sentences="podScrollSentences"
       :active-index="currentPodTurn.activeIndex"
-      :reminder-top-inset="podReminderVisible ? 130 : 0"
     />
 
     <!-- ?podview=1 instant preview nav — jump to a different pod sentence
@@ -14440,28 +14437,15 @@ defineExpose({
       <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewNext" aria-label="Next pod sentence">Next ›</button>
     </div>
 
-    <!-- Pod listening reminder — ONE-SHOT transient, fades in as the pod lap
-         starts, holds ~4s, fades out. Sits in the top safe-area band that
-         PodTurnDisplay always keeps clear (reminderTopInset above widens
-         that band while this is visible), so it never competes with the
-         dialogue tiles at any dialogue length or screen size. The audio's
-         own spoken "now just listen for a while" intro carries the same
-         instruction, so once this fades the small pulsing dot below is the
-         only ongoing cue — never a persistent panel. -->
-    <Transition name="pod-reminder-fade">
-      <div
-        v-if="podReminderVisible && playingPodLapAudio"
-        class="pod-listening-reminder"
-        role="status"
-        aria-live="polite"
-      >
-        {{ passiveListeningHint }}
-      </div>
-    </Transition>
-
-    <!-- Ambient listening-mode cue — small, always-present while a pod lap
-         is playing, replacing the old persistent hint panel once it fades. -->
-    <div v-if="playingPodLapAudio && !podReminderVisible" class="pod-listening-ambient" aria-hidden="true">
+    <!-- Ambient listening cue — a small headphones mark in the top safe-area
+         band PodTurnDisplay always keeps clear. NOT an instruction surface:
+         the exercise goes straight in with the audio's own spoken "now just
+         listen for a while", and the screen stays free for the displayed text
+         (Tom, 2026-08-06, after Aran found the intro popup distracting). The
+         one-shot "just listen, like birdsong" transient that used to open a
+         lap is gone; its guidance lives in Settings → Tools → Listening mode
+         and in the phase hint outside pod laps. -->
+    <div v-if="playingPodLapAudio" class="pod-listening-ambient" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
         <path d="M12 3a7 7 0 0 0-7 7v5a2 2 0 0 0 2 2h1v-6H6v-1a6 6 0 0 1 12 0v1h-2v6h1a2 2 0 0 0 2-2v-5a7 7 0 0 0-7-7z"/>
       </svg>
@@ -14469,12 +14453,12 @@ defineExpose({
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node.
          Hidden for the WHOLE of any listening lap (L2 pod or L1 cup — both
-         run through playPodLap): during a lap the only permitted text
-         surface is PodTurnDisplay's teleprompter, plus the transient
-         pod-listening-reminder and the ambient dot (2026-07-23, product
-         owner report: the empty glass card rendered as a bare white pill on
-         top of the reminder banner, and the birdsong pedagogy line showed as
-         a THIRD stacked surface during the intro bookend). Layer-1 cups are
+         run through playPodLap): during a lap the only permitted surfaces
+         are PodTurnDisplay's teleprompter and the textless ambient mark
+         (2026-07-23, product owner report: the empty glass card rendered as
+         a bare white pill on top of the old reminder banner, and the
+         birdsong pedagogy line showed as a THIRD stacked surface during the
+         intro bookend — that banner is now gone). Layer-1 cups are
          audio-only by product rule, so they lose nothing either. v-show, not
          v-if — the ResizeObserver above binds to this element once at mount
          and must survive the lap. -->
@@ -14482,11 +14466,9 @@ defineExpose({
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
-        <!-- Inline learning hint label. Lap suppression now lives on the
-             hero-text-pane's own v-if (the whole pane is hidden while
-             playingPodLapAudio) — the pod-listening-reminder transient
-             (then the small ambient dot) owns that instruction for the
-             entire lap. -->
+        <!-- Inline learning hint label. Never shows during a pod lap — the
+             whole hero pane is hidden while playingPodLapAudio, and a lap
+             carries no on-screen instruction at all (2026-08-06). -->
         <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
@@ -17198,47 +17180,16 @@ defineExpose({
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* ============ POD LISTENING REMINDER (transient, once per pod lap) ============ */
+/* ============ AMBIENT LISTENING CUE (whole pod lap) ============ */
 /* Sits BELOW the full header (brand/title row + belt pill) — never inside
    its band, so it can't render behind/over the SaySomethingin wordmark or
    the DEV env badge (real bug, 2026-07-22: a flat 14px safe-area offset put
    it squarely under the title bar). z-index between PodTurnDisplay (3) and
-   the hero glass pane (10) so it never competes with either. */
-.pod-listening-reminder {
-  position: absolute;
-  top: calc(var(--header-total) + 12px);
-  left: max(1rem, env(safe-area-inset-left, 0px));
-  right: max(1rem, env(safe-area-inset-right, 0px));
-  z-index: 6;
-  margin: 0 auto;
-  max-width: 26rem;
-  padding: 0.6rem 1rem;
-  background: rgba(20, 20, 24, 0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 14px;
-  color: rgba(255, 255, 255, 0.92);
-  font-family: var(--font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.35;
-  text-align: center;
-  pointer-events: none;
-}
-
-.pod-reminder-fade-enter-active,
-.pod-reminder-fade-leave-active {
-  transition: opacity 0.4s ease;
-}
-.pod-reminder-fade-enter-from,
-.pod-reminder-fade-leave-to {
-  opacity: 0;
-}
-
-/* Small always-on cue while a pod lap plays, once the transient has faded —
-   tiny enough that it can never obscure the dialogue tiles. Same vertical
-   slot as .pod-listening-reminder above (below the full header) so there's
-   no visual jump when the transient hands off to this dot. */
+   the hero glass pane (10) so it never competes with either.
+   The transient instruction banner that used to share this slot is gone
+   (2026-08-06): a listening exercise goes straight in with the audio. */
+/* The only on-screen mark during a pod lap: tiny enough that it can never
+   obscure the dialogue tiles, and carrying no instruction text. */
 .pod-listening-ambient {
   position: absolute;
   top: calc(var(--header-total) + 14px);
