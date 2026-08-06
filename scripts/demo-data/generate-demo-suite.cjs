@@ -85,108 +85,15 @@ const pick=a=>a[Math.floor(rnd()*a.length)]
 const between=(lo,hi)=>lo+Math.floor(rnd()*(hi-lo+1))
 const uuid=()=>{const h='0123456789abcdef';let s='';for(let i=0;i<36;i++){if(i===8||i===13||i===18||i===23)s+='-';else if(i===14)s+='4';else if(i===19)s+=h[8+Math.floor(rnd()*4)];else s+=h[Math.floor(rnd()*16)]}return s}
 
-// ---------- difficulty telemetry (curvature-engine demo fuel) ----------
-// The series SHAPES are NOT defined here any more — they are the canonical,
-// TESTED calibration in @ssi/core (`packages/core/src/learning/syntheticSeries.ts`,
-// guarded by `syntheticSeries.test.ts` which asserts they classify correctly
-// through the REAL sensor under its DEFAULT options). We import `makeLatencySeries`
-// and feed it THIS generator's seeded `rnd` so per-student determinism is
-// preserved. Do NOT re-inline the magic numbers — change them in one place
-// (syntheticSeries.ts) where the regression test will keep them honest.
+// ---------- telemetry payloads (difficulty series + VAD prosody) ----------
+// SHARED (2026-08-06) with the IME top-up script — one definition of what a
+// demo learner's telemetry looks like lives in ./demoTelemetry.cjs. The helpers
+// are built off THIS generator's seeded `rnd`, so per-student determinism and
+// draw ordering are exactly as before the extraction.
 //
 // REQUIRES @ssi/core TO BE BUILT FIRST:  pnpm --filter @ssi/core build
-//   (we require the built CJS dist; there is no workspace symlink for @ssi/core
-//    in the repo-root node_modules, so we resolve it by relative path.)
-let makeLatencySeries, extractEnvelopeMetadata, ENVELOPE_EXTRACTOR_CONSTANTS
-try {
-  ({ makeLatencySeries, extractEnvelopeMetadata, ENVELOPE_EXTRACTOR_CONSTANTS } = require('../../packages/core/dist/index.js'))
-} catch (e) {
-  console.error('✗ Could not load @ssi/core from packages/core/dist — build it first: pnpm --filter @ssi/core build')
-  throw e
-}
-// Build one normalized-latency series for the given archetype, driven by the
-// generator's seeded PRNG (so suites stay reproducible).
-const difficultySeries = archetype => makeLatencySeries(archetype, { rng: rnd })
-const MASTERY_BY_ARCHETYPE = {
-  struggling: ['acquisition','consolidating'],
-  easing:     ['consolidating','confident'],
-  steady:     ['confident','mastered'],
-}
-const DEVICE_CLASS = ['class_play','homework']  // demo schools = class-led + homework
-const DEVICE_TYPE  = ['mobile','tablet','desktop']
-
-// ---------- VAD coverage (founder ruling, 2026-08-06) ----------
-// "the fake demo data generator function should generate VAD data for around
-// 50% of learners in schools - reflecting that not everyone in a class will
-// end up getting their own account."
-//
-// So VAD data is a PER-LEARNER coin flip, not every-other: each class draws
-// its own uptake rate around the 50% mark (some classes got more devices /
-// more parental consents than others), then each learner in it flips against
-// that rate. A learner WITHOUT VAD gets NO rows at all in the VAD-fed tables
-// — no learner_lego_metrics, no cycle_prosody — because that is exactly how a
-// real no-VAD learner presents: the write path is `recordCycle`, which only
-// ever fires on a VAD latency (LearningPlayer.vue ~line 11826), so there are
-// no zero rows and no empty-but-present rows to find. That way the UI's real
-// empty states get exercised by half the demo roster.
-const VAD_RATE_RANGE = [0.40, 0.60]
-const classVadRate = () => VAD_RATE_RANGE[0] + rnd()*(VAD_RATE_RANGE[1]-VAD_RATE_RANGE[0])
-
-// ---------- prosody telemetry (cycle_prosody demo fuel) ----------
-// The envelope numbers are NOT hand-written here. We synthesise the plausible
-// rAF-rate {t, db} energy trace that the live VAD hands its extractor, then
-// run the REAL `extractEnvelopeMetadata` from @ssi/core — so demo rows carry
-// the same field set, the same 0–100 contour encoding, the same weighting
-// rules and the same `extractorVersion` a real learner's mic produces. Same
-// principle as makeLatencySeries above: no magic numbers in this script.
-function prosodyEnvelope(durationMs){
-  const syllables = Math.max(1, Math.round(durationMs/260))
-  const samples = []
-  for(let t=0;t<durationMs;t+=16){         // ~60fps, the VAD's rAF cadence
-    const lobe = Math.abs(Math.sin((t/durationMs)*syllables*Math.PI))  // one energy lobe per syllable
-    const arc  = Math.sin(Math.PI*Math.min(1,t/durationMs))            // utterance-level rise/fall
-    samples.push({ t, db: -58 + 34*lobe*arc + (rnd()-0.5)*3 })
-  }
-  return extractEnvelopeMetadata(samples, durationMs)
-}
-
-// One cycle_prosody payload for a voiced speaking cycle on `legoId`, shaped
-// exactly like LearningPlayer.vue's logEvent('cycle_prosody', …) call.
-function prosodyPayload(legoId){
-  const learnerDurationMs = between(700,2600)
-  const target1DurationMs = between(1100,2400)
-  const env = prosodyEnvelope(learnerDurationMs)
-  const responseLatencyMs = between(-350,1400)      // negative = started during the prompt
-  const speechStartMs = Math.max(0, responseLatencyMs)
-  return {
-    cycleId: uuid(),
-    cycleType: pick(['build','use','debut','spaced_rep']),
-    legoId,
-    seedId: legoId.slice(0,5),
-    audioId: uuid(),
-    responseLatencyMs,
-    learnerDurationMs,
-    durationDeltaMs: learnerDurationMs - target1DurationMs,
-    speechStartMs,
-    speechEndMs: speechStartMs + learnerDurationMs,
-    startedDuringPrompt: responseLatencyMs < 0,
-    stillSpeakingAtVoice1: rnd() < 0.18,
-    peakEnergyDb: Math.round((-24 + rnd()*8)*10)/10,
-    averageEnergyDb: Math.round((-38 + rnd()*8)*10)/10,
-    envelope: {
-      durationMs: env.durationMs,
-      peakCount: env.peakCount,
-      peakToMeanRatio: Math.round(env.peakToMeanRatio*1000)/1000,
-      meanPeakWidthMs: Math.round(env.meanPeakWidthMs*10)/10,
-      sampleCount: env.sampleCount,
-      weight: Math.round(env.weight*1000)/1000,
-      contour: env.contour ?? null,
-      contourGridMs: env.contourGridMs ?? null,
-    },
-    extractorVersion: ENVELOPE_EXTRACTOR_CONSTANTS.version,
-    playbackSpeed: 1.0,
-  }
-}
+const { createDemoTelemetry, MASTERY_BY_ARCHETYPE, DEVICE_CLASS, DEVICE_TYPE } = require('./demoTelemetry.cjs')
+const { classVadRate, difficultySeries, prosodyPayload } = createDemoTelemetry(rnd)
 
 // ---------- scenarios ----------
 const IRISH_FIRST=['Aoife','Cian','Saoirse','Oisín','Niamh','Fionn','Caoimhe','Darragh','Róisín','Tadhg','Clodagh','Eoin','Aisling','Cathal','Méabh','Rónán','Sadhbh','Donncha','Laoise','Páidí','Gráinne','Lorcán','Bláthnaid','Séamus','Éabha','Colm']
