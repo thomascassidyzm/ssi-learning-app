@@ -302,7 +302,9 @@ feature had to build.
 maintenance shape) + one recursive Vue component reusing existing CSS tokens and the existing
 `ConfirmDeleteModal`; no new DB surface to keep in sync, no new RLS policies (the six org tables
 stay in their documented RLS-off holding pattern per CLAUDE.md's gated TODO — this feature adds
-rows to that pattern, it doesn't change the pattern).
+rows to that pattern, it doesn't change the pattern). [Correction, 2026-08-06: that RLS-off
+holding pattern has since ended — CLAUDE.md's org-table RLS pass has landed, all six tables carry
+real policies. Noted here for accuracy; the decision and its reasoning at the time stand.]
 **Searched & rejected:**
 - Evolve `demo_orgs` into the general organisation model (the brief's second option) —
   rejected: `demo_orgs` is a narrow, purpose-built expiry ledger (`expires_at`/`status`/a
