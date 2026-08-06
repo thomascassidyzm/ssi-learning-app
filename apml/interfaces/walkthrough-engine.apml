@@ -92,8 +92,8 @@ walks_v1 (11):
   - ways-in: node-home (org/group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap; the ledger is dressing-neutral, so the org kind is offered it too)
   - reading-insights: node-insights — admin/leader/school_admin
   - invites-desk: admin-invites — admin (show-and-point only)
-  - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
-  - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind
   - share-a-class: class-detail — teacher — adding a co-teacher: who can be added, and that they get the whole class but not the lead (A-74, 2026-08-06)
   - invite-a-supply-teacher: class-detail — teacher — the CLASS-scoped co-teacher link for a colleague with no account yet, held apart from the student join link
   - hand-over-the-lead: class-detail — teacher — passing the lead, and what does NOT move with it (pupils, progress, sessions, your own place on the class)
+  - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
+  - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind
