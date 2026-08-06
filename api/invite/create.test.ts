@@ -21,10 +21,12 @@ let learnerRow: any
 let schoolRow: any
 let classRow: any
 let insertedRows: any[] = []
-// Path-prefix fixture for isStrictDescendantGroup (leader govt_admin codes):
+// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
 // 'leader-group' is the leader's own governed group; 'leader-sub' is a real
-// sub-group of it (path 'L.1' starts with 'L'); 'other-group' is unrelated.
+// sub-group of it; 'other-group' is unrelated.
 let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+const GROUP_PARENTS: Record<string, string | null> = { 'leader-group': null, 'leader-sub': 'leader-group', 'other-group': null }
+const forestRows = () => Object.entries(GROUP_PARENTS).map(([id, parent_id]) => ({ id, parent_id }))
 
 // Tracks the .eq() filters chained onto the CURRENT query so maybeSingle/single
 // can scope their canned response — matters for tables (schools, classes) that
@@ -59,6 +61,8 @@ function makeChainable(table: string) {
         error: null,
       })
     },
+    // Unfiltered `groups` read = the forest fetch behind descendantIds.
+    then: (resolve: any) => resolve({ data: table === 'groups' ? forestRows() : [], error: null }),
   }
   return builder
 }

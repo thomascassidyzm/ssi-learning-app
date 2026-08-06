@@ -25,10 +25,12 @@ vi.mock('../_utils/auth', () => ({
 
 let insertCalls: any[] = []
 let govtAdminRow: any
-// Path-prefix fixture for isStrictDescendantGroup: 'leader-group' is the
-// leader's own governed group; 'leader-sub' is a real sub-group of it
-// (path 'L.1' starts with 'L'); 'other-group' is unrelated.
+// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
+// 'leader-group' is the leader's own governed group; 'leader-sub' is a real
+// sub-group of it; 'other-group' is unrelated.
 let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+const GROUP_PARENTS: Record<string, string | null> = { 'leader-group': null, 'leader-sub': 'leader-group', 'other-group': null }
+const forestRows = () => Object.entries(GROUP_PARENTS).map(([id, parent_id]) => ({ id, parent_id }))
 
 function makeChainable(table: string) {
   let eqVal: unknown
@@ -47,7 +49,7 @@ function makeChainable(table: string) {
       }
       return Promise.resolve({ data: null, error: null })
     },
-    then: (resolve: any) => resolve({ data: [], error: null }),
+    then: (resolve: any) => resolve({ data: table === 'groups' && eqVal === undefined ? forestRows() : [], error: null }),
   }
   return builder
 }
