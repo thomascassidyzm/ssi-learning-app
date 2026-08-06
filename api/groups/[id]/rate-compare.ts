@@ -47,6 +47,7 @@ import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { resolveVisibleScope, ownSchoolIdForNode, isStrictDescendantGroup, chunk } from '../../_utils/schoolScope'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
+import { descendantIds } from '../../_utils/groupSubtree'
 import {
   aggregateWindowPace,
   distributionStats,
@@ -123,10 +124,6 @@ interface CompareOption {
 }
 
 interface SchoolRef { id: string; node_group_id: string | null; group_id: string | null }
-
-function inSubtree(path: string | null | undefined, rootPath: string): boolean {
-  return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
-}
 
 /** Schools attached to a subtree (node bridge ∪ legacy parent attachment — the home.ts union). */
 async function subtreeSchools(svc: SupabaseClient, subtreeGroupIds: string[]): Promise<SchoolRef[]> {
@@ -368,12 +365,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the entity's subtree and the compare scope's subtree separately. ───
     const entitySubtreeGroupIds = classRow
       ? []
-      : (nodeRow!.path ? allGroups.filter((g) => inSubtree(g.path, nodeRow!.path!)).map((g) => g.id) : [nodeId!])
+      : descendantIds(allGroups, nodeId!)
     const entityGroupIdSet = new Set(entitySubtreeGroupIds)
     const isGlobalCompare = compareTo === 'global' || compareTo === 'global_all_courses'
     const compareAnc = isGlobalCompare ? undefined : byId.get(compareTo)
-    const scopeGroupIds = compareAnc?.path
-      ? allGroups.filter((g) => inSubtree(g.path, compareAnc.path!)).map((g) => g.id)
+    const scopeGroupIds = compareAnc
+      ? descendantIds(allGroups, compareAnc.id)
       : entitySubtreeGroupIds
 
     const scopeSchools = await subtreeSchools(svc, scopeGroupIds)

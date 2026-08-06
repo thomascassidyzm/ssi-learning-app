@@ -197,6 +197,38 @@ principle PersonalLinksAreTheLogin:
     router lands on the role surface. Revocation = is_active; expiry and
     max_uses respected; revoked links fail friendly.
 
+  uses_are_signins_not_redemptions: |
+    Field report 2026-08-06: the ways-in ledger read "USES 0 · ACTIVE" beside
+    a personal link whose recipient was already a member and had practised.
+    Diagnosed live and CONFIRMED STRUCTURAL, not a lost write:
+    invite_codes.use_count is incremented in exactly one place,
+    api/code/redeem.ts — and the personal flow above never calls it
+    (handlePersonalSignIn -> possession-redeem -> router, full stop;
+    possession-redeem's header states it never touches use_count, and that
+    is correct behaviour, not a bug). A personal link's use_count is
+    therefore frozen at 0 for life. Live corroboration: 27/27 personal
+    invite rows at use_count 0, while 37 shareable rows carry real non-zero
+    counts — counting works, it simply does not apply to species 1.
+    The clicks were never lost: possession-redeem audit-logs each successful
+    personal sign-in to possession_mint_attempts (outcome 'personal_signin',
+    invite_code_id + auth_user_id + created_at). The reported link had TWO.
+    FIX (api/_utils/personalLinkUses.ts, wired into the subtree GET branch of
+    api/groups/:id/invites): the ledger payload's `uses` carries a
+    discriminator — shareable rows keep {kind:'redemption', count: use_count}
+    unchanged; personal rows report {kind:'signin', count, lastAt} folded from
+    that audit log in ONE batched query. No schema change, no second counter,
+    no backfill — history already present, so every personal link is right
+    retroactively. WaysInLedger renders a signin count of 0 as "Not yet"
+    (a bare 0 read as "this link is broken"), with the last visit in the
+    cell title. `status` deliberately still keys 'exhausted' off use_count,
+    because that is what every server gate tests — so a personal link never
+    claims to be exhausted, which is true, because it never can be.
+    NOT DONE, same root cause, deliberately out of scope: the ssi_admin
+    audit desk (api/admin/invites -> UnifiedInviteList.vue) still renders the
+    raw useCount, so personal rows read "0 / ∞" there. Also unenforceable by
+    construction: max_uses set on a personal link, since the gate compares it
+    against a use_count that never moves.
+
 principle IdentityCaptureNotGhosts:
   statement: "Species 2 (OPEN shareable links): ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
 

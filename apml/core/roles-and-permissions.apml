@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.3.0"
-  date: "2026-07-28"
+  version: "1.4.1"
+  date: "2026-08-06"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -175,6 +175,92 @@ role govt_admin:
         region_code: "text (e.g., 'wales', 'brittany', 'basque')"
         organization_name: "text"
         verified_at: "timestamptz"
+      # AUTHZ ONLY. govt_admins answers "may this caller act here?" and is read
+      # by groupTreeAuth and nothing else. Every people count and people list in
+      # the org UI reads user_tags — so a leader recorded ONLY here governs a
+      # group they are not a member of, and the org page names no manager at all
+      # (live defect, 2026-08-06).
+      membership_twin:
+        table: "user_tags"
+        row: "tag_type 'group', tag_value 'GROUP:<id>', role_in_context 'admin'"
+        why: |
+          Founder ruling (Tom, 2026-08-06): the CREATOR of a group/org
+          automatically becomes its first MANAGER (group leader). Written at
+          creation by api/_utils/groupLeaderTag.ensureGroupLeaderTag, wired into
+          createRootOrgAndLeader (root orgs, /orgs signup) and POST /api/groups
+          (sub-groups). ssi_admins are exempt — they create groups they do not lead.
+        role_value: |
+          'admin', not 'leader': the live check constraint
+          user_tags_role_in_context_check admits exactly admin|teacher|student.
+          A SCHOOL: tag with role 'admin' already means "administers this school",
+          so a GROUP: tag with role 'admin' means "administers this group". NOT
+          'teacher' — that lands the leader in teacherCount. Grants nothing:
+          every reader of role 'admin' filters tag_type='school' first.
+        reads: |
+          groupLeaderTag.leadersForNodes UNIONS govt_admins with the tag, so orgs
+          created before the ruling still name their leader without a backfill.
+          Surfaced as `leaders` on GET /api/groups/:id/home, rendered "Led by …"
+          on the node home (and "No group leader yet" on a leaderless root —
+          absence must be loud, not silent).
+
+      # DUPLICATE-NAME WARNING at creation AND rename (2026-08-06). Deborah made two orgs
+      # both called "Deborah Testing" and nothing told her — both slugged to
+      # `deborah-testing`, which is what let a path-string subtree match count
+      # each org's people into the other's rollup.
+      duplicate_name_warning:
+        rule: |
+          A create OR RENAME whose name slugs onto an EXISTING SIBLING's slug
+          answers 409 { code: 'duplicate_name', duplicates: [...] } and writes
+          nothing.
+          The same request re-sent with confirm_duplicate: true skips the check
+          and proceeds byte-identically to before. WARNING, never a constraint:
+          no unique index, no forced rename, no auto-suggested name. Two orgs
+          may genuinely share a name once a human has said so.
+        comparison: |
+          On the SLUG, not the raw name — api/_utils/groupSlug.groupSlug mirrors
+          compute_group_path()'s one lossy line
+          LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'))
+          so "deborah testing" and "Deborah-Testing" collide where a
+          name-equality check would miss them. Unit-tested against those
+          variants so it cannot drift from the trigger.
+        scope: |
+          SAME PARENT ONLY. Root org vs other root orgs; sub-group vs the other
+          children of its own parent. A "Year 7" in two different schools is NOT
+          a collision and must not warn — a warning that fires on legitimate
+          structure gets ignored within a week.
+        redaction: |
+          A root collision is with ANOTHER TENANT's org: a non-admin creator
+          gets back only the name and created_at. ssi_admins, and sub-group
+          collisions inside the caller's own already-validated subtree, get the
+          full row (id, path).
+        fails_open: |
+          Any error in the duplicate lookup means NO WARNING, never a failed
+          creation or rename. A warning is a nicety; a blocked signup is a lost
+          customer. On the rename path this covers TWO reads — the sibling
+          lookup and the row's own name/parent read; either failing skips the
+          warning and lets the write proceed.
+        rename_specifics: |
+          PATCH /api/groups/:id runs the check after authorization and after the
+          re-parent cycle checks, before the update — a warned rename writes
+          nothing. Two things creation didn't have to do:
+            · EXCLUDE THE ROW ITSELF (id !== the patched group), so renaming
+              "Deborah Testing" to "deborah-testing" on the same row is silent.
+            · Compare against the EFFECTIVE name and parent AFTER the patch —
+              the supplied value where the request carries one, the row's own
+              current value otherwise. So a pure re-parent (ssi_admin only) that
+              lands a group beside a same-named sibling warns too.
+        covered_paths: |
+          POST /api/groups (both the self-serve root lane and the admin/leader
+          lane), POST /api/onboarding/provision's 'org' track (the /orgs signup
+          door), and PATCH /api/groups/:id (rename — ssi_admin and leader
+          lanes alike). Client: AdminStructure "+ Add organisation" and its
+          row rename, NodeActionBar "Add a group" and its Rename verb,
+          Onboarding's org door — all via
+          utils/duplicateNameWarning.readDuplicateWarning, which distinguishes
+          this 409 from the "one organisation per leader for now" 409 on the
+          `code`, never the status. Every confirm parameter is passed with
+          explicit parens at the call site: a bare @keyup.enter handler would
+          hand it the KeyboardEvent, which is truthy, and confirm silently.
 
 role school_admin:
   name: "School Administrator"

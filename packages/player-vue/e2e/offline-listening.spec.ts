@@ -51,9 +51,10 @@ test('Listening overlay offline: definite state, no spinner-forever, no raw Type
   // Airplane mode.
   await context.setOffline(true)
 
-  // Open the mode tray → Listening.
-  await trigger.click()
-  const listeningRow = page.locator('.tray-item', { hasText: /listening/i }).first()
+  // Enter listening mode from Settings → Tools (its only entry point since
+  // 2026-08-06 — the mode tray no longer offers it).
+  await page.locator('.bottom-nav button[title="Settings"]').click()
+  const listeningRow = page.locator('.setting-row.clickable', { hasText: /listening mode/i }).first()
   await expect(listeningRow).toBeVisible({ timeout: 10_000 })
   await listeningRow.click()
 

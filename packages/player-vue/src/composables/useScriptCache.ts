@@ -20,7 +20,12 @@ import { refreshListeningMetaIfStale } from './listeningMetaCache'
 // cold offline reopen — no cached script to play). IndexedDB has GBs of room.
 // Bump SCRIPT_VERSION to invalidate — it's part of the key, so old entries
 // orphan and regenerate. This is the ONLY invalidation (no TTL).
-const SCRIPT_VERSION = 'v9' // v9: carry display_tiling (authored {n,r,salient} tiles) on phrase items
+// v10: script items now carry per-clip versioned audio refs (`<uuid>.v<N>`).
+// Every v9 entry was written by a walk that emitted bare uuids, so a revised
+// clip in it resolves to the pre-repair bytes in both downstream caches — and
+// the audio_stamp drop lane below could not heal that, because the regenerated
+// walk emitted bare uuids too. Orphaning v9 once is what retires those.
+const SCRIPT_VERSION = 'v10' // v10: audio refs carry their revision suffix
 const SCRIPT_DB_NAME = 'ssi-script-cache'
 const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'

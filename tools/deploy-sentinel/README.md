@@ -11,9 +11,14 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    blocked or failed the build — alerted DISTINCTLY as "deploy never went live",
    not "app broken". A later recovery posts a note to the done board.
 2. **Telemetry volume** — `player_events` where `env='production'`, window-so-far
-   vs the same clock window over the 4 prior weeks (median). Crater = < 35% of
-   baseline median, only judged after ≥ 60 min of window and only when the
-   baseline median ≥ 50 events (no 3am false alarms on tiny numbers).
+   vs the same clock window over the 4 prior weeks. The reference is the
+   **second-smallest** baseline week (NOT the median — late-night windows vary
+   wildly week to week; a real 2026-08-01 false alarm had prior Fridays
+   [0, 3, 177, 688] where the median cried crater while half the weeks were just
+   as quiet). Crater = < 35% of that reference, only judged after ≥ 60 min of
+   window and only when the reference ≥ 50 events (no 3am false alarms on tiny
+   numbers). The tagged `sentinel_synthetic_probe` event type is excluded from
+   counts.
    **Requires a Supabase service-role key** — from `SUPABASE_SERVICE_ROLE_KEY` in
    the environment or a `~/.ssi-sentinel.env` file (`SUPABASE_SERVICE_ROLE_KEY=…`).
    No key on the VM → the leg reports "inactive" honestly in the all-clear.
@@ -21,6 +26,19 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    `/api/courses/available`, `/api/audio/<known-good id>`, and an OPTIONS on
    `/api/player-events` (no fake events are ever written). A probe alerts after
    2 consecutive failing ticks.
+4. **Live play-through** — a real headless-browser session
+   (`packages/player-vue/e2e/deploy-sentinel-play-probe.mjs`) loads production,
+   starts the player, and verifies zero JS errors + the client's telemetry POST
+   returns 2xx. Runs once per window (~25 min after deploy-live) and again as
+   the confirm/refute step whenever the volume check says crater — volume alone
+   false-alarmed twice (2026-08-01 quiet Friday midnight; 2026-08-06 school
+   learners finishing before lunch), because with a handful of concurrent users
+   the volume signal is statistically meaningless at most hours. A passing
+   play-through demotes a crater to a note; a failing one alerts loudly.
+   Needs the playwright chromium under `~/.cache/ms-playwright` plus the
+   nspr/nss libs in `~/.ssi-sentinel-libs` (extracted from the Ubuntu debs —
+   no root needed); without them the leg reports unavailable and volume alerts
+   stand un-gated.
 
 ## Outcome routing
 

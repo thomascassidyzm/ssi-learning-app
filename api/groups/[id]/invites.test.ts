@@ -39,9 +39,10 @@ vi.mock('../../_utils/sendInviteEmail', () => ({
 }))
 
 let govtAdminRow: any
-// Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
-// sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
+// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
+// group-2 is a real sub-group of group-1; group-3 is unrelated.
 let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+const GROUP_PARENTS: Record<string, string | null> = { 'group-1': null, 'group-2': 'group-1', 'group-3': null }
 let existingCodes: Set<string> = new Set()
 let insertedRows: any[] = []
 let insertError: any = null
@@ -104,7 +105,15 @@ function makeChainable(table: string) {
         updatedRows.push([table, updatePatch, eqFilters.slice()])
         return resolve({ data: null, error: null })
       }
-      if (table === 'groups') return resolve({ data: subtreeGroupRows, error: null })
+      if (table === 'groups') {
+        // The unfiltered forest read behind descendantIds, unioned with
+        // whatever the GET-lens fixture wants listed.
+        const byId = new Map<string, any>(
+          Object.entries(GROUP_PARENTS).map(([id, parent_id]) => [id, { id, parent_id }]),
+        )
+        for (const r of subtreeGroupRows) byId.set(r.id, { ...(byId.get(r.id) || {}), ...r })
+        return resolve({ data: [...byId.values()], error: null })
+      }
       if (table === 'schools') return resolve({ data: schoolsRows, error: null })
       if (table === 'classes') return resolve({ data: classesRows, error: null })
       if (table === 'learners') return resolve({ data: [], error: null })

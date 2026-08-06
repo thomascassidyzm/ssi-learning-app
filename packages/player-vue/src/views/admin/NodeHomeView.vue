@@ -241,6 +241,9 @@ const labelWord = computed(() => {
 // leads (founder ruling: play-as-class is the only metric that matters in a
 // school — individual accounts are the bonus). Student practice hours stay
 // available per-student / per-school below and in THE LENS. ───
+// A root within the caller's own scope — the level where a missing group
+// leader is a real gap worth naming, rather than normal for a child node.
+const isRootNode = computed(() => !(home.value?.ancestors?.length))
 const classPractice = computed(() => home.value?.classPractice ?? null)
 const stats = computed(() => {
   const n = home.value?.node
@@ -472,6 +475,25 @@ const listPayload = computed(() => {
                   </template>
                 </template>
               </p>
+              <!-- WHO LEADS THIS GROUP. Until 2026-08-06 a node named its
+                   leader nowhere: leadership lived only in govt_admins, which
+                   no lens reads, so the creator of an org governed a group
+                   that showed no manager at all. When there is genuinely no
+                   leader on a root, SAY SO rather than rendering nothing —
+                   an absent line and an absent leader looked identical. -->
+              <p v-else-if="!isClass && home.leaders?.length" class="identity-teachers">
+                <template v-if="switching">{{ NBSP }}</template>
+                <template v-else>
+                  Led by
+                  <template v-for="(l, i) in home.leaders" :key="l.user_id">
+                    <strong>{{ l.name }}</strong><span v-if="i < home.leaders.length - 1">, </span>
+                  </template>
+                </template>
+              </p>
+              <p v-else-if="!isClass && isRootNode" class="identity-teachers identity-noleader">
+                <template v-if="switching">{{ NBSP }}</template>
+                <template v-else>No group leader yet</template>
+              </p>
             </div>
 
             <!-- Lens/insight nav — same corner, every level -->
@@ -681,6 +703,7 @@ const listPayload = computed(() => {
 .tone-amber { background: rgba(var(--tone-amber, 194 132 58), 0.12); color: rgb(var(--tone-amber-ink, 154 96 24)); }
 .tone-grey { background: rgba(44, 38, 34, 0.07); color: var(--schools-fg-2, #555); }
 .identity-teachers { margin: 8px 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.identity-noleader { font-style: italic; }
 .lead-tag { color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); }
 
 .verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }

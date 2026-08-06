@@ -2,7 +2,8 @@
 // WaysInLedger — the LINK LEDGER (founder scope-add 2026-07-20): every link
 // minted anywhere in this node's SUBTREE, in one place. Each row: where
 // (node/school/class), role + species (personal = someone's login; shareable
-// = open), the link, uses n/max, status, created when/by — and the verbs:
+// = open), the link, uses (joins for a shareable code; visits, or "Not yet",
+// for a personal link — see the `uses` field below), status, created when/by — and the verbs:
 // copy, revoke (undo = put back), re-mint (personal: rotates the code, same
 // account). Filterable by role and by node like the children-list chips.
 // Plain words only — "Ways in", never token/species jargon on screen.
@@ -18,7 +19,15 @@ interface LedgerLink {
   code: string
   url: string
   where: { nodeId: string | null; name: string; kind: 'group' | 'school' | 'class' }
-  uses: { count: number; max: number | null }
+  /**
+   * Two different kinds of number, deliberately labelled apart (2026-08-06):
+   * 'redemption' = people who joined through a shareable code (invite_codes
+   * .use_count). 'signin' = times the bound person opened their personal
+   * link, derived from the possession_mint_attempts audit log — a personal
+   * link's use_count is structurally frozen at 0, so it used to print a
+   * confident "0" beside someone who had already signed in and practised.
+   */
+  uses: { count: number; max: number | null; kind: 'redemption' | 'signin'; lastAt: string | null }
   status: 'active' | 'revoked' | 'expired' | 'exhausted'
   createdAt: string
   createdBy: string | null
@@ -88,6 +97,29 @@ const visible = computed(() => links.value.filter((l) =>
 function when(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+
+// ─── The Uses cell ───
+// A shareable code counts JOINS, and its cap means something, so it keeps the
+// familiar "n / max". A personal link counts the one bound person's VISITS and
+// is repeatable by design, so a cap is meaningless there — show the plain
+// number, and say "Not yet" rather than a bare "0", which read as "this link
+// isn't working" when in fact it just hadn't been opened.
+function usesText(l: LedgerLink): string {
+  if (l.uses.kind === 'signin') return l.uses.count === 0 ? 'Not yet' : String(l.uses.count)
+  return `${l.uses.count}${l.uses.max ? ` / ${l.uses.max}` : ''}`
+}
+
+function usesTitle(l: LedgerLink): string {
+  if (l.uses.kind !== 'signin') {
+    return `${l.uses.count} ${l.uses.count === 1 ? 'person has' : 'people have'} joined with this link`
+  }
+  const who = l.personalName || 'They'
+  if (l.uses.count === 0) return `${who} hasn't opened this link yet`
+  const times = l.uses.count === 1 ? 'once' : `${l.uses.count} times`
+  return l.uses.lastAt
+    ? `${who} has signed in with this link ${times} — last on ${when(l.uses.lastAt)}`
+    : `${who} has signed in with this link ${times}`
 }
 
 // ─── Verbs ───
@@ -186,7 +218,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
           </td>
           <td>{{ l.where.name }}</td>
           <td class="mono">{{ l.code }}</td>
-          <td class="num frost-mono-nums">{{ l.uses.count }}{{ l.uses.max ? ` / ${l.uses.max}` : '' }}</td>
+          <td class="num frost-mono-nums" :class="{ 'is-not-yet': l.uses.kind === 'signin' && l.uses.count === 0 }" :title="usesTitle(l)">{{ usesText(l) }}</td>
           <td><span class="status-pill" :class="`is-${l.status}`">{{ l.status }}</span></td>
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
@@ -230,6 +262,9 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 .ways-in-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid rgba(44, 38, 34, 0.06); vertical-align: top; }
 .ways-in-table tr.is-dead td { opacity: 0.55; }
 .ways-in-table .num { text-align: right; }
+/* "Not yet" is a state, not a quantity — quieten it so the eye reads the real
+   counts first and never mistakes it for a suspicious zero. */
+.ways-in-table .num.is-not-yet { color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); white-space: nowrap; }
 .ways-in-table .mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .ways-in-table .muted { color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); white-space: nowrap; }
 

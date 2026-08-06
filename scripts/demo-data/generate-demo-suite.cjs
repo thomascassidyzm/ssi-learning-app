@@ -34,6 +34,14 @@
  *    options, so the shapes are calibrated against those defaults. The shapes
  *    are the CANONICAL, TESTED makeLatencySeries from @ssi/core
  *    (packages/core/src/learning/syntheticSeries.ts), not magic numbers here.
+ *  - VAD COVERAGE (added 2026-08-06, founder ruling): only ~50% of learners
+ *    carry VAD data — "not everyone in a class will end up getting their own
+ *    account". Per-class uptake is drawn in 40-60% and flipped per learner, so
+ *    it reads like a real roster rather than every-other. VAD learners get
+ *    learner_lego_metrics rows AND cycle_prosody events (real envelope
+ *    extractor, @ssi/core extractEnvelopeMetadata); the rest get NO row at all
+ *    in those tables — no zeros, no empty-but-present rows — which is exactly
+ *    how a real no-mic learner presents and exercises the UI's empty states.
  *
  * BUILD DEPENDENCY (telemetry step): this script requires the built @ssi/core
  * CJS dist, so run `pnpm --filter @ssi/core build` before generating. (There is
@@ -77,35 +85,15 @@ const pick=a=>a[Math.floor(rnd()*a.length)]
 const between=(lo,hi)=>lo+Math.floor(rnd()*(hi-lo+1))
 const uuid=()=>{const h='0123456789abcdef';let s='';for(let i=0;i<36;i++){if(i===8||i===13||i===18||i===23)s+='-';else if(i===14)s+='4';else if(i===19)s+=h[8+Math.floor(rnd()*4)];else s+=h[Math.floor(rnd()*16)]}return s}
 
-// ---------- difficulty telemetry (curvature-engine demo fuel) ----------
-// The series SHAPES are NOT defined here any more — they are the canonical,
-// TESTED calibration in @ssi/core (`packages/core/src/learning/syntheticSeries.ts`,
-// guarded by `syntheticSeries.test.ts` which asserts they classify correctly
-// through the REAL sensor under its DEFAULT options). We import `makeLatencySeries`
-// and feed it THIS generator's seeded `rnd` so per-student determinism is
-// preserved. Do NOT re-inline the magic numbers — change them in one place
-// (syntheticSeries.ts) where the regression test will keep them honest.
+// ---------- telemetry payloads (difficulty series + VAD prosody) ----------
+// SHARED (2026-08-06) with the IME top-up script — one definition of what a
+// demo learner's telemetry looks like lives in ./demoTelemetry.cjs. The helpers
+// are built off THIS generator's seeded `rnd`, so per-student determinism and
+// draw ordering are exactly as before the extraction.
 //
 // REQUIRES @ssi/core TO BE BUILT FIRST:  pnpm --filter @ssi/core build
-//   (we require the built CJS dist; there is no workspace symlink for @ssi/core
-//    in the repo-root node_modules, so we resolve it by relative path.)
-let makeLatencySeries
-try {
-  ({ makeLatencySeries } = require('../../packages/core/dist/index.js'))
-} catch (e) {
-  console.error('✗ Could not load @ssi/core from packages/core/dist — build it first: pnpm --filter @ssi/core build')
-  throw e
-}
-// Build one normalized-latency series for the given archetype, driven by the
-// generator's seeded PRNG (so suites stay reproducible).
-const difficultySeries = archetype => makeLatencySeries(archetype, { rng: rnd })
-const MASTERY_BY_ARCHETYPE = {
-  struggling: ['acquisition','consolidating'],
-  easing:     ['consolidating','confident'],
-  steady:     ['confident','mastered'],
-}
-const DEVICE_CLASS = ['class_play','homework']  // demo schools = class-led + homework
-const DEVICE_TYPE  = ['mobile','tablet','desktop']
+const { createDemoTelemetry, MASTERY_BY_ARCHETYPE, DEVICE_CLASS, DEVICE_TYPE } = require('./demoTelemetry.cjs')
+const { classVadRate, difficultySeries, prosodyPayload } = createDemoTelemetry(rnd)
 
 // ---------- scenarios ----------
 const IRISH_FIRST=['Aoife','Cian','Saoirse','Oisín','Niamh','Fionn','Caoimhe','Darragh','Róisín','Tadhg','Clodagh','Eoin','Aisling','Cathal','Méabh','Rónán','Sadhbh','Donncha','Laoise','Páidí','Gráinne','Lorcán','Bláthnaid','Séamus','Éabha','Colm']
@@ -178,9 +166,14 @@ async function ensureAuthUser(email){
   if(!u) throw new Error(`auth user neither created nor found: ${email} (${cu.status})`)
   return u.id
 }
+// SCOPED (2026-08-06): only THIS suite's scenario personas. It used to match every
+// '+demo.' address, which also deleted the IME programme's login personas
+// ('+demo.ime.*', '+demo.ime.metro.*') that generate-ime-demo.cjs owns and
+// documents as safe from this script.
 async function deleteDemoAuthUsers(){
+  const prefixes=SCENARIOS.map(s=>`+demo.${s.key}.`)
   const ls=await authReq('GET','/auth/v1/admin/users?page=1&per_page=1000')
-  const demos=(ls.body?.users||[]).filter(u=>u.email&&u.email.includes('+demo.'))
+  const demos=(ls.body?.users||[]).filter(u=>u.email&&prefixes.some(p=>u.email.includes(p)))
   for(const u of demos) await authReq('DELETE',`/auth/v1/admin/users/${u.id}`)
   return demos.length
 }
@@ -201,30 +194,63 @@ async function deleteDemoAuthUsers(){
   const TELEMETRY=colChk.rowCount>0
   if(!TELEMETRY) console.warn('⚠ telemetry schema absent (learner_lego_metrics.recent_latency_samples) — apply migrations 20260613_*/20260614_* to get difficulty curves. Skipping telemetry generation; rest of suite proceeds.')
 
-  // ---- RESET: wipe every trace of is_demo data, then demo auth users ----
-  console.log('— RESET is_demo data —')
+  // ---- RESET: wipe this suite's OWN scenarios, then its own demo auth users ----
+  // SCOPED (2026-08-06), was a blanket `where is_demo`. The blanket form predated
+  // the sibling demo worlds that now also carry is_demo — the IME Demo Programme
+  // (generate-ime-demo.cjs), Coastal (generate-coastal-region.cjs) and Metro
+  // (enrich-ime-world.cjs) trees, plus the org/workplace demo nodes. Those have
+  // their own scoped generators and this script cannot rebuild them, so a blanket
+  // reset here destroyed data it could not restore. It also FK-failed outright
+  // once govt_admins started pointing at demo groups. Scope = exactly what this
+  // script creates: the three scenario schools (by name), their group, their
+  // classes/learners, and its own 'demo-suite'-tagged rows.
+  console.log('— RESET this suite\'s demo scenarios —')
+  const SCENARIO_SCHOOL_NAMES=SCENARIOS.map(s=>s.school.name)
+  const SCENARIO_GROUP_NAMES=SCENARIOS.filter(s=>s.group).map(s=>s.group.name)
   await q('begin')
+  const schoolIds=(await q(`select id, admin_user_id from public.schools where is_demo and school_name = any($1::text[])`,[SCENARIO_SCHOOL_NAMES])).rows
+  const sIds=schoolIds.map(r=>r.id)
+  const classRows=sIds.length?(await q(`select id, teacher_user_id from public.classes where school_id = any($1::uuid[])`,[sIds])).rows:[]
+  const cIds=classRows.map(r=>r.id)
+  const groupIds=(await q(`select id from public.groups where is_demo and name = any($1::text[])`,[SCENARIO_GROUP_NAMES])).rows.map(r=>r.id)
+  // learner identities in scope: scenario staff (school admin + class teachers)
+  // plus students, which are exactly this script's own 'demo-suite' class tags.
+  const staffUids=[...new Set([...schoolIds.map(r=>r.admin_user_id),...classRows.map(r=>r.teacher_user_id)].filter(Boolean))]
+  const studentUids=cIds.length?(await q(
+    `select user_id from public.user_tags where added_by='demo-suite' and tag_type='class' and tag_value = any($1::text[])`,
+    [cIds.map(id=>`CLASS:${id}`)])).rows.map(r=>r.user_id):[]
+  const ownUids=[...new Set([...staffUids,...studentUids])]
+  const ownLearnerIds=ownUids.length?(await q(`select id from public.learners where is_demo and user_id = any($1::text[])`,[ownUids])).rows.map(r=>r.id):[]
+
   const r1=await q(`delete from public.user_tags where added_by='demo-suite'`)
   // telemetry first: player_events keys on the learner PK (NOT auth uid — see CLAUDE.md);
   // learner_lego_metrics cascades when learners go, but we delete explicitly for clarity.
   let rPE={rowCount:0}, rLLM={rowCount:0}
-  if(TELEMETRY){
-    rPE =await q(`delete from public.player_events where user_id in (select id from public.learners where is_demo)`)
-    rLLM=await q(`delete from public.learner_lego_metrics where learner_id in (select id from public.learners where is_demo)`)
+  if(TELEMETRY && ownLearnerIds.length){
+    rPE =await q(`delete from public.player_events where user_id = any($1::uuid[])`,[ownLearnerIds])
+    rLLM=await q(`delete from public.learner_lego_metrics where learner_id = any($1::uuid[])`,[ownLearnerIds])
   }
-  const r2=await q(`delete from public.classes where school_id in (select id from public.schools where is_demo)`)
-  const r3=await q(`delete from public.schools where is_demo`)
-  const r4=await q(`delete from public.groups where is_demo`)
-  const r5=await q(`delete from public.learners where is_demo`)
+  // invite_codes point at classes/schools by FK — clear them before their targets.
+  if(cIds.length) await q(`delete from public.invite_codes where grants_class_id = any($1::uuid[])`,[cIds])
+  if(sIds.length) await q(`delete from public.invite_codes where grants_school_id = any($1::uuid[])`,[sIds])
+  if(groupIds.length) await q(`delete from public.invite_codes where grants_group_id = any($1::uuid[])`,[groupIds])
+  const r2=cIds.length?await q(`delete from public.classes where id = any($1::uuid[])`,[cIds]):{rowCount:0}
+  // The schools and groups rows themselves SURVIVE and are reused below. They are
+  // durable ORG IDENTITY, not per-run content: the group tree hangs off them
+  // (groups.parent_id, schools.node_group_id — the school-node rows created by the
+  // org-hierarchy work), govt_admins point at them, and this script knows nothing
+  // about node linkage, so deleting them destroyed a tree it could not rebuild
+  // (and FK-failed on both groups_parent_id_fkey and govt_admins_group_id_fkey).
+  const r5=ownLearnerIds.length?await q(`delete from public.learners where id = any($1::uuid[])`,[ownLearnerIds]):{rowCount:0}
   await q('commit')
   const nAuth=await deleteDemoAuthUsers()
-  console.log(`  tags:${r1.rowCount} playerEvents:${rPE.rowCount} legoMetrics:${rLLM.rowCount} classes:${r2.rowCount} schools:${r3.rowCount} groups:${r4.rowCount} learners:${r5.rowCount} authUsers:${nAuth}`)
+  console.log(`  tags:${r1.rowCount} playerEvents:${rPE.rowCount} legoMetrics:${rLLM.rowCount} classes:${r2.rowCount} learners:${r5.rowCount} (schools/groups reused: ${sIds.length}/${groupIds.length}) authUsers:${nAuth}`)
   if(resetOnly){ await db.end(); console.log('reset-only done'); return }
 
   const creds=[`# SSi demo suite credentials — generated ${new Date().toISOString().slice(0,10)}`,
                `Password for ALL staff (API/password login): ${STAFF_PASSWORD}`,
                `App login: email OTP — codes arrive at ${EMAIL_BASE}@gmail.com via + addressing.`,'']
-  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0,legoMetrics:0,playerEvents:0,struggling:0,easing:0,steady:0}
+  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0,legoMetrics:0,playerEvents:0,struggling:0,easing:0,steady:0,vadLearners:0,noVadLearners:0,prosodyEvents:0}
 
   for(const sc of SCENARIOS){
     console.log(`\n— SCENARIO: ${sc.key} (${sc.courseCode}) —`)
@@ -245,18 +271,36 @@ async function deleteDemoAuthUsers(){
     for(let i=0;i<teacherUids.length;i++)
       await q(`update public.learners set display_name=$1, educational_role='teacher', is_demo=true where user_id=$2`,[sc.teachers[i].name,teacherUids[i]])
 
-    // org
+    // org — REUSE the surviving group/school rows (see the reset note): they carry
+    // org identity the reset deliberately preserves, so re-inserting would both
+    // stack duplicates and orphan the node tree that points at the old ids.
     let groupId=null
     if(sc.group){
-      groupId=uuid()
-      // name_confirmed=true: a deliberately-chosen demo name, not a leader's
-      // placeholder guess — see generate-ime-demo.cjs for the same fix.
-      await q(`insert into public.groups (id, name, is_demo, is_test, name_confirmed) values ($1,$2,true,true,true)`,[groupId,sc.group.name])
+      const ex=await q(`select id from public.groups where is_demo and name=$1 limit 1`,[sc.group.name])
+      if(ex.rowCount){ groupId=ex.rows[0].id }
+      else {
+        groupId=uuid()
+        // name_confirmed=true: a deliberately-chosen demo name, not a leader's
+        // placeholder guess — see generate-ime-demo.cjs for the same fix.
+        await q(`insert into public.groups (id, name, is_demo, is_test, name_confirmed) values ($1,$2,true,true,true)`,[groupId,sc.group.name])
+      }
     }
-    const schoolId=uuid()
-    await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
-             values ($1,$2,$3,$4,$5,$6,$7,true,true)`,
-      [schoolId, sc.school.name, adminUid, sc.school.region, `DEMO-${sc.key.toUpperCase().slice(0,2)}-T`, `DEMO-${sc.key.toUpperCase().slice(0,2)}-A`, groupId])
+    const tCode=`DEMO-${sc.key.toUpperCase().slice(0,2)}-T`, aCode=`DEMO-${sc.key.toUpperCase().slice(0,2)}-A`
+    const exS=await q(`select id from public.schools where is_demo and school_name=$1 limit 1`,[sc.school.name])
+    let schoolId
+    if(exS.rowCount){
+      schoolId=exS.rows[0].id
+      // staff auth users are recreated each run, so the admin_user_id must be
+      // repointed; group_id is coalesced so an existing region link is kept.
+      await q(`update public.schools set admin_user_id=$2, region_code=$3, teacher_join_code=$4, admin_join_code=$5,
+               group_id=coalesce(group_id,$6), is_demo=true, is_test=true where id=$1`,
+        [schoolId, adminUid, sc.school.region, tCode, aCode, groupId])
+    } else {
+      schoolId=uuid()
+      await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
+               values ($1,$2,$3,$4,$5,$6,$7,true,true)`,
+        [schoolId, sc.school.name, adminUid, sc.school.region, tCode, aCode, groupId])
+    }
     await q(`insert into public.user_tags (user_id, tag_type, tag_value, role_in_context, added_by) values ($1,'school',$2,'admin','demo-suite')`,
       [adminUid,`SCHOOL:${schoolId}`])
     for(const t of teacherUids)
@@ -288,6 +332,10 @@ async function deleteDemoAuthUsers(){
         [`DEMO-${sc.key.toUpperCase().slice(0,2)}-${ci+3}`,adminUid,classId],
       )
 
+      // This class's own VAD uptake rate (see VAD_RATE_RANGE) — drawn once
+      // per class, flipped per learner below.
+      const vadRate=classVadRate()
+
       // class-play history: teacher-led sessions over the past month
       const nCs=between(6,14)
       for(let k=0;k<nCs;k++){
@@ -305,6 +353,11 @@ async function deleteDemoAuthUsers(){
         const lid=uuid(), suid=uuid()
         const stage=studentStage(cls.classSeed)
         const lastPracticed=new Date(now-stage.recencyDays*DAY-between(0,8)*3600000)
+        // Did this learner ever get their own account/mic? Drives ALL
+        // VAD-fed data below; false means the VAD tables simply have no row
+        // for them, which is how a real no-VAD learner presents.
+        const hasVad=rnd()<vadRate
+        if(hasVad)totals.vadLearners++; else totals.noVadLearners++
         await q(`insert into public.learners (id, user_id, display_name, educational_role, is_demo, created_at)
                  values ($1,$2,$3,'student',true,$4)`,
           [lid,suid,name,new Date(termStart).toISOString()])
@@ -364,53 +417,63 @@ async function deleteDemoAuthUsers(){
         if(TELEMETRY && stage.recencyDays<=28 && legoRows.length>0){
           // the most recent ~6–12 legos this student practiced (highest seeds = newest)
           const recent=legoRows.slice(-between(6,12))
-          // assign this student a primary archetype, drawing down the scenario budget
-          let primary='steady'
-          if(strugglersLeft>0 && rnd()<0.6){ primary='struggling'; strugglersLeft-- }
-          else if(easersLeft>0 && rnd()<0.6){ primary='easing'; easersLeft-- }
-          const llmRows=[]
-          for(let li=0;li<recent.length;li++){
-            const legoId=recent[li][1]
-            // the student's most-recent lego carries the primary signal; the rest
-            // are mostly steady with the odd echo, so each named student reads cleanly.
-            const archetype = li===recent.length-1 ? primary
-              : (primary!=='steady' && rnd()<0.25 ? primary : 'steady')
-            const series=difficultySeries(archetype)
-            const mean=series.reduce((a,b)=>a+b,0)/series.length
-            const ms=pick(MASTERY_BY_ARCHETYPE[archetype])
-            const dclass=pick(DEVICE_CLASS)
-            // last_seen scattered within the student's recent activity (<=30d), per lego
-            const seenMs=Math.min(now-3600000, lastPracticed.getTime()-between(0,4)*DAY-between(0,12)*3600000)
-            const nextDue=new Date(now+between(1,9)*DAY).toISOString()
-            llmRows.push([
-              lid, legoId, sc.courseCode, ms,
-              archetype==='steady'?between(2,5):0,            // consecutive_smooth
-              archetype==='steady'?between(1,4):0,            // consecutive_fast
-              series.length,                                  // n_samples
-              new Date(seenMs).toISOString(),                 // last_seen_at
-              Math.round(mean*100)/100,                       // mean_latency_ms (normalized ms/char)
-              Math.round((archetype==='struggling'?0.45:archetype==='easing'?0.7:0.82)*100)/100, // mean_exec_score
-              archetype==='struggling'?between(1,4):between(0,1), // skip_back_count
-              archetype==='easing'?between(1,3):between(0,1),     // skip_forward_count
-              nextDue,
-              JSON.stringify({[dclass]:series.length}),       // device_class_mix
-              JSON.stringify(series),                         // recent_latency_samples
-            ])
-            if(archetype==='struggling')totals.struggling++; else if(archetype==='easing')totals.easing++; else totals.steady++
+          // VAD-fed tables (learner_lego_metrics) — half the roster only. The
+          // archetype budget is drawn down inside the branch too: a no-VAD
+          // learner can't carry a difficulty archetype (nothing measures one),
+          // so spending a struggling/easing slot on them would silently thin
+          // the board.
+          if(hasVad){
+            // assign this student a primary archetype, drawing down the scenario budget
+            let primary='steady'
+            if(strugglersLeft>0 && rnd()<0.6){ primary='struggling'; strugglersLeft-- }
+            else if(easersLeft>0 && rnd()<0.6){ primary='easing'; easersLeft-- }
+            const llmRows=[]
+            for(let li=0;li<recent.length;li++){
+              const legoId=recent[li][1]
+              // the student's most-recent lego carries the primary signal; the rest
+              // are mostly steady with the odd echo, so each named student reads cleanly.
+              const archetype = li===recent.length-1 ? primary
+                : (primary!=='steady' && rnd()<0.25 ? primary : 'steady')
+              const series=difficultySeries(archetype)
+              const mean=series.reduce((a,b)=>a+b,0)/series.length
+              const ms=pick(MASTERY_BY_ARCHETYPE[archetype])
+              const dclass=pick(DEVICE_CLASS)
+              // last_seen scattered within the student's recent activity (<=30d), per lego
+              const seenMs=Math.min(now-3600000, lastPracticed.getTime()-between(0,4)*DAY-between(0,12)*3600000)
+              const nextDue=new Date(now+between(1,9)*DAY).toISOString()
+              llmRows.push([
+                lid, legoId, sc.courseCode, ms,
+                archetype==='steady'?between(2,5):0,            // consecutive_smooth
+                archetype==='steady'?between(1,4):0,            // consecutive_fast
+                series.length,                                  // n_samples
+                new Date(seenMs).toISOString(),                 // last_seen_at
+                Math.round(mean*100)/100,                       // mean_latency_ms (normalized ms/char)
+                Math.round((archetype==='struggling'?0.45:archetype==='easing'?0.7:0.82)*100)/100, // mean_exec_score
+                archetype==='struggling'?between(1,4):between(0,1), // skip_back_count
+                archetype==='easing'?between(1,3):between(0,1),     // skip_forward_count
+                nextDue,
+                JSON.stringify({[dclass]:series.length}),       // device_class_mix
+                JSON.stringify(series),                         // recent_latency_samples
+              ])
+              if(archetype==='struggling')totals.struggling++; else if(archetype==='easing')totals.easing++; else totals.steady++
+            }
+            for(let i=0;i<llmRows.length;i+=50){
+              const chunk=llmRows.slice(i,i+50)
+              const vals=chunk.map((_,j)=>{const b=j*15;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::jsonb,$${b+15}::jsonb)`}).join(',')
+              await q(`insert into public.learner_lego_metrics
+                       (learner_id, lego_id, course_code, mastery_state, consecutive_smooth, consecutive_fast,
+                        n_samples, last_seen_at, mean_latency_ms, mean_exec_score, skip_back_count, skip_forward_count,
+                        next_due_at, device_class_mix, recent_latency_samples) values ${vals}`,chunk.flat())
+            }
+            totals.legoMetrics+=llmRows.length
           }
-          for(let i=0;i<llmRows.length;i+=50){
-            const chunk=llmRows.slice(i,i+50)
-            const vals=chunk.map((_,j)=>{const b=j*15;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::jsonb,$${b+15}::jsonb)`}).join(',')
-            await q(`insert into public.learner_lego_metrics
-                     (learner_id, lego_id, course_code, mastery_state, consecutive_smooth, consecutive_fast,
-                      n_samples, last_seen_at, mean_latency_ms, mean_exec_score, skip_back_count, skip_forward_count,
-                      next_due_at, device_class_mix, recent_latency_samples) values ${vals}`,chunk.flat())
-          }
-          totals.legoMetrics+=llmRows.length
 
           // bounded player_events: a handful of audio_play + phase_skip + tap_skip
-          // per session window, plus one session_complete. user_id = learner PK.
-          const peRows=[]
+          // per session window, plus one session_complete — these are NOT
+          // VAD-derived (they log for every learner, mic or no mic), so every
+          // student in this block gets them. cycle_prosody, which IS the VAD
+          // corpus, is added per session below for VAD learners only.
+          const peRows=[], prosRows=[]
           for(const w of sessionWindows){
             const sessionId=uuid()
             const dev=pick(DEVICE_TYPE)
@@ -424,8 +487,22 @@ async function deleteDemoAuthUsers(){
             if(rnd()<0.3)
               peRows.push([lid,sc.courseCode,sessionId,'tap_skip',JSON.stringify({legoId:someLego()}),dev,at()])
             peRows.push([lid,sc.courseCode,sessionId,'session_complete',JSON.stringify({cyclesCompleted:between(20,80)}),dev,new Date(w.end).toISOString()])
+            // VAD corpus: one cycle_prosody row per voiced speaking cycle in
+            // the real player, sampled down to a handful per session here so
+            // the demo stays bounded. VAD learners only — absent entirely for
+            // the rest, which is what the no-mic learner really looks like.
+            if(hasVad && prosRows.length<14){
+              const nPros=between(2,5)
+              for(let p=0;p<nPros;p++)
+                prosRows.push([lid,sc.courseCode,sessionId,'cycle_prosody',JSON.stringify(prosodyPayload(someLego())),dev,at()])
+            }
             if(peRows.length>=22) break   // hard cap ~25 events/student to stay bounded
           }
+          // Prosody rows are capped on their own budget, so a VAD learner's
+          // ordinary events aren't crowded out of the 22 and the two halves of
+          // the roster stay comparable on everything except VAD.
+          peRows.push(...prosRows)
+          totals.prosodyEvents+=prosRows.length
           for(let i=0;i<peRows.length;i+=50){
             const chunk=peRows.slice(i,i+50)
             const vals=chunk.map((_,j)=>{const b=j*7;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5}::jsonb,$${b+6},$${b+7})`}).join(',')
@@ -441,12 +518,18 @@ async function deleteDemoAuthUsers(){
   }
   await db.end()
 
+  // ~/Desktop only exists on Tom's Mac; on the Linux boxes the run used to die
+  // here AFTER every DB write had committed. Create the dir rather than fail.
   const credPath=path.join(os.homedir(),'Desktop',`SSi-demo-credentials-${new Date().toISOString().slice(0,10)}.md`)
+  fs.mkdirSync(path.dirname(credPath),{recursive:true})
   fs.writeFileSync(credPath,creds.join('\n'))
   console.log(`\nDONE: ${totals.students} students, ${totals.sessions} sessions, ${totals.seedRows} seed rows, ${totals.legoRows} lego rows, ${totals.classSessions} class sessions`)
-  if(TELEMETRY)
+  if(TELEMETRY){
     console.log(`TELEMETRY: ${totals.legoMetrics} learner_lego_metrics rows (${totals.struggling} struggling / ${totals.easing} easing / ${totals.steady} steady series), ${totals.playerEvents} player_events`)
-  else
+    const vadPct=totals.students?Math.round(100*totals.vadLearners/totals.students):0
+    console.log(`VAD: ${totals.vadLearners}/${totals.students} learners (${vadPct}%) carry VAD data — ${totals.prosodyEvents} cycle_prosody events; ${totals.noVadLearners} learners have NO rows in any VAD-fed table (real empty state)`)
+  } else {
     console.log('TELEMETRY: skipped (recent_latency_samples column absent — apply migrations 20260613_*/20260614_*)')
+  }
   console.log(`credentials -> ${credPath}`)
 })().catch(e=>{ console.error('FATAL:',e.message); process.exit(1) })

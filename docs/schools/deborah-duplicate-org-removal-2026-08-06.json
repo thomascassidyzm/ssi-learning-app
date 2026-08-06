@@ -1,0 +1,96 @@
+{
+  "ruling": "Tom, 2026-08-06: \"Ok cool - remove for Deborah\" — remove the EMPTY duplicate \"Deborah Testing\" org 049679a1, keep b7878832 (05 Aug, holds the learner and the practice). Accepted cost: the +mgr@ account (9358d7a5, \"Deb Test Manager\") loses its leader seat.",
+  "provenance": "docs/schools/deborah-leader-repair-2026-08-06.json (Deborah field-report worker #2)",
+  "runAt": "2026-08-06T11:08:35.390Z",
+  "ranBy": "scripts/remove-duplicate-deborah-org.mts (Claude worker, Kai account)",
+  "removedOrgId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+  "survivingOrgId": "b7878832-ffbb-4190-84cb-8cc5ce62c5bd",
+  "emptinessProof": {
+    "impact": {
+      "groupId": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+      "groupName": "Deborah Testing",
+      "schoolCount": 0,
+      "schoolNames": [],
+      "descendantGroupCount": 0,
+      "descendantGroupNames": [],
+      "orphanedSchoolCount": 0,
+      "orphanedSchoolNames": [],
+      "classCount": 0,
+      "sessionCount": 0,
+      "learnerCount": 0,
+      "teacherCount": 0,
+      "hasRealActivity": false
+    },
+    "descendantGroupIds": [],
+    "demoOrgs": 0
+  },
+  "rows": {
+    "groups": [
+      {
+        "id": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+        "name": "Deborah Testing",
+        "type": "organisation",
+        "parent_id": null,
+        "created_at": "2026-08-06T08:34:22.827395+00:00",
+        "updated_at": "2026-08-06T08:34:22.827395+00:00",
+        "path": "deborah-testing",
+        "is_demo": false,
+        "name_confirmed": false,
+        "is_test": false,
+        "platform_status": "trial",
+        "platform_expires_at": "2026-09-05T08:34:22.797+00:00",
+        "seats": null,
+        "provider_subscription_id": null,
+        "provider_customer_id": null
+      }
+    ],
+    "user_tags": [
+      {
+        "id": "1a081ecc-315e-415a-b2ab-ad10f9c41170",
+        "user_id": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+        "tag_type": "group",
+        "tag_value": "GROUP:049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+        "role_in_context": "admin",
+        "added_by": "ae49953a-924e-4c96-b779-9c0cfd1e46ce",
+        "added_at": "2026-08-06T10:33:35.143724+00:00",
+        "removed_at": null
+      },
+      {
+        "id": "58390b6f-8760-440a-9f34-004382523308",
+        "user_id": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+        "tag_type": "group",
+        "tag_value": "GROUP:049679a1-5e4c-4e08-ad1a-ab0ab66eb678",
+        "role_in_context": "admin",
+        "added_by": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+        "added_at": "2026-08-06T10:33:34.9822+00:00",
+        "removed_at": null
+      }
+    ],
+    "govt_admins": [
+      {
+        "id": "7e1e625d-e53d-4cc8-b0cd-d10ce8a66730",
+        "user_id": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+        "region_code": null,
+        "organization_name": "Deborah Testing",
+        "created_at": "2026-08-06T08:34:22.867229+00:00",
+        "created_by": "9358d7a5-ddb4-467f-81ff-fdd475d3c589",
+        "invite_code_id": null,
+        "group_id": "049679a1-5e4c-4e08-ad1a-ab0ab66eb678"
+      }
+    ],
+    "invite_codes": [],
+    "entitlement_grants": [],
+    "classes": [],
+    "schools_parented": [],
+    "schools_noded": [],
+    "demo_orgs": [],
+    "descendant_groups": []
+  },
+  "restoreProcedure": [
+    "1. INSERT the `groups` row above verbatim (all columns, same id 049679a1-…). The path/slug trigger will recompute `path`; it was \"deborah-testing\", the same slug as the surviving org — that duplication is the original defect, not something to preserve deliberately.",
+    "2. INSERT the `govt_admins` row(s) above verbatim (id 7e1e625d-…, user 9358d7a5-…). This is what restores the +mgr@ account's leader seat and its ownGroupId in resolveGroupTreeCaller.",
+    "3. UN-retire the leader membership tags: update user_tags set removed_at = null where id in ('58390b6f-8760-440a-9f34-004382523308', '1a081ecc-315e-415a-b2ab-ad10f9c41170');  — the rows themselves were never deleted.",
+    "4. There were no invite_codes, entitlement_grants, classes, schools, demo_orgs or descendant groups attached, so nothing else needs re-inserting. If a future run of this script finds any, they are exported above in full and re-insert in this order: invite_codes → schools → classes → entitlement_grants.",
+    "5. Verify with: node --import ./scripts/ts-resolve-hook.mjs scripts/verify-deborah-orgs.mts"
+  ]
+}

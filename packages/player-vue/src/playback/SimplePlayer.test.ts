@@ -78,6 +78,10 @@ describe('SimplePlayer — failure handling', () => {
   beforeEach(() => {
     mockAudio = makeMockAudio()
     vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    // prefetchUrl fires best-effort GETs; with fake timers driven async these
+    // reach happy-dom's real fetch and get aborted at teardown, spraying the
+    // run with AbortError noise. Stub it — prefetchUrl ignores the result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
     vi.useFakeTimers()
   })
 
@@ -86,7 +90,7 @@ describe('SimplePlayer — failure handling', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does NOT emit audio_failed after repeated safety timeouts — ploughs on instead', () => {
+  it('does NOT emit audio_failed after repeated safety timeouts — ploughs on instead', async () => {
     // Learner experience must never stall on a broken UUID / 404 / stall.
     // The old circuit breaker halted after 3 failures; now we log and advance.
     const player = new SimplePlayer([makeRound('S0001L01')])
@@ -95,7 +99,10 @@ describe('SimplePlayer — failure handling', () => {
 
     player.play()
     for (let i = 0; i < 5; i++) {
-      vi.advanceTimersByTime(10_000)
+      // ...ByTimeAsync, not ...ByTime: startPhase awaits resolveUrl, so the
+      // microtask queue must drain between timer fires or playAudio never runs
+      // at all and we'd be measuring a scenario the browser can't produce.
+      await vi.advanceTimersByTimeAsync(10_000)
     }
 
     expect(failedEvents.length).toBe(0)
@@ -415,6 +422,10 @@ describe('SimplePlayer — background-safe pause', () => {
   beforeEach(() => {
     mockAudio = makeMockAudio()
     vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    // prefetchUrl fires best-effort GETs; with fake timers driven async these
+    // reach happy-dom's real fetch and get aborted at teardown, spraying the
+    // run with AbortError noise. Stub it — prefetchUrl ignores the result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
     vi.useFakeTimers()
   })
 
@@ -868,6 +879,10 @@ describe('SimplePlayer — safety timer is a stall detector', () => {
   beforeEach(() => {
     mockAudio = makeTimeMockAudio()
     vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    // prefetchUrl fires best-effort GETs; with fake timers driven async these
+    // reach happy-dom's real fetch and get aborted at teardown, spraying the
+    // run with AbortError noise. Stub it — prefetchUrl ignores the result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
     vi.useFakeTimers()
   })
   afterEach(() => {
@@ -1031,6 +1046,10 @@ describe('SimplePlayer + PlayerConductor — round boundary continues into the n
   beforeEach(() => {
     mockAudio = makeMockAudio()
     vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    // prefetchUrl fires best-effort GETs; with fake timers driven async these
+    // reach happy-dom's real fetch and get aborted at teardown, spraying the
+    // run with AbortError noise. Stub it — prefetchUrl ignores the result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
     vi.useFakeTimers()
   })
 
@@ -1159,5 +1178,160 @@ describe('SimplePlayer + PlayerConductor — round boundary continues into the n
 
     expect(player.currentState.isPlaying).toBe(false)
     expect(conductor.currentState).toEqual({ kind: 'userPaused' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// THE RULING: the player plays what it has. A clip that fails to load, is
+// missing, or is slow is SKIPPED so the session continues — never a stall.
+//
+// Field report (Aran, 2026-08-06, German, item "with you"): playback hard-
+// stopped on one item and would not restart. Skipping BACK reproduced it every
+// time; only skipping FORWARD past it recovered. The server resolved all three
+// clips correctly, so the stall was client-side.
+//
+// The mechanism: startPhase() awaited the resolveAudioUrl override with no
+// timeout and no timer armed anywhere (the stall watchdog only exists once
+// playAudio has been reached). AudioCache.getWavBlobUrl memoises its in-flight
+// decode PER AUDIO ID, so one non-settling decode poisoned exactly one id
+// forever — replaying the item re-awaited the same dead promise (skip BACK
+// re-enters), every other id was untouched (skip FORWARD escapes).
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — never stalls on one item (the ruling)', () => {
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    // prefetchUrl fires best-effort GETs; with fake timers driven async these
+    // reach happy-dom's real fetch and get aborted at teardown, spraying the
+    // run with AbortError noise. Stub it — prefetchUrl ignores the result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 8; i++) await Promise.resolve()
+  }
+
+  const distinctRound = (legoId: string, knownUrl: string): Round => {
+    const r = makeRound(legoId)
+    r.cycles[0].known.audioUrl = knownUrl
+    return r
+  }
+
+  it('a resolveAudioUrl promise that NEVER settles cannot strand the phase — the network URL plays instead', async () => {
+    // The exact stall: the per-cycle resolver (AudioCache.getWavBlobUrl →
+    // mp3→WAV decode) hands back a promise that never settles. Before the fix
+    // startPhase() awaited it with no timeout and no timer armed anywhere, so
+    // the engine sat in 'prompt' with isPlaying true and NOTHING running.
+    const neverSettles = new Promise<string>(() => { /* deliberately never */ })
+    const resolveAudioUrl = vi.fn((url: string) =>
+      url === 'https://example.com/r1-known.mp3' ? neverSettles : Promise.resolve(url),
+    )
+    const rounds = [
+      distinctRound('S0001L01', 'https://example.com/r1-known.mp3'),
+      distinctRound('S0001L02', 'https://example.com/r2-known.mp3'),
+    ]
+    const player = new SimplePlayer(rounds, { resolveAudioUrl })
+
+    player.play()
+    await flush()
+    // The stalled window: phase entered, nothing playable yet.
+    expect(player.currentState.phase).toBe('prompt')
+    expect(mockAudio.src).toBe('')
+
+    // Past the resolve bound the engine gives up on the resolver and plays the
+    // original network URL — always a valid resource.
+    await vi.advanceTimersByTimeAsync(5_000)
+    await flush()
+    expect(mockAudio.src).toBe('https://example.com/r1-known.mp3')
+    expect(player.currentState.isPlaying).toBe(true)
+
+    // And the session keeps moving: no 'ended' ever arrives from this mock
+    // element, so the stall watchdogs carry it through the round and on.
+    for (let i = 0; i < 40 && player.currentState.roundIndex === 0; i++) {
+      await vi.advanceTimersByTimeAsync(5_000)
+      await flush()
+    }
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.isPlaying).toBe(true)
+  })
+
+  it('when EVERY await on the path hangs, the phase watchdog skips the clip and playback continues', async () => {
+    // Backstop test: both pre-play awaits hang (a wedged ensureKnownReady gate
+    // AND a wedged resolver). Nothing can produce a playable URL, so the
+    // phase-start watchdog must fire and advance rather than let the session
+    // die on this one item — the ruling, enforced structurally.
+    const never = <T,>() => new Promise<T>(() => { /* deliberately never */ })
+    const player = new SimplePlayer(
+      [distinctRound('S0001L01', 'https://example.com/r1-known.mp3')],
+      { ensureKnownReady: () => never<void>(), resolveAudioUrl: () => never<string>() },
+    )
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    expect(mockAudio.src).toBe('')
+
+    const phasesSeen = new Set<string>()
+    for (let i = 0; i < 40; i++) {
+      await vi.advanceTimersByTimeAsync(2_000)
+      await flush()
+      phasesSeen.add(player.currentState.phase)
+    }
+
+    // It did not sit in the entry phase forever — the machine moved on.
+    expect(phasesSeen.size).toBeGreaterThan(1)
+    // And it said so loudly, with the diagnostics payload intact.
+    expect(failedEvents.some((e) => e.lastError === 'phase-watchdog-resolve-hang')).toBe(true)
+  })
+
+  it('a clip whose audio element errors on every attempt is skipped, not halted', async () => {
+    // A permanently-unplayable clip (revoked blob URL, decode the device
+    // refuses). Retry-then-HALT used to pause the session on this exact item
+    // every single replay — the reproducible hard stop. It must now advance.
+    const player = new SimplePlayer(['S0001L01', 'S0002L01'].map(makeRound))
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+    expect(player.currentState.phase).toBe('prompt')
+
+    // First error → silent retry (attempt 1). Second → the clip is unplayable.
+    mockAudio.error = { code: 4 } // MEDIA_ERR_SRC_NOT_SUPPORTED
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+
+    // Ruling: session continues. (Fixtures use pauseDuration 0, so prompt
+    // advances straight to voice1.)
+    expect(player.currentState.isPlaying).toBe(true)
+    expect(player.currentState.phase).not.toBe('prompt')
+    // Telemetry contract preserved: attempt=1 blip then attempt=2 failure.
+    expect(failedEvents.map((e) => e.attempt)).toEqual([1, 2])
+    expect(failedEvents.every((e) => e.reason === 'play-error')).toBe(true)
+  })
+
+  it('still HALTS on needs-gesture — skipping cannot help when the browser will play nothing', async () => {
+    const notAllowed = Object.assign(new Error('User didn\'t interact'), { name: 'NotAllowedError' })
+    mockAudio.play = vi.fn().mockRejectedValue(notAllowed)
+
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play()
+    await flush()
+
+    expect(failedEvents.map((e) => e.reason)).toEqual(['needs-gesture'])
+    expect(player.currentState.isPlaying).toBe(false)
   })
 })

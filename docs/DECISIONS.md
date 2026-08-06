@@ -1145,3 +1145,28 @@ its 30-day trial with no extra wiring.
   course; the banded single list gets the same ordering benefit for free.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder ruling 2026-08-02
+
+## 2026-08-06 — deploy sentinel: volume craters must be confirmed by a live browser play-through
+**Move:** New sentinel leg: a headless-Chromium session (`deploy-sentinel-play-probe.mjs`) loads
+production, starts the player, and asserts zero JS errors + a 2xx client telemetry POST. Runs
+once per deploy window and as the confirm/refute gate on any volume-crater verdict — probe
+passes → crater demoted to a note; probe fails/unavailable → loud alert stands.
+**Better:** two real false alarms in six days (2026-08-01 quiet-Friday-midnight; 2026-08-06
+school learners finishing before lunch — investigated to ground truth: 6 users' natural session
+ends coincided with the deploy minute) vs zero missed outages. With ~6 concurrent users the
+volume signal is statistically meaningless at most hours; a deterministic "can a learner load,
+play, and does the event land" check is the strong signal at this scale, and it covers the
+client-crash blind spot the stage-2 error beacon was sketched for.
+**Simpler:** reuses the incident's diagnostic script verbatim as the permanent probe; no new
+infra — chromium already in the playwright cache, nss libs extracted user-space (no root).
+**Cheaper (total):** one ~45s headless run per deploy window (+ one more only on a crater
+verdict); kills the recurring cost of Tom being woken by false craters.
+**Searched & rejected:**
+- Tuning volume thresholds further — rejected: already tuned once (quietest-but-one week) and
+  it false-alarmed again five days later; small-N is the root cause, no threshold fixes that.
+- Waiting for the stage-2 client error beacon — rejected: it needs an app change + rollout;
+  the play probe ships today user-space-only and directly answers the question the beacon
+  answers indirectly.
+**Search width:** visible-options.
+**Decided by:** agent (under Watson's incident directive; rollback explicitly NOT taken — the
+deploy was verified healthy end-to-end).

@@ -18,6 +18,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { descendantIds, type ParentLinked } from './groupSubtree'
 
 export interface CallerScope {
   /** learners.id of the caller (null if no learner row) */
@@ -116,12 +117,13 @@ export async function ownSchoolIdForNode(svc: SupabaseClient, nodeId: string): P
  * the identical subtree rule without a govt_admins row of their own.
  */
 export async function schoolsForGroupSubtree(svc: SupabaseClient, groupId: string): Promise<string[]> {
-  const { data: group } = await svc.from('groups').select('path').eq('id', groupId).maybeSingle()
-  const path = (group as any)?.path as string | undefined
-  if (!path) return []
-
-  const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
-  const groupIds = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
+  // Membership walks parent_id, NOT the slug path: `path LIKE '<root>%'` both
+  // (a) folds in an unrelated same-named tenant (two orgs named "Deborah
+  // Testing" both slug to 'deborah-testing' — live, 2026-08-06) and (b) has no
+  // '/' boundary, so 'ime-demo' would swallow 'ime-demo-two'. This is a scope
+  // resolver, so either is a cross-tenant read. See groupSubtree.ts.
+  const { data: forest } = await svc.from('groups').select('id, parent_id')
+  const groupIds = descendantIds((forest ?? []) as ParentLinked[], groupId)
   if (groupIds.length === 0) return []
 
   const schoolIds = new Set<string>()
@@ -134,7 +136,7 @@ export async function schoolsForGroupSubtree(svc: SupabaseClient, groupId: strin
 
 /**
  * Is `targetGroupId` a STRICT descendant (child, grandchild, ...) of
- * `ancestorGroupId`, by path-prefix — same rule schoolsForGroupSubtree uses
+ * `ancestorGroupId`, by parent_id walk — same rule schoolsForGroupSubtree uses
  * for the subtree of schools, applied to groups themselves. Used by the
  * group-leader self-serve delete path (api/groups/[id].ts): a leader may
  * delete their own SUB-groups ("everything below them", founder ruling),
@@ -147,14 +149,14 @@ export async function isStrictDescendantGroup(
   targetGroupId: string,
 ): Promise<boolean> {
   if (ancestorGroupId === targetGroupId) return false
-  const [{ data: ancestor }, { data: target }] = await Promise.all([
-    svc.from('groups').select('path').eq('id', ancestorGroupId).maybeSingle(),
-    svc.from('groups').select('path').eq('id', targetGroupId).maybeSingle(),
-  ])
-  const ancestorPath = (ancestor as any)?.path as string | undefined
-  const targetPath = (target as any)?.path as string | undefined
-  if (!ancestorPath || !targetPath) return false
-  return targetPath !== ancestorPath && targetPath.startsWith(ancestorPath)
+  // parent_id walk, not a path prefix — a bare `startsWith` GRANTS authority
+  // over an unrelated sibling whose slug happens to be a prefix ('ime-demo' →
+  // 'ime-demo-two'), and slugs are not unique in the first place. This decides
+  // whether a leader may act on a node, so it gets the real relation.
+  const { data: forest } = await svc.from('groups').select('id, parent_id')
+  const rows = (forest ?? []) as ParentLinked[]
+  if (!rows.some((r) => r.id === ancestorGroupId) || !rows.some((r) => r.id === targetGroupId)) return false
+  return descendantIds(rows, ancestorGroupId).includes(targetGroupId)
 }
 
 async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<{ schoolIds: string[]; groupId: string | null }> {

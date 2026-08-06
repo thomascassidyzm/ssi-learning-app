@@ -12,8 +12,9 @@
  *     on trust from the client.
  *   · ANY authenticated user creating a ROOT org (founder ruling 2026-08-02,
  *     groups all the way down: "anyone who creates one becomes its GROUP
- *     LEADER by default") — the caller's govt_admins row is minted in the
- *     same request. One org per leader (govt_admins is one-row-per-user
+ *     LEADER by default") — the caller's govt_admins row AND their leader
+ *     membership tag (founder ruling 2026-08-06: the creator of a group is
+ *     its first manager) are minted in the same request. One org per leader (govt_admins is one-row-per-user
  *     across the whole org stack), so a caller who already leads a group
  *     gets a clear 409, not a silently re-pointed leadership.
  */
@@ -25,6 +26,8 @@ import { orgTrialStamp } from '../_utils/orgPlatform'
 import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
+import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
+import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 
 /**
  * ssi_admin/god first; fall back to a group-leader whose OWN governed group
@@ -136,7 +139,7 @@ export default async function handler(
       res.status(500).json({ error: 'Internal server error', detail: String(error) })
     }
   } else if (req.method === 'POST') {
-    const { name, type, parent_id, is_demo } = req.body || {}
+    const { name, type, parent_id, is_demo, confirm_duplicate } = req.body || {}
 
     const caller = await resolveAdminOrLeaderForParent(req, res, supabase, parent_id)
     if (!caller) return
@@ -146,6 +149,28 @@ export default async function handler(
       if (!name?.trim()) {
         res.status(400).json({ error: 'Group name is required' })
         return
+      }
+
+      // Duplicate-name WARNING (never a constraint). A name that slugs onto an
+      // existing sibling's slug answers 409 `duplicate_name` and writes
+      // nothing; the same request re-sent with confirm_duplicate: true skips
+      // this and proceeds byte-identically to before. Two orgs may genuinely
+      // share a name — a human just has to say so once. Scope is same-parent
+      // only, and the lookup fails open (see _utils/groupSlug.ts).
+      if (!confirm_duplicate) {
+        const duplicates = await findSiblingSlugCollisions(supabase, name, parent_id)
+        if (duplicates.length > 0) {
+          // A ROOT collision is with another tenant's org — hand back only the
+          // name and the date. An ssi_admin, or a sub-group collision inside
+          // the caller's own already-validated subtree, may see the full row.
+          res.status(409).json(
+            duplicateNameBody(duplicates, {
+              detailed: isAdmin || !!parent_id,
+              noun: parent_id ? 'group' : 'organisation',
+            }),
+          )
+          return
+        }
       }
 
       // Self-serve root org creation — the same helper /api/onboarding/provision's
@@ -198,6 +223,16 @@ export default async function handler(
       }
 
       if (error) throw error
+
+      // The creator of a group becomes its first manager (founder ruling
+      // 2026-08-06) — the same rule createRootOrgAndLeader applies to a root
+      // org, applied to a sub-group. A leader already holds authority over
+      // their whole subtree, so this adds no permission; it makes them a
+      // visible member of the group they just made, instead of an anonymous
+      // one. Skipped for ssi_admins, who create groups they do not lead.
+      if (!isAdmin) {
+        await ensureGroupLeaderTag(supabase, { groupId: (data as { id: string }).id, userId: caller.userId })
+      }
 
       res.status(201).json({ group: data })
     } catch (error) {
