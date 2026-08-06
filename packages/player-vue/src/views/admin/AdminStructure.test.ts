@@ -366,3 +366,106 @@ describe('AdminStructure — delete flow', () => {
     expect(call).toBeTruthy()
   })
 })
+
+describe('AdminStructure — duplicate org-name warning (Deborah, 2026-08-06)', () => {
+  const dupBody = {
+    error: 'server sentence',
+    code: 'duplicate_name',
+    duplicates: [{ name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z' }],
+  }
+
+  // Answers the tree/table reads normally, 409s the FIRST create, and 201s any
+  // create that carries confirm_duplicate — exactly the server's contract.
+  function setupCreateFetch() {
+    const posts: any[] = []
+    fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/groups') && init?.method === 'POST') {
+        const body = JSON.parse(init.body)
+        posts.push(body)
+        if (body.confirm_duplicate) {
+          return { ok: true, status: 201, json: async () => ({ group: { id: 'g2', name: body.name } }) }
+        }
+        return { ok: false, status: 409, json: async () => dupBody }
+      }
+      if (url.includes('/tree')) return { ok: true, status: 200, json: async () => ({ nodes: [makeNode()] }) }
+      return { ok: true, status: 200, json: async () => ({ rows: [], total: 0 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return posts
+  }
+
+  async function openAddOrgAndSubmit(wrapper: any, name: string) {
+    await wrapper.findAll('button').find((b: any) => b.text().includes('Add organisation'))!.trigger('click')
+    await wrapper.find('input.frost-input').setValue(name)
+    await flushPromises()
+    await wrapper.findAll('button').find((b: any) => b.text() === 'Add')!.trigger('click')
+    await flushPromises()
+  }
+
+  it('shows a plain warning instead of a raw error, and creates nothing', async () => {
+    const posts = setupCreateFetch()
+    const wrapper = await mountStructure()
+    await openAddOrgAndSubmit(wrapper, 'Deborah Testing')
+
+    expect(wrapper.text()).toContain('There\'s already an organisation called "Deborah Testing"')
+    expect(wrapper.text()).toContain('created on 5 August 2026')
+    // The server's own sentence is never surfaced raw.
+    expect(wrapper.text()).not.toContain('server sentence')
+    expect(posts).toHaveLength(1)
+    expect(posts[0].confirm_duplicate).toBeUndefined()
+  })
+
+  it('"Go ahead anyway" re-sends the SAME request with confirm_duplicate and creates it', async () => {
+    const posts = setupCreateFetch()
+    const wrapper = await mountStructure()
+    await openAddOrgAndSubmit(wrapper, 'Deborah Testing')
+
+    await wrapper.findAll('button').find((b: any) => b.text().includes('Go ahead anyway'))!.trigger('click')
+    await flushPromises()
+
+    expect(posts).toHaveLength(2)
+    expect(posts[1]).toMatchObject({ name: 'Deborah Testing', confirm_duplicate: true })
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+  })
+
+  it('"Change the name" clears the warning without creating anything', async () => {
+    const posts = setupCreateFetch()
+    const wrapper = await mountStructure()
+    await openAddOrgAndSubmit(wrapper, 'Deborah Testing')
+
+    await wrapper.findAll('button').find((b: any) => b.text() === 'Change the name')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+    expect(posts).toHaveLength(1)
+  })
+
+  it('editing the name drops the stale warning', async () => {
+    setupCreateFetch()
+    const wrapper = await mountStructure()
+    await openAddOrgAndSubmit(wrapper, 'Deborah Testing')
+    expect(wrapper.text()).toContain('will give you two with the same name')
+
+    await wrapper.find('input.frost-input').setValue('Deborah Testing 2')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('will give you two with the same name')
+  })
+
+  it('a non-colliding name creates with no confirmation step at all', async () => {
+    const posts: any[] = []
+    fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/groups') && init?.method === 'POST') {
+        posts.push(JSON.parse(init.body))
+        return { ok: true, status: 201, json: async () => ({ group: { id: 'g9', name: 'Cardiff Council' } }) }
+      }
+      if (url.includes('/tree')) return { ok: true, status: 200, json: async () => ({ nodes: [makeNode()] }) }
+      return { ok: true, status: 200, json: async () => ({ rows: [], total: 0 }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = await mountStructure()
+    await openAddOrgAndSubmit(wrapper, 'Cardiff Council')
+
+    expect(posts).toHaveLength(1)
+    expect(wrapper.text()).toContain('created')
+    expect(wrapper.text()).not.toContain('Go ahead anyway')
+  })
+})

@@ -5,6 +5,7 @@ import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.v
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { useUserRole } from '@/composables/useUserRole'
+import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import {
   TRACKS,
   coursesForTrack,
@@ -612,21 +613,58 @@ async function sendCode() {
   }
 }
 
+// Duplicate-name warning at the /orgs door (409 `duplicate_name`). Nothing was
+// created; they either go back and rename, or confirm and get their second org.
+const orgDuplicateWarning = ref<string | null>(null)
+
+async function confirmDuplicateOrg() {
+  busy.value = true
+  error.value = ''
+  try {
+    await finishProvisioning(true)
+  } catch (e: any) {
+    error.value = e?.message || 'Something went wrong'
+  } finally {
+    busy.value = false
+  }
+}
+
+// Editing the name is "change the name" — a fresh name deserves a fresh answer
+// from the server, never a stale confirmation.
+watch(orgName, () => { orgDuplicateWarning.value = null })
+
+function renameOrgFromWarning() {
+  orgDuplicateWarning.value = null
+  error.value = ''
+  step.value = 'choose'
+}
+
 // Shared by both entry points into a verified session: the fresh-visitor OTP
 // flow (verify(), below) and the already-signed-in shortcut (continueSignedIn()
 // in the session-awareness block above) — both land here once there's a real
 // Supabase Auth session to provision against.
-async function finishProvisioning() {
+async function finishProvisioning(confirmDuplicate = false) {
   const token = await authToken()
-  const body = isOrgDoor.value
+  const body: Record<string, unknown> = isOrgDoor.value
     ? { track: props.track, org_name: orgName.value.trim() }
     : { track: props.track, course_code: selectedCourse.value }
+  if (confirmDuplicate) body.confirm_duplicate = true
   const res = await fetch('/api/onboarding/provision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
   const data = await res.json()
+  // Duplicate-name warning: nothing was created. Show it rather than a raw
+  // error, and let them either rename or go ahead deliberately. This is the
+  // door where a first-time creator is least likely to notice they've just
+  // made a second org with the same name.
+  const duplicate = readDuplicateWarning(res.status, data)
+  if (duplicate) {
+    orgDuplicateWarning.value = duplicate.message
+    return
+  }
+  orgDuplicateWarning.value = null
   if (!res.ok) {
     error.value = data.error || 'We could not finish setting up your account'
     requiresCheckout.value = !!data.requires_checkout
@@ -1135,6 +1173,16 @@ async function continueIn() {
           </div>
 
           <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
+
+          <!-- Duplicate-name warning: nothing was created, and they have two
+               honest ways forward. Not an error — a choice. -->
+          <div v-if="orgDuplicateWarning" class="ob-warning" role="alert">
+            <p class="ob-warning-text">{{ orgDuplicateWarning }}</p>
+            <div class="ob-warning-actions">
+              <Button variant="secondary" size="md" :disabled="busy" @click="renameOrgFromWarning">Change the name</Button>
+              <Button variant="primary" size="md" :loading="busy" @click="confirmDuplicateOrg">Go ahead anyway</Button>
+            </div>
+          </div>
 
           <!-- "Trial already used" 409: the account is verified, so the way
                forward is their dashboard (its gate routes to checkout) — not
@@ -2232,6 +2280,23 @@ async function continueIn() {
 .ob-finishing-head span { color: var(--text-muted, #8a8078); font-weight: var(--font-normal, 400); }
 
 /* --- Errors, fine print, links --- */
+.ob-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  background: rgba(184, 138, 60, 0.08);
+  border: 1px solid rgba(184, 138, 60, 0.24);
+  border-radius: var(--radius-lg, 0.75rem);
+}
+.ob-warning-text {
+  margin: 0;
+  color: var(--text-primary, #2c2622);
+  font-size: var(--text-sm, 0.875rem);
+  line-height: var(--leading-snug, 1.375);
+}
+.ob-warning-actions { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; }
+
 .ob-error {
   padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
   background: rgba(194, 58, 58, 0.08);

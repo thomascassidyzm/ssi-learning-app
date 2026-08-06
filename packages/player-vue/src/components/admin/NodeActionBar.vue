@@ -12,6 +12,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import NodeEntitlementControl from '@/components/schools/NodeEntitlementControl.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
+import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 
 interface NodeShape {
   id: string
@@ -204,20 +205,35 @@ async function submitInvite(): Promise<void> {
 // ─── Add a group / Add a school ───
 const newChildName = ref('')
 const isAddingChild = ref(false)
-async function submitGroup(): Promise<void> {
+// Duplicate-name warning — a sibling group under THIS node already slugs to
+// the same string. Nothing was created; the creator changes the name or
+// confirms, and confirming re-sends with confirm_duplicate: true.
+const childDuplicateWarning = ref<string | null>(null)
+watch(newChildName, () => { childDuplicateWarning.value = null })
+watch(openForm, () => { childDuplicateWarning.value = null })
+
+async function submitGroup(confirmDuplicate = false): Promise<void> {
   if (!newChildName.value.trim() || isAddingChild.value) return
   isAddingChild.value = true
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name: newChildName.value.trim(), type: 'group', parent_id: props.node.id }
+    if (confirmDuplicate) body.confirm_duplicate = true
     const resp = await fetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name: newChildName.value.trim(), type: 'group', parent_id: props.node.id }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, 'group')
+    if (duplicate) {
+      childDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(`"${newChildName.value.trim()}" added.`)
     newChildName.value = ''
+    childDuplicateWarning.value = null
     openForm.value = null
     emit('changed')
   } catch (err) {
@@ -452,11 +468,22 @@ function closeDelete(): void {
       </div>
       <p class="kind-hint">Shareable — new arrivals enter their name before they're in.</p>
     </div>
-    <div v-else-if="openForm === 'group'" class="verb-form">
-      <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup" />
-      <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitGroup">
-        {{ isAddingChild ? 'Adding…' : 'Add' }}
-      </button>
+    <div v-else-if="openForm === 'group'" class="verb-form-block">
+      <div class="verb-form">
+        <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup()" />
+        <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitGroup()">
+          {{ isAddingChild ? 'Adding…' : 'Add' }}
+        </button>
+      </div>
+      <div v-if="childDuplicateWarning" class="duplicate-warning" role="alert">
+        <p class="duplicate-warning-text">{{ childDuplicateWarning }}</p>
+        <div class="duplicate-warning-actions">
+          <button type="button" class="btn-ghost-sm" @click="childDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-primary-sm" :disabled="isAddingChild" @click="submitGroup(true)">
+            {{ isAddingChild ? 'Adding…' : 'Go ahead anyway' }}
+          </button>
+        </div>
+      </div>
     </div>
     <div v-else-if="openForm === 'school'" class="verb-form">
       <input v-model="newChildName" type="text" class="frost-input" placeholder="School name" @keyup.enter="submitSchool" />
@@ -523,6 +550,22 @@ function closeDelete(): void {
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .verb-form-block { display: block; }
+
+/* Duplicate-name warning — information, not an error. Nothing has gone
+   wrong; there is just a choice to make. */
+.duplicate-warning { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.duplicate-warning-text {
+  margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2); line-height: 1.5;
+  background: rgba(var(--tone-red), 0.06); border: 1px solid rgba(var(--tone-red), 0.18);
+  border-radius: var(--radius-lg); padding: var(--space-3);
+}
+.duplicate-warning-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.btn-ghost-sm {
+  padding: 6px 12px; font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: var(--radius-md);
+  border: 1px solid rgba(44, 38, 34, 0.14); background: rgba(255, 255, 255, 0.6); color: var(--schools-fg-2); cursor: pointer; white-space: nowrap;
+}
+.btn-ghost-sm:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
+.btn-ghost-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 .kind-hint { margin: 6px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
 .frost-input, .frost-select {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);

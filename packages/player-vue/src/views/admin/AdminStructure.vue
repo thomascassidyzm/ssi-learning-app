@@ -21,6 +21,7 @@ import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
 import { structureNodeIsVisible } from '@/components/admin/structureApi'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
+import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
@@ -162,8 +163,12 @@ const newOrgName = ref('')
 const newOrgLabel = ref('organisation')
 const newOrgIsDemo = ref(false)
 const isCreatingOrg = ref(false)
+// Duplicate-name warning: set when the API answers 409 `duplicate_name`.
+// Nothing was created — the creator either changes the name or confirms, and
+// confirming re-sends the same request with confirm_duplicate: true.
+const orgDuplicateWarning = ref<string | null>(null)
 
-async function createOrganisation(): Promise<void> {
+async function createOrganisation(confirmDuplicate = false): Promise<void> {
   if (!newOrgName.value.trim() || isCreatingOrg.value) return
   isCreatingOrg.value = true
   try {
@@ -171,16 +176,23 @@ async function createOrganisation(): Promise<void> {
     if (!token) throw new Error('Not authenticated')
     const body: Record<string, unknown> = { name: newOrgName.value.trim(), type: newOrgLabel.value }
     if (newOrgIsDemo.value) body.is_demo = true
+    if (confirmDuplicate) body.confirm_duplicate = true
     const resp = await fetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
       body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data)
+    if (duplicate) {
+      orgDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     setSuccess(`Organisation "${data.group?.name || newOrgName.value.trim()}" created`)
     newOrgName.value = ''
     newOrgIsDemo.value = false
+    orgDuplicateWarning.value = null
     showAddOrg.value = false
     await refetchCurrentLens()
   } catch (err) {
@@ -189,6 +201,11 @@ async function createOrganisation(): Promise<void> {
     isCreatingOrg.value = false
   }
 }
+
+// Editing the name is "change the name" — drop the warning so a fresh name
+// gets a fresh answer from the server rather than a stale confirmation.
+watch(newOrgName, () => { orgDuplicateWarning.value = null })
+watch(showAddOrg, () => { orgDuplicateWarning.value = null })
 
 // ─── Node actions (shared by both lenses via provide/inject) ───
 const editingId = ref<string | null>(null)
@@ -403,9 +420,18 @@ onMounted(() => { void refresh() })
             <option value="school">school</option>
           </select>
           <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
-          <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation">
+          <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation()">
             {{ isCreatingOrg ? 'Adding…' : 'Add' }}
           </button>
+        </div>
+        <div v-if="showAddOrg && orgDuplicateWarning" class="duplicate-warning root-inline-form" role="alert">
+          <p class="duplicate-warning-text">{{ orgDuplicateWarning }}</p>
+          <div class="duplicate-warning-actions">
+            <button type="button" class="btn-ghost-sm" @click="orgDuplicateWarning = null">Change the name</button>
+            <button type="button" class="btn-ghost-sm" :disabled="isCreatingOrg" @click="createOrganisation(true)">
+              {{ isCreatingOrg ? 'Adding…' : 'Go ahead anyway' }}
+            </button>
+          </div>
         </div>
 
         <!-- TREE lens -->
@@ -561,6 +587,16 @@ onMounted(() => { void refresh() })
 .structure-empty strong { display: block; font-family: var(--font-display); font-size: var(--text-lg); color: var(--schools-fg); margin-bottom: 4px; }
 
 .root-inline-form { padding: var(--space-2) var(--space-4) 0; }
+
+/* Duplicate-name warning — information, not an error. Warm neutral rather
+   than the red error banner: nothing has gone wrong, there is just a choice. */
+.duplicate-warning { display: flex; flex-direction: column; gap: var(--space-2); }
+.duplicate-warning-text {
+  margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2); line-height: 1.5;
+  background: rgba(var(--tone-red), 0.06); border: 1px solid rgba(var(--tone-red), 0.18);
+  border-radius: var(--radius-lg); padding: var(--space-3);
+}
+.duplicate-warning-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .structure-inline-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
 .checkbox-field { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--schools-fg-2); cursor: pointer; white-space: nowrap; }
