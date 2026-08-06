@@ -81,16 +81,17 @@ const tryClick = async (sel) => {
   return false
 }
 
+// The transport's centre button is the play affordance on the guest landing
+// player ("Ready when you are" is a text prompt, not a button).
 for (const sel of [
+  '.center-btn',
   'button:has-text("Ready when you are")',
-  'button:has-text("Start")',
   '.play-button',
   'button[aria-label*="lay"]',
-  '.player-start',
 ]) {
   if (await tryClick(sel)) break
 }
-await page.waitForTimeout(4000)
+await page.waitForTimeout(6000)
 
 if (LISTENING) {
   // Mode tray → Listening mode row.
@@ -111,7 +112,7 @@ while ((Date.now() - started) / 1000 < SECONDS) {
   const count = await page.evaluate(() => window.__a64.length).catch(() => lastCount)
   // Nudge the transport if nothing has played for two checks (autoplay gate).
   if (count === lastCount) {
-    await tryClick('.play-button, button[aria-label*="lay"]')
+    await tryClick('.center-btn')
   }
   lastCount = count
 }
