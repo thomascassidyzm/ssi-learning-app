@@ -164,3 +164,12 @@ NOTIFY pgrst, 'reload schema';
 --     node supabase/secfix-toolkit/verify_school_admin_tag_parity.cjs
 -- (9/9 green: parity, no widening, no self-escalation). Run that, not the
 -- canary, to check the current state.
+--
+-- SIBLING FILE — read both. A second agent worked this same bug in parallel on
+-- 2026-08-07 and reached the same diagnosis independently, landing
+-- 20260807d_school_admin_tag_read_parity.sql. The two overlap on user_tags
+-- select+update (identical predicates) and are otherwise complementary: that
+-- file also fixes can_view_learner_data(); this one also fixes
+-- class_sessions_read and the invite_codes teacher-code INSERT. Both are
+-- idempotent and converge on the same end state in either order. The live
+-- state after both is proved by verify_school_admin_tag_parity.cjs.

@@ -23,7 +23,7 @@ const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
-const { classes: classesData, isLoading: classesLoading, error: classesError, fetchClasses, createClass, getClassReport } = useClassesData()
+const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
 const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
@@ -517,6 +517,14 @@ function exportCsv() {
     <div v-else-if="classesError" class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">Couldn't load classes</h3>
       <p class="empty-text schools-subtle">{{ classesError }}</p>
+    </div>
+
+    <!-- Read never resolved cleanly — say so instead of asserting emptiness.
+         "No classes yet" is a claim about the world; it may only be made once
+         a read has actually come back clean and empty (classesLoaded). -->
+    <div v-else-if="!classesLoaded" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">Couldn't load classes</h3>
+      <p class="empty-text schools-subtle">We didn't get an answer for this list. Try refreshing.</p>
     </div>
 
     <!-- No classes at all -->

@@ -10,7 +10,7 @@ import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
-import { assertScope } from './rlsGuard'
+import { assertScope, assertScopeUnion } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
 import { myTaughtClassIds, teachersByClassId, teachersByClassIdResult, type ClassTeacherRef } from './classTeacherScope'
 
@@ -140,6 +140,10 @@ const error = ref<string | null>(null)
 // took the teacher list and the student invite code down with it).
 const rosterError = ref<string | null>(null)
 const teachersError = ref<string | null>(null)
+// False until a classes read has actually RESOLVED cleanly. Same rule as
+// teachersLoaded below: an empty state is an assertion about the world, so
+// "No classes yet" may only be rendered once we have OBSERVED emptiness.
+const classesLoaded = ref(false)
 // False until a class_teachers read for the current class has actually
 // RESOLVED. "No teachers yet" may only be rendered when this is true and
 // teachersError is null — never assert an emptiness you did not observe.
@@ -182,6 +186,7 @@ export function useClassesData() {
 
     isLoading.value = true
     error.value = null
+    classesLoaded.value = false
 
     try {
       let query = client.from('classes').select(`
@@ -193,24 +198,27 @@ export function useClassesData() {
       // class MEMBERSHIP (the class_teachers relationship, lead + co-taught —
       // a teacher can legitimately teach at multiple schools); school/govt
       // admins are scoped by school_id.
-      let allowedSchoolIds: string[] = []
+      //
+      // The two are a UNION, never a choice. Someone can be a leader AND teach:
+      // the founding-admin work (2026-08-06) makes a school's founder staff of
+      // their own school, and a leader who covers a class holds a class tag
+      // like anyone else. Branching to whichever role was tested first showed
+      // them one half of their world and hid the other — and when the tested
+      // half was empty it short-circuited, which is how a school admin with no
+      // classes of her own was told her SCHOOL had none.
+      const allowedSchoolIds: string[] = []
       let allowedClassIds: string[] | null = null
 
-      if (isTeacher.value) {
-        // "My classes" = the teacher↔class relationship, not the legacy
-        // ownership column. See classTeacherScope.
+      // The classes I personally teach — for anyone who might teach, which
+      // includes school admins, not only the 'teacher' role.
+      if (isTeacher.value || isSchoolAdmin.value) {
         const myClassIds = await myTaughtClassIds(selectedUser.value.user_id)
-        if (myClassIds.length === 0) {
-          classes.value = []
-          isLoading.value = false
-          return
-        }
-        query = query.in('id', myClassIds)
-        allowedClassIds = myClassIds
-      } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
+        if (myClassIds.length > 0) allowedClassIds = myClassIds
+      }
+
+      if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
-        query = query.eq('school_id', activeSchoolId.value)
-        allowedSchoolIds = [activeSchoolId.value]
+        allowedSchoolIds.push(activeSchoolId.value)
       } else if (isGovtAdmin.value && (selectedUser.value.group_id || selectedUser.value.region_code)) {
         // Govt admin sees all classes in their group subtree's schools
         let schoolIds: string[] = []
@@ -225,18 +233,32 @@ export function useClassesData() {
           const { data: regionSchools } = await client.from('schools').select('id').eq('region_code', selectedUser.value.region_code!)
           schoolIds = (regionSchools || []).map(s => s.id)
         }
-        if (schoolIds.length > 0) {
-          query = query.in('school_id', schoolIds)
-          allowedSchoolIds = schoolIds
-        } else {
-          classes.value = []
-          isLoading.value = false
-          return
-        }
+        allowedSchoolIds.push(...schoolIds)
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // School admin sees all classes in school
-        query = query.eq('school_id', selectedUser.value.school_id)
-        allowedSchoolIds = [selectedUser.value.school_id]
+        allowedSchoolIds.push(selectedUser.value.school_id)
+      }
+
+      // A staff member with neither a school scope nor a class of their own
+      // has, genuinely, nothing to show. Resolve to empty rather than firing
+      // an UNSCOPED select — which under RLS would return whatever the
+      // policies happen to allow.
+      const scoped = allowedSchoolIds.length > 0 || (allowedClassIds?.length ?? 0) > 0
+      if (!scoped && (isTeacher.value || isSchoolAdmin.value || isGovtAdmin.value)) {
+        classes.value = []
+        classesLoaded.value = true
+        isLoading.value = false
+        return
+      }
+
+      // The union, expressed as one query: every class in a school I lead,
+      // PLUS every class I personally teach (which may sit in another school).
+      if (allowedSchoolIds.length > 0 && allowedClassIds) {
+        query = query.or(`school_id.in.(${allowedSchoolIds.join(',')}),id.in.(${allowedClassIds.join(',')})`)
+      } else if (allowedSchoolIds.length > 0) {
+        query = query.in('school_id', allowedSchoolIds)
+      } else if (allowedClassIds) {
+        query = query.in('id', allowedClassIds)
       }
 
       query = query.eq('is_active', true).order('class_name')
@@ -258,22 +280,18 @@ export function useClassesData() {
       }
 
       // Client-side RLS tripwire: returned rows must match the caller's
-      // declared scope (school_id for admins, teacher_user_id for teachers).
-      // In production we silently filter + log [RLS_VIOLATION]; in dev/test
-      // we throw. Catches accidental query changes and RLS regressions.
-      let safeData: typeof data | [] = data || []
-      if (allowedSchoolIds.length > 0) {
-        safeData = assertScope(safeData, 'school_id', allowedSchoolIds, {
-          table: 'classes',
-          caller: 'useClassesData.fetchClasses',
-        })
-      }
-      if (allowedClassIds) {
-        safeData = assertScope(safeData, 'id', allowedClassIds, {
-          table: 'classes',
-          caller: 'useClassesData.fetchClasses (teacher membership)',
-        })
-      }
+      // declared scope. The scope is the same UNION the query asked for —
+      // a row is in scope if it is in a school I lead OR is a class I teach —
+      // so the guard stays live for a leader-who-also-teaches instead of
+      // being switched off. In production we filter + log [RLS_VIOLATION];
+      // in dev/test we throw.
+      const safeData = assertScopeUnion(data || [], [
+        ...(allowedSchoolIds.length > 0 ? [{ key: 'school_id' as const, allowed: allowedSchoolIds }] : []),
+        ...(allowedClassIds ? [{ key: 'id' as const, allowed: allowedClassIds }] : []),
+      ], {
+        table: 'classes',
+        caller: 'useClassesData.fetchClasses',
+      })
 
       // Get student counts per class from class_student_progress view
       const classIds = safeData.map(c => c.id)
@@ -364,6 +382,9 @@ export function useClassesData() {
       } else {
         classes.value = []
       }
+      // Reached only on a clean read: emptiness here was OBSERVED, so the
+      // first-run empty state is now allowed to speak.
+      classesLoaded.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch classes'
       console.error('Classes fetch error:', err)
@@ -1018,6 +1039,7 @@ export function useClassesData() {
     rosterError,
     teachersError,
     teachersLoaded,
+    classesLoaded,
 
     // Computed
     totalStudentsInClasses,
