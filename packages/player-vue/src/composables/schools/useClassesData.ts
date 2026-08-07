@@ -243,7 +243,19 @@ export function useClassesData() {
 
       const { data, error: fetchError } = await query
 
-      if (fetchError) throw fetchError
+      // Report the DB's OWN reason. PostgREST errors are plain objects, not
+      // Error instances, so the generic catch below flattens them to the
+      // useless "Failed to fetch classes" — the same trap fetchClassDetail
+      // already dodges. This matters: when the leader's Classes tab came back
+      // empty on 2026-08-07 it took a live DB session to learn why, because
+      // the client had nothing to say. A silent RLS filter still yields no
+      // error at all (that is the policy layer, fixed in 20260807c/d), but a
+      // GRANT-layer denial says "permission denied" and must reach the screen.
+      if (fetchError) {
+        error.value = fetchError.message || 'Failed to fetch classes'
+        console.error('Classes fetch error:', fetchError)
+        return
+      }
 
       // Client-side RLS tripwire: returned rows must match the caller's
       // declared scope (school_id for admins, teacher_user_id for teachers).
