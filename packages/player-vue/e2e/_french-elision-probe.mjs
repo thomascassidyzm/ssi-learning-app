@@ -9,7 +9,7 @@ import { chromium } from '@playwright/test'
 
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const LOCALE = process.env.LOCALE || 'fra'
-const COURSE = process.env.COURSE || 'cym_for_eng'
+const COURSE = process.env.COURSE || 'isl_for_eng'
 const OUT = process.env.OUT_DIR || '/tmp/french-elision/'
 mkdirSync(OUT, { recursive: true })
 
