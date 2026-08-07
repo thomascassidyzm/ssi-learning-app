@@ -7291,7 +7291,7 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     g.name_confirmed,
     COALESCE(sum(ss.staff_practice_hours), (0)::numeric) AS staff_practice_hours
    FROM ((public.groups g
-     LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids))))
+     LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids)) AND (s.is_test = false)))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
   GROUP BY g.id, g.name, g.path, g.name_confirmed;
 
@@ -8476,23 +8476,23 @@ CREATE VIEW public.region_summary WITH (security_invoker='on') AS
     primary_language,
     ( SELECT count(*) AS count
            FROM public.schools s
-          WHERE (s.region_code = r.code)) AS school_count,
+          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS school_count,
     ( SELECT count(DISTINCT ut.user_id) AS count
            FROM (public.schools s
              JOIN public.user_tags ut ON (((ut.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (ut.tag_type = 'school'::text) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))))
-          WHERE (s.region_code = r.code)) AS teacher_count,
+          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS teacher_count,
     ( SELECT count(DISTINCT ut2.user_id) AS count
            FROM ((public.schools s
              JOIN public.classes c ON ((c.school_id = s.id)))
              JOIN public.user_tags ut2 ON (((ut2.tag_value = ('CLASS:'::text || (c.id)::text)) AND (ut2.tag_type = 'class'::text) AND (ut2.role_in_context = 'student'::text) AND (ut2.removed_at IS NULL))))
-          WHERE (s.region_code = r.code)) AS student_count,
+          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS student_count,
     ( SELECT COALESCE(((sum(sess.duration_seconds))::numeric / 3600.0), (0)::numeric) AS "coalesce"
            FROM ((((public.schools s
              JOIN public.classes c ON ((c.school_id = s.id)))
              JOIN public.user_tags ut ON (((ut.tag_value = ('CLASS:'::text || (c.id)::text)) AND (ut.tag_type = 'class'::text) AND (ut.role_in_context = 'student'::text) AND (ut.removed_at IS NULL))))
              JOIN public.learners l ON ((l.user_id = ut.user_id)))
              JOIN public.sessions sess ON (((sess.learner_id = l.id) AND (sess.course_id = c.course_code))))
-          WHERE (s.region_code = r.code)) AS total_practice_hours
+          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS total_practice_hours
    FROM public.regions r;
 
 
@@ -8500,7 +8500,7 @@ CREATE VIEW public.region_summary WITH (security_invoker='on') AS
 -- Name: VIEW region_summary; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.region_summary IS 'Aggregated regional statistics. Used by govt admin dashboard. NO individual data exposed.';
+COMMENT ON VIEW public.region_summary IS 'Aggregated regional statistics. Used by govt admin dashboard. NO individual data exposed. Excludes is_test schools (2026-08-07).';
 
 
 --
