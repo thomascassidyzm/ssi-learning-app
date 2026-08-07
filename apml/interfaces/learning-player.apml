@@ -361,6 +361,23 @@ LEARNING_MODE:
     historical_events: "MANUAL_DIAL_EVENT_TYPES still contains 'turbo_toggle' ONLY so evidence replayed from pre-2026-08-06 sessions still counts as a manual dial."
 
 ## ============================================================================
+## MODE TRAY (the mode button and its popup)
+## ============================================================================
+
+MODE_TRAY:
+  source: "packages/player-vue/src/components/ModeTray.vue — rendered inside BottomNav.vue"
+  rows: "Pronunciation guide | Listening mode | Offline mode (the Turbo row went with Turbo)"
+
+  dismiss:
+    behaviour: "A pointerdown ANYWHERE outside the tray closes it, as does Escape and the trigger button. Fixed 2026-08-07 — Tom reported ~10 times that the trigger was the only way out."
+    where_it_lives: "A DOCUMENT-level pointerdown listener in capture phase, attached only while the tray is open, watching the .mode-tray-container root. Not the backdrop element."
+    why_not_the_backdrop: "The .tray-backdrop is position:fixed;inset:0, which LOOKS full-screen and is not: .bottom-nav carries transform:translateX(-50%), and a transformed ancestor is the containing block for fixed descendants — so the backdrop measures 358x72px at the nav pill in an 844px-tall viewport (measured live, e2e/mode-tray-outside-tap-probe.mjs). It could only ever dismiss taps already on the nav. The backdrop is now purely the dim, never the dismiss."
+    why_not_teleport: "Teleporting the backdrop to <body> to escape that containing block is exactly what 1c41b1d2 (2026-07-16) REMOVED: in embedded play (.player-container.is-teach-embedded, also transformed) it rejoins the root stacking context, paints above the locally z-indexed tray and eats every row tap. That fix restored the rows and left the outside-tap dismiss dead — which is the bug this replaces. A document listener sidesteps the containing-block question entirely and can swallow nothing."
+    no_reopen_race: "The trigger button is INSIDE the watched root, so its pointerdown is ignored and only its click toggles — outside-close can never fire and let the trigger immediately reopen."
+    click_swallow: "After an outside pointerdown dismisses the tray, the click that same press produces is swallowed once (capture-phase listener, scoped to the element that press landed on, 700ms self-cancel) so dismissing never doubles as a tap on the transport underneath. If no click follows — a scroll or a drag — the arming expires and eats nothing."
+    tests: "src/components/ModeTray.outsideTap.test.ts (8 unit tests) + e2e/mode-tray-outside-tap-probe.mjs (real browser against a real build; prints the backdrop's measured geometry as the evidence)."
+
+## ============================================================================
 ## LISTENING OVERLAY (headphones mode)
 ## ============================================================================
 
@@ -1193,6 +1210,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-06 (interjection display: gating + Mist contrast)
+## GENERATED: 2026-01-18 — Last updated: 2026-08-07 (mode tray: tap-anywhere-outside dismiss)
 ## APML v2.1.0
 ## ============================================================================
