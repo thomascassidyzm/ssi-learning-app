@@ -584,7 +584,10 @@ const deleteImpactLines = computed(() => {
             {{ classBelt.charAt(0).toUpperCase() + classBelt.slice(1) }} belt class
           </span>
           <span class="meta-dot">·</span>
-          <span>{{ students.length }} students</span>
+          <!-- Same rule as the panels: with the roster unread, "0 students" is
+               an assertion we have no basis for. -->
+          <span v-if="rosterError || classDetailError">student count unavailable</span>
+          <span v-else>{{ students.length }} students</span>
           <template v-if="classData.last_lego_id">
             <span class="meta-dot">·</span>
             <span>Position {{ classData.last_lego_id }}</span>
