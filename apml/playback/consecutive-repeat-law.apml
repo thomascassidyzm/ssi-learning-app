@@ -1,7 +1,7 @@
 # APML Playback: The consecutive-repeat law (A-64)
 # SSI Learning App
-# Version: 1.1.0
-# Last updated: 2026-08-06
+# Version: 1.2.0
+# Last updated: 2026-08-07
 # Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
 #         packages/player-vue/src/providers/generateLearningScript.ts
 #         packages/player-vue/src/providers/backendCyclesToRounds.ts
@@ -33,6 +33,18 @@ SPECIFICATION:
     consecutive play is to RE-INTERLEAVE it (move it past a differing item),
     never to delete it. A rep is dropped only when there is genuinely nothing
     to interleave against.
+  easy_doubling: |
+    2026-08-07 — Easy mode now DELIBERATELY plays every BUILD, REVIEW, USE and
+    CONSOLIDATE cycle twice in a row (providers/doublePhraseCycles.ts). That is
+    legal under this law and is exactly why the law is a maximum of TWO: Tom's
+    own framing, "a phrase repeated 3x would drive people nuts, but doubled up
+    is perfect".
+
+    ORDERING IS LOAD-BEARING. The doubling pass runs AFTER the generator's
+    consecutive-duplicate removal — which would otherwise strip the twin on
+    sight — and BEFORE this law's floor, which therefore stands downstream of
+    the doubler and guarantees "twice" can never become three. Any future
+    emitter that wants a deliberate repeat must sit in the same place.
   identity: |
     "The same prompt" = identical normalised known text paired with identical
     normalised target text (the getPhraseId notion). Listening items are the
@@ -234,6 +246,6 @@ TESTS:
       across consecutive laps into the sequence the learner actually hears.
 
 ## ============================================================================
-## Last updated: 2026-08-06
+## Last updated: 2026-08-07
 ## APML v2.0.0
 ## ============================================================================
