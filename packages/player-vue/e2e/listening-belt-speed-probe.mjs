@@ -18,6 +18,11 @@
 //   PROBE_COURSE=fra_for_eng   course (default fra_for_eng)
 //   PROBE_SECONDS=420          how long to listen (default 420)
 //   PROBE_SHOT=/tmp/shot.png   where to write the interjection screenshot
+//   PROBE_PARAMS=pod=1         extra URL cheats, comma-separated. ?pod=1 forces
+//                              a pod lap immediately — without it a fresh
+//                              learner needs ~5 main rounds before the first
+//                              listening surface fires at all, and a short run
+//                              measures no listening clips whatsoever.
 //
 // Prints one JSON blob. Exit 1 if either check fails.
 import { chromium } from '@playwright/test'
@@ -26,6 +31,9 @@ const URL_BASE = process.env.PROBE_URL || 'https://ssi-learning-app-git-dev-zenj
 const COURSE = process.env.PROBE_COURSE || 'fra_for_eng'
 const SECONDS = Number(process.env.PROBE_SECONDS || 420)
 const SHOT = process.env.PROBE_SHOT || '/tmp/interjection-card.png'
+const EXTRA = Object.fromEntries(
+  (process.env.PROBE_PARAMS || '').split(',').filter(Boolean).map((kv) => kv.split('=')),
+)
 
 const browser = await chromium.launch({
   ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {}),
@@ -37,8 +45,19 @@ const page = await context.newPage()
 const jsErrors = []
 const commentaryLogs = []
 page.on('pageerror', (e) => jsErrors.push(String(e).slice(0, 200)))
+const lapWindows = []   // [{ start, end }] — while a pod / L1 lap is sounding
 page.on('console', (m) => {
   const t = m.text()
+  // The app announces every lap it plays; correlating clip timestamps against
+  // these windows is what lets a rate be attributed to LISTENING rather than
+  // to the speaking cycle, bookends or commentary.
+  if (t.includes('Playing pod lap') || t.includes('Seguing L1 cup')) {
+    lapWindows.push({ start: Date.now(), end: null, label: t.slice(0, 90) })
+  }
+  if (t.includes('pod_lap_end') || t.includes('[LearningPlayer] Pod lap complete')) {
+    const open = lapWindows.find((w) => w.end === null)
+    if (open) open.end = Date.now()
+  }
   if (t.includes('Playing') && t.includes('commentary')) commentaryLogs.push(t.slice(0, 160))
   if (t.includes('[LearningPlayer] Playing instruction') || t.includes('[LearningPlayer] Playing encouragement')) {
     commentaryLogs.push(t.slice(0, 160))
@@ -53,7 +72,16 @@ await page.addInitScript(() => {
     try {
       const src = this.currentSrc || this.src || ''
       if (src && !src.startsWith('data:audio/wav')) {
-        window.__rates.push({ t: Date.now(), src, rate: this.playbackRate })
+        // Attribute the clip to a LISTENING lap by DOM, not by console log:
+        // the deployed build strips console.log, so log-based correlation
+        // silently measured nothing (observed live 2026-08-07). While a pod /
+        // L1 lap sounds, PodTurnDisplay is mounted and the hero text pane is
+        // hidden — a synchronous, reliable marker at play() time.
+        const lap = !!document.querySelector('.pod-turn-display')
+          || !!document.querySelector('.listening-overlay')
+        const pane = document.querySelector('.hero-text-pane')
+        const heroHidden = !!pane && getComputedStyle(pane).display === 'none'
+        window.__rates.push({ t: Date.now(), src, rate: this.playbackRate, lap, heroHidden })
       }
     } catch { /* never break playback to measure it */ }
     return origPlay.apply(this, args)
@@ -71,7 +99,7 @@ const go = async (params) => {
 // localStorage/IndexedDB, and the reset path tears down the service worker and
 // reloads out from under the probe (observed: browser context closed).
 // ?fc=1 = force an interjection at every round boundary.
-const liveUrl = await go({ course: COURSE, fc: '1' })
+const liveUrl = await go({ course: COURSE, fc: '1', ...EXTRA })
 // The app boots, resolves the course and renders the transport; under ~15s it
 // genuinely isn't on screen yet and every selector misses silently.
 await page.waitForSelector('.center-btn', { timeout: 60000 }).catch(() => {})
@@ -111,7 +139,13 @@ while (Date.now() < deadline && !card) {
     const cap = document.querySelector('.interjection-caption')
     const cs = (el) => (el ? getComputedStyle(el) : null)
     const rgb = (s) => {
-      const m = /rgba?\(([^)]+)\)/.exec(s || '')
+      if (!s) return null
+      // Chrome reports color-mix() results as `color(srgb r g b)` with 0..1
+      // components — the rgba() regex alone silently returned null and made
+      // the contrast check unmeasurable (observed live 2026-08-07).
+      const c = /color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(s)
+      if (c) return { r: +c[1] * 255, g: +c[2] * 255, b: +c[3] * 255 }
+      const m = /rgba?\(([^)]+)\)/.exec(s)
       if (!m) return null
       const [r, g, b] = m[1].split(',').map((n) => parseFloat(n))
       return { r, g, b }
@@ -142,7 +176,8 @@ while (Date.now() < deadline && !card) {
     }
   })
   if (card) {
-    await page.locator('.hero-glass').first().screenshot({ path: SHOT }).catch(() => {})
+    await page.locator('.hero-glass').first().screenshot({ path: SHOT })
+      .catch(() => page.screenshot({ path: SHOT }).catch(() => {}))
   }
   const snap = await page.evaluate(() => window.__rates).catch(() => null)
   if (snap) { rateSnapshot.length = 0; rateSnapshot.push(...snap) }
@@ -188,6 +223,19 @@ console.log(JSON.stringify({
       rate: r.rate,
       clip: (() => { try { return new global.URL(r.src).pathname } catch { return r.src } })(),
     })),
+  },
+  listeningLaps: lapWindows.map((w) => ({
+    label: w.label,
+    clips: rates
+      .filter((r) => r.t >= w.start && (w.end === null || r.t <= w.end))
+      .map((r) => r.rate),
+  })),
+  listening: {
+    clipsDuringLap: rates.filter((r) => r.lap || r.heroHidden).length,
+    lapRateHistogram: rates.filter((r) => r.lap || r.heroHidden)
+      .reduce((acc, r) => { acc[r.rate] = (acc[r.rate] || 0) + 1; return acc }, {}),
+    speakingRateHistogram: rates.filter((r) => !(r.lap || r.heroHidden))
+      .reduce((acc, r) => { acc[r.rate] = (acc[r.rate] || 0) + 1; return acc }, {}),
   },
   browserDied: died,
   commentaryLogs: commentaryLogs.slice(0, 10),
