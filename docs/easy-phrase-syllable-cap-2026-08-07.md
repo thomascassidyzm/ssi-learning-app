@@ -1,6 +1,6 @@
 # Easy mode: the absolute max-syllables phrase skip
 
-**Date:** 2026-08-07 · **Branch:** `claude/easy-phrase-syllable-cap` · **Status:** built, gated, not merged, not deployed
+**Date:** 2026-08-07 · **Branch:** `claude/easy-phrase-syllable-cap` · **Status:** built, all gates green, auto-merged to `dev` (b15ed359) by the repo's `claude/**` workflow. NOT on staging, NOT on main, NOT in front of learners, and not verified live on the dev alias — the proof here is the test suite, not a live session.
 
 Tom's ask, verbatim: *"And no longer phrases. In fact we should probably just skip all
 phrases that are more than X number of syllables."*
