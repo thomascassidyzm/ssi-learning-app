@@ -19,8 +19,12 @@ import type { Cycle, Round } from '@ssi/core'
 export interface SimplePlayerRuntimeOverrides {
   /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
   getPauseDuration?: (cycle: Cycle) => number | undefined
-  /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
-  getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
+  // NOTE: there is deliberately no mode speed hook here. Target-voice speed has
+  // exactly ONE source — the baked `cycle.playbackSpeed` from `computeCycleSpeed`
+  // / `computeListeningSpeed`. Easy owned such a hook until 2026-08-07 and used
+  // it to cancel the belt ramp, so beginners on Easy heard speech faster than
+  // beginners on Fast. Modes differ by pause, repetition and phrase length —
+  // never by speed.
   /**
    * Extra silence (ms) held AFTER voice2 before the next cycle starts, on top
    * of whatever the cycle already bakes in as `lingerMs`. Easy mode uses it so
@@ -544,8 +548,6 @@ export class SimplePlayer {
     let rate = 1.0
     if (isTarget && this.currentCycle) {
       rate = this.currentCycle.playbackSpeed ?? 1.0
-      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
-      rate *= multiplier
     }
     this.audio.playbackRate = rate
     this.audio.play().catch((err) => {
@@ -1346,14 +1348,11 @@ export class SimplePlayer {
     this.retryIsTarget = isTarget
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
-    // The mode runtime override can multiply the baked rate; the override is
-    // expected to gate itself on cycle type so it doesn't double up on
-    // listening cycles that already have an explicit speed.
+    // The baked rate is the whole truth: no mode may multiply it (see the
+    // runtime-overrides note at the top of this file).
     let rate = 1.0
     if (isTarget && this.currentCycle) {
       rate = this.currentCycle.playbackSpeed ?? 1.0
-      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
-      rate *= multiplier
     }
     // Speed >1.05× is unexpected on speaking cycles (neither Easy nor Fast
     // exceeds 1.0×) but expected on L1 ps2x and L2 pod-stage 2× plays.
