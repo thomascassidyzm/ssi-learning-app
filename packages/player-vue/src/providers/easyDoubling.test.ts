@@ -21,6 +21,8 @@ import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateLearningScript, DEFAULT_SCRIPT_SHAPE, scriptItemIdentity, type ScriptItem } from './generateLearningScript'
 import { doublePhraseCycles, isDoubledCycle } from './doublePhraseCycles'
+import { toSimpleRounds } from './toSimpleRounds'
+import { cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
 const audio = (n: string) => ({
   known_audio_id: `${n}-k`,
@@ -224,7 +226,25 @@ describe('2. end to end — an Easy script', () => {
   })
 })
 
-describe('3. FAST IS PROVABLY UNCHANGED', () => {
+describe('3. the pairs survive the round adapter, which is what the player receives', () => {
+  it('toSimpleRounds keeps every twin adjacent and never lets a prompt run three deep', async () => {
+    const { items } = await run({ doublePhraseCycles: true })
+    const rounds = toSimpleRounds(items)
+    let pairs = 0
+    for (const round of rounds) {
+      for (let i = 0; i < round.cycles.length; i++) {
+        const id = (c: any) => cyclePromptIdentity(c)
+        if (i >= 2 && id(round.cycles[i]) === id(round.cycles[i - 1]) && id(round.cycles[i]) === id(round.cycles[i - 2])) {
+          throw new Error(`three in a row in round ${round.roundNumber}: ${id(round.cycles[i])}`)
+        }
+        if (i >= 1 && id(round.cycles[i]) === id(round.cycles[i - 1])) pairs++
+      }
+    }
+    expect(pairs).toBeGreaterThan(0)
+  })
+})
+
+describe('4. FAST IS PROVABLY UNCHANGED', () => {
   it('an options object with every lever off is byte-identical to omitting it', async () => {
     const omitted = await run()
     const fast = await run({
