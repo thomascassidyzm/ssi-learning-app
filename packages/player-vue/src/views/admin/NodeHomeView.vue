@@ -8,6 +8,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 import UpgradeView from '@/views/schools/UpgradeView.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
@@ -49,7 +50,7 @@ const member = computed(() => isMemberNodeSurface(route.path))
 // caller's own govt_admins row, never a route param). FAILS OPEN: an
 // unresolved/errored read leaves orgGate null, so nothing renders and nothing
 // blocks. ───
-const { isGovtAdmin } = useSchoolContext()
+const { isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
 const orgGate = ref<{ active: boolean; trial_days_remaining: number } | null>(null)
 const orgGateLoaded = ref(false)
@@ -189,6 +190,77 @@ async function fetchHome(): Promise<void> {
 // manual refresh, which is exactly the staleness-honesty gap it exists to close.
 const { registerRefresh, markUpdated } = useDashboardRefresh()
 registerRefresh(fetchHome, { immediate: false })
+
+// ─── School-admin first run, on the surface they ACTUALLY land on.
+// Nav unification (2026-07-30) redirects a school-scoped school_admin from
+// /schools to /org/:schoolId — so DashboardView's two first-run affordances
+// (the guided-setup banner and the confirm-your-school's-name card) became
+// unreachable for every real school admin. Chepstow's head (3 classes, 0
+// pupils ever, name_confirmed=false, 2026-08-06) is the live case: no way to
+// the wizard, and no way to fix a name someone else guessed for her — THE
+// VIEW's Rename verb is `!member`, so she has no rename either.
+//
+// Both mirror DashboardView's predicates and reuse its data: currentSchool is
+// already warm here because SchoolsContainer prefetches it on mount, and this
+// node home lives inside that container. No new fetch, no new surface. ───
+// useSchoolData() resolves the schools Supabase client eagerly and THROWS if
+// it isn't set yet. On the member surface SchoolsContainer sets it in its own
+// setup, before this child route component mounts — but the admin mounts set
+// it conditionally, so an unset client must degrade to "no first-run cards"
+// (which is the correct behaviour there anyway) rather than blow up the whole
+// node page.
+const schoolData = (() => {
+  try { return useSchoolData() } catch { return null }
+})()
+const currentSchool = computed(() => schoolData?.currentSchool.value ?? null)
+
+// Strictly the leader's OWN school node on the member surface — never a class
+// node, never a group, never the ssi_admin read-view mount.
+const isOwnSchoolNode = computed(
+  () => member.value
+    && isSchoolAdmin.value
+    && !!currentSchool.value
+    && String(route.params.id || '') === currentSchool.value.id,
+)
+
+// Not onboarded yet = ZERO PUPILS, not zero classes (a throwaway day-one
+// class must not cost a head the wizard forever). One enrolled student
+// retires it, so a school that IS running is never nagged. Gated on a loaded
+// payload so it can't flash a false "get started" mid-fetch.
+const showSetupBanner = computed(
+  () => isOwnSchoolNode.value
+    && !isLoading.value
+    && !!home.value?.node
+    && (home.value?.node?.rollup?.learnerCount ?? 0) === 0,
+)
+
+const showConfirmName = computed(
+  () => isOwnSchoolNode.value && currentSchool.value?.name_confirmed === false,
+)
+
+const schoolNameDraft = ref('')
+const isSavingSchoolName = ref(false)
+const schoolNameError = ref<string | null>(null)
+watch(currentSchool, (school) => {
+  if (school && !schoolNameDraft.value) schoolNameDraft.value = school.school_name || ''
+}, { immediate: true })
+
+async function saveSchoolName(): Promise<void> {
+  const name = schoolNameDraft.value.trim()
+  const schoolId = currentSchool.value?.id
+  if (!name || !schoolId || !schoolData) return
+  isSavingSchoolName.value = true
+  schoolNameError.value = null
+  const ok = await schoolData.confirmSchoolName(schoolId, name)
+  isSavingSchoolName.value = false
+  if (ok) {
+    // The node's identity header carries the same name — refetch both so the
+    // page doesn't keep showing the old one after a successful save.
+    await Promise.all([schoolData.fetchSchools(), fetchHome()])
+  } else {
+    schoolNameError.value = 'Could not save — try again.'
+  }
+}
 
 watch(
   [() => route.params.id, () => route.query.lens],
@@ -509,6 +581,40 @@ const listPayload = computed(() => {
                a mid-switch click must never act on the PREVIOUS node. -->
           <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :preset="preset" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
+          <!-- SCHOOL-ADMIN FIRST RUN — the two affordances that used to live
+               on /schools (DashboardView) and became unreachable when
+               school-scoped admins were redirected here (2026-07-30).
+               Own school node only; never a class, group, or the admin view. -->
+          <div v-if="showConfirmName" class="schools-card first-run-card">
+            <h3 class="arsenal first-run-title">Confirm your school's name</h3>
+            <p class="first-run-note">This is what your teachers and students will see.</p>
+            <div class="first-run-row">
+              <input
+                v-model="schoolNameDraft"
+                type="text"
+                class="frost-input"
+                placeholder="e.g. Ysgol y Garnedd"
+                :disabled="isSavingSchoolName"
+                @keyup.enter="saveSchoolName"
+              />
+              <button
+                class="btn-primary-sm"
+                :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
+                @click="saveSchoolName"
+              >{{ isSavingSchoolName ? 'Saving…' : 'Save' }}</button>
+            </div>
+            <p v-if="schoolNameError" class="first-run-error">{{ schoolNameError }}</p>
+          </div>
+
+          <router-link v-if="showSetupBanner" to="/schools/setup" class="schools-card setup-banner">
+            <span class="setup-banner-copy">
+              <span class="setup-banner-kicker">Get started</span>
+              Set up your school in four quick steps — name it, invite your
+              teachers, choose your courses and get your pupils into a class.
+            </span>
+            <span class="setup-banner-cta">Start setup →</span>
+          </router-link>
+
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
           <div class="stats-row">
@@ -664,6 +770,30 @@ const listPayload = computed(() => {
   background: var(--schools-red, #DB1E17); color: #fff; text-decoration: none; white-space: nowrap;
 }
 .org-trial-cta:hover { background: var(--schools-red-deep, #b21611); }
+
+/* School-admin first run — same card grammar as the trial banner above. */
+.first-run-card { padding: var(--space-4); margin-bottom: var(--space-4); }
+.first-run-title { font-size: var(--text-base); margin: 0 0 4px; }
+.first-run-note { font-size: var(--text-sm); color: var(--schools-fg-3, #8A8078); margin: 0 0 var(--space-3); }
+.first-run-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.first-run-row .frost-input { flex: 1 1 220px; }
+.first-run-error { font-size: var(--text-sm); color: var(--schools-red, #DB1E17); margin: var(--space-2) 0 0; }
+.setup-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  flex-wrap: wrap; padding: var(--space-4); margin-bottom: var(--space-4);
+  text-decoration: none; color: inherit;
+}
+.setup-banner-copy { font-size: var(--text-sm); color: var(--schools-fg-1, #222); max-width: 60ch; }
+.setup-banner-kicker {
+  display: block; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--schools-fg-3, #8A8078); margin-bottom: 2px;
+}
+.setup-banner-cta {
+  display: inline-flex; align-items: center; padding: 8px 16px; font-size: var(--text-sm);
+  font-weight: var(--font-semibold); border-radius: var(--radius-lg);
+  background: var(--schools-red, #DB1E17); color: #fff; white-space: nowrap;
+}
+.setup-banner:hover .setup-banner-cta { background: var(--schools-red-deep, #b21611); }
 
 /* Org expired wall — replaces the whole node home; pay in-app, no dead-end. */
 .org-expired {

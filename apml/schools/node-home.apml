@@ -1,5 +1,6 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-06 (creator becomes first manager; the node names its leader;
+# Last updated: 2026-08-07 (school-admin first-run affordances on the member mount;
+#               creator becomes first manager; the node names its leader;
 #               duplicate-name warning on Add-a-group and on Rename;
 #               password gate + PWA install nudge before an org manager's first add;
 #               permanent "Your account" card — the same two actions, always reachable)
@@ -285,6 +286,33 @@ rail_everywhere:  # founder ruling 2026-07-31 — "everyone should know where th
     main pane swaps); flat<->node hops paint the same cached tree synchronously
   tests: useSchoolsRail.test.ts
 
+school_admin_first_run:  # fixed 2026-08-06 (Chepstow production inspection)
+  why: |
+    Nav unification (2026-07-30) redirects a school-scoped school_admin from
+    /schools to /org/:schoolId — THIS page. Their two first-run affordances
+    still lived only on DashboardView, so a real head teacher three weeks in
+    had no route to the guided setup wizard (which has no nav tab) and no way
+    to correct a school name someone else guessed for her: THE VIEW's Rename
+    verb is `!member`. Both now render here too.
+  gating: |
+    isOwnSchoolNode = member mount AND isSchoolAdmin AND route :id equals the
+    caller's own currentSchool.id. Never a class node, never a group, never
+    the ssi_admin read-view mount.
+      - setup banner: + payload loaded AND node.rollup.learnerCount === 0.
+        ZERO PUPILS is the not-onboarded signal, never zero classes; one
+        enrolled student retires it, so a running school is never nagged.
+      - confirm-name card: + currentSchool.name_confirmed === false; saves
+        via useSchoolData.confirmSchoolName (POST /api/school/update-profile,
+        caller-scoped), then refetches schools AND the node home so the
+        identity header stops showing the old name.
+  data: |
+    No new fetch and no payload change — currentSchool is already warm here
+    because SchoolsContainer prefetches it and this node home renders inside
+    that container. useSchoolData() resolves the schools Supabase client
+    eagerly and THROWS when unset, so the call is wrapped: an unset client
+    (possible on the admin mounts) degrades to "no first-run cards", which is
+    the correct behaviour there anyway, rather than crashing the page.
+
 navigation_rules:  # THE-VIEW §2
   - clicking any node NAME anywhere in admin lands on that node's HOME
   - Structure stays the quick-actions flyout; its open/see-progress verbs land on node home
@@ -298,13 +326,16 @@ components:
 
 tests:
   - packages/player-vue/src/views/admin/NodeHomeView.test.ts   # same grammar at 4 levels; lens filters; name-click pin
+  - packages/player-vue/src/views/admin/NodeHomeView.schoolAdminFirstRun.test.ts  # setup banner + confirm-name card, own school node only
   - api/groups/[id]/home.test.ts                               # id resolution, rail, rollups, lenses, leader trimming
 
 out_of_scope: |
-  The LEADER member path now converges on this grammar via the member mount
-  (route_member above, 2026-07-20). Teacher and school_admin /schools views
-  (TeacherDashboard, DashboardView school branch, ClassDetail) still converge
-  in a later scoped pass — school_admin needs a leader door on
-  resolveGroupTreeCaller first (it currently authorizes govt_admins only).
+  The LEADER member path converges on this grammar via the member mount
+  (route_member above, 2026-07-20), and a school-scoped school_admin has
+  landed here since the 2026-07-30 nav unification (their first-run
+  affordances followed on 2026-08-06 — see school_admin_first_run). The
+  remaining flat /schools views (TeacherDashboard, DashboardView's teacher
+  and legacy no-school school_admin branches, ClassDetail) still converge in
+  a later scoped pass.
   Class co-teacher MEMBERSHIP mutations are another worker's piece; here the
   teachers list renders read-only from class_teachers + the lead pointer.
