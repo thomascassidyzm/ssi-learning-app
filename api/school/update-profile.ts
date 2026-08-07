@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { auditSchoolWriteRejection } from '../_utils/auditSchoolWriteRejection'
 import { isTestSchoolName } from '../_utils/isTestSchoolName'
+import { syncNodeNameForSchool } from '../_utils/schoolNodeName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -127,6 +128,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(500).json({ error: 'Failed to update school', detail: updateError?.message })
       return
     }
+
+    // The school's name lives in TWO rows, and the dashboard heading reads the
+    // OTHER one — the school's own node, synthesised the first time anyone
+    // opens the dashboard. Renaming only the school record left a leader who
+    // opened her dashboard before naming her school reading the replaced name
+    // for ever (see _utils/schoolNodeName.ts). Best-effort: her rename has
+    // already succeeded, and must not be reported as failed if this doesn't.
+    await syncNodeNameForSchool(supabase, schoolId, schoolName)
 
     res.status(200).json({ school })
   } catch (err: any) {

@@ -218,6 +218,15 @@ new behaviour may key on it; the shells merge.
   consistent with `parent_id`.
 - **I2 — Every school is a node.** Every live `schools` row is represented by exactly one group node
   (label `school`). No org object exists outside the tree.
+- **I2b — A school and its node carry ONE name (added 2026-08-07).** `groups.name` on
+  `schools.node_group_id` and `schools.school_name` are the same name in two homes, and every
+  writer of either writes both (`api/_utils/schoolNodeName.ts`, wired into
+  `school/update-profile`, `onboarding/profile`, and `PATCH /api/groups/:id`). The node is
+  synthesised lazily on first dashboard open and the dashboard HEADING reads the node, so a
+  one-sided rename left a leader who opened her dashboard before naming her school reading the
+  replaced name for ever — verified live on production, 2026-08-06. Node→school renames run
+  AFTER the duplicate-name warning, never around it. Healer for pre-existing drift:
+  `tools/backfill-school-node-names.mjs`.
 - **I3 — Labels are free.** Changing a group's label changes zero behaviour (only display).
 - **I4 — Capability gating.** A person tagged teacher with zero classes: sees teacher shell, cannot
   play-as-class, is prompted to create/join a class. The gate flips the moment they have one class.

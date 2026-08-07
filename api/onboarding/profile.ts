@@ -13,6 +13,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { syncNodeNameForSchool } from '../_utils/schoolNodeName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -92,6 +93,11 @@ export default async function handler(
         institutionError = schoolErr.message
       }
       institutionSaved = !!(updatedSchools && updatedSchools.length)
+      // Same rename, same second home: the dashboard heading reads the school's
+      // node, not the school row (_utils/schoolNodeName.ts). Best-effort.
+      for (const s of updatedSchools || []) {
+        await syncNodeNameForSchool(supabase, (s as any).id, institution)
+      }
     }
 
     res.status(200).json({

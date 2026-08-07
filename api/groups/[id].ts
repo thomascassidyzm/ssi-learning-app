@@ -13,6 +13,8 @@
  *   `duplicate_name` and writes nothing — the same WARNING POST /api/groups
  *   gives at creation, never a constraint: the same request re-sent with
  *   `confirm_duplicate: true` proceeds byte-identically to before.
+ *   Renaming a group that IS a school's own node also renames that school
+ *   record, after the warning — one name, two homes (_utils/schoolNodeName.ts).
  * GET (?impact=1): deletion-impact preview (schools/classes/learners in the
  *   group, whether there's real recorded activity) — ssi_admin, OR the
  *   leader of an ANCESTOR group previewing one of their own sub-groups.
@@ -41,6 +43,7 @@ import { auditAdminDelete } from '../_utils/auditAdminDelete'
 import { isStrictDescendantGroup } from '../_utils/schoolScope'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
+import { syncSchoolNameForNode } from '../_utils/schoolNodeName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -220,6 +223,17 @@ export default async function handler(
         .single()
 
       if (error) throw error
+
+      // If this group IS a school's own node, its name and the school
+      // record's name are one name with two homes — carry the rename across,
+      // or every surface reading `schools.school_name` keeps the old one
+      // (_utils/schoolNodeName.ts). Deliberately AFTER the duplicate-name
+      // warning above, never around it: a rename that got warned and wrote
+      // nothing must not write the school either.
+      if (name !== undefined) {
+        await syncSchoolNameForNode(supabase, groupId, String(name).trim())
+      }
+
       console.log('[Groups] Updated group', groupId, 'by', callerUserId)
       res.status(200).json({ group: data })
     } catch (error) {
