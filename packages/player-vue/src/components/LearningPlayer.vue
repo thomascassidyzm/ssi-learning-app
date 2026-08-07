@@ -6493,6 +6493,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
+    // EASY holds listening at 0.8× (Tom, T-13, 2026-08-07). Read only by
+    // computeListeningSpeed — the speaking side's Easy is longer thinking time
+    // and more reps, not a slower voice, so nothing else here changes.
+    easyMode: isEasyMode.value,
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
@@ -15093,6 +15097,7 @@ defineExpose({
         :up-to-seed="listeningCeilingSeed"
         :learner-id="learnerId"
         :is-offline="offlinePlaybackActive()"
+        :learning-mode="learningMode"
         @close="handleCloseListening"
       />
     </Transition>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildPodCohorts,
   buildPodExchangeCohorts,
-  applyPodColdStartFloor,
+  applyPodColdStartWindow,
   POD_COLD_START_MIN_SENTENCES,
   podCohortOrdinalForIndex,
   podCohortRoundFor,
@@ -129,12 +129,12 @@ describe('buildPodExchangeCohorts — scene walls, exchange debuts (Tom 2026-07-
   })
 })
 
-describe('cold-start floor — lap 1 is never one line on repeat (Tom, A-52, 2026-08-07)', () => {
-  it('the floor is 3 sentences', () => {
-    expect(POD_COLD_START_MIN_SENTENCES).toBe(3)
+describe('cold-start window — lap 1 is one full exchange (Tom, T-13, 2026-08-07)', () => {
+  it('the floor is 2 sentences — the smallest thing that is still an exchange', () => {
+    expect(POD_COLD_START_MIN_SENTENCES).toBe(2)
   })
 
-  it('the reported case: a one-sentence opening cohort absorbs the next until it clears the floor', () => {
+  it('FLOOR — a lone opening line absorbs the next exchange', () => {
     // The Hebrew shape from the A-52 diagnosis — a lone opening turn, then a
     // two-sentence exchange. Lap 1 used to be that single clip, played three
     // times a lap, 19 times across seven laps.
@@ -143,38 +143,46 @@ describe('cold-start floor — lap 1 is never one line on repeat (Tom, A-52, 202
       { start: 1, size: 2 },
       { start: 3, size: 2 },
     ]
-    expect(applyPodColdStartFloor(exchanges)).toEqual([
+    expect(applyPodColdStartWindow(exchanges)).toEqual([
       { start: 0, size: 3 },
       { start: 3, size: 2 },
     ])
   })
 
-  it('the common shape: two two-sentence exchanges make a first lap of four (whole exchanges only)', () => {
+  it('CEILING — a two-sentence opening exchange stands alone, never stacked', () => {
+    // This is the eus_for_spa shape that produced Tom's report: under the
+    // floor-only rule the 2 absorbed the 5 and lap 1 was the whole scene.
+    const exchanges = [
+      { start: 0, size: 2 },
+      { start: 2, size: 5 },
+      { start: 7, size: 2 },
+    ]
+    expect(applyPodColdStartWindow(exchanges)).toEqual(exchanges)
+  })
+
+  it('CEILING — even two short exchanges are not merged', () => {
     const exchanges = [
       { start: 0, size: 2 },
       { start: 2, size: 2 },
       { start: 4, size: 2 },
     ]
-    expect(applyPodColdStartFloor(exchanges)).toEqual([
-      { start: 0, size: 4 },
-      { start: 4, size: 2 },
-    ])
+    expect(applyPodColdStartWindow(exchanges)).toEqual(exchanges)
   })
 
-  it('a first cohort already at or over the floor is left alone', () => {
+  it('the typical live shape (a 3-sentence opening exchange) is untouched', () => {
     const exchanges = [
       { start: 0, size: 3 },
       { start: 3, size: 2 },
     ]
-    expect(applyPodColdStartFloor(exchanges)).toEqual(exchanges)
+    expect(applyPodColdStartWindow(exchanges)).toEqual(exchanges)
   })
 
-  it('a pod shorter than the floor keeps its single cohort', () => {
-    expect(applyPodColdStartFloor([{ start: 0, size: 1 }])).toEqual([{ start: 0, size: 1 }])
-    expect(applyPodColdStartFloor([])).toEqual([])
+  it('a pod that is one sentence long keeps its single cohort', () => {
+    expect(applyPodColdStartWindow([{ start: 0, size: 1 }])).toEqual([{ start: 0, size: 1 }])
+    expect(applyPodColdStartWindow([])).toEqual([])
   })
 
-  it('the floor may cross a scene wall when scene 1 is smaller than it', () => {
+  it('the floor may cross a scene wall when scene 1 is a single line', () => {
     // Scene 1 is a single-line narrator opener; scene 2 opens with a Q+A.
     const rows = [r(1), r(2), r(2)]
     expect(buildPodExchangeCohorts(rows)).toEqual([
@@ -184,29 +192,30 @@ describe('cold-start floor — lap 1 is never one line on repeat (Tom, A-52, 202
     expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
   })
 
-  it('buildPodCohorts = exchange partition + floor, and only the first cohort moves', () => {
+  it('buildPodCohorts = exchange partition + window', () => {
     const rows = [r(1), r(1), r(1), r(1), r(2), r(2)]
     expect(buildPodCohorts(rows)).toEqual([
-      { start: 0, size: 4 },
+      { start: 0, size: 2 },
+      { start: 2, size: 2 },
       { start: 4, size: 2 },
     ])
   })
 
-  it('the ratchet follows the floored partition: lap 1 covers the whole first cohort', () => {
+  it('the ratchet follows the partition: lap 1 covers exactly the first exchange', () => {
     const cohorts = buildPodCohorts([r(1), r(1), r(1), r(1), r(2), r(2)])
     expect(podCohortRoundFor(cohorts, 0)).toBe(1)
-    expect(podRatchetAfterLap(cohorts, 0)).toBe(4)
-    // Second lap debuts the next exchange, unchanged.
-    expect(podCohortRoundFor(cohorts, 4)).toBe(2)
-    expect(podRatchetAfterLap(cohorts, 4)).toBe(6)
+    expect(podRatchetAfterLap(cohorts, 0)).toBe(2)
+    // Second lap debuts the next exchange.
+    expect(podCohortRoundFor(cohorts, 2)).toBe(2)
+    expect(podRatchetAfterLap(cohorts, 2)).toBe(4)
   })
 
-  it('a learner mid-first-cohort under the old partition rolls into the floored one, never backwards', () => {
-    // Stored=1 (one sentence heard on the old model) → the floored cohort 1
+  it('a learner mid-cohort under an older partition rolls forward, never backwards', () => {
+    // Stored=1 (one sentence heard on the legacy per-sentence model) → cohort 1
     // is started, so round 2: it replays whole, one step older.
     const cohorts = buildPodCohorts([r(1), r(1), r(1), r(1), r(2), r(2)])
     expect(podCohortRoundFor(cohorts, 1)).toBe(2)
-    expect(podRatchetAfterLap(cohorts, 1)).toBe(6)
+    expect(podRatchetAfterLap(cohorts, 1)).toBe(4)
   })
 })
 

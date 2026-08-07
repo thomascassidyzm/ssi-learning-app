@@ -54,6 +54,11 @@ export interface TargetSpeedConfig {
   rampSeeds?: number          // seeds to ramp over, 0=disabled (default 10)
   rampStartSpeed?: number     // ramp multiplier at seed 1 (default 0.88)
 
+  /** True when the learner is on EASY. Read ONLY by computeListeningSpeed —
+   *  the speaking side's pace is the mode's pause/rep settings, not its rate.
+   *  See EASY_LISTENING_SPEED. */
+  easyMode?: boolean
+
   /** @deprecated Use rampSeeds instead. Kept for backwards compat. */
   beltRamp?: boolean
 }
@@ -114,6 +119,20 @@ export function computeCycleSpeed(
 }
 
 /**
+ * EASY-MODE LISTENING PACE (Tom's ruling on T-13, 2026-08-07): "EASY setting
+ * defaults listening playback to 0.8× speed."
+ *
+ * It is the white-belt rung of the existing belt ramp, held for as long as the
+ * learner stays on Easy — not a second curve. Applied as a CAP on the ramp
+ * (`min(beltSpeed, 0.8)`), so Easy is never faster than the belt would give
+ * and a learner who moves up belts on Easy keeps the beginner's pace until
+ * they choose Fast. Like the belt ramp it multiplies the clip's own role rate,
+ * so a 2× stretch rep stays a fast rep relative to that pace (1.6×), and it is
+ * for TARGET clips only — the known-language meaning anchor is never slowed.
+ */
+export const EASY_LISTENING_SPEED = 0.8
+
+/**
  * Final playback rate for ONE target-language clip in a LISTENING exercise
  * (Layer-1 cups, Layer-2 pods, Stage-0 sequences, fusion drills).
  *
@@ -151,9 +170,15 @@ export function computeListeningSpeed(
 
   // Legacy courses (voices recorded slow): no belt ramp — identical exemption
   // to computeCycleSpeed, so the two never disagree about which courses ramp.
+  // The Easy pace rides on the ramp, so it takes the same exemption: those
+  // voices are already slow, and slowing them again is the mud Tom's ramp
+  // ruling was about avoiding at the other end.
   if (!config.nativeSpeed) return round2(roleSpeed * base)
 
-  return Math.max(MIN_SPEED, round2(roleSpeed * base * beltSpeed(seedNumber)))
+  const ramp = config.easyMode
+    ? Math.min(beltSpeed(seedNumber), EASY_LISTENING_SPEED)
+    : beltSpeed(seedNumber)
+  return Math.max(MIN_SPEED, round2(roleSpeed * base * ramp))
 }
 
 /** Compute final playback speed for a script item */

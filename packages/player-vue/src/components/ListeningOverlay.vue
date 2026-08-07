@@ -16,6 +16,7 @@ import { PodStateStore } from '@ssi/core'
 // Every one of them is stamped with the per-clip versioned ref at the walk, so
 // the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
+import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -255,12 +256,20 @@ const props = defineProps({
   isOffline: {
     type: Boolean,
     default: false
+  },
+  /** The learner's mode — 'easy' or 'fast'. Easy opens every listening
+   *  surface at EASY_LISTENING_SPEED (Tom, T-13, 2026-08-07); the speed row
+   *  is still theirs to change for the session. */
+  learningMode: {
+    type: String,
+    default: 'fast'
   }
 })
 
-// Playback speed options
-const SPEED_OPTIONS = [1, 1.2, 1.5, 2]
-const playbackSpeed = ref(1)
+// Playback speed options. 0.8 exists so Easy's default has a button of its
+// own — a default with no matching option would show no active speed.
+const SPEED_OPTIONS = [0.8, 1, 1.2, 1.5, 2]
+const playbackSpeed = ref(props.learningMode === 'easy' ? EASY_LISTENING_SPEED : 1)
 
 // Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s).
 // The chosen speed in Drill is the "normal" rate — fast reps are 2× of it.

@@ -193,7 +193,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) debuts the opening exchanges up to the cold-start floor at Phase 0 (Tom 2026-07-24, floor A-52 2026-08-07)', async () => {
+  it('first lap (ratchet=0 → podRound=1) debuts exactly the opening exchange at Phase 0 (Tom 2026-07-24, cold-start window T-13 2026-08-07)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -205,14 +205,15 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(lap!.podRound).toBe(1)
     // The three fixtures share a scene (no scene_number = one scene) and have
     // no glue/speaker info, so each is its own turn → exchanges of [2, 1].
-    // The cold-start floor (3 sentences) merges them, so the first lap is all
-    // three — never a single line on repeat. Each sentence plays its full
-    // Stage-1 pattern before the next: ['ps','explainer','ps'] with no
-    // explainer_audio_id falls back to the TRANSLATION → ['ps','trans','ps'].
-    // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
+    // The cold-start window serves that opening exchange and nothing more: a
+    // turn plus its reply, never a lone line and never the whole scene. Each
+    // sentence plays its full Stage-1 pattern before the next:
+    // ['ps','explainer','ps'] with no explainer_audio_id falls back to the
+    // TRANSLATION → ['ps','trans','ps']. Meaning always arrives. Still all
+    // 1.0× (speed ramp from stage 3).
     expect(lap!.plays.map(p => p.playRole)).toEqual(
-      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3])
+      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
     expect(lap!.plays.every(p => p.stage === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
@@ -250,17 +251,17 @@ describe('usePodLapScheduler — nextLap composition', () => {
   })
 
   it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
-    // Three SCENES of two sentences → exchanges [s1+s2], [s3+s4], [s5+s6];
-    // the cold-start floor merges the first two into cohort 1 (4 sentences),
-    // leaving cohort 2 = s5+s6. Ratchet = 4 sentences covered (cohort 1
-    // completed) → round 2: cohort 1 alive=2 (still stage 1, Phase-0 lasts 2
-    // rounds), cohort 2 debuts at alive=1.
+    // Three SCENES of two sentences → cohorts [s1+s2], [s3+s4], [s5+s6];
+    // the cold-start window leaves all three alone (each is already one full
+    // exchange). Ratchet = 2 sentences covered (cohort 1 completed) → round 2:
+    // cohort 1 alive=2 (still stage 1, Phase-0 lasts 2 rounds), cohort 2
+    // debuts at alive=1; cohort 3 is not in the intake window yet.
     state.podSentences = [
       { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
       { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
-    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -270,11 +271,11 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap!.podRound).toBe(2)
     const idxs = new Set(lap!.plays.map(p => p.sentenceIdx))
-    expect(idxs).toEqual(new Set([1, 2, 3, 4, 5, 6]))
+    expect(idxs).toEqual(new Set([1, 2, 3, 4]))
     // Cohort-mates always share a stage.
     const stageOf = (idx: number) => new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))
-    expect(stageOf(1)).toEqual(stageOf(4))
-    expect(stageOf(5)).toEqual(stageOf(6))
+    expect(stageOf(1)).toEqual(stageOf(2))
+    expect(stageOf(3)).toEqual(stageOf(4))
   })
 
   it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
@@ -283,11 +284,10 @@ describe('usePodLapScheduler — nextLap composition', () => {
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
       { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
-    // Cohorts after the cold-start floor: [s1..s4], [s5+s6]. 6 sentences
-    // covered = both completed → round 3: cohort 1 alive=3 (stage 2 under
-    // Phase-0's 2-round duration), cohort 2 alive=2 (stage 1). No third
-    // cohort exists — intake caps, aging continues.
-    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 6 }
+    // Cohorts: [s1+s2], [s3+s4], [s5+s6]. 4 sentences covered = cohorts 1-2
+    // completed → round 3: cohort 1 alive=3 (stage 2 under Phase-0's 2-round
+    // duration), cohort 2 alive=2 (stage 1), cohort 3 debuts at alive=1.
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -298,9 +298,9 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(lap!.podRound).toBe(3)
     const stages = (idx: number) => [...new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))]
     expect(stages(1)).toEqual([2])
-    expect(stages(4)).toEqual([2])
-    expect(stages(5)).toEqual([1])
-    expect(stages(6)).toEqual([1])
+    expect(stages(2)).toEqual([2])
+    expect(stages(3)).toEqual([1])
+    expect(stages(4)).toEqual([1])
   })
 
   it('two-doors lift raises a cohort only as far as its LEAST-drilled member (cohesion beats drill-ahead)', async () => {
