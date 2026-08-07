@@ -62,13 +62,27 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     }
   })
 
-  it('listening and pod clips ramp off the same belt curve for both modes', () => {
-    // Pods carry their own role rate; the belt ramp multiplies it. Again no
-    // mode input — Easy cannot flatten it.
-    expect(computeListeningSpeed.length).toBe(3)
+  it('listening and pod clips ramp off the same belt curve — and Easy never speeds them UP', () => {
+    // Pods carry their own role rate; the belt ramp multiplies it.
     expect(computeListeningSpeed(1.0, 1, NATIVE_COURSE)).toBe(computeCycleSpeed(1, NATIVE_COURSE))
     expect(computeListeningSpeed(2.0, 1, NATIVE_COURSE)).toBe(1.6)
     expect(computeListeningSpeed(2.0, 40, NATIVE_COURSE)).toBe(2.0)
+
+    // LISTENING has one deliberate, later Easy divergence — T-13 (Tom,
+    // 2026-08-07): "EASY setting defaults listening playback to 0.8× speed",
+    // i.e. Easy HOLDS the white-belt rung instead of climbing. It is not a
+    // second curve (it's `min(beltSpeed, 0.8)` on the same ramp) and it can
+    // only ever make Easy SLOWER, never faster — so it is compatible with this
+    // file's ruling rather than a re-run of the bug. Pinned here so the two
+    // rulings stay visibly reconciled:
+    for (const seed of [1, 7, 8, 19, 20, 39, 40, 400]) {
+      const easy = computeListeningSpeed(1.0, seed, { ...NATIVE_COURSE, easyMode: true })
+      const fast = computeListeningSpeed(1.0, seed, NATIVE_COURSE)
+      expect(easy).toBeLessThanOrEqual(fast)
+    }
+    // At White belt — the band Tom named — the two are IDENTICAL.
+    expect(computeListeningSpeed(1.0, 1, { ...NATIVE_COURSE, easyMode: true }))
+      .toBe(computeListeningSpeed(1.0, 1, NATIVE_COURSE))
   })
 
   it('the modes still differ where they are SUPPOSED to — pause and repetition', () => {
