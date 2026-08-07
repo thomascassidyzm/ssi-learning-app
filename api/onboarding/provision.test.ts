@@ -164,6 +164,78 @@ describe('POST /api/onboarding/provision — operator-capture guard', () => {
   })
 })
 
+describe('POST /api/onboarding/provision — school track founding-admin membership', () => {
+  // Regression for the Chepstow class (2026-08-06): this path creates a school
+  // with schools.admin_user_id = the founding admin, but never wrote her the
+  // user_tags SCHOOL: row every staff-keyed number is derived from — so she was
+  // invisible in her own school (76 min of practice, a headline reading 7m, and
+  // no row of her own in the Teachers list).
+  let handler: typeof import('./provision').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    responders.courses = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { course_code: 'cym_for_eng', pricing_tier: 'free', new_app_status: 'live' }, error: null }
+        : undefined
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-a', display_name: 'Angharad', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    handler = (await import('./provision')).default
+  })
+
+  function schoolTagWrites() {
+    return (writes.user_tags || []).filter(
+      (w: any) => w.op === 'insert' && w.payload?.tag_type === 'school',
+    )
+  }
+
+  it('tags the founding admin as admin of the school it just created', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(schoolTagWrites()).toHaveLength(1)
+    expect(schoolTagWrites()[0].payload).toMatchObject({
+      user_id: 'auth-op-1',
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-new',
+      role_in_context: 'admin',
+    })
+  })
+
+  it('re-provisioning an EXISTING school still attempts exactly one tag write (23505 makes it a no-op)', async () => {
+    // The partial unique index user_tags_active_natural_key turns the second
+    // insert into a 23505 the writer swallows — so a re-provision heals a
+    // pre-fix school without ever duplicating the row.
+    responders.schools = () => ({ data: { id: 'school-existing', trial_course_code: null, platform_status: null }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(schoolTagWrites()).toHaveLength(1)
+    expect(schoolTagWrites()[0].payload.tag_value).toBe('SCHOOL:school-existing')
+  })
+
+  it('a failed tag write never fails the signup', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+    responders.user_tags = () => ({ data: null, error: { code: '42501', message: 'permission denied' } })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+  })
+})
+
 describe('POST /api/onboarding/provision — org track', () => {
   let handler: typeof import('./provision').default
 

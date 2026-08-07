@@ -38,6 +38,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial, isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
@@ -408,6 +409,18 @@ export default async function handler(
       // (the silent-failure class api/admin/create-school.ts fixed for the admin
       // path). Runs on every provision (not just create) so pre-fix schools heal.
       await ensureJoinCodesRegistered(supabase, schoolId, auth.userId)
+
+      // The FOUNDING admin's own membership row. Without it she is invisible to
+      // every staff-keyed number in her own school — the headline hours, the
+      // teacher count, the Teachers list are all derived from user_tags, and
+      // only the school_admin_join CLAIM path ever wrote a tag (Chepstow,
+      // 2026-08-06: 76 min of practice, a dashboard reading 7m, and no row of
+      // her own). Idempotent (23505 no-op), so it runs on every provision — not
+      // just creation — and pre-fix schools heal on the admin's next signin,
+      // exactly like ensureJoinCodesRegistered above. Non-fatal: a membership
+      // row is not worth losing a signup over.
+      const tagErr = await ensureSchoolAdminTag(supabase, { userId: auth.userId, schoolId })
+      if (tagErr) console.warn('[onboarding/provision] founding-admin tag failed (non-fatal):', tagErr)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a

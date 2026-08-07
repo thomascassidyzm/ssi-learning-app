@@ -12,6 +12,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 
@@ -529,6 +530,18 @@ async function redeemInviteCode(
     // ensureJoinCodesRegistered, now shared from there).
     await ensureJoinCodesRegistered(supabase, newSchool!.id as string, userId)
 
+    // The founding admin's own membership row. This is the THIRD path that
+    // creates a school with an admin_user_id (alongside onboarding/provision
+    // and admin/create-school) and, like them, never tagged anyone — so a
+    // leader-invited school admin was equally invisible to every staff-keyed
+    // read of her own school. Idempotent, and non-fatal for the same reason
+    // ensureJoinCodesRegistered above is best-effort.
+    const foundingTagErr = await ensureSchoolAdminTag(supabase, {
+      userId,
+      schoolId: newSchool!.id as string,
+    })
+    if (foundingTagErr) console.error('[CodeRedeem] founding-admin tag failed (non-fatal):', foundingTagErr)
+
     // Set the platform trial clocks HERE, at redemption, instead of routing
     // the admin through the /schools1 onboarding continuation to trigger
     // POST /api/onboarding/provision (the old design, region-tier-design.md
@@ -550,21 +563,16 @@ async function redeemInviteCode(
       console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
     }
   } else if (codeType === 'school_admin_join') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'school',
-        tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
-        role_in_context: 'admin',
-        added_by: userId,
-      })
-    // 23505 = unique_violation on the active-user_tags partial unique index:
-    // a concurrent redemption of this same invite (multi-tab, or a retry after
-    // timeout) already inserted the identical tag — idempotent no-op, not an
-    // error, since the existing tag grants exactly what this request asked for.
-    // Mirrors the govt_admins/schools 23505 handling above.
-    if (tagError && tagError.code !== '23505') {
+    // Shared with the school-CREATION paths (see api/_utils/schoolStaff.ts) so
+    // a claimed seat and a founding seat produce the identical membership row —
+    // one convention, one writer. Idempotent on 23505: a concurrent redemption
+    // of this same invite (multi-tab, or a retry after timeout) already wrote
+    // the identical tag, which grants exactly what this request asked for.
+    const tagError = await ensureSchoolAdminTag(supabase, {
+      userId,
+      schoolId: inviteRow.grants_school_id as string,
+    })
+    if (tagError) {
       console.error('[CodeRedeem] Failed to create school admin tag:', tagError)
       res.status(500).json({ error: 'Internal server error' })
       return
