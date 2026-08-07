@@ -14,6 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateLearningScript } from './validateLearningScript'
+import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
 
 export interface ScriptItem {
   uuid: string
@@ -386,7 +387,7 @@ export async function generateLearningScript(
   // bug: any course-wide derivation (graduated seeds, anchor ordinals,
   // cross-LEGO references) needs the whole inventory in scope, not just
   // the current chunk's window.
-  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -441,7 +442,16 @@ export async function generateLearningScript(
           .order('seed_number', { ascending: true })
           .order('lego_index', { ascending: true })
           .limit(10000)
-      : Promise.resolve({ data: [], error: null })
+      : Promise.resolve({ data: [], error: null }),
+    // Per-clip versioned audio refs. This walk reads the denormalised
+    // `*_audio_id` columns straight from Supabase, so — unlike the /cycles
+    // routes, which run the same map server-side — nothing here would carry a
+    // revision suffix without this. A bare uuid for a REVISED clip is a
+    // permanent stale-audio bug: both downstream caches key on the ref string.
+    // Fetched in parallel with the content queries, so it costs no latency;
+    // returns an empty map on any error (a missed suffix costs one stale clip,
+    // a thrown error costs the whole script). See ./revisedAudioRefs.
+    fetchRevisedAudioRefs(supabase, courseCode)
   ])
 
   // All build loops below tick this — no single main-thread slice of the
@@ -453,6 +463,21 @@ export async function generateLearningScript(
   if (seedsResult.error) throw new Error('Failed to query seeds for listening: ' + seedsResult.error.message)
   if (bookendsResult.error) throw new Error('Failed to query listen bookends: ' + bookendsResult.error.message)
   if (podsResult.error) throw new Error('Failed to query pod sentences: ' + podsResult.error.message)
+
+  // Stamp the revision suffix onto every audio-id column BEFORE anything below
+  // reads one. Doing it here — once, on the fetched rows — rather than at the
+  // dozens of places that copy an id onto a ScriptItem is the same trick the
+  // server routes use (`stampRowAudioRefs` in api/_utils/audioAccess.ts), and
+  // for the same reason: the ref is just a string that rides through untouched.
+  // No-op (and no copy) when the course has no revised clips.
+  if (revisedAudioRefs.size > 0) {
+    legosResult.data = stampRowAudioRefs(revisedAudioRefs, legosResult.data || [])
+    phrasesResult.data = stampRowAudioRefs(revisedAudioRefs, phrasesResult.data || [])
+    seedsResult.data = stampRowAudioRefs(revisedAudioRefs, seedsResult.data || [])
+    bookendsResult.data = stampRowAudioRefs(revisedAudioRefs, bookendsResult.data || [])
+    podsResult.data = stampRowAudioRefs(revisedAudioRefs, podsResult.data || [])
+    console.log(`[generateLearningScript] ${revisedAudioRefs.size} revised clip(s) in ${courseCode} — audio refs stamped`)
+  }
 
   // Map bookend role → audio (used in Phase 6 to wrap the listening batch).
   // Both intro and outro must exist for either to be emitted.
@@ -818,7 +843,9 @@ export async function generateLearningScript(
       console.debug(`[generateLearningScript] Backfilled ${presLookup.size}/${legosMissingPresentation.length} missing presentation audio IDs`)
       for (const lego of legosMissingPresentation) {
         const legoId = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
-        const audioId = presLookup.get(legoId)
+        // Stamped on the way in: this lookup was built from queries issued
+        // AFTER the bulk stamping pass above, so its ids are still bare.
+        const audioId = applyAudioRef(revisedAudioRefs, presLookup.get(legoId))
         if (audioId) lego.presentation_audio_id = audioId
       }
     } else if (legosMissingPresentation.length > 0) {
