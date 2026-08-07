@@ -530,6 +530,12 @@ const runGenerateScript = (
     // phrase in the whole course. Fast is uncapped (1.0) and so provably
     // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
     activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+    // ABSOLUTE syllable CAP for the active mode — "skip all phrases that are
+    // more than X number of syllables" (Tom, 2026-08-07). Composes with the
+    // character fraction above; 0 = no limit, which is Fast's value, so Fast
+    // is provably unchanged. Easy ships 20. Inert (and warns) on a course
+    // whose target language has no registered syllable counter.
+    activeModeConfig.value.maxPhraseSyllables ?? 0,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -14139,6 +14145,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
           activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+          // Twin of the wrapper above — both mode caps travel together.
+          activeModeConfig.value.maxPhraseSyllables ?? 0,
         )
       }
     } finally {

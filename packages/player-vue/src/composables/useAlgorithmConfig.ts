@@ -13,6 +13,7 @@
 import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
+import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
 import {
   type EncouragementTaperConfig,
   DEFAULT_ENCOURAGEMENT_TAPER,
@@ -82,6 +83,22 @@ export interface ModeConfig {
    * A missing or invalid value degrades to 1.0 (uncapped), never to a cap.
    */
   maxPhraseLengthFraction?: number
+  /**
+   * ABSOLUTE cap on phrase length in TARGET-TEXT SYLLABLES — "skip all phrases
+   * that are more than X number of syllables" (Tom, 2026-08-07). Composes with
+   * `maxPhraseLengthFraction` above: a phrase is dropped if it exceeds EITHER
+   * cap. Applied by `capPhrasesByLength()` — the same one place.
+   *
+   * Absent / null / ≤0 / non-finite ⇒ NO LIMIT. That is Fast's value, so Fast
+   * is provably unchanged. Easy ships 20 (measured — see DEFAULT_EASY).
+   *
+   * Unlike the character fraction, this is ABSOLUTE, not course-relative, so
+   * it bites unevenly across courses by design — and it is INERT entirely on
+   * a course whose target language has no registered syllable counter (see
+   * makePhraseSyllableResolver). The character cap is the universal backstop
+   * standing behind it; neither replaces the other.
+   */
+  maxPhraseSyllables?: number
 }
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
@@ -231,6 +248,8 @@ export const DEFAULT_FAST: ModeConfig = {
   scriptShape: {},
   // Uncapped phrase length — Fast meets exactly the phrases it always did.
   maxPhraseLengthFraction: 1.0,
+  // NO syllable limit. Fast is provably unchanged by the 2026-08-07 cap.
+  maxPhraseSyllables: 0,
 }
 
 /**
@@ -293,6 +312,40 @@ export const DEFAULT_EASY: ModeConfig = {
   // shortest-first; the cap only cuts the long tail, with the starvation guard
   // in capPhrasesByLength standing behind it.
   maxPhraseLengthFraction: 0.5,
+  /**
+   * ABSOLUTE syllable ceiling — "skip all phrases that are more than X number
+   * of syllables" (Tom, 2026-08-07). 20 was MEASURED, not guessed.
+   *
+   * Method: count target syllables with the canonical counter (@ssi/core/text)
+   * over every non-component practice phrase of two covered courses, and find
+   * the integer threshold whose removal share best matches what today's Easy
+   * 0.5 character cap already removes.
+   *
+   *   spa_for_eng  n=15,205  syllables p50=12 p90=22 max=48
+   *                char cap (0.5 × 138 chars) removes  5.56%
+   *   fra_for_eng  n=14,118  syllables p50= 8 p90=14 max=27
+   *                char cap (0.5 ×  98 chars) removes  9.12%
+   *
+   *   threshold   spa removed   fra removed   mean
+   *      >16        30.08%         3.39%      16.7%
+   *      >18        21.99%         1.63%      11.8%
+   *      >20        15.40%         0.65%       8.0%   ← closest to 7.34%
+   *      >22         9.87%         0.23%       5.1%
+   *
+   * NOTE THE HONEST FINDING: no single absolute number matches the character
+   * cap on BOTH courses (spa alone wants ~24, fra alone wants ~13), because
+   * the character cap is course-RELATIVE — a fraction of that course's own
+   * longest phrase — while this cap is absolute, and the two courses' phrase
+   * distributions differ hugely (spa tops out at 48 syllables, fra at 27).
+   * 20 is the integer closest to the two courses' MEAN removal share (8.0% vs
+   * the char cap's 7.34%). It therefore bites hard on spa and is near-inert on
+   * fra. That unevenness is inherent to what an absolute cap IS, not a defect
+   * of the number; the character fraction remains the course-relative backstop.
+   *
+   * This is a DB row (`algorithm_config.easy_mode.maxPhraseSyllables`), so
+   * retuning by ear is a Supabase edit, not a deploy.
+   */
+  maxPhraseSyllables: 20,
 }
 
 /**
@@ -320,6 +373,88 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
 }
 
 /**
+ * Coerce a mode's `maxPhraseSyllables` into a positive limit, or Infinity.
+ * Anything missing, non-finite or ≤0 degrades to Infinity — UNCAPPED, i.e.
+ * the pre-2026-08-07 behaviour. Same degrade-to-permissive discipline as
+ * normalizeMaxPhraseLengthFraction above: a bad DB value must never silently
+ * shorten a course. Non-integers are floored, so 20.7 caps at 20 rather than
+ * admitting a phantom half-syllable.
+ */
+export function normalizeMaxPhraseSyllables(max?: number | null): number {
+  if (typeof max !== 'number' || !Number.isFinite(max)) return Infinity
+  if (max <= 0) return Infinity
+  return Math.floor(max)
+}
+
+/** Warned-once ledger for the syllable cap going inert, keyed by course. */
+const syllableCapWarnedCourses = new Set<string>()
+
+/** What `makePhraseSyllableResolver` hands back. */
+export interface PhraseSyllableResolver {
+  /** The registry key derived from the course's `target_lang`. */
+  lang: string
+  /** False ⇒ no counter for this language ⇒ the syllable cap is INERT here. */
+  countable: boolean
+  /**
+   * A phrase's target syllables: the stored `target_syllable_count` when it is
+   * a positive number, else the canonical counter, else null (= uncountable,
+   * so the cap cannot judge this phrase and must let it through).
+   */
+  syllablesOf: (phrase: { target_syllable_count?: number | null; target_text?: string | null }) => number | null
+}
+
+/**
+ * THE one place a phrase's syllable count is resolved for the CAP.
+ *
+ * Order: stored `target_syllable_count` (positive only) → canonical counter
+ * for the course's target language (@ssi/core/text, ported verbatim from
+ * Popty's tools/lib/syllable-counters.cjs) → null.
+ *
+ * `target_syllable_count` is effectively EMPTY in production — 10,813 of
+ * 818,220 rows (1.3%), and only on cym_s_for_eng / cym_n_for_eng /
+ * sbx_for_eng plus 20 spa rows; every big course is 0%. So the counter is the
+ * real path, not the fallback. It is still read first because where it exists
+ * it is authored data and beats a heuristic.
+ *
+ * WHEN THERE IS NO COUNTER (54 of 99 courses — kor, ara, zho, jpn, tha, tel,
+ * mar, fas, ell, nep, dan, bul, ces, ron, srp, cat…) this returns
+ * `countable: false` and warns ONCE per course. It does NOT throw, and it does
+ * NOT guess with another language's rules. The cap simply does not apply, and
+ * says so — which is precisely how the PREVIOUS syllable attempt failed: it
+ * computed a ceiling of 0.5 from an all-1s heuristic and silently did nothing.
+ * Loud inertness is the fix. The character cap still covers those courses.
+ */
+export function makePhraseSyllableResolver(
+  courseCode: string,
+  targetLang: string | null | undefined,
+): PhraseSyllableResolver {
+  const lang = syllableLangOf(targetLang)
+  const countable = hasSyllableCounter(lang)
+
+  if (!countable && !syllableCapWarnedCourses.has(courseCode)) {
+    syllableCapWarnedCourses.add(courseCode)
+    console.warn(
+      `[phrase-cap] maxPhraseSyllables is INERT for ${courseCode}: no syllable counter registered for target language '${lang || '(unknown)'}'. ` +
+      'Phrases will NOT be skipped by syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
+      'To make it apply, add a counter to packages/core/src/text/syllables.ts and mirror it into ssi-dashboard-v7-clean/tools/lib/syllable-counters.cjs.',
+    )
+  }
+
+  return {
+    lang,
+    countable,
+    syllablesOf: (phrase) => {
+      const stored = phrase.target_syllable_count
+      if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) return stored
+      if (!countable) return null
+      const text = phrase.target_text
+      if (!text) return null
+      return countSyllables(text, lang)
+    },
+  }
+}
+
+/**
  * How the CAP measures phrase length: CHARACTERS of target text.
  *
  * Not syllables, and this is measured rather than assumed. On real data
@@ -333,6 +468,18 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
  * The shortest-first SORT still uses syllables, exactly as it always has.
  * Only the cap's measure is characters. Mirrors `phraseLengthOf` in Popty's
  * services/learning-modes.cjs.
+ *
+ * EXTENDED 2026-08-07 — everything above remains true, and the character cap
+ * stays exactly as it is. It is now JOINED by, not replaced by, an absolute
+ * syllable cap (`maxPhraseSyllables`); the two compose, a phrase being dropped
+ * if it exceeds EITHER. What makes the syllable measure viable this time is
+ * that it no longer relies on that all-scripts vowel-cluster heuristic: it
+ * uses the canonical per-language counter (@ssi/core/text), which registers
+ * nine languages and THROWS rather than guess for the rest. On a course whose
+ * target language has no counter — ara among them — the syllable cap declares
+ * itself INERT and warns, instead of silently computing nothing. The character
+ * cap remains the universal backstop that covers exactly those courses, which
+ * is why it must not be removed in favour of syllables.
  */
 export function phraseTextLength(text: string | null | undefined): number {
   return (text || '').length
@@ -378,19 +525,58 @@ export function courseMaxPhraseLength<T>(
  *      passing the ceiling makes the guard swallow the cap on every LEGO
  *      smaller than it, which is most of them. Phrase volume is a hard rail —
  *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
- *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
- *      historic sort.
+ *   4. `limit` of Infinity (fraction 1.0 — Fast) AND no syllable cap
+ *      short-circuits to the plain historic sort.
+ *
+ * The optional `syllableCap` (added 2026-08-07, Tom: "skip all phrases that
+ * are more than X number of syllables") is a SECOND, ABSOLUTE ceiling that
+ * COMPOSES with the character one: a phrase survives only if it is under BOTH.
+ * Omitting it, or passing a non-finite/≤0 limit, reproduces the pre-2026-08-07
+ * behaviour exactly — which is what makes Fast provably unchanged.
+ *
+ * A phrase whose syllables resolve to `null` is UNCOUNTABLE (no counter for
+ * the course's target language) and passes the syllable cap untouched. That is
+ * the inertness path, and it is per-phrase rather than a global switch so a
+ * course with partial stored counts still gets the cap where it can be judged.
+ *
+ * Rule 3 — the STARVATION GUARD — is unchanged and still wins over BOTH caps.
+ * The methodology's per-LEGO floors are a hard rail ("fewer phrases is a
+ * FAIL"), so an over-tight syllable cap degrades gently to the shortest
+ * `minKeep` and can never empty a round.
  */
+export interface PhraseSyllableCap<T> {
+  /** Max syllables allowed, inclusive. Infinity / ≤0 ⇒ no syllable cap. */
+  limit: number
+  /** Syllables of a phrase, or null when uncountable (cap inert for it). */
+  syllablesOf: (phrase: T) => number | null
+}
+
 export function capPhrasesByLength<T>(
   phrases: readonly T[],
   syllablesOf: (phrase: T) => number,
   lengthOf: (phrase: T) => number,
   limit: number,
   minKeep: number,
+  syllableCap?: PhraseSyllableCap<T> | null,
 ): T[] {
   const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
-  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
-  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
+
+  const charLimited = Number.isFinite(limit) && limit > 0
+  const sylLimit = syllableCap?.limit ?? Infinity
+  const sylLimited = Number.isFinite(sylLimit) && sylLimit > 0
+
+  if ((!charLimited && !sylLimited) || sorted.length === 0) return sorted
+
+  const capped = sorted.filter((phrase) => {
+    if (charLimited && lengthOf(phrase) > limit) return false
+    if (sylLimited) {
+      const n = syllableCap!.syllablesOf(phrase)
+      // null / NaN = uncountable — the cap cannot judge it, so it passes.
+      if (typeof n === 'number' && Number.isFinite(n) && n > sylLimit) return false
+    }
+    return true
+  })
+
   return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
 }
 
