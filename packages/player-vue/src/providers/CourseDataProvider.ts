@@ -30,6 +30,7 @@ import type {
   AudioRef,
   LegoPair,
 } from '@ssi/core'
+import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from './revisedAudioRefs'
 
 export interface LearningItem {
   lego: {
@@ -208,7 +209,7 @@ export class CourseDataProvider {
       }
 
       // Transform database records to LearningItem format
-      return this.transformToLearningItems(data)
+      return this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), data))
     } catch (err) {
       return []
     }
@@ -307,6 +308,23 @@ export class CourseDataProvider {
   }
 
   /**
+   * A-86: the per-clip versioned-ref map for this course, shared with every
+   * other lane that needs it.
+   *
+   * This provider runs its OWN Supabase walks — it does not go through
+   * generateLearningScript — so every walk stamps its fetched rows here before
+   * buildProxyUrl turns an id into a URL. Stamping at the walk rather than at
+   * the URL builder is deliberate: the ids also become IndexedDB cache keys,
+   * and a bare uuid for a revised clip is a permanent stale-audio bug.
+   *
+   * Empty map on error by design — a missed suffix costs one stale clip, a
+   * throw would cost the whole lane.
+   */
+  private revisedRefs(): Promise<Map<string, string>> {
+    return getRevisedAudioRefs(this.client, this.courseId)
+  }
+
+  /**
    * Build proxy URL from audio UUID
    * v2.2: Routes through /api/audio/{audioId} for CORS bypass and analytics
    */
@@ -364,9 +382,10 @@ export class CourseDataProvider {
 
       if (error || !data || !data.id) return null
 
+      const ref = applyAudioRef(await this.revisedRefs(), data.id)!
       return {
-        id: data.id,
-        url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
+        id: ref,
+        url: this.buildProxyUrl(ref),  // v2.2: use proxy for CORS bypass
         duration_ms: data.duration_ms || null,
         text: data.text || null,
       }
@@ -476,7 +495,7 @@ export class CourseDataProvider {
       }
 
       // Transform to ClassifiedBasket
-      return this.transformToBasket(legoId, data, lego)
+      return this.transformToBasket(legoId, stampRowAudioRefs(await this.revisedRefs(), data), lego)
     } catch (err) {
       return this.createEmptyBasket(legoId, lego)
     }
@@ -519,8 +538,9 @@ export class CourseDataProvider {
       if (!data || data.length === 0) return baskets
 
       // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
+      // A-86: versioned refs stamped here, at the walk (see revisedRefs).
       const grouped = new Map<string, any[]>()
-      for (const row of data) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
         const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(legoId)) {
           grouped.set(legoId, [])
@@ -571,9 +591,10 @@ export class CourseDataProvider {
       }
 
       if (data?.id) {
+        const ref = applyAudioRef(await this.revisedRefs(), data.id)!
         return {
-          id: data.id,
-          url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
+          id: ref,
+          url: this.buildProxyUrl(ref),  // v2.2: use proxy for CORS bypass
           duration_ms: data.duration_ms,
           origin: data.origin || 'tts',
         }
@@ -612,7 +633,7 @@ export class CourseDataProvider {
         return result
       }
 
-      for (const row of data) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
         if (row.lego_id && row.id) {
           result.set(row.lego_id, {
             id: row.id,
@@ -856,7 +877,7 @@ export class CourseDataProvider {
       }
 
       // Transform to LearningItem
-      const items = this.transformToLearningItems([data])
+      const items = this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), [data]))
       return items[0] ?? null
     } catch (err) {
       return null
@@ -906,7 +927,7 @@ export class CourseDataProvider {
         return true
       })
 
-      return this.transformToLearningItems(uniqueRecords)
+      return this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), uniqueRecords))
     } catch (err) {
       return []
     }
@@ -973,8 +994,9 @@ export class CourseDataProvider {
       }
 
       // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
+      // A-86: versioned refs stamped here, at the walk (see revisedRefs).
       const grouped = new Map<string, any[]>()
-      for (const row of data) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
         const constructedLegoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(constructedLegoId)) {
           grouped.set(constructedLegoId, [])

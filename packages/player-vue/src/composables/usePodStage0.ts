@@ -17,6 +17,7 @@
 import { inject, ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ResolvedAtom, SentenceClips } from '@ssi/core/pods'
+import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 
 interface AtomMapEntry {
   lego_key: string
@@ -114,21 +115,31 @@ export function usePodStage0(courseCode: Ref<string>) {
       if (legoRes.error) throw new Error(`pod_legos: ${legoRes.error.message}`)
       if (audioRes.error) throw new Error(`course_audio: ${audioRes.error.message}`)
 
-      rowById = new Map((sentRes.data as PodSentenceRow[]).map((r) => [r.id, r]))
+      // A-86: stamp per-clip versioned refs (`<uuid>.v<N>`) at the walk, so the
+      // auditioner's `/api/audio/…` element and the IndexedDB cache key both
+      // carry the revision. Same treatment as the live pod lane — a QA surface
+      // that plays the pre-repair clip is a QA surface that lies.
+      const revisedRefs = await getRevisedAudioRefs(supabase, course)
+      const sentenceRows = stampRowAudioRefs(revisedRefs, sentRes.data as PodSentenceRow[])
+
+      rowById = new Map(sentenceRows.map((r) => [r.id, r]))
 
       meansGlossByLego = new Map()
-      for (const l of legoRes.data as Array<{ lego_key: string; explainer_audio_id: string | null }>) {
+      for (const l of stampRowAudioRefs(
+        revisedRefs,
+        legoRes.data as Array<{ lego_key: string; explainer_audio_id: string | null }>,
+      )) {
         if (l.explainer_audio_id) meansGlossByLego.set(l.lego_key, l.explainer_audio_id)
       }
 
       targetClipBySurface = new Map()
-      for (const a of audioRes.data as Array<{ id: string; text: string }>) {
+      for (const a of stampRowAudioRefs(revisedRefs, audioRes.data as Array<{ id: string; text: string }>)) {
         const surface = a.text.slice(TARGET_PREFIX.length)
         // first writer wins (clips are 1:1 per distinct target surface)
         if (!targetClipBySurface.has(surface)) targetClipBySurface.set(surface, a.id)
       }
 
-      sentences.value = (sentRes.data as PodSentenceRow[])
+      sentences.value = sentenceRows
         .filter((r) => Array.isArray(r.atom_map) && r.atom_map.some((e) => e.kind === 'atom'))
         .map((r) => {
           const atoms = (r.atom_map || []).filter((e) => e.kind === 'atom')

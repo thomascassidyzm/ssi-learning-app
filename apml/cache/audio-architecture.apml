@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
+# Last Updated: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — pod lap + Layer-1 schedulers, the offline listening snapshot, both overlays, CourseDataProvider, the pod-stage QA surface. One shared per-course map (getRevisedAudioRefs), array id columns covered, bareAudioId for DB lookups. See versioned_audio_refs.all_client_lanes_stamped)
+# Prev: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
 # Prev: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
 # Prev: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
@@ -144,10 +145,44 @@ spec audio_caching_architecture:
         replaced. This was the live German symptom on 2026-08-06: the repair,
         the stamp and the drop lane all fired correctly and the learner still
         heard pre-repair audio. SCRIPT_VERSION v10 orphans the v9 entries.
+      shared_map: |
+        getRevisedAudioRefs(supabase, courseCode) — ONE in-flight query per
+        course, shared by every lane. An EMPTY result is deliberately not
+        memoised: empty means either "no revised clips" or "the lookup failed",
+        the two are indistinguishable by design, and caching a failure would
+        strand a whole session on bare refs. clearRevisedAudioRefs() drops it.
+
+      array_id_columns: |
+        stampRowAudioRefs also walks sentence_audio_ids /
+        sentence_known_audio_ids on listening_pod_sentences. Those ids become
+        the per-sentence target/known clips after the silence-split flatten, so
+        leaving them bare would defeat the stamping of the row they came from.
+        bareAudioId(ref) strips `.vN` back for any lookup that must go to the
+        DATABASE — course_audio is keyed by the bare uuid.
+
+      all_client_lanes_stamped:
+        - "providers/generateLearningScript.ts — the script walk (original consumer)"
+        - "composables/usePodLapScheduler.ts — listening_pod_sentences + bookends, stamped after the offline fallback resolves"
+        - "composables/useLayer1Scheduler.ts — course_seeds + bookends, same position"
+        - "composables/listeningMetaCache.ts — the OFFLINE listening snapshot. Load-bearing: offline the ref lookup cannot run, so the schedulers' own stamping degrades to a no-op; the snapshot must be written stamped while online or an offline learner plays pre-repair audio for its whole life. clipTexts is queried by bare id and keyed by the stamped ref"
+        - "components/ListeningOverlay.vue — its four own walks: fine-knowns, USE phrases, seeds, and the offline listening pack's id list"
+        - "components/PronunciationOverlay.vue — its course_practice_phrases walk"
+        - "providers/CourseDataProvider.ts — every walk, via the private revisedRefs() accessor: session items, welcome, presentation (single + batch), baskets, lego range"
+        - "composables/usePodStage0.ts — drives the PodStageAuditioner QA surface; a QA surface that plays the pre-repair clip is a QA surface that lies"
+
+      already_covered_no_change_needed:
+        - "composables/useFullCourseScript.ts (CourseExplorer) — builds URLs from generateLearningScript output, which is stamped upstream"
+
       still_unstamped_by_design:
-        - "listening / pod metadata read client-side (listeningMetaCache.ts, useListeningPods.ts, usePodStage0.ts, useLayer1Scheduler.ts, usePodLapScheduler.ts, ListeningOverlay.vue) — bookend/pod_explainer/split-clip roles, outside the repair set so far"
         - "useScriptCache's direct-to-bucket getAudioUrl fallback — bypasses /api/audio entirely; s3_key is current, so it is fresh-by-accident, not by design"
-        - "CourseExplorer / PodStageAuditioner — admin surfaces"
+        - "shared_audio rows (instructions, encouragements) in CourseDataProvider — cross-course template table, outside the per-course course_audio revision ledger"
+
+      stamp_at_the_walk_not_the_url: |
+        Standing rule for any future client-side reader of a *_audio_id column:
+        stamp where the ROWS are fetched, never at the URL builder. The fetched
+        rows are what flows into the script cache, the schedulers and the
+        offline snapshot, so a last-moment URL rewrite leaves the bare id sitting
+        in cached state upstream — which is the bug, not the symptom.
 
   ## ==========================================================================
   ## THE CACHE — AudioCache (one IndexedDB store, two lifecycles)

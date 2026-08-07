@@ -19,6 +19,12 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  getRevisedAudioRefs,
+  stampRowAudioRefs,
+  applyAudioRef,
+  bareAudioId,
+} from '../providers/revisedAudioRefs'
 
 // Bump to invalidate — part of the key, old entries orphan and re-download.
 // v2 (2026-07-22): devices cached before the 2026-03 ita gloss corrections were
@@ -275,7 +281,18 @@ const fetchAndCacheListeningMetaOnce = async (
     ])
     if (podsResult.error) throw new Error(`listening_pod_sentences: ${podsResult.error.message}`)
     if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
-    const podRows = (podsResult.data || []) as unknown as CachedPodRow[]
+    // A-86: this snapshot is the OFFLINE source of truth for the listening
+    // lane, so it must be written with per-clip versioned refs (`<uuid>.v<N>`)
+    // already applied. The schedulers stamp what they fetch, but offline the
+    // revised-ref lookup cannot run and would fall back to an empty map — so
+    // an unstamped snapshot means an offline learner plays the pre-repair clip
+    // for as long as the snapshot lives. Stamping here, while online, is the
+    // only place that can be fixed.
+    const revisedRefs = await getRevisedAudioRefs(client, courseCode)
+    const podRows = stampRowAudioRefs(
+      revisedRefs,
+      (podsResult.data || []) as unknown as CachedPodRow[],
+    )
 
     // Split-clip display texts (the overlay's per-sentence oracle) — chunked
     // to keep the PostgREST in() URL short, mirroring useListeningPods.
@@ -284,15 +301,19 @@ const fetchAndCacheListeningMetaOnce = async (
       for (const id of row.sentence_audio_ids || []) if (id) clipIds.add(id)
       for (const id of row.sentence_known_audio_ids || []) if (id) clipIds.add(id)
     }
+    // clipIds now carry `.vN`, but course_audio is keyed by the BARE uuid — so
+    // query bare and key the result by the stamped ref the overlay will look up.
     const clipTexts: Record<string, string> = {}
     const idArr = Array.from(clipIds)
-    for (let i = 0; i < idArr.length; i += 150) {
+    const stampedByBare = new Map(idArr.map((ref) => [bareAudioId(ref), ref]))
+    const bareArr = Array.from(stampedByBare.keys())
+    for (let i = 0; i < bareArr.length; i += 150) {
       const { data: clips, error: clipErr } = await client
         .from('course_audio')
         .select('id, text')
-        .in('id', idArr.slice(i, i + 150))
+        .in('id', bareArr.slice(i, i + 150))
       if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
-      for (const c of clips || []) clipTexts[c.id] = c.text || ''
+      for (const c of clips || []) clipTexts[stampedByBare.get(c.id) ?? c.id] = c.text || ''
     }
 
     // Fine-known clips (fusion-rung glosses) — paged under PostgREST's cap.
@@ -305,7 +326,7 @@ const fetchAndCacheListeningMetaOnce = async (
         .eq('role', 'pod_fine_known')
         .range(from, from + PAGE - 1)
       if (error) throw new Error(`fine-knowns: ${error.message}`)
-      for (const r of data || []) fineKnowns[r.text_normalized] = r.id
+      for (const r of data || []) fineKnowns[r.text_normalized] = applyAudioRef(revisedRefs, r.id)!
       if (!data || data.length < PAGE) break
     }
 
@@ -320,7 +341,7 @@ const fetchAndCacheListeningMetaOnce = async (
         .order('seed_number', { ascending: true })
         .range(from, from + PAGE - 1)
       if (error) throw new Error(`course_seeds: ${error.message}`)
-      for (const r of data || []) coreSeeds.push(r as CachedCoreSeed)
+      for (const r of stampRowAudioRefs(revisedRefs, data || [])) coreSeeds.push(r as CachedCoreSeed)
       if (!data || data.length < PAGE) break
     }
 
@@ -346,7 +367,7 @@ const fetchAndCacheListeningMetaOnce = async (
       contentStamp,
       podRows,
       clipTexts,
-      bookends: (bookendsResult.data || []) as CachedBookend[],
+      bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
       fineKnowns,
       coreSeeds,
       legoCatalogue: (catalogue || []) as Array<{ seed_number: number; lego_index: number }>,

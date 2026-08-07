@@ -55,6 +55,7 @@ import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 
 /**
  * A-64 (Tom, 2026-08-06): "no mode should ever repeat the same prompt more than
@@ -467,6 +468,17 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           throw new Error(`bookends: ${bookendsResult.error!.message}`)
         }
       }
+
+      // A-86: stamp per-clip versioned refs (`<uuid>.v<N>`) onto the ids BEFORE
+      // anything downstream turns them into `/api/audio/…` URLs or IndexedDB
+      // keys. This walk is its own entry point — it does not go through
+      // generateLearningScript — so without this a revised pod clip would be
+      // requested at its bare uuid and served from cache forever. No-op when
+      // the course has no revised clips, and empty-on-error by design: a missed
+      // suffix costs one stale clip, a throw costs the whole listening lane.
+      const revisedRefs = await getRevisedAudioRefs(supabase, courseCode)
+      podRowsData = stampRowAudioRefs(revisedRefs, (podRowsData || []) as RawPodRow[])
+      bookendData = stampRowAudioRefs(revisedRefs, bookendData || [])
 
       // Flatten turn-rows into per-SENTENCE units: a silence-split turn plays
       // as target→known→target PER SENTENCE (not 3 target sentences then 3
