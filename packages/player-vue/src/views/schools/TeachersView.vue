@@ -51,7 +51,10 @@ const teachers = computed(() => {
     students: t.student_count,
     hours7d: t.total_practice_hours,
     ownMinutes: t.own_practice_minutes ?? 0,
-    role: 'Teacher' as 'Teacher' | 'Admin',
+    // The school's admin belongs in this list (she is staff, and her practice
+    // is in the school's headline) but must be shown as the ADMIN she is —
+    // never mislabelled a teacher. See api/_utils/schoolStaff.ts.
+    role: (t.role_in_context === 'admin' ? 'Admin' : 'Teacher') as 'Teacher' | 'Admin',
     status: 'active' as TeacherStatus,
     joined_at: t.joined_at,
   }))
@@ -225,8 +228,11 @@ watch(selectedUser, (newUser) => {
               </span>
             </td>
             <td class="cell-action">
+              <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
+                   deliberately refuses an admin, so a school can't lose its own
+                   admin through the staff list) — so don't offer the control. -->
               <button
-                v-if="canManageStaff"
+                v-if="canManageStaff && t.role !== 'Admin'"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
                 @click="handleRemoveTeacher(t.user_id, t.name)"

@@ -237,4 +237,91 @@ describe('useTeachersData', () => {
       vi.unstubAllGlobals()
     })
   })
+
+  // --- STAFF = teacher OR admin. ---
+  // Regression for the founding-admin class (Chepstow, 2026-08-06): this read
+  // filtered role_in_context='teacher' STRICTLY, so a school's own admin was
+  // absent from her own Teachers list — while school_summary.staff_practice_hours
+  // already counted teacher OR admin, so her practice was in the headline and
+  // she was not. Mirrors SCHOOL_STAFF_ROLES in api/_utils/schoolStaff.ts.
+  describe('staff = teacher OR admin (direct-read branch)', () => {
+    /** Like createChainableClient, but records the filters applied per table. */
+    function createRecordingClient(responses: Record<string, any>, calls: Record<string, any[]>) {
+      const make = (table: string): any => {
+        const builder: any = new Proxy({}, {
+          get(_t, prop) {
+            if (prop === 'then') {
+              const resp = responses[table] || { data: [], error: null }
+              return (resolve: any) => resolve(resp)
+            }
+            return (...args: any[]) => {
+              calls[table] = calls[table] || []
+              calls[table].push([String(prop), ...args])
+              return builder
+            }
+          },
+        })
+        return builder
+      }
+      return {
+        from: vi.fn((table: string) => make(table)),
+        auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) },
+      } as any
+    }
+
+    const RESPONSES = {
+      user_tags: { data: [
+        { user_id: 'ut1', added_at: '2025-01-01', role_in_context: 'teacher' },
+        { user_id: 'head-1', added_at: '2024-09-01', role_in_context: 'admin' },
+      ], error: null },
+      learners: { data: [
+        { id: 'l1', user_id: 'ut1', display_name: 'Bryn Teacher' },
+        { id: 'l-head', user_id: 'head-1', display_name: 'Angharad Head' },
+      ], error: null },
+      classes: { data: [], error: null },
+      class_teachers: { data: [], error: null },
+      class_student_progress: { data: [], error: null },
+      sessions: { data: [{ learner_id: 'l-head', duration_seconds: 4560 }], error: null },
+    }
+
+    async function setupAdminView(calls: Record<string, any[]>) {
+      const { setSchoolsClient } = await import('./client')
+      setSchoolsClient(createRecordingClient(RESPONSES, calls))
+      const { useSchoolContext } = await import('./useSchoolContext')
+      useSchoolContext().currentUser.value = ({
+        user_id: 'real-admin-uid', learner_id: 'l-admin', display_name: 'SSI Admin',
+        educational_role: 'school_admin', platform_role: 'ssi_admin',
+        school_id: 's1', _scopeSource: 'admin-view',
+      })
+      const { useTeachersData } = await import('./useTeachersData')
+      return useTeachersData()
+    }
+
+    it('asks user_tags for teacher OR admin, never teacher alone', async () => {
+      const calls: Record<string, any[]> = {}
+      const td = await setupAdminView(calls)
+      vi.stubGlobal('fetch', vi.fn())
+      await td.fetchTeachers()
+
+      const roleFilter = (calls.user_tags || []).find((c) => c[1] === 'role_in_context')
+      expect(roleFilter).toBeDefined()
+      expect(roleFilter![0]).toBe('in')
+      expect(roleFilter![2]).toEqual(['teacher', 'admin'])
+      vi.unstubAllGlobals()
+    })
+
+    it('returns the school ADMIN in the list, labelled admin, with her own practice', async () => {
+      const calls: Record<string, any[]> = {}
+      const td = await setupAdminView(calls)
+      vi.stubGlobal('fetch', vi.fn())
+      await td.fetchTeachers()
+
+      const head = td.teachers.value.find(t => t.user_id === 'head-1')!
+      expect(head).toBeDefined()
+      expect(head.role_in_context).toBe('admin')
+      expect(head.own_practice_minutes).toBe(76)
+      expect(td.teachers.value.find(t => t.user_id === 'ut1')!.role_in_context).toBe('teacher')
+      vi.unstubAllGlobals()
+    })
+  })
 })

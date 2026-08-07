@@ -297,4 +297,44 @@ describe('GET /api/school/roster', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(405)
   })
+
+  // --- The founding admin belongs in her own school's staff list. ---
+  // Regression for Chepstow (2026-08-06): the head had 76 min across 19
+  // sessions, her dashboard headline showed 7m (the two invited teachers only),
+  // and she was absent from her own Teachers list — because this read filtered
+  // role_in_context='teacher' STRICTLY while staff_practice_hours already
+  // counted teacher OR admin. One definition of staff now.
+  describe('school ADMIN membership (role_in_context = admin)', () => {
+    beforeEach(() => {
+      DB.user_tags.push({ user_id: 'admin-uid', added_at: '2025-03-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'admin', removed_at: null })
+      DB.learners.push({ id: 'l-admin', user_id: 'admin-uid', display_name: 'Angharad Head' })
+      DB.sessions.push({ learner_id: 'l-admin', duration_seconds: 4560 }) // 76 min
+    })
+
+    it('includes the school ADMIN in the staff list, with her own practice', async () => {
+      const res = makeRes()
+      await handler(makeReq(), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.teachers).toHaveLength(3)
+      const admin = res.body.teachers.find((t: any) => t.user_id === 'admin-uid')
+      expect(admin).toBeDefined()
+      expect(admin.own_practice_minutes).toBe(76)
+    })
+
+    it('labels her as the ADMIN she is — never mislabelled a teacher', async () => {
+      const res = makeRes()
+      await handler(makeReq(), res)
+      const rows = res.body.teachers
+      expect(rows.find((t: any) => t.user_id === 'admin-uid').role_in_context).toBe('admin')
+      expect(rows.find((t: any) => t.user_id === 'ut1').role_in_context).toBe('teacher')
+    })
+
+    it('still excludes STUDENT tags on the same school', async () => {
+      DB.user_tags.push({ user_id: 'stu-uid', added_at: '2025-04-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'student', removed_at: null })
+      DB.learners.push({ id: 'l-stu', user_id: 'stu-uid', display_name: 'Not Staff' })
+      const res = makeRes()
+      await handler(makeReq(), res)
+      expect(res.body.teachers.map((t: any) => t.user_id)).not.toContain('stu-uid')
+    })
+  })
 })

@@ -41,6 +41,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, schoolIdForAdmin, chunk } from '../_utils/schoolScope'
+import { SCHOOL_STAFF_ROLES } from '../_utils/schoolStaff'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -98,11 +99,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const classIds = (classes ?? []).map((c: any) => c.id).filter(Boolean)
 
     const [{ data: teacherTags, error: teacherTagsErr }, { data: classTeachers, error: classTeachersErr }] = await Promise.all([
+      // STAFF = teacher OR admin (SCHOOL_STAFF_ROLES). This used to be
+      // 'teacher' strictly, which silently excluded the school's own ADMIN
+      // from her own Teachers list — and, for a FOUNDING admin, from every
+      // staff number in the school (Chepstow, 2026-08-06). It matches the
+      // definition school_summary.staff_practice_hours already used.
       svc.from('user_tags')
-        .select('user_id, added_at')
+        .select('user_id, added_at, role_in_context')
         .eq('tag_value', `SCHOOL:${schoolId}`)
         .eq('tag_type', 'school')
-        .eq('role_in_context', 'teacher')
+        .in('role_in_context', SCHOOL_STAFF_ROLES)
         .is('removed_at', null),
       classIds.length
         ? svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', classIds)
@@ -122,6 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (uid) teacherIdSet.add(uid)
     }
     const teacherUserIds = [...teacherIdSet]
+    // Carried through to the UI so the admin is shown as the ADMIN she is,
+    // never mislabelled a teacher (and so the Remove control, which only ever
+    // acts on teacher tags, can hide itself for her). A co-teacher who reached
+    // this roster through a CLASS: tag alone has no entry here, and the UI
+    // reads a missing role as 'teacher' — which is exactly what they are.
+    const staffRoles = new Map((teacherTags ?? []).map((t: any) => [t.user_id, t.role_in_context]))
 
     const students: any[] = []
     for (const batch of chunk(classIds)) {
@@ -190,6 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           student_count: studentCount,
           total_practice_hours: Math.round((seconds / 3600) * 10) / 10,
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
+          role_in_context: staffRoles.get(l.user_id) || 'teacher',
           joined_at: joinDates.get(l.user_id) || '',
         }
       }).sort((a: any, b: any) => a.display_name.localeCompare(b.display_name))
