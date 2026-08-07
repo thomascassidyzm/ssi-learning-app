@@ -19,7 +19,8 @@ import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revis
 // next to resolveScriptShape (Aran's correction, 2026-08-06).
 import {
   capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
-  normalizeMaxPhraseLengthFraction,
+  normalizeMaxPhraseLengthFraction, normalizeMaxPhraseSyllables,
+  makePhraseSyllableResolver,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
@@ -176,6 +177,17 @@ export interface LearningScriptResult {
    */
   mainLoopRoundCount: number
   hasRomanizedText: boolean
+  /**
+   * Did the ABSOLUTE syllable cap (`maxPhraseSyllables`) actually apply?
+   *
+   * False when the mode sets no syllable cap, OR when this course's target
+   * language has no registered syllable counter — 54 of 99 courses. The flag
+   * exists so the cap's inertness is VISIBLE to callers rather than being an
+   * invisible no-op, which is exactly how the previous syllable attempt
+   * failed. Pairs with the once-per-course console warning from
+   * makePhraseSyllableResolver.
+   */
+  syllableCapApplied: boolean
 }
 
 /**
@@ -342,6 +354,18 @@ export async function generateLearningScript(
    */
   maxPhraseLengthFraction: number = 1,
   /**
+   * ABSOLUTE cap on phrase length in TARGET SYLLABLES for the active mode
+   * (Tom, 2026-08-07: "skip all phrases that are more than X number of
+   * syllables"). 0 / absent / non-finite = NO LIMIT and reproduces the
+   * pre-2026-08-07 behaviour exactly; Easy ships 20.
+   *
+   * COMPOSES with maxPhraseLengthFraction — a phrase is dropped if it exceeds
+   * EITHER cap — and goes INERT (with a warning, and syllableCapApplied=false
+   * in the result) on a course whose target language has no counter. See
+   * capPhrasesByLength(), still the one place the rule lives.
+   */
+  maxPhraseSyllables: number = 0,
+  /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
    * L1-outro merge decision stays in sync with the runtime scheduler.
@@ -404,7 +428,7 @@ export async function generateLearningScript(
   // bug: any course-wide derivation (graduated seeds, anchor ordinals,
   // cross-LEGO references) needs the whole inventory in scope, not just
   // the current chunk's window.
-  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs, courseRowResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -468,8 +492,42 @@ export async function generateLearningScript(
     // Fetched in parallel with the content queries, so it costs no latency;
     // returns an empty map on any error (a missed suffix costs one stale clip,
     // a thrown error costs the whole script). See ./revisedAudioRefs.
-    fetchRevisedAudioRefs(supabase, courseCode)
+    fetchRevisedAudioRefs(supabase, courseCode),
+    // The course's TARGET LANGUAGE — the one thing the absolute syllable cap
+    // needs and nothing else here did. Smallest possible fetch: one column,
+    // one row, in the existing parallel batch so it costs no latency. Skipped
+    // entirely when no syllable cap is set (Fast), so Fast issues exactly the
+    // queries it always did. A failed/missing row leaves target_lang null,
+    // which makes the cap inert and warn — never throws, never guesses.
+    normalizeMaxPhraseSyllables(maxPhraseSyllables) < Infinity
+      ? supabase
+          .from('courses')
+          .select('target_lang')
+          .eq('course_code', courseCode)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ])
+
+  // ABSOLUTE syllable cap for this run (Tom, 2026-08-07). Resolved ONCE:
+  // the mode's limit, plus the one resolver that knows how to count a phrase
+  // in this course's target language. `countable` false ⇒ the cap is inert on
+  // this course and has already warned; we still build the cap object because
+  // a course with partially-stored target_syllable_count values can be judged
+  // row-by-row even without a counter.
+  // A courses-table read error is NOT fatal — the cap going inert costs the
+  // learner nothing (the character cap still applies), while throwing would
+  // cost them the whole script.
+  const MAX_PHRASE_SYLLABLES = normalizeMaxPhraseSyllables(maxPhraseSyllables)
+  if (courseRowResult?.error) {
+    console.warn(`[phrase-cap] could not read courses.target_lang for ${courseCode} — syllable cap may be inert:`, courseRowResult.error.message)
+  }
+  const syllableResolver = MAX_PHRASE_SYLLABLES < Infinity
+    ? makePhraseSyllableResolver(courseCode, (courseRowResult?.data as { target_lang?: string } | null)?.target_lang)
+    : null
+  const PHRASE_SYLLABLE_CAP = syllableResolver
+    ? { limit: MAX_PHRASE_SYLLABLES, syllablesOf: (p: Phrase) => syllableResolver.syllablesOf(p) }
+    : null
+  const syllableCapApplied = Boolean(syllableResolver?.countable)
 
   // All build loops below tick this — no single main-thread slice of the
   // walk may exceed the budget (post-READY interactivity, founder 2026-07-30).
@@ -797,6 +855,7 @@ export async function generateLearningScript(
       phraseLengthOf,
       PHRASE_LENGTH_LIMIT,
       MIN_BUILD_PHRASES_AFTER_CAP,
+      PHRASE_SYLLABLE_CAP,
     )
   }
 
@@ -1297,6 +1356,7 @@ export async function generateLearningScript(
         phraseLengthOf,
         PHRASE_LENGTH_LIMIT,
         MIN_USE_PHRASES_AFTER_CAP,
+        PHRASE_SYLLABLE_CAP,
       )
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
@@ -1339,6 +1399,7 @@ export async function generateLearningScript(
           phraseLengthOf,
           PHRASE_LENGTH_LIMIT,
           MIN_USE_PHRASES_AFTER_CAP,
+          PHRASE_SYLLABLE_CAP,
         ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego
@@ -1842,5 +1903,5 @@ export async function generateLearningScript(
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
   console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
+  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized, syllableCapApplied }
 }
