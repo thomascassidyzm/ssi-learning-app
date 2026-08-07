@@ -12,7 +12,7 @@ import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
-import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
+import { myTaughtClassIds, teachersByClassId, teachersByClassIdResult, type ClassTeacherRef } from './classTeacherScope'
 
 export type { Belt }
 
@@ -131,6 +131,19 @@ const currentClass = ref<ClassInfo | null>(null)
 const classStudents = ref<StudentProgress[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+
+// Per-panel load state for the class-detail page. `error` above means "the
+// class row itself could not be read" — the only genuinely page-wide failure.
+// Everything else on that page has its OWN data source and its own outcome,
+// so one slow view can no longer blank out unrelated panels (production,
+// 2026-08-07: class_student_progress timed out for a non-lead co-teacher and
+// took the teacher list and the student invite code down with it).
+const rosterError = ref<string | null>(null)
+const teachersError = ref<string | null>(null)
+// False until a class_teachers read for the current class has actually
+// RESOLVED. "No teachers yet" may only be rendered when this is true and
+// teachersError is null — never assert an emptiness you did not observe.
+const teachersLoaded = ref(false)
 
 export function useClassesData() {
   const client = getSchoolsClient()
@@ -369,30 +382,49 @@ export function useClassesData() {
 
         currentClass.value = { ...cls, student_count: classStudentList.length }
       }
+      teachersLoaded.value = true
+      teachersError.value = null
+      rosterError.value = null
       return
     }
 
     isLoading.value = true
     error.value = null
+    rosterError.value = null
+    teachersError.value = null
+    teachersLoaded.value = false
 
     try {
-      // Fetch class info
+      // Fetch class info. This one IS all-or-nothing: without the class row
+      // there is no name, no course and no join code to render.
       const { data: classData, error: classError } = await client
         .from('classes')
         .select('*')
         .eq('id', classId)
         .single()
 
-      if (classError) throw classError
+      if (classError) {
+        // Report the DB's own reason — PostgREST errors are plain objects, so
+        // the generic catch below would flatten them to "Failed to fetch class
+        // detail" and tell the teacher nothing.
+        error.value = classError.message || 'Failed to fetch class detail'
+        console.error('Class detail fetch error:', classError)
+        return
+      }
 
-      // Fetch student progress for this class
+      // Fetch student progress for this class. Its own panel, its own outcome:
+      // this view can time out (57014) under a non-lead co-teacher's RLS plan,
+      // and when it does the roster says so while the rest of the page lives.
       const { data: progressData, error: progressError } = await client
         .from('class_student_progress')
         .select('*')
         .eq('class_id', classId)
         .order('student_name')
 
-      if (progressError) throw progressError
+      if (progressError) {
+        rosterError.value = progressError.message || 'Failed to fetch the roster'
+        console.error('Class roster fetch error:', progressError)
+      }
 
       const students = (progressData || []).map(p => ({
         student_user_id: p.student_user_id,
@@ -419,11 +451,18 @@ export function useClassesData() {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
       sevenDaysAgo.setHours(0, 0, 0, 0)
-      const { data: sessionRows } = await client
-        .from('class_sessions')
-        .select('started_at, cycles_completed')
-        .eq('class_id', classId)
-        .gte('started_at', sevenDaysAgo.toISOString())
+      // Sparkline is decoration — a failure here dims one chart, nothing else.
+      let sessionRows: Array<{ started_at: string | null; cycles_completed: number | null }> | null = null
+      try {
+        const res = await client
+          .from('class_sessions')
+          .select('started_at, cycles_completed')
+          .eq('class_id', classId)
+          .gte('started_at', sevenDaysAgo.toISOString())
+        sessionRows = res.data
+      } catch (err) {
+        console.error('Class sparkline fetch error:', err)
+      }
 
       const days = last7Days()
       const dayIndex = new Map(days.map((d, i) => [d, i]))
@@ -438,8 +477,13 @@ export function useClassesData() {
       const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
-      // Active teacher↔class relationships for this class (lead + co-taught)
-      const detailTeachers = (await teachersByClassId([classId])).get(classId) ?? []
+      // Active teacher↔class relationships for this class (lead + co-taught).
+      // Its own panel, its own outcome — and a FAILED read is reported, never
+      // rendered as "no teachers are linked to this class yet".
+      const teacherRead = await teachersByClassIdResult([classId])
+      const detailTeachers = teacherRead.map.get(classId) ?? []
+      teachersError.value = teacherRead.error
+      teachersLoaded.value = teacherRead.error === null
 
       currentClass.value = {
         id: classData.id,
@@ -959,6 +1003,9 @@ export function useClassesData() {
     classStudents,
     isLoading,
     error,
+    rosterError,
+    teachersError,
+    teachersLoaded,
 
     // Computed
     totalStudentsInClasses,

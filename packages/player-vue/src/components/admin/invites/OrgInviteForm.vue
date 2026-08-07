@@ -11,6 +11,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import { redeemLink } from '@/composables/schools/inviteLink'
 
 type Who = 'leader' | 'school_admin_join' | 'teacher' | 'learner_demo'
 
@@ -180,9 +181,13 @@ async function submit(): Promise<void> {
       const school = schools.value.find(s => s.id === whereId.value)
       if (!school) throw new Error('School not found')
       const code = who.value === 'teacher' ? school.teacher_join_code : school.admin_join_code
+      // A school row can carry a null join code; a `/redeem/null` link handed to
+      // a head teacher is worse than an error (see inviteLink.ts).
+      const url = redeemLink(code)
+      if (!url) throw new Error('That school has no standing join code yet')
       standingLink.value = {
         label: who.value === 'teacher' ? 'Teacher join link (standing)' : 'School admin join link (standing)',
-        url: `${window.location.origin}/redeem/${code}`,
+        url,
       }
     } else {
       const token = await getAuthToken()

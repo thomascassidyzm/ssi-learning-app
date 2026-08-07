@@ -10,6 +10,7 @@ import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { compareByName } from '@/utils/alphaSort'
+import { redeemLink } from '@/composables/schools/inviteLink'
 
 const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
@@ -116,8 +117,10 @@ const isCreatingSchool = ref(false)
 const createdSchool = ref<{ id: string; school_name: string; admin_join_code: string; teacher_join_code: string } | null>(null)
 const copiedCode = ref<string | null>(null)
 
-function redeemUrl(code: string): string {
-  return `${window.location.origin}/redeem/${code}`
+// A code-less /redeem/ link is a dead link someone hands to a real person —
+// build it only when the code is genuinely present (see inviteLink.ts).
+function redeemUrl(code: string | null | undefined): string | null {
+  return redeemLink(code)
 }
 
 function openAddModal() {
@@ -143,7 +146,9 @@ async function handleCreateSchool() {
 
 async function copyCode(code: string) {
   try {
-    await navigator.clipboard.writeText(redeemUrl(code))
+    const url = redeemUrl(code)
+    if (!url) return
+    await navigator.clipboard.writeText(url)
     copiedCode.value = code
     setTimeout(() => { if (copiedCode.value === code) copiedCode.value = null }, 2000)
   } catch {
@@ -363,8 +368,8 @@ watch(currentUser, (u) => {
         />
         <p v-if="createError" class="invite-modal-error">{{ createError }}</p>
         <template v-if="createdSchool">
-          <InviteLinkField label="Admin" :url="redeemUrl(createdSchool.admin_join_code)" />
-          <InviteLinkField label="Teacher" :url="redeemUrl(createdSchool.teacher_join_code)" />
+          <InviteLinkField v-if="redeemUrl(createdSchool.admin_join_code)" label="Admin" :url="redeemUrl(createdSchool.admin_join_code)!" />
+          <InviteLinkField v-if="redeemUrl(createdSchool.teacher_join_code)" label="Teacher" :url="redeemUrl(createdSchool.teacher_join_code)!" />
           <p class="schools-subtle invite-modal-hint">
             Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also
             live on the school's row any time you need them again.

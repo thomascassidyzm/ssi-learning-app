@@ -20,6 +20,8 @@ import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
+import { redeemLink } from '@/composables/schools/inviteLink'
+import { teacherPanelState, joinPanelState } from './classDetailPanels'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -33,6 +35,9 @@ const {
   classDetail,
   isLoading: classDetailLoading,
   error: classDetailError,
+  rosterError,
+  teachersError,
+  teachersLoaded,
   fetchClassDetail,
   getClassReport,
   renameClass: renameClassApi,
@@ -291,11 +296,23 @@ async function handlePlay() {
 // underlying invite_codes row is unchanged (code_type: 'student',
 // max_uses: null) — many students redeem the same link, it's just delivered
 // as a link instead of a bare code now.
-const classJoinLink = computed(() => `${window.location.origin}/redeem/${classData.value.join_code}`)
+//
+// It is built ONLY when the code is genuinely present. On production
+// (2026-08-07) a cover teacher saw `…/redeem/` with the code missing, because
+// an unrelated view timed out and the template interpolated an empty string —
+// a dead link she would have handed to a class of pupils. The panel now holds
+// itself back rather than offering something that goes nowhere.
+const joinPanel = computed(() => joinPanelState({
+  joinCode: classData.value.join_code,
+  loading: classDetailLoading.value || (!classDetail.value && !classDetailError.value),
+  error: classDetailError.value,
+}))
 
 async function copyJoinCode() {
+  const code = joinPanel.value.code
+  if (!code) return
   try {
-    await navigator.clipboard.writeText(classData.value.join_code)
+    await navigator.clipboard.writeText(code)
     codeCopySuccess.value = true
     setTimeout(() => { codeCopySuccess.value = false }, 2000)
   } catch {
@@ -394,6 +411,17 @@ const classTeachers = computed(() => {
     .sort((a, b) => (Number(b.is_lead) - Number(a.is_lead)) || a.name.localeCompare(b.name))
 })
 
+// What the TEACHERS panel is allowed to say. "No teachers are linked to this
+// class yet" is an assertion about the world, so it may only be made when the
+// class_teachers read actually came back clean and empty — never because it
+// failed or has not resolved (production, 2026-08-07: two teachers, and the
+// panel said nobody).
+const teacherListState = computed(() => teacherPanelState({
+  count: classTeachers.value.length,
+  loaded: teachersLoaded.value,
+  error: teachersError.value,
+}))
+
 // Who may change WHO TEACHES this class — founder ruling 2026-08-06: "any
 // group leader or the current teacher of the class can add the co-teacher".
 // A co-teacher teaches the class but does not recruit into it, so they are not
@@ -482,7 +510,13 @@ async function mintCoTeacherLink(): Promise<void> {
     teacherPanelError.value = `Couldn't create a co-teacher link. ${result.error ?? ''}`.trim()
     return
   }
-  coTeacherLink.value = `${window.location.origin}/redeem/${result.code}`
+  // Same rule as the student link: a code-less URL is never shown.
+  const link = redeemLink(result.code)
+  if (!link) {
+    teacherPanelError.value = "Couldn't create a co-teacher link. The server returned no code."
+    return
+  }
+  coTeacherLink.value = link
 }
 
 onMounted(loadTeacherCandidates)
@@ -635,8 +669,8 @@ const deleteImpactLines = computed(() => {
               <tr v-else-if="filteredStudents.length === 0 && classDetailLoading">
                 <td colspan="6" class="empty-row schools-subtle">Loading roster…</td>
               </tr>
-              <tr v-else-if="filteredStudents.length === 0 && classDetailError">
-                <td colspan="6" class="empty-row">Couldn't load roster. {{ classDetailError }}</td>
+              <tr v-else-if="filteredStudents.length === 0 && (rosterError || classDetailError)">
+                <td colspan="6" class="empty-row">Couldn't load roster. {{ rosterError || classDetailError }}</td>
               </tr>
               <tr v-else-if="filteredStudents.length === 0">
                 <td colspan="6" class="empty-row">No students have joined this class yet.</td>
@@ -676,6 +710,7 @@ const deleteImpactLines = computed(() => {
             </div>
           </div>
           <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
+          <p v-else-if="rosterError || classDetailError" class="rail-note schools-subtle">Couldn't load the roster, so this is unknown.</p>
           <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
         </div>
 
@@ -688,7 +723,7 @@ const deleteImpactLines = computed(() => {
         <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card" data-walk="class-teachers">
           <div class="schools-kicker rail-kicker">Teachers</div>
 
-          <ul v-if="classTeachers.length" class="teacher-list">
+          <ul v-if="teacherListState === 'ready'" class="teacher-list">
             <li v-for="t in classTeachers" :key="t.user_id" class="teacher-row">
               <span class="teacher-name">
                 {{ t.name }}<span v-if="t.is_me" class="teacher-you"> (you)</span>
@@ -717,7 +752,10 @@ const deleteImpactLines = computed(() => {
               </span>
             </li>
           </ul>
-          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
+          <p v-else-if="teacherListState === 'loading'" class="rail-note schools-subtle">Loading the teacher list…</p>
+          <p v-else-if="teacherListState === 'error'" class="rail-note schools-subtle">
+            Couldn't load the teacher list, so we can't show who teaches this class. Try refreshing.
+          </p>
           <p v-else class="rail-note schools-subtle">No teachers are linked to this class yet.</p>
 
           <template v-if="!canManageTeachers">
@@ -761,9 +799,13 @@ const deleteImpactLines = computed(() => {
               type="button"
               class="btn-ghost btn-small"
               :disabled="coTeacherLinkBusy || !classData.id"
+              :title="!classData.id ? 'Waiting for the class to load' : undefined"
               @click="mintCoTeacherLink"
             >
-              {{ coTeacherLinkBusy ? 'Creating…' : 'Create a co-teacher link' }}
+              <!-- On a cold direct load of the class URL this button is gated on
+                   classData.id, which arrives late. Say so rather than sitting
+                   dead and unexplained (production run, 2026-08-07). -->
+              {{ coTeacherLinkBusy ? 'Creating…' : (!classData.id ? 'Loading the class…' : 'Create a co-teacher link') }}
             </button>
           </div>
 
@@ -772,35 +814,51 @@ const deleteImpactLines = computed(() => {
 
         <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
           <div class="schools-kicker join-kicker">Invite students</div>
-          <p class="join-help">
-            Share this link — students click it, sign up, and land straight in the class.
-          </p>
-          <div data-walk="class-join-link"><InviteLinkField :url="classJoinLink" /></div>
 
-          <button
-            v-if="!showCode"
-            type="button"
-            class="btn-text join-show-code"
-            data-walk="class-join-code"
-            @click="showCode = true"
-          >
-            Show code instead
-          </button>
-          <template v-else>
-            <div class="join-code" data-walk="class-join-code">{{ classData.join_code }}</div>
-            <p class="join-help join-help-small">
-              For writing on a whiteboard — students enter it at
-              <strong>saysomethingin.com/redeem</strong>.
+          <!-- Nothing copyable exists until the code does: a link with the code
+               missing gets handed to a class of pupils before anyone finds out
+               it goes nowhere (production, 2026-08-07). -->
+          <template v-if="joinPanel.state === 'ready'">
+            <p class="join-help">
+              Share this link — students click it, sign up, and land straight in the class.
             </p>
+            <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" /></div>
+
             <button
+              v-if="!showCode"
               type="button"
-              class="btn-ghost btn-small join-copy"
-              :class="{ copied: codeCopySuccess }"
-              @click="copyJoinCode"
+              class="btn-text join-show-code"
+              data-walk="class-join-code"
+              @click="showCode = true"
             >
-              {{ codeCopySuccess ? 'Copied' : 'Copy code' }}
+              Show code instead
             </button>
+            <template v-else>
+              <div class="join-code" data-walk="class-join-code">{{ joinPanel.code }}</div>
+              <p class="join-help join-help-small">
+                For writing on a whiteboard — students enter it at
+                <strong>saysomethingin.com/redeem</strong>.
+              </p>
+              <button
+                type="button"
+                class="btn-ghost btn-small join-copy"
+                :class="{ copied: codeCopySuccess }"
+                @click="copyJoinCode"
+              >
+                {{ codeCopySuccess ? 'Copied' : 'Copy code' }}
+              </button>
+            </template>
           </template>
+          <p v-else-if="joinPanel.state === 'loading'" class="join-help schools-subtle">
+            Loading this class's invite link…
+          </p>
+          <p v-else-if="joinPanel.state === 'error'" class="join-help schools-subtle">
+            Couldn't load this class's invite link. Refresh before sharing anything — don't hand
+            out a link from this page until it appears.
+          </p>
+          <p v-else class="join-help schools-subtle">
+            This class has no join code yet.
+          </p>
         </div>
       </aside>
     </div>
