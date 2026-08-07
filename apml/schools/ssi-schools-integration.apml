@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.7.1"
-  date: "2026-08-07"   # school-admin first-run flow: both affordances made reachable
+  version: "1.8.0"
+  date: "2026-08-07"   # founding admin is staff of her own school; first-run affordances reachable
   author: "Tom Cassidy"
   status: "draft"
 
@@ -711,6 +711,74 @@ principle HeadlineHoursIncludeStaffPractice:
     practicing is school engagement, not that class's progress. Only the
     school/group HEADLINE rollups mix staff in; class_student_progress and
     class_activity_stats are untouched.
+
+principle FoundingAdminIsStaff:
+  statement: |
+    A school's FOUNDING admin — the person recorded in schools.admin_user_id at
+    creation — is STAFF of her own school, and carries the user_tags SCHOOL:
+    membership row that says so. "Staff at a school" has exactly ONE definition
+    across the estate: role_in_context IN ('teacher','admin').
+
+  gap_closed: |
+    Only api/code/redeem.ts's school_admin_join branch — an admin CLAIMING a
+    vacant seat — ever wrote an admin's SCHOOL: tag. The THREE paths that
+    CREATE a school with an admin_user_id (api/onboarding/provision.ts
+    self-serve, api/admin/create-school.ts, and redeem.ts's own school_admin
+    branch) tagged nobody. Every staff-keyed number is derived from user_tags,
+    so the founding admin was invisible in her own school: Chepstow's head had
+    76 minutes across 19 sessions, her dashboard headline read 7m (the two
+    invited teachers only), and she was absent from her own Teachers list.
+    api/govt/create-school.ts is correct as-is and untouched — it deliberately
+    leaves admin_user_id NULL (a vacant seat claimed later via redemption), so
+    there is no founding admin to tag.
+
+  pattern: |
+    Write half — api/_utils/schoolStaff.ts::ensureSchoolAdminTag() is the
+    SINGLE writer of an admin's SCHOOL: membership, shared by all four paths
+    (three creators + the claim path). role_in_context='admin', truthful and
+    identical to what the claim path always wrote; there is deliberately NO
+    second convention (a school's admin is never written as a 'teacher').
+    Idempotent: 23505 on the user_tags_active_natural_key partial unique index
+    (user_id, tag_type, tag_value) WHERE removed_at IS NULL is an already-done
+    no-op, so a re-provision heals a pre-fix school without duplicating a row.
+    Non-fatal on every creation path — a membership row is not worth losing a
+    signup over, and the next provision or the backfill tool heals it.
+
+    Read half — SCHOOL_STAFF_ROLES = ['teacher','admin'] is the one definition,
+    already what school_summary.staff_practice_hours used since 20260718. The
+    staff LISTS and COUNTS widened to match (migration
+    20260807_staff_counts_include_school_admin plus the server/client reads),
+    because an 'admin' tag alone fixed the MINUTES while leaving her uncounted
+    as a person — the same split-definition defect in miniature.
+
+  widened_to_staff:
+    - "school_summary.teacher_count (migration 20260807)"
+    - "region_summary.teacher_count (same migration, govt tier of the same question)"
+    - "api/school/roster.ts — the school dashboard's Teachers list; also returns role_in_context"
+    - "packages/player-vue/src/composables/schools/useTeachersData.ts — the direct-read (ssi_admin admin-view) branch"
+    - "api/groups/[id]/home.ts — schools lens teacher names, teachers lens staff set"
+    - "api/_utils/groupRollups.ts — the node staff rollup's school arm"
+
+  deliberately_left_teacher_only:
+    - "api/school/remove-staff.ts target lookup — an admin must never be removable from her own school as though she were a teacher; the UI hides the Remove control for her"
+    - "every tag_type='class' read (class_teachers, is_class_teacher, api/teacher/class-teachers.ts) — class teaching is a different relation"
+    - "api/_utils/groupRollups.ts and api/groups/[id]/home.ts group arms (tag_type='group') — group leadership is its own model (groupLeaderTag)"
+    - "class-level student stats — students only, per HeadlineHoursIncludeStaff's boundary"
+
+  no_double_count: |
+    user_tags_active_natural_key is UNIQUE on (user_id, tag_type, tag_value)
+    WHERE removed_at IS NULL, so a user holds at most ONE active tag per
+    school — she cannot be counted as both a teacher and an admin.
+
+  ui: |
+    She appears in the Teachers list labelled ADMIN, never mislabelled a
+    teacher (TeachersView's Role column was already 'Teacher' | 'Admin' — it
+    now reads the real role instead of hard-coding 'Teacher').
+
+  backfill: |
+    tools/backfill-founding-admin-tags.mjs — re-runnable, idempotent,
+    DRY_RUN by default, re-derives its target set live (never a pasted list),
+    writes ONLY user_tags rows.
 
 principle NoAutoRefreshOneAffordance:
   statement: |

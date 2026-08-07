@@ -30,6 +30,7 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTre
 import { computeNodeExtras, type NodeExtras } from '../../_utils/groupRollups'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { chunk } from '../../_utils/schoolScope'
+import { SCHOOL_STAFF_ROLES } from '../../_utils/schoolStaff'
 import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { leadersForNodes } from '../../_utils/groupLeaderTag'
@@ -503,11 +504,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           for (const r of data ?? []) summaries.set((r as any).school_id, r)
         }),
         // Teachers per school (names, for the "with teachers" lens promise).
+        // STAFF = teacher OR admin — a school's own admin is one of the
+        // people a leader means by "who works at this school" (and the only
+        // one at a school that has not yet invited a teacher).
         ...chunk(subtreeSchoolIds).map(async (batch) => {
           const { data } = await svc
             .from('user_tags')
             .select('tag_value, user_id')
-            .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
+            .eq('tag_type', 'school').in('role_in_context', SCHOOL_STAFF_ROLES).is('removed_at', null)
             .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
           for (const t of data ?? []) {
             const sid = ((t as any).tag_value as string).replace('SCHOOL:', '')
@@ -566,7 +570,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               ...chunk(subtreeSchoolIds).map(async (batch) => {
                 const { data } = await svc
                   .from('user_tags').select('user_id')
-                  .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
+                  .eq('tag_type', 'school').in('role_in_context', SCHOOL_STAFF_ROLES).is('removed_at', null)
                   .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
                 for (const t of data ?? []) taggedTeacherUids.add((t as any).user_id)
               }),
