@@ -751,7 +751,7 @@ const deleteImpactLines = computed(() => {
             </div>
           </template>
 
-          <div class="teacher-link-block" data-walk="class-coteacher-link">
+          <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
             <p class="rail-note schools-subtle">
               Colleague not on the staff list yet? Send them a link into this class.
             </p>
