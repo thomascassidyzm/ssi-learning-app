@@ -52,6 +52,65 @@ function isDev(): boolean {
  * scope (returning []). That matches the intuition that "no allowed
  * schools means no visible rows."
  */
+export interface ScopeClause<T> {
+  /** Column to test, e.g. 'school_id' */
+  key: keyof T & string
+  /** Values that column may take */
+  allowed: Scalar[]
+}
+
+/**
+ * The same tripwire, for a scope that is a UNION of clauses.
+ *
+ * A row is in scope if it satisfies ANY clause: "every class in a school I
+ * lead OR every class I personally teach". Chaining two assertScope() calls
+ * would compute the INTERSECTION and throw away the legitimate half — the
+ * reason this exists rather than a second call.
+ *
+ * With NO clauses the caller has declared no scope, so the guard stands down
+ * and returns the rows untouched (matching assertScope's absence, not its
+ * empty-array meaning).
+ */
+export function assertScopeUnion<T extends Record<string, unknown>>(
+  rows: T[] | null | undefined,
+  clauses: Array<ScopeClause<T>>,
+  ctx: ScopeContext
+): T[] {
+  if (!rows || rows.length === 0) return []
+  if (clauses.length === 0) return rows
+
+  const sets = clauses.map(c => ({
+    key: c.key,
+    set: new Set(c.allowed.filter((v): v is string | number => v !== null && v !== undefined)),
+  }))
+
+  const violations: Array<{ id: unknown; values: Record<string, unknown> }> = []
+  const safe: T[] = []
+
+  for (const row of rows) {
+    const inScope = sets.some(({ key, set }) => {
+      const value = row[key] as Scalar
+      return value !== null && value !== undefined && set.has(value as string | number)
+    })
+    if (inScope) safe.push(row)
+    else violations.push({ id: row.id, values: Object.fromEntries(sets.map(s => [s.key, row[s.key]])) })
+  }
+
+  if (violations.length > 0) {
+    const msg =
+      `[RLS_VIOLATION] ${ctx.caller} got ${violations.length}/${rows.length} rows ` +
+      `from ${ctx.table} outside the allowed union scope (${sets.map(s => s.key).join(' | ')}). ` +
+      `First offender: ${JSON.stringify(violations[0])}`
+    console.error(msg, { clauses: sets.map(s => ({ key: s.key, allowed: Array.from(s.set) })), violations: violations.slice(0, 5) })
+
+    if (isDev()) {
+      throw new Error(msg)
+    }
+  }
+
+  return safe
+}
+
 export function assertScope<T extends Record<string, unknown>>(
   rows: T[] | null | undefined,
   scopeKey: keyof T & string,
