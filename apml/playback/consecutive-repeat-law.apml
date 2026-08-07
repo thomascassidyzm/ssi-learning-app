@@ -1,13 +1,10 @@
 # APML Playback: The consecutive-repeat law (A-64)
 # SSI Learning App
-# Version: 1.1.0
+# Version: 1.0.0
 # Last updated: 2026-08-06
 # Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
 #         packages/player-vue/src/providers/generateLearningScript.ts
-#         packages/player-vue/src/providers/backendCyclesToRounds.ts
-#         packages/player-vue/src/providers/toSimpleRounds.ts
 #         packages/player-vue/src/composables/usePodLapScheduler.ts
-#         packages/player-vue/src/composables/useLayer1Scheduler.ts
 #         packages/player-vue/src/composables/useOfflinePlay.ts
 
 ## ============================================================================
@@ -49,8 +46,6 @@ COMPONENT:
   file: "packages/player-vue/src/playback/capConsecutiveRepeats.ts"
   exports:
     - "capConsecutiveRepeats(items, identityOf, options) → { items, dropped, tail, reordered, forcedKeeps }"
-    - "capRoundCycles(rounds, identityOf) → { rounds, dropped, reorderedRounds } — per-round, seam-seeded"
-    - "cyclePromptIdentity(cycle) → string — prompt identity for a player Cycle"
     - "findConsecutiveBreach(items, identityOf, max) → index | -1"
   purity: "Pure. No I/O, no mutation of the input."
   algorithm: |
@@ -95,42 +90,6 @@ SITE:
     doubled n1PhraseCount included) and no listening item type can breach.
 
 SITE:
-  name: "The round adapters — the true last word for the main player"
-  files:
-    - "packages/player-vue/src/providers/backendCyclesToRounds.ts (backendCyclesToRounds + infPlayCyclesToRounds)"
-    - "packages/player-vue/src/providers/toSimpleRounds.ts"
-  placement: "capRoundCycles() on the returned Round[], immediately before SimplePlayer receives them."
-  why_here: |
-    INSTANT_PLAYBACK_ALL is true in LearningPlayer.vue, so EVERY course takes
-    the instant-playback path: the server cycles route → useInstantPlayback →
-    backendCyclesToRounds → SimplePlayer. That path never touches
-    generateLearningScript, so a cap living only in the generator protects
-    nobody on the live default path. The adapters are the one point both paths
-    pass through.
-
-    Placing it here also survives the adapters' own missing-audio filtering,
-    which drops unplayable cycles and can therefore pull two previously
-    separated prompts together.
-  covers_server_route: |
-    api/courses/[code]/cycles.ts emits `intro` then `debut` with IDENTICAL
-    known_text + target_text (buildLegoCycles reads lego.known_text /
-    legoTargets.target_text for both) and then appends build phrases with no
-    adjacency check — so a first BUILD phrase duplicating the bare LEGO text
-    gives three in a row. Capping client-side covers every consumer of that
-    route without a second, drifting server-side implementation.
-
-SITE:
-  name: "Layer-1 listening cups"
-  file: "packages/player-vue/src/composables/useLayer1Scheduler.ts"
-  placement: "buildSeedPlays(), on the returned plays, identified by audio id."
-  breach_it_closes: |
-    DEFAULT_SEED_PLAYLIST (t1·known·t2·t1) is lawful — the trailing t2·t1 pair
-    is two plays of the same clip, which the law allows. But the playlist is
-    admin-tunable via algorithm_config['listening'].seedPlaylist with no
-    validation, so a saved ['known','t1','t1','t2'] would emit three identical
-    target plays. The cap makes that unreachable from config.
-
-SITE:
   name: "Listening mode pod laps"
   file: "packages/player-vue/src/composables/usePodLapScheduler.ts"
   placement: "nextLap(), on the composed play list, after buildMainStage."
@@ -162,37 +121,6 @@ SITE:
     as a warning rather than passing silently.
 
 ## ============================================================================
-## KNOWN RESIDUE — audited, deliberately not capped
-## ============================================================================
-
-RESIDUE:
-  simpleplayer_resume:
-    file: "packages/player-vue/src/playback/SimplePlayer.ts (resume())"
-    finding: |
-      resume() deliberately restarts the CURRENT cycle from the prompt phase —
-      "if the learner has stopped the app at all, we give them the full 4-phase
-      cycle from the top". Construction: cycles N and N+1 carry the same text
-      (legal, two in a row); the learner pauses part-way through N+1 and
-      resumes; the prompt sounds a third time. PlayerConductor can reach the
-      same path automatically when an interlude or seek times out or throws.
-    decision: |
-      NOT capped. A queue-level cap cannot see it — only a resume-time check
-      could — and changing resume semantics to chase an interaction-dependent
-      edge risks a worse regression than the edge itself. Logged for Tom.
-  stage0_and_atom_fusion:
-    files:
-      - "packages/player-vue/src/composables/usePodStage0.ts + @ssi/core stage0Sequence.ts"
-      - "packages/player-vue/src/composables/usePodAtomFusion.ts"
-    finding: |
-      buildLadder's visits loop can construct three in a row at a visit
-      boundary when visits >= 2. usePodAtomFusion has no caller outside its own
-      test.
-    decision: |
-      NOT capped — unreachable from learner-facing playback. Stage 0 was retired
-      from the runtime 2026-07-14 and survives only behind the admin route
-      /admin/pod-auditioner. Revisit if either is ever re-wired into playback.
-
-## ============================================================================
 ## TESTS
 ## ============================================================================
 
@@ -208,12 +136,6 @@ TESTS:
       useConsolidationCount 4, maxBuildPhrases 14, maxSpacedRepPhrases 24)
       against USE pools of 1, 2 and 3 phrases, for the main loop and the
       infinite-play tail, plus the default (Fast) shape.
-  - file: "packages/player-vue/src/providers/a64RoundAdapters.test.ts"
-    covers: |
-      The round adapters — backendCyclesToRounds, infPlayCyclesToRounds and
-      toSimpleRounds — against the intro/debut/build triple the server cycles
-      route makes possible, within a round and across the round seam. Three of
-      these five tests fail without the cap.
   - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
     covers: |
       Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened

@@ -94,13 +94,15 @@ for (const sel of [
 await page.waitForTimeout(6000)
 
 if (LISTENING) {
-  // Mode tray trigger → "Listening mode" tray item.
-  await tryClick('.mode-trigger')
+  // Mode tray → Listening mode row.
+  for (const sel of ['button[aria-label*="ode"]', '.mode-tray-trigger', 'button:has-text("Modes")']) {
+    if (await tryClick(sel)) break
+  }
   await page.waitForTimeout(1500)
-  await tryClick('.tray-item:has-text("Listening mode")')
+  await tryClick('text=Listening mode')
   await page.waitForTimeout(3000)
-  // Open the first dialogue scene (auto-plays on open).
-  await tryClick('.scene-card')
+  // Open the first dialogue scene.
+  await tryClick('.scene-row, .pod-scene, li:has-text("Scene")')
 }
 
 const started = Date.now()

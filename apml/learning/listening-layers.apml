@@ -2,6 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
+# Last updated: 2026-08-06 (target-clip belt speed ramp)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -45,6 +46,48 @@
 # layer1StagePlaylist/l1ActiveSize/l1ReserveSize/l1UrnPullCount,
 # emitL1Cluster, learner_l1_state fire-count hydration) was deleted — it had
 # been unreachable since the 2026-05-19 L1 main-flow removal.
+#
+# UPDATE (2026-08-06, Tom): LISTENING FOLLOWS THE BELT SPEED GATING.
+# Tom, live on staging (French): "LIStening exercises are way too fast
+# initially - they need to follow the belt speed gating - at least somewhat...
+# in the listening exercise we hear t-k-t-t phrases all at 1x speed... targ
+# lang clips start at 0.8x, then in yellow belt go to 0.9x, then orange go to
+# 0.95x and finally at green they go to full speed (1.0x)."
+#
+# So the "ALL at 1.0x" in the 2026-07-14 update above is SUPERSEDED for the
+# TARGET clips. The four rates are exactly the SPEAKING side's existing curve,
+# reused, never re-implemented:
+#   beltSpeed(seedNumber) in packages/player-vue/src/providers/toSimpleRounds.ts
+#     white (seeds 1-7)   0.8x
+#     yellow (seeds 8-19) 0.9x
+#     orange (seeds 20-39) 0.95x
+#     green+ (seeds 40+)  1.0x
+#
+# Applied via computeListeningSpeed(roleSpeed, seedNumber, targetSpeed) in the
+# same module — the belt ramp as a MULTIPLIER on the clip's own role rate,
+# folding in the course globalSpeed, exempting legacy slow-recorded courses
+# (nativeSpeed false) on identical terms to computeCycleSpeed, and clamping at
+# MIN_SPEED 0.7. Two consumers:
+#   - Layer-1 cups (useLayer1Scheduler.buildSeedPlays): role rate 1.0, keyed on
+#     each replayed SEED's OWN number - the faithful analogue of a speaking
+#     review of that seed.
+#   - Layer-2 pods / Stage-0 / fusion drills (LearningPlayer.playPodLap): role
+#     rate = ROLE_SPEED[playRole], keyed on the LEARNER's current seed
+#     (beltAnchorSeed) because a pod sentence has no seed number of its own.
+#     The pod stage progression (ps 1.0 / ps15x 1.5 / ps2x 2.0) is per-SENTENCE
+#     maturity and is preserved as a RATIO - a 2x stretch rep stays a fast rep
+#     relative to the learner's belt (white belt: ps 0.8x, ps2x 1.6x). Pods
+#     activate at main round 5, so beginners really were meeting 1.0x target
+#     audio - that is the bug this closes.
+#
+# KNOWN-language clips ('trans') are NEVER ramped: the learner's own language,
+# the meaning anchor. Tom said "targ lang clips".
+#
+# Locked by packages/player-vue/src/playback/listeningSpeedRamp.test.ts, in the
+# spirit of speedRampSync.test.ts - the point of both is that there is ONE
+# curve. A parallel listening curve that can drift out of sync with the
+# speaking one is precisely the bug this codebase already paid for (2026-08-04,
+# the two round-builders).
 #
 # UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
 # delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used
