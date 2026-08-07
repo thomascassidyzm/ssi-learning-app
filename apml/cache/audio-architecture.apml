@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
+# Last Updated: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
+# Prev: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
 # Prev: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
@@ -272,9 +273,9 @@ spec audio_caching_architecture:
       of the SW.
     what_sw_still_does:
       - "Precache the app shell (js/css/html/svg/woff2)"
-      - "NetworkFirst on document navigations (3s timeout → cache) so deploys propagate"
+      - "NetworkFirst on document navigations (3s timeout → cache) so deploys propagate — real since 2026-08-07: directoryIndex:null stops the precache route shadowing '/' navigations"
       - "CacheFirst on Google Fonts (fonts.googleapis.com / fonts.gstatic.com) only"
-      - "skipWaiting/clientsClaim FALSE in prod (registerType:'prompt') — never auto-interrupt a playing session"
+      - "skipWaiting/clientsClaim FALSE in EVERY environment (registerType:'prompt'). The app never activates a waiting worker: activation deletes every changed chunk from the precache, so a live page loses its own code and dies at its next lazy import. Taking an update is a plain reload; the worker takes over once no client is open. See docs/pwa-lifecycle-design.md §2.1a"
 
   ## ==========================================================================
   ## OFFLINE DOWNLOAD — DEPTH PICKER

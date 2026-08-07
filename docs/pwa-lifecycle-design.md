@@ -40,10 +40,14 @@ Everything below is grounded in file:line citations against `dev` (eed2dabb).
 
 - **SW**: Workbox `generateSW` via vite-plugin-pwa (`packages/player-vue/vite.config.js:48-184`).
   Precache = app shell (`js,css,html,svg,woff2`), with audio/admin/schools/echarts excluded.
-  `registerType: 'prompt'` on staging+prod; dev self-updates (`swSelfUpdate`, vite.config.js:22).
+  `registerType: 'prompt'` in **every** environment; `skipWaiting`/`clientsClaim` false everywhere
+  since 2026-08-07 (dev used to self-update — see §2.1a).
   Tom's hard rule (2026-05-21/22): never auto-interrupt a playing session — **kept, not renegotiated here**.
-- **Navigations**: `NetworkFirst`, 3s timeout, `navigation-cache` (vite.config.js:126-134) — a
-  reload online always gets the fresh shell.
+- **Navigations**: `NetworkFirst`, 3s timeout, `navigation-cache` (vite.config.js) — a
+  reload online always gets the fresh shell. ⚠️ **This was NOT true until 2026-08-07**: Workbox's
+  precache route is registered before any runtimeCaching route and mapped `/` → `index.html` via
+  `directoryIndex`, so navigations were served CacheFirst from the precache. Fixed by
+  `directoryIndex: null` + `cleanURLs: false` — see §2.1a.
 - **Audio**: deliberately **not** SW-cached (vite.config.js:151-165, the iOS 206-range saga).
   Offline audio = IndexedDB `ssi-audio-cache-v2` (`src/cache/AudioCache.ts:23`) — independent of
   the SW. This separation is load-bearing and this design preserves it.
@@ -129,6 +133,51 @@ it (the 7-day rule) — a returning guest starts at round 1.
 
 Three parts, one principle: **each layer must be recoverable from the layer below it, and the
 bottom layer (index.html + the server) must never be able to wedge.**
+
+### 2.1a Applying an update: never activate a worker under a live page (2026-08-07)
+
+> **Symptom (Tom):** *"the PWA just crashes halfway through updating, and then you close it and
+> open it again and it's finished updating."* Same shape as the 2026-07-30 field report that
+> commit `03f007ae` treated at the wedge end. This is the cause end.
+
+**Mechanism, measured** (`packages/player-vue/e2e/sw-update-probe.mjs` — two real prod-mode
+builds, a server whose contents are swapped mid-run exactly as a Vercel deploy does):
+
+1. The moment a new service worker **activates**, Workbox's precache maintenance deletes every
+   precache entry that isn't in the new manifest — i.e. every chunk whose content changed in that
+   build. Measured on a real pair of builds: **10 of 21 entry chunks 404 instantly** (they're gone
+   from the origin too, since a deploy rotates hashed filenames).
+2. A document that is *still running* at that moment has had a chunk of its own code deleted from
+   under it. It looks fine until the next lazy import — open Settings, change route, next round —
+   which throws. **That is the crash.**
+3. Relaunching loads the new build cleanly, so the update "was finished all along".
+
+Three ways the app used to reach state 2:
+
+| Path | Why it activated under a live page |
+|---|---|
+| Update banner | `updateServiceWorker(true)` posted SKIP_WAITING and left the reload to vite-plugin-pwa's async `controlling` listener. On iOS standalone that `location.reload()` can silently not take (`03f007ae`) — leaving the page alive and gutted |
+| **dev / preview builds** | `skipWaiting: true` + `clientsClaim: true` — the new worker claimed every live page the instant it installed, **with no user action at all**. Verified: probe shows `waiting: null, active: activated` on a live controlled page |
+| Settings → "Get the latest version", `/api/sw-config` `forceUpdate` | both posted SKIP_WAITING from a live page |
+
+**Rule now: the app never activates a waiting worker.** Taking an update is a plain
+`location.reload()`, fired synchronously in the user's tap (a gesture-initiated navigation is the
+one iOS honours). The waiting worker takes over by itself the first time no client is open —
+precisely when nothing can be hurt. `skipWaiting`/`clientsClaim` are false in **every**
+environment.
+
+**The other half of the bug.** For "just reload" to deliver the new build, navigations must reach
+the network — and they didn't. Workbox's precache route is registered *before* any runtimeCaching
+route and retried `/` as `/index.html` via `directoryIndex`, so navigations were served CacheFirst
+from the precached OLD shell and the NetworkFirst route never saw them. Setting
+`directoryIndex: null` lets navigations through to the network while keeping `index.html`
+precached for the offline `precacheFallback`. (This is why the destructive path felt necessary:
+before this, activating a new worker was the *only* way new code ever reached a learner.)
+
+**Residual, and its escape.** If the navigation still doesn't take on a wedged webview, nothing
+has been destroyed — the page keeps every chunk it had — and `RELOAD_WEDGE_MS` after the tap the
+banner returns as **"Update ready — tap to relaunch"**, the same gesture escape the boot watchdog
+uses.
 
 ### 2.1 Update lifecycle: the never-wedge boot (Stage 1)
 
