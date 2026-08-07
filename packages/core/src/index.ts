@@ -31,3 +31,6 @@ export * from './courses';
 
 // Script generation (unified main-loop + INF PLAY generator, CourseBundle wire format)
 export * from './script';
+
+// Text measurement (per-language syllable counting registry)
+export * from './text';
