@@ -58,6 +58,7 @@ const AUDIO_ID_COLUMNS = [
 const AUDIO_ID_ARRAY_COLUMNS = [
   'sentence_audio_ids',
   'sentence_known_audio_ids',
+  'takeg_audio_ids',
 ] as const
 
 /** Build `<uuid>.v<N>`; revision 1 (or absent) stays a bare uuid. */
