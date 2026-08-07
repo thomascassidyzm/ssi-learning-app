@@ -9,6 +9,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useClassesData } from '@/composables/schools/useClassesData'
+import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import {
+  applyAssignmentDiff,
+  computeAssignmentDiff,
+  summariseOutcomes,
+  type AssignableClass,
+  type AssignmentOutcome,
+} from '@/composables/schools/assignTeacherClasses'
 import UpgradeView from '@/views/schools/UpgradeView.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
@@ -476,6 +485,91 @@ void (async () => {
   } catch { /* keep 'anon' */ }
 })()
 
+// ─── Assign a teacher to classes, from the TEACHERS lens ───
+// Nav unification sends a school-scoped school_admin here instead of
+// /schools/teachers, so this node home IS the staff list a head actually
+// sees. The verb belongs on the person: pick a teacher, tick the classes they
+// should take. Same modal, same diff, same write path as TeachersView —
+// gated to the leader's OWN school node (never a class, group, or the
+// ssi_admin read-view mount), because the class list we tick against is the
+// signed-in leader's own school's.
+const classesData = (() => {
+  try { return useClassesData() } catch { return null }
+})()
+
+const canAssignTeachers = computed(() => isOwnSchoolNode.value && lens.value === 'teachers')
+
+const assignTarget = ref<{ user_id: string; name: string } | null>(null)
+const assignBusy = ref(false)
+const assignOutcomes = ref<AssignmentOutcome[]>([])
+const assignSummary = ref('')
+
+const assignClasses = computed<AssignableClass[]>(() => {
+  const target = assignTarget.value?.user_id
+  return (classesData?.classes.value ?? [])
+    .filter(c => c.is_active !== false)
+    .map(c => {
+      const on = c.teachers ?? []
+      return {
+        id: c.id,
+        class_name: c.class_name,
+        isMember: !!target && on.some(t => t.user_id === target),
+        hasActiveTeacher: on.length > 0,
+      }
+    })
+})
+
+const assignLoadError = computed(() =>
+  classesData?.error.value
+    ? `Couldn't load this school's classes, so this list may be incomplete. ${classesData.error.value}`
+    : ''
+)
+
+function openAssign(userId: string): void {
+  const t = (home.value?.teachers || []).find((x: any) => x.user_id === userId)
+  if (!t) return
+  assignTarget.value = { user_id: userId, name: t.name }
+  assignOutcomes.value = []
+  assignSummary.value = ''
+  void classesData?.fetchClasses()
+}
+
+function closeAssign(): void {
+  assignTarget.value = null
+  assignOutcomes.value = []
+  assignSummary.value = ''
+}
+
+async function handleAssignConfirm(tickedClassIds: string[]): Promise<void> {
+  const target = assignTarget.value
+  if (!target || !classesData || assignBusy.value) return
+  const current = assignClasses.value.filter(c => c.isMember).map(c => c.id)
+  const diff = computeAssignmentDiff(current, tickedClassIds)
+  if (!diff.add.length && !diff.remove.length) return
+
+  assignBusy.value = true
+  assignOutcomes.value = []
+  assignSummary.value = ''
+  const outcomes = await applyAssignmentDiff({
+    teacherUserId: target.user_id,
+    diff,
+    classes: assignClasses.value,
+    addClassTeacher: classesData.addClassTeacher,
+    removeClassTeacher: classesData.removeClassTeacher,
+  })
+  assignBusy.value = false
+  assignOutcomes.value = outcomes
+  assignSummary.value = summariseOutcomes(outcomes, target.name)
+
+  // Refetch either way — after a PARTIAL save the ticks must show what is
+  // true, not what was asked for. The node's own teacher rows carry each
+  // teacher's classes, so the list behind the modal refreshes too.
+  await Promise.all([classesData.fetchClasses(), fetchHome()])
+  for (const o of outcomes) {
+    if (!o.ok) console.error(`[NodeHome] class-teacher ${o.action} failed for ${target.name} on ${o.className}:`, o.error)
+  }
+}
+
 // ─── Children payload for the list ───
 const listPayload = computed(() => {
   if (!home.value) return {}
@@ -732,7 +826,14 @@ const listPayload = computed(() => {
               :style="isLoading && childrenHoldPx ? { minHeight: `${childrenHoldPx}px` } : undefined"
             >
               <div v-if="isLoading" class="children-loading">Loading…</div>
-              <NodeChildrenList v-else :lens="lens" :payload="listPayload">
+              <NodeChildrenList
+                v-else
+                :lens="lens"
+                :payload="listPayload"
+                :row-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
+                row-action-walk="teacher-assign-classes"
+                @row-action="openAssign"
+              >
                 <template #empty>
                   {{ isClass ? 'No students in this class yet.' : (neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.')) }}
                 </template>
@@ -764,6 +865,19 @@ const listPayload = computed(() => {
         </div>
       </div>
     </template>
+
+    <AssignClassesModal
+      :is-open="!!assignTarget"
+      :teacher-name="assignTarget?.name ?? ''"
+      :classes="assignClasses"
+      :loading="classesData?.isLoading.value ?? false"
+      :load-error="assignLoadError"
+      :submitting="assignBusy"
+      :outcomes="assignOutcomes"
+      :summary="assignSummary"
+      @close="closeAssign"
+      @confirm="handleAssignConfirm"
+    />
   </div>
 </template>
 
