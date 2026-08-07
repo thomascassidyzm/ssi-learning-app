@@ -183,22 +183,45 @@ const ISO3_TO_LOCALE: Record<string, string> = {
 }
 
 /**
- * Get language name using Intl.DisplayNames.
+ * Get a language name in the reading language.
+ *
+ * Our own locale JSON wins, then Intl.DisplayNames, then the raw code.
+ *
+ * The JSON has to come first. Intl.DisplayNames does NOT report failure:
+ * on a device whose ICU carries no display-name data for the interface
+ * language it silently answers in ENGLISH, and an English answer is
+ * indistinguishable from a correct one ("Icelandic" is not the code "is",
+ * so the old `name !== bcp47` guard accepted it). That is how a Welsh
+ * interface produced "Islandeg i siaradwyr English" — the sentence frame
+ * comes from cym.json and is always Welsh, while the language name came
+ * from Intl and could quietly fall back to English. Our JSON carries
+ * curated names for every language we ship, so consulting it first makes
+ * the name as device-independent as the sentence around it.
  *
  * By default renders in the current UI locale. Pass `overrideLangCode`
  * (ISO 639-3) to render the name in a specific language instead — used
  * by the Premium-courses list so each card reads in the perspective
  * of the learner who would take that course (e.g. "Inglés" instead of
  * "English" on the Spanish-speaker card).
- *
- * Falls back to locale JSON files, then to the raw code.
  */
 export const getLanguageName = (langCode: string | null | undefined, overrideLangCode?: string): string => {
   // A display helper must never throw: a course row with no target_lang
   // (e.g. a class pointing at a course code the catalogue can't resolve)
   // crashed the whole player render through this line (2026-07-16).
   if (!langCode) return ''
-  // Try Intl.DisplayNames first (browser-native, always up to date)
+
+  // 1. Our own curated names, in the reading language. For an override we
+  //    can only use the JSON if that locale's chunk is already loaded —
+  //    this helper is synchronous, so an unloaded override falls to Intl.
+  const messages = overrideLangCode
+    ? loadedLocales[overrideLangCode]
+    : currentMessages.value
+  const curated = messages?.languages?.[langCode]
+  // Dialect keys (cym_n, nob…) carry their full name in the JSON, suffix
+  // included — so a hit is returned exactly as authored.
+  if (typeof curated === 'string' && curated) return curated
+
+  // 2. Intl.DisplayNames — browser-native, covers anything not in the JSON.
   // Use explicit mapping if available, otherwise try the raw code (works for many ISO 639-3 codes)
   const bcp47 = ISO3_TO_BCP47[langCode] || langCode
   const localeCode = overrideLangCode
@@ -221,7 +244,7 @@ export const getLanguageName = (langCode: string | null | undefined, overrideLan
     // Intl.DisplayNames not supported or code unknown — fall through
   }
 
-  // Fallback: locale JSON files
+  // 3. Last resort: the English JSON (via t()'s own fallback), then the code.
   return t(`languages.${langCode}`, langCode.toUpperCase())
 }
 
