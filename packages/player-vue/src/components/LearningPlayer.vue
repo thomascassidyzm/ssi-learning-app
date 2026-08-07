@@ -57,7 +57,7 @@ import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
-import { useAlgorithmConfig, type LearningMode } from '../composables/useAlgorithmConfig'
+import { useAlgorithmConfig, normalizePhraseRepeatCount, normalizeRepeatedCycleTypes, type LearningMode } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
@@ -551,6 +551,15 @@ const runGenerateScript = (
     makeInfPlayRng(),
   )
 }
+
+// The active mode's cycle-repeat setting, in the shape backendCyclesToRounds
+// and the script walk both take. Easy plays every practice cycle twice (Tom,
+// 2026-08-07); Fast's count of 1 makes every call a no-op. Read fresh each
+// time so a mode switch mid-session takes effect on the next build.
+const currentRepeatConfig = () => ({
+  count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
+  types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
+})
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
 // learner so it's stable across sessions/regenerations for a given learner
@@ -1617,6 +1626,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
+          currentRepeatConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -12585,6 +12595,7 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
+                currentRepeatConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12687,6 +12698,7 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
+                  currentRepeatConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic

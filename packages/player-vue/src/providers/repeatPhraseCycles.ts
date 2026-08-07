@@ -116,3 +116,34 @@ export function repeatPhraseCycles(
 
   return out
 }
+
+/**
+ * The same rule, applied to the INSTANT-PLAYBACK path.
+ *
+ * The first rounds of a session do not come from the script walk at all: they
+ * come from `GET /api/courses/:code/cycles` via backendCyclesToRounds, which
+ * is deliberately mode-blind and fast. Without this, an Easy learner would
+ * hear their first round or two undoubled and then have the doubling appear
+ * from nowhere when the full walk took over. Same count, same type set, read
+ * off the same mode row — one rule, two entry points.
+ *
+ * Round cycles carry `id` rather than `uuid`, and there is no seed-phase
+ * sandwich on this path (the endpoint emits intro / debut / build / use only).
+ */
+export function repeatRoundCycles<C extends { id?: string; type?: string }>(
+  cycles: C[],
+  options: RepeatPhraseCyclesOptions,
+): C[] {
+  const count = Math.min(Math.floor(options.count), MAX_PHRASE_REPEAT_COUNT)
+  if (!Number.isFinite(count) || count <= 1) return cycles
+
+  const out: C[] = []
+  for (const cycle of cycles) {
+    out.push(cycle)
+    if (!options.types.has(cycle.type ?? '')) continue
+    for (let n = 2; n <= count; n++) {
+      out.push({ ...cycle, ...(cycle.id ? { id: `${cycle.id}_x${n}` } : {}) })
+    }
+  }
+  return out
+}
