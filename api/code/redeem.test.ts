@@ -141,6 +141,22 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     // on their own node home at the TOP-LEVEL member mount — never a /schools
     // URL, and never a bounce through the schools dashboard to get there.
     expect(res._json.redirectTo).toBe('/org/group-existing')
+    // LEADERSHIP IS A MEMBERSHIP, NOT ONLY AUTHZ (2026-08-07). govt_admins is
+    // an authz table; every practice number reads user_tags. This CLAIM path
+    // was the last govt_admins writer that recorded no tag, so a leader who
+    // joined by code had their own practice counted nowhere in their org's
+    // headline — the founding-school-admin bug (Chepstow) one level up.
+    // role 'admin', NOT teacher/student: groupRollups counts a node's teachers
+    // and learners by those exact roles, so this must not inflate either.
+    const leaderTags = (writes.user_tags ?? []).filter(
+      (w: any) => w.payload?.tag_value === 'GROUP:group-existing',
+    )
+    expect(leaderTags).toHaveLength(1)
+    expect(leaderTags[0].payload).toMatchObject({
+      user_id: 'auth-user-1',
+      tag_type: 'group',
+      role_in_context: 'admin',
+    })
   })
 
   it('govt_admin branch: creates the group at redemption when grants_group_id is absent', async () => {
@@ -657,7 +673,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(tagWrite.tag_type).not.toBe('group')
   })
 
-  it('DEGENERATE GRANT (pre-existing edge case, unhardened): a student code with neither grants_class_id nor grants_group_id still writes a broken CLASS:null tag rather than silently affiliating anywhere else', async () => {
+  it('DEGENERATE GRANT (hardened, A-74): a student code with neither grants_class_id nor grants_group_id is refused outright — no CLASS:null tag is ever written', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
       if (isSelect) {
@@ -691,17 +707,16 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     await handler(makeReq({ body: { code: 'STU-NOCLASS', codeKind: 'invite' } }), res)
 
     expect(res._status).toBe(200)
-    expect(res._json.success).toBe(true)
+    // Refused LOUDLY. The old behaviour wrote a literal `CLASS:null` tag: a
+    // membership row that enrols the learner nowhere while counting as a class
+    // membership in every query that reads user_tags. Silent garbage in a
+    // schools product — so the redemption reports failure instead.
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/not linked to a class/i)
     // No group/school-level fallback is ever created for a student redemption.
     expect(writes.groups).toBeUndefined()
     expect(writes.schools).toBeUndefined()
-    // The tag write still happens and is still tag_type='class' — the current
-    // (undesirable) behavior is a broken tag_value rather than a silent
-    // group/school-level enrollment. Documents the edge case for whoever
-    // hardens this: grants_class_id should be validated before this branch.
-    expect(writes.user_tags).toHaveLength(1)
-    expect(writes.user_tags[0].payload.tag_type).toBe('class')
-    expect(writes.user_tags[0].payload.tag_value).toBe('CLASS:null')
+    expect(writes.user_tags).toBeUndefined()
     // course_enrollments is skipped entirely without a class id — no orphan
     // enrollment gets created either.
     expect(writes.course_enrollments).toBeUndefined()
@@ -1139,6 +1154,125 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
       tag_value: 'SCHOOL:school-9',
       role_in_context: 'teacher',
     })
+  })
+
+  // ── Class-scoped co-teacher links (A-74) ────────────────────────────────
+  // teacher↔class is a user_tags relationship; classes.teacher_user_id stays
+  // the lead pointer and is never rewritten by a co-teacher joining.
+
+  const coTeacherInvite = (overrides: Record<string, unknown> = {}) => (calls: any[][]) => {
+    const isSelect = calls.some((c) => c[0] === 'select')
+    if (isSelect) {
+      return {
+        data: {
+          id: 'invite-coteacher-1',
+          code: 'COTEACH-1',
+          code_type: 'teacher',
+          grants_region: null,
+          grants_school_id: 'school-9',
+          grants_class_id: 'class-7',
+          grants_group_id: null,
+          metadata: {},
+          max_uses: null,
+          use_count: 0,
+          expires_at: null,
+          is_active: true,
+          ...overrides,
+        },
+        error: null,
+      }
+    }
+    return { data: null, error: null }
+  }
+
+  it('CO-TEACHER (A-74): a teacher code carrying grants_class_id writes the CLASS teacher tag alongside the SCHOOL one', async () => {
+    responders.invite_codes = coTeacherInvite()
+    responders.learners = () => ({ data: { id: 'learner-coteacher-1' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'COTEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.user_tags).toHaveLength(2)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-9',
+      role_in_context: 'teacher',
+    })
+    expect(writes.user_tags[1].payload).toMatchObject({
+      tag_type: 'class',
+      tag_value: 'CLASS:class-7',
+      role_in_context: 'teacher',
+    })
+    // The lead pointer is NOT touched — a co-teacher joining never takes over
+    // the class.
+    expect(writes.classes).toBeUndefined()
+  })
+
+  it('CO-TEACHER dedup keys off the CLASS tag, not the school tag — a teacher already in the school still gets class access', async () => {
+    responders.invite_codes = coTeacherInvite()
+    responders.learners = () => ({ data: { id: 'learner-coteacher-2' }, error: null })
+    // The caller already carries SCHOOL:school-9 but no CLASS:class-7 tag.
+    responders.user_tags = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (!isSelect) return undefined
+      const classFilter = calls.find((c) => c[0] === 'eq' && c[1] === 'tag_value')
+      if (classFilter && classFilter[2] === 'SCHOOL:school-9') return { data: { id: 'existing-school-tag' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'COTEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags.map((w: any) => w.payload.tag_value)).toContain('CLASS:class-7')
+  })
+
+  it('CO-TEACHER dedup: a teacher already holding the CLASS teacher tag is told "Already redeemed for this class" and nothing is written', async () => {
+    responders.invite_codes = coTeacherInvite()
+    responders.learners = () => ({ data: { id: 'learner-coteacher-3' }, error: null })
+    responders.user_tags = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (!isSelect) return undefined
+      const f = calls.find((c) => c[0] === 'eq' && c[1] === 'tag_value')
+      if (f && f[2] === 'CLASS:class-7') return { data: { id: 'existing-class-tag' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'COTEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/already redeemed for this class/i)
+    expect(writes.user_tags).toBeUndefined()
+  })
+
+  it('CO-TEACHER: a class-only teacher code (no school grant) writes only the CLASS tag — never a literal SCHOOL:null', async () => {
+    responders.invite_codes = coTeacherInvite({ grants_school_id: null })
+    responders.learners = () => ({ data: { id: 'learner-coteacher-4' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'COTEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload.tag_value).toBe('CLASS:class-7')
+  })
+
+  it('DEGENERATE TEACHER GRANT: a teacher code scoped to no school, class or group is refused — no SCHOOL:null tag is written', async () => {
+    responders.invite_codes = coTeacherInvite({ grants_school_id: null, grants_class_id: null })
+    responders.learners = () => ({ data: { id: 'learner-coteacher-5' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'COTEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/not linked to a school or class/i)
+    expect(writes.user_tags).toBeUndefined()
   })
 
   it('school_admin_join branch: writes a SCHOOL: tag with role_in_context admin and redirects to /schools', async () => {

@@ -12,7 +12,9 @@
  * minimal-surgery pattern as the admin retrofits.
  *
  * Auth: verifyAuthToken + caller must be one of:
- *   - the class's teacher_user_id
+ *   - an active teacher of the class — the class_teachers relationship
+ *     (user_tags CLASS:<id>/teacher) OR the demoted lead pointer
+ *     classes.teacher_user_id. Co-teachers count.
  *   - an ssi_admin / god (platform admin)
  *   - the school_admin of the class's school (admin_user_id on schools row)
  *
@@ -88,9 +90,25 @@ export default async function handler(
       return
     }
 
-    // Authorization: caller is the teacher, OR is a platform admin, OR
+    // Authorization: caller is a teacher of the class (the class_teachers
+    // relationship OR the demoted lead pointer), OR is a platform admin, OR
     // is the admin of the school this class belongs to.
     let authorized = cls.teacher_user_id === callerUserId
+
+    if (!authorized) {
+      // Co-teacher: an active class/teacher tag (see class-teachers.ts:104-113,
+      // the canonical membership-authz pattern).
+      const { data: callerTag } = await supabase
+        .from('user_tags')
+        .select('id')
+        .eq('tag_type', 'class')
+        .eq('tag_value', `CLASS:${cls.id}`)
+        .eq('role_in_context', 'teacher')
+        .eq('user_id', callerUserId)
+        .is('removed_at', null)
+        .maybeSingle()
+      if (callerTag) authorized = true
+    }
 
     if (!authorized) {
       const { data: caller } = await supabase

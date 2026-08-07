@@ -18,12 +18,60 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const CLASS_SELECT =
   'id, class_name, course_code, student_join_code, current_seed, class_learner_id, is_active, created_at'
+
+/**
+ * The classes this user CO-TEACHES via the class_teachers relationship
+ * (`user_tags` tag_type='class', role_in_context='teacher'), restricted to the
+ * personal tutor surface (school_id IS NULL, active). `classes.teacher_user_id`
+ * is only the demoted lead pointer, so a list built from it alone silently
+ * hides every class the user co-teaches — see
+ * docs/methodology/class-first-class-citizen.md. Read errors are RETURNED,
+ * never swallowed into an empty list.
+ */
+async function listCoTaughtClasses(
+  supabase: any,
+  userId: string,
+  select: string,
+): Promise<{ classes: any[] } | { error: string }> {
+  const { data: tags, error: tagError } = await supabase
+    .from('user_tags')
+    .select('tag_value')
+    .eq('user_id', userId)
+    .eq('tag_type', 'class')
+    .eq('role_in_context', 'teacher')
+    .is('removed_at', null)
+
+  if (tagError) return { error: tagError.message }
+
+  const ids = (tags || [])
+    .map((t: any) => String(t?.tag_value || '').replace('CLASS:', ''))
+    .filter(Boolean)
+  if (ids.length === 0) return { classes: [] }
+
+  const { data: rows, error } = await supabase
+    .from('classes')
+    .select(select)
+    .in('id', ids)
+    .eq('is_active', true)
+    .is('school_id', null)
+    .order('created_at', { ascending: true })
+
+  if (error) return { error: error.message }
+  return { classes: rows || [] }
+}
+
+/** Union two class lists on id, preserving the first list's order. */
+function mergeClassesById(primary: any[], extra: any[]): any[] {
+  const seen = new Set(primary.map((c: any) => c.id))
+  return [...primary, ...extra.filter((c: any) => !seen.has(c.id))]
+}
 
 /**
  * Server-side tutor platform gate for class-mutating calls. Open when the
@@ -118,7 +166,17 @@ export default async function handler(
         return
       }
 
-      res.status(200).json({ classes: classes || [] })
+      // Union the CO-TAUGHT classes. teacher_user_id is only the demoted lead
+      // pointer — without this a co-teacher's own list is empty even though
+      // every other guard lets them in (class-first-class-citizen.md).
+      const coTaught = await listCoTaughtClasses(supabase, authResult.userId, CLASS_SELECT)
+      if ('error' in coTaught) {
+        console.error('[TeacherClasses] Co-taught list failed:', coTaught.error)
+        res.status(500).json({ error: coTaught.error })
+        return
+      }
+
+      res.status(200).json({ classes: mergeClassesById(classes || [], coTaught.classes) })
       return
     }
 
@@ -150,7 +208,9 @@ export default async function handler(
     }
 
     // Per-teacher cap: 10 active classes (personal classes only — school-
-    // assigned classes must not eat the freelance cap).
+    // assigned classes must not eat the freelance cap). Counted on
+    // `teacher_user_id`, which IS the lead pointer, so classes you merely
+    // CO-TEACH never inflate your own cap — only the ones you lead do.
     const TEACHER_CLASS_CAP = 10
     const { count: activeClassCount, error: countError } = await supabase
       .from('classes')
@@ -187,6 +247,18 @@ export default async function handler(
     if (insertError || !created) {
       console.error('[TeacherClasses] Insert failed:', insertError)
       res.status(500).json({ error: insertError?.message || 'Failed to create class' })
+      return
+    }
+
+    // Dual-write the teacher↔class RELATIONSHIP alongside the lead pointer.
+    // Writing only the pointer is exactly how 47 of 62 live classes ended up
+    // with a lead and no tag, so the backfill would rot again without this.
+    // NOT swallowed: a class whose creator is not a recorded teacher of it is
+    // a broken class, not a partial success.
+    const tagResult = await ensureClassTeacherTag(supabase, created.id, authResult.userId, authResult.userId)
+    if ('error' in tagResult) {
+      console.error('[TeacherClasses] class/teacher tag write failed:', tagResult.error)
+      res.status(500).json({ error: `Class created but teacher record failed: ${tagResult.error}` })
       return
     }
 

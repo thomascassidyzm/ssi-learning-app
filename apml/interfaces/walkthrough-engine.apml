@@ -1,5 +1,8 @@
 # Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
-# Last updated: 2026-08-03 (org dressing: invite-first-person walk; ways-in offered to org kind)
+# Last updated: 2026-08-06 (co-teaching coverage: share-a-class, invite-a-supply-teacher,
+#               hand-over-the-lead; card genre extracted to WalkCard.vue, shared with the
+#               org onboarding gate — one teaching voice, two mounts; the password and
+#               install actions get a permanent home and become real pack walks)
 # Spec source: docs/walkthrough-engine-scout.md (founder-ratified build spec)
 
 vision: >
@@ -36,6 +39,7 @@ architecture:
   runtime:
     packages/player-vue/src/walkthrough/useWalkthrough.ts: module-singleton state machine (startWalk/stopWalk/next/back, walksFor persona×place×kind); stamps <html data-walk-active="id:step[:done]"> for e2e assertion; Esc keydown ends the walk (engine-level escape hatch, bound on start/unbound on stop); effectiveAdvance() degrades click-advance on a destructive anchor to show-and-point (runtime mirror of the compiler denylist — a stale/hand-edited pack cannot click-advance a destructive verb)
     packages/player-vue/src/walkthrough/overlayPlacement.ts: pure geometry — placeCard() never places the card into the top-chrome zone (54px + measured safe-area-inset-top: the Learn escape / back-to-player one-tap invariant), bottom-center placement clears safe-area-inset-bottom; isAnchorUsable() rejects zero-size (hidden) elements
+    packages/player-vue/src/components/admin/WalkCard.vue: the CARD GENRE on its own — kicker, markdown-lite say, step dots, paced Back/Next, optional × skip, plus a slot for whatever the step needs done. Purely presentational: no state, no flow, no knowledge of the pack. Extracted 2026-08-06 so the org lane's ManagerOnboardingGate can teach in exactly this voice without a second implementation. `dismissible: false` is the rare deliberate case (the org password step has no skip).
     packages/player-vue/src/components/admin/WalkOverlay.vue: the ONE overlay, mounted once in App.vue (async). Pulse-ring on the anchor rect, card with dots/Back/Next/Skip, unanchored fallback after 5s (never hangs) with a slow re-poll so a late anchor re-binds, hidden/zero-size anchors treated as unresolved, pointer-events none except the card (never a modal trap), walk ends on route change
     packages/player-vue/src/components/admin/WalkOffer.vue: quiet "Show me — <title>" text links per persona×place
 
@@ -51,15 +55,45 @@ offering_surfaces:  # invitations, not missions — NOTHING auto-plays, ever
   how_this_works: HowThisWorks.vue card lists matching node-home walks as Show-me links
   walk_offer_mounts: NodeInsightsView (node-insights), ClassDetail (class-detail, teacher only), AdminInvites (admin-invites)
 
+genre_reuse:  # 2026-08-06
+  rule: >
+    The card genre may be reused by a surface that is NOT an engine walk, via
+    WalkCard.vue — but such a surface must never call startWalk, never appear
+    in the pack, and never claim to be a walk in the engine's sense. The
+    engine's own invariants (never auto-play, never trap, anchored to real
+    elements) are unchanged and remain compile-gated.
+  first_consumer: >
+    components/admin/ManagerOnboardingGate.vue — the org manager's password
+    step (a GATE: fires unbidden, blocks, no skip) and the PWA install nudge
+    (a PROMPT: always escapable). The password step could not be an engine
+    walk without breaking compile gate 7 (never-auto-play), so it borrows the
+    genre only. See apml/schools/node-home.apml manager_onboarding_gate.
+  gap_closed: >  # founder ruling 2026-08-06, superseding the open_gap flagged above
+    CLOSED. The durable anchor now exists: components/admin/YourAccount.vue —
+    a permanent "Your account" card on the member node home, where a leader
+    sets or changes their password and installs the app AT ANY TIME, not only
+    at first login. Its three anchors (account-card · account-password ·
+    account-install) sit on ROW containers rather than buttons, so they exist
+    in every state — including "already installed", where there is no button
+    to point at — and the two pack walks below can never find nothing.
+    ManagerOnboardingGate is UNCHANGED: it stays the front door for a
+    brand-new manager, and this is the second, permanent home for the same two
+    actions afterwards.
+
 real_data_ruling: >
   Walks run on the real page over real data. Show-and-point by default; click
   steps only on safe/reversible verbs (compiler-enforced denylist); admins
   rehearse write-heavy flows inside demo orgs.
 
-walks_v1 (6):
+walks_v1 (11):
   - invite-first-teacher: node-home (school) — admin/leader/school_admin
   - run-class-session: class-detail — teacher
   - invite-first-person: node-home (org) — admin/leader — the NEUTRAL-dressing twin of invite-first-teacher: same anchors, group-leader/learner vocabulary (founder gap 2026-08-03, orgs at schools parity)
   - ways-in: node-home (org/group/school) — admin/leader/school_admin (the re-mint-kills-old-link trap; the ledger is dressing-neutral, so the org kind is offered it too)
   - reading-insights: node-insights — admin/leader/school_admin
   - invites-desk: admin-invites — admin (show-and-point only)
+  - share-a-class: class-detail — teacher — adding a co-teacher: who can be added, and that they get the whole class but not the lead (A-74, 2026-08-06)
+  - invite-a-supply-teacher: class-detail — teacher — the CLASS-scoped co-teacher link for a colleague with no account yet, held apart from the student join link
+  - hand-over-the-lead: class-detail — teacher — passing the lead, and what does NOT move with it (pupils, progress, sessions, your own place on the class)
+  - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
+  - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind

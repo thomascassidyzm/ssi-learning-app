@@ -14,7 +14,7 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
-import { getCachedListeningMeta, retryListeningReadOrThrow } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows } from './listeningMetaCache'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 
 export interface PodSentence {
@@ -198,6 +198,9 @@ export function useListeningPods(
       // Offline: cache first (no doomed fetch, no error noise). Online (or
       // cache miss): live fetch, falling back to cache when the fetch fails
       // mid-air (connection dropped after onLine reported true).
+      // True only when `loaded` came from the live read, so an empty result is
+      // the server's answer rather than an empty cache entry.
+      let fromNetwork = false
       if (offlineNow) loaded = await loadFromCache()
       if (!loaded) {
         try {
@@ -208,6 +211,7 @@ export function useListeningPods(
           // snapshot serves the wrong vintage of pod audio/text
           // (2026-07-21 forum report). See retryListeningRead's doc comment.
           loaded = await retryListeningReadOrThrow(loadFromNetwork)
+          fromNetwork = true
         } catch (netErr) {
           loaded = await loadFromCache()
           if (!loaded) throw netErr
@@ -216,6 +220,12 @@ export function useListeningPods(
       }
       const { rows: data, textById } = loaded
       if (myFetch !== activeFetch) return
+
+      // The course has no pod live. Bin any offline snapshot so the withdrawn
+      // pod can't keep playing from IndexedDB next time the learner is offline.
+      if (fromNetwork && data.length === 0) {
+        await clearCachedListeningPodRows(course)
+      }
 
       // Bucket by scene_number. A multi-sentence TURN row that's been split
       // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence

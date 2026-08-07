@@ -30,8 +30,24 @@ export interface Teacher {
    *  total_practice_hours, which is their classes' STUDENTS' practice. In a
    *  trial school with no students yet this is the only non-zero number. */
   own_practice_minutes: number
+  /** 'teacher' | 'admin' — a school's STAFF is both (see api/_utils/schoolStaff.ts).
+   *  The school's admin appears in this list and is labelled Admin, not Teacher. */
+  role_in_context: 'teacher' | 'admin'
   joined_at: string
 }
+
+/** A teacher as a PICKABLE name — the co-teacher panel needs nothing more. */
+export interface TeacherOption {
+  user_id: string
+  learner_id: string
+  display_name: string
+}
+
+/** "Staff at this school" — teacher OR admin. Mirrors SCHOOL_STAFF_ROLES in
+ *  api/_utils/schoolStaff.ts (this is a browser bundle; it cannot import from
+ *  api/, so the two must be kept in step — they are asserted together in
+ *  api/school/roster.test.ts and useTeachersData's own coverage). */
+const SCHOOL_STAFF_ROLES = ['teacher', 'admin'] as const
 
 const teachers = ref<Teacher[]>([])
 const isLoading = ref(false)
@@ -83,13 +99,16 @@ export function useTeachersData() {
         return
       }
 
-      // Get teacher user_ids from user_tags
+      // Get STAFF user_ids from user_tags — teacher OR admin, the same
+      // definition roster.ts and school_summary.staff_practice_hours use. A
+      // strict 'teacher' filter here dropped the school's own admin from her
+      // school's Teachers list (Chepstow, 2026-08-06).
       const { data: teacherTags, error: tagsError } = await client
         .from('user_tags')
-        .select('user_id, added_at')
+        .select('user_id, added_at, role_in_context')
         .eq('tag_value', `SCHOOL:${targetSchoolId}`)
         .eq('tag_type', 'school')
-        .eq('role_in_context', 'teacher')
+        .in('role_in_context', SCHOOL_STAFF_ROLES)
         .is('removed_at', null)
 
       if (tagsError) throw tagsError
@@ -101,6 +120,7 @@ export function useTeachersData() {
 
       const teacherUserIds = teacherTags.map(t => t.user_id)
       const joinDates = new Map(teacherTags.map(t => [t.user_id, t.added_at]))
+      const staffRoles = new Map(teacherTags.map(t => [t.user_id, t.role_in_context]))
 
       // Get learner info
       const { data: learners, error: learnersError } = await client
@@ -181,6 +201,7 @@ export function useTeachersData() {
           student_count: stats.students,
           total_practice_hours: Math.round((stats.practiceSeconds / 3600) * 10) / 10,
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
+          role_in_context: (staffRoles.get(l.user_id) === 'admin' ? 'admin' : 'teacher') as 'teacher' | 'admin',
           joined_at: joinDates.get(l.user_id) || '',
         }
       }).sort((a, b) => a.display_name.localeCompare(b.display_name))
@@ -189,6 +210,36 @@ export function useTeachersData() {
       console.error('Teachers fetch error:', err)
     } finally {
       isLoading.value = false
+    }
+  }
+
+  /**
+   * The teachers who could be added to a class — the co-teacher picker's
+   * source. Class-scoped and membership-authorised server-side
+   * (`/api/school/roster?class_id=`), NOT school-scoped: a supply teacher
+   * holds only a CLASS: tag, so they have no resolvable "home school" and
+   * `fetchTeachers` above would return them nothing at all.
+   *
+   * Returns names only. Errors are RETURNED, never swallowed — the panel says
+   * "couldn't load the staff list" rather than showing a silently empty one.
+   */
+  async function fetchClassTeacherCandidates(
+    classId: string,
+  ): Promise<{ candidates: TeacherOption[]; error: string | null }> {
+    if (isDemoMode.value) return { candidates: [], error: null }
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { candidates: [], error: 'You are not signed in.' }
+
+      const res = await fetch(`/api/school/roster?class_id=${encodeURIComponent(classId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return { candidates: [], error: data?.error || `Request failed: ${res.status}` }
+      return { candidates: (data.teachers ?? []) as TeacherOption[], error: null }
+    } catch (err) {
+      return { candidates: [], error: err instanceof Error ? err.message : 'Failed to load teachers' }
     }
   }
 
@@ -221,6 +272,7 @@ export function useTeachersData() {
 
     // Actions
     fetchTeachers,
+    fetchClassTeacherCandidates,
     removeTeacher,
   }
 }

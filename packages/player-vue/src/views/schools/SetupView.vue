@@ -34,6 +34,7 @@ import { useClassesData, type ClassInfo } from '@/composables/schools/useClasses
 import { useSchoolCourseCatalogue, type CatalogueCourse } from '@/composables/schools/useSchoolCourseCatalogue'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
+import { courseShortName } from '@ssi/core'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const router = useRouter()
@@ -104,6 +105,10 @@ async function saveSchool(): Promise<boolean> {
       body: JSON.stringify({
         school_name: schoolName.value.trim(),
         region_code: schoolRegion.value.trim() || undefined,
+        // Typing the name here IS the confirmation — otherwise a leader who
+        // completes the wizard is still shown the "Confirm your school's name"
+        // first-run card afterwards, asking for something she has just done.
+        name_confirmed: true,
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -465,7 +470,7 @@ onMounted(() => {
               <tbody>
                 <tr v-for="cls in classes" :key="cls.id">
                   <td class="ssi-table-strong">{{ cls.class_name }}</td>
-                  <td>{{ cls.course_code }}</td>
+                  <td>{{ courseShortName(cls.course_code) }}</td>
                   <td>{{ cls.student_count }}</td>
                 </tr>
               </tbody>

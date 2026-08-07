@@ -3,7 +3,7 @@
  *
  * Maps the behavioural events already logged today (`logEvent` in
  * `LearningPlayer.vue` — `phase_skip`, `tap_skip`, `lego_skip`, `tap_pause`/
- * `tap_play`, `turbo_toggle`, `belt_skip`, `audio_retry`) into the evidence
+ * `tap_play`, `learning_mode_toggle`, `belt_skip`, `audio_retry`) into the evidence
  * stream (`@ssi/core` `learning/evidence.ts`, WP-0) at the emit site — no
  * round-trip through `player_events`; the DB copy stays the analytics record.
  *
@@ -72,7 +72,10 @@ export function classifyLegoSkip(direction: unknown): BehaviouralReading | null 
 export const TAP_PAUSE_THEN_PLAY_READING: BehaviouralReading = { value: 1.4, weight: 0.5 }
 
 /** Manual controls (paper Principle 1) — the learner outranking the engine. Never enter a unit series. */
-export const MANUAL_DIAL_EVENT_TYPES: ReadonlySet<string> = new Set(['turbo_toggle', 'belt_skip'])
+// 'turbo_toggle' is kept alongside the current 'learning_mode_toggle' so
+// evidence replayed from pre-2026-08-06 sessions still counts as a manual
+// dial. Turbo itself is retired; only the historical events remain.
+export const MANUAL_DIAL_EVENT_TYPES: ReadonlySet<string> = new Set(['learning_mode_toggle', 'turbo_toggle', 'belt_skip'])
 
 /** Infrastructure, not learner evidence — logged for diagnostics, never evidence. */
 export const DROPPED_EVENT_TYPES: ReadonlySet<string> = new Set(['audio_retry'])

@@ -16,8 +16,14 @@ const { t } = useI18n()
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
-  isTurboMode: { type: Boolean, default: false },
   isOfflineMode: { type: Boolean, default: false },
+  // showListeningBtn / showPronunciationBtn are the localStorage-backed
+  // visibility flags (ssi-mode-listening, ssi-mode-pronunciation) that Settings
+  // and the between-rounds mode tips write. They deliberately do NOT gate the
+  // rows below — the listening row has been ungated since before the tray
+  // existed in this shape, and gating it on a flag that defaults to false would
+  // hide the control from every learner who has never opened developer
+  // settings, which is exactly the thing Tom asked for on 2026-08-06.
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
   hasRomanizedText: { type: Boolean, default: false },
@@ -26,7 +32,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -58,33 +64,31 @@ const closeTray = () => {
 
 // Is any mode active?
 const hasActiveMode = computed(() =>
-  props.isListeningMode || props.isPronunciationMode || props.isTurboMode
+  props.isListeningMode || props.isPronunciationMode
 )
 
-// Can turbo be used? Not in listening or pronunciation
-const turboAvailable = computed(() =>
-  !props.isListeningMode && !props.isPronunciationMode
-)
-
-// The "Mode — pick one" radio group (HISE / Listening) and its
-// selectExperienceMode handler were removed 2026-08-06 (Aran): offering
-// listening mode from a popup in the player flow was distracting. Listening
-// is entered from Settings → Tools now, and left the way it always was —
-// the transport's back/play button (BottomNav exitListeningMode).
+// Listening on/off. Tom, 2026-08-06: listening "needs to be… the sort of thing
+// that you can move backwards and forwards from quite easily" — so it lives
+// here, in the tray a learner already opens mid-session, one tap each way.
+// NOT the old "Mode — pick one" radio group: that framing is what Aran found
+// distracting on 2026-08-06, and it is not coming back. This is an on/off row
+// with the same shape as Pronunciation guide and Offline. The row is BOTH the
+// way in and a way out — LearningPlayer.handleListeningToggle() closes the
+// overlay when it is already open — alongside the transport's back/play button
+// (BottomNav exitListeningMode), which is unchanged.
+// Selecting ALWAYS closes the tray (Tom 2026-06-11): leaving it open forced a
+// second tap — outside to dismiss, then again to start the mode you just chose.
+const handleListening = () => {
+  emit('toggleListening')
+  closeTray()
+}
 
 // Active mode icon for the trigger button
 const activeModeIcon = computed(() => {
   if (props.isListeningMode) return 'listening'
   if (props.isPronunciationMode) return 'pronunciation'
-  if (props.isTurboMode) return 'turbo'
   return null
 })
-
-const handleMode = (mode: string) => {
-  closeTray() // selection closes the tray — no second tap to get going
-  const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
-  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
-}
 
 // Offline is special: tapping it hands off to the full-screen depth picker
 // ("how much of the course to carry"). Close the tray first so the picker is
@@ -118,9 +122,6 @@ const handleOffline = () => {
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-      </svg>
-      <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
       <!-- Default: sliders icon -->
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -160,26 +161,36 @@ const handleOffline = () => {
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
-        <!-- Turbo toggle -->
+        <!-- Easy / Fast lives on the player's resting screen (the mode you
+             pick before you start), not here. Turbo was retired 2026-08-06. -->
+
+        <!-- Listening mode on/off — the quick way in AND out (Tom 2026-08-06).
+             Copy comes from settings.listeningMode / settings.listeningModeDesc,
+             NOT modes.listening: the settings pair is translated in all 22
+             locales, the modes pair only in eng + gle. Same words as the
+             Settings → Tools row, so both routes read identically. -->
         <button
           class="tray-item"
-          :class="{ active: isTurboMode, unavailable: !turboAvailable }"
-          :disabled="!turboAvailable"
-          @click="handleMode('turbo')"
+          :class="{ active: isListeningMode }"
+          @click="handleListening"
+          :aria-pressed="isListeningMode"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">{{ t('modes.turboBoost') }}</span>
-            <span class="tray-desc">{{ t('modes.turboDesc') }}</span>
+            <span class="tray-name">{{ t('settings.listeningMode') }}</span>
+            <span class="tray-desc">{{ t('settings.listeningModeDesc') }}</span>
           </div>
-          <div class="tray-toggle" :class="{ on: isTurboMode }">
+          <div class="tray-toggle" :class="{ on: isListeningMode }">
             <div class="tray-toggle-knob"></div>
           </div>
         </button>
+
+        <div class="tray-divider"></div>
 
         <!-- Offline mode toggle — play from downloaded audio (no network) -->
         <button
@@ -213,13 +224,6 @@ const handleOffline = () => {
           </div>
         </button>
 
-        <!-- Listening mode is NOT offered here (Aran, 2026-08-06): a mode
-             popup in the player flow was distracting. The control lives under
-             Settings → Tools → Listening mode, which opens the same overlay
-             via PlayerContainer's openListening handler. The old tray copy
-             (modes.listening / modes.listeningDesc, translated in every
-             locale) is kept for the intro-messaging protocol still to come. -->
-
       </div>
     </Transition>
 
@@ -229,7 +233,7 @@ const handleOffline = () => {
          position:fixed content below the shell's own top nav — a body-level
          Teleport escapes that containing block and re-joins the ROOT stacking
          context, where it painted ABOVE the (locally z-indexed) tray and
-         silently ate every tap on Turbo/Offline/Listening. Staying local
+         silently ate every tap on Offline/Listening. Staying local
          keeps the backdrop in the SAME containing block as the tray itself,
          so the 102-vs-103 z-index order holds in both embedded and
          standalone play. -->
@@ -440,7 +444,7 @@ const handleOffline = () => {
   font-weight: 600;
 }
 
-/* Toggle switch for Turbo */
+/* Toggle switch for the tray items */
 .tray-toggle {
   width: 36px;
   height: 20px;

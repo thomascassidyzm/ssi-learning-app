@@ -42,8 +42,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial, isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
@@ -359,9 +361,37 @@ export default async function handler(
           .single()
         if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
         else if (firstClass) {
-          const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
-          if ('error' in learnerResult) {
-            console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+          // Dual-write the teacher↔class RELATIONSHIP alongside the lead
+          // pointer. Pointer-only writes are how 47 of 62 live classes ended
+          // up needing a backfill; without this the backfill just rots again.
+          // This convenience class is deliberately non-fatal to onboarding,
+          // but the failure is NOT swallowed into a half-made class: we roll
+          // the seconds-old, empty class back rather than leave a rotten row.
+          const tagResult = await ensureClassTeacherTag(
+            supabase,
+            firstClass.id,
+            auth.userId,
+            auth.userId,
+          )
+          if ('error' in tagResult) {
+            console.error(
+              '[onboarding/provision] class/teacher tag failed — rolling back first class:',
+              tagResult.error,
+            )
+            const { error: delErr } = await supabase.from('classes').delete().eq('id', firstClass.id)
+            if (delErr) {
+              console.error(
+                '[onboarding/provision] rollback of class',
+                firstClass.id,
+                'FAILED — it has a lead pointer with no teacher tag:',
+                delErr.message,
+              )
+            }
+          } else {
+            const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
+            if ('error' in learnerResult) {
+              console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+            }
           }
         }
       }
@@ -431,6 +461,18 @@ export default async function handler(
       // (the silent-failure class api/admin/create-school.ts fixed for the admin
       // path). Runs on every provision (not just create) so pre-fix schools heal.
       await ensureJoinCodesRegistered(supabase, schoolId, auth.userId)
+
+      // The FOUNDING admin's own membership row. Without it she is invisible to
+      // every staff-keyed number in her own school — the headline hours, the
+      // teacher count, the Teachers list are all derived from user_tags, and
+      // only the school_admin_join CLAIM path ever wrote a tag (Chepstow,
+      // 2026-08-06: 76 min of practice, a dashboard reading 7m, and no row of
+      // her own). Idempotent (23505 no-op), so it runs on every provision — not
+      // just creation — and pre-fix schools heal on the admin's next signin,
+      // exactly like ensureJoinCodesRegistered above. Non-fatal: a membership
+      // row is not worth losing a signup over.
+      const tagErr = await ensureSchoolAdminTag(supabase, { userId: auth.userId, schoolId })
+      if (tagErr) console.warn('[onboarding/provision] founding-admin tag failed (non-fatal):', tagErr)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a

@@ -16,7 +16,7 @@
  * Returns:
  *   {
  *     school:  { id, platform_status, platform_expires_at, trial_course_code,
- *                trial_kind, teacher_seats } | null,
+ *                trial_kind, teacher_seats, teacher_count } | null,
  *     teacher: { platform_status, platform_expires_at } | null,
  *     active:  boolean,        // OR of school-active / teacher-active / fail-open
  *     reason:  string,
@@ -27,6 +27,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { isPlatformActive } from '../_utils/platformStatus'
+import { countSchoolTeachers } from '../_utils/schoolTeachers'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -129,7 +130,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (schoolErr && isMissingPlatformSchema(schoolErr)) {
         schemaMissing = true
       } else if (school) {
-        schoolOut = school
+        // `teacher_count` = the school's ACTUAL staff, mirroring org.member_count
+        // in api/org/subscription.ts. It exists so the Subscribe page can seed
+        // its seat stepper from reality instead of a hard-coded 1 (a school with
+        // three teachers was being offered one seat), and so the honest
+        // "N joined · M paid" line has a server source of truth. It is a
+        // DEFAULT and a display, never a cap: the admin steps it freely.
+        schoolOut = { ...school, teacher_count: await countSchoolTeachers(supabase, schoolId) }
       }
     }
 

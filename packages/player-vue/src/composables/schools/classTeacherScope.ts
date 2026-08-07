@@ -69,19 +69,41 @@ export interface ClassTeacherRef {
 export async function teachersByClassId(
   classIds: string[]
 ): Promise<Map<string, ClassTeacherRef[]>> {
+  return (await teachersByClassIdResult(classIds)).map
+}
+
+/**
+ * The same read, but it tells you WHY the map is empty.
+ *
+ * `teachersByClassId` cannot distinguish "this class has no teachers" from
+ * "the class_teachers read failed" — both come back as an empty map. That is
+ * the silent-empty failure the RLS doctrine bans, and it is exactly what put
+ * "No teachers are linked to this class yet" on a class taught by two people
+ * (production, 2026-08-07: the co-teacher's class-detail load aborted on an
+ * unrelated view timeout). Callers that render an empty state must use this
+ * variant and only assert emptiness when `error` is null.
+ */
+export async function teachersByClassIdResult(
+  classIds: string[]
+): Promise<{ map: Map<string, ClassTeacherRef[]>; error: string | null }> {
   const out = new Map<string, ClassTeacherRef[]>()
-  if (classIds.length === 0) return out
+  if (classIds.length === 0) return { map: out, error: null }
   const client = getSchoolsClient()
-  const { data } = await client
-    .from('class_teachers')
-    .select('class_id, teacher_user_id, is_lead')
-    .in('class_id', classIds)
-  for (const r of data ?? []) {
-    const cid = r.class_id as string
-    if (!cid) continue
-    const list = out.get(cid) ?? []
-    list.push({ user_id: r.teacher_user_id as string, is_lead: !!r.is_lead })
-    out.set(cid, list)
+  try {
+    const { data, error } = await client
+      .from('class_teachers')
+      .select('class_id, teacher_user_id, is_lead')
+      .in('class_id', classIds)
+    if (error) return { map: out, error: error.message || 'Failed to fetch class teachers' }
+    for (const r of data ?? []) {
+      const cid = r.class_id as string
+      if (!cid) continue
+      const list = out.get(cid) ?? []
+      list.push({ user_id: r.teacher_user_id as string, is_lead: !!r.is_lead })
+      out.set(cid, list)
+    }
+    return { map: out, error: null }
+  } catch (err) {
+    return { map: out, error: err instanceof Error ? err.message : 'Failed to fetch class teachers' }
   }
-  return out
 }

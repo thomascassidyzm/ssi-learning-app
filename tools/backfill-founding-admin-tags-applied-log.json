@@ -1,0 +1,96 @@
+{
+  "mode": "applied",
+  "counts": {
+    "inserted": 8
+  },
+  "rows": [
+    {
+      "school_id": "e2e9adc3-9697-4d6f-a57a-4149257ec8ba",
+      "school_name": "LA SIS (EAS)",
+      "school_created_at": "2026-07-16T08:55:38.344015+00:00",
+      "user_id": "e68e031c-65a0-46f0-82ac-05c32825a292",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:e2e9adc3-9697-4d6f-a57a-4149257ec8ba",
+      "role_in_context": "admin",
+      "added_by": "e68e031c-65a0-46f0-82ac-05c32825a292",
+      "result": "inserted"
+    },
+    {
+      "school_id": "14710516-b26d-4daa-bbf7-01eef06c52ce",
+      "school_name": "Newport High School",
+      "school_created_at": "2026-07-16T10:12:18.50425+00:00",
+      "user_id": "a89007f1-b16d-4595-9e62-466a0d556527",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:14710516-b26d-4daa-bbf7-01eef06c52ce",
+      "role_in_context": "admin",
+      "added_by": "a89007f1-b16d-4595-9e62-466a0d556527",
+      "result": "inserted"
+    },
+    {
+      "school_id": "440bd184-9877-429e-930d-44852ff2541d",
+      "school_name": "Salesian College",
+      "school_created_at": "2026-06-30T01:35:47.70639+00:00",
+      "user_id": "c7c2d040-426f-4d30-a4d8-dcf0e2a4fc6d",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:440bd184-9877-429e-930d-44852ff2541d",
+      "role_in_context": "admin",
+      "added_by": "c7c2d040-426f-4d30-a4d8-dcf0e2a4fc6d",
+      "result": "inserted"
+    },
+    {
+      "school_id": "46b5aaec-34c2-4437-b480-d45408827716",
+      "school_name": "Salesian-2",
+      "school_created_at": "2026-06-30T01:50:44.276416+00:00",
+      "user_id": "b86964f5-782e-4161-bad3-0356906037cd",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:46b5aaec-34c2-4437-b480-d45408827716",
+      "role_in_context": "admin",
+      "added_by": "b86964f5-782e-4161-bad3-0356906037cd",
+      "result": "inserted"
+    },
+    {
+      "school_id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+      "school_name": "Ysgol Cas-gwent Chepstow School",
+      "school_created_at": "2026-07-16T06:23:00.466891+00:00",
+      "user_id": "96105179-6598-4f2b-9281-a1d28270581b",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+      "role_in_context": "admin",
+      "added_by": "96105179-6598-4f2b-9281-a1d28270581b",
+      "result": "inserted"
+    },
+    {
+      "school_id": "07b9d48b-d735-41a4-8bb6-f216070cded9",
+      "school_name": "Ysgol Croesyceiliog",
+      "school_created_at": "2026-07-17T10:26:43.407637+00:00",
+      "user_id": "008e7fea-4b71-4cdb-90ae-dcc587319577",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:07b9d48b-d735-41a4-8bb6-f216070cded9",
+      "role_in_context": "admin",
+      "added_by": "008e7fea-4b71-4cdb-90ae-dcc587319577",
+      "result": "inserted"
+    },
+    {
+      "school_id": "ec608982-2d9e-44eb-8236-06142aca6019",
+      "school_name": "ZZ Chepstow Mirror School (delete me)",
+      "school_created_at": "2026-08-06T23:56:24.190044+00:00",
+      "user_id": "ffd608f2-4fc6-4875-94a4-65d72ab45787",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:ec608982-2d9e-44eb-8236-06142aca6019",
+      "role_in_context": "admin",
+      "added_by": "ffd608f2-4fc6-4875-94a4-65d72ab45787",
+      "result": "inserted"
+    },
+    {
+      "school_id": "5ef8f201-f671-4761-a696-19ad87656d4b",
+      "school_name": "ZZ Test School (delete me)",
+      "school_created_at": "2026-08-06T23:37:13.083917+00:00",
+      "user_id": "e270f91f-c3f4-4b7e-bd1b-5a9d56f1fe24",
+      "tag_type": "school",
+      "tag_value": "SCHOOL:5ef8f201-f671-4761-a696-19ad87656d4b",
+      "role_in_context": "admin",
+      "added_by": "e270f91f-c3f4-4b7e-bd1b-5a9d56f1fe24",
+      "result": "inserted"
+    }
+  ]
+}

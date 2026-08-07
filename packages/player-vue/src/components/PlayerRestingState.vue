@@ -10,9 +10,11 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
+  /** Active learning mode — 'easy' or 'fast'. Fast is the default. */
+  learningMode: { type: String, default: 'fast' },
 })
 
-const emit = defineEmits(['start', 'change-course'])
+const emit = defineEmits(['start', 'change-course', 'set-learning-mode'])
 
 const courseName = computed(() => {
   // Defensive fallback for the brief window before course resolves —
@@ -58,6 +60,15 @@ const progressPercent = computed(() => {
 const handleChangeCourse = () => {
   emit('change-course')
 }
+
+// Easy / Fast — the mode you pick BEFORE you start, which is why it lives on
+// the resting screen rather than in the mid-session mode tray. Fast is the
+// default and is the long-standing pace; Easy gives roughly double the
+// thinking time and double the repetitions.
+const setMode = (mode) => {
+  if (mode === props.learningMode) return
+  emit('set-learning-mode', mode)
+}
 </script>
 
 <template>
@@ -87,11 +98,79 @@ const handleChangeCourse = () => {
         <span class="belt-name">{{ beltDisplay }}</span>
       </div>
 
+      <!-- Learning mode: easy / fast. Pointer events are re-enabled here
+           because .resting-state itself is pointer-events:none (taps fall
+           through to the play surface behind it). -->
+      <div
+        v-if="isPlayerReady"
+        class="mode-switch"
+        role="group"
+        :aria-label="t('modes.learningModeLabel', 'Learning mode')"
+      >
+        <button
+          type="button"
+          class="mode-switch-btn"
+          :class="{ active: learningMode === 'easy' }"
+          :aria-pressed="learningMode === 'easy'"
+          @click.stop="setMode('easy')"
+        >{{ t('modes.easy', 'Easy') }}</button>
+        <button
+          type="button"
+          class="mode-switch-btn"
+          :class="{ active: learningMode === 'fast' }"
+          :aria-pressed="learningMode === 'fast'"
+          @click.stop="setMode('fast')"
+        >{{ t('modes.fast', 'Fast') }}</button>
+      </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
+/* ===== Learning-mode switch (easy / fast) ===== */
+.mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  /* .resting-state is pointer-events:none so taps reach the play surface;
+     this control has to opt back in. */
+  pointer-events: auto;
+}
+
+.mode-switch-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  /* 44px is the thumb-target floor, asserted directly rather than left to
+     padding arithmetic — the rendered height moves with the font, and the
+     padding-only version measured 41px on dev. */
+  min-height: 44px;
+  padding: 12px 22px;
+  line-height: 1.25;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary, #6b6560);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.mode-switch-btn.active {
+  /* Deliberately NOT the belt accent: at White Belt that is near-white, and
+     the selected label vanished into its own pill (caught on dev, 2026-08-06).
+     The dark ink reads at every belt. */
+  background: var(--text-primary, #2f2b28);
+  color: var(--bg-primary, #fff);
+}
+
 /* ===== Full resting state (when paused) ===== */
 .resting-state {
   position: absolute;

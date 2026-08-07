@@ -5,9 +5,9 @@
  * Follows "everything is a parameter" philosophy - no hardcoded algorithm values.
  *
  * Usage:
- *   const { getConfig, turboConfig, normalConfig, isLoaded } = useAlgorithmConfig(supabase)
+ *   const { getConfig, easyConfig, fastConfig, isLoaded } = useAlgorithmConfig(supabase)
  *   await loadConfigs()
- *   const pauseMs = turboConfig.value.pause_base_ms
+ *   const pauseMs = fastConfig.value.pause_base_ms
  */
 
 import { ref, computed, type Ref } from 'vue'
@@ -51,14 +51,41 @@ export interface ModeConfig {
   spaced_rep_fraction: number // 1.0 = full, 0.33 = skip 2/3
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
-  /** Turbo culling — fib-offset indices into spacedRepOffsets that Turbo
-   * keeps. Optional on normal mode (no culling there). */
-  fibKeep?: number[]
-  /** Number of BUILD phrases per LEGO that Turbo keeps; rest are tagged
-   * with turboOmit and skipped at play time. Optional on normal mode. */
-  buildKeep?: number
-  /** Number of CONSOLIDATE/USE phrases per LEGO that Turbo keeps. */
-  useKeep?: number
+  /**
+   * OPTIONAL per-mode override of the GLOBAL `script_shape` row. Keys mirror
+   * ScriptShapeConfig exactly; anything omitted falls through to the global
+   * value. Layering happens in exactly ONE place — `resolveScriptShape()`
+   * below — so there is no second merge rule to keep in sync.
+   *
+   * This is where Easy and Fast are allowed to differ in SHAPE. It replaces
+   * the old Turbo per-cycle cull (`turboOmit`): the same expressive power,
+   * but expressed as "this mode generates a different round" rather than
+   * "this mode plays a subset of one round".
+   */
+  scriptShape?: Partial<ScriptShapeConfig>
+  /**
+   * Cap on phrase LENGTH, expressed as a fraction of the longest phrase in
+   * the WHOLE COURSE (not per-LEGO — see courseMaxPhraseLength). Range (0, 1].
+   *   1.0 — uncapped; today's exact behaviour. Fast ships 1.0, so Fast is
+   *         provably unchanged.
+   *   0.5 — Easy: half the longest possible phrase (Aran, 2026-08-06).
+   * Applied by `capPhrasesByLength()` below — the ONE place the rule lives.
+   * Sorting is always shortest-first; this is a CAP, not a sort direction.
+   * A missing or invalid value degrades to 1.0 (uncapped), never to a cap.
+   */
+  maxPhraseLengthFraction?: number
+}
+
+/** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
+export type LearningMode = 'easy' | 'fast'
+
+/** The mode a learner has not explicitly chosen. */
+export const DEFAULT_LEARNING_MODE: LearningMode = 'fast'
+
+/** `algorithm_config` row key for a mode. */
+export const MODE_CONFIG_KEY: Record<LearningMode, string> = {
+  easy: 'easy_mode',
+  fast: 'fast_mode',
 }
 
 /**
@@ -149,8 +176,8 @@ export interface MetaCommentaryConfig {
 }
 
 export interface AlgorithmConfigs {
-  normal_mode: ModeConfig
-  turbo_boost: ModeConfig
+  fast_mode: ModeConfig
+  easy_mode: ModeConfig
   listening: ListeningModeConfig
   pods: PodsConfig
   script_shape: ScriptShapeConfig
@@ -167,7 +194,7 @@ export interface AlgorithmConfigs {
 // The previous fallback (base 1500, mul 1.0, ceiling 8000) was the legacy too-tight curve;
 // values below match the formula deployed for SSi's generate-from-prompt loop, so when
 // the DB algorithm_config row is missing the fallback gives the same answer.
-export const DEFAULT_NORMAL: ModeConfig = {
+export const DEFAULT_FAST: ModeConfig = {
   playback_speed: 1.0,
   // Boot + assembly model (see computePauseDuration.ts). These defaults
   // reproduce the previous White-belt curve for medium/long phrases exactly
@@ -188,39 +215,168 @@ export const DEFAULT_NORMAL: ModeConfig = {
   max_pause_ms: 15000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
-  skip_voice2: false
+  skip_voice2: false,
+  // Identity override: Fast generates EXACTLY the global script_shape, so its
+  // behaviour is provably unchanged from the pre-2026-08-06 'normal_mode'.
+  scriptShape: {},
+  // Uncapped phrase length — Fast meets exactly the phrases it always did.
+  maxPhraseLengthFraction: 1.0,
 }
 
-export const DEFAULT_TURBO: ModeConfig = {
-  playback_speed: 1.25,
-  // Pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
-  // Previous values (base 500, mul 0.5, max 2000) capped Turbo at 2s flat for
-  // medium-or-longer phrases, which is below the floor of human speech production
-  // for a 5+-LEGO sentence — those phrases became unanswerable. The defaults below
-  // land Turbo at roughly 60% of Normal-mode pause across the curve, keeping it
-  // a real time-saver while still letting the learner physically produce the
-  // target from the L1 prompt. Tunable per-course via DB config.
-  // Boot + assembly model: boot 2000 + 0.9×ref-past-1111ms reproduces the old
-  // linear Turbo curve (base 1000, mult 0.9, floor 2000). No belt taper in Turbo
-  // (it plays at native 1.0× regardless of belt), so the belt knobs are 1.0.
+/**
+ * EASY mode — the gentler of the two modes (Aran's ruling 2026-08-06: exactly
+ * two modes, Turbo deleted).
+ *
+ * TUNING STATUS: these are FIRST-PASS defaults, chosen to be coherent, not
+ * calibrated by ear. Every value is a DB row (`algorithm_config.easy_mode`),
+ * so retuning Easy is a Supabase edit, not a deploy.
+ *
+ * These MIRROR the seeded DB rows (Popty's scripts/learning-modes/
+ * create-mode-rows.cjs) and are pitched at roughly a learner's FIRST 10 HOURS,
+ * adjusting upwards from there (Aran, 2026-08-06). Aran's three seeds: double
+ * the time, double the reps, halve the longest possible phrase. On the time he
+ * added that it "does not need to be dramatic", so the doubling is confined to
+ * boot + floor and deliberately does NOT touch the assembly slope or the
+ * ceiling — doubling those too would compound into a sluggish gap on long
+ * sentences. Easy does not slow the audio (playback stays 1.0×, because slowed
+ * speech teaches a register nobody speaks).
+ */
+export const DEFAULT_EASY: ModeConfig = {
+  playback_speed: 1.0,
   pause_reference: 'avg',
-  pause_boot_ms: 2000,
-  pause_assembly_threshold_ms: 1111,
-  pause_assembly_lin: 0.9,
-  pause_assembly_quad: 0,
-  pause_belt_boot: 1.0,
-  pause_belt_assembly: 1.0,
-  pause_base_ms: 1000,
-  pause_multiplier: 0.9,
+  // DOUBLE the time, confined to boot + floor (see above).
+  pause_boot_ms: 4000,
+  pause_assembly_threshold_ms: 750,
+  pause_assembly_lin: 3.5,
+  pause_assembly_quad: 75,
+  pause_belt_boot: 0.8,
+  pause_belt_assembly: 0.95,
+  pause_base_ms: 0,
+  pause_multiplier: 1.05,
   min_pause_ms: 2000,
-  max_pause_ms: 12000,
-  spaced_rep_fraction: 0.33,
-  debut_phrases_fraction: 0.5,
+  max_pause_ms: 15000,
+  spaced_rep_fraction: 1.0,
+  debut_phrases_fraction: 1.0,
   skip_voice2: false,
-  fibKeep: [0, 1, 2, 4, 6, 8],
-  buildKeep: 3,
-  useKeep: 2,
+  // DOUBLE the reps, against the global script_shape values (7/2/12/3).
+  // These mirror the seeded easy_mode DB row exactly; the row is authoritative
+  // and these only apply when it cannot be read.
+  scriptShape: {
+    maxBuildPhrases: 14,
+    useConsolidationCount: 4,
+    maxSpacedRepPhrases: 24,
+    n1PhraseCount: 6,
+  },
+  // HALVE the longest possible phrase (Aran, 2026-08-06) — a fraction of the
+  // COURSE's longest phrase, measured in characters. Phrases still arrive
+  // shortest-first; the cap only cuts the long tail, with the starvation guard
+  // in capPhrasesByLength standing behind it.
+  maxPhraseLengthFraction: 0.5,
 }
+
+/**
+ * Layer a mode's optional `scriptShape` over the global `script_shape` row.
+ * THE single place this merge happens — modes differ by OVERRIDE, never by a
+ * parallel shape object. A mode with no override (Fast) resolves to the
+ * global row byte-for-byte.
+ */
+export function resolveScriptShape(
+  global: ScriptShapeConfig,
+  mode?: Pick<ModeConfig, 'scriptShape'> | null,
+): ScriptShapeConfig {
+  return { ...global, ...(mode?.scriptShape || {}) }
+}
+
+/**
+ * Coerce a mode's `maxPhraseLengthFraction` into (0, 1].
+ * Anything missing, non-finite, ≤0 or >1 degrades to 1.0 — UNCAPPED, i.e. the
+ * historic behaviour. A bad DB value must never silently shorten a course.
+ */
+export function normalizeMaxPhraseLengthFraction(fraction?: number | null): number {
+  if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return 1
+  if (fraction <= 0 || fraction > 1) return 1
+  return fraction
+}
+
+/**
+ * How the CAP measures phrase length: CHARACTERS of target text.
+ *
+ * Not syllables, and this is measured rather than assumed. On real data
+ * (ara_for_eng, 11,340 phrases): `target_syllable_count` is NULL for every
+ * row, and the `countTargetSyllables` fallback is a Latin vowel-cluster
+ * heuristic that returns 1 for every Arabic phrase — it special-cases CJK but
+ * not Arabic. A syllable-based ceiling therefore computed to 0.5 and the cap
+ * silently did nothing. Character length is always present and works in every
+ * script.
+ *
+ * The shortest-first SORT still uses syllables, exactly as it always has.
+ * Only the cap's measure is characters. Mirrors `phraseLengthOf` in Popty's
+ * services/learning-modes.cjs.
+ */
+export function phraseTextLength(text: string | null | undefined): number {
+  return (text || '').length
+}
+
+/**
+ * The longest phrase in the COURSE — the "longest possible phrase" the cap
+ * fraction is a fraction OF.
+ *
+ * Course-wide, deliberately, NOT per-LEGO. A per-LEGO pool max was implemented
+ * first and is useless on real data: BUILD pools average 3.2 phrases
+ * (ara_for_eng, 1,384 pools), so half-the-pool-max left under one eligible
+ * phrase and the starvation guard fired on 100% of LEGOs — the cap never bit
+ * at all. Mirrors `courseMaxPhraseLength` in Popty's learning-modes.cjs.
+ */
+export function courseMaxPhraseLength<T>(
+  phraseLists: Iterable<readonly T[] | null | undefined>,
+  lengthOf: (phrase: T) => number,
+): number {
+  let max = 0
+  for (const list of phraseLists) {
+    if (!list) continue
+    for (const p of list) {
+      const n = lengthOf(p)
+      if (n > max) max = n
+    }
+  }
+  return max
+}
+
+/**
+ * Sort a LEGO's candidate phrase pool shortest-first and cap it at an
+ * ABSOLUTE length ceiling computed once per run from the whole course.
+ *
+ * THE single place the phrase-length cap lives (Aran, 2026-08-06: Easy halves
+ * the longest possible phrase). The rules, in order:
+ *   1. sort shortest-first by SYLLABLES — unchanged, historic, and what makes
+ *      an uncapped run byte-identical to the pre-2026-08-06 behaviour;
+ *   2. drop phrases whose target text is longer than `limit` CHARACTERS;
+ *   3. STARVATION GUARD — if that leaves fewer than `minKeep`, return the
+ *      shortest `minKeep` instead. `minKeep` is the methodology's per-LEGO
+ *      phrase floor (4 BUILD / 5 USE), deliberately NOT the round's ceiling:
+ *      passing the ceiling makes the guard swallow the cap on every LEGO
+ *      smaller than it, which is most of them. Phrase volume is a hard rail —
+ *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
+ *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
+ *      historic sort.
+ */
+export function capPhrasesByLength<T>(
+  phrases: readonly T[],
+  syllablesOf: (phrase: T) => number,
+  lengthOf: (phrase: T) => number,
+  limit: number,
+  minKeep: number,
+): T[] {
+  const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
+  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
+  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
+  return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
+}
+
+/** Methodology per-LEGO phrase floors the cap must never breach (ralph: >=4
+ *  BUILD, >=5 USE — "fewer phrases is a FAIL"). */
+export const MIN_BUILD_PHRASES_AFTER_CAP = 4
+export const MIN_USE_PHRASES_AFTER_CAP = 5
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
@@ -332,8 +488,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const configs = ref<AlgorithmConfigs>({
-    normal_mode: DEFAULT_NORMAL,
-    turbo_boost: DEFAULT_TURBO,
+    fast_mode: DEFAULT_FAST,
+    easy_mode: DEFAULT_EASY,
     listening: DEFAULT_LISTENING,
     pods: DEFAULT_PODS,
     script_shape: DEFAULT_SCRIPT_SHAPE,
@@ -384,8 +540,13 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
         // merge for keyed configs so a partial DB row doesn't drop fields.
         configs.value = {
           ...loaded,
-          normal_mode: { ...DEFAULT_NORMAL, ...(loaded.normal_mode || {}) },
-          turbo_boost: { ...DEFAULT_TURBO, ...(loaded.turbo_boost || {}) },
+          // Promotion-window read: 'fast_mode' is the new key, 'normal_mode'
+          // is the live fallback alias it was copied from. An old bundle
+          // reading a new DB and a new bundle reading an old DB both work —
+          // whichever row exists wins, new key first. 'turbo_boost' may still
+          // sit in the table; nothing reads it any more.
+          fast_mode: { ...DEFAULT_FAST, ...(loaded.fast_mode || loaded.normal_mode || {}) },
+          easy_mode: { ...DEFAULT_EASY, ...(loaded.easy_mode || {}) },
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },
           pods: { ...DEFAULT_PODS, ...(loaded.pods || {}) },
           script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
@@ -425,11 +586,19 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   }
 
   // Convenience getters
-  const normalConfig = computed(() => configs.value.normal_mode as ModeConfig)
-  const turboConfig = computed(() => configs.value.turbo_boost as ModeConfig)
+  const fastConfig = computed(() => configs.value.fast_mode as ModeConfig)
+  const easyConfig = computed(() => configs.value.easy_mode as ModeConfig)
+  /** The ModeConfig for a given learning mode. */
+  const modeConfig = (mode: LearningMode): ModeConfig =>
+    mode === 'easy' ? easyConfig.value : fastConfig.value
   const listeningConfig = computed(() => configs.value.listening as ListeningModeConfig)
   const podsConfig = computed(() => configs.value.pods as PodsConfig)
   const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
+  /** The effective script shape for a mode: the global `script_shape` row with
+   *  that mode's `scriptShape` override layered on top. Fast carries no
+   *  override, so it resolves to the global row unchanged. */
+  const scriptShapeForMode = (mode: LearningMode): ScriptShapeConfig =>
+    resolveScriptShape(scriptShapeConfig.value, modeConfig(mode))
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
   const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
   const adaptationV2Config = computed(() => configs.value.adaptation_v2 as AdaptationV2Config)
@@ -457,8 +626,10 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     isLoaded,
     loadError,
     loadConfigs,
-    normalConfig,
-    turboConfig,
+    fastConfig,
+    easyConfig,
+    modeConfig,
+    scriptShapeForMode,
     listeningConfig,
     podsConfig,
     scriptShapeConfig,
@@ -470,8 +641,8 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     calculatePause,
     invalidateCache,
     // Export defaults for reference
-    DEFAULT_NORMAL,
-    DEFAULT_TURBO,
+    DEFAULT_FAST,
+    DEFAULT_EASY,
     DEFAULT_LISTENING,
     DEFAULT_PODS,
     DEFAULT_SCRIPT_SHAPE,

@@ -148,6 +148,35 @@ const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> 
   }
 }
 
+/**
+ * Drop the cached pod rows for a course, keeping the rest of its entry
+ * (coreSeeds, legoCatalogue, bookends) intact.
+ *
+ * Called when a LIVE read reports the course has no pod sentences at all.
+ * That is how unreleased Layer 2 content is held back: every learner-facing
+ * pod path queries the exact id `<course>:pod-0`, so a pod parked on any other
+ * slug reads as "no pods yet" (the Welsh pods were gated this way on
+ * 2026-08-06 — Aran and Catrin have not recorded them). Without this, a
+ * learner who downloaded the pod for offline use would keep replaying the
+ * withdrawn snapshot forever, because the offline lane never re-checks.
+ *
+ * Deliberately keyed on "server says zero", not on a course allow-list: it
+ * needs no maintenance, and it reverses itself the moment the recordings land
+ * and the pod returns to its `pod-0` slug.
+ */
+export const clearCachedListeningPodRows = async (courseCode: string): Promise<void> => {
+  try {
+    const existing = await getCachedListeningMeta(courseCode)
+    if (!existing || existing.podRows.length === 0) return
+    await setCachedListeningMeta({ ...existing, podRows: [], clipTexts: {} })
+    console.log('[ListeningMeta] dropped', existing.podRows.length,
+      'stale offline pod rows for', courseCode, '— course reports no pods live')
+  } catch (err) {
+    // Never let cache hygiene break playback.
+    console.warn('[ListeningMeta] pod-row clear failed:', (err as any)?.message, err)
+  }
+}
+
 /** Column list for the pod-row union select — keep in sync with CachedPodRow. */
 const POD_ROW_COLUMNS =
   'id, scene_number, sentence_number, global_order, speaker, target_text, known_text, ' +

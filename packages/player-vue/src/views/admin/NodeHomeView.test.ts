@@ -142,9 +142,37 @@ describe('NodeHomeView — one grammar at every level', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('.identity-text .schools-kicker').text()).toBe('School')
-    expect(wrapper.text()).toContain('Trial — hin_for_eng')
+    // The badge names the LANGUAGE, never the raw course code (founder report
+    // 2026-08-07). This assertion used to pin `Trial — hin_for_eng` — flipped
+    // deliberately, that was the bug.
+    expect(wrapper.text()).toContain('Trial — Hindi')
+    expect(wrapper.text()).not.toContain('hin_for_eng')
     // Analytics verb targets the school's deep tools
     expect(wrapper.find('a[href="/admin/schools/school-1/analytics"]').exists()).toBe(true)
+  })
+
+  it('school level: a dialect-variant course names its variant in the badge', async () => {
+    routeMock.params = { id: 'school-1' }
+    setupFetch(nodePayload({
+      node: { id: 'school-node', name: 'Ysgol Cas-gwent Chepstow School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'cym_s_for_eng' } },
+      children: [],
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Trial — Welsh (South)')
+    expect(wrapper.text()).not.toContain('cym_s_for_eng')
+  })
+
+  it('school level: a trial with no language chosen yet reads a bare "Trial"', async () => {
+    routeMock.params = { id: 'school-1' }
+    setupFetch(nodePayload({
+      node: { id: 'school-node', name: 'A New School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: null } },
+      children: [],
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Trial')
+    expect(wrapper.text()).not.toContain('Trial —')
   })
 
   it('class level: same grammar — rail to the school, read-only teachers (lead first), students as children', async () => {

@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-06 (PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
+# Last Updated: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
 # Prev: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
@@ -338,7 +338,8 @@ spec audio_caching_architecture:
         the slider/bar/labels to the 'keep N% of the course offline' framing.
       why_not_time: >
         Time is misleading twice: INF PLAY makes total offline time infinite, and
-        the 'new' portion stretches with turbo/replay. So the readout is MB (real
+        the 'new' portion stretches with replay and with the learner's mode
+        (Easy doubles the reps). So the readout is MB (real
         cost) + a course-depth bar (the pre-INF-PLAY new learning made visible),
         never a duration.
       course_depth_bar: >

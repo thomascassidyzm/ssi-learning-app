@@ -12,13 +12,14 @@
     "pronunciation": "Pronunciation",
     "guideShown": "Guide shown above the script",
     "nativeOnly": "Native script only",
-    "turboBoost": "Turbo Boost",
-    "turboDesc": "Faster pace, less repetition",
     "offline": "Offline mode",
     "offlineDesc": "Play from downloaded audio",
     "hiseDesc": "High Intensity Speaking Exercises",
     "listening": "Listening",
-    "listeningDesc": "Audio only, no speaking"
+    "listeningDesc": "Audio only, no speaking",
+    "easy": "Easy",
+    "fast": "Fast",
+    "learningModeLabel": "Learning mode"
   },
   "courseSelector": {
     "title": "Choose Your Course",
@@ -213,7 +214,6 @@
     "tapToPause": "Tap to pause",
     "tapToStart": "Tap to start",
     "phaseFlow": "Listen → Speak → Listen → See",
-    "skipReplayTurbo": "Skip, Replay, Turbo",
     "tapAnywhere": "tap anywhere to start"
   },
   "driving": {

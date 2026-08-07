@@ -269,6 +269,29 @@ describe('useListeningPods offline fallback', () => {
     expect(pods.scenes.value[0].sentenceCount).toBeGreaterThan(0)
   })
 
+  // Withdrawing an unrecorded pod (the Welsh pods, gated 2026-08-06 pending
+  // Aran and Catrin's recordings) parks it off the `<course>:pod-0` slug, so
+  // the live read returns zero rows. A learner who had already downloaded it
+  // must not keep replaying the withdrawn snapshot from IndexedDB.
+  it('drops the cached pod rows when the live read says the course has no pods', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'cym_n_for_eng') // downloaded while it was live
+    expect((await getCachedListeningMeta('cym_n_for_eng'))!.podRows.length).toBeGreaterThan(0)
+
+    const gatedClient = makeFakeClient({
+      listening_pod_sentences: () => ({ data: [], error: null }), // pod withdrawn
+      course_audio: () => ({ data: [], error: null }),
+    })
+    const { pods, flush } = mountPods(gatedClient, 'cym_n_for_eng')
+    await flush()
+
+    expect(pods.scenes.value).toHaveLength(0)   // "No pods for this course yet."
+    expect(pods.error.value).toBeNull()         // an absence, not a failure
+    // and the stale offline copy is gone, so going offline can't resurrect it
+    expect((await getCachedListeningMeta('cym_n_for_eng'))!.podRows).toEqual([])
+    // the rest of the entry survives — Welsh Core content is still live
+    expect((await getCachedListeningMeta('cym_n_for_eng'))!.coreSeeds.length).toBeGreaterThan(0)
+  })
+
   it('shows the explicit not-downloaded message offline with no cache — never the raw TypeError', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     const { pods, flush } = mountPods(failAll, 'never_downloaded')

@@ -1,6 +1,11 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-06 (creator becomes first manager; the node names its leader;
-#               duplicate-name warning on Add-a-group and on Rename)
+# Last updated: 2026-08-07 (state_badge: a trial names its LANGUAGE, not the raw course code,
+#               and a trial school records that language at its first class — B1;
+#               school-admin first-run affordances on the member mount;
+#               creator becomes first manager; the node names its leader;
+#               duplicate-name warning on Add-a-group and on Rename;
+#               password gate + PWA install nudge before an org manager's first add;
+#               permanent "Your account" card — the same two actions, always reachable)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 dressing:  # founder ruling 2026-08-02 ("orgs are groups all the way down")
@@ -55,6 +60,26 @@ surface:
 grammar:  # the same five parts, every level (THE-VIEW §1)
   map_rail: NodeMapRail.vue           # ancestors root→here, you-are-here lit, siblings toggle, children below
   identity_header: node name + label badge + demo/trial/paid state; class level adds read-only teachers (lead first)
+  state_badge: |
+    NodeHomeView.vue::stateBadge — demo · paid ("Paid — all courses") ·
+    trial · any other platform_status verbatim (underscores spaced).
+
+    A TRIAL badge NAMES THE LANGUAGE, never the raw course code:
+    "Trial — Welsh (South)", off courseShortName(commercial.trialCourseCode)
+    from @ssi/core (packages/core/src/courses/displayName.ts). That helper is
+    the ONE source of truth for course labels — do not add another hardcoded
+    list here (the repo already carries three: lib/teacherCourses.ts,
+    composables/schools/useSchoolCourseCatalogue.ts, insight/data/demo.ts,
+    and that duplication is what produced this bug).
+
+    A trial with NO course recorded reads a bare "Trial". That is now a
+    genuinely transient state — a trial school records its language the
+    moment it creates its first class with a course
+    (api/_utils/schoolPlatformTrial.ts::ensureSchoolTrialCourse, called from
+    POST /api/teacher/create-class-learner). Before that fix, an invite-born
+    school (redeem.ts has no course to pass at redemption) stayed null
+    forever and the badge was a permanent blank — founder report 2026-08-07,
+    the Chepstow school.
   stats_row: learners · teachers · classes · practice hours — SUBTREE totals via groupRollups.computeNodeExtras
   children_list: NodeChildrenList.vue # one row grammar for every lens payload
   verbs: invite someone (role × node) · see insights · quick actions (Structure flyout)
@@ -68,6 +93,100 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
   # RENAME verb warns the same way off PATCH /api/groups/:id — same 409, same
   # two ways out, and never about the row being renamed itself. Full
   # contract: apml/core/roles-and-permissions.apml duplicate_name_warning.
+  manager_onboarding_gate: |
+    An ORG MANAGER must set a password BEFORE their first add (founder ruling
+    2026-08-06, off Deborah's question on the org lane: "Password before
+    adding a group or a learner? and then once they've done that, a context
+    aware install as PWA, on a desktop likely to be a chrome app").
+
+    WHY: a manager arrives by magic link, lands in their organisation and
+    simply stays signed in. They never set a password, so when that session
+    dies — new device, cleared storage, a phone reset — there is no way back
+    into the organisation they just built.
+
+    PRESENTED AS TWO GUIDED WALK-THROUGHS (founder taste call 2026-08-06
+    22:38Z, binding on the UX): "not a bare form or a naked prompt" — each is
+    a PURPOSE SENTENCE FIRST, then under five paced steps to done, in the
+    walkthrough engine's own card genre. The genre is shared LITERALLY via
+    components/admin/WalkCard.vue, extracted from WalkOverlay.vue in the same
+    pass, so there is one teaching voice rather than two lookalikes.
+      · password walk: why (you came in by a link that will not last) → the
+        two fields → done. Three beats, no escape on any of them.
+      · install walk: why (context-aware by device) → do it. Two beats,
+        escapable throughout.
+    WHY IT IS NOT AN ENGINE WALK — the engine is an INVITATION system: it
+    never auto-plays (compile gate 7 makes startWalk-outside-@click a build
+    failure), never traps the page, and anchors to elements already on screen.
+    The password step fires unbidden, blocks, and has no skip. Routing it
+    through the engine would have meant breaking the never-auto-play gate,
+    which is load-bearing. It therefore borrows the genre, not the mechanism.
+    RESOLVED 2026-08-06 (founder ruling): the durable anchor is now
+    `your_account` below. The gate itself is UNCHANGED — it remains the front
+    door for a brand-new manager — and the same two actions are additionally
+    registered as real pack walks against the permanent surface, so
+    How-this-works offers them like every other feature.
+
+    TWO BEATS, deliberately different in kind:
+      1. PASSWORD — a GATE. No skip, no close. Intercepts the three verbs a
+         manager holds (Invite a person · Get a shareable link · Add a group),
+         all of which pass through NodeActionBar's single toggle() choke
+         point. On success the intercepted verb RESUMES immediately — the
+         manager never has to find the button again.
+      2. INSTALL — a PROMPT, not a gate. Context-aware by device
+         (utils/installPlatform.ts): desktop Chrome says "Chrome app", other
+         desktops say "app", phones say "home screen". Always escapable
+         ("Not now"), dismissal remembered per user in localStorage, skipped
+         entirely when already running standalone. Routes to the existing
+         /install walkthrough carrying ?return=<current path> so the manager
+         lands back on their own node, never the learner home.
+
+    SCOPE — needsPasswordGate(member && leadsOrg && !hasPassword):
+      · `member` = the /org member mount, never the ssi_admin god-view.
+      · `leadsOrg` = useOrgLeadership's server-verified 'organisation' leader
+        row. This is what keeps the gate OUT of the schools lane: /org/:id
+        renders school nodes on the same member mount, so `member` alone would
+        leak it. School admins, teachers and learners are untouched.
+      · `hasPassword` reads user_metadata.has_password — the same flag
+        SettingsScreen reads and useAuth.updatePassword writes. A MISSING flag
+        counts as no password: the safe direction, since the worst case is a
+        manager setting a password they already had. KNOWN LIMIT — that flag
+        is only ever written by our own updatePassword, and Supabase exposes
+        no server-side "this user has a password" signal on the session user.
+      · Validation mirrors SettingsScreen exactly (6 characters, confirm must
+        match); a longer server-side minimum surfaces in Supabase's own words.
+    Surfaces: components/admin/ManagerOnboardingGate.vue (both beats),
+    composables/useManagerOnboarding.ts (decision logic),
+    utils/installPlatform.ts (detection + framing, shared with InstallGuide).
+
+  your_account: |
+    THE PERMANENT HOME for the same two actions (founder ruling 2026-08-06):
+    "a leader can set/change their password and install the app AT ANY TIME,
+    not just at first login". components/admin/YourAccount.vue, last card on
+    the node home, after Ways in — Ways in is how OTHER people get in, this is
+    how YOU get back in.
+
+    SCOPE: the member mount only (`member && !isClass && home.node`). On the
+    admin mount an ssi_admin is looking at someone else's node, and their own
+    account is not what that page is about. No leadsOrg round trip: /org/* IS
+    the leader lane, and a permanent dismissible card is not a gate, so the
+    tighter predicate the GATE needs would only buy a request.
+
+    NOTHING RE-IMPLEMENTED — the password uses useManagerOnboarding's
+    validatePassword + useAuth.updatePassword, the install uses
+    installPlatform's detectFromBrowser + installFraming. If the gate's rules
+    change, this changes with them. The copy adapts: "No password yet / Set a
+    password" before, "Password / Change it" after; the install row says
+    Chrome app · app · home screen by device, and goes quiet with "The app is
+    installed" when already standalone. A link-auth placeholder address is
+    never displayed as if it were an inbox (utils/placeholderEmail.ts).
+
+    WALK ANCHORS on the ROW containers, never the buttons: account-card ·
+    account-password · account-install. The install row has no button once
+    installed, so a button-mounted anchor would vanish exactly when the walk
+    still wants to point at it. Pack walks set-your-password and
+    install-the-app (personas: leader) are anchored here and offered from
+    How-this-works — that is what makes these two actions covered features
+    rather than a one-time flow.
   # The admin "Class tools" page is DEAD (founder ruling 2026-07-19): it
   # duplicated the class node home with zero admin-usable verbs. Its route
   # (/admin/schools/:id/classes/:classId) redirects to /admin/classes/:classId.
@@ -189,6 +308,33 @@ rail_everywhere:  # founder ruling 2026-07-31 — "everyone should know where th
     main pane swaps); flat<->node hops paint the same cached tree synchronously
   tests: useSchoolsRail.test.ts
 
+school_admin_first_run:  # fixed 2026-08-06 (Chepstow production inspection)
+  why: |
+    Nav unification (2026-07-30) redirects a school-scoped school_admin from
+    /schools to /org/:schoolId — THIS page. Their two first-run affordances
+    still lived only on DashboardView, so a real head teacher three weeks in
+    had no route to the guided setup wizard (which has no nav tab) and no way
+    to correct a school name someone else guessed for her: THE VIEW's Rename
+    verb is `!member`. Both now render here too.
+  gating: |
+    isOwnSchoolNode = member mount AND isSchoolAdmin AND route :id equals the
+    caller's own currentSchool.id. Never a class node, never a group, never
+    the ssi_admin read-view mount.
+      - setup banner: + payload loaded AND node.rollup.learnerCount === 0.
+        ZERO PUPILS is the not-onboarded signal, never zero classes; one
+        enrolled student retires it, so a running school is never nagged.
+      - confirm-name card: + currentSchool.name_confirmed === false; saves
+        via useSchoolData.confirmSchoolName (POST /api/school/update-profile,
+        caller-scoped), then refetches schools AND the node home so the
+        identity header stops showing the old name.
+  data: |
+    No new fetch and no payload change — currentSchool is already warm here
+    because SchoolsContainer prefetches it and this node home renders inside
+    that container. useSchoolData() resolves the schools Supabase client
+    eagerly and THROWS when unset, so the call is wrapped: an unset client
+    (possible on the admin mounts) degrades to "no first-run cards", which is
+    the correct behaviour there anyway, rather than crashing the page.
+
 navigation_rules:  # THE-VIEW §2
   - clicking any node NAME anywhere in admin lands on that node's HOME
   - Structure stays the quick-actions flyout; its open/see-progress verbs land on node home
@@ -202,13 +348,16 @@ components:
 
 tests:
   - packages/player-vue/src/views/admin/NodeHomeView.test.ts   # same grammar at 4 levels; lens filters; name-click pin
+  - packages/player-vue/src/views/admin/NodeHomeView.schoolAdminFirstRun.test.ts  # setup banner + confirm-name card, own school node only
   - api/groups/[id]/home.test.ts                               # id resolution, rail, rollups, lenses, leader trimming
 
 out_of_scope: |
-  The LEADER member path now converges on this grammar via the member mount
-  (route_member above, 2026-07-20). Teacher and school_admin /schools views
-  (TeacherDashboard, DashboardView school branch, ClassDetail) still converge
-  in a later scoped pass — school_admin needs a leader door on
-  resolveGroupTreeCaller first (it currently authorizes govt_admins only).
+  The LEADER member path converges on this grammar via the member mount
+  (route_member above, 2026-07-20), and a school-scoped school_admin has
+  landed here since the 2026-07-30 nav unification (their first-run
+  affordances followed on 2026-08-06 — see school_admin_first_run). The
+  remaining flat /schools views (TeacherDashboard, DashboardView's teacher
+  and legacy no-school school_admin branches, ClassDetail) still converge in
+  a later scoped pass.
   Class co-teacher MEMBERSHIP mutations are another worker's piece; here the
   teachers list renders read-only from class_teachers + the lead pointer.

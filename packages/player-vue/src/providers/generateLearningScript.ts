@@ -15,6 +15,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateLearningScript } from './validateLearningScript'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
+// The phrase-length cap lives with the mode config it comes from — ONE place,
+// next to resolveScriptShape (Aran's correction, 2026-08-06).
+import {
+  capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
+  normalizeMaxPhraseLengthFraction,
+  MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
+} from '../composables/useAlgorithmConfig'
+import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 
 export interface ScriptItem {
   uuid: string
@@ -64,24 +72,7 @@ export interface ScriptItem {
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
   listeningSeedNumber?: number
-  /** Skip this cycle when Turbo is active. Set on:
-   *   - 4th–7th BUILD phrases (Turbo keeps the first 3)
-   *   - 2nd CONSOLIDATE/USE phrase (Turbo keeps 1)
-   *   - spaced_rep phrases at alternate fib offsets (skip 5, 13, 34, 89; keep 1, 2, 3, 8, 21, 55)
-   * intro/debut/listening/pod/bookend cycles are never tagged. */
-  turboOmit?: boolean
 }
-
-/**
- * Default Turbo culling rules — mirrored to algorithm_config.turbo_boost.
- * fibKeep: indices into SPACED_REP_OFFSETS that Turbo keeps; default
- *   {0,1,2,4,6,8} = N-1, N-2, N-3, N-8, N-21, N-55 (skip the rest).
- * buildKeep: how many BUILD phrases per LEGO Turbo keeps (rest tagged).
- * useKeep: how many CONSOLIDATE/USE phrases per LEGO Turbo keeps.
- */
-export const DEFAULT_TURBO_FIB_KEEP = [0, 1, 2, 4, 6, 8]
-export const DEFAULT_TURBO_BUILD_KEEP = 3
-export const DEFAULT_TURBO_USE_KEEP = 1
 
 /**
  * Default per-round script shape — mirrored to algorithm_config.script_shape.
@@ -125,14 +116,6 @@ export const SEED_PHASE_START_OFFSET = 144
 /** Is a spaced-rep review at this skip offset in the seed-sentence phase? */
 export function reviewItemIsSeed(offset: number): boolean {
   return offset >= SEED_PHASE_START_OFFSET
-}
-
-/** Subset of turbo_boost config fields used at script-generation time
- *  (cycle tagging). Other fields like playback_speed apply at runtime. */
-export interface TurboCullConfig {
-  fibKeep?: number[]
-  buildKeep?: number
-  useKeep?: number
 }
 
 // Role → runtime playback rate for Layer-2 pod plays (emitPodLap, retained
@@ -286,6 +269,27 @@ async function fetchAllPracticePhrases(
 // cache / resume repair).
 const WALK_SLICE_BUDGET_MS = 40
 
+/**
+ * Prompt identity for the A-64 consecutive-repeat cap: what the learner
+ * actually hears as "the same thing again".
+ *
+ * Default per Tom's brief — normalised known text paired with normalised target
+ * text, the same notion `getPhraseId` uses for within-round de-duplication.
+ * Listening items are the one case that notion cannot see: a pod sentence play
+ * carries no known text and a pod translation carries no target text, so two
+ * plays of the same clip at different speeds ('ps' vs 'ps2x') would otherwise
+ * look like different prompts. For those we fall back to the audio ids, which
+ * is the honest answer — it is the same clip.
+ */
+export function scriptItemIdentity(item: ScriptItem): string {
+  const norm = (text: string | null | undefined): string =>
+    text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
+  const known = norm(item.knownText)
+  const target = norm(item.targetText)
+  if (known || target) return `${known}|${target}`
+  return `audio:${item.knownAudioId ?? ''}|${item.target1Id ?? ''}`
+}
+
 export const yieldToEventLoop = (): Promise<void> => {
   const sched = (globalThis as any).scheduler
   if (sched && typeof sched.yield === 'function') {
@@ -330,7 +334,13 @@ export async function generateLearningScript(
   infinitePlayLookahead: number = 50,
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
-  turboCull: TurboCullConfig = {},
+  /**
+   * Cap on phrase length for the active learning mode, as a fraction of the
+   * longest phrase available for each LEGO. 1.0 (the default) is uncapped and
+   * reproduces the pre-2026-08-06 behaviour exactly; Easy ships 0.5.
+   * See capPhrasesByLength() — the one place the rule lives.
+   */
+  maxPhraseLengthFraction: number = 1,
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -355,12 +365,13 @@ export async function generateLearningScript(
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
   const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
 
-  // Turbo culling — DB-tweakable via algorithm_config.turbo_boost
-  // (fibKeep, buildKeep, useKeep). Defaults preserved for any consumer
-  // that omits the param.
-  const TURBO_FIB_KEEP = new Set(turboCull.fibKeep ?? DEFAULT_TURBO_FIB_KEEP)
-  const TURBO_BUILD_KEEP = turboCull.buildKeep ?? DEFAULT_TURBO_BUILD_KEEP
-  const TURBO_USE_KEEP = turboCull.useKeep ?? DEFAULT_TURBO_USE_KEEP
+  // Phrase-length cap (mode row). The ceiling is ABSOLUTE and COURSE-WIDE —
+  // a fraction of the longest phrase in the whole course, measured in
+  // characters of target text — computed once below, after the phrase pools
+  // are known. 1.0 = uncapped = historic behaviour; Easy ships 0.5. Ordering
+  // is always shortest-first; the cap only removes the long tail.
+  const PHRASE_LENGTH_FRACTION = normalizeMaxPhraseLengthFraction(maxPhraseLengthFraction)
+  const phraseLengthOf = (p: Phrase): number => phraseTextLength(p.target_text)
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
@@ -379,6 +390,12 @@ export async function generateLearningScript(
     const vowelClusters = targetText.toLowerCase().match(/[aeiouyáéíóúàèìòùâêîôûäëïöü]+/gi)
     return vowelClusters ? vowelClusters.length : 1
   }
+
+  /** A phrase's target syllable count: the stored value, else derived. */
+  const phraseSyllables = (phrase: {
+    target_syllable_count?: number
+    target_text?: string | null
+  }): number => phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
 
   // Query tables directly - audio IDs stored on each row, no joins needed.
   // ALL course-content queries are course-wide — no startSeed/endSeed
@@ -758,11 +775,28 @@ export async function generateLearningScript(
     group.practice = []
   }
 
-  // Sort BUILD phrases by syllable count
+  // Sort BUILD phrases shortest-first and apply the mode's phrase-length cap
+  // — the twin of the USE sort below; both must move together or a round's
+  // BUILD and USE halves disagree about length. capPhrasesByLength falls back
+  // to that LEGO's shortest phrases rather than starve the round. The floor is
+  // the methodology's per-LEGO minimum (4 BUILD / 5 USE), NOT the round's
+  // ceiling: passing the ceiling makes the guard swallow the cap on every LEGO
+  // smaller than it, which is most of them (BUILD pools average 3.2 phrases).
+  // One ceiling for the whole run, from every pool the learner can meet.
+  const PHRASE_LENGTH_LIMIT = PHRASE_LENGTH_FRACTION >= 1
+    ? Infinity
+    : courseMaxPhraseLength<Phrase>(
+        [...phrasesByLego.values()].flatMap((g) => [g.build, g.use]),
+        phraseLengthOf,
+      ) * PHRASE_LENGTH_FRACTION
+
   for (const [, group] of phrasesByLego.entries()) {
-    group.build.sort((a, b) =>
-      (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-      (b.target_syllable_count || countTargetSyllables(b.target_text))
+    group.build = capPhrasesByLength<Phrase>(
+      group.build,
+      phraseSyllables,
+      phraseLengthOf,
+      PHRASE_LENGTH_LIMIT,
+      MIN_BUILD_PHRASES_AFTER_CAP,
     )
   }
 
@@ -1123,7 +1157,6 @@ export async function generateLearningScript(
         fibPosition: base.fibPosition,
         reviewOf: base.reviewOf,
         playbackSpeed: 1.0,
-        ...(TURBO_FIB_KEEP.has(base.fibPosition) ? {} : { turboOmit: true }),
       })
     }
   }
@@ -1250,15 +1283,20 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
       // Fill remaining BUILD slots with USE phrases (BUILD priority > CONSOLIDATE)
       // CONSOLIDATE can repeat BUILD phrases if needed — filling 7 BUILD is non-negotiable
-      const sortedUsePhrases = [...phrases.use].sort((a, b) =>
-        (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-        (b.target_syllable_count || countTargetSyllables(b.target_text))
+      // Twin of the BUILD sort above — same shortest-first order, same cap.
+      // 'needed' is only the slots still unfilled, so the starvation guard
+      // measures against what this round actually has to place.
+      const sortedUsePhrases = capPhrasesByLength<Phrase>(
+        phrases.use,
+        phraseSyllables,
+        phraseLengthOf,
+        PHRASE_LENGTH_LIMIT,
+        MIN_USE_PHRASES_AFTER_CAP,
       )
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
@@ -1284,14 +1322,24 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
-      // Initialize LEGO state
+      // Initialize LEGO state.
+      // The review pool gets the SAME cap. It has to: spaced rep walks this
+      // pool round-robin (useIndex % length), so it is the only place a LEGO's
+      // LONGEST phrases ever reach the learner — the debut BUILD/USE fills
+      // above take a shortest-first prefix and would ignore a cap entirely.
+      // Guard against an N-1 review's worth, the largest single draw.
       legoState.set(legoKey, {
         lastRound: roundNumber,
-        usePhrases: [...phrases.use],
+        usePhrases: capPhrasesByLength<Phrase>(
+          phrases.use,
+          phraseSyllables,
+          phraseLengthOf,
+          PHRASE_LENGTH_LIMIT,
+          MIN_USE_PHRASES_AFTER_CAP,
+        ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego
       })
@@ -1384,7 +1432,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1408,7 +1455,6 @@ export async function generateLearningScript(
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
-          ...(consolidateCount > TURBO_USE_KEEP ? { turboOmit: true } : {}),
         })
       }
       // First pass: unused USE phrases
@@ -1634,7 +1680,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1718,6 +1763,46 @@ export async function generateLearningScript(
     return true
   })
 
+  // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
+  // "No mode should ever repeat the same prompt more than twice consecutively."
+  //
+  // The consecutive-duplicate pass above is stricter than the law for ordinary
+  // cycles, but it lets intro/debut/pod/bookend types straight through — so a
+  // pod lap whose stage playlist fires the same clip three times, or any future
+  // emitter, can still breach. This pass is the floor that cannot be breached:
+  // it runs downstream of every script-shape value (Easy mode's doubled
+  // n1PhraseCount included) and of the pod stage playlists in algorithm_config.
+  //
+  // Re-interleaving is confined to a single round: rounds are the player's unit
+  // of position, so an item must never migrate across a round boundary. Each
+  // round is seeded with the previous round's tail so the law also holds at the
+  // seam. Totals survive wherever a round holds anything to interleave with.
+  const roundCapped: ScriptItem[] = []
+  let capTail: string[] = []
+  let capDropped = 0
+  let capReordered = 0
+  let currentRound: number | null = null
+  let roundBuffer: ScriptItem[] = []
+  const flushRound = () => {
+    if (roundBuffer.length === 0) return
+    const capped = capConsecutiveRepeats(roundBuffer, scriptItemIdentity, { seed: capTail })
+    capTail = capped.tail
+    capDropped += capped.dropped.length
+    if (capped.reordered) capReordered++
+    roundCapped.push(...capped.items)
+    roundBuffer = []
+  }
+  for (const item of playableItems) {
+    await yieldTick()
+    if (currentRound !== null && item.roundNumber !== currentRound) flushRound()
+    currentRound = item.roundNumber
+    roundBuffer.push(item)
+  }
+  flushRound()
+  if (capReordered > 0 || capDropped > 0) {
+    console.info(`[generateLearningScript] A-64 cap: re-interleaved ${capReordered} round(s)${capDropped > 0 ? `, dropped ${capDropped} rep(s) with nothing to interleave against` : ''}`)
+  }
+
   if (introsSkippedForAudio > 0 || debutsSkippedForAudio > 0 || droppedByText > 0) {
     console.info(`[generateLearningScript] Suppressed ${introsSkippedForAudio} intros / ${debutsSkippedForAudio} debuts for missing audio (their rounds still play), ${droppedByText} missing-text cycles`)
   }
@@ -1732,7 +1817,7 @@ export async function generateLearningScript(
     try { return !!(import.meta as any)?.env?.DEV } catch { return false }
   })()
   if (isDevBuild) {
-    const validationReport = validateLearningScript(playableItems)
+    const validationReport = validateLearningScript(roundCapped)
     if (!validationReport.valid) {
       console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
     }
@@ -1744,18 +1829,18 @@ export async function generateLearningScript(
   }
 
   // Recount rounds from playable items
-  const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
+  const playableRoundCount = new Set(roundCapped.map(i => i.roundNumber)).size
   // Where the INF-PLAY revival tail begins = count of PLAYABLE main-loop rounds.
   // mainLoopLastRound is the generator's own boundary (set right before the
   // revival loop); counting distinct playable roundNumbers at-or-below it gives
   // the true current course size, with unbuilt/no-audio rounds already filtered
   // out. This is what the player must use to find the tail — never a DB count.
   const mainLoopRoundCount = new Set(
-    playableItems.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
+    roundCapped.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
   ).size
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
+  console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
+  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
 }

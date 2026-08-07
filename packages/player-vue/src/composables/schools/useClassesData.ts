@@ -12,7 +12,7 @@ import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
-import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
+import { myTaughtClassIds, teachersByClassId, teachersByClassIdResult, type ClassTeacherRef } from './classTeacherScope'
 
 export type { Belt }
 
@@ -101,6 +101,19 @@ export interface ClassDeleteResult {
   impact?: ClassDeleteImpact
 }
 
+/** The honest result of a teacher↔class write: never a bare "it failed". */
+export interface ClassTeacherWriteResult {
+  ok: boolean
+  error: string | null
+}
+
+/** A minted class-scoped co-teacher link — `code` is null whenever `ok` is false. */
+export interface CoTeacherLinkResult {
+  ok: boolean
+  code: string | null
+  error: string | null
+}
+
 export interface ClassSession {
   id: string
   class_id: string
@@ -118,6 +131,19 @@ const currentClass = ref<ClassInfo | null>(null)
 const classStudents = ref<StudentProgress[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+
+// Per-panel load state for the class-detail page. `error` above means "the
+// class row itself could not be read" — the only genuinely page-wide failure.
+// Everything else on that page has its OWN data source and its own outcome,
+// so one slow view can no longer blank out unrelated panels (production,
+// 2026-08-07: class_student_progress timed out for a non-lead co-teacher and
+// took the teacher list and the student invite code down with it).
+const rosterError = ref<string | null>(null)
+const teachersError = ref<string | null>(null)
+// False until a class_teachers read for the current class has actually
+// RESOLVED. "No teachers yet" may only be rendered when this is true and
+// teachersError is null — never assert an emptiness you did not observe.
+const teachersLoaded = ref(false)
 
 export function useClassesData() {
   const client = getSchoolsClient()
@@ -356,30 +382,49 @@ export function useClassesData() {
 
         currentClass.value = { ...cls, student_count: classStudentList.length }
       }
+      teachersLoaded.value = true
+      teachersError.value = null
+      rosterError.value = null
       return
     }
 
     isLoading.value = true
     error.value = null
+    rosterError.value = null
+    teachersError.value = null
+    teachersLoaded.value = false
 
     try {
-      // Fetch class info
+      // Fetch class info. This one IS all-or-nothing: without the class row
+      // there is no name, no course and no join code to render.
       const { data: classData, error: classError } = await client
         .from('classes')
         .select('*')
         .eq('id', classId)
         .single()
 
-      if (classError) throw classError
+      if (classError) {
+        // Report the DB's own reason — PostgREST errors are plain objects, so
+        // the generic catch below would flatten them to "Failed to fetch class
+        // detail" and tell the teacher nothing.
+        error.value = classError.message || 'Failed to fetch class detail'
+        console.error('Class detail fetch error:', classError)
+        return
+      }
 
-      // Fetch student progress for this class
+      // Fetch student progress for this class. Its own panel, its own outcome:
+      // this view can time out (57014) under a non-lead co-teacher's RLS plan,
+      // and when it does the roster says so while the rest of the page lives.
       const { data: progressData, error: progressError } = await client
         .from('class_student_progress')
         .select('*')
         .eq('class_id', classId)
         .order('student_name')
 
-      if (progressError) throw progressError
+      if (progressError) {
+        rosterError.value = progressError.message || 'Failed to fetch the roster'
+        console.error('Class roster fetch error:', progressError)
+      }
 
       const students = (progressData || []).map(p => ({
         student_user_id: p.student_user_id,
@@ -406,11 +451,18 @@ export function useClassesData() {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
       sevenDaysAgo.setHours(0, 0, 0, 0)
-      const { data: sessionRows } = await client
-        .from('class_sessions')
-        .select('started_at, cycles_completed')
-        .eq('class_id', classId)
-        .gte('started_at', sevenDaysAgo.toISOString())
+      // Sparkline is decoration — a failure here dims one chart, nothing else.
+      let sessionRows: Array<{ started_at: string | null; cycles_completed: number | null }> | null = null
+      try {
+        const res = await client
+          .from('class_sessions')
+          .select('started_at, cycles_completed')
+          .eq('class_id', classId)
+          .gte('started_at', sevenDaysAgo.toISOString())
+        sessionRows = res.data
+      } catch (err) {
+        console.error('Class sparkline fetch error:', err)
+      }
 
       const days = last7Days()
       const dayIndex = new Map(days.map((d, i) => [d, i]))
@@ -425,8 +477,13 @@ export function useClassesData() {
       const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
-      // Active teacher↔class relationships for this class (lead + co-taught)
-      const detailTeachers = (await teachersByClassId([classId])).get(classId) ?? []
+      // Active teacher↔class relationships for this class (lead + co-taught).
+      // Its own panel, its own outcome — and a FAILED read is reported, never
+      // rendered as "no teachers are linked to this class yet".
+      const teacherRead = await teachersByClassIdResult([classId])
+      const detailTeachers = teacherRead.map.get(classId) ?? []
+      teachersError.value = teacherRead.error
+      teachersLoaded.value = teacherRead.error === null
 
       currentClass.value = {
         id: classData.id,
@@ -473,6 +530,10 @@ export function useClassesData() {
       course_code: currentClass.value.course_code,
       school_id: currentClass.value.school_id,
       teacher_user_id: currentClass.value.teacher_user_id,
+      // The class's FULL teacher set (lead + co-taught). fetchClassDetail has
+      // always populated it; this computed used to drop it on the way through,
+      // which is why no view could render "who teaches this class".
+      teachers: currentClass.value.teachers ?? [],
       student_join_code: currentClass.value.student_join_code,
       current_seed: currentClass.value.current_seed,
       last_lego_id: currentClass.value.last_lego_id,
@@ -631,18 +692,23 @@ export function useClassesData() {
   // Service-role write for teacher↔class relationships (RLS forbids a client
   // teacher-tag insert). Used by createClass to seed the lead, and by the
   // teacher-management surface to add / remove / hand over teachers.
+  //
+  // Returns the REAL result, message included — a bare boolean left the panel
+  // with nothing honest to say when a write was refused, and "it didn't work"
+  // with no reason is one step away from the false-"Saved" class this codebase
+  // bans (RLS doctrine rule 8).
   async function callClassTeachersApi(body: {
     class_id: string
     action: 'add' | 'remove'
     target_user_id: string
     set_lead?: boolean
-  }): Promise<boolean> {
+  }): Promise<ClassTeacherWriteResult> {
     try {
       const { data: { session } } = await client.auth.getSession()
       const token = session?.access_token
       if (!token) {
         console.warn('[ClassesData] No auth token; skipping class-teacher write')
-        return false
+        return { ok: false, error: 'You are not signed in.' }
       }
       const resp = await fetch('/api/teacher/class-teachers', {
         method: 'POST',
@@ -651,13 +717,14 @@ export function useClassesData() {
       })
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
-        console.error('[ClassesData] class-teacher write failed:', data.error || resp.status)
-        return false
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] class-teacher write failed:', message)
+        return { ok: false, error: message }
       }
-      return true
+      return { ok: true, error: null }
     } catch (err) {
       console.error('[ClassesData] class-teacher fetch error:', err)
-      return false
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to reach the server' }
     }
   }
 
@@ -738,13 +805,46 @@ export function useClassesData() {
     classId: string,
     targetUserId: string,
     opts?: { lead?: boolean }
-  ): Promise<boolean> {
+  ): Promise<ClassTeacherWriteResult> {
     return callClassTeachersApi({ class_id: classId, action: 'add', target_user_id: targetUserId, set_lead: opts?.lead })
   }
 
   /** Soft-remove a teacher from a class; the server hands the lead on if needed. */
-  async function removeClassTeacher(classId: string, targetUserId: string): Promise<boolean> {
+  async function removeClassTeacher(classId: string, targetUserId: string): Promise<ClassTeacherWriteResult> {
     return callClassTeachersApi({ class_id: classId, action: 'remove', target_user_id: targetUserId })
+  }
+
+  /**
+   * Mint a CLASS-SCOPED co-teacher link (A-74) — the supply-teacher lane.
+   *
+   * The invite/redeem half shipped 2026-08-06 (api/invite/create.ts teacher +
+   * grants_class_id; api/code/redeem.ts writes the class tag alongside the
+   * school one) with no button anywhere to reach it. The school is SERVER-
+   * derived from the class — we never send one — and redemption never touches
+   * the lead pointer, so the colleague arrives as a co-teacher of this one
+   * class, not as its lead and not as a teacher of the whole school.
+   */
+  async function createCoTeacherLink(classId: string): Promise<CoTeacherLinkResult> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { ok: false, code: null, error: 'You are not signed in.' }
+      const resp = await fetch('/api/invite/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code_type: 'teacher', grants_class_id: classId }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok || !data.code) {
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] co-teacher link mint failed:', message)
+        return { ok: false, code: null, error: message }
+      }
+      return { ok: true, code: data.code as string, error: null }
+    } catch (err) {
+      console.error('[ClassesData] co-teacher link fetch error:', err)
+      return { ok: false, code: null, error: err instanceof Error ? err.message : 'Failed to reach the server' }
+    }
   }
 
   async function createClass(params: {
@@ -833,7 +933,8 @@ export function useClassesData() {
       // route — the live RLS forbids a client teacher-tag insert. Makes the
       // relationship the source of truth so the new class appears under
       // membership reads, not only via the lead pointer.
-      const teacherLinked = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      const teacherLink = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+      const teacherLinked = teacherLink.ok
       if (!teacherLinked) {
         // The teacher↔class relationship row never got written. The class row
         // exists (so we still return it and show it), but membership reads
@@ -902,6 +1003,9 @@ export function useClassesData() {
     classStudents,
     isLoading,
     error,
+    rosterError,
+    teachersError,
+    teachersLoaded,
 
     // Computed
     totalStudentsInClasses,
@@ -917,6 +1021,7 @@ export function useClassesData() {
     deleteClass,
     addClassTeacher,
     removeClassTeacher,
+    createCoTeacherLink,
     startClassSession,
     endClassSession,
     getClassSessions,

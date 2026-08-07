@@ -1,8 +1,15 @@
 /**
  * Class Public Lookup API - GET /api/teacher/by-code?code=ABC-123
  *
- * Public (no auth). Returns the class + its owning teacher's public profile
- * for the student-side attribution gateway at /with/{code}.
+ * Public (no auth). Returns the class + its LEAD teacher's public profile for
+ * the student-side attribution gateway at /with/{code}.
+ *
+ * Deliberate: a class may have several teachers (the class_teachers
+ * relationship — docs/methodology/class-first-class-citizen.md), but this is a
+ * public join page and one name reads better than a list, so it names the lead
+ * only — `classes.teacher_user_id`, the denormalised lead pointer. Co-teachers
+ * are intentionally not listed here. The `teacher` key in the response is kept
+ * as-is for existing consumers; it means "the lead teacher".
  *
  * Code is a `classes.student_join_code` (auto-generated ABC-123 format).
  *
@@ -88,8 +95,9 @@ export default async function handler(
     // and charges the org student price, never the tutor one.
     const isSchoolClass = !!classRow.school_id || !!classRow.group_id
 
-    // Resolve a public display profile for the class's assigned teacher (used by
-    // both branches for the "with {teacher}" line).
+    // Resolve a public display profile for the class's LEAD teacher (used by
+    // both branches for the "with {teacher}" line). Co-teachers are not shown
+    // on the public page by design — see the file docstring.
     const { data: teacherLearner } = await supabase
       .from('learners')
       .select('id, display_name')

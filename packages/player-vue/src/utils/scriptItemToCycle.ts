@@ -8,7 +8,7 @@
 import type { ScriptItem } from '../providers/CourseDataProvider'
 import type { Cycle, CycleType } from '../types/Cycle'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 
 /**
  * Map ScriptItem type to CycleType
@@ -44,11 +44,11 @@ export function scriptItemToCycle(item: ScriptItem): Cycle {
 
   // Pause: single helper sourced from algorithm_config (admin-tunable). At
   // cycle-bake time we don't have the live config in scope, so we use
-  // DEFAULT_NORMAL as the fallback — the runtime override recomputes from the
+  // DEFAULT_FAST as the fallback — the runtime override recomputes from the
   // live config when the cycle actually plays.
   const target1DurationMs = item.audioDurations ? item.audioDurations.target1 * 1000 : 0
   const target2DurationMs = item.audioDurations ? item.audioDurations.target2 * 1000 : 0
-  const pauseDurationMs = computePauseDuration(target1DurationMs, target2DurationMs, DEFAULT_NORMAL)
+  const pauseDurationMs = computePauseDuration(target1DurationMs, target2DurationMs, DEFAULT_FAST)
 
   return {
     id: `${item.legoId}-${item.type}-${item.roundNumber}`,
