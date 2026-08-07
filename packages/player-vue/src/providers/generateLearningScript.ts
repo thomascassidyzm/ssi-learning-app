@@ -19,11 +19,13 @@ import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revis
 // next to resolveScriptShape (Aran's correction, 2026-08-06).
 import {
   capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
-  normalizeMaxPhraseLengthFraction, normalizeMaxPhraseSyllables,
-  makePhraseSyllableResolver,
+  normalizeMaxPhraseLengthFraction, normalizeMaxKnownSyllables,
+  normalizeReviewFilterMaxRound, makeKnownSyllableResolver, filterReviewPool,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
+import type { ReviewPullFilter } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import { doublePhraseCycles } from './doublePhraseCycles'
 
 export interface ScriptItem {
   uuid: string
@@ -178,16 +180,35 @@ export interface LearningScriptResult {
   mainLoopRoundCount: number
   hasRomanizedText: boolean
   /**
-   * Did the ABSOLUTE syllable cap (`maxPhraseSyllables`) actually apply?
+   * Did the KNOWN-side review/consolidate pull filter actually apply?
    *
-   * False when the mode sets no syllable cap, OR when this course's target
-   * language has no registered syllable counter — 54 of 99 courses. The flag
-   * exists so the cap's inertness is VISIBLE to callers rather than being an
-   * invisible no-op, which is exactly how the previous syllable attempt
-   * failed. Pairs with the once-per-course console warning from
-   * makePhraseSyllableResolver.
+   * False when the mode sets no filter (Fast), OR when this course's KNOWN
+   * language has no registered syllable counter. The flag exists so the
+   * filter's inertness is VISIBLE to callers rather than being an invisible
+   * no-op, which is exactly how the first syllable attempt failed. Pairs with
+   * the once-per-course console warning from makeKnownSyllableResolver.
    */
   syllableCapApplied: boolean
+}
+
+/**
+ * The Easy-mode levers, all off by default — so a caller that passes nothing
+ * (and Fast, which passes them all off explicitly) generates byte-identical
+ * output to the pre-2026-08-07 walk.
+ */
+export interface EasyModeOptions {
+  /**
+   * Play every BUILD / USE / REVIEW / CONSOLIDATE cycle exactly twice, back to
+   * back (Tom, 2026-08-07). Intro and bare-LEGO debut cycles play once.
+   */
+  doublePhraseCycles?: boolean
+  /** False ⇒ BUILD phrases bypass the phrase-length cap entirely ("no
+   *  filtering on BLD phrases" — Tom, 2026-08-07). Default true. */
+  filterBuildPhrases?: boolean
+  /** Max KNOWN-language syllables for a review/consolidate pull. 0 ⇒ off. */
+  reviewMaxKnownSyllables?: number
+  /** Last round on which that filter applies; it lifts from the next round. */
+  reviewSyllableFilterMaxRound?: number
 }
 
 /**
@@ -354,17 +375,13 @@ export async function generateLearningScript(
    */
   maxPhraseLengthFraction: number = 1,
   /**
-   * ABSOLUTE cap on phrase length in TARGET SYLLABLES for the active mode
-   * (Tom, 2026-08-07: "skip all phrases that are more than X number of
-   * syllables"). 0 / absent / non-finite = NO LIMIT and reproduces the
-   * pre-2026-08-07 behaviour exactly; Easy ships 20.
-   *
-   * COMPOSES with maxPhraseLengthFraction — a phrase is dropped if it exceeds
-   * EITHER cap — and goes INERT (with a warning, and syllableCapApplied=false
-   * in the result) on a course whose target language has no counter. See
-   * capPhrasesByLength(), still the one place the rule lives.
+   * The active mode's Easy levers — doubling, the BUILD-filter switch, and the
+   * known-side review/consolidate pull filter (Tom, 2026-08-07). Everything is
+   * off by default, and Fast passes them all off, so Fast's script is provably
+   * unchanged. Replaces the absolute TARGET-syllable ceiling that briefly
+   * occupied this slot earlier the same night.
    */
-  maxPhraseSyllables: number = 0,
+  easyOptions: EasyModeOptions = {},
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -493,41 +510,49 @@ export async function generateLearningScript(
     // returns an empty map on any error (a missed suffix costs one stale clip,
     // a thrown error costs the whole script). See ./revisedAudioRefs.
     fetchRevisedAudioRefs(supabase, courseCode),
-    // The course's TARGET LANGUAGE — the one thing the absolute syllable cap
-    // needs and nothing else here did. Smallest possible fetch: one column,
-    // one row, in the existing parallel batch so it costs no latency. Skipped
-    // entirely when no syllable cap is set (Fast), so Fast issues exactly the
-    // queries it always did. A failed/missing row leaves target_lang null,
-    // which makes the cap inert and warn — never throws, never guesses.
-    normalizeMaxPhraseSyllables(maxPhraseSyllables) < Infinity
+    // The course's KNOWN LANGUAGE — the one thing the review/consolidate pull
+    // filter needs and nothing else here did. Smallest possible fetch: one
+    // column, one row, in the existing parallel batch so it costs no latency.
+    // Skipped entirely when no filter is set (Fast), so Fast issues exactly the
+    // queries it always did. A failed/missing row leaves known_lang null,
+    // which makes the filter inert and warn — never throws, never guesses.
+    normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables) < Infinity
       ? supabase
           .from('courses')
-          .select('target_lang')
+          .select('known_lang')
           .eq('course_code', courseCode)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ])
 
-  // ABSOLUTE syllable cap for this run (Tom, 2026-08-07). Resolved ONCE:
-  // the mode's limit, plus the one resolver that knows how to count a phrase
-  // in this course's target language. `countable` false ⇒ the cap is inert on
-  // this course and has already warned; we still build the cap object because
-  // a course with partially-stored target_syllable_count values can be judged
-  // row-by-row even without a counter.
-  // A courses-table read error is NOT fatal — the cap going inert costs the
+  // KNOWN-side review/consolidate pull filter for this run (Tom, 2026-08-07).
+  // Resolved ONCE: the mode's limit, the round it lifts at, and the one
+  // resolver that knows how to count a phrase in this course's KNOWN language.
+  // `countable` false ⇒ the filter is inert on this course and has already
+  // warned.
+  // A courses-table read error is NOT fatal — the filter going inert costs the
   // learner nothing (the character cap still applies), while throwing would
   // cost them the whole script.
-  const MAX_PHRASE_SYLLABLES = normalizeMaxPhraseSyllables(maxPhraseSyllables)
+  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables)
+  const REVIEW_FILTER_MAX_ROUND = normalizeReviewFilterMaxRound(easyOptions.reviewSyllableFilterMaxRound)
   if (courseRowResult?.error) {
-    console.warn(`[phrase-cap] could not read courses.target_lang for ${courseCode} — syllable cap may be inert:`, courseRowResult.error.message)
+    console.warn(`[phrase-cap] could not read courses.known_lang for ${courseCode} — review pull filter may be inert:`, courseRowResult.error.message)
   }
-  const syllableResolver = MAX_PHRASE_SYLLABLES < Infinity
-    ? makePhraseSyllableResolver(courseCode, (courseRowResult?.data as { target_lang?: string } | null)?.target_lang)
+  const knownSyllableResolver = MAX_KNOWN_SYLLABLES < Infinity
+    ? makeKnownSyllableResolver(courseCode, (courseRowResult?.data as { known_lang?: string } | null)?.known_lang)
     : null
-  const PHRASE_SYLLABLE_CAP = syllableResolver
-    ? { limit: MAX_PHRASE_SYLLABLES, syllablesOf: (p: Phrase) => syllableResolver.syllablesOf(p) }
+  const REVIEW_PULL_FILTER: ReviewPullFilter<Phrase> | null = knownSyllableResolver
+    ? {
+        limit: MAX_KNOWN_SYLLABLES,
+        maxRound: REVIEW_FILTER_MAX_ROUND,
+        syllablesOf: (p: Phrase) => knownSyllableResolver.syllablesOf(p),
+      }
     : null
-  const syllableCapApplied = Boolean(syllableResolver?.countable)
+  const syllableCapApplied = Boolean(knownSyllableResolver?.countable)
+
+  // "No filtering on BLD phrases" (Tom, 2026-08-07) — Easy takes its BUILD
+  // pool whole. Default true keeps every other caller on the historic path.
+  const FILTER_BUILD_PHRASES = easyOptions.filterBuildPhrases !== false
 
   // All build loops below tick this — no single main-thread slice of the
   // walk may exceed the budget (post-READY interactivity, founder 2026-07-30).
@@ -848,14 +873,17 @@ export async function generateLearningScript(
         phraseLengthOf,
       ) * PHRASE_LENGTH_FRACTION
 
+  // Easy passes filterBuildPhrases:false and so keeps its whole BUILD pool,
+  // shortest-first but uncut — "no filtering on BLD phrases" (Tom,
+  // 2026-08-07). Passing Infinity rather than branching keeps the sort in one
+  // place: capPhrasesByLength with no finite limit IS the plain historic sort.
   for (const [, group] of phrasesByLego.entries()) {
     group.build = capPhrasesByLength<Phrase>(
       group.build,
       phraseSyllables,
       phraseLengthOf,
-      PHRASE_LENGTH_LIMIT,
+      FILTER_BUILD_PHRASES ? PHRASE_LENGTH_LIMIT : Infinity,
       MIN_BUILD_PHRASES_AFTER_CAP,
-      PHRASE_SYLLABLE_CAP,
     )
   }
 
@@ -1356,7 +1384,6 @@ export async function generateLearningScript(
         phraseLengthOf,
         PHRASE_LENGTH_LIMIT,
         MIN_USE_PHRASES_AFTER_CAP,
-        PHRASE_SYLLABLE_CAP,
       )
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
@@ -1399,7 +1426,6 @@ export async function generateLearningScript(
           phraseLengthOf,
           PHRASE_LENGTH_LIMIT,
           MIN_USE_PHRASES_AFTER_CAP,
-          PHRASE_SYLLABLE_CAP,
         ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego
@@ -1466,9 +1492,16 @@ export async function generateLearningScript(
 
         if (state.usePhrases.length === 0) continue
 
-        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, state.usePhrases.length)
+        // KNOWN-side pull filter (Tom, 2026-08-07): for the first
+        // REVIEW_FILTER_MAX_ROUND rounds a review draws from the shorter half
+        // of the LEGO's basket, measured in the learner's OWN language. Past
+        // that round the basket opens fully — "it's the LEGO that you are
+        // practicing", so a phrase never met before is no obstacle. Rotation
+        // still walks useIndex round-robin, just over the eligible sub-basket.
+        const reviewPool = filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER)
+        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
-          const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+          const phrase = reviewPool[state.useIndex % reviewPool.length]
           state.useIndex++
 
           const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1518,8 +1551,12 @@ export async function generateLearningScript(
           isNew: true,
         })
       }
+      // CONSOLIDATE draws from the same known-side-filtered pool as review
+      // (Tom named REVIEW and CONSOLIDATE together) — consolidate cycles ARE
+      // use phrases. Debut BUILD/USE selection above is deliberately untouched.
+      const consolidatePool = filterReviewPool(sortedUsePhrases, roundNumber, REVIEW_PULL_FILTER)
       // First pass: unused USE phrases
-      for (const phrase of sortedUsePhrases) {
+      for (const phrase of consolidatePool) {
         if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         if (usedPhrasesThisRound.has(phraseId)) continue
@@ -1528,7 +1565,7 @@ export async function generateLearningScript(
       }
       // Second pass: reuse USE phrases already used in BUILD (pool was too small)
       if (consolidateCount < USE_CONSOLIDATION_COUNT) {
-        for (const phrase of sortedUsePhrases) {
+        for (const phrase of consolidatePool) {
           if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
           emitConsolidate(phrase)
         }
@@ -1715,9 +1752,14 @@ export async function generateLearningScript(
 
         if (state.usePhrases.length === 0) continue
 
-        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, state.usePhrases.length)
+        // Same known-side pull filter as the main loop's review. Revival
+        // rounds sit past the main loop, so on any real course this is already
+        // beyond REVIEW_FILTER_MAX_ROUND and the basket is whole; it is here so
+        // a short course's revival rounds obey the same rule as its main ones.
+        const reviewPool = filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER)
+        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
-          const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+          const phrase = reviewPool[state.useIndex % reviewPool.length]
           state.useIndex++
           const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
           if (usedPhrasesThisRound.has(phraseId)) continue
@@ -1824,6 +1866,17 @@ export async function generateLearningScript(
     return true
   })
 
+  // ── EASY doubling (Tom, 2026-08-07) ──────────────────────────────────────
+  // "in EASY mode, double up every phrase, every BLD, every USE, every REVIEW,
+  // every CONSOLIDATE". Runs AFTER the consecutive-duplicate removal above,
+  // which would strip the second copy, and BEFORE the A-64 floor below, which
+  // allows exactly two in a row and so guarantees "doubled" can never become
+  // tripled. Off for Fast, and the pass returns its input untouched then, so
+  // Fast's script is byte-identical to the pre-2026-08-07 walk.
+  const doubledItems = easyOptions.doublePhraseCycles
+    ? doublePhraseCycles(playableItems)
+    : playableItems
+
   // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
   // "No mode should ever repeat the same prompt more than twice consecutively."
   //
@@ -1853,7 +1906,7 @@ export async function generateLearningScript(
     roundCapped.push(...capped.items)
     roundBuffer = []
   }
-  for (const item of playableItems) {
+  for (const item of doubledItems) {
     await yieldTick()
     if (currentRound !== null && item.roundNumber !== currentRound) flushRound()
     currentRound = item.roundNumber

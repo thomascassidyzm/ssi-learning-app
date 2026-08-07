@@ -84,21 +84,52 @@ export interface ModeConfig {
    */
   maxPhraseLengthFraction?: number
   /**
-   * ABSOLUTE cap on phrase length in TARGET-TEXT SYLLABLES — "skip all phrases
-   * that are more than X number of syllables" (Tom, 2026-08-07). Composes with
-   * `maxPhraseLengthFraction` above: a phrase is dropped if it exceeds EITHER
-   * cap. Applied by `capPhrasesByLength()` — the same one place.
+   * Play every PRACTICE cycle twice, back to back — "in EASY mode, double up
+   * every phrase, every BLD, every USE, every REVIEW, every CONSOLIDATE"
+   * (Tom, 2026-08-07). Exactly twice, never three times: "a phrase repeated 3x
+   * would drive people nuts, but doubled up is perfect".
    *
-   * Absent / null / ≤0 / non-finite ⇒ NO LIMIT. That is Fast's value, so Fast
-   * is provably unchanged. Easy ships 20 (measured — see DEFAULT_EASY).
-   *
-   * Unlike the character fraction, this is ABSOLUTE, not course-relative, so
-   * it bites unevenly across courses by design — and it is INERT entirely on
-   * a course whose target language has no registered syllable counter (see
-   * makePhraseSyllableResolver). The character cap is the universal backstop
-   * standing behind it; neither replaces the other.
+   * The INTRO cycle and the bare-LEGO debut are NOT doubled — Tom, asked
+   * directly whether they should be: "of course not - the intro LEGO and not
+   * the LEGO alone". Absent / false ⇒ nothing is doubled, which is Fast's
+   * value, so Fast is provably unchanged.
    */
-  maxPhraseSyllables?: number
+  doublePhraseCycles?: boolean
+  /**
+   * Should BUILD phrases be put through the phrase-length filters at all?
+   *
+   * Tom, 2026-08-07: "no filtering on BLD phrases". Build phrases are short by
+   * construction — a new LEGO plus one or two already-known ones — and they
+   * ARE the debut round, so filtering them guts the round it is meant to
+   * gentle. Easy therefore takes its BUILD pool whole; USE pools still get the
+   * character cap. Absent ⇒ true (filter), which is the historic behaviour.
+   */
+  filterBuildPhrases?: boolean
+  /**
+   * Pull-time ceiling on a review/consolidate phrase's KNOWN-language
+   * syllables (Tom, 2026-08-07). Note all three things this is NOT: it counts
+   * the KNOWN side (the prompt the learner hears in their own language), not
+   * the target; it is a filter on WHICH use phrase is pulled from a LEGO's
+   * basket for a REVIEW or CONSOLIDATE slot, not a ceiling over the whole
+   * script; and it lifts entirely past `reviewSyllableFilterMaxRound`.
+   *
+   * If a LEGO's basket holds nothing at or under the cap, the SHORTEST phrase
+   * in the basket is pulled instead — the round is never left empty and the
+   * LEGO is never skipped.
+   *
+   * Absent / ≤0 ⇒ no filter, which is Fast's value. Easy ships 15.
+   */
+  reviewMaxKnownSyllables?: number
+  /**
+   * Last course round on which `reviewMaxKnownSyllables` applies. From the
+   * next round the filter simply comes off — nothing is backlogged and
+   * nothing cascades. Tom, 2026-08-07: "the whole idea of you've got a
+   * cascade, you've got a wall, once you get to 100 and 101, all these space
+   * repetitions is complete nonsense, makes no difference at all", because
+   * "it's the LEGO that you are practicing" and the phrase carrying it need
+   * never have been met before. Easy ships 100.
+   */
+  reviewSyllableFilterMaxRound?: number
 }
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
@@ -248,8 +279,12 @@ export const DEFAULT_FAST: ModeConfig = {
   scriptShape: {},
   // Uncapped phrase length — Fast meets exactly the phrases it always did.
   maxPhraseLengthFraction: 1.0,
-  // NO syllable limit. Fast is provably unchanged by the 2026-08-07 cap.
-  maxPhraseSyllables: 0,
+  // Every Easy lever explicitly OFF, so Fast's script is provably unchanged
+  // by the 2026-08-07 redesign: no doubling, BUILD filtered as it always was,
+  // no known-side pull filter.
+  doublePhraseCycles: false,
+  filterBuildPhrases: true,
+  reviewMaxKnownSyllables: 0,
 }
 
 /**
@@ -313,39 +348,31 @@ export const DEFAULT_EASY: ModeConfig = {
   // in capPhrasesByLength standing behind it.
   maxPhraseLengthFraction: 0.5,
   /**
-   * ABSOLUTE syllable ceiling — "skip all phrases that are more than X number
-   * of syllables" (Tom, 2026-08-07). 20 was MEASURED, not guessed.
-   *
-   * Method: count target syllables with the canonical counter (@ssi/core/text)
-   * over every non-component practice phrase of two covered courses, and find
-   * the integer threshold whose removal share best matches what today's Easy
-   * 0.5 character cap already removes.
-   *
-   *   spa_for_eng  n=15,205  syllables p50=12 p90=22 max=48
-   *                char cap (0.5 × 138 chars) removes  5.56%
-   *   fra_for_eng  n=14,118  syllables p50= 8 p90=14 max=27
-   *                char cap (0.5 ×  98 chars) removes  9.12%
-   *
-   *   threshold   spa removed   fra removed   mean
-   *      >16        30.08%         3.39%      16.7%
-   *      >18        21.99%         1.63%      11.8%
-   *      >20        15.40%         0.65%       8.0%   ← closest to 7.34%
-   *      >22         9.87%         0.23%       5.1%
-   *
-   * NOTE THE HONEST FINDING: no single absolute number matches the character
-   * cap on BOTH courses (spa alone wants ~24, fra alone wants ~13), because
-   * the character cap is course-RELATIVE — a fraction of that course's own
-   * longest phrase — while this cap is absolute, and the two courses' phrase
-   * distributions differ hugely (spa tops out at 48 syllables, fra at 27).
-   * 20 is the integer closest to the two courses' MEAN removal share (8.0% vs
-   * the char cap's 7.34%). It therefore bites hard on spa and is near-inert on
-   * fra. That unevenness is inherent to what an absolute cap IS, not a defect
-   * of the number; the character fraction remains the course-relative backstop.
-   *
-   * This is a DB row (`algorithm_config.easy_mode.maxPhraseSyllables`), so
-   * retuning by ear is a Supabase edit, not a deploy.
+   * DOUBLE EVERY PRACTICE CYCLE (Tom, 2026-08-07). Easy's repetition comes
+   * from hearing each phrase twice in a row rather than from meeting more
+   * different phrases: "we want more repetitions in each ROUND for a LEGO,
+   * but we do NOT ever want to repeat exactly the same phrase more than 2x".
    */
-  maxPhraseSyllables: 20,
+  doublePhraseCycles: true,
+  /**
+   * NO filtering on BUILD phrases — Tom, 2026-08-07, verbatim. The debut round
+   * hands the learner the new LEGO and then "all the places that it can fit
+   * in"; those fragments are short already, so a length filter only thins the
+   * one round that exists to be generous.
+   */
+  filterBuildPhrases: false,
+  /**
+   * KNOWN-side pull filter for REVIEW and CONSOLIDATE slots: prefer a use
+   * phrase of at most 15 syllables in the learner's OWN language, for the
+   * first 100 rounds of the course. Replaces the flat 20-target-syllable
+   * whole-mode ceiling that shipped earlier on 2026-08-07 — that counted the
+   * wrong side of the pair, applied to the whole script, and never came off.
+   *
+   * Both numbers are DB rows (`algorithm_config.easy_mode`), so retuning by
+   * ear is a Supabase edit, not a deploy.
+   */
+  reviewMaxKnownSyllables: 15,
+  reviewSyllableFilterMaxRound: 100,
 }
 
 /**
@@ -373,69 +400,77 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
 }
 
 /**
- * Coerce a mode's `maxPhraseSyllables` into a positive limit, or Infinity.
- * Anything missing, non-finite or ≤0 degrades to Infinity — UNCAPPED, i.e.
- * the pre-2026-08-07 behaviour. Same degrade-to-permissive discipline as
+ * Coerce a mode's `reviewMaxKnownSyllables` into a positive limit, or Infinity.
+ * Anything missing, non-finite or ≤0 degrades to Infinity — NO FILTER, i.e.
+ * Fast's behaviour. Same degrade-to-permissive discipline as
  * normalizeMaxPhraseLengthFraction above: a bad DB value must never silently
- * shorten a course. Non-integers are floored, so 20.7 caps at 20 rather than
- * admitting a phantom half-syllable.
+ * narrow what a learner meets. Non-integers are floored, so 15.7 filters at 15
+ * rather than admitting a phantom half-syllable.
  */
-export function normalizeMaxPhraseSyllables(max?: number | null): number {
+export function normalizeMaxKnownSyllables(max?: number | null): number {
   if (typeof max !== 'number' || !Number.isFinite(max)) return Infinity
   if (max <= 0) return Infinity
   return Math.floor(max)
 }
 
-/** Warned-once ledger for the syllable cap going inert, keyed by course. */
+/**
+ * Coerce `reviewSyllableFilterMaxRound` into a positive round number.
+ * Absent / non-finite / ≤0 degrades to the shipped 100 — the filter's whole
+ * point is that it lifts, so a bad DB value must never leave it on for ever.
+ */
+export const DEFAULT_REVIEW_FILTER_MAX_ROUND = 100
+export function normalizeReviewFilterMaxRound(round?: number | null): number {
+  if (typeof round !== 'number' || !Number.isFinite(round)) return DEFAULT_REVIEW_FILTER_MAX_ROUND
+  if (round <= 0) return DEFAULT_REVIEW_FILTER_MAX_ROUND
+  return Math.floor(round)
+}
+
+/** Warned-once ledger for the known-side filter going inert, keyed by course. */
 const syllableCapWarnedCourses = new Set<string>()
 
-/** What `makePhraseSyllableResolver` hands back. */
+/** What `makeKnownSyllableResolver` hands back. */
 export interface PhraseSyllableResolver {
-  /** The registry key derived from the course's `target_lang`. */
+  /** The registry key derived from the course's `known_lang`. */
   lang: string
-  /** False ⇒ no counter for this language ⇒ the syllable cap is INERT here. */
+  /** False ⇒ no counter for this language ⇒ the filter is INERT here. */
   countable: boolean
   /**
-   * A phrase's target syllables: the stored `target_syllable_count` when it is
-   * a positive number, else the canonical counter, else null (= uncountable,
-   * so the cap cannot judge this phrase and must let it through).
+   * A phrase's KNOWN-side syllables, or null when uncountable — in which case
+   * the filter cannot judge this phrase and must let it through.
    */
-  syllablesOf: (phrase: { target_syllable_count?: number | null; target_text?: string | null }) => number | null
+  syllablesOf: (phrase: { known_text?: string | null }) => number | null
 }
 
 /**
- * THE one place a phrase's syllable count is resolved for the CAP.
+ * THE one place a phrase's KNOWN-side syllable count is resolved for the
+ * review/consolidate pull filter (Tom, 2026-08-07 — the filter counts the
+ * learner's own language, not the target).
  *
- * Order: stored `target_syllable_count` (positive only) → canonical counter
- * for the course's target language (@ssi/core/text, ported verbatim from
- * Popty's tools/lib/syllable-counters.cjs) → null.
+ * There is no stored known-side count anywhere in the schema, so this is the
+ * canonical counter for the course's KNOWN language (@ssi/core/text, ported
+ * verbatim from Popty's tools/lib/syllable-counters.cjs) or nothing.
  *
- * `target_syllable_count` is effectively EMPTY in production — 10,813 of
- * 818,220 rows (1.3%), and only on cym_s_for_eng / cym_n_for_eng /
- * sbx_for_eng plus 20 spa rows; every big course is 0%. So the counter is the
- * real path, not the fallback. It is still read first because where it exists
- * it is authored data and beats a heuristic.
- *
- * WHEN THERE IS NO COUNTER (54 of 99 courses — kor, ara, zho, jpn, tha, tel,
- * mar, fas, ell, nep, dan, bul, ces, ron, srp, cat…) this returns
- * `countable: false` and warns ONCE per course. It does NOT throw, and it does
- * NOT guess with another language's rules. The cap simply does not apply, and
- * says so — which is precisely how the PREVIOUS syllable attempt failed: it
- * computed a ceiling of 0.5 from an all-1s heuristic and silently did nothing.
- * Loud inertness is the fix. The character cap still covers those courses.
+ * WHEN THERE IS NO COUNTER this returns `countable: false` and warns ONCE per
+ * course. It does NOT throw, and it does NOT guess with another language's
+ * rules. The filter simply does not apply, and says so — which is precisely
+ * how the FIRST syllable attempt failed: it computed a ceiling from an all-1s
+ * heuristic and silently did nothing. Loud inertness is the fix. English is
+ * the known language of most courses and English is registered, so the filter
+ * is live on the great majority of the estate; the character cap still stands
+ * behind it everywhere.
  */
-export function makePhraseSyllableResolver(
+export function makeKnownSyllableResolver(
   courseCode: string,
-  targetLang: string | null | undefined,
+  knownLang: string | null | undefined,
 ): PhraseSyllableResolver {
-  const lang = syllableLangOf(targetLang)
+  const lang = syllableLangOf(knownLang)
   const countable = hasSyllableCounter(lang)
 
   if (!countable && !syllableCapWarnedCourses.has(courseCode)) {
     syllableCapWarnedCourses.add(courseCode)
     console.warn(
-      `[phrase-cap] maxPhraseSyllables is INERT for ${courseCode}: no syllable counter registered for target language '${lang || '(unknown)'}'. ` +
-      'Phrases will NOT be skipped by syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
+      `[phrase-cap] reviewMaxKnownSyllables is INERT for ${courseCode}: no syllable counter registered for known language '${lang || '(unknown)'}'. ` +
+      'Review and consolidate phrases will NOT be filtered by known-side syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
       'To make it apply, add a counter to packages/core/src/text/syllables.ts and mirror it into ssi-dashboard-v7-clean/tools/lib/syllable-counters.cjs.',
     )
   }
@@ -444,10 +479,8 @@ export function makePhraseSyllableResolver(
     lang,
     countable,
     syllablesOf: (phrase) => {
-      const stored = phrase.target_syllable_count
-      if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) return stored
       if (!countable) return null
-      const text = phrase.target_text
+      const text = phrase.known_text
       if (!text) return null
       return countSyllables(text, lang)
     },
@@ -525,59 +558,82 @@ export function courseMaxPhraseLength<T>(
  *      passing the ceiling makes the guard swallow the cap on every LEGO
  *      smaller than it, which is most of them. Phrase volume is a hard rail —
  *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
- *   4. `limit` of Infinity (fraction 1.0 — Fast) AND no syllable cap
- *      short-circuits to the plain historic sort.
+ *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
+ *      historic sort.
  *
- * The optional `syllableCap` (added 2026-08-07, Tom: "skip all phrases that
- * are more than X number of syllables") is a SECOND, ABSOLUTE ceiling that
- * COMPOSES with the character one: a phrase survives only if it is under BOTH.
- * Omitting it, or passing a non-finite/≤0 limit, reproduces the pre-2026-08-07
- * behaviour exactly — which is what makes Fast provably unchanged.
- *
- * A phrase whose syllables resolve to `null` is UNCOUNTABLE (no counter for
- * the course's target language) and passes the syllable cap untouched. That is
- * the inertness path, and it is per-phrase rather than a global switch so a
- * course with partial stored counts still gets the cap where it can be judged.
- *
- * Rule 3 — the STARVATION GUARD — is unchanged and still wins over BOTH caps.
- * The methodology's per-LEGO floors are a hard rail ("fewer phrases is a
- * FAIL"), so an over-tight syllable cap degrades gently to the shortest
- * `minKeep` and can never empty a round.
+ * 2026-08-07: the absolute TARGET-syllable ceiling that briefly composed with
+ * this cap is gone — superseded by the known-side pull filter on review and
+ * consolidate slots (see ModeConfig.reviewMaxKnownSyllables). It counted the
+ * wrong side of the pair, applied to the whole script rather than to the pull,
+ * and never lifted. This function is back to the one measure it can always
+ * take in every script: characters of target text.
  */
-export interface PhraseSyllableCap<T> {
-  /** Max syllables allowed, inclusive. Infinity / ≤0 ⇒ no syllable cap. */
-  limit: number
-  /** Syllables of a phrase, or null when uncountable (cap inert for it). */
-  syllablesOf: (phrase: T) => number | null
-}
-
 export function capPhrasesByLength<T>(
   phrases: readonly T[],
   syllablesOf: (phrase: T) => number,
   lengthOf: (phrase: T) => number,
   limit: number,
   minKeep: number,
-  syllableCap?: PhraseSyllableCap<T> | null,
 ): T[] {
   const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
 
-  const charLimited = Number.isFinite(limit) && limit > 0
-  const sylLimit = syllableCap?.limit ?? Infinity
-  const sylLimited = Number.isFinite(sylLimit) && sylLimit > 0
+  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
 
-  if ((!charLimited && !sylLimited) || sorted.length === 0) return sorted
-
-  const capped = sorted.filter((phrase) => {
-    if (charLimited && lengthOf(phrase) > limit) return false
-    if (sylLimited) {
-      const n = syllableCap!.syllablesOf(phrase)
-      // null / NaN = uncountable — the cap cannot judge it, so it passes.
-      if (typeof n === 'number' && Number.isFinite(n) && n > sylLimit) return false
-    }
-    return true
-  })
+  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
 
   return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
+}
+
+/**
+ * The KNOWN-side pull filter for REVIEW and CONSOLIDATE slots (Tom,
+ * 2026-08-07). THE one place this rule lives.
+ *
+ * Given a LEGO's basket of use phrases and the round being generated, return
+ * the sub-basket the pull is allowed to draw from:
+ *
+ *   1. filter off, or past `maxRound` ⇒ the whole basket, untouched. Nothing
+ *      is backlogged when it lifts and nothing cascades — the LEGO is what is
+ *      being practised, so a phrase the learner has never met is fine;
+ *   2. otherwise keep phrases of at most `limit` KNOWN-language syllables. A
+ *      phrase whose known side cannot be counted (no counter for this course's
+ *      known language) passes — that is the inert path, per phrase;
+ *   3. SHORTEST-IN-BASKET FALLBACK — if that leaves nothing, return the single
+ *      shortest phrase in the basket. A LEGO is never skipped and a review
+ *      slot is never left empty because the basket happens to be long.
+ */
+export interface ReviewPullFilter<T> {
+  /** Max known-language syllables, inclusive. Infinity ⇒ filter off. */
+  limit: number
+  /** Last round on which the filter applies. */
+  maxRound: number
+  /** Known-side syllables of a phrase, or null when uncountable. */
+  syllablesOf: (phrase: T) => number | null
+}
+
+export function filterReviewPool<T>(
+  pool: readonly T[],
+  roundNumber: number,
+  filter: ReviewPullFilter<T> | null | undefined,
+): readonly T[] {
+  if (!filter || !Number.isFinite(filter.limit) || filter.limit <= 0) return pool
+  if (roundNumber > filter.maxRound) return pool
+  if (pool.length === 0) return pool
+
+  const kept = pool.filter((phrase) => {
+    const n = filter.syllablesOf(phrase)
+    if (typeof n !== 'number' || !Number.isFinite(n)) return true // uncountable ⇒ passes
+    return n <= filter.limit
+  })
+  if (kept.length > 0) return kept
+
+  let shortest = pool[0]
+  let shortestN = Infinity
+  for (const phrase of pool) {
+    const n = filter.syllablesOf(phrase)
+    const value = typeof n === 'number' && Number.isFinite(n) ? n : Infinity
+    if (value < shortestN) { shortestN = value; shortest = phrase }
+  }
+  return [shortest]
 }
 
 /** Methodology per-LEGO phrase floors the cap must never breach (ralph: >=4
