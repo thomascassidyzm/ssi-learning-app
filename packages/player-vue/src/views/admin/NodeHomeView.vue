@@ -19,6 +19,7 @@ import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
 import YourAccount from '@/components/admin/YourAccount.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
+import { courseShortName } from '@ssi/core'
 import { nodeKindOf } from '@/explainer/evaluateRules'
 import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
@@ -291,7 +292,19 @@ const stateBadge = computed(() => {
   const status = n.commercial?.platformStatus
   if (!status) return null
   if (status === 'active' || status === 'paid') return { word: 'Paid — all courses', tone: 'green' }
-  if (status.startsWith('trial')) return { word: n.commercial?.trialCourseCode ? `Trial — ${n.commercial.trialCourseCode}` : 'Trial', tone: 'amber' }
+  if (status.startsWith('trial')) {
+    // Name the language, never the raw code (founder report 2026-08-07: this
+    // read a bare "Trial" because the school's trial_course_code was null, and
+    // would have read "Trial — cym_s_for_eng" if it hadn't been). courseShortName
+    // is the ONE course-label source of truth — do not add another list here.
+    // A still-null course is now a genuinely transient state (a trial school
+    // records its language the moment it creates its first class with a course
+    // — api/_utils/schoolPlatformTrial.ts::ensureSchoolTrialCourse), so a bare
+    // "Trial" is the honest reading of "trialling, nothing committed yet"
+    // rather than the permanent blank it used to be.
+    const course = courseShortName(n.commercial?.trialCourseCode)
+    return { word: course ? `Trial — ${course}` : 'Trial', tone: 'amber' }
+  }
   return { word: status.replace(/_/g, ' '), tone: 'grey' }
 })
 

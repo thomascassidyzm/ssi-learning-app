@@ -315,11 +315,10 @@ describe('GET /api/school/roster', () => {
       const res = makeRes()
       await handler(makeReq(), res)
       expect(res.statusCode).toBe(200)
-      // 4 = the base roster of 3 (two SCHOOL:-tagged teachers plus the CLASS:-only
-      // supply teacher) plus the school's own admin. This expectation was 3 when
-      // the fix was authored on a branch that predated the co-teacher union;
-      // reconciled here, where both live together.
-      expect(res.body.teachers).toHaveLength(4)
+      // ut1 + ut2 (SCHOOL: tags), ut3 (co-teacher via class_teachers only,
+      // no SCHOOL: tag — the staff UNION), and now the admin herself.
+      expect(res.body.teachers.map((t: any) => t.user_id).sort())
+        .toEqual(['admin-uid', 'ut1', 'ut2', 'ut3'])
       const admin = res.body.teachers.find((t: any) => t.user_id === 'admin-uid')
       expect(admin).toBeDefined()
       expect(admin.own_practice_minutes).toBe(76)

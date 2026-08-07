@@ -130,9 +130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const teacherUserIds = [...teacherIdSet]
     // Carried through to the UI so the admin is shown as the ADMIN she is,
     // never mislabelled a teacher (and so the Remove control, which only ever
-    // acts on teacher tags, can hide itself for her). A co-teacher who reached
-    // this roster through a CLASS: tag alone has no entry here, and the UI
-    // reads a missing role as 'teacher' — which is exactly what they are.
+    // acts on teacher tags, can hide itself for her). A class-teacher with no
+    // SCHOOL: tag has no entry here and falls back to 'teacher' at the read.
     const staffRoles = new Map((teacherTags ?? []).map((t: any) => [t.user_id, t.role_in_context]))
 
     const students: any[] = []

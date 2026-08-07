@@ -4,7 +4,7 @@
 metadata:
   title: "SSi Schools Integration"
   version: "1.8.0"
-  date: "2026-08-07"   # school-admin first-run affordances; founding admin is staff of her own school; seat page opens at real staff count
+  date: "2026-08-07"   # founding admin is staff of her own school; first-run affordances reachable; seat default = real staff
   author: "Tom Cassidy"
   status: "draft"
 

@@ -21,8 +21,13 @@ vi.mock('../_utils/classLearnerEntity', () => ({
   ensureClassLearnerEntity: (...args: any[]) => ensureSpy(...args),
 }))
 
+const trialCourseSpy = vi.fn(async () => false)
+vi.mock('../_utils/schoolPlatformTrial', () => ({
+  ensureSchoolTrialCourse: (...args: any[]) => trialCourseSpy(...(args as [])),
+}))
+
 let DB: {
-  classes: Array<{ id: string; teacher_user_id: string; school_id: string | null }>
+  classes: Array<{ id: string; teacher_user_id: string; school_id: string | null; course_code?: string | null }>
   learners: Array<{ user_id: string; platform_role: string | null; educational_role: string | null }>
   schools: Array<{ id: string; admin_user_id: string | null }>
   user_tags: Array<{
@@ -67,11 +72,12 @@ let handler: typeof import('./create-class-learner').default
 beforeEach(async () => {
   vi.resetModules()
   ensureSpy.mockClear()
+  trialCourseSpy.mockClear()
   handler = (await import('./create-class-learner')).default
   authResult = { valid: true, userId: 'teacher-1' }
   ensureResult = { learnerId: 'class-learner-1' }
   DB = {
-    classes: [{ id: 'class-1', teacher_user_id: 'teacher-1', school_id: null }],
+    classes: [{ id: 'class-1', teacher_user_id: 'teacher-1', school_id: null, course_code: 'cym_s_for_eng' }],
     learners: [],
     schools: [],
     user_tags: [],
@@ -137,6 +143,36 @@ describe('POST /api/teacher/create-class-learner', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
+  })
+
+  // B1 (founder report 2026-08-07): an invite-born trial school never recorded
+  // the language it was trialling, so its home badge read a bare "Trial". The
+  // first class carrying a course is the honest moment to record it.
+  it('records the school\'s trial course from the new class\'s course_code', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'teacher-1', school_id: 'school-1', course_code: 'cym_s_for_eng' }
+    const req = makeReq({ class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(trialCourseSpy).toHaveBeenCalledWith(expect.anything(), 'school-1', 'cym_s_for_eng')
+  })
+
+  it('still mints the learner entity when the trial-course write fails open', async () => {
+    trialCourseSpy.mockRejectedValueOnce(new Error('trial bookkeeping exploded'))
+    const req = makeReq({ class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(ensureSpy).toHaveBeenCalled()
+  })
+
+  it('does not attempt a trial-course write for an unauthorized caller', async () => {
+    authResult = { valid: true, userId: 'stranger' }
+    const req = makeReq({ class_id: 'class-1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(trialCourseSpy).not.toHaveBeenCalled()
   })
 
   it('404s when the class does not exist', async () => {
