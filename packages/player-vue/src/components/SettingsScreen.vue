@@ -1159,22 +1159,20 @@ const handleUpdateToLatest = () => {
     {
       key: 'apply', label: 'Switching to the latest version',
       run: async () => {
-        // Drop the navigation/runtime caches FIRST so the fresh shell is fetched
-        // (NOT the audio cache — keep the downloads). This MUST happen before
-        // SKIP_WAITING: activating the new SW fires `controllerchange`, on which
-        // vite-plugin-pwa reloads the page itself — so anything after the post
-        // here can be skipped by that reload.
+        // Drop the navigation/runtime caches (NOT the audio cache — keep the
+        // downloads) so the reload at the end of runFixFlow fetches the fresh
+        // shell rather than a cached one.
         try {
           const keys = await caches.keys()
           await Promise.all(keys.filter((k) => !/audio/i.test(k)).map((k) => caches.delete(k)))
         } catch { /* Cache API unavailable */ }
-        const reg = await navigator.serviceWorker?.getRegistration?.()
-        if (reg?.waiting) {
-          // Activate the waiting SW. vite-plugin-pwa owns the reload on
-          // controllerchange; runFixFlow's guardedReload below is the fallback
-          // for when there's no waiting SW (or controllerchange never fires).
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        }
+        // Deliberately NO SKIP_WAITING here (2026-08-07). Activating the
+        // waiting worker under a live page deletes, from the precache, every
+        // chunk whose content changed — and if it lands mid-navigation it
+        // kills the NetworkFirst fetch and serves the OLD shell instead. The
+        // reload alone gets the new build (navigations are NetworkFirst); the
+        // waiting worker takes over on its own once no client is open. Same
+        // rule as PwaUpdatePrompt.onUpdate — see the comment there.
       },
     },
   ], 'Still stuck? Fully close the app and open it again.')
