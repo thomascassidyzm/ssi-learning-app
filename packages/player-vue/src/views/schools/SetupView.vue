@@ -105,6 +105,10 @@ async function saveSchool(): Promise<boolean> {
       body: JSON.stringify({
         school_name: schoolName.value.trim(),
         region_code: schoolRegion.value.trim() || undefined,
+        // Typing the name here IS the confirmation — otherwise a leader who
+        // completes the wizard is still shown the "Confirm your school's name"
+        // first-run card afterwards, asking for something she has just done.
+        name_confirmed: true,
       }),
     })
     const data = await res.json().catch(() => ({}))
