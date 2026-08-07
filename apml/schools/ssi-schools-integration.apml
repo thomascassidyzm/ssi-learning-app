@@ -1211,6 +1211,53 @@ flow CoTeacherPanel:
     rendering an empty picker — an empty list and a broken list must never
     look the same to a teacher.
 
+flow LeaderAssignsTeacherToClasses:
+  trigger: "A school leader is looking at their staff and wants to put one of them onto classes — including moving a teacher between classes, and dropping a supply teacher onto a class"
+  since: "2026-08-07"
+  surfaces:
+    - "packages/player-vue/src/views/schools/TeachersView.vue — 'Assign to a class' on every staff row (legacy no-school school_admin rows and the govt_admin flat set)"
+    - "packages/player-vue/src/views/admin/NodeHomeView.vue — the SAME verb on the 'All teachers' lens rows, gated to isOwnSchoolNode; this is where nav unification actually sends a school-scoped school_admin (/schools/teachers redirects to /org/:schoolId?lens=teachers), so without it the verb would be unreachable for the real persona"
+
+  premise: |
+    CoTeacherPanel answers "who teaches THIS class?", one class at a time,
+    from the class page. A leader thinks PEOPLE-first: "which classes does
+    this teacher take?" Same relationship, opposite direction. No new
+    endpoint, no new permission model, no new table — the write path is the
+    same POST /api/teacher/class-teachers (api/_utils/classTeacherAuth.ts)
+    via the same useClassesData helpers.
+
+  shape:
+    control: "A modal of the SCHOOL'S CLASSES AS CHECKBOXES, with the classes that teacher already teaches PRE-TICKED"
+    on_confirm: "apply the DIFF — newly-ticked => addClassTeacher, newly-unticked => removeClassTeacher"
+    why: "assign and reassign are ONE control: 'move Ana from 6B to 7A' is one untick, one tick, one Save — not two page visits"
+    module: "packages/player-vue/src/composables/schools/assignTeacherClasses.ts (computeAssignmentDiff / shouldSetLead / applyAssignmentDiff / summariseOutcomes) + components/schools/AssignClassesModal.vue"
+
+  set_lead_rule: |
+    An add on a class that ALREADY HAS an active teacher never sets the lead —
+    the assignee joins as a CO-TEACHER, which is what a supply teacher is.
+    set_lead is sent ONLY when the class has no active teacher at all, so a
+    freshly-staffed empty class is not left leaderless. Handing the lead over
+    stays exactly where it was: 'Make lead' on ClassDetail (flow CoTeacherPanel).
+
+  membership_source: |
+    Which classes a teacher is already on is derived CLIENT-SIDE from
+    ClassInfo.teachers (the class_teachers relationship, already populated by
+    fetchClasses). No new query.
+
+  authorization: |
+    Shown to the school's admin or a govt admin, hidden (not disabled)
+    otherwise, and never on the ssi_admin read-view mount — mirroring
+    ClassDetail's canManageTeachers minus its "lead teacher of this class"
+    arm, which cannot apply on a school-wide staff list. The server is the
+    real gate either way.
+
+  honest_failure: |
+    Every write is applied one at a time and reported one at a time. Five
+    ticks with one failure says "Partly done — 4 of 5 changes saved", NAMES
+    the class that failed and prints the server's own error string; the modal
+    stays open and both lists are refetched so the ticks show what is
+    actually true. Never a blanket "Done" (RLS doctrine rule 8).
+
 principle ClassDetailDegradesPerPanel:
   statement: "Each panel on the class page owns its own fetch outcome; one failing sub-fetch never blanks another panel, and no panel asserts an emptiness it did not observe"
   since: "2026-08-07 (A-81)"
