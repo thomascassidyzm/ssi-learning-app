@@ -1,77 +1,111 @@
-# Release candidate — supplement: the Easy speed fix is now IN
+# Release candidate — supplement: what the candidate now contains
 
-**7 August 2026, late.** Supplements the earlier proof document. That document described the candidate *before* this change and flagged the Easy-versus-Fast speed asymmetry as a thing to listen to. **It is now fixed and in the candidate, and re-verified against the candidate's own deployed build — not against dev.**
+**7 August 2026, late.** Supplements the earlier proof document, which described the candidate before tonight's two lifts. **Two pieces of Easy-mode work are now in, and both have been verified against the candidate's own deployed build — not against dev.**
 
-Nothing has been merged to main. Nothing has been deployed to production. Those remain separate decisions.
-
----
-
-## What changed in the candidate
-
-One fix, lifted on its own. Dev was **not** promoted wholesale — the other work on dev tonight has not been reviewed for this release and is not in the candidate.
-
-**Easy no longer cancels the speed on-ramp.** Easy owned a private speed override that played the target language flat at full speed while Fast kept the belt ramp. So a beginner who chose **Easy** heard the new language *faster* than a beginner who chose **Fast** — backwards from what the names promise, and worst at white belt where it matters most. The override is deleted; both modes now read the one speed the round-builder bakes onto every cycle.
-
-Easy's longer pauses, its extra repetitions, its beat of silence after the second voice and its shorter phrases are all untouched.
-
-Three commits taken: the fix, the real-browser probe that proves it, and the writeup. Nine files, and every one of them belongs to this fix — nothing unrelated came along.
-
-**One companion commit was deliberately left behind.** It is a test that reconciles this fix with the *other* listening ruling from tonight — the one holding Easy at 0.8× listening for as long as someone stays on Easy. That ruling is held on dev, so the option it tests does not exist in the candidate. Taking the test without the code it tests would have been theatre.
+Nothing has been merged to main. Nothing has been deployed to production. Those remain separate decisions, yours.
 
 ---
 
-## The proof — driven against staging's own build, after the change deployed
+## What is in the candidate that was not in the earlier proof
 
-The earlier proof ran against dev. That proved the fix works; it did not prove it survived the lift onto the candidate. So this is a fresh run: a real Chromium, on `staging.saysomethingin.app`, after the new build went live, recording the speed the browser was actually asked to play every single clip at — in each mode, in a full session including a listening lap. French, fresh learner, white belt. **Two minutes of real play per mode; 138 clips measured.**
+Two fixes, each lifted on its own. Dev was **not** promoted wholesale — the rest of tonight's dev work has not been reviewed for this release and is not in the candidate.
+
+### 1. Easy no longer cancels the speed on-ramp
+
+Easy owned a private speed override that played the target language flat at full speed while Fast kept the belt ramp. So a beginner who chose **Easy** heard the new language *faster* than a beginner who chose **Fast** — backwards from what the names promise, and worst at white belt where it matters most. The override is deleted; both modes now read the one speed the round-builder bakes onto every cycle.
+
+One companion commit was deliberately left behind: a test reconciling this fix with the *other* listening ruling from tonight, which is held on dev. Taking a test without the code it tests would have been theatre.
+
+### 2. Easy skips phrases above twenty syllables
+
+Fast is uncapped. Easy now drops any phrase over twenty target syllables, on top of the existing character cap — a phrase goes if it exceeds either. The number was measured, not guessed: it removes about the same share of phrases as the character cap already did.
+
+Easy's longer pauses, extra repetitions and beat of silence after the second voice are untouched by both changes.
+
+---
+
+## The proof — driven against staging's own build, after both changes deployed
+
+**Twenty-two checks across two probes, twenty-two passes.** Both run in a real Chromium against `staging.saysomethingin.app`, on the build that is live right now.
+
+### Speed and pauses — French, fresh learner, white belt, two minutes per mode
 
 | | target voice | pause before the learner speaks | listening / pod clips |
 |---|---|---|---|
 | **Fast** | 0.72× | 2401 ms | 0.72× |
 | **Easy** | 0.72× | 3841 ms | 0.72× |
 
-**Twelve checks, twelve passes.**
+Easy and Fast use an *identical* set of playback rates — not similar, identical. Easy is never faster than Fast. **Easy's longer pause survived both changes**: 3841 ms against Fast's 2401 ms, 60% longer, unchanged from before either fix. Listening and pod clips still ramp in both modes and agree at white belt. No page errors.
 
-- Easy and Fast use the *identical* set of playback rates. Not similar — identical.
-- Easy is never faster than Fast at white belt. This was the bug; it is gone.
-- The ramp is genuinely on in both modes — the target voice plays below full speed, not flat.
-- **Easy's longer pause survived**: 3841 ms against Fast's 2401 ms, 60% longer, exactly as before the fix.
-- Listening and pod clips still ramp in both modes, and agree with each other at white belt.
-- No page errors in either mode.
+### The syllable cap — Spanish, the whole generated course
 
-These are the same numbers the dev run produced — 0.72×, 2401 ms, 3841 ms — which is the cleanest possible evidence that the lift changed nothing and dropped nothing.
+Reading the phrases off the screen during a session **cannot** prove this, and that is worth stating rather than discovering twice. A round shows about seven phrases, chosen shortest-first, and a beginner starts where every phrase is short: four minutes of real play in each mode surfaced a maximum of ten syllables in *both*, so the cap had nothing to bite on. The deep link that would jump deeper into a course does not work for a signed-out learner, so that route is closed too.
 
-All the usual gates were run on the merged candidate before it went anywhere: type checking clean on both the app and the server, **1,834 app tests and 1,139 server tests green**, linting clean.
+So the probe reads what the cap actually acts on: **the entire generated course script each mode writes to its own storage after boot** — 3,924 rounds, every phrase, not the handful a short session reaches. That is the real output of the deployed build, per mode, and it is what the player plays from.
+
+| Spanish, whole course | Fast | Easy |
+|---|---:|---:|
+| distinct phrases | 14,681 | 13,119 |
+| phrases over twenty syllables | 2,147 | 581 |
+| share over the cap | 14.6% | 4.4% |
+| rounds | 3,924 | 3,924 |
+
+**Easy removes 73% of the over-cap phrases. Fast keeps every one of them.** The course is not gutted: Easy keeps all 3,924 rounds.
+
+**On the 581 that remain in Easy — this is the design, not a miss.** The methodology floors outrank the cap on purpose: every LEGO must keep at least four build phrases and five use phrases, so when the cap would starve one, the shortest available are kept even if they are still long. I checked all 581 against the live content database: **553 are exactly that floor doing its job**, and 13 are not practice phrases at all. That leaves **15 phrases in 13,119 — one in nine hundred — that the floor does not explain.** I could not account for those tonight; they are most likely arriving through the spaced-repetition path rather than the phrase-selection path. Flagging it, not fixing it, and it is far too small to hold a release.
 
 ---
 
-## What is IN tonight, and what waits
+## Turbo — corrected framing
 
-Checked by comparing actual content against the candidate, not by reading commit messages or assuming.
+**Turbo was already gone for learners before tonight.** The button had already been removed and course progression already replaced it. Nothing about Turbo changes for any learner in this release, and the earlier document overstated this — it read as though learners lose a feature tonight. They do not.
 
-**IN — Easy and Fast replace Turbo.** The mode change learners see was already in the candidate before tonight: the resting screen offers Easy and Fast, Turbo is gone from the product, and the Turbo points multiplier is gone with it. Now joined by tonight's fix, so the two modes finally share one speed on-ramp.
+**No part of the Turbo clean-up is in the candidate.** That work — sweeping dead code out of the app and leftover rows out of the database — sits on its own branch. It is invisible to learners either way.
 
-**OUT — the Turbo clean-up.** A later pass sweeps the last of Turbo's dead code out of the app and its leftover rows out of the database. None of it is visible to a learner — Turbo is already gone from the product; this is tidying behind it. **Not in the candidate.** No reason it needed to be.
+**Nobody is on Turbo, and nobody ever was.** I checked the live database directly rather than take it on report: zero learner records have Turbo switched on, zero learner records still carry the setting at all, and the old Turbo configuration row is gone. That clean-up was applied to the live database earlier today, independently of any release.
 
-**OUT — the Easy phrase syllable ceiling.** The work that makes Easy skip any phrase over twenty syllables outright, on top of the existing "half the course's longest" rule. It is a real change to what an Easy learner is asked to say, it is new tonight, and it is **not in the candidate.** It waits for the next release.
+**One residual, verified first-hand and stated plainly: the database still mints the dead setting onto every new learner.** The column default was never updated — I read it live tonight and it still contains the Turbo key. So every learner created from now on is born carrying a dead setting again, and the sweep quietly undoes itself one learner at a time. It is harmless — the key does nothing and no code reads it — but it is real, **this release does not fix it**, and it needs a database change applied by hand by someone with direct access.
 
-**OUT — the Easy listening hold (0.8× for as long as you stay on Easy).** Also new tonight, also **not in the candidate**. What *is* in the candidate is the underlying ramp itself — a beginner already hears listening at 0.8× at white belt in this release, climbing with the belt from there. The held-back piece is only the refinement that stops it climbing while you stay on Easy.
+---
+
+## Known follow-ups — named, not built
+
+**The syllable cap is absolute, and one number does not fit every course.** Twenty bites hard on Spanish and is nearly inert on French, because the two languages' phrase lengths genuinely differ. A course-relative cap would self-adjust. That question is **open and deliberately not for tonight** — the cap stays at twenty. It is a database value, so retuning by ear is an edit, not a deploy.
+
+**The Turbo database default**, above — a hand-applied change, not part of any release.
+
+**Fifteen over-cap phrases in Easy** that the methodology floor does not explain, described above.
+
+---
+
+## What is in tonight, and what waits
+
+Checked by comparing actual content against the candidate, not by reading commit messages.
+
+- **IN** — Easy and Fast as the two modes. Already in the candidate before tonight.
+- **IN** — Easy and Fast share one speed on-ramp.
+- **IN** — Easy skips phrases above twenty syllables.
+- **OUT** — the Turbo clean-up, code and database. Invisible to learners.
+- **OUT** — the Easy listening hold. The ramp underneath it *is* in: a beginner already hears listening at 0.8× at white belt in this release, climbing with the belt. Only the "stop climbing while on Easy" refinement waits.
 
 ---
 
 ## Explicit gaps
 
-**Nobody has listened to this by ear.** Everything above is machine-measured — real clips, real playback rates, real gaps, on the real deployment. It proves the numbers are right. It does not tell you whether 0.72× at white belt *sounds* right, and that was always the check only you can make. This fix makes Easy slower than it was, never faster, so the risk direction is the safe one.
+**Nobody has listened to this by ear.** Everything above is machine-measured on the real deployment. It proves the numbers are right. It cannot tell you whether 0.72× at white belt *sounds* right, or whether Easy's shorter phrases feel better — and those are the checks only you can make. Both changes move Easy in the gentler direction, never the harsher one.
 
-**One course does not ramp at all, and did not before this fix either.** The Spanish course plays every clip at full speed in both modes — that is the deliberate exemption for courses whose voices were recorded slow to begin with, so they are not slowed twice. Both modes agree there, so the fix holds; but it means "0.72× at white belt" is a French observation, not a universal one.
+**The cap was proven at course level, not by hearing a long phrase get skipped in a session.** The reason is above and it is a real limitation of what a session can show.
 
-**Desktop Chrome only.** No real iPhone, no Safari, and this is a phone-first product. iOS audio behaviour is untested here.
+**One course does not ramp at all**, in either mode, and did not before these fixes: the Spanish course plays every clip at full speed. That is the deliberate exemption for voices recorded slow to begin with. So "0.72× at white belt" is a French observation, not a universal one.
 
-**Guest path only.** All sessions ran signed-out inside the free preview window.
+**Desktop Chrome only.** No real iPhone, no Safari, and this is a phone-first product.
 
-**Offline was not tested.** No airplane mode, no bulk download, no playback from the phone's stored audio.
+**Guest path only**, signed out, inside the free preview window.
+
+**Offline was not tested.** No airplane mode, no bulk download, no playback from stored audio.
 
 ---
 
 ## What has not happened
 
-The candidate has not been merged to production, and nothing has been deployed to real learners. Both of those remain your call, separately.
+The candidate has not been merged to production, and nothing has been deployed to real learners. Both remain your call, separately.
