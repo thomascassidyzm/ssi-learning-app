@@ -65,10 +65,10 @@ export interface ModeConfig {
    * value. Layering happens in exactly ONE place — `resolveScriptShape()`
    * below — so there is no second merge rule to keep in sync.
    *
-   * This is where Easy and Fast are allowed to differ in SHAPE. It replaces
-   * the old Turbo per-cycle cull (`turboOmit`): the same expressive power,
-   * but expressed as "this mode generates a different round" rather than
-   * "this mode plays a subset of one round".
+   * This is where Easy and Fast are allowed to differ in SHAPE, and it is the
+   * ONLY way they may: a mode GENERATES a different round, it never plays a
+   * subset of one. There is no per-cycle cull on the mode path — SimplePlayer's
+   * `shouldSkipCycle` hook belongs to adaptation v2 alone.
    */
   scriptShape?: Partial<ScriptShapeConfig>
   /**
@@ -564,8 +564,9 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           // Promotion-window read: 'fast_mode' is the new key, 'normal_mode'
           // is the live fallback alias it was copied from. An old bundle
           // reading a new DB and a new bundle reading an old DB both work —
-          // whichever row exists wins, new key first. 'turbo_boost' may still
-          // sit in the table; nothing reads it any more.
+          // whichever row exists wins, new key first. NOTE 'normal_mode' is
+          // NOT retired-mode residue — it is fast_mode's live alias and must
+          // stay until the promotion window closes.
           fast_mode: { ...DEFAULT_FAST, ...(loaded.fast_mode || loaded.normal_mode || {}) },
           easy_mode: { ...DEFAULT_EASY, ...(loaded.easy_mode || {}) },
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },

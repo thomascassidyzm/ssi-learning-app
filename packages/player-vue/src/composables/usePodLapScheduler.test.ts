@@ -586,17 +586,9 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     expect(lap!.podRound).toBe(3)
   })
 
-  it('skipAhead bumps counter by N without playing', async () => {
-    const s = usePodLapScheduler({
-      supabase: makeMockSupabase(state),
-      courseCode: 'c',
-      learnerId: 'real-uuid',
-    })
-    await s.initialize()
-    await s.skipAhead(5)
-    expect(s.completedPodRounds.value).toBe(8)
-    expect(state.enrollmentUpdates).toContainEqual({ completed_pod_rounds: 8 })
-  })
+  // The `skipAhead` ratchet bump was Turbo's alone and went with Turbo
+  // (retired 2026-08-06). The counter now only ever advances by a played
+  // lap — see 'markLapCompleted' above.
 
   it('reset clears the counter and pin', async () => {
     const s = usePodLapScheduler({
