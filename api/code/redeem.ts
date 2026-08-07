@@ -13,6 +13,7 @@ import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlem
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
+import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 
@@ -448,6 +449,17 @@ async function redeemInviteCode(
       await supabase.from('groups').delete().eq('id', groupId)
     } else {
       leaderGroupId = groupId
+      // …and make that leadership a MEMBERSHIP too, exactly as the org-creation
+      // paths do (rootOrgProvision.ts, groups/index.ts). This CLAIM path was
+      // the one govt_admins writer that still recorded leadership as authz
+      // only. Names survived that gap because the org reads UNION govt_admins
+      // with the leader tag — but practice hours do not: directMemberPractice
+      // is tag-only, so a leader who claimed a seat by code had their own
+      // practice counted nowhere in their org's headline. Same class as the
+      // founding school admin (Chepstow, 2026-08-06), one level up.
+      // Best-effort: the govt_admins row is already sound and grants the
+      // authority; a failure here costs visibility, never the redemption.
+      await ensureGroupLeaderTag(supabase, { groupId, userId, addedBy: userId })
     }
   } else if (codeType === 'school_admin') {
     // Idempotent select-then-insert: reuse an existing school for this admin
