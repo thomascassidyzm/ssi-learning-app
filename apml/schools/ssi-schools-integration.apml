@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.7.0"
-  date: "2026-08-06"
+  version: "1.8.0"
+  date: "2026-08-07"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -717,6 +717,58 @@ principle NoAutoRefreshOneAffordance:
     noDashboardPolling.test.ts (fails if setInterval / visibility-focus
     refetch reappears in any guarded surface); useDashboardRefresh.test.ts;
     usePullToRefresh.test.ts.
+
+principle SeatDefaultIsRealStaffNeverACap:
+  statement: |
+    The Subscribe page opens at the number of seats the organisation ACTUALLY
+    needs — its real joined staff/member count — never a hard-coded 1, and
+    never a cap. Bug found live 2026-08-07 (Tom, Chepstow mirror school): a
+    school with three teachers holding accounts was offered ONE teacher seat at
+    £15/month, because seatCount was ref(1) and the server value was only ever
+    read back for an ALREADY-subscribed school. This is DECISION A (worklist
+    07-02) applied to the default as well as the display: make the honest
+    number the starting point so admins self-correct, and gate nothing.
+
+  count: |
+    GET /api/school/subscription returns school.teacher_count, mirroring
+    org.member_count in GET /api/org/subscription. It is resolved server-side
+    under the service role by api/_utils/schoolTeachers.ts, which unions and
+    DE-DUPLICATES three sources: schools.admin_user_id (the founding admin),
+    active SCHOOL: user_tags with role_in_context teacher OR admin, and the
+    teachers of the school's active classes (class_teachers + the legacy
+    classes.teacher_user_id lead pointer). The founding admin is unioned in
+    deliberately: on six live schools as of 2026-08-07 they hold no SCHOOL:
+    user_tag at all, so every tag-derived count (school_summary.teacher_count,
+    api/school/roster.ts) is one short. That tag gap is closed in its own lane;
+    this count must be — and is — right either way, and the de-duplication is
+    what keeps it right after the backfill lands.
+
+  default_not_cap: |
+    UpgradeView.vue seeds the stepper from teacher_count (org lane: from
+    member_count) ONLY when the org is not yet subscribed, and only when the
+    admin has not already touched the stepper (seatCountTouched /
+    orgSeatCountTouched — a default must never overwrite a deliberate choice
+    made while the fetch was in flight). The already-subscribed path is
+    unchanged: it still seeds from what is actually BILLED (teacher_seats /
+    seats). The stepper stays freely editable up and down; nothing is capped or
+    forced. SettingsView.vue's plan line quotes the same number so the two
+    surfaces cannot disagree about one school. The double-subscribe guard
+    (schoolSubLoaded / orgSubLoaded) is untouched.
+
+  billing_safety: |
+    displayed total === Paddle quantity × per-seat price, always. seatCount →
+    seats → startSchoolCheckout({seats}) → items[0].quantity, with the same
+    seats value driving the on-screen £ figure — pinned by
+    UpgradeView.seatDefault.test.ts, which mounts the real component, steps the
+    stepper, clicks Subscribe and asserts the quantity Paddle receives equals
+    the seats on screen and the displayed total.
+
+  pinned_by: |
+    api/school/subscription.test.ts (teacher_count: founding admin counted,
+    not double-counted once tagged, class-only co-teacher counted, removed and
+    other-school tags ignored); UpgradeView.seatDefault.test.ts (seeding,
+    step-down/step-up, no-stomp-during-load, subscribed path unchanged,
+    quantity-vs-display pin).
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"
