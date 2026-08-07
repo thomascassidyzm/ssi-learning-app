@@ -564,12 +564,47 @@ async function handlePlayClass(cls: ClassInfo) {
         </template>
       </Greeting>
 
-      <!-- First-run: the school is empty → offer the guided setup wizard.
+      <!-- First-run: confirm your school's name (invite-born admins only —
+           the name came from the inviting leader's guess, not yours).
+           This card USED to sit inside the govt-admin branch below, where its
+           own predicate (isSchoolAdmin) could never be true — roles are
+           mutually exclusive, so it was dead for every school admin on prod
+           (Chepstow, 2026-08-06). It belongs here, in the school-admin lane. -->
+      <div v-if="showNameSchoolCard" class="schools-card schools-card-pad name-group-card">
+        <h3 class="arsenal card-header-title">Confirm your school's name</h3>
+        <p class="schools-subtle">This is what your teachers and students will see.</p>
+        <div class="name-group-row">
+          <input
+            v-model="schoolNameDraft"
+            type="text"
+            class="field-input"
+            placeholder="e.g. Ysgol y Garnedd"
+            :disabled="isSavingSchoolName"
+            @keyup.enter="saveSchoolName"
+          />
+          <button
+            class="btn-play"
+            :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
+            @click="saveSchoolName"
+          >
+            {{ isSavingSchoolName ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+        <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
+      </div>
+
+      <!-- Not onboarded yet → offer the guided setup wizard.
            /schools/setup has no nav tab, so this banner is its entry point.
+           The signal is ZERO PUPILS, not zero classes: a head who made one
+           throwaway class on day one used to lose the wizard forever while
+           her dashboard stayed a wall of zeros (Chepstow, 3 classes / 0 pupils
+           ever, 2026-08-06). One enrolled student retires the banner, so a
+           school that IS running is never nagged; the quiet Quick-links entry
+           below keeps the wizard reachable after that.
            Gated on currentSchool so it can't flash while stats are loading.
            Setup is a write flow with no admin-view equivalent — hide it there. -->
       <router-link
-        v-if="!isAdminView && currentSchool && !totalClasses && !totalStudents"
+        v-if="!isAdminView && currentSchool && !totalStudents"
         to="/schools/setup"
         class="schools-card schools-card-pad setup-banner"
       >
@@ -577,7 +612,7 @@ async function handlePlayClass(cls: ClassInfo) {
           <div class="schools-kicker">Get started</div>
           <p class="setup-banner-text">
             Set up your school in four quick steps — name it, invite your
-            teachers, and create your first class.
+            teachers, choose your courses and get your pupils into a class.
           </p>
         </div>
         <span class="btn-play setup-banner-cta">Start setup →</span>
@@ -686,6 +721,15 @@ async function handlePlayClass(cls: ClassInfo) {
               <div class="attention-body">Weekly activity and per-class breakdown</div>
               <span class="attention-cta">Open →</span>
             </router-link>
+            <!-- The wizard's only permanent home. /schools/setup has no nav
+                 tab, so once the first-run banner above retires it would
+                 otherwise be unreachable. Quiet, never a nag. Write flow —
+                 hidden in the ssi_admin read-only view. -->
+            <router-link v-if="!isAdminView" to="/schools/setup" class="attention-row">
+              <div class="attention-tag">Setup</div>
+              <div class="attention-body">Walk through school setup again, step by step</div>
+              <span class="attention-cta">Open →</span>
+            </router-link>
           </div>
         </aside>
       </div>
@@ -732,30 +776,11 @@ async function handlePlayClass(cls: ClassInfo) {
         <p v-if="groupNameError" class="name-group-error">{{ groupNameError }}</p>
       </div>
 
-      <!-- First-run: confirm your school's name (invite-born admins only —
-           the name came from the inviting leader's guess, not yours). -->
-      <div v-if="showNameSchoolCard" class="schools-card schools-card-pad name-group-card">
-        <h3 class="arsenal card-header-title">Confirm your school's name</h3>
-        <p class="schools-subtle">This is what your teachers and students will see.</p>
-        <div class="name-group-row">
-          <input
-            v-model="schoolNameDraft"
-            type="text"
-            class="field-input"
-            placeholder="e.g. Ysgol y Garnedd"
-            :disabled="isSavingSchoolName"
-            @keyup.enter="saveSchoolName"
-          />
-          <button
-            class="btn-play"
-            :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
-            @click="saveSchoolName"
-          >
-            {{ isSavingSchoolName ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
-        <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
-      </div>
+      <!-- NOTE: the "confirm your school's name" card used to sit here, where
+           its isSchoolAdmin predicate could never fire inside this
+           isGovtAdmin branch. It now lives in the SCHOOL ADMIN branch above.
+           The "Name your group" card directly above is the govt-admin's own,
+           separate, working card — keep them apart. -->
 
       <!-- Add schools / Create school (design §1e, §5c revised). In the
            read-only View-as, this card only earns its place if there are

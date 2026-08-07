@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.7.0"
-  date: "2026-08-06"
+  version: "1.7.1"
+  date: "2026-08-07"   # school-admin first-run flow: both affordances made reachable
   author: "Tom Cassidy"
   status: "draft"
 
@@ -351,8 +351,40 @@ principle SingleAuthOnboarding:
     An invite-born school's name is pre-filled from the inviting leader's
     guess (invite_codes.metadata.school_name) but unconfirmed
     (schools.name_confirmed = false) until the admin saves it once via the
-    "Confirm your school's name" first-run card on DashboardView.vue — same
-    pattern as groups.name_confirmed's "name your group" card.
+    "Confirm your school's name" first-run card — same pattern as
+    groups.name_confirmed's "name your group" card.
+
+    The card renders in TWO places, because a school admin can land on either
+    surface (fixed 2026-08-06 — Chepstow production inspection):
+      - DashboardView.vue, SCHOOL-ADMIN branch. It previously sat inside the
+        v-else-if="isGovtAdmin" branch while its own predicate required
+        isSchoolAdmin. Roles are mutually exclusive (currentRole is one
+        value), so the card was dead code for every school admin on prod.
+        Do NOT merge it with the neighbouring "Name your group" govt-admin
+        card — that one is separate and working.
+      - NodeHomeView.vue, member mount, the admin's OWN school node. Nav
+        unification (2026-07-30) redirects a school-scoped school_admin from
+        /schools to /org/:schoolId, so DashboardView's school branch is
+        unreachable for them; THE VIEW's Rename verb is `!member`, so without
+        this card they had no way at all to fix a name someone else guessed.
+
+  first_run_setup_entry: |
+    /schools/setup (SetupView, the four-step guided wizard) has NO nav tab —
+    it is reachable only from affordances placed by hand. Three of them, all
+    reusing existing surfaces (no new surface was built):
+      - DashboardView.vue first-run banner. Gate is ZERO PUPILS
+        (!totalStudents), NOT zero classes. The old `!totalClasses &&
+        !totalStudents` gate cost a head the wizard forever the moment she
+        made one throwaway class on day one (Chepstow: 3 classes, 0 pupils
+        ever, three weeks in — fixed 2026-08-06).
+      - DashboardView.vue Quick-links panel: one quiet, permanent
+        "Setup" row, so the wizard stays reachable after the banner retires.
+        Hidden in the ssi_admin read-only view (isAdminView) — setup is a
+        write flow.
+      - NodeHomeView.vue member mount, own school node, same zero-pupil gate
+        read off the node payload's rollup.learnerCount.
+    Rule: one enrolled student retires every banner, so a school that IS
+    running is never nagged.
 
 principle SchoolCreationOnePrimitive:
   statement: |
