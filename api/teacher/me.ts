@@ -16,6 +16,48 @@ import { verifyAuthToken } from '../_utils/auth'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
+const CLASS_SELECT =
+  'id, class_name, course_code, student_join_code, current_seed, is_active, created_at'
+
+/**
+ * The classes this user CO-TEACHES via the class_teachers relationship
+ * (`user_tags` tag_type='class', role_in_context='teacher'), restricted to the
+ * personal tutor surface. `classes.teacher_user_id` is only the demoted lead
+ * pointer, so a list built from it alone silently hides every co-taught class —
+ * see docs/methodology/class-first-class-citizen.md. Mirrors the helper in
+ * api/teacher/classes.ts.
+ */
+async function listCoTaughtClasses(
+  supabase: any,
+  userId: string,
+): Promise<{ classes: any[] } | { error: string }> {
+  const { data: tags, error: tagError } = await supabase
+    .from('user_tags')
+    .select('tag_value')
+    .eq('user_id', userId)
+    .eq('tag_type', 'class')
+    .eq('role_in_context', 'teacher')
+    .is('removed_at', null)
+
+  if (tagError) return { error: tagError.message }
+
+  const ids = (tags || [])
+    .map((t: any) => String(t?.tag_value || '').replace('CLASS:', ''))
+    .filter(Boolean)
+  if (ids.length === 0) return { classes: [] }
+
+  const { data: rows, error } = await supabase
+    .from('classes')
+    .select(CLASS_SELECT)
+    .in('id', ids)
+    .eq('is_active', true)
+    .is('school_id', null)
+    .order('created_at', { ascending: true })
+
+  if (error) return { error: error.message }
+  return { classes: rows || [] }
+}
+
 const EDITABLE_FIELDS = [
   'display_name',
   'photo_url',
@@ -67,15 +109,33 @@ export default async function handler(
     if (req.method === 'GET') {
       // school_id IS NULL: personal tutor surface only — school-assigned
       // classes belong to the /schools dashboard, not the freelance one.
-      const { data: classes } = await supabase
+      const { data: classes, error: classesError } = await supabase
         .from('classes')
-        .select('id, class_name, course_code, student_join_code, current_seed, is_active, created_at')
+        .select(CLASS_SELECT)
         .eq('teacher_user_id', authResult.userId)
         .eq('is_active', true)
         .is('school_id', null)
         .order('created_at', { ascending: true })
 
-      res.status(200).json({ teacher, classes: classes || [] })
+      if (classesError) {
+        console.error('[TeacherMe] Class list failed:', classesError)
+        res.status(500).json({ error: classesError.message })
+        return
+      }
+
+      // Union the CO-TAUGHT classes — teacher_user_id is only the lead pointer.
+      const coTaught = await listCoTaughtClasses(supabase, authResult.userId)
+      if ('error' in coTaught) {
+        console.error('[TeacherMe] Co-taught list failed:', coTaught.error)
+        res.status(500).json({ error: coTaught.error })
+        return
+      }
+
+      const led = classes || []
+      const seen = new Set(led.map((c: any) => c.id))
+      const merged = [...led, ...coTaught.classes.filter((c: any) => !seen.has(c.id))]
+
+      res.status(200).json({ teacher, classes: merged })
       return
     }
 

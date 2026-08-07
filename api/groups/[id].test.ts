@@ -41,24 +41,36 @@ let updateCalls: any[] = []
 let deleteCalls: any[] = []
 let ungroupSchoolsError: any = null
 let deleteGroupError: any = null
-// Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
-// group-2 is a real sub-group of group-1; group-3 is unrelated.
-let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
-let groupParents: Record<string, string | null> = { 'group-1': null, 'group-2': 'group-1', 'group-3': null }
-const forestRows = () => Object.entries(groupParents).map(([id, parent_id]) => ({ id, parent_id }))
+// Tree fixture. group-2 is a real sub-group of group-1 (isStrictDescendantGroup
+// walks parent_id since 2026-08-06); group-3 is an unrelated root.
+interface GroupRow { id: string; name: string; parent_id: string | null; created_at: string; path: string }
+const baseGroups = (): GroupRow[] => [
+  { id: 'group-1', name: 'Deborah Testing', parent_id: null, created_at: '2026-08-01T09:00:00Z', path: '1' },
+  { id: 'group-2', name: 'Ward 1', parent_id: 'group-1', created_at: '2026-08-02T09:00:00Z', path: '1.2' },
+  { id: 'group-3', name: 'Other Org', parent_id: null, created_at: '2026-08-03T09:00:00Z', path: '9' },
+]
+let groupRows: GroupRow[] = baseGroups()
+// Fail-open switches: the row read behind the duplicate check, and the
+// sibling lookup itself.
+let currentRowError: any = null
+let siblingLookupError: any = null
 
 function makeChainable(table: string) {
-  let eqVal: unknown
+  const filters: Array<{ col: string; val: unknown }> = []
   const builder: any = {
     select: () => builder,
     update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
     delete: () => { deleteCalls.push({ table }); return builder },
-    eq: (_col: string, val: unknown) => { eqVal = val; return builder },
+    eq: (col: string, val: unknown) => { filters.push({ col, val }); return builder },
+    is: (col: string, val: unknown) => { filters.push({ col, val }); return builder },
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
       if (table === 'groups') {
-        const path = groupPaths[eqVal as string]
-        return Promise.resolve({ data: path ? { path } : null, error: null })
+        // The PATCH duplicate check's own-row read (id, name, parent_id).
+        if (currentRowError) return Promise.resolve({ data: null, error: currentRowError })
+        const id = filters.find(f => f.col === 'id')?.val
+        const row = groupRows.find(g => g.id === id) || null
+        return Promise.resolve({ data: row, error: null })
       }
       return Promise.resolve({ data: null, error: null })
     },
@@ -72,9 +84,18 @@ function makeChainable(table: string) {
       if (table === 'groups' && deleteCalls.some(c => c.table === 'groups')) {
         return resolve({ data: null, error: deleteGroupError })
       }
-      // Unfiltered `groups` read = the forest fetch behind descendantIds.
-      if (table === 'groups' && eqVal === undefined) {
-        return resolve({ data: forestRows(), error: null })
+      if (table === 'groups') {
+        const parentFilter = filters.find(f => f.col === 'parent_id')
+        // Filtered on parent_id = findSiblingSlugCollisions' sibling lookup.
+        if (parentFilter) {
+          if (siblingLookupError) return resolve({ data: null, error: siblingLookupError })
+          const want = parentFilter.val === null ? null : parentFilter.val
+          return resolve({ data: groupRows.filter(g => g.parent_id === want), error: null })
+        }
+        // Unfiltered `groups` read = the forest fetch behind descendantIds.
+        if (filters.length === 0) {
+          return resolve({ data: groupRows.map(g => ({ id: g.id, parent_id: g.parent_id })), error: null })
+        }
       }
       return resolve({ data: null, error: null })
     },
@@ -107,7 +128,9 @@ beforeEach(() => {
   ungroupSchoolsError = null
   deleteGroupError = null
   govtAdminRow = null
-  groupPaths = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+  groupRows = baseGroups()
+  currentRowError = null
+  siblingLookupError = null
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   groupImpact = {
@@ -217,6 +240,151 @@ describe('PATCH /api/groups/:id', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(updateCalls[0].obj).toMatchObject({ parent_id: 'group-3' })
+  })
+})
+
+/**
+ * Duplicate-name WARNING on rename (2026-08-06) — the same contract POST
+ * /api/groups gives at creation: 409 `duplicate_name`, nothing written, and
+ * the same request re-sent with confirm_duplicate: true goes through.
+ * Deborah made a second "Deborah Testing" and nothing told her; a rename can
+ * produce exactly the same ambiguous path.
+ */
+describe('PATCH /api/groups/:id — duplicate-name warning', () => {
+  beforeEach(() => {
+    verifyAdminResult = { userId: 'admin-1' }
+  })
+
+  it('warns and writes NOTHING when a rename lands on a sibling\'s slug', async () => {
+    // group-3 is a root org; renaming it onto root sibling group-1's name.
+    const req = makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.code).toBe('duplicate_name')
+    expect(res.body.duplicates[0]).toMatchObject({ id: 'group-1', name: 'Deborah Testing' })
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('confirm_duplicate: true renames anyway, exactly as before', async () => {
+    const req = makeReq('PATCH', { name: 'Deborah Testing', confirm_duplicate: true }, 'group-3')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ name: 'Deborah Testing', name_confirmed: true })
+    expect(updateCalls[0].obj.confirm_duplicate).toBeUndefined()
+  })
+
+  it('never warns about the row being renamed itself (case/punctuation variants of its OWN name)', async () => {
+    for (const name of ['deborah-testing', 'Deborah  Testing', 'DEBORAH_TESTING']) {
+      updateCalls = []
+      const res = makeRes()
+      await handler(makeReq('PATCH', { name }, 'group-1'), res)
+      expect(res.statusCode).toBe(200)
+      expect(updateCalls.length).toBe(1)
+    }
+  })
+
+  it('treats every slug-equivalent spelling as the same name, and a different one as different', async () => {
+    for (const name of ['Deborah Testing', 'deborah testing', 'Deborah-Testing', 'Deborah_Testing']) {
+      const res = makeRes()
+      await handler(makeReq('PATCH', { name }, 'group-3'), res)
+      expect(res.statusCode, name).toBe(409)
+    }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing 2' }, 'group-3'), res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('scopes the check to the SAME PARENT — "Year 7" under two schools is not a clash', async () => {
+    groupRows = [
+      { id: 'school-a', name: 'School A', parent_id: null, created_at: '2026-08-01T09:00:00Z', path: 'a' },
+      { id: 'school-b', name: 'School B', parent_id: null, created_at: '2026-08-01T09:00:00Z', path: 'b' },
+      { id: 'a-year7', name: 'Year 7', parent_id: 'school-a', created_at: '2026-08-01T09:00:00Z', path: 'a.year-7' },
+      { id: 'b-class', name: 'Form 3', parent_id: 'school-b', created_at: '2026-08-01T09:00:00Z', path: 'b.form-3' },
+    ]
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Year 7' }, 'b-class'), res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ name: 'Year 7' })
+  })
+
+  it('warns on a sub-group clash under the same parent, with the full row for an admin', async () => {
+    groupRows.push({ id: 'group-4', name: 'Ward 2', parent_id: 'group-1', created_at: '2026-08-04T09:00:00Z', path: '1.4' })
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Ward 1' }, 'group-4'), res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.error).toContain('a group called "Ward 1"')
+    expect(res.body.duplicates[0]).toMatchObject({ id: 'group-2', path: '1.2' })
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('redacts a ROOT collision for a non-admin caller — name and date only', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = { group_id: 'group-3' }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3'), res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.duplicates[0]).toEqual({ name: 'Deborah Testing', created_at: '2026-08-01T09:00:00Z' })
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('fails open when the sibling lookup errors — the rename goes through, no 500', async () => {
+    siblingLookupError = { message: 'lookup exploded' }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3'), res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ name: 'Deborah Testing' })
+  })
+
+  it('fails open when the row read errors — the rename goes through, no 500', async () => {
+    currentRowError = { message: 'row read exploded' }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3'), res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ name: 'Deborah Testing' })
+  })
+
+  it('checks the EFFECTIVE parent — a pure re-parent next to a same-named sibling warns', async () => {
+    // group-4 is called "Ward 1" under group-3; moving it under group-1 puts it
+    // beside the existing "Ward 1" (group-2). No name in the request at all.
+    groupRows.push({ id: 'group-4', name: 'Ward 1', parent_id: 'group-3', created_at: '2026-08-04T09:00:00Z', path: '9.4' })
+    const res = makeRes()
+    await handler(makeReq('PATCH', { parent_id: 'group-1' }, 'group-4'), res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.code).toBe('duplicate_name')
+    expect(updateCalls.length).toBe(0)
+
+    const res2 = makeRes()
+    await handler(makeReq('PATCH', { parent_id: 'group-1', confirm_duplicate: true }, 'group-4'), res2)
+    expect(res2.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ parent_id: 'group-1' })
+  })
+
+  it('the 403s still fire FIRST — an ungoverned caller never reaches the duplicate check', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = { group_id: 'some-other-group' }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3'), res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.code).toBeUndefined()
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('a non-admin changing type/parent is still rejected before any duplicate check', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = { group_id: 'group-3' }
+    const res = makeRes()
+    await handler(makeReq('PATCH', { name: 'Deborah Testing', parent_id: 'group-1' }, 'group-3'), res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.error).toBe('Only SSi admins can change group type or parent')
+  })
+
+  it('leaves a plain relabel (no name, no parent) alone — no lookup, no warning', async () => {
+    const res = makeRes()
+    await handler(makeReq('PATCH', { type: 'nation' }, 'group-3'), res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ type: 'nation' })
   })
 })
 

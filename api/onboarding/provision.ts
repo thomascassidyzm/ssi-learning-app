@@ -32,6 +32,10 @@
  * just stays advisory until the migration lands.
  *
  * Body: { track: 'school' | 'tutor', course_code } | { track: 'org', org_name }
+ *   The org track also accepts confirm_duplicate: true — creating an org whose
+ *   name slugs onto an existing root org's slug answers 409 `duplicate_name`
+ *   and writes nothing until the creator explicitly confirms. Warning only:
+ *   legitimate duplicates are allowed once a human has said so.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -40,11 +44,13 @@ import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial, isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/orgPlatform'
+import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -66,7 +72,7 @@ export default async function handler(
     return
   }
 
-  const { track, course_code, org_name } = req.body || {}
+  const { track, course_code, org_name, confirm_duplicate } = req.body || {}
   if (!TRACKS.has(track)) {
     res.status(400).json({ error: 'Invalid track' })
     return
@@ -241,6 +247,26 @@ export default async function handler(
     let orgGroupId: string | null = null
     if (track === 'org') {
       role = 'govt_admin'
+
+      // One org per leader (founder ruling 2026-08-02) — resolved FIRST so the
+      // duplicate-name warning below can bail before any write happens.
+      const existingGroupId = await leaderGroupId(supabase, auth.userId)
+
+      // Duplicate-name WARNING at the /orgs signup door — the same 409
+      // `duplicate_name` contract POST /api/groups uses. This is precisely
+      // where a first-time creator is least likely to notice they've made a
+      // second org with the same name. Only for a genuinely NEW org: a
+      // returning leader is handed their own org back and must never be
+      // warned about it. Fails open (see _utils/groupSlug.ts) — a warning is
+      // a nicety, a blocked signup is a lost customer.
+      if (!existingGroupId && !confirm_duplicate) {
+        const duplicates = await findSiblingSlugCollisions(supabase, org_name, null)
+        if (duplicates.length > 0) {
+          res.status(409).json(duplicateNameBody(duplicates, { detailed: false }))
+          return
+        }
+      }
+
       // Leader role wiring: govt_admin outranks every other educational_role
       // for hasSchoolRole/isGovtAdmin purposes (useUserRole.ts), so upgrade
       // unconditionally — a school_admin who starts an org becomes that org's
@@ -254,10 +280,8 @@ export default async function handler(
         if (roleErr) throw new Error(`org leader role assignment failed: ${roleErr.message}`)
       }
 
-      // One org per leader (founder ruling 2026-08-02): a caller who already
-      // leads a group is NOT re-provisioned — hand them back their existing
-      // org, gracefully, rather than a 409 dead end.
-      const existingGroupId = await leaderGroupId(supabase, auth.userId)
+      // A caller who already leads a group is NOT re-provisioned — hand them
+      // back their existing org, gracefully, rather than a 409 dead end.
       if (existingGroupId) {
         existingAccount = true
         orgGroupId = existingGroupId
@@ -336,9 +360,37 @@ export default async function handler(
           .single()
         if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
         else if (firstClass) {
-          const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
-          if ('error' in learnerResult) {
-            console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+          // Dual-write the teacher↔class RELATIONSHIP alongside the lead
+          // pointer. Pointer-only writes are how 47 of 62 live classes ended
+          // up needing a backfill; without this the backfill just rots again.
+          // This convenience class is deliberately non-fatal to onboarding,
+          // but the failure is NOT swallowed into a half-made class: we roll
+          // the seconds-old, empty class back rather than leave a rotten row.
+          const tagResult = await ensureClassTeacherTag(
+            supabase,
+            firstClass.id,
+            auth.userId,
+            auth.userId,
+          )
+          if ('error' in tagResult) {
+            console.error(
+              '[onboarding/provision] class/teacher tag failed — rolling back first class:',
+              tagResult.error,
+            )
+            const { error: delErr } = await supabase.from('classes').delete().eq('id', firstClass.id)
+            if (delErr) {
+              console.error(
+                '[onboarding/provision] rollback of class',
+                firstClass.id,
+                'FAILED — it has a lead pointer with no teacher tag:',
+                delErr.message,
+              )
+            }
+          } else {
+            const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
+            if ('error' in learnerResult) {
+              console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+            }
           }
         }
       }

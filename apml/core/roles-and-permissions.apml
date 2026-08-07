@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.3.0"
-  date: "2026-07-28"
+  version: "1.6.0"
+  date: "2026-08-06"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -202,6 +202,65 @@ role govt_admin:
           Surfaced as `leaders` on GET /api/groups/:id/home, rendered "Led by …"
           on the node home (and "No group leader yet" on a leaderless root —
           absence must be loud, not silent).
+
+      # DUPLICATE-NAME WARNING at creation AND rename (2026-08-06). Deborah made two orgs
+      # both called "Deborah Testing" and nothing told her — both slugged to
+      # `deborah-testing`, which is what let a path-string subtree match count
+      # each org's people into the other's rollup.
+      duplicate_name_warning:
+        rule: |
+          A create OR RENAME whose name slugs onto an EXISTING SIBLING's slug
+          answers 409 { code: 'duplicate_name', duplicates: [...] } and writes
+          nothing.
+          The same request re-sent with confirm_duplicate: true skips the check
+          and proceeds byte-identically to before. WARNING, never a constraint:
+          no unique index, no forced rename, no auto-suggested name. Two orgs
+          may genuinely share a name once a human has said so.
+        comparison: |
+          On the SLUG, not the raw name — api/_utils/groupSlug.groupSlug mirrors
+          compute_group_path()'s one lossy line
+          LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'))
+          so "deborah testing" and "Deborah-Testing" collide where a
+          name-equality check would miss them. Unit-tested against those
+          variants so it cannot drift from the trigger.
+        scope: |
+          SAME PARENT ONLY. Root org vs other root orgs; sub-group vs the other
+          children of its own parent. A "Year 7" in two different schools is NOT
+          a collision and must not warn — a warning that fires on legitimate
+          structure gets ignored within a week.
+        redaction: |
+          A root collision is with ANOTHER TENANT's org: a non-admin creator
+          gets back only the name and created_at. ssi_admins, and sub-group
+          collisions inside the caller's own already-validated subtree, get the
+          full row (id, path).
+        fails_open: |
+          Any error in the duplicate lookup means NO WARNING, never a failed
+          creation or rename. A warning is a nicety; a blocked signup is a lost
+          customer. On the rename path this covers TWO reads — the sibling
+          lookup and the row's own name/parent read; either failing skips the
+          warning and lets the write proceed.
+        rename_specifics: |
+          PATCH /api/groups/:id runs the check after authorization and after the
+          re-parent cycle checks, before the update — a warned rename writes
+          nothing. Two things creation didn't have to do:
+            · EXCLUDE THE ROW ITSELF (id !== the patched group), so renaming
+              "Deborah Testing" to "deborah-testing" on the same row is silent.
+            · Compare against the EFFECTIVE name and parent AFTER the patch —
+              the supplied value where the request carries one, the row's own
+              current value otherwise. So a pure re-parent (ssi_admin only) that
+              lands a group beside a same-named sibling warns too.
+        covered_paths: |
+          POST /api/groups (both the self-serve root lane and the admin/leader
+          lane), POST /api/onboarding/provision's 'org' track (the /orgs signup
+          door), and PATCH /api/groups/:id (rename — ssi_admin and leader
+          lanes alike). Client: AdminStructure "+ Add organisation" and its
+          row rename, NodeActionBar "Add a group" and its Rename verb,
+          Onboarding's org door — all via
+          utils/duplicateNameWarning.readDuplicateWarning, which distinguishes
+          this 409 from the "one organisation per leader for now" 409 on the
+          `code`, never the status. Every confirm parameter is passed with
+          explicit parens at the call site: a bare @keyup.enter handler would
+          hand it the KeyboardEvent, which is truthy, and confirm silently.
 
 role school_admin:
   name: "School Administrator"
@@ -679,8 +738,10 @@ interface AdminActAs:
       their real roster requires being them. Govt scope resolves group_id /
       group_path (canonical group-tree scope), region_code as legacy fallback.
     queries: |
-      Run under the admin's own Supabase session (RLS off today; when it
-      returns, the ssi_admin bypass covers any scope). No forged JWT.
+      Run under the admin's own Supabase session. RLS is live on the schools
+      org tables (verified 2026-08-06 — was off when this line was first
+      written); the ssi_admin bypass in those policies covers any scope.
+      No forged JWT.
     persistence: |
       sessionStorage 'ssi-acting-as' — a reload keeps act-as within the tab,
       and it clears when the tab closes. Restored on App mount.
@@ -988,10 +1049,137 @@ principle DangerVerbGuards:
       guard: "guard copy at the Save button — save publishes, the send system reads the table live"
 
 # =============================================================================
+# CO-TEACHING — TEACHER↔CLASS IS A RELATIONSHIP (A-74)
+# =============================================================================
+
+principle ClassTeachingIsARelationship:
+  statement: "A class may have several teachers. classes.teacher_user_id is a DEMOTED lead pointer, not ownership."
+
+  storage:
+    relationship: "user_tags(tag_type='class', tag_value='CLASS:<uuid>', role_in_context='teacher', removed_at NULL = active)"
+    view: "class_teachers — user_tags JOIN classes, exposing class_id, teacher_user_id, added_at, added_by, is_lead"
+    lead_pointer: |
+      classes.teacher_user_id is a denormalised convenience: who to NAME when a
+      surface needs exactly one teacher. It never decides who may act.
+    constraint: |
+      unique_active_tag UNIQUE (user_id, tag_type, tag_value) is TOTAL, not
+      partial — a soft-removed row still occupies the slot, so re-adding a
+      teacher REACTIVATES it and never inserts a duplicate. Do not partial-index
+      it: the Paddle webhook's onConflict arbiter depends on the current shape.
+    background: "docs/methodology/class-first-class-citizen.md"
+
+  authorization_rule: |
+    TWO different questions, and they do not have the same answer.
+
+    (1) MAY I TEACH THIS CLASS? — a membership test over every ACTIVE teacher,
+        the relationship OR the lead pointer. Governs the day-to-day teaching
+        verbs: minting a student join code, creating the class learner entity,
+        seeing the class on your own list. Predicate: canTeachClass().
+
+    (2) MAY I CHANGE WHO TEACHES THIS CLASS? — founder ruling 2026-08-06,
+        verbatim: "any group leader or the current teacher of the class can add
+        the co-teacher I think". So: the CURRENT (lead) teacher of that class,
+        OR any group leader ABOVE it in the hierarchy — the class's school
+        admin, or a govt_admin whose governed group is the class's group / the
+        school's group or node, or an ancestor of either — OR an ssi_admin/god.
+        NOT every teacher of the class, and NOT every teacher in the school.
+        Predicate: canManageClassTeachers().
+
+    One exception, which is not managing anyone else: a co-teacher may remove
+    THEMSELVES, i.e. leave a class they were added to.
+
+    Both predicates live in ONE place, api/_utils/classTeacherAuth.ts, shared by
+    every call site so the two co-teaching write paths cannot drift.
+  guarded_endpoints:
+    - "api/teacher/class-teachers.ts — add / remove / set_lead (service-role; the write path) => canManageClassTeachers, plus self-removal"
+    - "api/invite/create.ts (code_type teacher + grants_class_id) — the class-scoped co-teacher link => canManageClassTeachers"
+    - "api/invite/create.ts (code_type student + grants_class_id) — student join codes => canTeachClass"
+    - "api/teacher/create-class-join-code.ts — co-teachers may mint a class's join code"
+    - "api/teacher/create-class-learner.ts — co-teachers may mint the class learner entity"
+    - "api/teacher/classes.ts (GET) — personal class list UNIONS co-taught classes"
+    - "api/teacher/me.ts (GET) — same union; a co-teacher's dashboard is never silently empty"
+  database_half: |
+    RLS cannot be allowed to contradict the ruling. user_tags_insert is
+    god-only for role_in_context='teacher', which is why adding a co-teacher is
+    server-mediated at all. user_tags_update carries a class-membership
+    disjunct so a co-teacher can remove a STUDENT client-side (the ClassDetail
+    roster write) — 20260806b_co_teacher_manage_ruling.sql narrows that
+    disjunct to non-teacher/non-admin rows, so a co-teacher cannot reinstate a
+    removed co-teacher or unseat the lead straight from the browser. The
+    lead-pointer and school_admin branches keep full authority over teacher
+    rows. Canary: supabase/secfix-toolkit/canary_co_teacher_manage_ruling.cjs.
+  client_half: |
+    ClassDetail.vue's teacher panel hides Add-a-co-teacher, Make-lead and the
+    co-teacher link from anyone who is not lead-or-leader, and shows a
+    co-teacher a Leave button instead of Remove. The server is the gate; the
+    panel just never offers a verb that would 403.
+
+  lifecycle:
+    dual_write: |
+      Every class-creation path writes the CLASS:<id>/teacher tag ALONGSIDE the
+      lead pointer, via api/_utils/classTeacherTag.ts. Pointer-only creation is
+      how 47 of 62 live classes ended up needing the A-74 backfill; without the
+      dual-write the backfill simply rots again.
+      Sites: api/teacher/classes.ts (POST), api/onboarding/provision.ts (first
+      tutor class), and the client-side schools insert.
+    honest_failure: |
+      A tag-write failure is never swallowed into a false success. The teacher
+      API 500s; onboarding rolls the seconds-old convenience class back rather
+      than leave a lead pointer with no relationship row.
+    revocation: |
+      api/school/remove-staff.ts CASCADES: removing a teacher from a school
+      soft-deletes their CLASS:<id>/teacher tags for that school's classes and
+      hands on any lead pointer they hold. Without the cascade a removed teacher
+      kept class-level tags and therefore kept pupil-data visibility through
+      resolveVisibleScope. Strictly scoped to the caller's own school — classes
+      at other schools and personal tutor classes (school_id IS NULL) untouched.
+
+  caps_and_public_surfaces:
+    class_cap: |
+      The 10-class tutor cap counts classes.teacher_user_id, i.e. classes you
+      LEAD — co-teaching someone else's class never inflates your own cap.
+    public_join_page: |
+      api/teacher/by-code.ts deliberately names the LEAD only. It is a public
+      page and one name reads better than a list; co-teachers are not shown.
+
+  out_of_scope:
+    - "Whether a leader ABOVE the class should also inherit the day-to-day teaching verbs (student codes, learner entities) — the ruling speaks only to adding co-teachers, so canTeachClass was deliberately left unwidened"
+    - "Teacher-seat billing — nothing enforces schools.teacher_seats; an unresolved commercial question"
+    - "A distinct supply / observer / read-only role — add-then-remove already gives a bounded stint"
+    - "Group-level co-leadership, and multiple school admins — separate, larger designs"
+
+# =============================================================================
 # VERSION HISTORY
 # =============================================================================
 
 version_history:
+  v1.6.0:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "WHO MAY ADD A CO-TEACHER — founder ruling 2026-08-06 encoded: the class's CURRENT (lead) teacher, or any group leader ABOVE the class (school admin, or a govt_admin of the class's group / the school's group or node / any ancestor), or an ssi_admin/god"
+      - "Split the one old 'active teacher of this class' guard into TWO predicates in api/_utils/classTeacherAuth.ts — canTeachClass (teaching verbs, unchanged, every co-teacher) and canManageClassTeachers (who-teaches-here, the ruling)"
+      - "NARROWED: a plain co-teacher can no longer add another co-teacher, hand the lead over, remove a colleague, or mint a class-scoped co-teacher link. They may still leave the class themselves"
+      - "WIDENED: an org/group leader above the class in the hierarchy can now do all of it — previously only the school's own admin_user_id could"
+      - "RLS lockstep: 20260806b_co_teacher_manage_ruling.sql narrows user_tags_update's class-membership disjunct to non-teacher rows, so the browser cannot route around the endpoint. Canary-applied live, 8/8 green"
+      - "ClassDetail.vue hides the management verbs from a co-teacher and offers Leave instead of Remove"
+
+  v1.5.0:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "Added ClassTeachingIsARelationship (A-74 co-teaching) — teacher<->class lives in user_tags/class_teachers; classes.teacher_user_id is a demoted LEAD POINTER, never ownership"
+      - "Server guards ask 'is this an active teacher of this class?' (relationship OR lead): create-class-join-code, create-class-learner; teacher class lists (classes GET, me GET) union co-taught classes so a co-teacher is never silently empty"
+      - "Class creation DUAL-WRITES the CLASS:<id>/teacher tag alongside the lead pointer (api/_utils/classTeacherTag.ts), with honest failure — 500 on the teacher API, class rollback in onboarding"
+      - "school/remove-staff CASCADES to class-level teacher tags and hands on the lead pointer — a removed teacher previously kept pupil-data visibility via resolveVisibleScope"
+      - "Documented the settled taste calls: the 10-class cap counts LEAD classes only; the public /with/{code} page names the lead only"
+
+  v1.4.1:
+    date: "2026-08-06"
+    author: "Claude"
+    changes:
+      - "Corrected AdminActAs query note: RLS is now live on the schools org tables (was off when originally documented) — the ssi_admin bypass in those policies is what covers act-as scope, not an absence of RLS"
+
   v1.3.0:
     date: "2026-07-28"
     author: "Tom Cassidy & Claude"

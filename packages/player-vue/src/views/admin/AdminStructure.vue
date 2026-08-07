@@ -21,6 +21,7 @@ import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
 import { structureNodeIsVisible } from '@/components/admin/structureApi'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
+import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
@@ -162,8 +163,12 @@ const newOrgName = ref('')
 const newOrgLabel = ref('organisation')
 const newOrgIsDemo = ref(false)
 const isCreatingOrg = ref(false)
+// Duplicate-name warning: set when the API answers 409 `duplicate_name`.
+// Nothing was created — the creator either changes the name or confirms, and
+// confirming re-sends the same request with confirm_duplicate: true.
+const orgDuplicateWarning = ref<string | null>(null)
 
-async function createOrganisation(): Promise<void> {
+async function createOrganisation(confirmDuplicate = false): Promise<void> {
   if (!newOrgName.value.trim() || isCreatingOrg.value) return
   isCreatingOrg.value = true
   try {
@@ -171,16 +176,23 @@ async function createOrganisation(): Promise<void> {
     if (!token) throw new Error('Not authenticated')
     const body: Record<string, unknown> = { name: newOrgName.value.trim(), type: newOrgLabel.value }
     if (newOrgIsDemo.value) body.is_demo = true
+    if (confirmDuplicate) body.confirm_duplicate = true
     const resp = await fetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
       body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data)
+    if (duplicate) {
+      orgDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     setSuccess(`Organisation "${data.group?.name || newOrgName.value.trim()}" created`)
     newOrgName.value = ''
     newOrgIsDemo.value = false
+    orgDuplicateWarning.value = null
     showAddOrg.value = false
     await refetchCurrentLens()
   } catch (err) {
@@ -190,6 +202,11 @@ async function createOrganisation(): Promise<void> {
   }
 }
 
+// Editing the name is "change the name" — drop the warning so a fresh name
+// gets a fresh answer from the server rather than a stale confirmation.
+watch(newOrgName, () => { orgDuplicateWarning.value = null })
+watch(showAddOrg, () => { orgDuplicateWarning.value = null })
+
 // ─── Node actions (shared by both lenses via provide/inject) ───
 const editingId = ref<string | null>(null)
 const editingName = ref('')
@@ -198,27 +215,79 @@ function startRename(node: StructureNode): void {
   editingId.value = node.id
   editingName.value = node.name
 }
-function cancelRename(): void { editingId.value = null }
+function cancelRename(): void { editingId.value = null; clearRenameWarning() }
 
-async function saveRename(node: StructureNode): Promise<void> {
-  const newName = editingName.value.trim()
+// Duplicate-name warning on RENAME — the same 409 `duplicate_name` the
+// creation surfaces read, from PATCH /api/groups/:id. Nothing was renamed:
+// the pending rename is held so "Go ahead anyway" can re-send the identical
+// request with confirm_duplicate: true, and "Change the name" re-opens the
+// input on the name they typed.
+const renameDuplicateWarning = ref<string | null>(null)
+const pendingRename = ref<{ node: StructureNode; name: string } | null>(null)
+
+/**
+ * `confirmDuplicate` is an explicit boolean and every template call site
+ * passes it (or nothing) with parens — an @keyup.enter handler called bare
+ * would hand this a KeyboardEvent, which is truthy, and silently confirm a
+ * duplicate with no warning at all. Pinned by a test.
+ */
+async function saveRename(node: StructureNode, confirmDuplicate = false): Promise<void> {
+  const newName = confirmDuplicate
+    ? (pendingRename.value?.name || '')
+    : editingName.value.trim()
   editingId.value = null
-  if (!newName || newName === node.name) return
+  if (!newName || (!confirmDuplicate && newName === node.name)) return
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name: newName }
+    if (confirmDuplicate === true) body.confirm_duplicate = true
     const resp = await fetch(`/api/groups/${node.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, node.parent_id ? 'group' : 'organisation', 'Renaming')
+    if (duplicate) {
+      pendingRename.value = { node, name: newName }
+      renameDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || 'Failed to rename')
     setSuccess(`Renamed to "${newName}"`)
+    clearRenameWarning()
     await refetchCurrentLens()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to rename'
   }
 }
+
+function clearRenameWarning(): void {
+  renameDuplicateWarning.value = null
+  pendingRename.value = null
+}
+
+/** "Change the name" — back into the rename input, on the name they typed. */
+function reopenRename(): void {
+  const pending = pendingRename.value
+  renameDuplicateWarning.value = null
+  if (!pending) return
+  editingId.value = pending.node.id
+  editingName.value = pending.name
+  pendingRename.value = null
+}
+
+/** "Go ahead anyway" — the identical PATCH, plus confirm_duplicate. */
+async function confirmRename(): Promise<void> {
+  const pending = pendingRename.value
+  if (!pending) return
+  renameDuplicateWarning.value = null
+  await saveRename(pending.node, true)
+}
+
+// Editing the name is "change the name" — a fresh name always gets a fresh
+// answer from the server, never a stale confirmation (same rule as creation).
+watch(editingName, () => { if (renameDuplicateWarning.value) clearRenameWarning() })
 
 async function updateLabel(node: StructureNode, label: string): Promise<void> {
   if (label === node.label) return
@@ -394,7 +463,7 @@ onMounted(() => { void refresh() })
         <div v-if="showAddOrg" class="structure-inline-form root-inline-form">
           <input
             v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
-            @keyup.enter="createOrganisation" @keyup.escape="showAddOrg = false"
+            @keyup.enter="createOrganisation()" @keyup.escape="showAddOrg = false"
           />
           <select v-model="newOrgLabel" class="frost-select">
             <option value="organisation">organisation</option>
@@ -403,9 +472,27 @@ onMounted(() => { void refresh() })
             <option value="school">school</option>
           </select>
           <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
-          <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation">
+          <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation()">
             {{ isCreatingOrg ? 'Adding…' : 'Add' }}
           </button>
+        </div>
+        <div v-if="showAddOrg && orgDuplicateWarning" class="duplicate-warning root-inline-form" role="alert">
+          <p class="duplicate-warning-text">{{ orgDuplicateWarning }}</p>
+          <div class="duplicate-warning-actions">
+            <button type="button" class="btn-ghost-sm" @click="orgDuplicateWarning = null">Change the name</button>
+            <button type="button" class="btn-ghost-sm" :disabled="isCreatingOrg" @click="createOrganisation(true)">
+              {{ isCreatingOrg ? 'Adding…' : 'Go ahead anyway' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Same warning, same two ways out, for a RENAME onto a sibling's name. -->
+        <div v-if="renameDuplicateWarning" class="duplicate-warning root-inline-form" role="alert">
+          <p class="duplicate-warning-text">{{ renameDuplicateWarning }}</p>
+          <div class="duplicate-warning-actions">
+            <button type="button" class="btn-ghost-sm" @click="reopenRename()">Change the name</button>
+            <button type="button" class="btn-ghost-sm" @click="confirmRename()">Go ahead anyway</button>
+          </div>
         </div>
 
         <!-- TREE lens -->
@@ -561,6 +648,16 @@ onMounted(() => { void refresh() })
 .structure-empty strong { display: block; font-family: var(--font-display); font-size: var(--text-lg); color: var(--schools-fg); margin-bottom: 4px; }
 
 .root-inline-form { padding: var(--space-2) var(--space-4) 0; }
+
+/* Duplicate-name warning — information, not an error. Warm neutral rather
+   than the red error banner: nothing has gone wrong, there is just a choice. */
+.duplicate-warning { display: flex; flex-direction: column; gap: var(--space-2); }
+.duplicate-warning-text {
+  margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2); line-height: 1.5;
+  background: rgba(var(--tone-red), 0.06); border: 1px solid rgba(var(--tone-red), 0.18);
+  border-radius: var(--radius-lg); padding: var(--space-3);
+}
+.duplicate-warning-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .structure-inline-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
 .checkbox-field { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--schools-fg-2); cursor: pointer; white-space: nowrap; }

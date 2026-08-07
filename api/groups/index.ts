@@ -26,6 +26,7 @@ import { orgTrialStamp } from '../_utils/orgPlatform'
 import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
+import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 
 /**
@@ -138,7 +139,7 @@ export default async function handler(
       res.status(500).json({ error: 'Internal server error', detail: String(error) })
     }
   } else if (req.method === 'POST') {
-    const { name, type, parent_id, is_demo } = req.body || {}
+    const { name, type, parent_id, is_demo, confirm_duplicate } = req.body || {}
 
     const caller = await resolveAdminOrLeaderForParent(req, res, supabase, parent_id)
     if (!caller) return
@@ -148,6 +149,28 @@ export default async function handler(
       if (!name?.trim()) {
         res.status(400).json({ error: 'Group name is required' })
         return
+      }
+
+      // Duplicate-name WARNING (never a constraint). A name that slugs onto an
+      // existing sibling's slug answers 409 `duplicate_name` and writes
+      // nothing; the same request re-sent with confirm_duplicate: true skips
+      // this and proceeds byte-identically to before. Two orgs may genuinely
+      // share a name — a human just has to say so once. Scope is same-parent
+      // only, and the lookup fails open (see _utils/groupSlug.ts).
+      if (!confirm_duplicate) {
+        const duplicates = await findSiblingSlugCollisions(supabase, name, parent_id)
+        if (duplicates.length > 0) {
+          // A ROOT collision is with another tenant's org — hand back only the
+          // name and the date. An ssi_admin, or a sub-group collision inside
+          // the caller's own already-validated subtree, may see the full row.
+          res.status(409).json(
+            duplicateNameBody(duplicates, {
+              detailed: isAdmin || !!parent_id,
+              noun: parent_id ? 'group' : 'organisation',
+            }),
+          )
+          return
+        }
       }
 
       // Self-serve root org creation — the same helper /api/onboarding/provision's

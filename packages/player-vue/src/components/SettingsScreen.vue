@@ -7,6 +7,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
+import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
@@ -565,8 +566,27 @@ const userName = computed(() => auth?.user?.value?.user_metadata?.display_name |
 // previously a hand-rolled `learners` query + local SCHOOL_ROLES list that
 // had drifted from useUserRole's own role list (missing 'tutor' — a tutor
 // account never saw the Dashboards section at all).
-const { isSsiAdmin: isAdmin, isTester, hasSchoolRole } = useUserRole()
+const { isSsiAdmin: isAdmin, isTester, hasSchoolRole, isGovtAdmin } = useUserRole()
 const hasAdminRole = isAdmin
+
+// Org lane (2026-08-06): an organisation leader also carries
+// educational_role = 'govt_admin', so hasSchoolRole is true for them and the
+// only door on offer was "Schools Dashboard". Tom's ruling: "it should know
+// you are an org and not a school". useOrgLeadership resolves the caller's
+// OWN govt_admins row server-side and reports whether the group they lead is
+// an organisation (vs a schools region/programme).
+const { leadsOrg, orgOnly, orgDashboardPath, isLoaded: orgChecked, ensureLoaded: ensureOrgChecked } =
+  useOrgLeadership()
+
+// Hold the Schools link back only while a govt_admin's org lookup is still in
+// flight — otherwise an org leader sees "Schools Dashboard" flash before it's
+// replaced. Everyone else is unaffected and renders immediately.
+const showSchoolsLink = computed(
+  () => hasSchoolRole.value && !orgOnly.value && !(isGovtAdmin.value && !orgChecked.value)
+)
+const showDashboardsSection = computed(
+  () => isSignedIn.value && (showSchoolsLink.value || leadsOrg.value || hasAdminRole.value)
+)
 
 const { open: openAuth } = useAuthModal()
 const router = useRouter()
@@ -942,6 +962,10 @@ onMounted(async () => {
   // Lazy-load release notes for the What's New panel — cached in the
   // composable singleton across openings, so this is a one-off per session.
   loadReleaseNotes()
+
+  // Which dashboard door(s) this person gets — org, school, or both.
+  // Only signed-in staff-shaped accounts pay the round trip.
+  if (isSignedIn.value && hasSchoolRole.value) void ensureOrgChecked()
 
   // Load practice mode visibility
   showListeningMode.value = localStorage.getItem('ssi-mode-listening') === 'true'
@@ -1789,11 +1813,28 @@ const confirmReset = async () => {
       </section>
 
       <!-- Dashboards Section (role-gated, prominent placement) -->
-      <section class="section" v-if="isSignedIn && (hasSchoolRole || hasAdminRole)">
+      <section class="section" v-if="showDashboardsSection">
         <h3 class="section-title">{{ t('settings.dashboards') }}</h3>
         <div class="card">
+          <!-- Organisation Dashboard (org leaders — the /org member surface) -->
+          <div
+            v-if="leadsOrg && orgDashboardPath"
+            class="setting-row clickable"
+            @click="router.push(orgDashboardPath)"
+          >
+            <div class="setting-info">
+              <span class="setting-label">Organisation Dashboard</span>
+              <span class="setting-desc">Your people, invites and progress</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div v-if="leadsOrg && (showSchoolsLink || hasAdminRole)" class="divider"></div>
+
           <!-- Schools Dashboard -->
-          <div v-if="hasSchoolRole" class="setting-row clickable" @click="router.push('/schools')">
+          <div v-if="showSchoolsLink" class="setting-row clickable" @click="router.push('/schools')">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.schoolsDashboard') }}</span>
               <span class="setting-desc">Manage your classes and students</span>
@@ -1803,7 +1844,7 @@ const confirmReset = async () => {
             </svg>
           </div>
 
-          <div v-if="hasSchoolRole && hasAdminRole" class="divider"></div>
+          <div v-if="showSchoolsLink && hasAdminRole" class="divider"></div>
 
           <!-- Admin Dashboard -->
           <div v-if="hasAdminRole" class="setting-row clickable" @click="router.push('/admin')">

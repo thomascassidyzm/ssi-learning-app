@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.4.0"
+  version: "1.7.0"
   date: "2026-08-06"
   author: "Tom Cassidy"
   status: "draft"
@@ -603,6 +603,22 @@ principle GroupRollupServerMediated:
     endpoint instead of querying the views directly; the legacy
     region_code-only fallback (no live govt_admin uses it) is untouched.
 
+principle RosterScopeByRole:
+  statement: |
+    GET /api/school/roster answers "who is the staff here" for both school
+    staff roles, but a TEACHER caller gets pupil rows only for classes they
+    actually teach — founder ruling 2026-07-30: a teacher's scope is their own
+    classes, never the whole school. Their STAFF list stays school-wide: it
+    carries no pupil data, and it is what the co-teacher picker needs.
+  since: "2026-08-06 (A-74)"
+
+  staff_union: |
+    A school's teachers = SCHOOL: tag holders UNION anyone teaching one of
+    that school's classes. The tag alone missed the supply/co-teacher added
+    straight onto a class (a CLASS: tag, no SCHOOL: tag): they taught real
+    lessons and were invisible on their own school's roster, and with no
+    SCHOOL: tag they have no join date, which is reported blank, never faked.
+
 principle TeacherOwnPracticeVisible:
   statement: |
     A teacher's OWN practice (their learner's sessions rows) is a
@@ -945,6 +961,103 @@ flow TeacherJoin:
         - "School name"
         - "Empty classes list"
         - "Create class button"
+
+flow CoTeacherJoin:
+  trigger: "A teacher of a class invites a co-teacher / supply teacher into it"
+  since: "2026-08-06 (A-74)"
+
+  premise: |
+    teacher<->class is a user_tags relationship
+    (tag_type='class', tag_value='CLASS:{id}', role_in_context='teacher'),
+    surfaced by the class_teachers view. classes.teacher_user_id is a DEMOTED
+    denormalised LEAD POINTER, not ownership — a co-teacher joining never
+    rewrites it. Background: docs/methodology/class-first-class-citizen.md.
+
+  steps:
+    1_mint:
+      action: "POST /api/invite/create with code_type='teacher' and grants_class_id"
+      authorization: |
+        MEMBERSHIP, never ownership: the lead pointer, OR an active class
+        teacher tag, OR ssi_admin/god, OR the class's school admin. Canonical
+        shape at api/teacher/class-teachers.ts:104-113.
+      server_derived:
+        - "grants_school_id is read off the class row, never from the payload"
+      why_derived: |
+        Redemption needs both grants so the co-teacher's dashboard resolves
+        scope; deriving it also makes a literal SCHOOL:null tag unreachable.
+
+    2_capture:
+      action: "GET /api/code/validate names the CLASS, not just the school"
+      why: "A generic school invite gives a supply teacher no way to tell which class they are joining"
+
+    3_redeem:
+      action: "POST /api/code/redeem writes BOTH tags"
+      creates:
+        - "user_tags tag_type='school', tag_value='SCHOOL:{school_id}', role_in_context='teacher'"
+        - "user_tags tag_type='class',  tag_value='CLASS:{class_id}',  role_in_context='teacher'"
+      never_writes:
+        - "classes.teacher_user_id (the lead keeps the lead pointer)"
+      dedup: |
+        Keyed on the CLASS tag, not the school tag — a teacher already in the
+        school must still be able to redeem a link for a class they are not yet
+        on, or they would be told 'already redeemed' and get nothing.
+
+  degenerate_grants: |
+    A teacher code scoped to no school, class or group — or a student code
+    scoped to no class or group — is REFUSED at redemption. The old behaviour
+    wrote literal 'SCHOOL:null' / 'CLASS:null' tags: memberships that grant
+    nothing while counting as memberships in every query that reads user_tags.
+
+  related_guard: |
+    The same membership test replaced the lead-pointer-only check that stopped
+    a co-teacher minting STUDENT codes for their own class — while
+    api/school/delete-class.ts already let them delete it.
+
+flow CoTeacherPanel:
+  trigger: "A teacher opens a class and shares it with a colleague"
+  since: "2026-08-06 (A-74)"
+  surface: "packages/player-vue/src/views/schools/ClassDetail.vue — Teachers rail card, behind the !isAdminView guard the class's other write verbs use"
+
+  premise: |
+    The data model has been plural since 2026-06-13 and the write endpoint
+    (POST /api/teacher/class-teachers) shipped with it. Only the button was
+    missing. No new endpoint for the write, no new table, no schema change.
+
+  renders:
+    - "Every teacher of the class, the lead marked, the caller marked '(you)'"
+    - "Add a co-teacher — a picker over the school's staff"
+    - "Remove — soft-removes the class/teacher tag; the server hands the lead on"
+    - "Make lead — 'add' with set_lead on someone already there, which is idempotent"
+    - "Create a co-teacher link — mints the CLASS-scoped teacher invite (flow CoTeacherJoin step 1) on demand and shows it in an InviteLinkField; the school is server-derived, so the client sends only grants_class_id"
+
+  data_path: |
+    useClassesData.fetchClassDetail already populated ClassInfo.teachers from
+    the class_teachers view; the classDetail computed DROPPED it on the way
+    through, which is why no view could render it. Fixed.
+
+  teacher_lookup:
+    endpoint: "GET /api/school/roster?class_id={id}"
+    why: |
+      addClassTeacher needs a target_user_id and a plain teacher has no
+      client-readable source of 'my colleagues'. This mode is class-scoped and
+      MEMBERSHIP-authorised (the api/teacher/class-teachers.ts pattern), NOT
+      school-admin gated — a supply teacher holds only a CLASS: tag, so they
+      have no resolvable home school and a school-scoped lookup returns them
+      nothing.
+    returns: "teacher NAMES only — user_id, learner_id, display_name. No pupil rows, no aggregates."
+    refuses: "401 unauthenticated; 403 any caller who is not a teacher of that class, its school admin, or ssi_admin; 404 unknown class"
+
+  self_teaching:
+    since: "2026-08-06"
+    walks: "share-a-class, invite-a-supply-teacher, hand-over-the-lead (apml/interfaces/walkthrough-engine.apml)"
+    anchors: "class-teachers, class-teacher-add, class-teacher-picker, class-teacher-make-lead, class-coteacher-link — data-walk attributes on this card, compiler-gated against drift"
+    ruling: "A new thing the app can DO ships with its walkthrough coverage, or it is not shipped."
+
+  honest_failure: |
+    Every write returns { ok, error } (ClassTeacherWriteResult), and the panel
+    prints the server's reason. A failed staff-list lookup says so rather than
+    rendering an empty picker — an empty list and a broken list must never
+    look the same to a teacher.
 
 flow StudentJoin:
   trigger: "User enters class join code"

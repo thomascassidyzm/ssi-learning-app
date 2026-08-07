@@ -3,11 +3,15 @@
  * node deletes its whole subtree, deepest-first; a school whose OWN node is
  * in the subtree dies with it (full school cascade); legacy-attached schools
  * (group_id only, node elsewhere/none) are ungrouped, not deleted.
+ *
+ * Membership walks parent_id, NOT the slug path (2026-08-06): nothing makes a
+ * slug unique, so a path walk on one of two same-named orgs would delete the
+ * OTHER tenant's children.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { deleteGroupCascade } from './schoolGroupDeletion'
 
-interface GroupRow { id: string; path: string | null }
+interface GroupRow { id: string; path: string | null; parent_id: string | null }
 let groups: GroupRow[]
 let nodeSchoolsByGroup: Record<string, { id: string }[]>
 let deletedGroups: string[]
@@ -18,7 +22,13 @@ function makeSupabase() {
   return {
     from: (table: string) => {
       const b: any = { _table: table, _filters: {} as Record<string, unknown> }
-      b.select = vi.fn(() => b)
+      // A bare `groups` select (no filter) is the forest fetch the parent_id
+      // subtree walk makes — resolve it straight away.
+      b.select = vi.fn((cols: string) => (
+        table === 'groups' && typeof cols === 'string' && cols.includes('parent_id')
+          ? Promise.resolve({ data: groups, error: null })
+          : b
+      ))
       b.update = vi.fn((row: any) => { b._update = row; return b })
       b.delete = vi.fn(() => { b._delete = true; return b })
       b.insert = vi.fn(() => b)
@@ -72,7 +82,7 @@ beforeEach(() => {
 
 describe('deleteGroupCascade — subtree', () => {
   it('flat group with no children keeps the old shape: ungroup schools, delete group', async () => {
-    groups = [{ id: 'g1', path: 'g-one' }]
+    groups = [{ id: 'g1', path: 'g-one', parent_id: null }]
     await deleteGroupCascade(makeSupabase(), 'g1')
     expect(deletedGroups).toEqual(['g1'])
     expect(deletedSchools).toEqual([])
@@ -81,14 +91,29 @@ describe('deleteGroupCascade — subtree', () => {
 
   it('nested subtree deletes deepest-first and takes school-nodes with it', async () => {
     groups = [
-      { id: 'root', path: 'r' },
-      { id: 'mid', path: 'r/mid' },
-      { id: 'leaf', path: 'r/mid/leaf' },
+      { id: 'root', path: 'r', parent_id: null },
+      { id: 'mid', path: 'r/mid', parent_id: 'root' },
+      { id: 'leaf', path: 'r/mid/leaf', parent_id: 'mid' },
     ]
     nodeSchoolsByGroup = { leaf: [{ id: 'school-leaf' }] }
     await deleteGroupCascade(makeSupabase(), 'root')
     expect(deletedGroups).toEqual(['leaf', 'mid', 'root'])
     expect(deletedSchools).toEqual(['school-leaf'])
+  })
+
+  it('a duplicate slug does not drag the other tenant\'s children in', async () => {
+    // Both orgs are named "Deborah Testing" so both slug to 'deborah-testing'
+    // (live, 2026-08-06). A `path LIKE 'deborah-testing/%'` walk would take the
+    // SURVIVING org's child with the doomed twin. parent_id cannot confuse them.
+    groups = [
+      { id: 'doomed', path: 'deborah-testing', parent_id: null },
+      { id: 'survivor', path: 'deborah-testing', parent_id: null },
+      { id: 'survivor-child', path: 'deborah-testing/class-one', parent_id: 'survivor' },
+    ]
+    await deleteGroupCascade(makeSupabase(), 'doomed')
+    expect(deletedGroups).toEqual(['doomed'])
+    expect(deletedGroups).not.toContain('survivor')
+    expect(deletedGroups).not.toContain('survivor-child')
   })
 
   it('missing root is a no-op', async () => {
@@ -99,9 +124,9 @@ describe('deleteGroupCascade — subtree', () => {
 
   it('sibling slug prefixes are not swallowed (ang vs angharad)', async () => {
     groups = [
-      { id: 'ang', path: 'ang' },
-      { id: 'angharad', path: 'angharad' },
-      { id: 'ang-child', path: 'ang/child' },
+      { id: 'ang', path: 'ang', parent_id: null },
+      { id: 'angharad', path: 'angharad', parent_id: null },
+      { id: 'ang-child', path: 'ang/child', parent_id: 'ang' },
     ]
     await deleteGroupCascade(makeSupabase(), 'ang')
     expect(deletedGroups).toEqual(['ang-child', 'ang'])

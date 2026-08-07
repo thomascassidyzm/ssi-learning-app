@@ -302,7 +302,9 @@ feature had to build.
 maintenance shape) + one recursive Vue component reusing existing CSS tokens and the existing
 `ConfirmDeleteModal`; no new DB surface to keep in sync, no new RLS policies (the six org tables
 stay in their documented RLS-off holding pattern per CLAUDE.md's gated TODO — this feature adds
-rows to that pattern, it doesn't change the pattern).
+rows to that pattern, it doesn't change the pattern). [Correction, 2026-08-06: that RLS-off
+holding pattern has since ended — CLAUDE.md's org-table RLS pass has landed, all six tables carry
+real policies. Noted here for accuracy; the decision and its reasoning at the time stand.]
 **Searched & rejected:**
 - Evolve `demo_orgs` into the general organisation model (the brief's second option) —
   rejected: `demo_orgs` is a narrow, purpose-built expiry ledger (`expires_at`/`status`/a
@@ -1145,3 +1147,39 @@ its 30-day trial with no extra wiring.
   course; the banded single list gets the same ordering benefit for free.
 **Search width:** visible-options
 **Decided by:** agent, on an explicit founder ruling 2026-08-02
+
+## 2026-08-06 — deploy sentinel: volume craters must be confirmed by a live browser play-through
+**Move:** New sentinel leg: a headless-Chromium session (`deploy-sentinel-play-probe.mjs`) loads
+production, starts the player, and asserts zero JS errors + a 2xx client telemetry POST. Runs
+once per deploy window and as the confirm/refute gate on any volume-crater verdict — probe
+passes → crater demoted to a note; probe fails/unavailable → loud alert stands.
+**Better:** two real false alarms in six days (2026-08-01 quiet-Friday-midnight; 2026-08-06
+school learners finishing before lunch — investigated to ground truth: 6 users' natural session
+ends coincided with the deploy minute) vs zero missed outages. With ~6 concurrent users the
+volume signal is statistically meaningless at most hours; a deterministic "can a learner load,
+play, and does the event land" check is the strong signal at this scale, and it covers the
+client-crash blind spot the stage-2 error beacon was sketched for.
+**Simpler:** reuses the incident's diagnostic script verbatim as the permanent probe; no new
+infra — chromium already in the playwright cache, nss libs extracted user-space (no root).
+**Cheaper (total):** one ~45s headless run per deploy window (+ one more only on a crater
+verdict); kills the recurring cost of Tom being woken by false craters.
+**Searched & rejected:**
+- Tuning volume thresholds further — rejected: already tuned once (quietest-but-one week) and
+  it false-alarmed again five days later; small-N is the root cause, no threshold fixes that.
+- Waiting for the stage-2 client error beacon — rejected: it needs an app change + rollout;
+  the play probe ships today user-space-only and directly answers the question the beacon
+  answers indirectly.
+**Search width:** visible-options.
+**Decided by:** agent (under Watson's incident directive; rollback explicitly NOT taken — the
+deploy was verified healthy end-to-end).
+
+## 2026-08-06 — co-teaching consumes NO paid seat, for now
+**Ruling (Tom, 2026-08-06, verbatim):** "co-teaching consumes NO paid seat, for now. Nothing currently enforces teacher seats at all, so no seat-consumption or pricing logic should be built into co-teaching -- keep the code neutral on pricing. This is an explicitly OPEN commercial question to revisit if/when teacher seats become enforced; fully reversible then."
+**Move:** A-74 co-teaching panel + class-scoped invite + route guards shipped 2026-08-06 without seat-gating. The implementation keeps no pricing side-effect or enforcement — a class can have unlimited co-teachers, they all gain full roster + analytics access, no charge surfaces anywhere client or server. The decision reserves the pricing shape for later when the school seat model becomes load-bearing.
+**Better:** the pedagogy is immediate (co-teachers access their classes today); the commercial shape is orthogonal and has no learner-facing surface to block on.
+**Simpler:** zero pricing logic to ship, gate, test, or maintain today. The co-teach flow is indistinguishable from the lead-teacher path; the money question is deferred.
+**Cheaper (total):** nothing to build, test, or keep in sync — the platform enforces no seat count today, so co-teaching is "free" by construction.
+**Searched & rejected:** seat-gating in the invite redemption or class-teacher write path — both rejected: nothing stops multiple teachers on a class now anyway (RLS is own-row, not ownership-unique), so enforcement wouldn't be novel; the gate would be theatre until seat billing actually exists.
+**Open question (Tom's words):** when/if teacher seats become enforced, this is fully reversible — add a gate at the seat boundary (redemption or role-add), price the seat tier, done. The neutral code today makes that trivial.
+**Search width:** founder-ruled.
+**Decided by:** founder.

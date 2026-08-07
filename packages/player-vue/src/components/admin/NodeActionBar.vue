@@ -7,11 +7,15 @@
 // calls the same server endpoints AdminStructure/the retired NodePanel used,
 // then emits `changed` so the host page refetches. No "node"/"entitlement"
 // jargon in any user-facing string (say school/group/courses).
-import { ref, computed, watch } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeEntitlementControl from '@/components/schools/NodeEntitlementControl.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
+import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
+import { useOrgLeadership } from '@/composables/useOrgLeadership'
+import { hasPasswordFlag, needsPasswordGate } from '@/composables/useManagerOnboarding'
 
 interface NodeShape {
   id: string
@@ -68,11 +72,59 @@ async function copyShare(): Promise<void> {
 // One inline form open at a time.
 type Form = 'person' | 'invite' | 'group' | 'school' | 'demo' | 'courses' | 'rename' | null
 const openForm = ref<Form>(null)
+
+// ─── Password before the first add (Deborah, 2026-08-06; Tom's ruling
+// "Password before adding a group or a learner?") ───
+// An org manager arrives by magic link and never sets a password, so when
+// that session dies they cannot get back into the organisation they built.
+// The three verbs a manager holds — invite a person, get a shareable link,
+// add a group — are ALL "add a group or a learner", and all three pass
+// through toggle(), which is why the gate lives on this single choke point.
+// Gated on leadsOrg (server-verified 'organisation' leader row), NOT on
+// `member` alone: the member mount also renders school nodes, and the
+// schools lane is deliberately unchanged.
+const auth = inject<any>('auth', null)
+const { leadsOrg, ensureLoaded } = useOrgLeadership()
+onMounted(() => { if (props.member) void ensureLoaded() })
+
+const GATED_VERBS: ReadonlyArray<Exclude<Form, null>> = ['person', 'invite', 'group']
+const gateOpen = ref(false)
+const pendingVerb = ref<Exclude<Form, null> | null>(null)
+
+const mustSetPassword = computed(() =>
+  needsPasswordGate({
+    member: !!props.member,
+    leadsOrg: leadsOrg.value,
+    hasPassword: hasPasswordFlag(auth?.user?.value ?? null),
+  }),
+)
+
 function toggle(f: Exclude<Form, null>): void {
+  if (mustSetPassword.value && GATED_VERBS.includes(f)) {
+    pendingVerb.value = f
+    gateOpen.value = true
+    return
+  }
   openForm.value = openForm.value === f ? null : f
   error.value = null
   notice.value = null
   shareUrl.value = null
+}
+
+/** Password saved — carry straight on into the verb they reached for. */
+function resumePendingVerb(): void {
+  const f = pendingVerb.value
+  pendingVerb.value = null
+  if (!f) return
+  openForm.value = f
+  error.value = null
+  notice.value = null
+  shareUrl.value = null
+}
+
+function closeGate(): void {
+  gateOpen.value = false
+  pendingVerb.value = null
 }
 
 const entitlementNodeId = computed(() => props.node.commercial?.schoolId ?? props.node.id)
@@ -204,20 +256,35 @@ async function submitInvite(): Promise<void> {
 // ─── Add a group / Add a school ───
 const newChildName = ref('')
 const isAddingChild = ref(false)
-async function submitGroup(): Promise<void> {
+// Duplicate-name warning — a sibling group under THIS node already slugs to
+// the same string. Nothing was created; the creator changes the name or
+// confirms, and confirming re-sends with confirm_duplicate: true.
+const childDuplicateWarning = ref<string | null>(null)
+watch(newChildName, () => { childDuplicateWarning.value = null })
+watch(openForm, () => { childDuplicateWarning.value = null })
+
+async function submitGroup(confirmDuplicate = false): Promise<void> {
   if (!newChildName.value.trim() || isAddingChild.value) return
   isAddingChild.value = true
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name: newChildName.value.trim(), type: 'group', parent_id: props.node.id }
+    if (confirmDuplicate) body.confirm_duplicate = true
     const resp = await fetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name: newChildName.value.trim(), type: 'group', parent_id: props.node.id }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, 'group')
+    if (duplicate) {
+      childDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(`"${newChildName.value.trim()}" added.`)
     newChildName.value = ''
+    childDuplicateWarning.value = null
     openForm.value = null
     emit('changed')
   } catch (err) {
@@ -288,21 +355,40 @@ function openRename(): void {
   renameValue.value = props.node.name
   toggle('rename')
 }
-async function submitRename(): Promise<void> {
+// Duplicate-name warning on rename — another group under the SAME parent
+// already slugs to this name. Nothing was renamed; the caller changes the
+// name or confirms, and confirming re-sends with confirm_duplicate: true.
+const renameDuplicateWarning = ref<string | null>(null)
+watch(renameValue, () => { renameDuplicateWarning.value = null })
+
+/**
+ * `confirmDuplicate` MUST be passed with explicit parens by every template
+ * call site — @keyup.enter="submitRename" would hand this the KeyboardEvent,
+ * which is truthy, and silently confirm a duplicate. Pinned by a test.
+ */
+async function submitRename(confirmDuplicate = false): Promise<void> {
   const name = renameValue.value.trim()
   if (!name || isRenaming.value) return
   if (name === props.node.name) { openForm.value = null; return }
   isRenaming.value = true
   try {
     const token = await getAuthToken()
+    const body: Record<string, unknown> = { name }
+    if (confirmDuplicate === true) body.confirm_duplicate = true
     const resp = await fetch(`/api/groups/${props.node.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     })
     const data = await resp.json().catch(() => ({}))
+    const duplicate = readDuplicateWarning(resp.status, data, 'group', 'Renaming')
+    if (duplicate) {
+      renameDuplicateWarning.value = duplicate.message
+      return
+    }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(`Renamed to "${name}".`)
+    renameDuplicateWarning.value = null
     openForm.value = null
     emit('renamed', name)
     emit('changed')
@@ -452,11 +538,22 @@ function closeDelete(): void {
       </div>
       <p class="kind-hint">Shareable — new arrivals enter their name before they're in.</p>
     </div>
-    <div v-else-if="openForm === 'group'" class="verb-form">
-      <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup" />
-      <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitGroup">
-        {{ isAddingChild ? 'Adding…' : 'Add' }}
-      </button>
+    <div v-else-if="openForm === 'group'" class="verb-form-block">
+      <div class="verb-form">
+        <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup()" />
+        <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitGroup()">
+          {{ isAddingChild ? 'Adding…' : 'Add' }}
+        </button>
+      </div>
+      <div v-if="childDuplicateWarning" class="duplicate-warning" role="alert">
+        <p class="duplicate-warning-text">{{ childDuplicateWarning }}</p>
+        <div class="duplicate-warning-actions">
+          <button type="button" class="btn-ghost-sm" @click="childDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-primary-sm" :disabled="isAddingChild" @click="submitGroup(true)">
+            {{ isAddingChild ? 'Adding…' : 'Go ahead anyway' }}
+          </button>
+        </div>
+      </div>
     </div>
     <div v-else-if="openForm === 'school'" class="verb-form">
       <input v-model="newChildName" type="text" class="frost-input" placeholder="School name" @keyup.enter="submitSchool" />
@@ -471,11 +568,22 @@ function closeDelete(): void {
         {{ isMinting ? 'Minting…' : 'Mint' }}
       </button>
     </div>
-    <div v-else-if="openForm === 'rename'" class="verb-form">
-      <input v-model="renameValue" type="text" class="frost-input" placeholder="New name" @keyup.enter="submitRename" @keyup.escape="openForm = null" />
-      <button class="btn-primary-sm" :disabled="isRenaming || !renameValue.trim()" @click="submitRename">
-        {{ isRenaming ? 'Saving…' : 'Save' }}
-      </button>
+    <div v-else-if="openForm === 'rename'" class="verb-form-block">
+      <div class="verb-form">
+        <input v-model="renameValue" type="text" class="frost-input" placeholder="New name" @keyup.enter="submitRename()" @keyup.escape="openForm = null" />
+        <button class="btn-primary-sm" :disabled="isRenaming || !renameValue.trim()" @click="submitRename()">
+          {{ isRenaming ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+      <div v-if="renameDuplicateWarning" class="duplicate-warning" role="alert">
+        <p class="duplicate-warning-text">{{ renameDuplicateWarning }}</p>
+        <div class="duplicate-warning-actions">
+          <button type="button" class="btn-ghost-sm" @click="renameDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-primary-sm" :disabled="isRenaming" @click="submitRename(true)">
+            {{ isRenaming ? 'Saving…' : 'Go ahead anyway' }}
+          </button>
+        </div>
+      </div>
     </div>
     <div v-else-if="openForm === 'courses'" class="verb-form verb-form-block">
       <NodeEntitlementControl :node-id="entitlementNodeId" :node-type="entitlementNodeType" />
@@ -490,6 +598,10 @@ function closeDelete(): void {
       >{{ copied ? 'Copied!' : shareUrl.url }}</button>
       <span v-if="shareUrl" class="share-hint">{{ shareUrl.hint }}</span>
     </div>
+
+    <!-- Password before the first add, then the install nudge. Blocks only
+         the password step; the install step is always escapable. -->
+    <ManagerOnboardingGate :is-open="gateOpen" @passworded="resumePendingVerb" @close="closeGate" />
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
@@ -523,6 +635,22 @@ function closeDelete(): void {
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .verb-form-block { display: block; }
+
+/* Duplicate-name warning — information, not an error. Nothing has gone
+   wrong; there is just a choice to make. */
+.duplicate-warning { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.duplicate-warning-text {
+  margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2); line-height: 1.5;
+  background: rgba(var(--tone-red), 0.06); border: 1px solid rgba(var(--tone-red), 0.18);
+  border-radius: var(--radius-lg); padding: var(--space-3);
+}
+.duplicate-warning-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.btn-ghost-sm {
+  padding: 6px 12px; font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: var(--radius-md);
+  border: 1px solid rgba(44, 38, 34, 0.14); background: rgba(255, 255, 255, 0.6); color: var(--schools-fg-2); cursor: pointer; white-space: nowrap;
+}
+.btn-ghost-sm:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
+.btn-ghost-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 .kind-hint { margin: 6px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
 .frost-input, .frost-select {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);

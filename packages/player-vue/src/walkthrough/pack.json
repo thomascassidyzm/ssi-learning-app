@@ -1,7 +1,114 @@
 {
-  "version": "567cfb0bd93e",
-  "generatedAt": "2026-08-03",
+  "version": "b26c1e68be11",
+  "generatedAt": "2026-08-06",
   "walks": [
+    {
+      "id": "hand-over-the-lead",
+      "title": "Hand a class over to another teacher",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "steps": [
+        {
+          "anchor": "class-teachers",
+          "say": "One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-teacher-make-lead",
+          "say": "**Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-teachers",
+          "say": "Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "install-the-app",
+      "title": "Put the app on your device",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "steps": [
+        {
+          "anchor": "account-card",
+          "say": "**Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "account-install",
+          "say": "This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "account-install",
+          "say": "If your browser can do it in one tap, the button does it. If it cannot, the button walks you through your browser's own menu instead — and you can remove the app again any time, like any other app.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Nothing here is one-time — if you said no on your first visit, this row is still waiting whenever you change your mind."
+        }
+      ]
+    },
+    {
+      "id": "invite-a-supply-teacher",
+      "title": "Invite a teacher who isn't here yet",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "steps": [
+        {
+          "anchor": "class-teachers",
+          "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-coteacher-link",
+          "say": "**Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-join-link",
+          "say": "Keep it apart from this one. This is the **student** link — anyone who opens it joins the class as a learner. One link makes a colleague, the other makes a pupil, so send them to the right people.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing."
+        }
+      ]
+    },
     {
       "id": "invite-first-person",
       "title": "Bring your first person in",
@@ -208,6 +315,86 @@
             "on": "next"
           },
           "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you."
+        }
+      ]
+    },
+    {
+      "id": "set-your-password",
+      "title": "Set or change your password",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "steps": [
+        {
+          "anchor": "account-card",
+          "say": "**Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "account-password",
+          "say": "If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "account-password",
+          "say": "Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the whole thing — one password, always changeable, always in the same place."
+        }
+      ]
+    },
+    {
+      "id": "share-a-class",
+      "title": "Share a class with a colleague",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "steps": [
+        {
+          "anchor": "class-teachers",
+          "say": "A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-teacher-add",
+          "say": "**Add a co-teacher** is how you share it. Nobody is added until you pick a name and confirm.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "class-teacher-picker",
+          "say": "You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-teachers",
+          "say": "What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
         }
       ]
     },

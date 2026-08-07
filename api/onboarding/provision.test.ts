@@ -41,6 +41,7 @@ function makeChainable(table: string) {
     select: (cols: string) => { calls.push(['select', cols]); return builder },
     insert: (obj: unknown) => { calls.push(['insert', obj]); recordWrite(table, 'insert', obj); return builder },
     update: (obj: unknown) => { calls.push(['update', obj]); recordWrite(table, 'update', obj); return builder },
+    delete: () => { calls.push(['delete']); recordWrite(table, 'delete', null); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
@@ -148,6 +149,51 @@ describe('POST /api/onboarding/provision — operator-capture guard', () => {
     expect(writes.teachers).toHaveLength(1)
   })
 
+  it('DUAL-WRITES the class/teacher tag alongside the lead pointer on the first class (A-74)', async () => {
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-n', display_name: 'Aran', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    responders.teachers = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'teacher-n' }, error: null } : { data: null, error: null }
+    responders.classes = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'class-n' }, error: null } : undefined
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'tutor', course_code: 'eng_for_fra' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.classes.some((w) => w.op === 'insert' && w.payload.teacher_user_id === 'auth-op-1')).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      user_id: 'auth-op-1',
+      tag_type: 'class',
+      tag_value: 'CLASS:class-n',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('ROLLS THE CLASS BACK when the teacher tag fails — never a lead pointer with no tag', async () => {
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-n', display_name: 'Aran', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    responders.teachers = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'teacher-n' }, error: null } : { data: null, error: null }
+    responders.classes = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'class-n' }, error: null } : undefined
+    responders.user_tags = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: null, error: { message: 'boom' } } : { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'tutor', course_code: 'eng_for_fra' } }), res)
+
+    // Onboarding itself still succeeds — the first class is a convenience, and
+    // its failure must not strand a new tutor at the door.
+    expect(res._status).toBe(200)
+    expect(writes.classes.some((w) => w.op === 'delete')).toBe(true)
+  })
+
   it('refuses the org track for an ssi_admin too', async () => {
     responders.learners = (calls) =>
       calls.some((c) => c[0] === 'select')
@@ -207,6 +253,59 @@ describe('POST /api/onboarding/provision — org track', () => {
     expect(writes.groups[0].payload).toMatchObject({ name: 'Cardiff Council', type: 'organisation' })
     expect(writes.govt_admins[0].payload).toMatchObject({ user_id: 'auth-op-1', group_id: 'group-new' })
     expect(writes.learners.some((w) => w.op === 'update' && w.payload.educational_role === 'govt_admin')).toBe(true)
+  })
+
+  it('WARNS on a duplicate org name at the /orgs door — 409 duplicate_name, and no org, no leader row, no role change', async () => {
+    responders.govt_admins = () => ({ data: null, error: null })
+    responders.groups = (calls) =>
+      calls.some((c) => c[0] === 'select' && String(c[1]).includes('name'))
+        ? { data: [{ id: 'org-1', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z', path: 'deborah-testing' }], error: null }
+        : undefined
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'deborah testing' } }), res)
+
+    expect(res._status).toBe(409)
+    expect(res._json.code).toBe('duplicate_name')
+    // Another tenant's org — name and date only.
+    expect(res._json.duplicates).toEqual([{ name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z' }])
+    expect(writes.groups).toBeUndefined()
+    expect(writes.govt_admins).toBeUndefined()
+    // The signup must not be left half-done: no govt_admin role stamped either.
+    expect(writes.learners?.some((w) => w.op === 'update')).toBeFalsy()
+  })
+
+  it('confirm_duplicate: true creates the second org anyway — legitimate duplicates are allowed', async () => {
+    responders.govt_admins = () => ({ data: null, error: null })
+    responders.groups = (calls) => {
+      if (calls.some((c) => c[0] === 'insert')) {
+        return { data: { id: 'group-2', name: 'Deborah Testing', platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z' }, error: null }
+      }
+      if (calls.some((c) => c[0] === 'select' && String(c[1]).includes('name'))) {
+        return { data: [{ id: 'org-1', name: 'Deborah Testing', created_at: '2026-08-05T10:00:00Z', path: 'deborah-testing' }], error: null }
+      }
+      return undefined
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Deborah Testing', confirm_duplicate: true } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.redirect).toBe('/org/group-2')
+    expect(writes.govt_admins[0].payload).toMatchObject({ user_id: 'auth-op-1', group_id: 'group-2' })
+  })
+
+  it('a RETURNING leader is never warned about their own org — they are handed it back, as before', async () => {
+    responders.govt_admins = () => ({ data: { group_id: 'group-existing' }, error: null })
+    responders.groups = () => ({
+      data: { platform_status: 'trial', platform_expires_at: '2026-09-01T00:00:00.000Z', seats: null },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'org', org_name: 'Cardiff Council' } }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.existing).toBe(true)
   })
 
   it('a caller who already leads a group is handed back their existing org, not re-provisioned', async () => {

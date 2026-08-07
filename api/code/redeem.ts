@@ -202,7 +202,25 @@ async function redeemInviteCode(
   const codeType: string = inviteRow.code_type
 
   // Check user hasn't already redeemed same context
-  if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
+  if (codeType === 'teacher' && inviteRow.grants_class_id) {
+    // Class-scoped co-teacher code (A-74): the CLASS tag is the thing this
+    // link grants, so it is what "already redeemed" means here. Deduping on
+    // the school tag instead would refuse the link for any teacher already in
+    // the school — the common case — and they would never get class access.
+    const { data: existingTag } = await supabase
+      .from('user_tags')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tag_type', 'class')
+      .eq('tag_value', `CLASS:${inviteRow.grants_class_id}`)
+      .eq('role_in_context', 'teacher')
+      .is('removed_at', null)
+      .maybeSingle()
+    if (existingTag) {
+      res.status(200).json({ success: false, error: 'Already redeemed for this class' })
+      return
+    }
+  } else if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
     const { data: existingTag } = await supabase
       .from('user_tags')
       .select('id')
@@ -570,7 +588,7 @@ async function redeemInviteCode(
       return
     }
   } else if (codeType === 'teacher') {
-    if (inviteRow.grants_group_id && !inviteRow.grants_school_id) {
+    if (inviteRow.grants_group_id && !inviteRow.grants_school_id && !inviteRow.grants_class_id) {
       // Group-scoped code (interior-node join, I7) — no legacy branch to fall
       // through to.
       const affiliateError = await affiliateToGroupNode(supabase, userId, inviteRow.grants_group_id as string, 'teacher')
@@ -580,21 +598,48 @@ async function redeemInviteCode(
         return
       }
     } else {
-      const { error: tagError } = await supabase
-        .from('user_tags')
-        .insert({
+      // A teacher code grants the school seat, the class seat, or BOTH — a
+      // class-scoped co-teacher link (A-74) carries its class AND the school
+      // derived from that class (api/invite/create.ts), so both tags are
+      // written together. teacher↔class is a user_tags relationship, NOT
+      // classes.teacher_user_id (that stays the lead pointer, untouched by a
+      // co-teacher joining).
+      const teacherTags: Array<Record<string, unknown>> = []
+      if (inviteRow.grants_school_id) {
+        teacherTags.push({
           user_id: userId,
           tag_type: 'school',
           tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
           role_in_context: 'teacher',
           added_by: userId,
         })
-      // 23505 → idempotent no-op (concurrent/retried redemption already tagged
-      // this user for this school). See the school_admin_join branch note above.
-      if (tagError && tagError.code !== '23505') {
-        console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
-        res.status(500).json({ error: 'Internal server error' })
+      }
+      if (inviteRow.grants_class_id) {
+        teacherTags.push({
+          user_id: userId,
+          tag_type: 'class',
+          tag_value: `CLASS:${inviteRow.grants_class_id}`,
+          role_in_context: 'teacher',
+          added_by: userId,
+        })
+      }
+      // Degenerate grant: a teacher code scoped to nothing at all. Refuse
+      // LOUDLY rather than writing a literal `SCHOOL:null` tag that grants
+      // nothing and pollutes every membership query forever.
+      if (!teacherTags.length) {
+        console.error('[CodeRedeem] Teacher code grants no school, class or group:', inviteRow.code)
+        res.status(200).json({ success: false, error: 'This invite is not linked to a school or class' })
         return
+      }
+      for (const tag of teacherTags) {
+        const { error: tagError } = await supabase.from('user_tags').insert(tag)
+        // 23505 → idempotent no-op (concurrent/retried redemption already
+        // tagged this user here). See the school_admin_join branch note above.
+        if (tagError && tagError.code !== '23505') {
+          console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
+          res.status(500).json({ error: 'Internal server error' })
+          return
+        }
       }
     }
   } else if (codeType === 'student') {
@@ -611,6 +656,15 @@ async function redeemInviteCode(
         return
       }
     } else {
+      // Degenerate grant: a student code scoped to no class and no group. The
+      // old behaviour wrote a literal `CLASS:null` tag — a tag that enrols the
+      // learner nowhere while counting as a class membership everywhere it is
+      // read. Refuse loudly instead (same rule as the teacher branch above).
+      if (!inviteRow.grants_class_id) {
+        console.error('[CodeRedeem] Student code grants no class or group:', inviteRow.code)
+        res.status(200).json({ success: false, error: 'This invite is not linked to a class' })
+        return
+      }
       const { error: tagError } = await supabase
         .from('user_tags')
         .insert({

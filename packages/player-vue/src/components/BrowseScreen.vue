@@ -9,6 +9,7 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useUserRole } from '@/composables/useUserRole'
+import { useOrgLeadership } from '@/composables/useOrgLeadership'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { hasTryEntitlement } from '@/composables/useEntitlement'
 
@@ -17,7 +18,7 @@ const router = useRouter()
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
-const { platformRole, hasSchoolRole, educationalRole } = useUserRole()
+const { platformRole, hasSchoolRole, educationalRole, isGovtAdmin } = useUserRole()
 
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
@@ -42,8 +43,23 @@ const auth = inject('auth')
 const isGuest = computed(() => auth?.isGuest?.value ?? true)
 const { open: openAuth } = useAuthModal()
 
-// Show schools link for users with a school-scoped educational role.
-const hasSchoolsAccess = computed(() => hasSchoolRole.value)
+// Org lane (2026-08-06, same fix as SettingsScreen): an organisation leader
+// carries educational_role = 'govt_admin' too, so hasSchoolRole alone offered
+// them a Schools Dashboard and nothing else. useOrgLeadership asks the server
+// which lane their own govt_admins row actually points at.
+const { leadsOrg, orgOnly, orgDashboardPath, isLoaded: orgChecked, ensureLoaded: ensureOrgChecked } =
+  useOrgLeadership()
+
+// Show schools link for users with a school-scoped educational role — unless
+// they're an org leader with no school side, and not while a govt_admin's
+// lane is still being resolved (no Schools flash before the org door lands).
+const hasSchoolsAccess = computed(
+  () => hasSchoolRole.value && !orgOnly.value && !(isGovtAdmin.value && !orgChecked.value)
+)
+
+const goToOrg = () => {
+  if (orgDashboardPath.value) router.push(orgDashboardPath.value)
+}
 
 // Solo tutors get their OWN dashboard link (/tutors/dashboard), kept separate
 // from the school dashboard so a tutor is never sent to the member-facing
@@ -388,6 +404,8 @@ const getProgress = (courseCode) => {
 
 onMounted(() => {
   fetchCourses()
+  // Which dashboard door(s) this account gets — org, school, or both.
+  if (!isGuest.value && hasSchoolRole.value) void ensureOrgChecked()
 })
 </script>
 
@@ -418,6 +436,24 @@ onMounted(() => {
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </div>
+
+      <!-- ── Organisation Dashboard Link (org leaders) ── -->
+      <button v-if="leadsOrg && orgDashboardPath" class="schools-link" @click="goToOrg">
+        <div class="schools-link-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 21h18"/>
+            <path d="M5 21V7l7-4 7 4v14"/>
+            <path d="M10 21v-6h4v6"/>
+          </svg>
+        </div>
+        <div class="schools-link-text">
+          <span class="schools-link-title">Organisation Dashboard</span>
+          <span class="schools-link-subtitle">Your people, invites & progress</span>
+        </div>
+        <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
 
       <!-- ── Schools Dashboard Link (teachers/admins) ── -->
       <button v-if="hasSchoolsAccess" class="schools-link" @click="goToSchools">

@@ -326,6 +326,19 @@ describe('POST /api/groups/:id/invites', () => {
     expect(insertedRows.length).toBe(0)
   })
 
+  it('a personal TEACHER link carrying a class_id is refused at the door — the guard that stops a code_type=teacher row with grants_class_id and no school (A-74 scout finding, verified NOT reachable)', async () => {
+    // The scout's inferred `SCHOOL:null` bug went via this mint. It cannot:
+    // personal.class_id is 400'd for every role but student, so a teacher code
+    // minted here always carries grants_group_id. Class-scoped teacher codes
+    // come from api/invite/create.ts instead, which derives the school from
+    // the class. This test pins the guard so the path stays closed.
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ role: 'teacher', personal: { name: 'Supply Teacher', class_id: 'class-7' } as any }, 'group-1'), res)
+    expect(res.statusCode).toBe(400)
+    expect(insertedRows.length).toBe(0)
+  })
+
   it('personal mint mints NO code when provisioning fails', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     provisionPersonaResult = { authUserId: '', email: '', learnerId: null, error: 'already been registered' }
