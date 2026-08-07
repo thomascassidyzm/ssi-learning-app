@@ -24,6 +24,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { ensureSchoolNode } from '../_utils/schoolNode'
 import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
+import { isTestSchoolName } from '../_utils/isTestSchoolName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -80,6 +81,7 @@ export default async function handler(
       admin_user_id: adminResult.userId,
     }
     if (groupId) schoolRow.group_id = groupId
+    if (isTestSchoolName(schoolName)) schoolRow.is_test = true
 
     const { data: school, error: schoolError } = await supabase
       .from('schools')
