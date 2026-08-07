@@ -13,6 +13,11 @@
  * in order — a scene with an odd turn count leaves its closing turn (e.g. a
  * narrator coda) as its own cohort.
  *
+ * One exception, at the cold start only (Tom, A-52, 2026-08-07): the FIRST
+ * cohort absorbs the ones after it until it holds at least
+ * POD_COLD_START_MIN_SENTENCES sentences, so a learner's first lap is never
+ * a single line played on repeat. See that constant for the evidence.
+ *
  * Why not whole-scene cohorts (the 2026-07-23 model): measured on
  * ita_for_eng:pod-0, scenes 6+ run 17-36 sentences — a whole-scene debut
  * there is ~110+ plays in one lap, and Tom's staging test found even scene 1
@@ -55,6 +60,31 @@ export interface PodCohort {
   size: number
 }
 
+/**
+ * COLD-START FLOOR (Tom's ruling on A-52, 2026-08-07): a learner's very first
+ * lap must never be a single sentence. Measured on live telemetry: a Hebrew
+ * learner's first pod held exactly one sentence, and because every lap
+ * restarts from sentence one, that one clip played 19 times across 7 laps —
+ * indistinguishable from a broken app. So the FIRST cohort absorbs the
+ * cohorts after it until it holds at least this many sentences (or the pod
+ * runs out). Later cohorts keep the pure exchange partition — the ruling is
+ * about the cold start, not about lap size in general.
+ *
+ * The floor lives in the partition rather than in the scheduler on purpose:
+ * the partition stays the single pure source of truth, so the ratchet
+ * (podCohortRoundFor / podRatchetAfterLap), stage cohesion and alive-counting
+ * all follow it with no further change, and every client derives the same
+ * cohorts from the same rows. The merge may cross a scene wall when scene 1
+ * is smaller than the floor — the wall governs the ramp, and the cold start
+ * outranks it for one cohort.
+ *
+ * The merge absorbs WHOLE exchanges (an adjacency pair still never straddles
+ * a lap), so the first lap is at least the floor, not exactly it: two
+ * two-sentence exchanges make a first lap of four. That is the intended
+ * shape — a short conversation rather than a line on repeat.
+ */
+export const POD_COLD_START_MIN_SENTENCES = 3
+
 /** Same-scene test: rows with a missing scene_number never force a break. */
 const sameScene = (a: number | null | undefined, b: number | null | undefined): boolean =>
   a == null || b == null || a === b
@@ -65,8 +95,12 @@ const sameScene = (a: number | null | undefined, b: number | null | undefined): 
  * in progress); within each scene, turns (maximal glue_to_next runs) pair off
  * in order into EXCHANGES — each cohort is one exchange, a trailing lone turn
  * standing alone.
+ *
+ * This is the PURE exchange partition, without the cold-start floor —
+ * `buildPodCohorts` is this plus `applyPodColdStartFloor`, and is what
+ * callers want.
  */
-export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+export function buildPodExchangeCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
   // Pass 1 — scene runs (the walls). Scene identity of the current run is the
   // last non-null scene_number seen, so a null row bridges rather than resets
   // (…1, null, 1… stays one scene, …1, null, 2… breaks at the 2).
@@ -104,6 +138,31 @@ export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
     }
   }
   return cohorts
+}
+
+/**
+ * Apply the cold-start floor: merge the leading cohorts until the first one
+ * clears POD_COLD_START_MIN_SENTENCES, so lap 1 is a short conversation and
+ * not one line on repeat. Stops at the first cohort that clears the floor;
+ * a pod shorter than the floor keeps its single cohort; every later cohort
+ * is untouched.
+ */
+export function applyPodColdStartFloor(cohorts: readonly PodCohort[]): PodCohort[] {
+  let size = 0
+  let n = 0
+  while (n < cohorts.length && size < POD_COLD_START_MIN_SENTENCES) {
+    size += cohorts[n].size
+    n++
+  }
+  return n > 1 ? [{ start: 0, size }, ...cohorts.slice(n)] : [...cohorts]
+}
+
+/**
+ * The cohort partition callers use: exchange cohorts (scene walls, adjacency
+ * pairs) with the cold-start floor applied to the first one.
+ */
+export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+  return applyPodColdStartFloor(buildPodExchangeCohorts(rows))
 }
 
 /** 0-based ordinal of the cohort containing sentence index `idx`, or -1. */
