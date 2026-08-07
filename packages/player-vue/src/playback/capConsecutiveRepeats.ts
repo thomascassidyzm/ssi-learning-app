@@ -191,6 +191,80 @@ export function capConsecutiveRepeats<T>(
 }
 
 /**
+ * Prompt identity for a player `Cycle` — normalised known text paired with
+ * normalised target text. Falls back to the audio URLs for listening cycles,
+ * whose missing side (pod sentence plays carry no known text, pod translations
+ * carry no target text) would otherwise make two plays of the same clip look
+ * like different prompts.
+ */
+export interface PromptIdentifiableCycle {
+  type?: string
+  known?: { text?: string; audioUrl?: string }
+  target?: { text?: string; voice1Url?: string }
+}
+
+export function cyclePromptIdentity(cycle: PromptIdentifiableCycle): string {
+  const norm = (text: string | null | undefined): string =>
+    text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
+  const known = norm(cycle.known?.text)
+  const target = norm(cycle.target?.text)
+  if (known || target) return `${known}|${target}`
+  return `audio:${cycle.known?.audioUrl ?? ''}|${cycle.target?.voice1Url ?? ''}`
+}
+
+/**
+ * Apply the A-64 cap to the cycle list of every round, in place of the round's
+ * original order. Rounds are the player's unit of position, so re-interleaving
+ * is confined within a round; each round is seeded with the previous round's
+ * tail so the law also holds at the seam.
+ *
+ * This is the LAST point at which the law can be enforced for the main player:
+ * both round adapters (`toSimpleRounds` for the legacy generator path,
+ * `backendCyclesToRounds` / `infPlayCyclesToRounds` for the instant-playback
+ * path that `INSTANT_PLAYBACK_ALL` makes the live default) hand their output
+ * straight to SimplePlayer. Enforcing here rather than upstream also survives
+ * the adapters' own missing-audio filtering, which can pull two previously
+ * separated prompts together.
+ *
+ * A round's LEADING intro / component_intro / debut cycles are ANCHORED — never
+ * displaced by re-interleaving. A round must open with its intro and debut;
+ * that structure is asserted by validateLearningScript and assumed by the UI.
+ * Without the anchor, a round whose intro identity happened to match the two
+ * cycles ending the previous round would have a build phrase pulled in front of
+ * its intro. That seam case needs the previous round's last two cycles to be
+ * textually identical to the next LEGO's bare text, so it is not reachable with
+ * real content — but the guard costs nothing and removes the class.
+ */
+const ANCHORED_LEADING_TYPES = new Set(['intro', 'component_intro', 'debut'])
+
+export function capRoundCycles<C extends { type?: string }, R extends { cycles: C[] }>(
+  rounds: R[],
+  identityOf: (cycle: C) => string,
+): { rounds: R[]; dropped: number; reorderedRounds: number } {
+  let tail: string[] = []
+  let dropped = 0
+  let reorderedRounds = 0
+  const out = rounds.map(round => {
+    // Peel off the anchored opening (intro / component_intro / debut) and pass
+    // it through untouched, carrying its identities into the cap as the seed.
+    let anchorEnd = 0
+    while (anchorEnd < round.cycles.length
+      && ANCHORED_LEADING_TYPES.has(round.cycles[anchorEnd].type ?? '')) anchorEnd++
+    const anchored = round.cycles.slice(0, anchorEnd)
+    for (const cycle of anchored) tail = [...tail, identityOf(cycle)].slice(-2)
+
+    const capped = capConsecutiveRepeats(round.cycles.slice(anchorEnd), identityOf, { seed: tail })
+    tail = capped.tail
+    dropped += capped.dropped.length
+    if (capped.reordered) reorderedRounds++
+    return capped.reordered || capped.dropped.length > 0
+      ? { ...round, cycles: [...anchored, ...capped.items] }
+      : round
+  })
+  return { rounds: out, dropped, reorderedRounds }
+}
+
+/**
  * Assertion helper for tests and dev-build self-checks: the index of the first
  * item that is the (max + 1)th consecutive repeat, or -1 when the sequence is
  * lawful.

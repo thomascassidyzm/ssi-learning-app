@@ -43,11 +43,8 @@ The three new clips, each under five steps:
 - **Hand a class over to another teacher** (3 steps) — passing the lead, what
   changes when you do, and what does not.
 
-All three are offered to teachers on the class page. Building them also turned up
-a real gap and closed it: the class-scoped invite link had a working back end but
-no button in the interface to mint one, so there was nothing for a clip to point
-at. The compile gate passes with them in — nine clips, thirty-three steps across
-the product.
+All three are offered to teachers on the class page. The compile gate passes with
+them in: nine clips, thirty-three steps in total across the product.
 
 ---
 
@@ -112,14 +109,13 @@ away from someone mid-term.
 
 ---
 
-## One flake, chased down
+## One thing to know that is not ours
 
-Midway through, one unrelated test — the schools top-bar play-as-class check —
-timed out. It timed out on dev without any of this work applied too, so it was
-flagged rather than patched. On the final combined state it passes: it was a slow
-test tripping a five-second limit under load, not a broken product. Everything is
-green — 1,093 server tests, 1,690 app tests, both typechecks, no lint errors, and
-the clip compile gate.
+While running the full test suite after merging, one unrelated test on the
+dev branch fails — a timeout in the schools top-bar play-as-class check. It fails
+identically on dev without any of this work applied, so it arrived with a
+different change earlier today and belongs to whoever owns that area. Flagged
+rather than fixed, because silently patching another lane's test hides it.
 
 ---
 

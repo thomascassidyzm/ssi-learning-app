@@ -42,6 +42,7 @@ import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
+import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
@@ -92,7 +93,9 @@ export function infPlayCyclesToRounds(
       cycles: playerCycles,
     })
   }
-  return rounds
+  // A-64 floor — see capRoundCycles. INF PLAY rounds come straight off the
+  // wire, so this is the only cap they get.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 /**
@@ -177,7 +180,14 @@ export function backendCyclesToRounds(
 
   // `roundMap.rounds` is already sorted by round_index, so the rounds
   // array is in script order. No explicit sort needed.
-  return rounds
+  //
+  // A-64 floor (Tom, 2026-08-06). THIS is the instant-playback path that
+  // INSTANT_PLAYBACK_ALL makes the live default for every course, and it never
+  // touches generateLearningScript — so without this call the law would hold
+  // only on the legacy generator path. Applied after the missing-audio skip in
+  // toPlayerCycle, which can itself pull two previously separated prompts
+  // together.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 /**
