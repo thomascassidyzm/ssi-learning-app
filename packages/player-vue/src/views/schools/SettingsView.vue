@@ -109,6 +109,14 @@ async function loadSubscription() {
       // Seed the stepper from what's actually paid for, once.
       if (isSubscribed.value) seatCount.value = seats
     }
+    // NOT subscribed → the plan line is a quote, not a bill, so quote against
+    // the school's ACTUAL staff count (server-side, founding admin included)
+    // rather than the hard-coded 1. Matches what /schools/upgrade now opens at,
+    // so the two surfaces can't disagree about the same school.
+    const count = data?.school?.teacher_count
+    if (!isSubscribed.value && typeof count === 'number' && count > 1) {
+      seatCount.value = count
+    }
   } catch {
     // Non-fatal — billing UI just stays in its default (Subscribe) state.
   }
