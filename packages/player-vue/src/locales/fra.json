@@ -41,7 +41,7 @@
     "phrases": "Phrases",
     "mySchool": "Mon école",
     "schoolSubtitle": "Classes, élèves et progrès",
-    "forSpeakers": "pour les {lang}ophones"
+    "forSpeakers": "pour les locuteurs de {lang}"
   },
   "session": {
     "belt": "Ceinture",
@@ -150,7 +150,7 @@
     "youreOnARoll": "Vous êtes lancé",
     "impressiveProgress": "Progrès impressionnant",
     "nearlyThere": "Presque là",
-    "forSpeakers": "pour les {lang}ophones"
+    "forSpeakers": "pour les locuteurs de {lang}"
   },
   "phase": {
     "getReadyToSpeak": "préparez-vous à parler",

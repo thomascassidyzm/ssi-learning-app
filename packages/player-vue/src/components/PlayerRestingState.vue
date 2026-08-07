@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
-import { getLanguageName, t } from '@/composables/useI18n'
+import { getLanguageName, forSpeakersLabel, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
@@ -39,8 +39,7 @@ const courseName = computed(() => {
 const courseSubtitle = computed(() => {
   if (!props.course?.known_lang) return ''
   // Fully localized: "for English Speakers" / "para hablantes de Español" / "i siaradwyr Saesneg"
-  const knownName = getLanguageName(props.course.known_lang)
-  return t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName)
+  return forSpeakersLabel(props.course.known_lang)
 })
 
 const belt = computed(() => {

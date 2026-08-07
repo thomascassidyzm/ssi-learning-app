@@ -249,6 +249,73 @@ export const getLanguageName = (langCode: string | null | undefined, overrideLan
 }
 
 /**
+ * French elision: `de` + a vowel-initial name contracts to `d'`.
+ *
+ * "pour les locuteurs de Anglais" is not a sentence a French speaker would
+ * write — it reads "de Anglais" where the language demands "d'Anglais".
+ * The template can't do this itself: whether it elides depends on the name
+ * that lands in the slot, which is chosen at runtime.
+ */
+const FRENCH_ELIDABLE: Record<string, string> = { de: "d'", le: "l'", la: "l'", que: "qu'" }
+const FRENCH_VOWEL_INITIAL = /^[aeiouyàâäéèêëîïíôöòûüùœæ]/i
+
+/**
+ * h aspiré blocks elision ("le hongrois"), h muet does not ("l'hébreu") —
+ * and nothing about the spelling says which: it is a per-word property of
+ * French, so it has to be listed. Only the h-initial language names we ship
+ * need a ruling; anything unlisted is treated as aspiré, which leaves the
+ * name untouched rather than mangling it.
+ */
+const FRENCH_MUTE_H = new Set([
+  'heb', // hébreu — l'hébreu
+  'hin', // hindi — l'hindi
+  // Aspiré, deliberately absent: hau (le haoussa), hun (le hongrois).
+])
+
+const elidesInFrench = (langCode: string, langName: string): boolean => {
+  if (FRENCH_VOWEL_INITIAL.test(langName)) return true
+  return /^h/i.test(langName) && FRENCH_MUTE_H.has(langCode)
+}
+
+/**
+ * Put a language name into a `{lang}` template, honouring the interface
+ * language's own rules for composing it.
+ *
+ * Only French needs a rule today. Spanish/Portuguese "de {lang}" never
+ * elides, German compounds with a hyphen, and the rest place the name
+ * without a preposition — so everything else is a plain substitution, and
+ * the rule is keyed on the interface locale so an English fallback string
+ * can never be French-ified.
+ */
+export const interpolateLanguageName = (
+  template: string,
+  langCode: string,
+  langName: string,
+): string => {
+  if (currentLocale.value === 'fra' && elidesInFrench(langCode, langName)) {
+    for (const [word, contraction] of Object.entries(FRENCH_ELIDABLE)) {
+      const elided = template.replace(
+        new RegExp(`(^|\\s)${word} \\{lang\\}`),
+        `$1${contraction}{lang}`,
+      )
+      if (elided !== template) return elided.replace('{lang}', langName)
+    }
+  }
+  return template.replace('{lang}', langName)
+}
+
+/**
+ * The "for X speakers" course subtitle, fully composed: the name in the
+ * reading language, inside the reading language's own frame.
+ */
+export const forSpeakersLabel = (knownLangCode: string | null | undefined): string => {
+  if (!knownLangCode) return ''
+  const knownName = getLanguageName(knownLangCode)
+  const template = t('courseSelector.forSpeakers', 'for {lang} speakers')
+  return interpolateLanguageName(template, knownLangCode, knownName)
+}
+
+/**
  * Language endonyms — the name each language calls itself.
  * Used for "I speak" buttons so they're always in the speaker's own language.
  */
