@@ -20,6 +20,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { auditSchoolWriteRejection } from '../_utils/auditSchoolWriteRejection'
+import { isTestSchoolName } from '../_utils/isTestSchoolName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -112,6 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const updates: Record<string, unknown> = { school_name: schoolName }
     if (regionCode) updates.region_code = regionCode
     if (nameConfirmed !== undefined) updates.name_confirmed = nameConfirmed
+    if (isTestSchoolName(schoolName)) updates.is_test = true
 
     const { data: school, error: updateError } = await supabase
       .from('schools')

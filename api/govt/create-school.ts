@@ -39,6 +39,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { ensureSchoolNode } from '../_utils/schoolNode'
 import { SCHOOL_HERITAGE_TRIAL_DAYS } from '../_utils/trialPolicy'
+import { isTestSchoolName } from '../_utils/isTestSchoolName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -98,6 +99,7 @@ export default async function handler(
         platform_status: 'trial',
         trial_kind: 'free_1yr',
         platform_expires_at: isoIn(PLATFORM_TRIAL_FREE_DAYS),
+        ...(isTestSchoolName(schoolName) ? { is_test: true } : {}),
       })
       .select('id, school_name, teacher_join_code, admin_join_code, group_id, platform_status, trial_kind, platform_expires_at, created_at')
       .single()
