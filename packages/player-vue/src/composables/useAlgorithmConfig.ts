@@ -248,8 +248,15 @@ export const DEFAULT_FAST: ModeConfig = {
  * added that it "does not need to be dramatic", so the doubling is confined to
  * boot + floor and deliberately does NOT touch the assembly slope or the
  * ceiling — doubling those too would compound into a sluggish gap on long
- * sentences. Easy does not slow the audio (playback stays 1.0×, because slowed
- * speech teaches a register nobody speaks).
+ * sentences.
+ *
+ * SPEED: Easy does NOT have a speed of its own. It rides the same belt/target-
+ * language ramp as Fast (Tom's ruling, 2026-08-07: "Easy should follow the
+ * exact speed pattern on-ramps for the target language as Fast — but just with
+ * bigger pauses, more repetitions and so on"). Easy used to force a flat 1.0×,
+ * which made a White-belt beginner on Easy hear FASTER speech than the same
+ * beginner on Fast. `playback_speed` below is therefore INERT for both modes —
+ * kept only because the DB row carries the column.
  */
 export const DEFAULT_EASY: ModeConfig = {
   playback_speed: 1.0,

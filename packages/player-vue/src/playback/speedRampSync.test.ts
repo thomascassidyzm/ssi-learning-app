@@ -19,10 +19,11 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // the instant builder, so in practice NO learner got a ramp: a White-belt
 // beginner played at flat 1.0× where the curve says 0.8×.
 //
-// It went unnoticed because the play-time override
-// (`getPlaybackSpeedMultiplier`) only ever CANCELS a baked ramp for Turbo — it
-// never applies one — so an unbaked cycle just plays flat forever, with no
-// error and no log.
+// It went unnoticed because the play-time override of the day only ever
+// CANCELLED a baked ramp — it never applied one — so an unbaked cycle just
+// played flat forever, with no error and no log. (That override is gone as of
+// 2026-08-07: it was also how Easy flattened the ramp for itself. See
+// easyFastSpeedParity.test.ts.)
 //
 // The damage is TWO-SIDED. `computePauseDuration` takes the baked speed as its
 // BELT PROXY (`beltProgress`: 0.8 → White, 1.0 → Green). An absent speed reads

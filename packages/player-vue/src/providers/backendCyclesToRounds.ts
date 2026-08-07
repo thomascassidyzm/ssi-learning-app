@@ -270,10 +270,11 @@ export function toPlayerCycle(
   //    in simplePlayer.setRuntimeOverrides to apply the same belt/context
   //    curves at play time. That keeps this adapter pure."
   // That assumption was FALSE and cost every learner their belt ramp from the
-  // instant-playback cutover until 2026-08-04. `getPlaybackSpeedMultiplier`
-  // only CANCELS a baked ramp (Easy does); it never applies one. The speed is
-  // now baked above, from the course's real `voice_config.target_speed` which
-  // the caller threads in as `targetSpeed`.
+  // instant-playback cutover until 2026-08-04: the play-time override it named
+  // only ever CANCELLED a baked ramp (Easy's did), never applied one. The speed
+  // is now baked above, from the course's real `voice_config.target_speed`
+  // which the caller threads in as `targetSpeed` — and the override itself is
+  // gone (2026-08-07), so this bake is the only speed there is.
 
   // Decomposition → componentLegoIds / componentLegoTexts. The backend's
   // `decomposition` is per-token (one entry per word, with optional legoId

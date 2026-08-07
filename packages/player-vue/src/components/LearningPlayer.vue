@@ -5509,9 +5509,9 @@ watch(() => simplePlayer.phase.value, (phase) => {
   if (phase === 'pause') {
     const cycle = simplePlayer.currentCycle.value
     const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-    // Effective speed matches getPauseDuration: belt ramp in Fast, native
-    // 1.0× in Easy (no belt ramp, never faster than 1.0×). Keeps the ring and
-    // the real gap in lockstep.
+    // Belt proxy for the pause curve — must match getPauseDuration exactly, so
+    // the ring and the real gap stay in lockstep. See the note there on why
+    // Easy pins it at 1.0 rather than reading the baked belt speed.
     const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
     const duration = computePauseDuration(
       cycle?.target1DurationMs ?? 0,
@@ -9468,9 +9468,19 @@ simplePlayer.setRuntimeOverrides({
     // Recompute pause from raw target durations using the active mode's config.
     // Single source of truth — same helper drives the visible countdown.
     const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-    // Effective speed = what the voice ACTUALLY plays at. Fast: the baked
-    // belt ramp. Easy: native 1.0× — drops the belt ramp but never exceeds
-    // 1.0×. Pause is sized off actual play time = raw / speed.
+    // 4th arg is the BELT PROXY for the pause curve (computePauseDuration:
+    // beltProgress 0.8→White … 1.0→Green), not a speed knob.
+    //
+    // Fast reads the baked belt speed, so its pause tapers across belts. Easy
+    // deliberately pins 1.0 — i.e. it takes the Green-belt taper at every belt.
+    // That is EXACTLY today's Easy timing and it stays that way: Tom's ruling
+    // (2026-08-07) was that Easy's pauses and repetitions "are already correct
+    // and must NOT be touched"; only the target-voice SPEED override was the
+    // bug, and that has been removed (see the note where the overrides object
+    // ends). Easy's own belt knobs (pause_belt_boot 0.8 / _assembly 0.95) were
+    // tuned against this pinned reading, so switching Easy to the baked speed
+    // here would silently lengthen every early-belt Easy pause. If Easy's pause
+    // curve is ever retuned, revisit this line at the same time.
     const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle.playbackSpeed ?? 1)
     const base = computePauseDuration(
       cycle.target1DurationMs ?? 0,
@@ -9501,20 +9511,20 @@ simplePlayer.setRuntimeOverrides({
     const gap = cfg.post_voice2_gap_ms
     return typeof gap === 'number' && Number.isFinite(gap) && gap > 0 ? gap : 0
   },
-  getPlaybackSpeedMultiplier: (cycle) => {
-    // Fast leaves the baked belt ramp exactly as it is — today's behaviour.
-    if (!isEasyMode.value) return 1.0
-    // Don't touch listening/pod cycles that already have a purposeful 2.0×
-    // speed.
-    if (cycle.type && MODE_BYPASS_TYPES.has(cycle.type)) return 1.0
-    // Easy plays at native 1.0× regardless of belt — it drops the beginner
-    // belt SPEED-UP so an advancing learner keeps the gentler pace. The
-    // multiplier is relative to the baked belt-ramp speed, so cancel it:
-    // baked × (target / baked) = target, target = min(easy speed, 1.0).
-    const target = Math.min(easyConfig.value.playback_speed, 1.0)
-    const baked = cycle.playbackSpeed ?? 1.0
-    return target / baked
-  },
+  // NO mode speed override — deliberately absent (Tom's ruling, 2026-08-07).
+  //
+  // Easy used to cancel the baked belt ramp here and play the target voice at a
+  // flat 1.0×, which meant a White-belt beginner on EASY heard speech FASTER
+  // than the same beginner on FAST (0.8×) — backwards from what the names
+  // promise. Tom: "Easy should follow the exact speed pattern on-ramps for the
+  // target language as Fast — but just with bigger pauses, more repetitions and
+  // so on as they currently are."
+  //
+  // So both modes now read the ONE baked speed (`cycle.playbackSpeed`, from
+  // `computeCycleSpeed` / `computeListeningSpeed`). Do not reintroduce a mode
+  // multiplier: a second speed curve is exactly the bug this area has already
+  // paid for twice. The only Easy/Fast differences are pause length, repetition
+  // count and phrase-length cap.
   shouldSkipCycle: (cycle) => {
     // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
     // says to skip this round, computed live at the round boundary — see
