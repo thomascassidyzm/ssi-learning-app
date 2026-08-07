@@ -1183,3 +1183,48 @@ deploy was verified healthy end-to-end).
 **Open question (Tom's words):** when/if teacher seats become enforced, this is fully reversible — add a gate at the seat boundary (redemption or role-add), price the seat tier, done. The neutral code today makes that trivial.
 **Search width:** founder-ruled.
 **Decided by:** founder.
+
+## 2026-08-07 — CI pays once per tree: duplicate, superseded and prose-only runs removed
+**Move:** From the Actions billing investigation. Three changes: (1) `verify.yml` no longer
+triggers on `claude/**` pushes — `auto-merge-claude.yml` runs a step-identical `verify` job
+in-file, and only the in-file job can gate the merge, so the second run gated nothing (452
+CI-minutes in four days); (2) both workflows get a `concurrency` group with `cancel-in-progress`
+(modelled on `zenjin-2026-v1`'s), with `staging`/`main` exempted from cancellation because their
+runs are the promotion's per-SHA evidence; (3) `verify.yml`'s push trigger gains `paths-ignore`
+for `docs/**`, `ops/**`, `**.md` (~168 minutes of prose commits running lint · typecheck · test ·
+build). Nothing that touches code goes unverified: `paths-ignore` skips only when EVERY changed
+file matches, and `pull_request` stays unfiltered. The staging/main evidence runs themselves
+(billing finding 4) were flagged but not ruled on, and are untouched.
+**Better:** identical verification, minus the runs that verified nothing — and the release-train
+candidate report is now sourced from both workflows, so it stops depending on a duplicate run
+existing for its SHA evidence.
+**Simpler:** one gate per tree instead of two racing copies; each workflow states in-file why its
+trigger is shaped the way it is.
+**Cheaper (total):** the three wasted buckets (~620 CI-minutes over four days) stop being billed;
+no new infra, no new action dependency, no runtime cost.
+**Consequence handled:** `candidate-report.mjs` matched verdicts by SHA against `verify.yml` runs
+only, so dropping `claude/**` would have marked claude-branch commits UNTESTED. It now also scans
+`auto-merge-claude.yml`, counting successes ONLY — that workflow's conclusion covers the merge
+step too, so a failure there cannot be attributed to the gate and leaves the commit UNTESTED
+rather than falsely RED. Under-claiming, per the release-notes principle.
+**Searched & rejected:**
+- Keep the `claude/**` verify.yml run as "belt and braces" — rejected: it is byte-identical to a
+  job that already runs on the same SHA and blocks the merge; a duplicate of a blocking gate adds
+  no information, only minutes.
+- Split `verify.yml` so `paths-ignore` applies to `dev` only, leaving `staging`/`main` unfiltered
+  — rejected: `on.push` takes ONE filter set, so this needs either a second workflow duplicating
+  the job or a reusable `workflow_call` wrapper. The wrapper also moves the run out of
+  `verify.yml`'s run list, breaking the candidate report's lookup. Cost of the accepted version:
+  a docs-only PROMOTION to staging/main skips its evidence run and reports UNTESTED — rare, and
+  carries no code risk by construction.
+- `dorny/paths-filter` as a guard job for per-branch path logic — rejected: a third-party action
+  plus a runner job on every push, to save the same minutes a native trigger filter saves free.
+- `cancel-in-progress: true` everywhere including staging/main — rejected: a superseded push
+  would cancel the evidence run for a specific promotion SHA, which is exactly the verdict the
+  Thursday candidate report reads.
+**Verified:** actionlint clean on both files; both parse; the two `verify` jobs proven
+step-identical by parsing and comparing; `node --check` on the report script; release-train tests
+25/25; and live — a push to `claude/actions-cost-fixes` produced exactly ONE workflow run
+(auto-merge, verify + merge both green, merged to dev), with no duplicate `verify.yml` run.
+**Search width:** visible-options.
+**Decided by:** agent.
