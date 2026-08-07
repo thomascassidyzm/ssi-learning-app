@@ -103,6 +103,68 @@ async function setSchoolTrialColumns(
 }
 
 /**
+ * Record the language a trial school is actually trialling, at the honest
+ * moment it commits to one: the creation of its first class with a course.
+ *
+ * The gap this closes (founder report 2026-08-07, Chepstow): an invite-born
+ * school redeems with NO course chosen — redeem.ts correctly passes a null
+ * courseCode, since an invite only ever carries a school_name label — and
+ * NOTHING ever filled it in afterwards. The school then taught cym_s_for_eng
+ * in every class while `schools.trial_course_code` stayed null forever, so the
+ * leader's home badge could only say a bare "Trial" with no language, and the
+ * one-trialled-language lock (provision.ts's 409) had nothing to lock on.
+ *
+ * Deliberately a fill-once, never a change: the update is guarded on
+ * `trial_course_code IS NULL` and `platform_status LIKE 'trial%'`, so it can
+ * never overwrite a course a school already committed to (self-serve signup,
+ * an admin's later correction) and never touches a paying school. A school
+ * that adds a SECOND different language still meets the existing checkout
+ * gate — this only names the first one.
+ *
+ * Fail-open, like every other platform-trial write: a school's class must
+ * never fail to be created because the trial bookkeeping errored.
+ */
+export async function ensureSchoolTrialCourse(
+  supabase: any,
+  schoolId: string | null | undefined,
+  courseCode: string | null | undefined,
+): Promise<boolean> {
+  if (!schoolId || !courseCode) return false
+
+  const { data: school, error: readError } = await supabase
+    .from('schools')
+    .select('platform_status, trial_course_code')
+    .eq('id', schoolId)
+    .maybeSingle()
+  if (readError) {
+    if (!isMissingPlatformSchema(readError)) {
+      console.warn('[schoolPlatformTrial] trial-course read failed (fail-open):', readError.code, readError.message)
+    }
+    return false
+  }
+  if (!school) return false
+  if (!String(school.platform_status || '').startsWith('trial')) return false
+  if (school.trial_course_code) return false
+
+  const { data: updated, error: writeError } = await supabase
+    .from('schools')
+    .update({ trial_course_code: courseCode })
+    .eq('id', schoolId)
+    .is('trial_course_code', null)
+    .like('platform_status', 'trial%')
+    .select('id')
+  if (writeError) {
+    if (!isMissingPlatformSchema(writeError)) {
+      console.warn('[schoolPlatformTrial] trial-course write failed (fail-open):', writeError.code, writeError.message)
+    }
+    return false
+  }
+  const wrote = Array.isArray(updated) && updated.length > 0
+  if (wrote) console.log('[schoolPlatformTrial] recorded trial course', courseCode, 'for school', schoolId)
+  return wrote
+}
+
+/**
  * Grant (or idempotently confirm) the school-track platform trial. courseCode
  * is nullable — an invite-born school (redeem.ts) has no chosen course yet at
  * redemption time, so it trials with no course lock (TeacherDashboard.vue's
