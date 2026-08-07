@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `ec4d8b212965` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `b26c1e68be11` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -10,6 +10,15 @@ Personas: teacher · place: class-detail
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
 3. [`class-teachers` · next] Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.
    - terminal: That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.
+
+## install-the-app — Put the app on your device
+
+Personas: leader · place: node-home (org/group/school)
+
+1. [`account-card` · next] **Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.
+2. [`account-install` · next] This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.
+3. [`account-install` · next] If your browser can do it in one tap, the button does it. If it cannot, the button walks you through your browser's own menu instead — and you can remove the app again any time, like any other app.
+   - terminal: Nothing here is one-time — if you said no on your first visit, this row is still waiting whenever you change your mind.
 
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
@@ -68,6 +77,15 @@ Personas: teacher · place: class-detail
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
 3. [`class-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
    - terminal: When you're ready, tap Play as class for real — this tour never starts a session for you.
+
+## set-your-password — Set or change your password
+
+Personas: leader · place: node-home (org/group/school)
+
+1. [`account-card` · next] **Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited.
+2. [`account-password` · next] If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.
+3. [`account-password` · next] Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.
+   - terminal: That is the whole thing — one password, always changeable, always in the same place.
 
 ## share-a-class — Share a class with a colleague
 
