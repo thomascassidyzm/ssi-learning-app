@@ -48,6 +48,14 @@ export interface ModeConfig {
   /** Assembly multiplier at Green belt (White=1.0). Keep nearer 1.0 than
    *  belt_boot so long phrases shorten less than short ones across belts. */
   pause_belt_assembly?: number
+  /**
+   * Extra silence (ms) held AFTER voice2, before the next cycle's prompt —
+   * "to stop the next cycle just coming in and taking over" (Tom, 2026-08-07).
+   * Voice2 is the phase carrying the target text on screen, so the same gap
+   * also leaves that text up for longer. Easy holds 1s; Fast holds none.
+   * Absent / 0 ⇒ the historic behaviour (next cycle starts immediately).
+   */
+  post_voice2_gap_ms?: number
   spaced_rep_fraction: number // 1.0 = full, 0.33 = skip 2/3
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
@@ -213,6 +221,8 @@ export const DEFAULT_FAST: ModeConfig = {
   pause_multiplier: 1.05,
   min_pause_ms: 700,
   max_pause_ms: 15000,
+  // Fast is unchanged: the next cycle follows voice2 immediately, as it always has.
+  post_voice2_gap_ms: 0,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false,
@@ -255,6 +265,10 @@ export const DEFAULT_EASY: ModeConfig = {
   pause_multiplier: 1.05,
   min_pause_ms: 2000,
   max_pause_ms: 15000,
+  // A beat of silence after voice2 so the next cycle doesn't come straight in
+  // over the top of the one just heard, and the target text stays on screen
+  // that bit longer (Tom, 2026-08-07). Easy only — Fast holds 0.
+  post_voice2_gap_ms: 1000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false,
