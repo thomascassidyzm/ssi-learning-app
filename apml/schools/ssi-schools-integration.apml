@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.8.0"
-  date: "2026-08-07"   # founding admin is staff of her own school; first-run affordances reachable; seat default = real staff
+  version: "1.9.0"
+  date: "2026-08-07"   # class detail degrades per panel; no code-less invite link anywhere
   author: "Tom Cassidy"
   status: "draft"
 
@@ -1210,6 +1210,41 @@ flow CoTeacherPanel:
     prints the server's reason. A failed staff-list lookup says so rather than
     rendering an empty picker — an empty list and a broken list must never
     look the same to a teacher.
+
+principle ClassDetailDegradesPerPanel:
+  statement: "Each panel on the class page owns its own fetch outcome; one failing sub-fetch never blanks another panel, and no panel asserts an emptiness it did not observe"
+  since: "2026-08-07 (A-81)"
+  surface: |
+    packages/player-vue/src/views/schools/ClassDetail.vue,
+    packages/player-vue/src/views/schools/classDetailPanels.ts,
+    packages/player-vue/src/composables/schools/useClassesData.ts (rosterError /
+    teachersError / teachersLoaded), classTeacherScope.teachersByClassIdResult,
+    composables/schools/inviteLink.ts
+
+  why: |
+    Production, 2026-08-07: a non-lead co-teacher opened her class and saw
+    THREE untrue things on one screen. class_student_progress and
+    class_activity_stats time out (57014) under her RLS plan; fetchClassDetail
+    threw on the first failure and abandoned the rest of the load. The class
+    row and class_teachers both SUCCEED for her — verified at DB level by
+    replaying her auth uid under RLS — so the teacher list and the join code
+    were lost to a cascade, not to permissions:
+      - "Couldn't load roster" (true, and the only honest one)
+      - "No teachers are linked to this class yet" on a class with two teachers
+      - an invite link rendered as .../redeem/ with the code missing
+
+  rules:
+    - "The class row is the only page-wide dependency; its failure reports the DB's own message, not a generic one"
+    - "The roster, the sparkline, the journey totals and the teacher list each fail alone"
+    - "'No teachers are linked to this class yet' renders only when the class_teachers read RESOLVED with no error and zero rows (teacherPanelState)"
+    - "An invite link is COMPLETE or it does not exist: redeemLink() returns null for an empty / placeholder code, and no panel renders or offers a copyable link without one (joinPanelState)"
+    - "The co-teacher-link button, disabled until classData.id arrives on a cold load, says 'Loading the class…' rather than sitting dead"
+
+  regression_net: |
+    useClassesData.classDetailResilience.test.ts replays the exact production
+    shape (roster times out, class_teachers returns both rows);
+    classDetailPanels.test.ts and inviteLink.test.ts pin the two rendering
+    rules, including that no state can ever produce a url ending in /redeem/.
 
 flow StudentJoin:
   trigger: "User enters class join code"
