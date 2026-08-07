@@ -110,6 +110,11 @@ export interface CachedListeningMeta {
    *  Absent on entries written before the stamp existed → treated as stale
    *  once (which retroactively heals every pre-stamp device). */
   contentStamp?: string
+  /** courses.audio_stamp at fetch time — the AUDIO vintage. A-86: a clip
+   *  repair moves audio_stamp and NOT necessarily content_stamp, so the
+   *  content lane alone would leave a downloaded snapshot pointing at the
+   *  pre-repair ref forever. Absent → pre-stamp entry, refreshed once. */
+  audioStamp?: string
   /** listening_pod_sentences rows for `${course}:pod-0`, in global_order.
    *  Empty array = the course genuinely has no pod (a valid, downloaded
    *  state) — entry ABSENT means "never downloaded". */
@@ -275,7 +280,7 @@ const fetchAndCacheListeningMetaOnce = async (
         .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
       client
         .from('courses')
-        .select('content_stamp')
+        .select('content_stamp, audio_stamp')
         .eq('course_code', courseCode)
         .maybeSingle(),
     ])
@@ -358,13 +363,17 @@ const fetchAndCacheListeningMetaOnce = async (
 
     // Stamp is best-effort: a failed stamp read must not drop the whole
     // bundle — the entry just lands stamp-less and refreshes next online boot.
-    const contentStamp =
-      (stampResult.data as { content_stamp?: string } | null)?.content_stamp ?? undefined
+    const stampRow = stampResult.data as
+      | { content_stamp?: string; audio_stamp?: string }
+      | null
+    const contentStamp = stampRow?.content_stamp ?? undefined
+    const audioStamp = stampRow?.audio_stamp ?? undefined
 
     const meta: CachedListeningMeta = {
       courseCode,
       cachedAt: Date.now(),
       contentStamp,
+      audioStamp,
       podRows,
       clipTexts,
       bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
@@ -401,13 +410,25 @@ export const refreshListeningMetaIfStale = async (
   client: SupabaseClient,
   courseCode: string,
   liveStamp: string | null | undefined,
+  liveAudioStamp?: string | null,
 ): Promise<boolean> => {
-  if (!liveStamp) return false
+  if (!liveStamp && !liveAudioStamp) return false
   const cached = await getCachedListeningMeta(courseCode)
   if (!cached) return false // never downloaded — nothing to keep fresh
-  if (cached.contentStamp === liveStamp) return false
-  console.log('[ListeningMeta] content stamp moved',
-    `(${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — refreshing bundle`)
+
+  const contentMoved = !!liveStamp && cached.contentStamp !== liveStamp
+  // A-86: a clip repair moves audio_stamp and not necessarily content_stamp.
+  // Without this arm, a downloaded snapshot keeps pointing at the pre-repair
+  // ref forever — the offline half of the stale-clip bug. An entry with no
+  // audioStamp predates this field, so it refreshes once and heals itself.
+  const audioMoved = !!liveAudioStamp && cached.audioStamp !== liveAudioStamp
+  if (!contentMoved && !audioMoved) return false
+
+  console.log('[ListeningMeta]',
+    contentMoved
+      ? `content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp})`
+      : `audio stamp moved (${cached.audioStamp ?? 'pre-stamp'} → ${liveAudioStamp})`,
+    '— refreshing bundle')
   void fetchAndCacheListeningMeta(client, courseCode)
   return true
 }

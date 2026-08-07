@@ -194,6 +194,30 @@ describe('refreshListeningMetaIfStale (structural freshness)', () => {
     expect(await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', undefined)).toBe(false)
   })
 
+  // A-86: a clip repair moves audio_stamp and NOT necessarily content_stamp.
+  // Without this arm the downloaded snapshot would keep pointing at the
+  // pre-repair ref forever — the offline half of the stale-clip bug.
+  it('refreshes when only the AUDIO stamp moved, with the content stamp unchanged', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const cached = await getCachedListeningMeta('ita_for_eng')
+    expect(cached!.contentStamp).toBe('stamp-1')
+
+    // Content stamp identical, audio stamp new → refresh.
+    expect(
+      await refreshListeningMetaIfStale(happyClient, 'ita_for_eng', 'stamp-1', 'audio-2'),
+    ).toBe(true)
+  })
+
+  it('no-ops when both stamps match the cached vintage', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const cached = await getCachedListeningMeta('ita_for_eng')
+    expect(
+      await refreshListeningMetaIfStale(
+        happyClient, 'ita_for_eng', 'stamp-1', cached!.audioStamp ?? null,
+      ),
+    ).toBe(false)
+  })
+
   it('refetches the bundle in the background when the stamp moved — including for pre-stamp entries', async () => {
     // Seed a STALE entry: old glosses, no contentStamp (a pre-stamp device).
     await fetchAndCacheListeningMeta(makeFakeClient({

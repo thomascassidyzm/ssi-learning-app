@@ -164,7 +164,7 @@ spec audio_caching_architecture:
         - "providers/generateLearningScript.ts — the script walk (original consumer)"
         - "composables/usePodLapScheduler.ts — listening_pod_sentences + bookends, stamped after the offline fallback resolves"
         - "composables/useLayer1Scheduler.ts — course_seeds + bookends, same position"
-        - "composables/listeningMetaCache.ts — the OFFLINE listening snapshot. Load-bearing: offline the ref lookup cannot run, so the schedulers' own stamping degrades to a no-op; the snapshot must be written stamped while online or an offline learner plays pre-repair audio for its whole life. clipTexts is queried by bare id and keyed by the stamped ref"
+        - "composables/listeningMetaCache.ts — the OFFLINE listening snapshot, and it now refreshes on an AUDIO stamp move as well as a content stamp move (a clip repair moves audio_stamp and not necessarily content_stamp, so the content lane alone would leave a downloaded snapshot on the pre-repair ref forever). Load-bearing: offline the ref lookup cannot run, so the schedulers' own stamping degrades to a no-op; the snapshot must be written stamped while online or an offline learner plays pre-repair audio for its whole life. clipTexts is queried by bare id and keyed by the stamped ref"
         - "components/ListeningOverlay.vue — its four own walks: fine-knowns, USE phrases, seeds, and the offline listening pack's id list"
         - "components/PronunciationOverlay.vue — its course_practice_phrases walk"
         - "providers/CourseDataProvider.ts — every walk, via the private revisedRefs() accessor: session items, welcome, presentation (single + batch), baskets, lego range"
