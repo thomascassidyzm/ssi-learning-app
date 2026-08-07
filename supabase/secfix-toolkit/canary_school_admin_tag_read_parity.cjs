@@ -21,6 +21,10 @@
  *   7. COMMIT only with --commit and all assertions green; else ROLLBACK.
  *
  * Usage: node canary_school_admin_tag_read_parity.cjs [--commit]
+ *
+ * NOTE: once the migration is live, a rerun FAILS step 2 ("BUG NOT REPRODUCED")
+ * by design — the bug it demonstrates no longer exists. Steps 4-6 still pass
+ * and are the ones worth rereading.
  */
 const fs = require('fs');
 const path = require('path');
