@@ -34,6 +34,7 @@ import { useClassesData, type ClassInfo } from '@/composables/schools/useClasses
 import { useSchoolCourseCatalogue, type CatalogueCourse } from '@/composables/schools/useSchoolCourseCatalogue'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
+import { courseShortName } from '@ssi/core'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const router = useRouter()
@@ -465,7 +466,7 @@ onMounted(() => {
               <tbody>
                 <tr v-for="cls in classes" :key="cls.id">
                   <td class="ssi-table-strong">{{ cls.class_name }}</td>
-                  <td>{{ cls.course_code }}</td>
+                  <td>{{ courseShortName(cls.course_code) }}</td>
                   <td>{{ cls.student_count }}</td>
                 </tr>
               </tbody>
