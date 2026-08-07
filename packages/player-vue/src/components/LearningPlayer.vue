@@ -535,7 +535,8 @@ const runGenerateScript = (
     // consolidate pulls for the first 100 rounds. Fast carries them all off,
     // so Fast is provably unchanged.
     {
-      doublePhraseCycles: activeModeConfig.value.doublePhraseCycles ?? false,
+      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
+      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
       filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
       reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
       reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
@@ -14151,7 +14152,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           activeModeConfig.value.maxPhraseLengthFraction ?? 1,
           // Twin of the wrapper above — every mode lever travels together.
           {
-            doublePhraseCycles: activeModeConfig.value.doublePhraseCycles ?? false,
+            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
+            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
             filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
             reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
             reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
