@@ -9485,6 +9485,18 @@ simplePlayer.setRuntimeOverrides({
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
+  getPostVoice2GapMs: (cycle) => {
+    // Easy holds a beat of silence after voice2 before the next cycle starts,
+    // "to stop the next cycle just coming in and taking over" (Tom,
+    // 2026-08-07) — and, since voice2 is the phase with the target text up,
+    // the text stays visible for that beat too. Fast is untouched (its config
+    // holds 0), and intro/listening/pod/bookend cycles keep their own baked
+    // linger rather than gaining a mode gap on top.
+    if (cycle.type && MODE_BYPASS_TYPES.has(cycle.type)) return 0
+    const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+    const gap = cfg.post_voice2_gap_ms
+    return typeof gap === 'number' && Number.isFinite(gap) && gap > 0 ? gap : 0
+  },
   getPlaybackSpeedMultiplier: (cycle) => {
     // Fast leaves the baked belt ramp exactly as it is — today's behaviour.
     if (!isEasyMode.value) return 1.0

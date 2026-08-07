@@ -21,6 +21,15 @@ export interface SimplePlayerRuntimeOverrides {
   getPauseDuration?: (cycle: Cycle) => number | undefined
   /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
   getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
+  /**
+   * Extra silence (ms) held AFTER voice2 before the next cycle starts, on top
+   * of whatever the cycle already bakes in as `lingerMs`. Easy mode uses it so
+   * the next cycle doesn't come straight in over the top of the one just
+   * heard — and, because voice2 is the phase with the target text on screen,
+   * the text stays up for that bit longer (Tom, 2026-08-07). Return undefined
+   * / 0 to leave the cycle's baked linger alone. Fast returns 0.
+   */
+  getPostVoice2GapMs?: (cycle: Cycle) => number | undefined
   /** Return true to skip this cycle entirely (advance to the next). Consulted
    * before starting any phase, so a mid-round change shortens the remaining
    * round on the next cycle boundary. Retired Turbo used this to cull its
@@ -236,6 +245,30 @@ const SILENT_CLIP_DURATION_S = 12
 const SILENT_PAUSE_CLIP = buildSilentWavDataUri(SILENT_CLIP_DURATION_S)
 
 /**
+ * Silent clips cut to an EXACT length, for the post-voice2 linger.
+ *
+ * The pause phase can use one long clip plus a trim timer because a frozen
+ * (backgrounded) timer only overshoots a pause that was seconds long anyway.
+ * The linger is ~1-2s, so an overshoot to the 12s clip would be a glaring
+ * hole in the session under lock. Cutting the clip to the exact linger makes
+ * its natural 'ended' — the event iOS does NOT freeze — the primary advance,
+ * with the timer as a same-length backstop.
+ *
+ * Cached per rounded-to-50ms duration: a session uses two or three distinct
+ * linger lengths, so this builds a handful of small strings once.
+ */
+const lingerClipCache = new Map<number, string>()
+function silentClipForMs(ms: number): string {
+  const key = Math.max(50, Math.round(ms / 50) * 50)
+  let clip = lingerClipCache.get(key)
+  if (!clip) {
+    clip = buildSilentWavDataUri(key / 1000)
+    lingerClipCache.set(key, clip)
+  }
+  return clip
+}
+
+/**
  * Consecutive skipped clips at which the log escalates from "a puncture" to
  * "this session is running silent". Three is one whole cycle's worth of clips
  * (prompt + both target voices), i.e. the learner has now been shown a full
@@ -286,6 +319,10 @@ export class SimplePlayer {
   // frozen while backgrounded. 0 when not in a pause.
   private pauseEndsAt: number = 0
   private lingerTimer: ReturnType<typeof setTimeout> | null = null
+  // True only while the silent linger clip is sounding on this.audio (the
+  // post-voice2 hold). Lets the 'ended' hub tell a linger clip apart from a
+  // real voice clip — same shape as pauseClipActive.
+  private lingerClipActive: boolean = false
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -338,6 +375,10 @@ export class SimplePlayer {
       // UI moves through phases while no sound came out. Pause phase,
       // idle, and buffering don't have audio in flight, so ignore those.
       if (this.state.phase === 'pause' || this.state.phase === 'idle' || this.state.phase === 'buffering') return
+      // The post-voice2 linger sounds a silent clip while phase is still
+      // 'voice2'. A failure to sound SILENCE is not a learner-visible failure
+      // — the backstop timer still ends the hold — so never retry/halt on it.
+      if (this.lingerClipActive) return
       // Ignore errors against a src generation a reposition has already
       // superseded (e.g. audio.pause() interrupting a load whose 'error'
       // task fires after startPhase() re-armed phase in the same tick).
@@ -1480,6 +1521,14 @@ export class SimplePlayer {
       clearTimeout(this.lingerTimer)
       this.lingerTimer = null
     }
+    // Stop the silent linger clip wherever the timer is cleared — the same
+    // single chokepoint clearPauseTimer uses. Every exit path (pause / stop /
+    // stopForReposition / tripGestureRequired) already calls this, so the clip
+    // can never be left sounding into the next cycle.
+    if (this.lingerClipActive) {
+      this.lingerClipActive = false
+      try { this.audio.pause() } catch { /* element may already be torn down */ }
+    }
   }
 
   private onAudioEnded(): void {
@@ -1495,21 +1544,81 @@ export class SimplePlayer {
       return
     }
 
+    // The silent linger clip reaching its natural end is the background-safe
+    // trigger for "post-voice2 hold is over". Route it through endLinger so it
+    // shares the single, generation-guarded advance path with the backstop
+    // timer. Checked BEFORE getNextPhase because the phase is still 'voice2'
+    // here — without this we'd fall straight back into the linger branch.
+    if (this.lingerClipActive) {
+      this.endLinger()
+      return
+    }
+
     const nextPhase = this.getNextPhase()
     if (nextPhase) {
       this.startPhase(nextPhase)
     } else {
-      // End of cycle — linger if requested (intro/debut tiles stay visible)
-      const linger = this.currentCycle?.lingerMs
-      if (linger && linger > 0) {
-        this.lingerTimer = setTimeout(() => {
-          this.lingerTimer = null
-          if (this.state.isPlaying) this.advanceCycle()
-        }, linger)
+      // End of cycle — hold before the next cycle starts. Two sources, and we
+      // take the longer: the cycle's own baked linger (intro/debut tiles stay
+      // visible) and the active mode's post-voice2 gap (Easy).
+      const cycle = this.currentCycle
+      const modeGap = cycle ? this.runtimeOverrides.getPostVoice2GapMs?.(cycle) : undefined
+      const linger = Math.max(cycle?.lingerMs ?? 0, modeGap ?? 0)
+      if (linger > 0) {
+        this.startLinger(linger)
       } else {
         this.advanceCycle()
       }
     }
+  }
+
+  /**
+   * Hold after voice2 for `duration` ms, then advance to the next cycle.
+   *
+   * Sounds an exactly-`duration` silent clip on the MAIN element so the hold
+   * advances on a media 'ended' event rather than a bare setTimeout — the same
+   * background/lock-screen protocol the PAUSE phase uses (see the
+   * "Background-safe PAUSE phase" block above). The timer is kept as an equal-
+   * length backstop for environments where the clip can't sound; whichever
+   * fires first advances, guarded by playGeneration against a double advance.
+   */
+  private startLinger(duration: number): void {
+    const gen = ++this.playGeneration
+    this.lastAssignedSrcGen = gen
+    this.lingerClipActive = true
+    try {
+      this.audio.src = silentClipForMs(duration)
+      this.audio.playbackRate = 1.0
+      this.audio.loop = false // NEVER loop — the disabled 2026-05-23 oscillation landmine.
+      const p = this.audio.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Non-critical: the backstop timer still ends the hold. Never halt
+          // the cycle on silence, and never trip gesture-required off it.
+        })
+      }
+    } catch {
+      // Ditto — fall through to the timer.
+    }
+
+    this.lingerTimer = setTimeout(() => {
+      if (gen !== this.playGeneration) return
+      this.endLinger()
+    }, duration)
+  }
+
+  /**
+   * End the post-voice2 hold exactly once and advance. Idempotent: the
+   * playGeneration bump makes a second caller (clip 'ended' arriving just
+   * after the backstop timer, or vice versa) a no-op.
+   */
+  private endLinger(): void {
+    if (!this.lingerClipActive) return
+    this.lingerClipActive = false
+    ++this.playGeneration // invalidate the backstop timer and any trailing 'ended'
+    this.clearLingerTimer()
+    this.audio.pause()
+    if (this.state.isPlaying) this.advanceCycle()
   }
 
   private getNextPhase(): Phase | null {
