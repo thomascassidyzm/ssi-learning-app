@@ -83,6 +83,22 @@
 # KNOWN-language clips ('trans') are NEVER ramped: the learner's own language,
 # the meaning anchor. Tom said "targ lang clips".
 #
+# UPDATE (2026-08-07, Tom — T-13): EASY DEFAULTS LISTENING TO 0.8x.
+# "EASY setting defaults listening playback to 0.8x speed." Implemented as a
+# CAP on the same curve — EASY_LISTENING_SPEED = 0.8 in toSimpleRounds.ts,
+# applied as min(beltSpeed(seed), 0.8) when TargetSpeedConfig.easyMode is set
+# — so Easy is the white-belt rung held for as long as the learner stays on
+# Easy, never a second curve and never faster than the belt would give. It
+# multiplies the clip's own role rate exactly as the ramp does (a 2x stretch
+# rep is 1.6x on Easy), takes the same legacy-course exemption, and is read
+# ONLY by computeListeningSpeed: the speaking side's Easy is longer thinking
+# time and more reps, not a slower voice, so computeCycleSpeed ignores it.
+# LearningPlayer sets easyMode from the live learning mode
+# (currentTargetSpeedConfig), so both listening consumers inherit it.
+# The Dialogues overlay (ListeningOverlay.vue) has its own speed row: on Easy
+# it opens at 0.8x (0.8 added to SPEED_OPTIONS so the default has a button),
+# still the learner's to change for the session.
+#
 # Locked by packages/player-vue/src/playback/listeningSpeedRamp.test.ts, in the
 # spirit of speedRampSync.test.ts - the point of both is that there is ONE
 # curve. A parallel listening curve that can drift out of sync with the
@@ -160,22 +176,39 @@
 # ?pod=1 / ?podview=1 previews compose whole cohorts (previews feel like
 # actual dialogue); ?podview Next/Prev steps cohort-by-cohort (exchanges).
 #
-# UPDATE (2026-08-07, Tom — A-52 cold start): the FIRST cohort carries a floor
-# of POD_COLD_START_MIN_SENTENCES = 3 sentences. The exchange partition is
-# unchanged; after building it, the leading cohorts merge until the first one
-# clears the floor (whole exchanges only, so an adjacency pair still never
-# straddles a lap, and the merge may cross a scene wall when scene 1 is
-# smaller than the floor). Every later cohort is untouched. Why: measured on
-# live telemetry (docs/listening-repeat-diagnosis-2026-08-06.md), a Hebrew
-# learner's first pod held exactly ONE sentence, and since every lap restarts
-# from sentence one that single clip played 19 times across 7 laps — a
-# faithful description of the design that is indistinguishable from a broken
-# app, and the first thing every new learner on every course meets. The floor
-# lives in the partition (@ssi/core/pods/podCohorts.ts,
-# applyPodColdStartFloor) rather than the scheduler, so the ratchet, stage
-# cohesion and alive-counting follow it with no further change and every
-# client derives the same cohorts. Typical pods (2-sentence exchanges) now
-# open with 4 sentences; the pathological 1-sentence opener with 3.
+# UPDATE (2026-08-07, Tom — T-13 cold-start window; supersedes the A-52
+# floor-only rule of the same day): THE FIRST LAP IS ONE FULL EXCHANGE.
+# Tom: "the cold start must be ONE FULL EXCHANGE — a lone line ('Good morning,
+# Sarah') is not enough, but the WHOLE SCENE arriving at once is too much."
+# One policy, two sides, in the partition (@ssi/core/pods/podCohorts.ts,
+# applyPodColdStartWindow):
+#   FLOOR   — a first cohort below POD_COLD_START_MIN_SENTENCES = 2 can only
+#             be a lone trailing turn (a scene whose whole content is one
+#             line). It absorbs following WHOLE exchanges until it is an
+#             exchange, crossing a scene wall if it must: an adjacency pair
+#             still never straddles a lap, and a lone line outranks the wall
+#             for one cohort. Evidence: live telemetry
+#             (docs/listening-repeat-diagnosis-2026-08-06.md) — a Hebrew
+#             learner's first pod held exactly ONE sentence and, since every
+#             lap restarts from sentence one, that clip played 19 times across
+#             7 laps: indistinguishable from a broken app.
+#   CEILING — nothing else is ever merged. A cohort that is already an
+#             exchange stands alone however short; a turn plus its reply IS
+#             the intended first serving. The A-52 floor of 3 stacked a second
+#             exchange onto any 2-sentence opener, which on eus_for_spa pulled
+#             2 + 5 = the whole opening scene into lap one — the "whole scene
+#             at once" Tom saw in Aran's session.
+# Measured across all 70 live pods: 45 open on a 3-sentence exchange and are
+# untouched by either rule; the 25 that open on a 2-sentence exchange (every
+# eng_for_* pod among them) now serve that exchange alone instead of a merged
+# 4 — eus_for_spa, 7. No live pod opens on a lone line today, so the floor is
+# the safety net for the shape A-52 measured rather than an everyday path.
+# The window lives in the partition rather than the scheduler so the ratchet,
+# stage cohesion and alive-counting follow it with no further change and every
+# client derives the same cohorts. It is deliberately NOT conditioned on the
+# learner's easy/fast mode even though the ruling arose on Easy: the partition
+# is PURE, and a mode-dependent one would have the two modes disagree about
+# where laps begin while sharing one sentence ratchet.
 #
 # The body of this spec below is preserved for historical context.
 # =============================================================================
