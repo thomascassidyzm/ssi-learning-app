@@ -217,8 +217,15 @@ const filteredStudents = computed(() => {
   return students.value.filter(s => s.name.toLowerCase().includes(q))
 })
 
+// class_activity_stats is one of the views that times out for a non-lead
+// co-teacher, and getClassReport returns null for both "failed" and "no data".
+// Track that it RESOLVED, so the panel stops saying "loading" forever.
+const reportResolved = ref(false)
+
 async function loadReport(classId: string) {
+  reportResolved.value = false
   classReport.value = await getClassReport(classId)
+  reportResolved.value = true
 }
 
 // The ONE refresh protocol: reload this class's detail + report on demand via
@@ -720,6 +727,7 @@ const deleteImpactLines = computed(() => {
         <div class="schools-card schools-card-pad rail-card">
           <div class="schools-kicker rail-kicker">Practice min/student/week</div>
           <Bench v-if="classReport" :data="benchData" unit="m" />
+          <p v-else-if="reportResolved" class="rail-note schools-subtle">Benchmark unavailable for this class.</p>
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
         </div>
 
