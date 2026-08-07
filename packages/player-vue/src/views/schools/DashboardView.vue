@@ -19,6 +19,7 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { missionsEnabled, startMission, useMission } from '@/missions/useMission'
+import { redeemLink } from '@/composables/schools/inviteLink'
 
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
@@ -150,13 +151,16 @@ const newSchoolLabel = ref('')
 const createdSchoolLinks = ref<{ admin_join_code: string; teacher_join_code: string } | null>(null)
 const copiedLinkId = ref<string | null>(null)
 
-function schoolInviteUrl(code: string): string {
-  return `${window.location.origin}/redeem/${code}`
+// Never render a /redeem/ link without its code (see inviteLink.ts).
+function schoolInviteUrl(code: string | null | undefined): string | null {
+  return redeemLink(code)
 }
 
 async function copyLink(id: string, code: string) {
   try {
-    await navigator.clipboard.writeText(schoolInviteUrl(code))
+    const url = schoolInviteUrl(code)
+    if (!url) return
+    await navigator.clipboard.writeText(url)
     copiedLinkId.value = id
     setTimeout(() => { if (copiedLinkId.value === id) copiedLinkId.value = null }, 2000)
   } catch {
@@ -805,8 +809,8 @@ async function handlePlayClass(cls: ClassInfo) {
           </button>
         </div>
         <div v-if="!isAdminView && createdSchoolLinks" class="created-links">
-          <InviteLinkField label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)" />
-          <InviteLinkField label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.admin_join_code)" label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)!" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)!" />
         </div>
 
         <!-- Outstanding links minted before the one-primitive change
