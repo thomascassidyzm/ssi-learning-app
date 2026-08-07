@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from '../composables/useI18n'
 import {
   offlineDlState,
@@ -62,6 +62,79 @@ const closeTray = () => {
   isOpen.value = false
 }
 
+// ── Tap-anywhere-outside dismiss ────────────────────────────────────────────
+// This is done at the DOCUMENT level, not by the backdrop element, and that is
+// deliberate. The backdrop below is `position: fixed; inset: 0`, which sounds
+// full-screen but is not: .bottom-nav (this tray's ancestor) carries
+// `transform: translateX(-50%)`, and a transformed ancestor becomes the
+// containing block for fixed descendants — so the "full-screen" backdrop only
+// ever covered the ~400x60px nav pill. A tap anywhere else on the screen hit
+// nothing and the tray stayed open, which is the bug Tom reported repeatedly.
+// The 2026-07-16 fix (1c41b1d2) could not fix this either way round: teleporting
+// the backdrop to <body> escapes the embedded containing block and paints OVER
+// the tray, eating every row tap. A document listener sidesteps the whole
+// containing-block/stacking question — it works in embedded and standalone play
+// alike, and cannot swallow a tap meant for the tray or its trigger.
+const rootEl = ref<HTMLElement | null>(null)
+
+// After an outside pointerdown dismisses the tray, swallow the click that same
+// press is about to produce, so dismissing never doubles as a tap on whatever
+// was underneath (mid-session that would be the transport — pausing the audio
+// by accident). Standard overlay semantics: first tap outside just dismisses.
+// Scoped to the element that press landed on: if no click follows (the press
+// was a scroll or a drag) the arming must not sit there and eat someone's next,
+// unrelated tap — reopening the tray included.
+let swallowTimer: ReturnType<typeof setTimeout> | null = null
+let swallowTarget: EventTarget | null = null
+const swallowNextClick = (e: MouseEvent) => {
+  const samepress = swallowTarget instanceof Node && e.target instanceof Node
+    && (e.target === swallowTarget || swallowTarget.contains(e.target))
+  cancelSwallow()
+  if (!samepress) return
+  e.stopPropagation()
+  e.preventDefault()
+}
+const cancelSwallow = () => {
+  document.removeEventListener('click', swallowNextClick, true)
+  swallowTarget = null
+  if (swallowTimer !== null) { clearTimeout(swallowTimer); swallowTimer = null }
+}
+
+// Capture phase: a stopPropagation() somewhere in the page must not be able to
+// strand the tray open.
+const onDocumentPointerDown = (e: Event) => {
+  const root = rootEl.value
+  if (!root) return
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+  const inside = path.includes(root) || (e.target instanceof Node && root.contains(e.target))
+  if (inside) return          // trigger button + tray rows handle themselves
+  closeTray()
+  cancelSwallow()
+  swallowTarget = e.target
+  document.addEventListener('click', swallowNextClick, true)
+  swallowTimer = setTimeout(cancelSwallow, 700)   // no click followed (scroll/drag)
+}
+
+const onDocumentKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') closeTray()
+}
+
+watch(isOpen, (open) => {
+  if (open) {
+    document.addEventListener('pointerdown', onDocumentPointerDown, true)
+    document.addEventListener('keydown', onDocumentKeydown)
+  } else {
+    document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+    document.removeEventListener('keydown', onDocumentKeydown)
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+  document.removeEventListener('keydown', onDocumentKeydown)
+  cancelSwallow()
+})
+
 // Is any mode active?
 const hasActiveMode = computed(() =>
   props.isListeningMode || props.isPronunciationMode
@@ -102,7 +175,7 @@ const handleOffline = () => {
 </script>
 
 <template>
-  <div v-show="isVisible" class="mode-tray-container">
+  <div v-show="isVisible" ref="rootEl" class="mode-tray-container">
     <!-- Trigger button. The offline-download progress ring is a child of the
          button, anchored to its own box so it stays perfectly concentric. -->
     <button
@@ -227,16 +300,17 @@ const handleOffline = () => {
       </div>
     </Transition>
 
-    <!-- Full-screen backdrop to close on outside click. NOT teleported to
-         body: embedded contexts (play-as-class, staff Learn) put a `transform`
-         on an ancestor (.player-container.is-teach-embedded) to anchor
-         position:fixed content below the shell's own top nav — a body-level
-         Teleport escapes that containing block and re-joins the ROOT stacking
-         context, where it painted ABOVE the (locally z-indexed) tray and
-         silently ate every tap on Offline/Listening. Staying local
-         keeps the backdrop in the SAME containing block as the tray itself,
-         so the 102-vs-103 z-index order holds in both embedded and
-         standalone play. -->
+    <!-- Dim behind the tray. It is NOT what closes the tray — the document
+         pointerdown listener above is (see the note there). This element cannot
+         be, and never could be: .bottom-nav's `transform` makes it the
+         containing block for `position: fixed`, so `inset: 0` resolves to the
+         nav pill, not the viewport. Teleporting it to <body> to escape that is
+         the fix that was tried on 2026-07-16 and reverted the same day — in
+         embedded play (.player-container.is-teach-embedded, also transformed)
+         it re-joins the ROOT stacking context, paints ABOVE the locally
+         z-indexed tray and eats every row tap. So it stays local, stays purely
+         cosmetic, and the dismiss lives at document level where no containing
+         block can shrink it. -->
     <Transition name="backdrop">
       <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
     </Transition>
