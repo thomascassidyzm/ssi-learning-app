@@ -124,7 +124,7 @@ function dismiss() {
 /* Anchored to the TOP, not the bottom — the bottom band is the mode-tray's
    territory (trigger button floats just above the nav bar there) and a
    bottom-anchored banner sat directly on top of it, eating every
-   Listening/Turbo/Offline tap while shown (B6). Top placement can never
+   mode-tray tap while shown (B6). Top placement can never
    collide with any player control. */
 .install-banner {
   position: fixed;

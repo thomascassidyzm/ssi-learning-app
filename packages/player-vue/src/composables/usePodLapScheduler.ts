@@ -25,7 +25,6 @@
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
  *   • Course reset → counter back to 0 (and pod_activation_round back to NULL)
- *   • Turbo → explicit increment without playing (skipAhead method)
  *
  * `pod_activation_round` (added 2026-05-03) still gates the main-round at
  * which pods START FIRING for that user.
@@ -536,8 +535,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    * Sticky flag that forces the NEXT round to fire a lap regardless of the
    * cadence rule. Set by deferLap() — typically when a session resumes
    * mid-round and the remaining cycles are too few for the pod audio to
-   * pre-warm. Cleared once we actually consume the lap (markLapCompleted
-   * / skipAhead). Cadence anchor is unaffected, so the regular schedule
+   * pre-warm. Cleared once we actually consume the lap (markLapCompleted).
+   * Cadence anchor is unaffected, so the regular schedule
    * resumes normally on the round after the deferred firing.
    */
   const deferredPodPending = ref(false)
@@ -858,21 +857,6 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
-   * Turbo path: bump the counter without playing. UI affordance is out of
-   * scope; this just exposes the increment so a settings toggle or shortcut
-   * can call it.
-   */
-  const skipAhead = async (n: number = 1): Promise<void> => {
-    if (n <= 0) return
-    const cohorts = getCohorts()
-    for (let i = 0; i < n; i++) {
-      completedPodRounds.value = podRatchetAfterLap(cohorts, completedPodRounds.value)
-    }
-    deferredPodPending.value = false
-    await persistRatchet()
-  }
-
-  /**
    * Reset the ratchet (for course reset). Also clears the activation pin so
    * it gets recaptured on next session.
    */
@@ -940,7 +924,6 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     prefetchLap,
     deferLap,
     markLapCompleted,
-    skipAhead,
     reset,
   }
 }

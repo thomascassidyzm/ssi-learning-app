@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.26 (2026-08-06)
+# Version: 2.1.27 (2026-08-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -357,8 +357,11 @@ LEARNING_MODE:
   retired_with_turbo:
     cycle_cull: "`turboOmit` is GONE from ScriptItem, Cycle and toSimpleRounds — no learner gets a thinned-out round any more. SimplePlayer's generic shouldSkipCycle hook remains and is used by adaptation v2 alone."
     points_multiplier: "The turbo-usage session points multiplier is retired — sessionMultiplier is a flat 1.0, which is what every non-Turbo learner already got."
-    pod_ratchet: "The pod-lap ratchet bump on skip (usePodLapScheduler.skipAhead, previously Turbo-only) is no longer called from the player."
-    historical_events: "MANUAL_DIAL_EVENT_TYPES still contains 'turbo_toggle' ONLY so evidence replayed from pre-2026-08-06 sessions still counts as a manual dial."
+    pod_ratchet: "DELETED 2026-08-07. `usePodLapScheduler.skipAhead` — the pod-lap ratchet bump on skip — was Turbo's alone and had no caller left; the method and its test are gone. The pod counter now only ever advances by a PLAYED lap (markLapCompleted)."
+    historical_events: "MANUAL_DIAL_EVENT_TYPES still contains 'turbo_toggle' ONLY so evidence replayed from pre-2026-08-06 sessions still counts as a manual dial. KEPT DELIBERATELY — dropping it would silently rewrite past behavioural evidence. The same argument keeps the 'turbo_toggle' count in the player_events rollup function in supabase/schema.sql."
+    speed_override: "DELETED 2026-08-07. SimplePlayerRuntimeOverrides never regained a speed callback after Turbo went — playback rate comes from exactly ONE source, the baked `cycle.playbackSpeed`. The speedRampSync test block that guarded Turbo's target/baked round-trip is gone with it."
+    config_row: "DELETED 2026-08-07. The `turbo_boost` row is removed from `algorithm_config`. NOT to be confused with `normal_mode`, which is LIVE — it is fast_mode's promotion-window fallback alias and must stay."
+    learner_preference: "DELETED 2026-08-07. The dead `turbo_mode_enabled` key is stripped from every `learners.preferences` blob AND from the column DEFAULT, so new learners are not created with it again. It was false on all 1,092 learners carrying it, so the sweep is behaviourally a no-op."
 
 ## ============================================================================
 ## MODE TRAY (the mode button and its popup)

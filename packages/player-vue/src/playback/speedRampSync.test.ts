@@ -197,21 +197,9 @@ describe('belt speed ramp — pause taper coupling', () => {
   })
 })
 
-describe('belt speed ramp — Turbo cancellation is not double-applied', () => {
-  // Turbo's override returns `target / baked`, and SimplePlayer multiplies it
-  // back by the baked speed. Now that the instant path bakes a real ramp, that
-  // round-trip must still land on exactly the Turbo target — this is the
-  // failure mode the alternative fix (applying the curve at play time) would
-  // have introduced.
-  const turboMultiplier = (baked: number | undefined, turboSpeed: number) => {
-    const target = Math.min(turboSpeed, 1.0)
-    return target / (baked ?? 1.0)
-  }
-
-  it.each(BANDS)('lands on 1.0× at seed $seed regardless of the baked ramp', ({ seed }) => {
-    const cycle = instantCycleFor(seed, NATIVE_COURSE)
-    const baked = cycle.playbackSpeed ?? 1.0
-    const effective = baked * turboMultiplier(cycle.playbackSpeed, 1.25)
-    expect(effective).toBeCloseTo(1.0, 10)
-  })
-})
+// A block here guarded Turbo's speed override against double-applying the
+// baked belt ramp. It went with Turbo (retired 2026-08-06), and there is no
+// longer any speed override to guard: SimplePlayerRuntimeOverrides exposes no
+// speed callback, and playback rate comes from exactly one source, the baked
+// `cycle.playbackSpeed`. The block was left testing a helper defined inside
+// its own describe, so it could not have caught a regression anyway.

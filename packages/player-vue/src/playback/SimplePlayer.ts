@@ -884,8 +884,9 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Skip leading turboOmit cycles when Turbo is on. If every cycle is
-    // skipped, the round is empty in this mode — advance to the next.
+    // Honour the runtime cull (adaptation v2's shouldSkipCycle) on the
+    // round's leading cycles. If every cycle is skipped the round has nothing
+    // left to play — advance to the next.
     const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
     if (startIdx === -1) {
       console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped by the runtime cull, advancing`)
@@ -1437,7 +1438,8 @@ export class SimplePlayer {
     // now-playing session asserted and the advance firing while the tab is
     // backgrounded / the screen is locked, exactly as the pod lap's real
     // clips do. The clip is longer than any realistic pause; the trim timer
-    // cuts it to the precise dynamic/Turbo duration. See buildSilentWavDataUri.
+    // cuts it to the precise pause duration for this cycle. See
+    // buildSilentWavDataUri.
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen
     this.pauseClipActive = true
@@ -1458,8 +1460,8 @@ export class SimplePlayer {
       // Ditto — fall through to the timer.
     }
 
-    // Trim timer: bounds the (longer) clip to the exact dynamic/Turbo pause
-    // duration. While foregrounded this fires on time; while backgrounded iOS
+    // Trim timer: bounds the (longer) clip to the exact pause duration for
+    // this cycle. While foregrounded this fires on time; while backgrounded iOS
     // may throttle it, in which case the clip's own 'ended' (or the visibility
     // catch-up) carries the advance instead.
     this.pauseTimer = setTimeout(() => {
@@ -1646,9 +1648,9 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Find the next non-skipped cycle. Lets Turbo cull tagged cycles
-    // mid-round: the current cycle finishes, then the runtime override
-    // jumps over any turboOmit'd cycles before the next prompt.
+    // Find the next non-skipped cycle. Lets the runtime cull take effect
+    // mid-round: the current cycle finishes, then the override jumps over
+    // any cycles it now wants skipped before the next prompt.
     const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
       this.updateState({ cycleIndex: nextIdx })
