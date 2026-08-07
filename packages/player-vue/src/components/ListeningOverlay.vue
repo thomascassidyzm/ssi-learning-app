@@ -12,6 +12,10 @@ import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
+// A-86: this overlay walks Supabase for audio ids in four places of its own.
+// Every one of them is stamped with the per-clip versioned ref at the walk, so
+// the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
+import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -354,7 +358,8 @@ const ensureFineKnowns = async () => {
         .eq('role', 'pod_fine_known')
         .range(from, from + page - 1)
       if (err) throw err
-      for (const r of data || []) fineKnownByNorm.value.set(r.text_normalized, r.id)
+      const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+      for (const r of data || []) fineKnownByNorm.value.set(r.text_normalized, applyAudioRef(revisedRefs, r.id))
       if (!data || data.length < page) break
     }
     fineKnownLoadState = 'ready'
@@ -878,7 +883,9 @@ const loadPhrases = async (offset = 0) => {
     if (data && data.length > 0) {
       console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
 
-      const newPhrases = data.map((p, i) => {
+      // A-86: versioned refs applied at the walk (see import note).
+      const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+      const newPhrases = stampRowAudioRefs(revisedRefs, data).map((p, i) => {
         const key = `${p.seed_number}.${p.lego_index}`
         const beltIndex = beltIndexForSeed(p.seed_number)
         return {
@@ -982,7 +989,9 @@ const loadSeeds = async () => {
       }
     }
 
-    const rows = (data || []).map((s) => {
+    // A-86: versioned refs applied at the walk (see import note).
+    const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+    const rows = stampRowAudioRefs(revisedRefs, data || []).map((s) => {
       const beltIndex = beltIndexForSeed(s.seed_number)
       return {
         id: `seed-${s.seed_number}`,
@@ -1747,8 +1756,12 @@ const fetchAllAudioIds = async () => {
   const { data, error: fetchError } = await query
   if (fetchError) throw fetchError
 
+  // A-86: the offline pack must be downloaded and CACHED under the versioned
+  // ref, or a revised clip lands in IndexedDB under its bare uuid and the
+  // player never finds it.
+  const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
   const ids = new Set()
-  for (const row of data || []) {
+  for (const row of stampRowAudioRefs(revisedRefs, data || [])) {
     if (row.target1_audio_id) ids.add(row.target1_audio_id)
     if (row.target2_audio_id) ids.add(row.target2_audio_id)
   }

@@ -60,6 +60,7 @@ import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 import { computeListeningSpeed, type TargetSpeedConfig } from '../providers/toSimpleRounds'
+import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 
 // ============================================================================
 // Pure logic (exported for unit testing — no Vue/Supabase here)
@@ -492,6 +493,15 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
           throw new Error(`bookends: ${bookendsResult.error!.message}`)
         }
       }
+
+      // A-86: stamp per-clip versioned refs (`<uuid>.v<N>`) at the walk, before
+      // seed/bookend ids become `/api/audio/…` URLs or IndexedDB keys. This
+      // scheduler fetches its own seeds and bookends rather than going through
+      // generateLearningScript, so a revised clip would otherwise be requested
+      // bare and cached stale forever. Empty map on error → unchanged rows.
+      const revisedRefs = await getRevisedAudioRefs(supabase, courseCode)
+      seedRows = stampRowAudioRefs(revisedRefs, (seedRows || []) as L1SeedRow[])
+      bookendRows = stampRowAudioRefs(revisedRefs, bookendRows || [])
 
       const seedMap = new Map<number, L1SeedRow>()
       for (const row of (seedRows || []) as L1SeedRow[]) seedMap.set(row.seed_number, row)
