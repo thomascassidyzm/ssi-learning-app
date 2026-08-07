@@ -90,9 +90,10 @@ export function beltSpeed(seedNumber: number): number {
  * instant-playback cutover until 2026-08-04, and every learner on the new
  * path silently played at a flat 1.0×.
  *
- * The value is BAKED onto the cycle as `cycle.playbackSpeed`. Two runtime
- * consumers depend on it being the truth of what the voice plays at:
- *   • The mode's `getPlaybackSpeedMultiplier` cancels it (target / baked).
+ * The value is BAKED onto the cycle as `cycle.playbackSpeed`, and since
+ * 2026-08-07 it is the WHOLE truth of what the target voice plays at: no mode
+ * may multiply or cancel it (Easy did until then, so beginners on the gentle
+ * mode heard faster speech than beginners on Fast). Its other consumer:
  *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
  *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
  *     and hands a beginner the fully-tapered green-belt pause.
