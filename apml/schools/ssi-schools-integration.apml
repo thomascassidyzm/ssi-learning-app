@@ -1218,7 +1218,7 @@ flow CoTeacherPanel:
 
   self_teaching:
     since: "2026-08-06"
-    walks: "share-a-class, invite-a-supply-teacher, hand-over-the-lead (apml/interfaces/walkthrough-engine.apml)"
+    walks: "share-a-class, invite-a-supply-teacher, hand-over-the-lead, move-a-teacher-between-classes (apml/interfaces/walkthrough-engine.apml)"
     anchors: "class-teachers, class-teacher-add, class-teacher-picker, class-teacher-make-lead, class-teacher-other-classes, class-coteacher-link — data-walk attributes on this card, compiler-gated against drift"
     ruling: "A new thing the app can DO ships with its walkthrough coverage, or it is not shipped."
 
