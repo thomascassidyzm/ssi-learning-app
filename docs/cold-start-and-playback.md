@@ -43,5 +43,38 @@ On ready, the console logs `[ColdStart] launch→ready Xms total (incl. app-shel
 - `instantPlayback.prefetchTier3` — next-round cycle metadata.
 - `audioCache.persistent.ensure` — direct cache warming from pods, L1, `warmFirstKnownAudio`, and prep-cycle races.
 
+## Listening playback is ONE mode (Tom, 2026-08-07)
+
+Every listening phrase — Layer-1 seed cups and Layer-2 pod laps alike — plays
+exactly four clips: **target · known · target · target**, all four at the **same
+speed**. The nine-stage pod ladder that varied the pattern per stage is retired,
+and with it the 1.5×/2× stretch reps and the Phase-0 explainer slot.
+
+Speed ramps over a phrase's **exposures**, never above **1.0**:
+
+| mode | 1st hearing | next four | thereafter |
+|------|-------------|-----------|------------|
+| Easy | 0.7 | 0.8 | 1.0 |
+| Fast | 1.0 | 1.0 | 1.0 |
+
+The course `globalSpeed` still multiplies in and can only slow a clip down
+(French 0.95 → a first Easy hearing is 0.665). **1.0 is clamped in code**, not
+just in the default config: the configs are live `algorithm_config` rows that
+override code defaults at runtime, so a row asking for 1.5 still plays at 1.0.
+
+Every number is a config key — the pattern, the ramp table, the ceiling, and
+which axis decides the speed. Per-mode ramps live on `easy_mode` / `fast_mode`
+(`listeningSpeedRamp`); the mode-agnostic pattern, ceiling and speed source live
+on the `listening` row.
+
+Two things are kept and restorable **by config alone, no deploy**:
+`listening.speedSource: 'belt'` brings back the 2026-08-06 belt curve, and
+`listening.listeningUseStagePlaylist: true` brings back the nine-stage ladder.
+
+Code: `packages/player-vue/src/playback/listeningExposureRamp.ts` (the one home)
+· `useLayer1Scheduler` · `usePodLapScheduler` · spec in
+`apml/learning/listening-layers.apml` · locked by
+`packages/player-vue/src/playback/listeningOneMode.test.ts`.
+
 ## Known doc debt
 Some `// AudioPrefetcher's …` comments inside `LearningPlayer.vue` still reference the removed module — non-functional, slated for a comment sweep.

@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-07 (A-52 pod cold-start floor)
+# Last updated: 2026-08-07 (ONE listening mode: T-K-T-T, exposure ramp, 1.0 cap)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -104,6 +104,73 @@
 # curve. A parallel listening curve that can drift out of sync with the
 # speaking one is precisely the bug this codebase already paid for (2026-08-04,
 # the two round-builders).
+#
+# UPDATE (2026-08-07, Tom — SUPERSEDES the stage ladder AND, by default, the
+# belt ramp above): LISTENING IS ONE MODE.
+#
+# Verbatim: "I think we've simplified this completely. To just... One mode,
+# which is just... Every single phrase. It's played Target, Known, Target,
+# Target. And I think that's all that happens, and the target None, Target,
+# Target, it's all at... The same speed, so it might be 0.8. Or maybe even
+# Notepoint. Seven, the very first time, and it might be 0.8, then it might
+# stay on 0.8 for a few times, then it might go up to one, never more than one,
+# depending on what mode we're in. Fast can probably start at the regular
+# speed." Plus: "they should probably have A minimal cognitive load for
+# listening and it should be slower on easy mode in the listening."
+#
+# Four rules. One home: packages/player-vue/src/playback/listeningExposureRamp.ts.
+#
+#   1. ONE PATTERN — every listening phrase, in BOTH layers, plays
+#      target - known - target - target. No stages, no per-stage variation, no
+#      fifth slot. Layer 1 already had this sandwich; the two layers now share
+#      ONE definition (DEFAULT_LISTENING_PATTERN) mapped onto each layer's audio
+#      (l1PlaylistFromPattern / podPlaylistFromPattern), rather than two lists
+#      that happened to agree.
+#   2. ONE SPEED PER PHRASE — all four clips at the same rate, INCLUDING the
+#      known-language one. This reverses the "KNOWN clips are NEVER ramped" line
+#      in the 2026-08-06 block above: they are now ramped, with everything else.
+#   3. THE RAMP IS OVER EXPOSURES, not belts. Easy: 0.7 on the first hearing,
+#      0.8 for the next four, 1.0 for ever (full speed on the sixth). Fast: one
+#      terminal 1.0 step. Layer 2 reads the exposure count off the cohort's
+#      existing `alive` clock; Layer 1 DERIVES it from the cup wheel (one cup
+#      poured per round, so a seed is heard once per turn of the wheel —
+#      seedExposureAt/batchReadyRound), keeping Layer 1 stateless and
+#      resume-safe, which is the property the whole cup model rests on.
+#   4. 1.0 IS A HARD CEILING, clamped in CODE (LISTENING_SPEED_CEILING), not in
+#      the default config values — the configs are live `algorithm_config` rows
+#      that override code defaults at runtime, so a row carrying 1.5 must still
+#      play at 1.0. The course globalSpeed still folds in and can only ever
+#      slow a clip down (French 0.95: first Easy hearing is 0.665).
+#
+# RETIRED: the nine-stage pod ladder (DEFAULT_PODS.stagePlaylist,
+# ['ps08x','explainer','ps08x'] ... ['ps2x']) no longer drives listening. With
+# it go the 1.5x/2.0x stretch reps and the Phase-0 EXPLAINER slot — the
+# explainer AUDIO and its resolution path in buildMainStage are kept, simply
+# unreferenced on the default path. Flagged to Tom as the one deliberate
+# content loss of this change.
+#
+# KEPT AND REACHABLE BY CONFIG ALONE (no deploy):
+#   - listening.speedSource: 'belt' restores the 2026-08-06 belt curve.
+#     computeListeningSpeed/beltSpeed and listeningSpeedRamp.test.ts are
+#     deliberately untouched: the belt ruling and the exposure spec are ramps
+#     over DIFFERENT axes and Tom has ruled on both, so neither is deleted on
+#     the other's account. The exposure ramp ships as the default; WHICH WINS
+#     IS AN OPEN QUESTION FOR TOM.
+#   - listening.listeningUseStagePlaylist: true restores the nine-stage ladder.
+#
+# EVERY number is a config key, per Tom's standing rule that "all of this
+# should be parametrised into the EASY settings in the configs in the app":
+# per-mode ramp tables on ModeConfig.listeningSpeedRamp (alongside the Easy
+# SPEAKING knobs), the mode-agnostic pattern/ceiling/speed-source on the
+# `listening` row.
+#
+# Runtime note: PodPlay.speedIsFinal marks an exposure-ramped play so
+# LearningPlayer.playPodLap does not belt-ramp it a second time (it would have
+# double-counted globalSpeed and re-split the phrase, since that pass only
+# touches target roles). Stage-0 sequences and fusion drills are NOT
+# exposure-ramped and keep the belt ramp.
+#
+# Locked by packages/player-vue/src/playback/listeningOneMode.test.ts.
 #
 # UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
 # delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used
