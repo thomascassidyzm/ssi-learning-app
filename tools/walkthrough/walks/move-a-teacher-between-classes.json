@@ -1,0 +1,34 @@
+{
+  "id": "move-a-teacher-between-classes",
+  "title": "Move a teacher to another class",
+  "personas": ["teacher"],
+  "place": { "route": "class-detail" },
+  "steps": [
+    {
+      "anchor": "class-teachers",
+      "say": "**Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "class-teacher-other-classes",
+      "say": "**Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.",
+      "advance": { "on": "click" }
+    },
+    {
+      "anchor": "assign-classes-list",
+      "say": "Every class in the school, with the ones this teacher already takes already ticked. Ticking a second, or a third, is all 'belonging to several classes' means — there is no separate step for it.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "assign-classes-list",
+      "say": "A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "assign-classes-save",
+      "say": "Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.",
+      "advance": { "on": "next" },
+      "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+    }
+  ]
+}
