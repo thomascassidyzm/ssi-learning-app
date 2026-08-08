@@ -36,7 +36,14 @@ await page.addInitScript(() => {
         // Attribute a clip to a LISTENING lap by DOM, not by console log —
         // the deployed build STRIPS console.log, so log-based correlation
         // silently measures nothing (learned from listening-belt-speed-probe).
-        const lap = !!document.querySelector('.pod-turn-display')
+        // .pod-listening-ambient is the marker that covers BOTH layers — it is
+        // rendered on `playingPodLapAudio`, which is set for Layer-1 seed cups
+        // as well as Layer-2 pods. .pod-turn-display alone MISSES Layer 1
+        // entirely, because Layer-1 plays are audio-only with no display text
+        // by product rule (2026-07-22). A 15-minute Layer-1 run measured zero
+        // listening clips before this was widened.
+        const lap = !!document.querySelector('.pod-listening-ambient')
+          || !!document.querySelector('.pod-turn-display')
           || !!document.querySelector('.listening-overlay')
         window.__rates.push({ t: Date.now(), src: src.slice(-44), rate: this.playbackRate, lap })
       }
@@ -85,6 +92,12 @@ while (Date.now() < deadline) {
   for (const sel of ['.center-btn', '.play-button', 'button[aria-label*="lay"]']) {
     const el = page.locator(sel).first()
     if (await el.count()) { await el.click({ timeout: 2500 }).catch(() => {}); break }
+  }
+  // A "New version available" service-worker prompt can steal the screen on a
+  // long run; dismiss it rather than let it end the session early.
+  for (const label of ['Later', 'Dismiss']) {
+    const b = page.getByRole('button', { name: label }).first()
+    if (await b.count()) { await b.click({ timeout: 2000 }).catch(() => {}); break }
   }
   if (shot === 0) { await page.screenshot({ path: process.env.PROBE_SHOT || '/home/tomcassidy/.tmp/belt-probe.png' }).catch(() => {}); shot = 1 }
 }
