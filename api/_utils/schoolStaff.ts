@@ -72,3 +72,63 @@ export async function ensureSchoolAdminTag(
   if (error && error.code !== '23505') return error.message || 'user_tags insert failed'
   return null
 }
+
+/**
+ * Is `userId` an ADMIN of this school — under EITHER spelling?
+ *
+ * There are two, and they are equally valid:
+ *
+ *   1. `schools.admin_user_id` — the FOUNDING admin pointer, set once at
+ *      creation. Exactly one person per school can ever be this.
+ *   2. an active `user_tags` SCHOOL: row with `role_in_context='admin'` —
+ *      which is what the invite/claim path writes for EVERY admin after the
+ *      first, and (since 2026-08-06) for the founder too.
+ *
+ * The bug this closes (Tom, staging, 2026-08-08, as "Harbour Leader" at
+ * "Harbour View School, Visakhapatnam"): saving a teacher assignment failed
+ * with "Only the class teacher or a leader above the class can manage its
+ * teachers" for all three of her own school's classes. She holds the TAG;
+ * the school's `admin_user_id` pointer is Suresh Rao, the founding admin. So
+ * every authz predicate that asked only "are you the pointer?" said no to the
+ * person who runs the school — and then fell through to a govt_admins lookup
+ * she has no row in, and returned false.
+ *
+ * This is the SAME gap, one layer up, that migration 20260807c closed inside
+ * the database for `is_school_admin_of()`. The DB learned the tag spelling on
+ * 2026-08-07; the API's copy of the same question did not, so reads worked and
+ * writes did not — which is the worst possible split, because the UI shows you
+ * a verb the server then refuses.
+ *
+ * Deliberately ONE predicate, exported, so the two spellings can never again
+ * be recognised in one place and missed in another.
+ */
+export async function isSchoolAdminOf(
+  supabase: SupabaseClient,
+  userId: string,
+  schoolId: string,
+): Promise<boolean> {
+  if (!userId || !schoolId) return false
+
+  // Spelling 1 — the founding pointer.
+  const { data: school } = await supabase
+    .from('schools')
+    .select('admin_user_id')
+    .eq('id', schoolId)
+    .maybeSingle()
+  if ((school as unknown as { admin_user_id?: string | null } | null)?.admin_user_id === userId) {
+    return true
+  }
+
+  // Spelling 2 — the admin membership tag. `removed_at IS NULL` matters: a
+  // revoked admin must not keep the rights the tag once granted.
+  const { data: tag } = await supabase
+    .from('user_tags')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('tag_type', 'school')
+    .eq('tag_value', `SCHOOL:${schoolId}`)
+    .eq('role_in_context', 'admin')
+    .is('removed_at', null)
+    .maybeSingle()
+  return !!tag
+}
