@@ -9,6 +9,10 @@
  * and, on whether the teaching cycles are doubled too: "of course not - the
  * intro LEGO and not the LEGO alone".
  *
+ * BOTH the repeat count and the eligible cycle types are CONFIG, read off the
+ * mode row (Tom, 2026-08-07: everything parametrised, nothing hardcoded). The
+ * only thing config cannot raise is the ceiling of 2, which is his rule.
+ *
  * What this file pins:
  *   1. the pure pass — pairs, never triples, and leaves intro/debut/seed-phase
  *      reviews alone;
@@ -20,7 +24,8 @@
 import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateLearningScript, DEFAULT_SCRIPT_SHAPE, scriptItemIdentity, type ScriptItem } from './generateLearningScript'
-import { doublePhraseCycles, isDoubledCycle } from './doublePhraseCycles'
+import { repeatPhraseCycles, isRepeatedCycle, DEFAULT_REPEATED_CYCLE_TYPES } from './repeatPhraseCycles'
+import { normalizePhraseRepeatCount, normalizeRepeatedCycleTypes } from '../composables/useAlgorithmConfig'
 import { toSimpleRounds } from './toSimpleRounds'
 import { cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
@@ -110,6 +115,8 @@ const run = (easy?: Parameters<typeof generateLearningScript>[6]) => {
     : generateLearningScript(...args, easy)
 }
 
+const TYPES = normalizeRepeatedCycleTypes(undefined)
+
 const item = (over: Partial<ScriptItem> & Pick<ScriptItem, 'type'>): ScriptItem => ({
   uuid: over.uuid ?? `u-${over.type}-${over.cycleNum ?? 1}`,
   cycleNum: 1, roundNumber: 1, seedId: 'S0001', legoKey: 'S0001L01',
@@ -119,45 +126,87 @@ const item = (over: Partial<ScriptItem> & Pick<ScriptItem, 'type'>): ScriptItem 
 
 describe('1. the doubling pass itself', () => {
   it('doubles the four practice types and nothing else', () => {
-    expect(isDoubledCycle(item({ type: 'build' }))).toBe(true)
-    expect(isDoubledCycle(item({ type: 'spaced_rep' }))).toBe(true)
-    expect(isDoubledCycle(item({ type: 'use' }))).toBe(true)
-    expect(isDoubledCycle(item({ type: 'intro' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'debut' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'listening' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'pod' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'component_intro' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'component_practice' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'listen_intro' }))).toBe(false)
-    expect(isDoubledCycle(item({ type: 'listen_outro' }))).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'build' }), TYPES)).toBe(true)
+    expect(isRepeatedCycle(item({ type: 'spaced_rep' }), TYPES)).toBe(true)
+    expect(isRepeatedCycle(item({ type: 'use' }), TYPES)).toBe(true)
+    expect(isRepeatedCycle(item({ type: 'intro' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'debut' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'listening' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'pod' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'component_intro' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'component_practice' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'listen_intro' }), TYPES)).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'listen_outro' }), TYPES)).toBe(false)
   })
 
   it('leaves the SEED-PHASE production sandwich alone — doubling it would be 4x', () => {
-    expect(isDoubledCycle(item({ type: 'spaced_rep', reviewItemKind: 'seed' }))).toBe(false)
+    expect(isRepeatedCycle(item({ type: 'spaced_rep', reviewItemKind: 'seed' }), TYPES)).toBe(false)
   })
 
   it('pairs each practice cycle, gives the copy its own uuid, and renumbers cycles', () => {
-    const out = doublePhraseCycles([
+    const out = repeatPhraseCycles([
       item({ type: 'intro', uuid: 'i1' }),
       item({ type: 'debut', uuid: 'd1' }),
       item({ type: 'build', uuid: 'b1' }),
       item({ type: 'use', uuid: 'u1' }),
-    ])
+    ], { count: 2, types: TYPES })
     expect(out.map(i => i.uuid)).toEqual(['i1', 'd1', 'b1', 'b1_x2', 'u1', 'u1_x2'])
     expect(out.map(i => i.cycleNum)).toEqual([1, 2, 3, 4, 5, 6])
   })
 
   it('restarts cycle numbering at every round boundary', () => {
-    const out = doublePhraseCycles([
+    const out = repeatPhraseCycles([
       item({ type: 'build', uuid: 'b1', roundNumber: 1 }),
       item({ type: 'build', uuid: 'b2', roundNumber: 2 }),
-    ])
+    ], { count: 2, types: TYPES })
     expect(out.map(i => [i.roundNumber, i.cycleNum])).toEqual([[1, 1], [1, 2], [2, 1], [2, 2]])
   })
 })
 
+describe('1b. the settings are settings — count and types both come from config', () => {
+  it('the repeat count is honoured, and 1 means untouched', () => {
+    const items = [item({ type: 'build', uuid: 'b1' })]
+    expect(repeatPhraseCycles(items, { count: 1, types: TYPES })).toBe(items)
+    expect(repeatPhraseCycles(items, { count: 2, types: TYPES }).map(i => i.uuid)).toEqual(['b1', 'b1_x2'])
+  })
+
+  it('CLAMPS above 2 — Tom\'s rule, the one thing a config row cannot raise', () => {
+    expect(normalizePhraseRepeatCount(3)).toBe(2)
+    expect(normalizePhraseRepeatCount(99)).toBe(2)
+    // and the pass itself refuses to exceed it even if handed a bad count
+    const out = repeatPhraseCycles([item({ type: 'build', uuid: 'b1' })], { count: 5, types: TYPES })
+    expect(out.map(i => i.uuid)).toEqual(['b1', 'b1_x2'])
+  })
+
+  it('degrades a missing or nonsense count to 1 — never to repetition nobody asked for', () => {
+    for (const bad of [undefined, null, NaN, 0, -3, 1]) {
+      expect(normalizePhraseRepeatCount(bad as number)).toBe(1)
+    }
+  })
+
+  it('the eligible TYPE LIST is config: a row can add the debut, or repeat nothing', () => {
+    const script = [item({ type: 'debut', uuid: 'd1' }), item({ type: 'build', uuid: 'b1' })]
+    const withDebut = normalizeRepeatedCycleTypes(['debut', 'build'])
+    expect(repeatPhraseCycles(script, { count: 2, types: withDebut }).map(i => i.uuid))
+      .toEqual(['d1', 'd1_x2', 'b1', 'b1_x2'])
+    const none = normalizeRepeatedCycleTypes([])
+    expect(repeatPhraseCycles(script, { count: 2, types: none }).map(i => i.uuid)).toEqual(['d1', 'b1'])
+  })
+
+  it('an absent type list falls back to the four Tom named', () => {
+    expect([...normalizeRepeatedCycleTypes(undefined)].sort())
+      .toEqual([...DEFAULT_REPEATED_CYCLE_TYPES].sort())
+  })
+
+  it('the seed-phase sandwich stays out even when a row names spaced_rep', () => {
+    const seedReview = item({ type: 'spaced_rep', uuid: 's1', reviewItemKind: 'seed' })
+    expect(repeatPhraseCycles([seedReview], { count: 2, types: normalizeRepeatedCycleTypes(['spaced_rep']) })
+      .map(i => i.uuid)).toEqual(['s1'])
+  })
+})
+
 describe('2. end to end — an Easy script', () => {
-  const easy = { doublePhraseCycles: true }
+  const easy = { phraseRepeatCount: 2 }
 
   it('plays every BUILD, REVIEW and CONSOLIDATE cycle exactly twice, back to back', async () => {
     const { items } = await run(easy)
@@ -228,7 +277,7 @@ describe('2. end to end — an Easy script', () => {
 
 describe('3. the pairs survive the round adapter, which is what the player receives', () => {
   it('toSimpleRounds keeps every twin adjacent and never lets a prompt run three deep', async () => {
-    const { items } = await run({ doublePhraseCycles: true })
+    const { items } = await run({ phraseRepeatCount: 2 })
     const rounds = toSimpleRounds(items)
     let pairs = 0
     for (const round of rounds) {
@@ -248,7 +297,7 @@ describe('4. FAST IS PROVABLY UNCHANGED', () => {
   it('an options object with every lever off is byte-identical to omitting it', async () => {
     const omitted = await run()
     const fast = await run({
-      doublePhraseCycles: false,
+      phraseRepeatCount: 1,
       filterBuildPhrases: true,
       reviewMaxKnownSyllables: 0,
     })

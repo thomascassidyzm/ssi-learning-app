@@ -14,6 +14,7 @@ import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
 import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
+import { DEFAULT_REPEATED_CYCLE_TYPES, MAX_PHRASE_REPEAT_COUNT } from '../providers/repeatPhraseCycles'
 import {
   type ListeningRampStep,
   type ListeningSlot,
@@ -96,17 +97,28 @@ export interface ModeConfig {
    */
   maxPhraseLengthFraction?: number
   /**
-   * Play every PRACTICE cycle twice, back to back — "in EASY mode, double up
-   * every phrase, every BLD, every USE, every REVIEW, every CONSOLIDATE"
-   * (Tom, 2026-08-07). Exactly twice, never three times: "a phrase repeated 3x
-   * would drive people nuts, but doubled up is perfect".
+   * How many times each practice cycle plays, back to back — "in EASY mode,
+   * double up every phrase, every BLD, every USE, every REVIEW, every
+   * CONSOLIDATE" (Tom, 2026-08-07). Easy ships 2; Fast ships 1.
    *
-   * The INTRO cycle and the bare-LEGO debut are NOT doubled — Tom, asked
-   * directly whether they should be: "of course not - the intro LEGO and not
-   * the LEGO alone". Absent / false ⇒ nothing is doubled, which is Fast's
-   * value, so Fast is provably unchanged.
+   * HARD CEILING OF 2, from Tom's rule rather than from taste: "we do NOT ever
+   * want to repeat exactly the same phrase more than 2x - a phrase repeated 3x
+   * would drive people nuts, but doubled up is perfect". A row asking for 3 is
+   * clamped to 2 and warns. Absent / ≤1 ⇒ no repetition at all.
    */
-  doublePhraseCycles?: boolean
+  phraseRepeatCount?: number
+  /**
+   * WHICH cycle types `phraseRepeatCount` applies to. Default is the four Tom
+   * named — BLD, REVIEW, USE and CONSOLIDATE, which are `build`, `spaced_rep`
+   * and `use` in script terms. The INTRO and bare-LEGO debut are absent by his
+   * ruling ("of course not - the intro LEGO and not the LEGO alone"); adding
+   * them here is a config decision, not a code change.
+   *
+   * SEED-PHASE production reviews are never repeated whatever this says — that
+   * sandwich is already several cycles of one sentence, so repeating it would
+   * breach the never-more-than-twice rule. Structural, not a setting.
+   */
+  repeatedCycleTypes?: string[]
   /**
    * Should BUILD phrases be put through the phrase-length filters at all?
    *
@@ -355,9 +367,12 @@ export const DEFAULT_FAST: ModeConfig = {
   // Uncapped phrase length — Fast meets exactly the phrases it always did.
   maxPhraseLengthFraction: 1.0,
   // Every Easy lever explicitly OFF, so Fast's script is provably unchanged
-  // by the 2026-08-07 redesign: no doubling, BUILD filtered as it always was,
-  // no known-side pull filter.
-  doublePhraseCycles: false,
+  // by the 2026-08-07 redesign: each cycle plays once, BUILD filtered as it
+  // always was, no known-side pull filter. The type list is carried even
+  // though the count of 1 makes it inert, so both modes present the same
+  // knobs on the admin page.
+  phraseRepeatCount: 1,
+  repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
   filterBuildPhrases: true,
   reviewMaxKnownSyllables: 0,
   /**
@@ -417,15 +432,22 @@ export const DEFAULT_EASY: ModeConfig = {
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false,
-  // DOUBLE the reps, against the global script_shape values (7/2/12/3).
-  // These mirror the seeded easy_mode DB row exactly; the row is authoritative
-  // and these only apply when it cannot be read.
-  scriptShape: {
-    maxBuildPhrases: 14,
-    useConsolidationCount: 4,
-    maxSpacedRepPhrases: 24,
-    n1PhraseCount: 6,
-  },
+  /**
+   * NO PHRASE-COUNT INFLATION (Tom's ruling, 2026-08-07: "JUST DOUBLE").
+   *
+   * Easy plays the SAME phrase set as Fast — every override here is empty, so
+   * the global script_shape row comes through byte for byte — and its extra
+   * repetition comes entirely from playing each cycle twice. That is ~2x a
+   * Fast round. Easy previously ALSO doubled the phrase COUNTS (14/4/24/6
+   * against the global 7/2/12/3), which compounded with the doubling into a
+   * ~2.5x round nobody asked for: more DIFFERENT phrases, where what was asked
+   * for was the SAME phrase heard twice.
+   *
+   * This stays here as the knob rather than being deleted: it IS the
+   * phrase-count multiplier, editable per mode from the admin Speaking page,
+   * and it defaults to no inflation.
+   */
+  scriptShape: {},
   // HALVE the longest possible phrase (Aran, 2026-08-06) — a fraction of the
   // COURSE's longest phrase, measured in characters. Phrases still arrive
   // shortest-first; the cap only cuts the long tail, with the starvation guard
@@ -436,8 +458,12 @@ export const DEFAULT_EASY: ModeConfig = {
    * from hearing each phrase twice in a row rather than from meeting more
    * different phrases: "we want more repetitions in each ROUND for a LEGO,
    * but we do NOT ever want to repeat exactly the same phrase more than 2x".
+   * 2 is also the hard ceiling — see normalizePhraseRepeatCount.
    */
-  doublePhraseCycles: true,
+  phraseRepeatCount: 2,
+  /** BLD, REVIEW, USE and CONSOLIDATE — the four he named. Intro and the bare
+   *  LEGO are absent: "of course not - the intro LEGO and not the LEGO alone". */
+  repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
   /**
    * NO filtering on BUILD phrases — Tom, 2026-08-07, verbatim. The debut round
    * hands the learner the new LEGO and then "all the places that it can fit
@@ -494,6 +520,44 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
   if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return 1
   if (fraction <= 0 || fraction > 1) return 1
   return fraction
+}
+
+/** Warned-once ledger for a config row asking for more repeats than the rule allows. */
+let repeatCeilingWarned = false
+
+/**
+ * Coerce a mode's `phraseRepeatCount` into 1..MAX_PHRASE_REPEAT_COUNT.
+ *
+ * Absent / non-finite / ≤1 ⇒ 1, i.e. no repetition, which is Fast's value.
+ * ABOVE THE CEILING ⇒ clamped to 2, loudly. That ceiling is Tom's rule, not a
+ * preference — "a phrase repeated 3x would drive people nuts" — so it is the
+ * one thing on this row config cannot raise.
+ */
+export function normalizePhraseRepeatCount(count?: number | null): number {
+  if (typeof count !== 'number' || !Number.isFinite(count)) return 1
+  const floored = Math.floor(count)
+  if (floored <= 1) return 1
+  if (floored > MAX_PHRASE_REPEAT_COUNT) {
+    if (!repeatCeilingWarned) {
+      repeatCeilingWarned = true
+      console.warn(
+        `[mode-config] phraseRepeatCount ${floored} exceeds the hard ceiling of ${MAX_PHRASE_REPEAT_COUNT} and has been clamped. ` +
+        'Tom, 2026-08-07: "we do NOT ever want to repeat exactly the same phrase more than 2x - a phrase repeated 3x would drive people nuts."',
+      )
+    }
+    return MAX_PHRASE_REPEAT_COUNT
+  }
+  return floored
+}
+
+/**
+ * Coerce a mode's `repeatedCycleTypes` into a set of cycle types.
+ * Absent / not an array ⇒ the four types Tom named. An EMPTY array is honoured
+ * as "repeat nothing" — that is a deliberate configuration, not a bad value.
+ */
+export function normalizeRepeatedCycleTypes(types?: string[] | null): ReadonlySet<string> {
+  if (!Array.isArray(types)) return new Set(DEFAULT_REPEATED_CYCLE_TYPES)
+  return new Set(types.filter((t) => typeof t === 'string' && t.length > 0))
 }
 
 /**

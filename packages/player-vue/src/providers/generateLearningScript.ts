@@ -21,11 +21,12 @@ import {
   capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
   normalizeMaxPhraseLengthFraction, normalizeMaxKnownSyllables,
   normalizeReviewFilterMaxRound, makeKnownSyllableResolver, filterReviewPool,
+  normalizePhraseRepeatCount, normalizeRepeatedCycleTypes,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
 import type { ReviewPullFilter } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
-import { doublePhraseCycles } from './doublePhraseCycles'
+import { repeatPhraseCycles } from './repeatPhraseCycles'
 
 export interface ScriptItem {
   uuid: string
@@ -198,10 +199,14 @@ export interface LearningScriptResult {
  */
 export interface EasyModeOptions {
   /**
-   * Play every BUILD / USE / REVIEW / CONSOLIDATE cycle exactly twice, back to
-   * back (Tom, 2026-08-07). Intro and bare-LEGO debut cycles play once.
+   * How many times each eligible practice cycle plays, back to back (Tom,
+   * 2026-08-07). 1 / absent ⇒ once, which is Fast. Easy ships 2, and 2 is also
+   * the hard ceiling — a higher value is clamped, loudly.
    */
-  doublePhraseCycles?: boolean
+  phraseRepeatCount?: number
+  /** Which cycle types the repeat applies to. Defaults to build / spaced_rep /
+   *  use — BLD, REVIEW, USE and CONSOLIDATE. */
+  repeatedCycleTypes?: string[]
   /** False ⇒ BUILD phrases bypass the phrase-length cap entirely ("no
    *  filtering on BLD phrases" — Tom, 2026-08-07). Default true. */
   filterBuildPhrases?: boolean
@@ -1868,14 +1873,16 @@ export async function generateLearningScript(
 
   // ── EASY doubling (Tom, 2026-08-07) ──────────────────────────────────────
   // "in EASY mode, double up every phrase, every BLD, every USE, every REVIEW,
-  // every CONSOLIDATE". Runs AFTER the consecutive-duplicate removal above,
-  // which would strip the second copy, and BEFORE the A-64 floor below, which
-  // allows exactly two in a row and so guarantees "doubled" can never become
-  // tripled. Off for Fast, and the pass returns its input untouched then, so
-  // Fast's script is byte-identical to the pre-2026-08-07 walk.
-  const doubledItems = easyOptions.doublePhraseCycles
-    ? doublePhraseCycles(playableItems)
-    : playableItems
+  // every CONSOLIDATE". BOTH the count and the eligible types are config, read
+  // off the mode row. Runs AFTER the consecutive-duplicate removal above, which
+  // would strip the second copy, and BEFORE the A-64 floor below, which allows
+  // exactly two in a row and so guarantees "doubled" can never become tripled.
+  // A count of 1 (Fast) returns the input array untouched, so Fast's script is
+  // byte-identical to the pre-2026-08-07 walk.
+  const doubledItems = repeatPhraseCycles(playableItems, {
+    count: normalizePhraseRepeatCount(easyOptions.phraseRepeatCount),
+    types: normalizeRepeatedCycleTypes(easyOptions.repeatedCycleTypes),
+  })
 
   // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
   // "No mode should ever repeat the same prompt more than twice consecutively."
