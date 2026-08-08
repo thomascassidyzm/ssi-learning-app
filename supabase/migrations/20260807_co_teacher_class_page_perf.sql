@@ -1,3 +1,11 @@
+-- SUPERSEDED, NEVER APPLIED. DO NOT RUN THIS FILE.
+-- Verified against the live database 2026-08-08: it was never applied, and it
+-- has since gone stale in two ways that would each have caused real harm (a
+-- tag-designated school admin blacked out; a co-teacher handed the lead
+-- teacher's write authority). Its diagnosis is sound and is preserved here as
+-- the record. The fix that actually shipped is
+-- 20260808_co_teacher_class_page_perf.sql.
+--
 -- 20260807_co_teacher_class_page_perf.sql
 --
 -- CO-TEACHER CLASS PAGE TIMES OUT ON PRODUCTION.

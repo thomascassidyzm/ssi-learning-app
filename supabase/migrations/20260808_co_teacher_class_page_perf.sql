@@ -137,6 +137,13 @@
 --
 -- This migration enables/disables RLS on NOTHING and grants NOTHING new.
 --
+-- APPLIED TO THE LIVE DATABASE 2026-08-08 by the canary below, APPLY=1, GREEN:
+--   read parity  : 21 principals x 8 surfaces  -> IDENTICAL
+--   write parity : 21 principals x user_tags UPDATE scope -> IDENTICAL
+--   the slow page (both views, one load, as measured inside the canary):
+--     co-teacher    8553 ms -> 252 ms
+--     school admin  8316 ms -> 245 ms
+--
 -- Canary:   supabase/secfix-toolkit/canary_co_teacher_class_page_perf_2026-08-08.cjs
 -- Rollback: supabase/secfix-toolkit/rollback_co_teacher_class_page_perf_2026-08-08.sql
 
