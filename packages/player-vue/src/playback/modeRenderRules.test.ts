@@ -419,6 +419,28 @@ describe('4. no prompt three times in a row, whatever the script hands the engin
     expect(played).toEqual(['first', 'first'])
   })
 
+  it('holds ACROSS THE ROUND SEAM — the next round\'s first cycle counts as "next"', () => {
+    // Rounds are the unit of position, so the cap re-interleaves WITHIN a round
+    // and is explicitly seeded with the previous round's tail to hold the seam.
+    // A lookahead that stops at the end of its own round has the same blind spot
+    // the cap was given a seed to avoid: the last cycle of round N doubles, and
+    // the first cycle of round N+1 carries the same prompt, and that is three.
+    // Reachable in ordinary shapes — INF-PLAY revival rounds and any round whose
+    // intro was suppressed for missing audio open on a practice cycle.
+    const seam = (): Round[] => [
+      { roundNumber: 1, legoId: 'L1', seedId: 'S1', cycles: [
+        cycle({ id: 'tail', type: 'use', known: { text: 'a b c', audioUrl: 'https://example.com/s.mp3' } }),
+      ] },
+      { roundNumber: 2, legoId: 'L2', seedId: 'S2', cycles: [
+        cycle({ id: 'head', type: 'use', known: { text: 'a b c', audioUrl: 'https://example.com/s.mp3' } }),
+      ] },
+    ]
+    start(seam())
+    for (let i = 0; i < 4; i++) finishCycle()
+    // Two hearings in total, split across the seam — not three.
+    expect(played).toEqual(['tail', 'head'])
+  })
+
   it('the engine clamps the repeat itself — a bad config row cannot buy a third hearing', () => {
     played = []
     player = new SimplePlayer(warmRounds(), {

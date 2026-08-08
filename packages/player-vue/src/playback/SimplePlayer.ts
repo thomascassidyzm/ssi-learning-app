@@ -1749,6 +1749,16 @@ export class SimplePlayer {
     // the override jumps over any cycles it now wants skipped before the next
     // prompt — and lets the repeat decision below see what is actually coming.
     const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+    // ACROSS THE SEAM, not just to the end of this round. `capRoundCycles` is
+    // given the previous round's tail as a seed for exactly this reason: rounds
+    // are the unit of position, but they are not the unit of hearing. A
+    // lookahead that stopped at the round's edge would let the last cycle of
+    // round N double into the first cycle of round N+1 carrying the same prompt.
+    // advanceRound lands on cycleIndex 0 and starts it without consulting the
+    // cull, so cycles[0] is genuinely what sounds next.
+    const nextCycle = nextIdx !== -1
+      ? round.cycles[nextIdx]
+      : this.rounds[this.state.roundIndex + 1]?.cycles?.[0]
 
     if (justPlayed && this.state.isPlaying) {
       const anchor = `${round.roundNumber}:${this.state.cycleIndex}`
@@ -1768,7 +1778,6 @@ export class SimplePlayer {
       //   • the NEXT position carries it too, so repeating here and playing
       //     there would make three. The pair itself supplies the second
       //     hearing, so the repeat is redundant as well as illegal.
-      const nextCycle = nextIdx === -1 ? undefined : round.cycles[nextIdx]
       const lawAllowsRepeat =
         this.lastPromptRunLength < MAX_PHRASE_REPEAT_COUNT &&
         !(nextCycle && cyclePromptIdentity(nextCycle) === this.lastPromptIdentity)

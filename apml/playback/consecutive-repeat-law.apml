@@ -70,7 +70,11 @@ SPECIFICATION:
         refuses a repeat that would carry the run past MAX_PHRASE_REPEAT_COUNT;
       - a one-position lookahead, which refuses a repeat when the NEXT playable
         cycle carries the same prompt — the pair supplies the second hearing
-        itself, so the repeat would be illegal AND redundant;
+        itself, so the repeat would be illegal AND redundant. The lookahead
+        CROSSES THE ROUND SEAM (at the round's last cycle it reads the next
+        round's cycles[0], which is what advanceRound starts), for the same
+        reason capRoundCycles is seeded with the previous round's tail: rounds
+        are the unit of position, not the unit of hearing;
       - the ceiling applied to the override's own return value, so the floor
         does not depend on its caller having been normalised.
     Totals are preserved exactly as the re-interleave pass preserves them: a
@@ -282,8 +286,9 @@ SITE:
       - lastPromptRunLength has already reached MAX_PHRASE_REPEAT_COUNT — the
         preceding script position carried this same prompt and has spent the
         allowance;
-      - the next playable cycle in the round carries the same prompt identity —
-        the pair will supply the second hearing itself.
+      - the next cycle to sound carries the same prompt identity — the pair will
+        supply the second hearing itself. Resolved ACROSS the round seam, not
+        just to the end of the current round.
     The override's return value is additionally clamped to
     MAX_PHRASE_REPEAT_COUNT, so a config row that never met a normaliser cannot
     reach past the floor.
@@ -322,8 +327,10 @@ TESTS:
       (a legal identical PAIR) is heard twice in Easy and not four times; an
       ordinary practice cycle still doubles; a round landing behind the cursor
       mid-double buys no third hearing; stop() leaves no half-spent count; and
-      an unnormalised override of 99 still yields two. All four of the first,
-      third, fourth and fifth fail without the boundary check.
+      an unnormalised override of 99 still yields two; and the same pair split
+      ACROSS A ROUND SEAM is heard twice, not three times. Every one of those
+      fails without the boundary check — the seam case fails even with a
+      lookahead confined to its own round.
   - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
     covers: |
       Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened

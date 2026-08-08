@@ -28,6 +28,23 @@ import type { Round, Cycle } from './SimplePlayer'
  * surplus is spent via `plan.insertBreather` (`assembleBreatherRound` below),
  * never by inventing extra cycles inside this round.
  */
+/**
+ * A RoundPlan's counts are SCRIPT POSITIONS, and since 2026-08-08 a position is
+ * no longer a hearing in Easy.
+ *
+ * Easy's doubling used to be baked into the generated script, so an Easy round
+ * held two positions per phrase and a buildCount of 4 meant four hearings. The
+ * doubling is now a play-time rule (playback/modeRenderRules.ts), so an Easy
+ * round holds one position per phrase and the same buildCount of 4 means EIGHT
+ * hearings — twice the audio of the identical plan in Fast.
+ *
+ * Not live: adaptation v2 ships `shadow: true`, so the omit set is computed and
+ * never applied. Settle what a plan count MEANS under a doubling mode before
+ * shadow comes off — positions (dose scales with the mode) or hearings (the
+ * count is halved in Easy). Culling by `cycle.id` is unaffected either way:
+ * both plays of a doubled cycle share the id, so omitting one omits both,
+ * which is the behaviour you want in both readings.
+ */
 export function computeAdaptOmitCycleIds(round: Round, plan: RoundPlan): Set<string> {
   const omit = new Set<string>()
   let buildSeen = 0
