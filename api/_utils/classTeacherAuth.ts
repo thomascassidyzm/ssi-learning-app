@@ -15,6 +15,12 @@
  *      admin, and any govt_admin whose governed group is the class's group /
  *      the school's group or node, or an ancestor of either.
  *
+ * "The class's school admin" means an admin under EITHER spelling — the
+ * `schools.admin_user_id` founding pointer OR an active SCHOOL: admin tag —
+ * and that question has exactly one owner, `isSchoolAdminOf` in schoolStaff.ts.
+ * Recognising only the pointer is what made this whole predicate say no to the
+ * person who runs the school (staging, 2026-08-08); see that function's note.
+ *
  * What this is deliberately NOT:
  *   - not "any teacher of the class" (a co-teacher cannot recruit further
  *     co-teachers, nor unseat the lead who invited them), and
@@ -34,6 +40,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isWithinLeaderSubtree } from './orgLeader'
+import { isSchoolAdminOf } from './schoolStaff'
 
 export interface ClassAuthRow {
   id: string
@@ -101,18 +108,21 @@ export async function isLeaderAboveClass(
   if (classRow.group_id) targetGroupIds.push(classRow.group_id)
 
   if (classRow.school_id) {
+    // The school admin IS the leader directly above the class — under EITHER
+    // spelling. Asking only "are you schools.admin_user_id?" answered no for
+    // every admin who joined after the founder, which is most of them
+    // (staging, 2026-08-08). isSchoolAdminOf owns both spellings.
+    if (await isSchoolAdminOf(svc, userId, classRow.school_id)) return true
+
     const { data: school } = await svc
       .from('schools')
-      .select('admin_user_id, group_id, node_group_id')
+      .select('group_id, node_group_id')
       .eq('id', classRow.school_id)
       .maybeSingle()
     const s = school as unknown as {
-      admin_user_id?: string | null
       group_id?: string | null
       node_group_id?: string | null
     } | null
-    // The school admin IS the leader directly above the class.
-    if (s?.admin_user_id && s.admin_user_id === userId) return true
     if (s?.node_group_id) targetGroupIds.push(s.node_group_id)
     if (s?.group_id) targetGroupIds.push(s.group_id)
   }
@@ -153,19 +163,21 @@ export async function canManageClassTeachers(
   return isPlatformAdmin(svc, userId)
 }
 
-/** Is the caller the admin of this class's school? */
+/**
+ * Is the caller the admin of this class's school?
+ *
+ * Both spellings, via the one predicate — this used to read the founding
+ * pointer alone, which silently denied a tag-admin the day-to-day teaching
+ * verbs (minting a student join code, creating a learner entity) for classes
+ * in her own school, in exactly the same way it denied her the management ones.
+ */
 export async function isSchoolAdminOfClass(
   svc: SupabaseClient,
   userId: string,
   classRow: ClassAuthRow,
 ): Promise<boolean> {
   if (!classRow.school_id) return false
-  const { data } = await svc
-    .from('schools')
-    .select('admin_user_id')
-    .eq('id', classRow.school_id)
-    .maybeSingle()
-  return (data as unknown as { admin_user_id?: string } | null)?.admin_user_id === userId
+  return isSchoolAdminOf(svc, userId, classRow.school_id)
 }
 
 /**
