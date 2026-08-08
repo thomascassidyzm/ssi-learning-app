@@ -106,12 +106,27 @@ describe('learning modes — Easy / Fast', () => {
     expect(easyConfig.value.pause_boot_ms).toBe(DEFAULT_EASY.pause_boot_ms)
   })
 
-  it('an admin can layer a shape override onto a mode from the DB', async () => {
+  it('resolveScriptShape still merges an override, for any future NON-mode overlay', async () => {
+    // The merge rule is unchanged and stays in one place. What changed on
+    // 2026-08-08 is who may use it: the player no longer layers a MODE onto
+    // the script shape at all (see the mode-free-script test below), so a
+    // `scriptShape` on a mode row is inert. Both live rows carry `{}`.
     const { modeConfig } = await load([
       { key: 'easy_mode', config: { scriptShape: { maxSpacedRepPhrases: 4 } } },
     ])
     const shape = resolveScriptShape(GLOBAL_SHAPE, modeConfig('easy'))
     expect(shape.maxSpacedRepPhrases).toBe(4)
     expect(shape.maxBuildPhrases).toBe(GLOBAL_SHAPE.maxBuildPhrases)
+  })
+
+  it('ONE SCRIPT: the composable exposes no per-mode script shape any more', async () => {
+    // Tom, 2026-08-08: "exactly the same script, but with different rules".
+    // `scriptShapeForMode` was the seam through which the mode reached the
+    // generator, and the generated script is CACHED — which is what made a
+    // mode switch need a cache clear and a course restart. It is gone, and
+    // this test exists so it cannot quietly come back.
+    const api = await load([{ key: 'script_shape', config: GLOBAL_SHAPE }])
+    expect('scriptShapeForMode' in api).toBe(false)
+    expect(api.scriptShapeConfig.value).toMatchObject(GLOBAL_SHAPE)
   })
 })
