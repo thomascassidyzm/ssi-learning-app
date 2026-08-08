@@ -64,10 +64,33 @@ one layer up.
 
 ---
 
-## What to click — all three verified live on staging, signed in as a school leader
+## Correction, 02:30 — saving was broken, and is now fixed
 
-I clicked every one of these on staging as `zz.school.leader` and read back what the
-screen actually said. Screenshots are in the repo alongside this note.
+My first pass verified that the controls *appeared* and that the modal *opened*. I
+deliberately did not press Save, to avoid writing to shared demo data — so the write path
+went untested, and you found what I had left uncovered: as Harbour Leader, all three saves
+failed with *"Only the class teacher or a leader above the class can manage its teachers"*.
+
+**The check was wrong, not the demo data.** Harbour View's `admin_user_id` points at
+Suresh Rao, its founding admin. You hold an admin **tag** instead — which is what every
+admin invited after the founder gets. The permission check only ever asked "are you the
+founding pointer?", missed, then fell through to a government-admin lookup you have no row
+in, and said no. Your hierarchy is fine: the school node is properly parented under
+Coastal Districts Region, and the classes hang off it correctly.
+
+It is the same gap we closed inside the database on 7 August, in the API's copy of the same
+question. The database learned the second spelling; this did not — so reads worked and
+writes did not, which is why the screen offered you a button the server then refused.
+
+Both spellings now have one owner, used by every caller. Verified by actually saving as
+your exact account: the old build returns 403 with your error, the new one returns 200 and
+writes the row, on all three of Grade 6B, Grade 7A and Y7 English. Live on staging **and
+production**. The demo school is back exactly as I found it.
+
+## What to click — all three now verified live, saves included
+
+I clicked every one of these on staging and read back what the screen actually said, and
+separately saved a real assignment as the Harbour Leader account itself.
 
 Your leader account lands on the **org/school node home**. The teacher list you want for
 the people-first route is on that page, not on `/schools/teachers` — that URL redirects
