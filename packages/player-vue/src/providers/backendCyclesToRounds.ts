@@ -43,6 +43,7 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
+import { repeatRoundCycles, type RepeatPhraseCyclesOptions } from './repeatPhraseCycles'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
@@ -134,6 +135,15 @@ export function backendCyclesToRounds(
    * the bug this parameter exists to close: pass the real config.
    */
   targetSpeed: TargetSpeedConfig = {},
+  /**
+   * The active mode's cycle-repeat setting (Tom, 2026-08-07 — Easy plays every
+   * practice cycle twice). Omitted, or a count of 1, leaves the rounds exactly
+   * as they were, which is Fast. This path is otherwise mode-blind by design,
+   * so without it an Easy learner's FIRST rounds — the ones the instant cycles
+   * endpoint serves before the full walk lands — would play undoubled, and the
+   * doubling would then appear mid-session out of nowhere.
+   */
+  repeat?: RepeatPhraseCyclesOptions | null,
 ): Round[] {
   const rounds: Round[] = []
 
@@ -174,7 +184,10 @@ export function backendCyclesToRounds(
         ? { legoTargetTextNative: introCycle.target_text_native }
         : {}),
       legoKnownText: introCycle.known_text,
-      cycles,
+      // Easy's repetition, on the instant path. Applied before the A-64 floor
+      // below, which allows two in a row and so keeps "twice" from becoming
+      // three. Without a repeat option this is `cycles` unchanged — Fast.
+      cycles: repeat ? repeatRoundCycles(cycles, repeat) : cycles,
     })
   }
 

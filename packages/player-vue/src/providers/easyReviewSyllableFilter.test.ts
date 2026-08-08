@@ -12,9 +12,14 @@
  *      no difference at all" — because "it's the LEGO that you are practicing",
  *     so a phrase the learner has never met before is fine.
  *
- * Plus the two invariants that must survive it: a basket with nothing short
- * enough yields its SHORTEST phrase rather than an empty slot, and every
- * pulled phrase still contains its target LEGO.
+ * Plus the invariant that must survive it: a basket with nothing short enough
+ * yields its SHORTEST phrase rather than an empty slot.
+ *
+ * NOT tested, on Tom's ruling (2026-08-07): that a pulled phrase contains its
+ * LEGO. A LEGO's basket IS its own BLD and USE phrases, so by definition every
+ * phrase in it contains that LEGO. It is automatic, not a rule to implement.
+ * A spaced-rep REVIEW pull is a USE phrase from an EARLIER LEGO's basket, and
+ * the same definition holds there.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -240,18 +245,7 @@ describe('3. shortest-in-basket fallback — the round is never left empty', () 
   })
 })
 
-describe('4. every pulled phrase still contains its target LEGO', () => {
-  it('holds for every review and consolidate cycle in the script', async () => {
-    const { items } = await run()
-    const offenders = pulled(items).filter((i) => {
-      const seedNum = Number(i.legoKey.match(/S(\d+)/)?.[1] ?? 0)
-      return !i.targetText.includes(`mot${seedNum}`)
-    })
-    expect(offenders.map(i => `${i.legoKey} ${i.targetText}`)).toEqual([])
-  })
-})
-
-describe('5. INERT AND LOUD where the known language has no counter', () => {
+describe('4. INERT AND LOUD where the known language has no counter', () => {
   it('an unregistered known language warns once, reports not-applied, and filters nothing', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const inert = await run('kor')
@@ -274,7 +268,7 @@ describe('5. INERT AND LOUD where the known language has no counter', () => {
   })
 })
 
-describe('6. BUILD phrases are never filtered in Easy', () => {
+describe('5. BUILD phrases are never filtered in Easy', () => {
   it('filterBuildPhrases:false keeps the whole BUILD pool under a biting character cap', async () => {
     const tight = 0.4
     const filtered = await generateLearningScript(
