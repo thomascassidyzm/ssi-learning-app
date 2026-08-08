@@ -62,8 +62,11 @@ import {
   resolveListeningPlayPolicy,
   normalizePhraseRepeatCount,
   normalizeRepeatedCycleTypes,
+  normalizeMaxKnownSyllables,
+  makeKnownSyllableResolver,
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
+import { cyclePlayCountFor, shouldSkipForLength, type ModeRenderRules } from '../playback/modeRenderRules'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
@@ -403,7 +406,6 @@ const {
   loadConfigs: loadAlgorithmConfigs,
   easyConfig,
   fastConfig,
-  scriptShapeForMode,
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
@@ -484,10 +486,11 @@ const generateScript = (
   // expansion watcher's call and the handoff's) which would split the key and
   // defeat the dedupe — while the counter only moves when INF-PLAY expansion
   // deliberately bumps it, which is exactly when a fresh walk IS wanted.
-  // learningMode is part of the key: Easy and Fast produce genuinely
-  // different scripts (doubled reps, longest-first phrases), so a mode change
-  // must not be served a cached walk from the other mode.
-  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${learningMode.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
+  // learningMode is deliberately NOT in the key. Both modes produce the SAME
+  // script (Tom, 2026-08-08) — mode is applied at play time — so a walk is
+  // reusable across a toggle, and keying on mode would only buy a pointless
+  // full-course regeneration every time the learner changed their mind.
+  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
   if (inFlightScript && inFlightScript.key === dedupeKey) {
     return inFlightScript.promise
   }
@@ -529,24 +532,17 @@ const runGenerateScript = (
     courseCode.value,
     infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
-    // Per-mode script shape: the global script_shape row with the active
-    // mode's overlay on top. Fast carries no overlay ⇒ unchanged.
-    scriptShapeForMode(learningMode.value),
-    // Phrase-length CAP for the active mode — a fraction of the longest
-    // phrase in the whole course. Fast is uncapped (1.0) and so provably
-    // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
-    activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-    // The Easy levers (Tom, 2026-08-07): every practice cycle doubled, BUILD
-    // phrases unfiltered, and a known-side syllable filter on review and
-    // consolidate pulls for the first 100 rounds. Fast carries them all off,
-    // so Fast is provably unchanged.
-    {
-      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-      filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-      reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-      reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-    },
+    // ONE SCRIPT FOR BOTH MODES (Tom, 2026-08-08). The generated script is
+    // cached, so anything mode-dependent baked in here survives a toggle and
+    // has to be cleared by hand — which is exactly the bug: Easy→Fast kept
+    // doubling until the learner wiped the cache and restarted the course. So
+    // the walk reads the GLOBAL script shape, takes no phrase-length cap, and
+    // gets no mode levers at all. Easy's doubling and its long-phrase skip are
+    // play-time rules — see playback/modeRenderRules.ts and the runtime
+    // overrides below. Never pass `learningMode` into this call.
+    scriptShapeConfig.value,
+    1,
+    {},
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -557,15 +553,6 @@ const runGenerateScript = (
     makeInfPlayRng(),
   )
 }
-
-// The active mode's cycle-repeat setting, in the shape backendCyclesToRounds
-// and the script walk both take. Easy plays every practice cycle twice (Tom,
-// 2026-08-07); Fast's count of 1 makes every call a no-op. Read fresh each
-// time so a mode switch mid-session takes effect on the next build.
-const currentRepeatConfig = () => ({
-  count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
-  types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
-})
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
 // learner so it's stable across sessions/regenerations for a given learner
@@ -1632,7 +1619,6 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
-          currentRepeatConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -9523,6 +9509,40 @@ watch(progressHistoryResolved, () => applyNewLearnerModeDefault(), { immediate: 
 // ============================================
 const MODE_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
 
+// ── THE PLAY-TIME MODE RULES (Tom, 2026-08-08) ─────────────────────────────
+// "exactly the same script, but with different rules, so that if we toggle
+// between easy and fast, you'll instantly get the correct audio."
+//
+// Easy differs from Fast in the speaking loop by exactly two things, and both
+// are read HERE, live, at the cycle boundary:
+//   • REPEAT — every eligible practice cycle plays twice, back to back;
+//   • SKIP   — a practice cycle whose KNOWN side runs past
+//              `reviewMaxKnownSyllables` (default 15, an admin config row) is
+//              passed over.
+// Neither reaches the generated script, so a toggle needs no regeneration, no
+// cache clear, no restart and no reload — it lands on the next cycle.
+const modeRenderRules = computed<ModeRenderRules>(() => ({
+  repeatCount: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
+  repeatedTypes: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
+  maxKnownSyllables: normalizeMaxKnownSyllables(activeModeConfig.value.reviewMaxKnownSyllables),
+}))
+
+// The course's KNOWN-side syllable counter, resolved once per course. Returns
+// null for a known language with no registered counter — the loud-inert path,
+// in which nothing is ever skipped, because a length rule must never silence a
+// cycle it cannot measure.
+let knownSyllableResolverCourse: string | null = null
+let knownSyllableResolver: ReturnType<typeof makeKnownSyllableResolver> | null = null
+const knownSyllablesOf = (text: string): number | null => {
+  const code = courseCode.value
+  if (!code) return null
+  if (knownSyllableResolverCourse !== code) {
+    knownSyllableResolverCourse = code
+    knownSyllableResolver = makeKnownSyllableResolver(code, props.course?.known_lang)
+  }
+  return knownSyllableResolver?.syllablesOf({ known_text: text }) ?? null
+}
+
 simplePlayer.setRuntimeOverrides({
   getPauseDuration: (cycle) => {
     // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
@@ -9588,7 +9608,19 @@ simplePlayer.setRuntimeOverrides({
   // multiplier: a second speed curve is exactly the bug this area has already
   // paid for twice. The only Easy/Fast differences are pause length, repetition
   // count and phrase-length cap.
+  // Easy's doubling, at PLAY time. Read from the live mode at every cycle
+  // boundary, so flipping to Fast means the very next phrase plays once and
+  // flipping to Easy means it doubles — no regeneration, no cache clear.
+  getCyclePlayCount: (cycle) => cyclePlayCountFor(cycle, modeRenderRules.value),
   shouldSkipCycle: (cycle) => {
+    // Easy's long-phrase skip, at PLAY time — the other half of the same
+    // ruling. REVIEW and USE/CONSOLIDATE only; BUILD, the debut and the intro
+    // are exempt ("no filtering on BLD phrases", Tom 2026-08-07). Skipping
+    // moves the cursor FORWARD over a script position, so an Easy learner who
+    // passed twenty long phrases has still COMPLETED the round, and switching
+    // to Fast leaves no hole behind and re-serves nothing.
+    if (shouldSkipForLength(cycle, modeRenderRules.value, knownSyllablesOf)) return true
+
     // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
     // says to skip this round, computed live at the round boundary — see
     // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
@@ -10203,19 +10235,21 @@ const exitAllModes = () => {
 /**
  * Switch learning mode.
  *
- * What lands WHEN — this is the honest split, worth knowing before you
- * change it:
- *   • IMMEDIATELY (next cycle boundary): pause / thinking time and playback
- *     speed, because those go through the runtime overrides above, which are
- *     read fresh at every phase.
- *   • NEXT SCRIPT BUILD (next session, or a course switch): the doubled reps
- *     and the halved phrase-length cap, because those are baked into the
- *     script at generation time. We deliberately do NOT force a blocking
- *     mid-session regeneration — a full-course walk is six course-wide
- *     queries, and stalling a learner mid-round to reshape a round they are
- *     halfway through is a worse trade than letting the reps land next time.
- *     `generateScript`'s dedupe key includes the mode, so the next build
- *     genuinely rebuilds rather than serving the other mode's cached walk.
+ * EVERYTHING LANDS ON THE NEXT CYCLE. There is no second, slower half any
+ * more, and there is nothing to clear, restart or reload (Tom, 2026-08-08).
+ *
+ * Easy and Fast are ONE script. Pause / thinking time, the post-voice2 gap and
+ * the listening ramp were already runtime overrides; the doubling and the
+ * long-phrase skip — the two things that used to be baked into the generated
+ * script and therefore into its cache — are now runtime overrides too
+ * (`getCyclePlayCount` / `shouldSkipCycle`, rules in
+ * playback/modeRenderRules.ts). So this function's whole job is to record the
+ * choice: the engine reads the live mode at every cycle boundary by itself.
+ *
+ * DO NOT reintroduce a script rebuild, a mode-keyed cache key, or a "refresh"
+ * button here. A refresh button would be a symptom of the baking coming back:
+ * the bug this replaced was Easy→Fast still doubling until the learner cleared
+ * the cache and restarted the course.
  */
 const setLearningMode = (mode: LearningMode) => {
   if (learningMode.value === mode) return
@@ -12637,7 +12671,6 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
-                currentRepeatConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12740,7 +12773,6 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
-                  currentRepeatConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -14202,16 +14234,10 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
         freshResult = await generateSimpleScript(
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
-          scriptShapeForMode(learningMode.value),
-          activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-          // Twin of the wrapper above — every mode lever travels together.
-          {
-            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-            filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-            reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-            reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-          },
+          // Twin of the wrapper above — mode-free, one script for both modes.
+          scriptShapeConfig.value,
+          1,
+          {},
         )
       }
     } finally {
