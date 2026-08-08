@@ -7,7 +7,7 @@
 
 ## The short version
 
-The work you wanted rebased is back on a branch off the current dev tip, with the two
+The work you wanted rebased is back on a branch off the current dev tip, with the
 correctness defects it carried now fixed and covered by tests. It does exactly what you
 asked for: **one script, two sets of play-time rules, toggle with impunity.**
 
@@ -60,13 +60,13 @@ already off. **A learner who never toggles gets exactly today's script.**
 
 ### The engine gates
 
-`typecheck` · `1955 tests` (up 5 — the new law tests) · `lint` **0 errors, 151 warnings —
+`typecheck` · `1956 tests` (up 6 — the new law tests) · `lint` **0 errors, 151 warnings —
 the identical count to dev**, so this adds none · `typecheck:api` · `1148 API tests` ·
 production build with the service worker.
 
-### Two correctness defects found, reproduced, fixed
+### Three correctness defects found, reproduced, fixed
 
-Both were in the restored work, not introduced by the rebase.
+The first two were in the restored work; the third was in my own fix for the first.
 
 **1. The never-three-in-a-row law had quietly stopped holding.** Moving the doubling out of
 the generator took it out from under the A-64 cap — and that ordering *was* the guarantee.
@@ -94,9 +94,24 @@ first:
   is not a floor; it clamps for itself now.
 
 The law now lives at the cycle boundary, in renditions rather than script items: a run
-counter over prompt identity, a one-position lookahead so a pair is never doubled into
-three, and the ceiling applied to the override's own return value. Totals are preserved — a
-suppressed repeat is a hearing the pair already provides, not a lost one.
+counter over prompt identity, a lookahead so a pair is never doubled into three, and the
+ceiling applied to the override's own return value. Totals are preserved — a suppressed
+repeat is a hearing the pair already provides, not a lost one.
+
+**3. And my own first fix had the same blind spot one level down.** The lookahead stopped at
+the end of its round, so the last cycle of round N could still double into a round N+1 that
+opened on the same prompt — three in a row across the seam. Reachable on infinite-play
+revival rounds and any round whose intro was dropped for missing audio. It crosses the seam
+now, for exactly the reason the build-time cap is seeded with the previous round's tail:
+rounds are the unit of position, not the unit of hearing.
+
+### One latent change worth knowing about
+
+Adaptation v2's round plans count **script positions**, and a position stopped being a
+hearing in Easy. The same `buildCount` of 4 used to mean four hearings; it now means eight,
+because the doubling is no longer in the script it counts. It is not biting — adaptation v2
+ships `shadow: true`, so it computes and never culls — but it needs settling before shadow
+comes off, and the note is now on the function that would act on it.
 
 ---
 
@@ -222,5 +237,5 @@ passing; the browser run is confirmation on the real article, and it is still ru
 
 ## Landing
 
-Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, six commits, pushed to origin.
+Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, eight commits, pushed to origin.
 **Not merged** to dev, staging or main. **Not deployed** anywhere. Yours to call.
