@@ -169,12 +169,12 @@ describe('ConfigResolver', () => {
       resolver.setLearnerOverrides({
         helix: { thread_count: 1 },
         cycle: { pause_duration_ms: 1500 },
-        features: { pace_modes_available: false },
+        features: { turbo_mode_available: false },
       });
       const config = resolver.resolve();
       expect(config.helix.thread_count).toBe(1);
       expect(config.cycle.pause_duration_ms).toBe(1500);
-      expect(config.features.pace_modes_available).toBe(false);
+      expect(config.features.turbo_mode_available).toBe(false);
     });
 
     it('should replace learner overrides when set multiple times', () => {
@@ -234,11 +234,11 @@ describe('ConfigResolver', () => {
     it('should handle multiple param updates', () => {
       resolver.updateLearnerParam('helix', 'thread_count', 7);
       resolver.updateLearnerParam('cycle', 'pause_duration_ms', 3500);
-      resolver.updateLearnerParam('features', 'pace_modes_available', false);
+      resolver.updateLearnerParam('features', 'turbo_mode_available', false);
       const config = resolver.resolve();
       expect(config.helix.thread_count).toBe(7);
       expect(config.cycle.pause_duration_ms).toBe(3500);
-      expect(config.features.pace_modes_available).toBe(false);
+      expect(config.features.turbo_mode_available).toBe(false);
     });
 
     it('should handle array parameter updates', () => {
@@ -376,11 +376,11 @@ describe('ConfigResolver', () => {
     it('should import learner overrides only', () => {
       resolver.importOverrides({
         learner: {
-          features: { pace_modes_available: false },
+          features: { turbo_mode_available: false },
         },
       });
       const config = resolver.resolve();
-      expect(config.features.pace_modes_available).toBe(false);
+      expect(config.features.turbo_mode_available).toBe(false);
     });
 
     it('should import both course and learner overrides', () => {
@@ -409,14 +409,14 @@ describe('ConfigResolver', () => {
           repetition: { initial_reps: 8 },
         },
         learner: {
-          features: { pace_modes_available: false },
+          features: { turbo_mode_available: false },
         },
       });
       const config = resolver.resolve();
       expect(config.helix.thread_count).toBe(DEFAULT_CONFIG.helix.thread_count);
       expect(config.repetition.initial_reps).toBe(8);
       expect(config.cycle.pause_duration_ms).toBe(DEFAULT_CONFIG.cycle.pause_duration_ms);
-      expect(config.features.pace_modes_available).toBe(false);
+      expect(config.features.turbo_mode_available).toBe(false);
     });
 
     it('should handle empty import', () => {
@@ -435,7 +435,7 @@ describe('ConfigResolver', () => {
       });
       resolver.setLearnerOverrides({
         cycle: { pause_duration_ms: 2500 },
-        features: { pace_modes_available: false },
+        features: { turbo_mode_available: false },
       });
 
       const exported = resolver.exportOverrides();
@@ -626,7 +626,7 @@ describe('ConfigResolver', () => {
       // Setup initial state
       resolver.setCourseOverrides({
         helix: { thread_count: 4 },
-        features: { pace_modes_available: true },
+        features: { turbo_mode_available: true },
       });
       resolver.updateLearnerParam('cycle', 'pause_duration_ms', 2500);
       resolver.updateLearnerParam('repetition', 'initial_reps', 8);
@@ -655,7 +655,7 @@ describe('ConfigResolver', () => {
         content_injection: { enabled: false },
         offline: { auto_cache_minutes: 60 },
         session: { target_duration_minutes: 20 },
-        features: { pace_modes_available: false },
+        features: { turbo_mode_available: false },
       });
 
       resolver.setLearnerOverrides({
@@ -670,7 +670,7 @@ describe('ConfigResolver', () => {
       expect(config.repetition.min_reps).toBe(2);
       expect(config.cycle.pause_duration_ms).toBe(3500);
       expect(config.cycle.min_pause_ms).toBe(800);
-      expect(config.features.pace_modes_available).toBe(false);
+      expect(config.features.turbo_mode_available).toBe(false);
       expect(config.features.encouragements_enabled).toBe(false);
     });
   });

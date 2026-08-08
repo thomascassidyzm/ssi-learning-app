@@ -24,12 +24,6 @@ const ctx = await browser.newContext()
 const page = await ctx.newPage()
 
 await page.goto(BASE + '/', { waitUntil: 'load' })
-// A second load: with clientsClaim false everywhere (2026-08-07 — no worker
-// may claim a live page, see docs/pwa-lifecycle-design.md §2.1a) the first
-// visit installs the SW but is never controlled by it. Every returning visit
-// is, which is the state this probe is about.
-await page.evaluate(() => navigator.serviceWorker.ready)
-await page.reload({ waitUntil: 'load' })
 // Wait until the SW is activated AND controlling.
 const swReady = await page.evaluate(async () => {
   const reg = await navigator.serviceWorker.ready

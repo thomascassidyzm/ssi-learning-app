@@ -37,6 +37,12 @@ const props = defineProps<{
   /** Index into `sentences` of the one currently sounding. Null → none lit
    *  yet (e.g. during the intro bookend, before the first sentence play). */
   activeIndex: number | null
+  /** Extra top clearance (px) to reserve while the transient pod-start
+   *  reminder banner is showing, so its text never overlaps the current
+   *  line regardless of dialogue length or screen size. 0 once the
+   *  reminder has faded (the normal top padding already clears the app
+   *  chrome). */
+  reminderTopInset?: number
 }>()
 
 // A speaker chip shows only on a turn's first sentence — consecutive
@@ -74,10 +80,8 @@ const lines = computed<TeleprompterLine[]>(() =>
 // under-shot the ~96px+safe-area header, so the teleprompter's top rows sat
 // under the belt pill (2026-07-23 staging report). Fallback mirrors the
 // mobile grid sum for the (never-expected) case of rendering outside .player.
-// The extra reminderTopInset clearance is gone with the pod-start reminder
-// banner itself (2026-08-06): nothing but the ambient mark shares this band.
 const topPadding = computed(() =>
-  'calc(var(--header-total, calc(env(safe-area-inset-top, 0px) + 96px)) + var(--hero-gap, 20px))',
+  `calc(var(--header-total, calc(env(safe-area-inset-top, 0px) + 96px)) + var(--hero-gap, 20px) + ${props.reminderTopInset || 0}px)`,
 )
 </script>
 

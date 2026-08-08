@@ -1,15 +1,11 @@
 /**
  * The cycles endpoint's script assembly for one LEGO.
  *
- * THE RULING (Tom, 2026-08-06): "Components do NOT get introduced."
- * Only LEGOs get introductions. Between 2026-08-04 (9e9a19bf) and
- * 2026-08-06 this endpoint emitted one `component_intro` per component,
- * narrating each tiling piece as its own introduction; these tests asserted
- * that behaviour and are deliberately flipped to assert its absence.
- *
- * Also covers the surviving 2026-08-04 fix: intro cycles carry `known_id`,
- * which makes the client's `presentation_id || known_id` fallback reachable
- * instead of dead code.
+ * Covers the two 2026-08-04 fixes at their source:
+ *  - `component_intro` cycles are emitted at all (they never were, so ~1189
+ *    Italian and ~1105 Spanish authored narration clips had never played).
+ *  - intro cycles carry `known_id`, which is what makes the client's
+ *    `presentation_id || known_id` fallback reachable instead of dead code.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 
@@ -74,8 +70,8 @@ const use = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-describe('buildLegoCycles — components are never introduced (Tom, 2026-08-06)', () => {
-  it('emits no component_intro, however complete the component audio is', () => {
+describe('buildLegoCycles — component_intro', () => {
+  it('emits one component_intro per introduced component', () => {
     const out = buildLegoCycles(lego(), [
       component({ position: 1 }),
       component({
@@ -88,28 +84,48 @@ describe('buildLegoCycles — components are never introduced (Tom, 2026-08-06)'
         target2_audio_id: 'c2-t2',
       }),
     ])
+    const ci = out.filter((c) => c.type === 'component_intro')
+    expect(ci).toHaveLength(2)
+    expect(ci[0].id).toBe('S0005L02_component_intro_1')
+    expect(ci[1].id).toBe('S0005L02_component_intro_2')
+    expect(ci[0].audio.presentation_id).toBe('c1-pres')
+    expect(ci[0].known_text).toBe('to practise')
+    expect(ci[0].target_text).toBe('fare pratica')
+  })
+
+  it('orders intro -> component_intro -> debut, matching client TYPE_ORDER', () => {
+    const out = buildLegoCycles(lego(), [component(), use({ position: 9 })])
+    expect(out.map((c) => c.type)).toEqual([
+      'intro',
+      'component_intro',
+      'debut',
+      'use',
+    ])
+  })
+
+  it('skips visual-only components (introduce=false) — tile, never a cycle', () => {
+    const out = buildLegoCycles(lego(), [component({ introduce: false })])
+    expect(out.some((c) => c.type === 'component_intro')).toBe(false)
+    // Still rendered as a ghost tile via the LEGO's components array.
+    expect(out[0].components).toHaveLength(2)
+  })
+
+  it('skips an unplayable component rather than emitting a silent hole', () => {
+    const noTarget = component({ target1_audio_id: null })
+    const noPrompt = component({
+      position: 2,
+      presentation_audio_id: null,
+      known_audio_id: null,
+    })
+    const out = buildLegoCycles(lego(), [noTarget, noPrompt])
     expect(out.some((c) => c.type === 'component_intro')).toBe(false)
   })
 
-  it('orders intro -> debut with nothing between them', () => {
-    const out = buildLegoCycles(lego(), [component(), use({ position: 9 })])
-    expect(out.map((c) => c.type)).toEqual(['intro', 'debut', 'use'])
-  })
-
-  it('introduce=true is NOT a licence to introduce — still no cycle', () => {
-    // The `introduce` flag was the old escape hatch. Tom's ruling is
-    // unconditional: components are never introduced, either value.
-    for (const introduce of [true, false]) {
-      const out = buildLegoCycles(lego(), [component({ introduce })])
-      expect(out.some((c) => c.type === 'component_intro')).toBe(false)
-      // Still rendered as a ghost tile via the LEGO's components array.
-      expect(out[0].components).toHaveLength(2)
-    }
-  })
-
-  it('a component with its own narration clip is silent, not played', () => {
-    const out = buildLegoCycles(lego(), [component({ presentation_audio_id: 'c1-pres' })])
-    expect(out.map((c) => c.type)).toEqual(['intro', 'debut'])
+  it('falls back to the known clip when a component has no narration', () => {
+    const out = buildLegoCycles(lego(), [component({ presentation_audio_id: null })])
+    const ci = out.find((c) => c.type === 'component_intro')!
+    expect(ci.audio.presentation_id).toBeUndefined()
+    expect(ci.audio.known_id).toBe('c1-known')
   })
 
   it('never treats component rows as build or use phrases', () => {

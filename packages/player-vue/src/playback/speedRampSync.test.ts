@@ -4,7 +4,7 @@ import type { ScriptItem } from '../providers/generateLearningScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from './computePauseDuration'
-import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
+import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 
 // REGRESSION (2026-08-04): the belt speed ramp silently stopped applying for
 // every learner.
@@ -19,11 +19,10 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // the instant builder, so in practice NO learner got a ramp: a White-belt
 // beginner played at flat 1.0× where the curve says 0.8×.
 //
-// It went unnoticed because the play-time override of the day only ever
-// CANCELLED a baked ramp — it never applied one — so an unbaked cycle just
-// played flat forever, with no error and no log. (That override is gone as of
-// 2026-08-07: it was also how Easy flattened the ramp for itself. See
-// easyFastSpeedParity.test.ts.)
+// It went unnoticed because the play-time override
+// (`getPlaybackSpeedMultiplier`) only ever CANCELS a baked ramp for Turbo — it
+// never applies one — so an unbaked cycle just plays flat forever, with no
+// error and no log.
 //
 // The damage is TWO-SIDED. `computePauseDuration` takes the baked speed as its
 // BELT PROXY (`beltProgress`: 0.8 → White, 1.0 → Green). An absent speed reads
@@ -187,19 +186,31 @@ describe('belt speed ramp — pause taper coupling', () => {
     const runtimePause = (c: typeof white) => computePauseDuration(
       c.target1DurationMs ?? 0,
       c.target2DurationMs ?? 0,
-      DEFAULT_FAST,
+      DEFAULT_NORMAL,
       c.playbackSpeed ?? 1,
     )
     // The pre-fix behaviour is what `?? 1` collapses to — assert the fix
     // actually moves the runtime pause off that value.
-    const asGreen = computePauseDuration(T1_MS, T2_MS, DEFAULT_FAST, 1)
+    const asGreen = computePauseDuration(T1_MS, T2_MS, DEFAULT_NORMAL, 1)
     expect(runtimePause(white)).toBeGreaterThan(asGreen)
   })
 })
 
-// A block here guarded Turbo's speed override against double-applying the
-// baked belt ramp. It went with Turbo (retired 2026-08-06), and there is no
-// longer any speed override to guard: SimplePlayerRuntimeOverrides exposes no
-// speed callback, and playback rate comes from exactly one source, the baked
-// `cycle.playbackSpeed`. The block was left testing a helper defined inside
-// its own describe, so it could not have caught a regression anyway.
+describe('belt speed ramp — Turbo cancellation is not double-applied', () => {
+  // Turbo's override returns `target / baked`, and SimplePlayer multiplies it
+  // back by the baked speed. Now that the instant path bakes a real ramp, that
+  // round-trip must still land on exactly the Turbo target — this is the
+  // failure mode the alternative fix (applying the curve at play time) would
+  // have introduced.
+  const turboMultiplier = (baked: number | undefined, turboSpeed: number) => {
+    const target = Math.min(turboSpeed, 1.0)
+    return target / (baked ?? 1.0)
+  }
+
+  it.each(BANDS)('lands on 1.0× at seed $seed regardless of the baked ramp', ({ seed }) => {
+    const cycle = instantCycleFor(seed, NATIVE_COURSE)
+    const baked = cycle.playbackSpeed ?? 1.0
+    const effective = baked * turboMultiplier(cycle.playbackSpeed, 1.25)
+    expect(effective).toBeCloseTo(1.0, 10)
+  })
+})

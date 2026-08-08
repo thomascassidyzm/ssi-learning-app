@@ -84,7 +84,7 @@ export const DEFAULT_CONFIG: LearningConfig = {
     spike_detection_enabled: true,
     in_flow_questions_enabled: true,
     encouragements_enabled: true,
-    pace_modes_available: true,
+    turbo_mode_available: true,
     listening_mode_available: true,
     vad_enabled: false, // Disabled by default - requires microphone permission
   },

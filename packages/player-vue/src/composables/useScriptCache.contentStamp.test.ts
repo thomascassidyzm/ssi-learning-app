@@ -94,10 +94,8 @@ describe('checkContentVersion — content_stamp lane (SWR)', () => {
       cachedStamp: null,
       liveStamp: '2026-07-22T00:00:00Z',
     })
-    // A-86: the audio stamp rides along, so a clip repair that does not move
-    // content_stamp still refreshes the downloaded listening snapshot.
     expect(refreshListeningMetaIfStale).toHaveBeenCalledWith(
-      expect.anything(), code, '2026-07-22T00:00:00Z', undefined)
+      expect.anything(), code, '2026-07-22T00:00:00Z')
   })
 
   it('keeps-but-marks-stale an entry whose vintage differs from the live stamp', async () => {

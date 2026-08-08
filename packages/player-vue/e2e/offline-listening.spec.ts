@@ -51,11 +51,9 @@ test('Listening overlay offline: definite state, no spinner-forever, no raw Type
   // Airplane mode.
   await context.setOffline(true)
 
-  // Enter listening mode from the mode tray — the quick in/out toggle Tom
-  // asked for on 2026-08-06. Settings → Tools opens the same overlay and is
-  // kept as a second route; this test drives the one a learner uses mid-session.
+  // Open the mode tray → Listening.
   await trigger.click()
-  const listeningRow = page.locator('.tray-item', { hasText: /listening mode/i }).first()
+  const listeningRow = page.locator('.tray-item', { hasText: /listening/i }).first()
   await expect(listeningRow).toBeVisible({ timeout: 10_000 })
   await listeningRow.click()
 

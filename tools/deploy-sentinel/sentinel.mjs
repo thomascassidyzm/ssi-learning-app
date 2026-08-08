@@ -25,7 +25,6 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -95,33 +94,11 @@ async function fetchText(url, opts = {}, timeoutMs = 20000) {
   } finally { clearTimeout(t) }
 }
 
-// A-94 identity (2026-08-07). This sentinel POSTs cards to the command surface with no identity
-// at all, so identify() hands it Tom by the loopback fallback — the ambient population A-94 exists
-// to empty before enforcement can be switched on. Batch 2 gives it the same identity as the cron
-// fleet in command-surface: the cs_user v2 session cookie from ~/.cs-cron-session, PLUS an Origin.
-//
-// TWO headers, not one. access-gate.csrfVerdict refuses a state-changing request carrying a cookie
-// with no Origin/Sec-Fetch-Site/Referer — that shape is a browser being driven cross-site. A
-// cookie-less fetch is waved through as a non-browser client; a cookie-bearing one is not. Cookie
-// alone would 403 every card this sentinel posts.
-//
-// Inlined rather than importing command-surface's ops/cs-cron-identity.js: this is a different
-// repo and must not grow a path dependency on that one. Fail-soft — no readable session file means
-// no headers and exactly today's behaviour, because a deploy watcher must never go quiet over a
-// missing file.
-const CS_SESSION_FILE = process.env.CS_SESSION_FILE || join(homedir(), '.cs-cron-session')
-function identityHeaders() {
-  let cookie = ''
-  try { cookie = readFileSync(CS_SESSION_FILE, 'utf8').trim() } catch { return {} }
-  if (!cookie.startsWith('v2.')) return {}
-  return { Cookie: `cs_user=${cookie}`, Origin: SURFACE }
-}
-
 function postBoard(path, payload) {
   // Fire the surface post synchronously-ish; failures are logged, never fatal.
   return fetchText(`${SURFACE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...identityHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ conv_id: CONV_ID, ...payload }),
   }).then((r) => {
     log(`board POST ${path} -> ${r.status} :: ${payload.text}`)

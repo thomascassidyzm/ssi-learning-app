@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from '../composables/useI18n'
 import {
   offlineDlState,
@@ -16,14 +16,8 @@ const { t } = useI18n()
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
+  isTurboMode: { type: Boolean, default: false },
   isOfflineMode: { type: Boolean, default: false },
-  // showListeningBtn / showPronunciationBtn are the localStorage-backed
-  // visibility flags (ssi-mode-listening, ssi-mode-pronunciation) that Settings
-  // and the between-rounds mode tips write. They deliberately do NOT gate the
-  // rows below — the listening row has been ungated since before the tray
-  // existed in this shape, and gating it on a flag that defaults to false would
-  // hide the control from every learner who has never opened developer
-  // settings, which is exactly the thing Tom asked for on 2026-08-06.
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
   hasRomanizedText: { type: Boolean, default: false },
@@ -32,7 +26,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -62,106 +56,52 @@ const closeTray = () => {
   isOpen.value = false
 }
 
-// ── Tap-anywhere-outside dismiss ────────────────────────────────────────────
-// This is done at the DOCUMENT level, not by the backdrop element, and that is
-// deliberate. The backdrop below is `position: fixed; inset: 0`, which sounds
-// full-screen but is not: .bottom-nav (this tray's ancestor) carries
-// `transform: translateX(-50%)`, and a transformed ancestor becomes the
-// containing block for fixed descendants — so the "full-screen" backdrop only
-// ever covered the ~400x60px nav pill. A tap anywhere else on the screen hit
-// nothing and the tray stayed open, which is the bug Tom reported repeatedly.
-// The 2026-07-16 fix (1c41b1d2) could not fix this either way round: teleporting
-// the backdrop to <body> escapes the embedded containing block and paints OVER
-// the tray, eating every row tap. A document listener sidesteps the whole
-// containing-block/stacking question — it works in embedded and standalone play
-// alike, and cannot swallow a tap meant for the tray or its trigger.
-const rootEl = ref<HTMLElement | null>(null)
-
-// After an outside pointerdown dismisses the tray, swallow the click that same
-// press is about to produce, so dismissing never doubles as a tap on whatever
-// was underneath (mid-session that would be the transport — pausing the audio
-// by accident). Standard overlay semantics: first tap outside just dismisses.
-// Scoped to the element that press landed on: if no click follows (the press
-// was a scroll or a drag) the arming must not sit there and eat someone's next,
-// unrelated tap — reopening the tray included.
-let swallowTimer: ReturnType<typeof setTimeout> | null = null
-let swallowTarget: EventTarget | null = null
-const swallowNextClick = (e: MouseEvent) => {
-  const samepress = swallowTarget instanceof Node && e.target instanceof Node
-    && (e.target === swallowTarget || swallowTarget.contains(e.target))
-  cancelSwallow()
-  if (!samepress) return
-  e.stopPropagation()
-  e.preventDefault()
-}
-const cancelSwallow = () => {
-  document.removeEventListener('click', swallowNextClick, true)
-  swallowTarget = null
-  if (swallowTimer !== null) { clearTimeout(swallowTimer); swallowTimer = null }
-}
-
-// Capture phase: a stopPropagation() somewhere in the page must not be able to
-// strand the tray open.
-const onDocumentPointerDown = (e: Event) => {
-  const root = rootEl.value
-  if (!root) return
-  const path = typeof e.composedPath === 'function' ? e.composedPath() : []
-  const inside = path.includes(root) || (e.target instanceof Node && root.contains(e.target))
-  if (inside) return          // trigger button + tray rows handle themselves
-  closeTray()
-  cancelSwallow()
-  swallowTarget = e.target
-  document.addEventListener('click', swallowNextClick, true)
-  swallowTimer = setTimeout(cancelSwallow, 700)   // no click followed (scroll/drag)
-}
-
-const onDocumentKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') closeTray()
-}
-
-watch(isOpen, (open) => {
-  if (open) {
-    document.addEventListener('pointerdown', onDocumentPointerDown, true)
-    document.addEventListener('keydown', onDocumentKeydown)
-  } else {
-    document.removeEventListener('pointerdown', onDocumentPointerDown, true)
-    document.removeEventListener('keydown', onDocumentKeydown)
-  }
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
-  document.removeEventListener('keydown', onDocumentKeydown)
-  cancelSwallow()
-})
-
 // Is any mode active?
 const hasActiveMode = computed(() =>
+  props.isListeningMode || props.isPronunciationMode || props.isTurboMode
+)
+
+// Is any experience mode (non-Standard) active?
+const hasExperienceMode = computed(() =>
   props.isListeningMode || props.isPronunciationMode
 )
 
-// Listening on/off. Tom, 2026-08-06: listening "needs to be… the sort of thing
-// that you can move backwards and forwards from quite easily" — so it lives
-// here, in the tray a learner already opens mid-session, one tap each way.
-// NOT the old "Mode — pick one" radio group: that framing is what Aran found
-// distracting on 2026-08-06, and it is not coming back. This is an on/off row
-// with the same shape as Pronunciation guide and Offline. The row is BOTH the
-// way in and a way out — LearningPlayer.handleListeningToggle() closes the
-// overlay when it is already open — alongside the transport's back/play button
-// (BottomNav exitListeningMode), which is unchanged.
+// Can turbo be used? Not in listening or pronunciation
+const turboAvailable = computed(() =>
+  !props.isListeningMode && !props.isPronunciationMode
+)
+
+// Select an experience mode — deactivates others if a different one is active.
 // Selecting ALWAYS closes the tray (Tom 2026-06-11): leaving it open forced a
-// second tap — outside to dismiss, then again to start the mode you just chose.
-const handleListening = () => {
-  emit('toggleListening')
+// second tap (outside to dismiss, then again to start the mode you just chose).
+const selectExperienceMode = (mode: 'normal' | 'listening' | 'pronunciation') => {
   closeTray()
+  if (mode === 'normal') {
+    if (props.isListeningMode) emit('toggleListening')
+    else if (props.isPronunciationMode) emit('togglePronunciation')
+    return
+  }
+  if (mode === 'listening' && props.isListeningMode) return emit('toggleListening')
+  if (mode === 'pronunciation' && props.isPronunciationMode) return emit('togglePronunciation')
+  if (props.isListeningMode) emit('toggleListening')
+  if (props.isPronunciationMode) emit('togglePronunciation')
+  if (mode === 'listening') emit('toggleListening')
+  if (mode === 'pronunciation') emit('togglePronunciation')
 }
 
 // Active mode icon for the trigger button
 const activeModeIcon = computed(() => {
   if (props.isListeningMode) return 'listening'
   if (props.isPronunciationMode) return 'pronunciation'
+  if (props.isTurboMode) return 'turbo'
   return null
 })
+
+const handleMode = (mode: string) => {
+  closeTray() // selection closes the tray — no second tap to get going
+  const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
+  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
+}
 
 // Offline is special: tapping it hands off to the full-screen depth picker
 // ("how much of the course to carry"). Close the tray first so the picker is
@@ -175,7 +115,7 @@ const handleOffline = () => {
 </script>
 
 <template>
-  <div v-show="isVisible" ref="rootEl" class="mode-tray-container">
+  <div v-show="isVisible" class="mode-tray-container">
     <!-- Trigger button. The offline-download progress ring is a child of the
          button, anchored to its own box so it stays perfectly concentric. -->
     <button
@@ -195,6 +135,9 @@ const handleOffline = () => {
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+      </svg>
+      <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
       <!-- Default: sliders icon -->
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -234,36 +177,26 @@ const handleOffline = () => {
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
-        <!-- Easy / Fast lives on the player's resting screen (the mode you
-             pick before you start), not here. Turbo was retired 2026-08-06. -->
-
-        <!-- Listening mode on/off — the quick way in AND out (Tom 2026-08-06).
-             Copy comes from settings.listeningMode / settings.listeningModeDesc,
-             NOT modes.listening: the settings pair is translated in all 22
-             locales, the modes pair only in eng + gle. Same words as the
-             Settings → Tools row, so both routes read identically. -->
+        <!-- Turbo toggle -->
         <button
           class="tray-item"
-          :class="{ active: isListeningMode }"
-          @click="handleListening"
-          :aria-pressed="isListeningMode"
+          :class="{ active: isTurboMode, unavailable: !turboAvailable }"
+          :disabled="!turboAvailable"
+          @click="handleMode('turbo')"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">{{ t('settings.listeningMode') }}</span>
-            <span class="tray-desc">{{ t('settings.listeningModeDesc') }}</span>
+            <span class="tray-name">{{ t('modes.turboBoost') }}</span>
+            <span class="tray-desc">{{ t('modes.turboDesc') }}</span>
           </div>
-          <div class="tray-toggle" :class="{ on: isListeningMode }">
+          <div class="tray-toggle" :class="{ on: isTurboMode }">
             <div class="tray-toggle-knob"></div>
           </div>
         </button>
-
-        <div class="tray-divider"></div>
 
         <!-- Offline mode toggle — play from downloaded audio (no network) -->
         <button
@@ -297,20 +230,60 @@ const handleOffline = () => {
           </div>
         </button>
 
+        <div class="tray-divider"></div>
+
+        <!-- Experience Mode (mutually exclusive radio group) -->
+        <div class="tray-section-header">Mode — pick one</div>
+
+        <button
+          class="tray-item tray-item--radio"
+          :class="{ active: !hasExperienceMode }"
+          @click="selectExperienceMode('normal')"
+        >
+          <div class="tray-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+          </div>
+          <div class="tray-label">
+            <span class="tray-name">HISE</span>
+            <span class="tray-desc">{{ t('modes.hiseDesc') }}</span>
+          </div>
+          <div class="radio-indicator" :class="{ on: !hasExperienceMode }"></div>
+        </button>
+
+        <button
+          class="tray-item tray-item--radio"
+          :class="{ active: isListeningMode }"
+          @click="selectExperienceMode('listening')"
+        >
+          <div class="tray-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+          <div class="tray-label">
+            <span class="tray-name">{{ t('modes.listening') }}</span>
+            <span class="tray-desc">{{ t('modes.listeningDesc') }}</span>
+          </div>
+          <div class="radio-indicator" :class="{ on: isListeningMode }"></div>
+        </button>
+
       </div>
     </Transition>
 
-    <!-- Dim behind the tray. It is NOT what closes the tray — the document
-         pointerdown listener above is (see the note there). This element cannot
-         be, and never could be: .bottom-nav's `transform` makes it the
-         containing block for `position: fixed`, so `inset: 0` resolves to the
-         nav pill, not the viewport. Teleporting it to <body> to escape that is
-         the fix that was tried on 2026-07-16 and reverted the same day — in
-         embedded play (.player-container.is-teach-embedded, also transformed)
-         it re-joins the ROOT stacking context, paints ABOVE the locally
-         z-indexed tray and eats every row tap. So it stays local, stays purely
-         cosmetic, and the dismiss lives at document level where no containing
-         block can shrink it. -->
+    <!-- Full-screen backdrop to close on outside click. NOT teleported to
+         body: embedded contexts (play-as-class, staff Learn) put a `transform`
+         on an ancestor (.player-container.is-teach-embedded) to anchor
+         position:fixed content below the shell's own top nav — a body-level
+         Teleport escapes that containing block and re-joins the ROOT stacking
+         context, where it painted ABOVE the (locally z-indexed) tray and
+         silently ate every tap on Turbo/Offline/Listening. Staying local
+         keeps the backdrop in the SAME containing block as the tray itself,
+         so the 102-vs-103 z-index order holds in both embedded and
+         standalone play. -->
     <Transition name="backdrop">
       <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
     </Transition>
@@ -518,7 +491,7 @@ const handleOffline = () => {
   font-weight: 600;
 }
 
-/* Toggle switch for the tray items */
+/* Toggle switch for Turbo */
 .tray-toggle {
   width: 36px;
   height: 20px;
@@ -547,6 +520,49 @@ const handleOffline = () => {
 
 .tray-toggle.on .tray-toggle-knob {
   transform: translateX(16px);
+}
+
+/* Radio indicator for mutually exclusive modes */
+.radio-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+
+.radio-indicator.on {
+  border-color: #16a34a;
+}
+
+.radio-indicator.on::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
+}
+
+.tray-item--radio {
+  padding: 8px 12px;
+}
+
+/* Section header */
+.tray-section-header {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #A09A94;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Backdrop */

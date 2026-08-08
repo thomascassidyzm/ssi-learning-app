@@ -175,7 +175,6 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## 🚧 In flight / don't collide
 
-- [x] @claude 08-06 **A-64 consecutive-repeat law** — Tom: "no mode should ever repeat the same prompt more than twice consecutively". One enforcement point (`playback/capConsecutiveRepeats.ts`) applied in `generateLearningScript.ts`, `usePodLapScheduler.ts`, `useOfflinePlay.ts`. On dev, deployed, verified live (French/Easy 10 min: longest run 2). Spec `apml/playback/consecutive-repeat-law.apml`; note published at https://watson-1.tail4968cb.ts.net/d/e05e37e3
 - teacher↔class M2M stream — **merged to dev; migration APPLIED 06-13** (edge endpoints + `20260613` live). Branch `feat/class-teachers-edge` cleaned up — don't go looking for it on the remote. Coordinate via dev before touching the class/teacher data model.
 - `fix/pod-phase0-explainer-stage` — listening v2 + Phase 0 explainer; awaiting Tom's ear/merge.
 - Atom-fusion **compute core** is on dev (`4cccc6f1`); the Popty persistence upstream is unbuilt (see To build).

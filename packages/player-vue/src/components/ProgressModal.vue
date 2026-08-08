@@ -20,7 +20,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { ContributionData } from '@/composables/useContribution'
 import { BELTS } from '@/composables/useBeltProgress'
-import { t, forSpeakersLabel } from '@/composables/useI18n'
+import { t, getLanguageName } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 type Belt = { name: string; color: string; seedsRequired: number; glow?: string }
@@ -214,7 +214,9 @@ function handleInfPlayClick() {
 // --- Subtitle "for X speakers" --------------------------------
 
 const subtitle = computed(() => {
-  return forSpeakersLabel(props.knownLang)
+  if (!props.knownLang) return ''
+  const knownName = getLanguageName(props.knownLang)
+  return t('courseSelector.forSpeakers', 'for {lang} Speakers').replace('{lang}', knownName)
 })
 
 // --- Lifecycle ------------------------------------------------

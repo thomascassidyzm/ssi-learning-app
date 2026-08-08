@@ -51,7 +51,7 @@
  * consecutive round boundaries, and decays back to scripted defaults over
  * `decayRounds` of quiet (owner decision D — invisibility, no discontinuity
  * a learner could feel). `manualOverrideActive` (the learner exercising the
- * belt / learning-mode dial) widens the confirmation requirement, per the design
+ * belt/turbo dial) widens the confirmation requirement, per the design
  * authority's Principle 1 — the engine yields to the learner's own judgement.
  *
  * Pure, no Vue/Supabase/player coupling. Consumes `LocalDifficulty` reads
@@ -184,7 +184,7 @@ export interface RoundBoundaryInput {
    * falls back to the introduction-order frontload rule.
    */
   unitCentralityPercentile?: Record<string, number>;
-  /** True once the learner has exercised a manual dial (belt_skip/learning_mode_toggle) this session (§3). */
+  /** True once the learner has exercised a manual dial (belt_skip/turbo_toggle) this session (§3). */
   manualOverrideActive: boolean;
   /**
    * The existing mastery-ladder pause multiplier per LEGO (1.2/1.0/0.85/0.7 —

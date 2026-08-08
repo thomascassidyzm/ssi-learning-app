@@ -211,13 +211,7 @@ export async function clearAllCaches(): Promise<number> {
 /**
  * Trigger service worker update.
  *
- * Asks the SW to check for a new version, which installs in the background and
- * then waits. It deliberately does NOT post SKIP_WAITING (2026-08-07): a worker
- * that activates under a live page deletes, from the precache, every chunk
- * whose content changed in that build — so the running document loses its own
- * code and dies at its next lazy import. The new worker takes over on its own
- * once no client is open, and the update banner offers the reload meanwhile.
- * Same rule as PwaUpdatePrompt.onUpdate — see the comment there.
+ * Asks the SW to check for updates and apply them.
  */
 export async function triggerServiceWorkerUpdate(): Promise<void> {
   if (!('serviceWorker' in navigator)) {
@@ -227,8 +221,13 @@ export async function triggerServiceWorkerUpdate(): Promise<void> {
   try {
     const registration = await navigator.serviceWorker.ready
 
-    // Ask SW to check for updates. Installing is safe; activating is not.
+    // Ask SW to check for updates
     await registration.update()
+
+    // If there's a waiting worker, tell it to activate
+    if (registration.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    }
   } catch (error) {
     console.error('[SW Safety] Failed to trigger update:', error)
   }

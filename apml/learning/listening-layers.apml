@@ -2,7 +2,6 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-07 (ONE listening mode: T-K-T-T, exposure ramp, 1.0 cap)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -46,160 +45,6 @@
 # layer1StagePlaylist/l1ActiveSize/l1ReserveSize/l1UrnPullCount,
 # emitL1Cluster, learner_l1_state fire-count hydration) was deleted — it had
 # been unreachable since the 2026-05-19 L1 main-flow removal.
-#
-# UPDATE (2026-08-06, Tom): LISTENING FOLLOWS THE BELT SPEED GATING.
-# Tom, live on staging (French): "LIStening exercises are way too fast
-# initially - they need to follow the belt speed gating - at least somewhat...
-# in the listening exercise we hear t-k-t-t phrases all at 1x speed... targ
-# lang clips start at 0.8x, then in yellow belt go to 0.9x, then orange go to
-# 0.95x and finally at green they go to full speed (1.0x)."
-#
-# So the "ALL at 1.0x" in the 2026-07-14 update above is SUPERSEDED for the
-# TARGET clips. The four rates are exactly the SPEAKING side's existing curve,
-# reused, never re-implemented:
-#   beltSpeed(seedNumber) in packages/player-vue/src/providers/toSimpleRounds.ts
-#     white (seeds 1-7)   0.8x
-#     yellow (seeds 8-19) 0.9x
-#     orange (seeds 20-39) 0.95x
-#     green+ (seeds 40+)  1.0x
-#
-# Applied via computeListeningSpeed(roleSpeed, seedNumber, targetSpeed) in the
-# same module — the belt ramp as a MULTIPLIER on the clip's own role rate,
-# folding in the course globalSpeed, exempting legacy slow-recorded courses
-# (nativeSpeed false) on identical terms to computeCycleSpeed, and clamping at
-# MIN_SPEED 0.7. Two consumers:
-#   - Layer-1 cups (useLayer1Scheduler.buildSeedPlays): role rate 1.0, keyed on
-#     each replayed SEED's OWN number - the faithful analogue of a speaking
-#     review of that seed.
-#   - Layer-2 pods / Stage-0 / fusion drills (LearningPlayer.playPodLap): role
-#     rate = ROLE_SPEED[playRole], keyed on the LEARNER's current seed
-#     (beltAnchorSeed) because a pod sentence has no seed number of its own.
-#     The pod stage progression (ps 1.0 / ps15x 1.5 / ps2x 2.0) is per-SENTENCE
-#     maturity and is preserved as a RATIO - a 2x stretch rep stays a fast rep
-#     relative to the learner's belt (white belt: ps 0.8x, ps2x 1.6x). Pods
-#     activate at main round 5, so beginners really were meeting 1.0x target
-#     audio - that is the bug this closes.
-#
-# KNOWN-language clips ('trans') are NEVER ramped: the learner's own language,
-# the meaning anchor. Tom said "targ lang clips".
-#
-# UPDATE (2026-08-07, Tom — T-13): EASY DEFAULTS LISTENING TO 0.8x.
-# "EASY setting defaults listening playback to 0.8x speed." Implemented as a
-# CAP on the same curve — EASY_LISTENING_SPEED = 0.8 in toSimpleRounds.ts,
-# applied as min(beltSpeed(seed), 0.8) when TargetSpeedConfig.easyMode is set
-# — so Easy is the white-belt rung held for as long as the learner stays on
-# Easy, never a second curve and never faster than the belt would give. It
-# multiplies the clip's own role rate exactly as the ramp does (a 2x stretch
-# rep is 1.6x on Easy), takes the same legacy-course exemption, and is read
-# ONLY by computeListeningSpeed: the speaking side's Easy is longer thinking
-# time and more reps, not a slower voice, so computeCycleSpeed ignores it.
-# LearningPlayer sets easyMode from the live learning mode
-# (currentTargetSpeedConfig), so both listening consumers inherit it.
-# The Dialogues overlay (ListeningOverlay.vue) has its own speed row: on Easy
-# it opens at 0.8x (0.8 added to SPEED_OPTIONS so the default has a button),
-# still the learner's to change for the session.
-#
-# Locked by packages/player-vue/src/playback/listeningSpeedRamp.test.ts, in the
-# spirit of speedRampSync.test.ts - the point of both is that there is ONE
-# curve. A parallel listening curve that can drift out of sync with the
-# speaking one is precisely the bug this codebase already paid for (2026-08-04,
-# the two round-builders).
-#
-# UPDATE (2026-08-07, Tom — SUPERSEDES the stage ladder AND, by default, the
-# belt ramp above): LISTENING IS ONE MODE.
-#
-# Verbatim: "I think we've simplified this completely. To just... One mode,
-# which is just... Every single phrase. It's played Target, Known, Target,
-# Target. And I think that's all that happens, and the target None, Target,
-# Target, it's all at... The same speed, so it might be 0.8. Or maybe even
-# Notepoint. Seven, the very first time, and it might be 0.8, then it might
-# stay on 0.8 for a few times, then it might go up to one, never more than one,
-# depending on what mode we're in. Fast can probably start at the regular
-# speed." Plus: "they should probably have A minimal cognitive load for
-# listening and it should be slower on easy mode in the listening."
-#
-# Four rules. One home: packages/player-vue/src/playback/listeningExposureRamp.ts.
-#
-#   1. ONE PATTERN — every listening phrase, in BOTH layers, plays
-#      target - known - target - target. No stages, no per-stage variation, no
-#      fifth slot. Layer 1 already had this sandwich; the two layers now share
-#      ONE definition (DEFAULT_LISTENING_PATTERN) mapped onto each layer's audio
-#      (l1PlaylistFromPattern / podPlaylistFromPattern), rather than two lists
-#      that happened to agree.
-#   2. ONE SPEED PER PHRASE — all four clips at the same rate, INCLUDING the
-#      known-language one. This reverses the "KNOWN clips are NEVER ramped" line
-#      in the 2026-08-06 block above: they are now ramped, with everything else.
-#   3. TWO RAMPS COMPOSE — a BELT CEILING with the EXPOSURE ramp underneath it.
-#      Tom, 2026-08-07 23:56Z, correcting the exposure-only reading that shipped
-#      first: "for Easy the BELT TABLE is authoritative... 0.8x for white/yellow
-#      belt, 0.9x for orange/green, 1.0x for blue and beyond, NEVER above 1.0.
-#      The per-exposure ramp applies UNDERNEATH the belt ceiling."
-#
-#          speed = min( exposure step , belt ceiling ) x globalSpeed, clamp 1.0
-#
-#      The belt rung is the MAXIMUM for that learner; the exposure ramp is what
-#      approaches it from below on early hearings. A WHITE-BELT EASY LEARNER
-#      NEVER EXCEEDS 0.8x however many times they have heard the phrase: 0.7 on
-#      the first hearing, 0.8 thereafter, and the ramp's 1.0 step is unreachable
-#      until they are a blue belt.
-#
-#      Easy belt table (its OWN table, NOT the speaking side's beltSpeed —
-#      gentler, holding each rung for two belts and not reaching 1.0 until
-#      blue, where beltSpeed reaches it at green):
-#          seeds   1-19   white + yellow    0.8
-#          seeds  20-79   orange + green    0.9
-#          seeds  80+     blue and beyond   1.0
-#      Fast has NO ceiling (a single 1.0 rung) — "this correction is Easy-only".
-#      Exposure ramp, Easy: 0.7 x1, 0.8 x4, then 1.0. Fast: one terminal 1.0.
-#
-#      The ceiling is keyed on the LEARNER's position (beltAnchorSeed), not the
-#      replayed phrase's — Tom's wording is learner-centric twice over ("a
-#      white-belt LEARNER's ceiling"). This is a deliberate change from the
-#      2026-08-06 belt ramp, which keyed Layer 1 on each replayed seed's own
-#      number, and it means a blue belt replaying an early seed is not dragged
-#      back to 0.8.
-#
-#      Layer 2 reads the exposure count off the cohort's
-#      existing `alive` clock; Layer 1 DERIVES it from the cup wheel (one cup
-#      poured per round, so a seed is heard once per turn of the wheel —
-#      seedExposureAt/batchReadyRound), keeping Layer 1 stateless and
-#      resume-safe, which is the property the whole cup model rests on.
-#   4. 1.0 IS A HARD CEILING, clamped in CODE (LISTENING_SPEED_CEILING), not in
-#      the default config values — the configs are live `algorithm_config` rows
-#      that override code defaults at runtime, so a row carrying 1.5 must still
-#      play at 1.0. The course globalSpeed still folds in and can only ever
-#      slow a clip down (French 0.95: first Easy hearing is 0.665).
-#
-# RETIRED: the nine-stage pod ladder (DEFAULT_PODS.stagePlaylist,
-# ['ps08x','explainer','ps08x'] ... ['ps2x']) no longer drives listening. With
-# it go the 1.5x/2.0x stretch reps and the Phase-0 EXPLAINER slot — the
-# explainer AUDIO and its resolution path in buildMainStage are kept, simply
-# unreferenced on the default path. Flagged to Tom as the one deliberate
-# content loss of this change.
-#
-# KEPT AND REACHABLE BY CONFIG ALONE (no deploy):
-#   - listening.speedSource: 'belt' restores the 2026-08-06 belt curve.
-#     computeListeningSpeed/beltSpeed and listeningSpeedRamp.test.ts are
-#     deliberately untouched: the belt ruling and the exposure spec are ramps
-#     over DIFFERENT axes and Tom has ruled on both, so neither is deleted on
-#     the other's account. RESOLVED 2026-08-07 23:56Z: they COMPOSE — see rule 3
-#     above. This switch survives as the way to fall all the way back to the
-#     pre-redesign belt-only behaviour.
-#   - listening.listeningUseStagePlaylist: true restores the nine-stage ladder.
-#
-# EVERY number is a config key, per Tom's standing rule that "all of this
-# should be parametrised into the EASY settings in the configs in the app":
-# per-mode ramp tables on ModeConfig.listeningSpeedRamp (alongside the Easy
-# SPEAKING knobs), the mode-agnostic pattern/ceiling/speed-source on the
-# `listening` row.
-#
-# Runtime note: PodPlay.speedIsFinal marks an exposure-ramped play so
-# LearningPlayer.playPodLap does not belt-ramp it a second time (it would have
-# double-counted globalSpeed and re-split the phrase, since that pass only
-# touches target roles). Stage-0 sequences and fusion drills are NOT
-# exposure-ramped and keep the belt ramp.
-#
-# Locked by packages/player-vue/src/playback/listeningOneMode.test.ts.
 #
 # UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
 # delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used
@@ -271,40 +116,6 @@
 # lap debuts the following exchange (read-time mapping, podCohortRoundFor).
 # ?pod=1 / ?podview=1 previews compose whole cohorts (previews feel like
 # actual dialogue); ?podview Next/Prev steps cohort-by-cohort (exchanges).
-#
-# UPDATE (2026-08-07, Tom — T-13 cold-start window; supersedes the A-52
-# floor-only rule of the same day): THE FIRST LAP IS ONE FULL EXCHANGE.
-# Tom: "the cold start must be ONE FULL EXCHANGE — a lone line ('Good morning,
-# Sarah') is not enough, but the WHOLE SCENE arriving at once is too much."
-# One policy, two sides, in the partition (@ssi/core/pods/podCohorts.ts,
-# applyPodColdStartWindow):
-#   FLOOR   — a first cohort below POD_COLD_START_MIN_SENTENCES = 2 can only
-#             be a lone trailing turn (a scene whose whole content is one
-#             line). It absorbs following WHOLE exchanges until it is an
-#             exchange, crossing a scene wall if it must: an adjacency pair
-#             still never straddles a lap, and a lone line outranks the wall
-#             for one cohort. Evidence: live telemetry
-#             (docs/listening-repeat-diagnosis-2026-08-06.md) — a Hebrew
-#             learner's first pod held exactly ONE sentence and, since every
-#             lap restarts from sentence one, that clip played 19 times across
-#             7 laps: indistinguishable from a broken app.
-#   CEILING — nothing else is ever merged. A cohort that is already an
-#             exchange stands alone however short; a turn plus its reply IS
-#             the intended first serving. The A-52 floor of 3 stacked a second
-#             exchange onto any 2-sentence opener, which on eus_for_spa pulled
-#             2 + 5 = the whole opening scene into lap one — the "whole scene
-#             at once" Tom saw in Aran's session.
-# Measured across all 70 live pods: 45 open on a 3-sentence exchange and are
-# untouched by either rule; the 25 that open on a 2-sentence exchange (every
-# eng_for_* pod among them) now serve that exchange alone instead of a merged
-# 4 — eus_for_spa, 7. No live pod opens on a lone line today, so the floor is
-# the safety net for the shape A-52 measured rather than an everyday path.
-# The window lives in the partition rather than the scheduler so the ratchet,
-# stage cohesion and alive-counting follow it with no further change and every
-# client derives the same cohorts. It is deliberately NOT conditioned on the
-# learner's easy/fast mode even though the ruling arose on Easy: the partition
-# is PURE, and a mode-dependent one would have the two modes disagree about
-# where laps begin while sharing one sentence ratchet.
 #
 # The body of this spec below is preserved for historical context.
 # =============================================================================

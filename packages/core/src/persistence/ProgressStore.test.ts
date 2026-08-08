@@ -69,7 +69,7 @@ describe('ProgressStore', () => {
         preferences: {
           session_duration_minutes: 15,
           encouragements_enabled: true,
-          learning_mode: 'fast',
+          turbo_mode_enabled: false,
           volume: 1.0,
         },
       };
@@ -112,7 +112,7 @@ describe('ProgressStore', () => {
       mocks.eq.mockResolvedValue({ error: null });
 
       await store.updateLearnerPreferences('learner-123', {
-        learning_mode: 'easy',
+        turbo_mode_enabled: true,
       });
 
       expect(mocks.update).toHaveBeenCalled();

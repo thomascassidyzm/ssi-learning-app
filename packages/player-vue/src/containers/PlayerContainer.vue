@@ -237,8 +237,10 @@ const handleToggleScript = () => {
   }
 }
 
-const handleSetLearningMode = (mode) => {
-  learningPlayerRef.value?.setLearningMode?.(mode)
+const handleToggleTurbo = () => {
+  if (learningPlayerRef.value?.toggleTurbo) {
+    learningPlayerRef.value.toggleTurbo()
+  }
 }
 
 const handleToggleOffline = () => {
@@ -572,10 +574,8 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       :is-player-ready="isPlayerReady"
-      :learning-mode="learningPlayerRef?.learningMode ?? 'fast'"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
-      @set-learning-mode="handleSetLearningMode"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
@@ -616,6 +616,7 @@ onMounted(() => {
       :isPlayerReady="isPlayerReady"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
+      :isTurboMode="learningPlayerRef?.turboActive ?? false"
       :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
@@ -626,6 +627,7 @@ onMounted(() => {
       @toggleListening="handleToggleListening"
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
+      @toggleTurbo="handleToggleTurbo"
       @toggleOffline="handleToggleOffline"
       @revisit="handleRevisit"
       @skip="handleSkip"
@@ -644,6 +646,7 @@ onMounted(() => {
             :course="activeCourse"
             @close="closeSettings"
             @openExplorer="openExplorerOverlay"
+            @openListening="closeSettings(); handleToggleListening()"
           />
         </div>
       </div>

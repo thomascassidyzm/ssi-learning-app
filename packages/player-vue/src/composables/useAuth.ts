@@ -89,9 +89,6 @@ export interface AuthActions {
   initialize: (supabaseClient: SupabaseClient) => Promise<void>
   /** Set or change the user's password */
   updatePassword: (newPassword: string) => Promise<{ error?: string }>
-  /** Merge a patch into the learner's stored preferences. Resolves false
-   *  when there is no learner row to write to (guest / signed out). */
-  updatePreferences: (patch: Partial<LearnerPreferences>) => Promise<boolean>
   /** Get the current Supabase session access token */
   getToken: () => Promise<string | null>
   /** Re-sync learner/role from the DB (post-redemption authoritative write) */
@@ -379,7 +376,7 @@ export function useAuth(): AuthState & AuthActions {
     return {
       session_duration_minutes: 30,
       encouragements_enabled: true,
-      learning_mode: 'fast',
+      turbo_mode_enabled: false,
       volume: 1.0,
     }
   }
@@ -726,33 +723,6 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
-   * Merge a patch into the learner's stored preferences.
-   *
-   * Signed-out learners have no `learners` row, so callers persist to
-   * localStorage themselves and treat this as best-effort: it resolves
-   * `false` when there is nothing to write to. Errors are surfaced loudly in
-   * the console rather than swallowed (the false-"Saved" class), but never
-   * throw — a preference write must not be able to break playback.
-   */
-  async function updatePreferences(
-    patch: Partial<LearnerPreferences>,
-  ): Promise<boolean> {
-    const current = learner.value
-    if (!supabase.value || !current?.id) return false
-    const merged = { ...(current.preferences || defaultPreferences()), ...patch }
-    const { error: prefError } = await supabase.value
-      .from('learners')
-      .update({ preferences: merged })
-      .eq('id', current.id)
-    if (prefError) {
-      console.error('[useAuth] Failed to persist preferences:', prefError)
-      return false
-    }
-    learner.value = { ...current, preferences: merged }
-    return true
-  }
-
-  /**
    * Set or change the user's password
    */
   async function updatePassword(newPassword: string): Promise<{ error?: string }> {
@@ -840,7 +810,6 @@ export function useAuth(): AuthState & AuthActions {
     migrateGuestProgress,
     initialize,
     updatePassword,
-    updatePreferences,
     refreshRole,
     // Exposed for play-as-class (owner ruling 2026-07-16): while a class-mode
     // session is active, /api/player-events must attribute telemetry to the

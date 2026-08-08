@@ -230,20 +230,6 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
   }
 
   /**
-   * A-64 consecutive-repeat guard for the degradation ladder. `a64Recent`
-   * holds the ids of the last two cycles handed out; when both are the same,
-   * that id may not be handed out again.
-   */
-  const a64Recent: string[] = []
-  const a64BannedCycleId = (): string | null =>
-    a64Recent.length === 2 && a64Recent[0] === a64Recent[1] ? a64Recent[0] : null
-  const noteA64 = (cycle: Cycle): Cycle => {
-    a64Recent.push(cycle.id)
-    if (a64Recent.length > 2) a64Recent.shift()
-    return cycle
-  }
-
-  /**
    * Get next playable cycle using graceful degradation
    * NEVER returns null - always finds something to play
    *
@@ -253,50 +239,33 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
    * 3. Last successfully played cycle (repeat mode)
    */
   function getNextPlayableCycle(scheduledCycle?: Cycle): Cycle | null {
-    // A-64 (Tom, 2026-08-06): the law binds the degradation ladder too — a
-    // fallback that loops one cycle is the most literal breach in the app.
-    // `bannedId` is the cycle we may not hand back again because it has
-    // already played twice in a row.
-    const bannedId = a64BannedCycleId()
-
     // Level 1: Try scheduled cycle
     if (scheduledCycle && isCycleCached?.(scheduledCycle)) {
-      if (scheduledCycle.id !== bannedId) {
-        degradationLevel.value = 'normal'
-        return noteA64(scheduledCycle)
-      }
-      // Scheduled cycle would be a third consecutive play — fall through and
-      // rotate to something else, then it comes back on the next call.
+      degradationLevel.value = 'normal'
+      return scheduledCycle
     }
 
     // Level 2: Try any cached cycle (belt-only mode)
     if (cachedCyclePool.value.length > 0) {
-      const lawful = cachedCyclePool.value.filter(c => c.id !== bannedId)
       const recentSet = new Set(recentItemIds.value)
-      const available = lawful.filter(c => !recentSet.has(c.id))
+      const available = cachedCyclePool.value.filter(c => !recentSet.has(c.id))
 
-      // If all are recent, use any (still excluding the A-64-banned one)
-      const pool = available.length > 0 ? available : lawful
+      // If all are recent, use any
+      const pool = available.length > 0 ? available : cachedCyclePool.value
 
       if (pool.length > 0) {
         const randomIndex = Math.floor(Math.random() * pool.length)
         degradationLevel.value = 'belt-only'
         console.log(`[OfflinePlay] Degraded to belt-only mode, ${pool.length} cycles available`)
-        return noteA64(pool[randomIndex])
+        return pool[randomIndex]
       }
     }
 
-    // Level 3: Repeat last played cycle. Only one cycle exists to play, so the
-    // cap and "never stall the session" collide — Tom's ruling is that the
-    // session wins. Flag it loudly rather than going silent.
+    // Level 3: Repeat last played cycle
     if (lastPlayedCycle.value) {
       degradationLevel.value = 'repeat'
-      if (lastPlayedCycle.value.id === bannedId) {
-        console.warn('[OfflinePlay] A-64: only one cached cycle left — replaying it a third time to keep the session alive')
-      } else {
-        console.log('[OfflinePlay] Degraded to repeat mode - playing last successful cycle')
-      }
-      return noteA64(lastPlayedCycle.value)
+      console.log('[OfflinePlay] Degraded to repeat mode - playing last successful cycle')
+      return lastPlayedCycle.value
     }
 
     // No fallback available (should be rare - only on first play offline with no cache)

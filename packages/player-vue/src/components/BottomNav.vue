@@ -63,6 +63,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isTurboMode: {
+    type: Boolean,
+    default: false
+  },
   isOfflineMode: {
     type: Boolean,
     default: false
@@ -77,7 +81,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -158,10 +162,11 @@ const handleSettings = () => {
 
 <template>
   <nav class="bottom-nav">
-    <!-- Mode tray — listening, pronunciation, script -->
+    <!-- Mode tray — listening, pronunciation, turbo, script -->
     <ModeTray
       :isListeningMode="isListeningMode"
       :isPronunciationMode="isPronunciationMode"
+      :isTurboMode="isTurboMode"
       :isOfflineMode="isOfflineMode"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
@@ -171,6 +176,7 @@ const handleSettings = () => {
       @toggleScript="emit('toggleScript')"
       @toggleListening="emit('toggleListening')"
       @togglePronunciation="emit('togglePronunciation')"
+      @toggleTurbo="emit('toggleTurbo')"
       @toggleOffline="emit('toggleOffline')"
     />
 

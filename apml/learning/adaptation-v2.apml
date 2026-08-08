@@ -226,7 +226,7 @@ module: behavioural_producer
   purpose: >
     Producer #2 on the evidence wire (build spec §3). Maps the behavioural
     events already logged today (phase_skip, tap_skip, lego_skip, tap_pause/
-    tap_play, learning_mode_toggle, belt_skip, audio_retry) into MasteryEvidence at
+    tap_play, turbo_toggle, belt_skip, audio_retry) into MasteryEvidence at
     the logEvent emit site in LearningPlayer.vue — no round-trip through
     player_events; the DB copy stays the analytics record. Mic-free: guest /
     VAD-unavailable learners still produce this evidence, which is what makes
@@ -244,11 +244,11 @@ module: behavioural_producer
       lego_skip forward                                    -> value 0.4, weight 0.5 ("got this / too easy")
       tap_pause mid-PAUSE-phase, followed by tap_play       -> value 1.4, weight 0.5 (processing time needed)
       tap_pause outside the PAUSE phase                    -> dropped (not learner struggle)
-      learning_mode_toggle, belt_skip                       -> dropped from unit series; set manualOverrideActive
+      turbo_toggle, belt_skip                               -> dropped from unit series; set manualOverrideActive
       audio_retry                                           -> dropped (infrastructure, not learner evidence)
 
   manual_dial_rule: >
-    learning_mode_toggle and belt_skip are the learner outranking the engine (paper
+    turbo_toggle and belt_skip are the learner outranking the engine (paper
     Principle 1) — they never enter a unit's difficulty series. Instead they
     set a session-level manualOverrideActive flag the rate policy reads to
     widen its hysteresis dead-zone (build spec §4.5), so the engine yields to
@@ -281,7 +281,7 @@ module: behavioural_producer
     useBehaviouralEvidence(createEvidenceAggregator()) instance constructed
     alongside the existing adaptationEngine ref; onPlayerEvent hooked beside
     logEvent at every phase_skip / tap_skip / lego_skip / tap_pause / tap_play
-    / learning_mode_toggle / belt_skip call site. audio_retry is left unhooked — the
+    / turbo_toggle / belt_skip call site. audio_retry is left unhooked — the
     mapping drops it unconditionally, so there is nothing for a hook to do.
 
   guarantees:
@@ -290,7 +290,7 @@ module: behavioural_producer
     - pure_classification: the value/weight mapping for every event type is a
       pure function (classifyPhaseSkip / classifyTapSkip / classifyLegoSkip),
       independently testable against the mapping table above
-    - manual_dial_never_in_series: learning_mode_toggle/belt_skip never call sink.record()
+    - manual_dial_never_in_series: turbo_toggle/belt_skip never call sink.record()
     - guest_safe: no VAD/mic dependency anywhere in this producer
 
   tests:
@@ -348,7 +348,7 @@ module: rate_policy
       hysteresisReads: number              # PROPOSED 2 consecutive confirming reads
       decayRounds: number                  # PROPOSED 5 quiet rounds to fully decay a one-step nudge
       manualOverrideDeadZoneMultiplier: number  # PROPOSED 2 — widens hysteresisReads while the learner
-                                                 #   has exercised belt_skip/learning_mode_toggle this session
+                                                 #   has exercised belt_skip/turbo_toggle this session
     RoundBoundaryInput:
       roundLegoId: string                  # the round about to play's own LEGO
       roundLegoOrdinal: number             # its introduction ordinal (criticality guard)
@@ -460,11 +460,8 @@ module: player_wiring
   purpose: >
     WP-3: wires the evidence stream (WP-0/1) and rate policy (WP-2) into the
     live player, entirely through SimplePlayer's EXISTING runtime-overrides
-    surface (`shouldSkipCycle`, `getPauseDuration`) — no script regeneration.
-    (This is the same mechanism Turbo used to prove out; Turbo itself was
-    RETIRED 2026-08-06 — the overrides surface it exercised is still here and
-    is now adaptation v2's alone, alongside the Easy/Fast mode's pause and
-    speed overrides.) SHADOW MODE IS THE DELIVERABLE:
+    surface (`shouldSkipCycle`, `getPauseDuration`) — no script regeneration,
+    same mechanism Turbo already proves out. SHADOW MODE IS THE DELIVERABLE:
     the engine computes and logs a RoundPlan every round boundary, but the
     kill switch / shadow flag (WP-5, folded in here) means nothing is
     APPLIED until Tom flips `adaptation_v2.shadow` to false in the DB.
@@ -507,10 +504,8 @@ module: player_wiring
     (`nextRound`) EVERY boundary the engine is enabled, logs it unconditionally,
     then applies it ONLY when `shadow:false`:
       - `computeAdaptOmitCycleIds(round, plan)` (packages/player-vue/src/
-        playback/adaptationOverrides.ts) mirrors the RETIRED-2026-08-06
-        `turboOmit` cull exactly — that flag no longer exists on ScriptItem or
-        Cycle, and this live computation is now the only culling in the player
-        — walking the round's cycles counting BUILD/USE/spaced_rep occurrences
+        playback/adaptationOverrides.ts) mirrors the `turboOmit` cull exactly
+        — walks the round's cycles counting BUILD/USE/spaced_rep occurrences
         in order, marking the (N+1)-th-and-later of each type past
         buildCount/consolidateCount/spacedRepCap. This is a COMPLETE and
         correct realisation for buildCount/spacedRepCap (their ceiling always

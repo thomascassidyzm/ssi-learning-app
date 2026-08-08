@@ -41,11 +41,16 @@ export interface Cycle {
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
   /** Raw target audio durations (ms). Kept on the cycle so runtime overrides
-   * (e.g. the Easy/Fast mode override) can recompute pauseDuration with a
-   * different formula
+   * (e.g. Turbo) can recompute pauseDuration with a different formula
    * instead of just scaling the baked value. */
   target1DurationMs?: number
   target2DurationMs?: number
+  /** Tagged at script-generation time on cycles that Turbo skips: 4th–7th
+   * BUILD phrases, 2nd USE phrase, spaced_rep at alternate fib offsets.
+   * intro/debut/listening/pod/bookend cycles are never tagged. SimplePlayer
+   * consults the runtime override (which checks turboActive) to decide
+   * whether to actually skip. */
+  turboOmit?: boolean
   /** True for cycles that carry AT MOST one audio track (listening / pod /
    * bookend / drained-seed-sandwich sub-cycles) — the other 3-phase gaps are
    * by design, not missing data. Lets SimplePlayer suppress its "no audio,

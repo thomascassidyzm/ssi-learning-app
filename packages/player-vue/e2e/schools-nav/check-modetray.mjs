@@ -1,4 +1,4 @@
-// Inspect the mode tray (Offline / Listening) in play-as-class mode
+// Inspect the mode tray (Turbo / Offline / Listening) in play-as-class mode
 // and in the staff-own Learn button flow, on a real running instance.
 import { readFileSync } from 'node:fs'
 import { chromium } from '@playwright/test'
@@ -74,9 +74,61 @@ async function inspectTray(page, label) {
     console.log(`${label}: item="${name?.trim()}" class="${cls}" disabled=${disabled} opacity=${opacity} pointerEvents=${pointerEvents}`)
   }
 
-  // The Turbo row (and its exposed `turboActive` state) went with Turbo,
-  // retired 2026-08-06. The tray's live rows are enumerated above; there is
-  // no mode row left here to drive, so this probe is inspection-only.
+  // Try clicking Turbo and see if state actually changes
+  const turboItem = page.locator('.tray-item', { hasText: 'Turbo' }).first()
+  if (await turboItem.count()) {
+    const beforeClass = await turboItem.getAttribute('class')
+    const beforeIcon = await page.locator('.mode-trigger').first().getAttribute('class')
+    await turboItem.click({ timeout: 5000 }).catch(e => console.log(`${label}: turbo NON-FORCE click error:\n`, e.message))
+    await page.waitForTimeout(200)
+    const midIcon = await page.locator('.mode-trigger').first().getAttribute('class')
+    const exposedState = await page.evaluate(() => {
+      const root = document.querySelector('.player-container')
+      if (!root) return { found: false, reason: 'no .player-container' }
+      const seen = new Set()
+      const names = []
+      // BFS through the component tree via subTree/component links
+      function walk(inst, depth) {
+        if (!inst || seen.has(inst) || depth > 12) return null
+        seen.add(inst)
+        names.push(inst.type?.__name || inst.type?.name || '?')
+        if (inst.exposed && 'turboActive' in inst.exposed) return inst
+        // children via subTree
+        const kids = []
+        const collect = (vnode) => {
+          if (!vnode) return
+          if (vnode.component) kids.push(vnode.component)
+          if (Array.isArray(vnode.children)) vnode.children.forEach(c => { if (c && c.component) kids.push(c.component); if (c && c.children) collect(c) })
+          else if (vnode.children && vnode.children.component) kids.push(vnode.children.component)
+        }
+        collect(inst.subTree)
+        for (const k of kids) {
+          const r = walk(k, depth + 1)
+          if (r) return r
+        }
+        return null
+      }
+      const startInst = root.__vueParentComponent
+      if (!startInst) return { found: false, reason: 'no __vueParentComponent on .player-container' }
+      const found = walk(startInst, 0)
+      if (found) {
+        const ta = found.exposed.turboActive
+        return { found: true, turboActive: ta && 'value' in ta ? ta.value : ta, names }
+      }
+      return { found: false, names }
+    })
+    console.log(`${label}: exposedState after click =`, JSON.stringify(exposedState))
+    await page.waitForTimeout(400)
+    // reopen tray since click closes it
+    const triggerNow = page.locator('.mode-trigger').first()
+    if (await triggerNow.isVisible().catch(() => false)) {
+      await triggerNow.click({ timeout: 3000 }).catch(() => {})
+      await page.waitForTimeout(300)
+      const afterItem = page.locator('.tray-item', { hasText: 'Turbo' }).first()
+      const afterClass = await afterItem.getAttribute('class').catch(() => null)
+      console.log(`${label}: turbo click beforeIcon="${beforeIcon}" midIcon="${midIcon}" before="${beforeClass}" after="${afterClass}"`)
+    }
+  }
 
   await page.screenshot({ path: `/tmp/modetray-${label.replace(/\W+/g, '_')}.png` })
 }

@@ -30,7 +30,7 @@ app SSiLearningApp:
 
   compilation_method: "forward-compilation"
   generated_from: "Working codebase (2026-06-08, post playback/cache cleanup)"
-  last_updated: "2026-08-06"
+  last_updated: "2026-06-08"
 
   ## ==========================================================================
   ## RELATIONSHIP TO DASHBOARD
@@ -377,7 +377,7 @@ app SSiLearningApp:
 
     user_to_system:
       status: "complete"
-      coverage: "Play/pause, skip, revisit, learning mode (easy/fast), listening mode"
+      coverage: "Play/pause, skip, revisit, turbo mode, listening mode"
       documented_in: "interfaces/learning-player.apml"
 
     system_to_system:

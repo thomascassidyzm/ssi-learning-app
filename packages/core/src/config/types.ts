@@ -148,8 +148,8 @@ export interface FeaturesConfig {
   in_flow_questions_enabled: boolean;
   /** Encouragements enabled (default: true) */
   encouragements_enabled: boolean;
-  /** Easy/Fast pace toggle available to the learner (default: true) */
-  pace_modes_available: boolean;
+  /** Turbo mode available (default: true) */
+  turbo_mode_available: boolean;
   /** Listening mode available (default: true) */
   listening_mode_available: boolean;
   /** Voice activity detection enabled (default: false - requires mic permission) */
