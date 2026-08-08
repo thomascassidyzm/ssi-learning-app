@@ -692,7 +692,7 @@ export function makeKnownSyllableResolver(
     syllableCapWarnedCourses.add(courseCode)
     console.warn(
       `[phrase-cap] reviewMaxKnownSyllables is INERT for ${courseCode}: no syllable counter registered for known language '${lang || '(unknown)'}'. ` +
-      'Review and consolidate phrases will NOT be filtered by known-side syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
+      'Easy has NO length rule at all on this course: the play-time skip is the only one left, and the character cap it used to compose with went inert on 2026-08-08. ' +
       'To make it apply, add a counter to packages/core/src/text/syllables.ts and mirror it into ssi-dashboard-v7-clean/tools/lib/syllable-counters.cjs.',
     )
   }

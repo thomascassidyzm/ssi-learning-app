@@ -240,10 +240,23 @@ RESIDUE:
       (legal, two in a row); the learner pauses part-way through N+1 and
       resumes; the prompt sounds a third time. PlayerConductor can reach the
       same path automatically when an interlude or seek times out or throws.
+
+      WIDENED BY EASY'S PLAY-TIME DOUBLING, 2026-08-08. The construction above
+      needs two adjacent cycles carrying the same text. In Easy it needs no
+      content precondition at all: ANY doubled practice cycle, paused part-way
+      through its second play and resumed, starts its prompt a third time.
+      Measured rather than assumed — the prompt STARTS three times, but only
+      two plays COMPLETE, because the resumed play replaces the one the learner
+      interrupted rather than adding to it. So the learner still gets exactly
+      two whole hearings, and the repeat count still reads 2 at the boundary.
     decision: |
-      NOT capped. A queue-level cap cannot see it — only a resume-time check
-      could — and changing resume semantics to chase an interaction-dependent
-      edge risks a worse regression than the edge itself. Logged for Tom.
+      NOT capped, and the widening does not change that. A queue-level cap
+      cannot see it — only a resume-time check could — and changing resume
+      semantics to chase an interaction-dependent edge risks a worse regression
+      than the edge itself: suppressing the second play after a resume would
+      mean a pause silently costs an Easy learner their repetition. The
+      partial-then-whole shape is also what a learner asked for by pausing.
+      Logged for Tom.
   stage0_and_atom_fusion:
     files:
       - "packages/player-vue/src/composables/usePodStage0.ts + @ssi/core stage0Sequence.ts"

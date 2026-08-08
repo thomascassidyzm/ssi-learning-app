@@ -9650,8 +9650,9 @@ simplePlayer.setRuntimeOverrides({
   // So both modes now read the ONE baked speed (`cycle.playbackSpeed`, from
   // `computeCycleSpeed` / `computeListeningSpeed`). Do not reintroduce a mode
   // multiplier: a second speed curve is exactly the bug this area has already
-  // paid for twice. The only Easy/Fast differences are pause length, repetition
-  // count and phrase-length cap.
+  // paid for twice. The Easy/Fast differences are pause length, the post-voice2
+  // gap, the listening ramp, the repeat count and the long-phrase skip — all of
+  // them read here, at play time. There is no phrase-length cap any more.
   // Easy's doubling, at PLAY time. Read from the live mode at every cycle
   // boundary, so flipping to Fast means the very next phrase plays once and
   // flipping to Easy means it doubles — no regeneration, no cache clear.
