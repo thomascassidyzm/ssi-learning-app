@@ -1,11 +1,13 @@
 # APML Playback: The consecutive-repeat law (A-64)
 # SSI Learning App
-# Version: 1.2.1
-# Last updated: 2026-08-08
+# Version: 1.3.0
+# Last updated: 2026-08-08 (the law moved INTO SimplePlayer.advanceCycle — the build-time cap no longer sees the play-time doubling)
 # Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
 #         packages/player-vue/src/providers/generateLearningScript.ts
 #         packages/player-vue/src/providers/backendCyclesToRounds.ts
 #         packages/player-vue/src/providers/toSimpleRounds.ts
+#         packages/player-vue/src/playback/SimplePlayer.ts
+#         packages/player-vue/src/playback/modeRenderRules.ts
 #         packages/player-vue/src/composables/usePodLapScheduler.ts
 #         packages/player-vue/src/composables/useLayer1Scheduler.ts
 #         packages/player-vue/src/composables/useOfflinePlay.ts
@@ -48,19 +50,40 @@ SPECIFICATION:
     SimplePlayer's `getCyclePlayCount` override in advanceCycle;
     providers/repeatPhraseCycles.ts is deleted.
 
-    WHAT THAT MEANS FOR THIS LAW. The script the cap pass sees is mode-free and
-    contains no duplicated items at all, so the generator's own
-    consecutive-duplicate removal and this floor both operate on the undoubled
-    stream, exactly as they did for Fast — the ordering hazard that used to be
-    load-bearing is simply gone from both builders. The law itself is now
-    enforced at TWO levels that compose: the script may hold at most two
-    identical prompts in a row (this floor), and the player may play any one
-    cycle at most twice (MAX_PHRASE_REPEAT_COUNT). Neither can produce three
-    hearings of the same prompt back to back on its own. The one combination
-    the code must therefore never allow is a script pair PLUS a play-time
-    repeat of the same prompt, which is why the repeat clamps at 2 and why the
-    seed-phase sandwich (already several cycles of one sentence) is excluded
-    structurally rather than by config.
+    WHAT THAT MEANS FOR THIS LAW, corrected 2026-08-08 after the claim below
+    was tested rather than reasoned about. The two levels do NOT compose on
+    their own. This floor's allowance is a PAIR, and the play-time repeat
+    doubles each script position INDEPENDENTLY, so a legal pair renders as
+    FOUR hearings of one prompt — reproduced at
+    playback/modeRenderRules.test.ts §4 against a round the cap passes through
+    untouched. The earlier text on this page said the combination was ruled out
+    "because the repeat clamps at 2"; clamping the repeat at 2 does not stop
+    2 x 2. What used to make the law true was ORDER: the repeat pass ran inside
+    the generator immediately BEFORE the cap, so the cap saw the doubles and
+    clamped them. Moving the repeat to play time took it out from under the
+    cap, and the guarantee went with it.
+
+    WHERE THE LAW LIVES NOW. In SimplePlayer.advanceCycle, at the boundary that
+    takes the repeat decision — the last word, whatever the script, the mode or
+    a hand-edited config row says. It counts RENDITIONS, not script items:
+      - a run counter over the prompt identity of each completed cycle, which
+        refuses a repeat that would carry the run past MAX_PHRASE_REPEAT_COUNT;
+      - a one-position lookahead, which refuses a repeat when the NEXT playable
+        cycle carries the same prompt — the pair supplies the second hearing
+        itself, so the repeat would be illegal AND redundant;
+      - the ceiling applied to the override's own return value, so the floor
+        does not depend on its caller having been normalised.
+    Totals are preserved exactly as the re-interleave pass preserves them: a
+    suppressed repeat is a hearing the pair already provides, not a lost one.
+    The seed-phase sandwich (already several cycles of one sentence) stays
+    excluded structurally rather than by config.
+
+    WHY THE FLOOR CANNOT MOVE BACK UPSTREAM. The instant-playback path — the
+    live default — has no consecutive-duplicate removal at all; the generator's
+    removal pass does not run there, and `capRoundCycles` is mode-blind by
+    design. A duplicated phrase row in a LEGO's basket therefore arrives as a
+    lawful adjacent pair. Any future play-time rule that multiplies renditions
+    must clear the same boundary check, not a build-time one.
   identity: |
     "The same prompt" = identical normalised known text paired with identical
     normalised target text (the getPhraseId notion). Listening items are the
@@ -234,6 +257,30 @@ RESIDUE:
       from the runtime 2026-07-14 and survives only behind the admin route
       /admin/pod-auditioner. Revisit if either is ever re-wired into playback.
 
+SITE:
+  name: "The play-time repeat — Easy's doubling (the LAST word)"
+  file: "packages/player-vue/src/playback/SimplePlayer.ts"
+  placement: |
+    advanceCycle, at the boundary that decides whether to replay the cycle in
+    place. This runs DOWNSTREAM of every build-time site above, so it, not the
+    cap, is where the law finally holds for a doubling mode.
+  rule: |
+    Refuse the repeat when either is true:
+      - lastPromptRunLength has already reached MAX_PHRASE_REPEAT_COUNT — the
+        preceding script position carried this same prompt and has spent the
+        allowance;
+      - the next playable cycle in the round carries the same prompt identity —
+        the pair will supply the second hearing itself.
+    The override's return value is additionally clamped to
+    MAX_PHRASE_REPEAT_COUNT, so a config row that never met a normaliser cannot
+    reach past the floor.
+  bookkeeping: |
+    The repeat count is anchored on "roundNumber:cycleIndex", NOT on the array
+    index: appendRounds / addRounds / replaceQueueFromCurrent splice rounds in
+    behind the playing one and shift roundIndex, and an index-keyed anchor would
+    restart a half-spent count and buy a third hearing. The anchor and the run
+    counter are cleared together by stopForReposition and by stop().
+
 ## ============================================================================
 ## TESTS
 ## ============================================================================
@@ -256,12 +303,20 @@ TESTS:
       toSimpleRounds — against the intro/debut/build triple the server cycles
       route makes possible, within a round and across the round seam. Three of
       these five tests fail without the cap.
+  - file: "packages/player-vue/src/playback/modeRenderRules.test.ts"
+    covers: |
+      Section 4 — the play-time floor. A round the cap passes through untouched
+      (a legal identical PAIR) is heard twice in Easy and not four times; an
+      ordinary practice cycle still doubles; a round landing behind the cursor
+      mid-double buys no third hearing; stop() leaves no half-spent count; and
+      an unnormalised override of 99 still yields two. All four of the first,
+      third, fourth and fifth fail without the boundary check.
   - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
     covers: |
       Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened
       across consecutive laps into the sequence the learner actually hears.
 
 ## ============================================================================
-## Last updated: 2026-08-08
+## Last updated: 2026-08-08 (play-time floor in SimplePlayer.advanceCycle)
 ## APML v2.0.0
 ## ============================================================================

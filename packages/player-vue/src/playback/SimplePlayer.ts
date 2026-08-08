@@ -1,6 +1,8 @@
 // SimplePlayer.ts - Clean playback engine (~180 lines)
 
 import { buildSilentWavDataUri } from './silentWav'
+import { cyclePromptIdentity } from './capConsecutiveRepeats'
+import { MAX_PHRASE_REPEAT_COUNT } from './modeRenderRules'
 
 // Cycle/Round moved to `@ssi/core` (bundle-cutover Phase 1,
 // docs/bundle-cutover-design.md §3, §5 step 1) — canonical source is
@@ -387,14 +389,39 @@ export class SimplePlayer {
   /**
    * Play-time repeat bookkeeping (Easy mode's doubling — see
    * `getCyclePlayCount`). `repeatAnchor` is the position the count belongs to,
-   * as "roundIndex:cycleIndex". Anchoring rather than resetting means EVERY
+   * as "roundNumber:cycleIndex". Anchoring rather than resetting means EVERY
    * reposition path — play, pause/resume, stepCycle, jumpToRound, skipRound,
-   * stop, round advance, a round list mutated underneath us — is self-correcting
-   * without needing to remember to clear a counter: land anywhere other than
-   * where the count was taken and the count is simply not yours.
+   * round advance — is self-correcting without needing to remember to clear a
+   * counter: land anywhere other than where the count was taken and the count
+   * is simply not yours.
+   *
+   * The key is the round's NUMBER, not its array index. `appendRounds`,
+   * `addRounds` and `replaceQueueFromCurrent` all splice rounds in BEHIND the
+   * playing one and shift `roundIndex` to compensate — routine work on the
+   * INF-PLAY expansion and the full-script handoff. An index-keyed anchor stops
+   * matching the moment that happens, and a half-spent count starts again,
+   * which buys the learner a third hearing. Round numbers do not move.
    */
   private repeatAnchor: string | null = null
   private repeatPlaysDone = 0
+
+  /**
+   * The prompt sounding most recently, and how many times running it has now
+   * been heard — the A-64 law's counter, kept in RENDITIONS rather than in
+   * script items.
+   *
+   * Tom, 2026-08-06: "no mode should ever repeat the same prompt more than
+   * twice consecutively." That used to be guaranteed upstream, because Easy's
+   * doubling ran INSIDE the generator, immediately before `capConsecutiveRepeats`
+   * — the cap saw the doubles and clamped them. Since the doubling moved to
+   * play time the cap only ever sees the undoubled script, and the cap's own
+   * allowance is a PAIR. A legal pair, doubled independently at each position,
+   * is four hearings of one prompt. So the law has to live down here now, at
+   * the boundary that takes the repeat decision, where it is the last word
+   * whatever the script, the mode or a hand-edited config row says.
+   */
+  private lastPromptIdentity: string | null = null
+  private lastPromptRunLength = 0
 
   constructor(rounds: Round[], overrides: SimplePlayerRuntimeOverrides = {}) {
     this.rounds = rounds
@@ -901,9 +928,19 @@ export class SimplePlayer {
     this.retryUrl = null
     // A deliberate reposition starts the landing cycle's repeat count fresh —
     // stepping back onto a cycle you already heard twice should play it as the
-    // live mode says, not finish an old count.
+    // live mode says, not finish an old count. The A-64 run goes with it: after
+    // a jump, whatever was sounding before is no longer "in a row" with what
+    // lands next.
+    this.clearRepeatBookkeeping()
+  }
+
+  /** The play-time repeat count and the A-64 run, cleared together — they only
+   *  ever mean anything about an uninterrupted stretch of playback. */
+  private clearRepeatBookkeeping(): void {
     this.repeatAnchor = null
     this.repeatPlaysDone = 0
+    this.lastPromptIdentity = null
+    this.lastPromptRunLength = 0
   }
 
   // Controls
@@ -985,6 +1022,12 @@ export class SimplePlayer {
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
+    // stop() repositions to the top of the queue, so it owes the same reset as
+    // every other reposition. It does not route through stopForReposition (it
+    // is not resuming anything), so it clears the bookkeeping itself: a count
+    // half spent when the session ended must not eat the first repeat of the
+    // next one.
+    this.clearRepeatBookkeeping()
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -1685,16 +1728,51 @@ export class SimplePlayer {
       return
     }
 
+    // The A-64 counter, in renditions: how many times running has the learner
+    // now heard THIS prompt? Updated on every completed cycle, whether it was a
+    // first play or a repeat, and whether the previous one came from the same
+    // script position or a neighbouring one — consecutiveness is about the ear,
+    // not about the array.
+    if (justPlayed) {
+      const identity = cyclePromptIdentity(justPlayed)
+      this.lastPromptRunLength = identity === this.lastPromptIdentity ? this.lastPromptRunLength + 1 : 1
+      this.lastPromptIdentity = identity
+    }
+
     // Easy mode's doubling, applied HERE rather than in the script: replay the
     // same cycle in place before the cursor moves on. Read from the live mode
     // at this boundary, so a toggle mid-session takes effect on the very next
     // cycle — and a learner who flips to Fast part-way through a doubled
     // cycle's first play simply doesn't get the second.
+    // Where the cursor goes next, resolved ONCE and used by both branches. Lets
+    // the runtime cull take effect mid-round: the current cycle finishes, then
+    // the override jumps over any cycles it now wants skipped before the next
+    // prompt — and lets the repeat decision below see what is actually coming.
+    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+
     if (justPlayed && this.state.isPlaying) {
-      const anchor = `${this.state.roundIndex}:${this.state.cycleIndex}`
+      const anchor = `${round.roundNumber}:${this.state.cycleIndex}`
       const plays = this.repeatAnchor === anchor ? this.repeatPlaysDone + 1 : 1
-      const wanted = Math.max(1, Math.floor(this.runtimeOverrides.getCyclePlayCount?.(justPlayed) ?? 1))
-      if (plays < wanted) {
+      // MAX_PHRASE_REPEAT_COUNT is clamped upstream too (normalizePhraseRepeatCount,
+      // then cyclePlayCountFor), but the law is a floor and a floor that trusts
+      // its caller is not one — an override wired straight to a DB row must not
+      // be able to breach it from outside.
+      const wanted = Math.min(
+        MAX_PHRASE_REPEAT_COUNT,
+        Math.max(1, Math.floor(this.runtimeOverrides.getCyclePlayCount?.(justPlayed) ?? 1)),
+      )
+      // Would this repeat push the run past the law? Two ways it can, both of
+      // which only exist because the doubling now sits downstream of the cap:
+      //   • the run is already at the ceiling — the previous script position
+      //     carried the same prompt and has already spent the allowance;
+      //   • the NEXT position carries it too, so repeating here and playing
+      //     there would make three. The pair itself supplies the second
+      //     hearing, so the repeat is redundant as well as illegal.
+      const nextCycle = nextIdx === -1 ? undefined : round.cycles[nextIdx]
+      const lawAllowsRepeat =
+        this.lastPromptRunLength < MAX_PHRASE_REPEAT_COUNT &&
+        !(nextCycle && cyclePromptIdentity(nextCycle) === this.lastPromptIdentity)
+      if (plays < wanted && lawAllowsRepeat) {
         this.repeatAnchor = anchor
         this.repeatPlaysDone = plays
         this.startPhase('prompt')
@@ -1703,10 +1781,6 @@ export class SimplePlayer {
     }
     this.repeatAnchor = null
     this.repeatPlaysDone = 0
-    // Find the next non-skipped cycle. Lets the runtime cull take effect
-    // mid-round: the current cycle finishes, then the override jumps over
-    // any cycles it now wants skipped before the next prompt.
-    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
       this.updateState({ cycleIndex: nextIdx })
       this.startPhase('prompt')

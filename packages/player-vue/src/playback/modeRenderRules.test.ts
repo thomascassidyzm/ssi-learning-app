@@ -309,3 +309,128 @@ describe('3. the skip leaves no hole — progress is position in the script', ()
     expect(played).toEqual(['intro', 'short', 'short'])
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. THE LAW SURVIVES THE MOVE TO PLAY TIME.
+//
+// Moving the doubling out of the generator took it out from under the A-64 cap,
+// which is what used to make "doubled can never become tripled" true: the
+// repeat pass ran BEFORE `capConsecutiveRepeats`, so the cap saw the doubles and
+// clamped them. It no longer does — the cap runs on the undoubled script and
+// permits a legal PAIR, which doubled independently would be four hearings of
+// one prompt. So the engine now carries the law itself, at the boundary where
+// it takes the repeat decision. Tom, 2026-08-06: "no mode should ever repeat
+// the same prompt more than twice consecutively" — every mode, every config.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('4. no prompt three times in a row, whatever the script hands the engine', () => {
+  let mockAudio: MockAudio
+  let player: SimplePlayer
+  let played: string[]
+
+  const endPhase = () => { mockAudio._endedHandler?.() }
+  const finishCycle = () => { for (let phase = 0; phase < 3; phase++) endPhase() }
+
+  /** A round the A-64 cap considers LEGAL: two identical practice prompts back
+   *  to back is exactly the allowance, so `capRoundCycles` passes this through
+   *  untouched. The instant-playback path has no duplicate-collapse pass at all,
+   *  so a duplicated phrase row in a LEGO's basket arrives shaped like this. */
+  const pairRounds = (): Round[] => [{
+    roundNumber: 1,
+    legoId: 'S0001L01',
+    seedId: 'S0001',
+    cycles: [
+      cycle({ id: 'intro', type: 'intro', known: { text: 'the word', audioUrl: 'https://example.com/i.mp3' } }),
+      cycle({ id: 'p1', type: 'use', known: { text: 'a b c', audioUrl: 'https://example.com/p.mp3' } }),
+      cycle({ id: 'p2', type: 'use', known: { text: 'a b c', audioUrl: 'https://example.com/p.mp3' } }),
+    ],
+  }]
+
+  const start = (rounds: Round[]) => {
+    played = []
+    player = new SimplePlayer(rounds, {
+      getCyclePlayCount: (c) => cyclePlayCountFor(c, EASY),
+      shouldSkipCycle: (c) => shouldSkipForLength(c, EASY, wordSyllables),
+    })
+    player.on('cycle_completed', (d) => { played.push(((d as { cycle?: Cycle }).cycle?.id) ?? '?') })
+    player.play()
+  }
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+  })
+
+  afterEach(() => {
+    player.dispose()
+    vi.unstubAllGlobals()
+  })
+
+  it('a legal script PAIR is heard twice in Easy, not four times', () => {
+    start(pairRounds())
+    for (let i = 0; i < 6; i++) finishCycle()
+    // Two script positions carrying one prompt. The learner hears that prompt
+    // TWICE in total — the pair supplies the law's whole allowance, so neither
+    // position also doubles.
+    expect(played).toEqual(['intro', 'p1', 'p2'])
+  })
+
+  it('an ordinary practice cycle still doubles — the guard is about the PROMPT, not about repeats', () => {
+    start(warmRounds())
+    finishCycle() // intro
+    finishCycle() // short, play 1
+    finishCycle() // short, play 2
+    expect(played).toEqual(['intro', 'short', 'short'])
+  })
+
+  it('a round landing BEHIND the cursor mid-double does not buy a third hearing', () => {
+    start(warmRounds())
+    finishCycle() // intro
+    finishCycle() // 'short', play 1 — the repeat is now pending
+    // The infinite-play expansion and the full-script handoff both do exactly
+    // this: insert rounds before the playing one, which shifts roundIndex. An
+    // anchor keyed on the ARRAY INDEX would stop matching and start the count
+    // again, giving the learner a third hearing.
+    player.appendRounds([{ roundNumber: 0, legoId: 'S0000L01', seedId: 'S0000', cycles: [
+      cycle({ id: 'earlier', type: 'use', known: { text: 'x y', audioUrl: 'https://example.com/e.mp3' } }),
+    ] }])
+    // Run the round out. 'short' gets its second hearing and no more; 'long' is
+    // over the Easy threshold and is passed over, so the round ends there.
+    for (let i = 0; i < 4; i++) finishCycle()
+    expect(played).toEqual(['intro', 'short', 'short'])
+  })
+
+  it('stop() leaves no half-spent count behind for the next session to inherit', () => {
+    // A round that OPENS on a practice cycle — no intro to absorb a stale
+    // anchor on the way past. INF-PLAY revival rounds and any round whose intro
+    // was suppressed for missing audio arrive in exactly this shape.
+    const noIntro = (): Round[] => [{
+      roundNumber: 1,
+      legoId: 'S0001L01',
+      seedId: 'S0001',
+      cycles: [cycle({ id: 'first', type: 'use', known: { text: 'a b c', audioUrl: 'https://example.com/s.mp3' } })],
+    }]
+    start(noIntro())
+    finishCycle() // 'first', play 1 — a count is now half spent
+    player.stop()
+    played = []
+    player.play()
+    finishCycle() // 'first', play 1 of the new session
+    finishCycle() // 'first', play 2 — the doubling is intact, not half-eaten
+    expect(played).toEqual(['first', 'first'])
+  })
+
+  it('the engine clamps the repeat itself — a bad config row cannot buy a third hearing', () => {
+    played = []
+    player = new SimplePlayer(warmRounds(), {
+      // Straight past every upstream normaliser, as a hand-edited DB row would.
+      getCyclePlayCount: () => 99,
+    })
+    player.on('cycle_completed', (d) => { played.push(((d as { cycle?: Cycle }).cycle?.id) ?? '?') })
+    player.play()
+    for (let i = 0; i < 8; i++) finishCycle()
+    // Twice each and no more. Which cycle TYPES may repeat is `cyclePlayCountFor`'s
+    // business and is bypassed here on purpose; the ceiling is the engine's, and
+    // it holds against a value that never met a normaliser.
+    expect(played).toEqual(['intro', 'intro', 'short', 'short', 'long', 'long'])
+  })
+})
