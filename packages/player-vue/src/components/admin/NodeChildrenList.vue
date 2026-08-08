@@ -32,7 +32,16 @@ interface Row {
 const props = defineProps<{
   lens: string
   payload: Record<string, any>
+  /**
+   * Optional per-row verb, rendered beside the row (never inside its button —
+   * a button in a button is invalid HTML). The caller decides which lens gets
+   * one; the row's key comes back on `row-action`.
+   */
+  rowActionLabel?: string
+  rowActionWalk?: string
 }>()
+
+const emit = defineEmits<{ (e: 'row-action', rowKey: string): void }>()
 
 const router = useRouter()
 const route = useRoute()
@@ -208,6 +217,13 @@ function open(row: Row): void {
         </span>
         <span v-if="row.to" class="child-open" aria-hidden="true">→</span>
       </button>
+      <button
+        v-if="rowActionLabel"
+        type="button"
+        class="child-row-action"
+        :data-walk="rowActionWalk"
+        @click="emit('row-action', row.key)"
+      >{{ rowActionLabel }}</button>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
       <slot name="empty">Nothing here yet.</slot>
@@ -218,6 +234,16 @@ function open(row: Row): void {
 <style scoped>
 .child-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .child-row + .child-row { border-top: 1px solid rgba(44, 38, 34, 0.06); }
+.child-row { display: flex; align-items: center; }
+.child-row .child-btn { flex: 1; min-width: 0; }
+
+.child-row-action {
+  flex: none; margin-right: var(--space-4); font: inherit; font-size: var(--text-sm);
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+  border: 1px solid rgba(44, 38, 34, 0.16); background: rgba(255, 255, 255, 0.7);
+  color: var(--schools-fg, #0F1212);
+}
+.child-row-action:hover { background: #fff; }
 
 .child-btn {
   display: flex; align-items: center; gap: var(--space-4); width: 100%;
