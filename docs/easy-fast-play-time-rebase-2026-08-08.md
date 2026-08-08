@@ -64,6 +64,47 @@ already off. **A learner who never toggles gets exactly today's script.**
 the identical count to dev**, so this adds none · `typecheck:api` · `1148 API tests` ·
 production build with the service worker.
 
+### Proven in a browser, on a production build
+
+One page load, never reloaded, no cache clear, `/api` proxied to dev.
+
+| Phase | Eligible practice cycles | Heard once | Heard twice | 3+ |
+|---|---:|---:|---:|---:|
+| Easy from the start | 9 | 0 | **9** | 0 |
+| Fast, after the live toggle | 21 | **21** | 0 | 0 |
+| Easy again, after toggling back | 10 | 1 † | **9** | 0 |
+
+† the last cycle in the log — the browser closed mid-second-play. Truncation, not a miss.
+
+**The reverted bug does not reproduce.** Easy→Fast stops doubling on the next phrase with no
+cache clear and no restart, and Fast→Easy starts it again.
+
+**Fast's script is byte-identical**, and this is the sharpest number on the page. The full
+generated script — main loop, rounds 1–1100, 24,914 cycles — was dumped from a Fast session on
+this branch and on dev tip:
+
+- this branch FAST, this branch EASY, dev-tip FAST → **all the same md5**
+- dev-tip EASY → 46,773 lines, different md5
+
+That last line *is* the bug you hit, measured: on dev, Easy generated an 88%-longer script, and
+that script was cached. On this branch the two modes share one.
+
+*Honest limit:* past round 1100 the infinite-play revival tail is rng-seeded per learner and
+differs between two runs of the same build, so it is not comparable by this method and I am not
+claiming it unchanged.
+
+**The long-phrase skip works as described.** Round 55, the course's first over-threshold cycle:
+in Easy exactly one skip in a 21-cycle round — a 16-syllable use phrase — while its 12-syllable
+sibling right beside it played twice. Toggled live to Fast: 21 hearings from 21 cycles, the long
+one back. Zero page errors and zero stalls in ~20 minutes of play, and across 134 cycle
+completions the longest run of one prompt was 2.
+
+**The gap in that run, stated plainly:** it was pinned to the restore commit, *before* the two
+law fixes below. Those fixes only ever make a repeat fire less often — they cannot change the
+toggle behaviour or the generated script, so the three results above still stand. But the browser
+has not seen the current tip. Re-running the probes against it is about 25 minutes and worth
+doing before this lands.
+
 ### Three correctness defects found, reproduced, fixed
 
 The first two were in the restored work; the third was in my own fix for the first.
@@ -237,5 +278,5 @@ passing; the browser run is confirmation on the real article, and it is still ru
 
 ## Landing
 
-Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, eight commits, pushed to origin.
+Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, nine commits, pushed to origin.
 **Not merged** to dev, staging or main. **Not deployed** anywhere. Yours to call.
