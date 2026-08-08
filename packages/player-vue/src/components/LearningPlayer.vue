@@ -4501,6 +4501,14 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
       plays: inputLap.plays.map((p) => {
         const play = p as PodPlay
         if (play.isLayer1) return play
+        // 2026-08-07 (Tom): a play whose speed came from the EXPOSURE ramp is
+        // already final — globalSpeed folded in, 1.0 ceiling applied, and the
+        // same rate on all four slots. Re-ramping it here would both
+        // double-apply the course speed and re-split the phrase, because this
+        // pass only touches target roles. Skipped exactly as Layer 1 is. The
+        // belt ramp still governs everything that ISN'T exposure-ramped:
+        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
       }),

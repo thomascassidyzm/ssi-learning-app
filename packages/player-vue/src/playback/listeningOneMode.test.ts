@@ -173,6 +173,18 @@ describe('2 — a phrase\'s four clips are all at the same speed, known slot inc
     const legacy = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN))
     expect(new Set(legacy.map(p => p.playbackSpeed)).size).toBe(2)
   })
+
+  it('exposure-ramped plays are flagged FINAL so the runtime does not belt-ramp them again', async () => {
+    // LearningPlayer.playPodLap multiplies pod plays by the 2026-08-06 belt
+    // ramp — and only on TARGET roles. Applied on top of an exposure speed that
+    // has already folded in globalSpeed, that would both double-count the
+    // course speed and re-split the phrase's four clips into two rates.
+    const ramped = await firstLap(policyFor('easy'))
+    expect(ramped.plays.every(p => p.speedIsFinal === true)).toBe(true)
+    // The escape-hatch ladder still wants the belt ramp, so it is NOT flagged.
+    const ladder = await firstLap(policyFor('fast', { listeningUseStagePlaylist: true }))
+    expect(ladder.plays.every(p => p.speedIsFinal !== true)).toBe(true)
+  })
 })
 
 // ============================================================================

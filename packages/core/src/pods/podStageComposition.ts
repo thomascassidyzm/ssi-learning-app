@@ -120,6 +120,19 @@ export interface PodPlay {
    *  never resolve a turn for them (product rule 2026-07-22: Layer-1 seed
    *  plays are audio-only, no display text; Layer-2 pods always show text). */
   isLayer1?: boolean
+  /**
+   * True iff `playbackSpeed` is FINAL — already the whole answer, with the
+   * course globalSpeed folded in and the 1.0 listening ceiling applied. Set by
+   * the 2026-08-07 exposure ramp (see buildMainStage's `uniformSpeed`).
+   *
+   * The runtime (LearningPlayer.playPodLap) applies the 2026-08-06 BELT ramp as
+   * a multiplier over pod plays' role rates; a play carrying this flag must be
+   * skipped there, exactly as Layer-1 plays already are. Without it the
+   * exposure speed would be belt-ramped a second time AND only on the target
+   * slots, silently breaking the rule that a phrase's four clips share one
+   * speed.
+   */
+  speedIsFinal?: boolean
 }
 
 /** Warn-once-per-stage guard for the trailing-known defensive close, so a
@@ -184,6 +197,7 @@ export function buildMainStage(
       audioId,
       text: isTrans ? sentence.known_text : sentence.target_text,
       playbackSpeed: speedFor(playRole),
+      speedIsFinal: useUniform,
       glueToNextChunk: false, // set on the ACTUAL last play below
     })
   }
@@ -205,6 +219,7 @@ export function buildMainStage(
       audioId: sentence.target_audio_id!,
       text: sentence.target_text,
       playbackSpeed: speedFor(closeRole),
+      speedIsFinal: useUniform,
       glueToNextChunk: false,
     })
     if (!_warnedTrailingKnownStages.has(stage)) {
