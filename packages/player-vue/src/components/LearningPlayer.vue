@@ -57,7 +57,13 @@ import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
-import { useAlgorithmConfig, type LearningMode } from '../composables/useAlgorithmConfig'
+import {
+  useAlgorithmConfig,
+  resolveListeningPlayPolicy,
+  normalizePhraseRepeatCount,
+  normalizeRepeatedCycleTypes,
+  type LearningMode,
+} from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
@@ -530,12 +536,17 @@ const runGenerateScript = (
     // phrase in the whole course. Fast is uncapped (1.0) and so provably
     // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
     activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-    // ABSOLUTE syllable CAP for the active mode — "skip all phrases that are
-    // more than X number of syllables" (Tom, 2026-08-07). Composes with the
-    // character fraction above; 0 = no limit, which is Fast's value, so Fast
-    // is provably unchanged. Easy ships 20. Inert (and warns) on a course
-    // whose target language has no registered syllable counter.
-    activeModeConfig.value.maxPhraseSyllables ?? 0,
+    // The Easy levers (Tom, 2026-08-07): every practice cycle doubled, BUILD
+    // phrases unfiltered, and a known-side syllable filter on review and
+    // consolidate pulls for the first 100 rounds. Fast carries them all off,
+    // so Fast is provably unchanged.
+    {
+      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
+      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
+      filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
+      reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
+      reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
+    },
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -546,6 +557,15 @@ const runGenerateScript = (
     makeInfPlayRng(),
   )
 }
+
+// The active mode's cycle-repeat setting, in the shape backendCyclesToRounds
+// and the script walk both take. Easy plays every practice cycle twice (Tom,
+// 2026-08-07); Fast's count of 1 makes every call a no-op. Read fresh each
+// time so a mode switch mid-session takes effect on the next build.
+const currentRepeatConfig = () => ({
+  count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
+  types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
+})
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
 // learner so it's stable across sessions/regenerations for a given learner
@@ -1612,6 +1632,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
+          currentRepeatConfig(),
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -3522,6 +3543,21 @@ watch(learnerId, (id) => {
   if (id) metaCommentary?.setLearnerId(id)
 })
 
+/**
+ * THE listening play/speed policy (Tom, 2026-08-07) — ONE simplified mode.
+ * Every listening phrase, in BOTH layers, plays target · known · target ·
+ * target, with all four clips at one speed picked by how many times the
+ * learner has met that phrase, never above 1.0.
+ *
+ * Built once here and handed to both schedulers so Layer 1 and Layer 2
+ * provably cannot drift apart. Reactive on the `listening` DB row AND on the
+ * active mode's `listeningSpeedRamp`, so switching Easy↔Fast re-ramps on the
+ * next lap without a reload.
+ */
+const listeningPlayPolicy = computed(() =>
+  resolveListeningPlayPolicy(listeningConfig.value, learningMode.value, activeModeConfig.value),
+)
+
 // ============================================
 // LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
 // Replaces the old script-baked pod emission. Fires between rounds when
@@ -3540,6 +3576,16 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // The 2026-08-07 one-mode redesign: one T·K·T·T pattern at one
+      // exposure-ramped speed, superseding the nine-stage playlist above
+      // (which stays wired only for the DB escape hatch).
+      listeningPolicy: listeningPlayPolicy,
+      targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // The learner's position — what the per-mode belt ceiling is keyed on.
+      // Wrapped in a computed because `beltAnchorSeed` is declared further down
+      // this script block: a bare reference here is a TDZ error, a lazy getter
+      // is not.
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
       // sentence goes straight to Stage 1. The per-atom breakdown a
       // sentence used to get from AUDIO reps now comes from the
@@ -3610,6 +3656,9 @@ const l1Scheduler = supabase?.value
       // config the speaking rounds bake with, so listening can never drift
       // away from the speaking curve.
       targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // Same policy object as the pods — one pattern, one ramp, one ceiling.
+      listeningPolicy: listeningPlayPolicy,
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
     })
   : null
 
@@ -4475,6 +4524,14 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
       plays: inputLap.plays.map((p) => {
         const play = p as PodPlay
         if (play.isLayer1) return play
+        // 2026-08-07 (Tom): a play whose speed came from the EXPOSURE ramp is
+        // already final — globalSpeed folded in, 1.0 ceiling applied, and the
+        // same rate on all four slots. Re-ramping it here would both
+        // double-apply the course speed and re-split the phrase, because this
+        // pass only touches target roles. Skipped exactly as Layer 1 is. The
+        // belt ramp still governs everything that ISN'T exposure-ramped:
+        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
       }),
@@ -6499,6 +6556,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
+    // EASY holds listening at 0.8× (Tom, T-13, 2026-08-07). Read only by
+    // computeListeningSpeed — the speaking side's Easy is longer thinking time
+    // and more reps, not a slower voice, so nothing else here changes.
+    easyMode: isEasyMode.value,
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
@@ -12576,6 +12637,7 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
+                currentRepeatConfig(),
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12678,6 +12740,7 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
+                  currentRepeatConfig(),
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -14141,8 +14204,14 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
           activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-          // Twin of the wrapper above — both mode caps travel together.
-          activeModeConfig.value.maxPhraseSyllables ?? 0,
+          // Twin of the wrapper above — every mode lever travels together.
+          {
+            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
+            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
+            filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
+            reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
+            reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
+          },
         )
       }
     } finally {
@@ -15111,6 +15180,7 @@ defineExpose({
         :up-to-seed="listeningCeilingSeed"
         :learner-id="learnerId"
         :is-offline="offlinePlaybackActive()"
+        :learning-mode="learningMode"
         @close="handleCloseListening"
       />
     </Transition>

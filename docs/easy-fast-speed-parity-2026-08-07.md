@@ -1,6 +1,6 @@
 # Easy now hears the same speed on-ramp as Fast
 
-**2026-08-07 · fixed, verified in a real browser on dev AND again on the release candidate's own deployed build · IN tonight's candidate.**
+**2026-08-07 · fixed, verified in a real browser, on dev · NOT yet in tonight's production candidate — see the last section.**
 
 ## What was wrong
 
@@ -51,14 +51,12 @@ held, not a second one, and it can only ever make Easy slower, never faster. At
 white belt the two are identical, so it agrees with the ruling above rather than
 fighting it. Both are now pinned by the same test so they cannot drift apart.
 
-## Where it landed
+## What still needs a decision
 
-Lifted onto the release candidate on its own — three commits by patch, not a wholesale
-promote of dev — and **re-verified against the candidate's own deployed build** rather
-than trusted from the dev run. Twelve checks, twelve passes, and the same numbers:
-0.72x in both modes, Easy's pause still 3841 ms against Fast's 2401 ms.
+The fix is **on dev and verified live there**. Tonight's production candidate was
+cut from **staging**, which does not have it. So as things stand it would ship in
+the *next* release, not tonight's.
 
-The companion pin for the Easy listening hold was deliberately left behind: that ruling
-is held on dev, so the option it tests does not exist on the candidate.
-
-Full supplement: `docs/release-candidate-supplement-easy-speed-parity-2026-08-07.md`.
+Getting it into tonight's ship needs one of: promote dev → staging before the
+staging → main step, or lift these three commits onto staging on their own. That
+is a call about what reaches real learners tonight, so it is yours.

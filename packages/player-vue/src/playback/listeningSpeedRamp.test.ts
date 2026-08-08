@@ -87,6 +87,47 @@ describe('computeListeningSpeed — one curve, shared with speaking', () => {
   })
 })
 
+// Tom's ruling on T-13, 2026-08-07: "EASY setting defaults listening playback
+// to 0.8× speed." It is the white-belt rung held for as long as the learner
+// stays on Easy — a cap on the same curve, never a second one.
+describe('computeListeningSpeed — EASY holds the beginner pace (Tom, T-13)', () => {
+  const EASY: TargetSpeedConfig = { ...NATIVE, easyMode: true }
+
+  it.each(BANDS)('$belt belt (seed $seed) plays target clips at 0.8× on Easy', ({ seed }) => {
+    expect(computeListeningSpeed(1.0, seed, EASY)).toBe(0.8)
+  })
+
+  it('is a cap, never a speed-up: Easy is never faster than the belt would give', () => {
+    for (const { seed } of BANDS) {
+      expect(computeListeningSpeed(1.0, seed, EASY)).toBeLessThanOrEqual(
+        computeListeningSpeed(1.0, seed, NATIVE),
+      )
+    }
+  })
+
+  it('leaves FAST exactly as it was — the ramp with no cap', () => {
+    for (const { seed, rate } of BANDS) {
+      expect(computeListeningSpeed(1.0, seed, { ...NATIVE, easyMode: false })).toBe(rate)
+    }
+  })
+
+  it('still multiplies the pod role rate: a stretch rep stays fast relative to the pace', () => {
+    expect(computeListeningSpeed(ROLE_SPEED.ps2x, 400, EASY)).toBe(1.6)
+    expect(computeListeningSpeed(ROLE_SPEED.ps15x, 400, EASY)).toBe(1.2)
+  })
+
+  it('folds in the course globalSpeed, and keeps the legacy exemption', () => {
+    expect(computeListeningSpeed(1.0, 400, { ...FRENCH, easyMode: true })).toBe(0.76)
+    expect(computeListeningSpeed(1.0, 400, { ...LEGACY, easyMode: true })).toBe(0.9)
+  })
+
+  it('does not touch the speaking side', () => {
+    for (const { seed, rate } of BANDS) {
+      expect(computeCycleSpeed(seed, EASY)).toBe(rate)
+    }
+  })
+})
+
 describe('Layer-1 sandwich (t·k·t·t) rides the belt ramp', () => {
   const seedAt = (n: number) => ({
     seedNumber: n,

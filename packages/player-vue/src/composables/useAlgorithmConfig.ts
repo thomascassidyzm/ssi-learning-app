@@ -14,6 +14,23 @@ import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
 import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
+import { DEFAULT_REPEATED_CYCLE_TYPES, MAX_PHRASE_REPEAT_COUNT } from '../providers/repeatPhraseCycles'
+import {
+  type ListeningRampStep,
+  type ListeningSlot,
+  type ListeningSpeedSource,
+  type ListeningBeltCeiling,
+  DEFAULT_EASY_BELT_CEILINGS,
+  DEFAULT_EASY_LISTENING_RAMP,
+  DEFAULT_FAST_BELT_CEILINGS,
+  DEFAULT_FAST_LISTENING_RAMP,
+  DEFAULT_LISTENING_PATTERN,
+  DEFAULT_LISTENING_SPEED_SOURCE,
+  LISTENING_SPEED_CEILING,
+  normalizeBeltCeilings,
+  normalizeListeningRamp,
+  resolveListeningPattern,
+} from '../playback/listeningExposureRamp'
 import {
   type EncouragementTaperConfig,
   DEFAULT_ENCOURAGEMENT_TAPER,
@@ -66,10 +83,10 @@ export interface ModeConfig {
    * value. Layering happens in exactly ONE place — `resolveScriptShape()`
    * below — so there is no second merge rule to keep in sync.
    *
-   * This is where Easy and Fast are allowed to differ in SHAPE. It replaces
-   * the old Turbo per-cycle cull (`turboOmit`): the same expressive power,
-   * but expressed as "this mode generates a different round" rather than
-   * "this mode plays a subset of one round".
+   * This is where Easy and Fast are allowed to differ in SHAPE, and it is the
+   * ONLY way they may: a mode GENERATES a different round, it never plays a
+   * subset of one. There is no per-cycle cull on the mode path — SimplePlayer's
+   * `shouldSkipCycle` hook belongs to adaptation v2 alone.
    */
   scriptShape?: Partial<ScriptShapeConfig>
   /**
@@ -84,21 +101,102 @@ export interface ModeConfig {
    */
   maxPhraseLengthFraction?: number
   /**
-   * ABSOLUTE cap on phrase length in TARGET-TEXT SYLLABLES — "skip all phrases
-   * that are more than X number of syllables" (Tom, 2026-08-07). Composes with
-   * `maxPhraseLengthFraction` above: a phrase is dropped if it exceeds EITHER
-   * cap. Applied by `capPhrasesByLength()` — the same one place.
+   * How many times each practice cycle plays, back to back — "in EASY mode,
+   * double up every phrase, every BLD, every USE, every REVIEW, every
+   * CONSOLIDATE" (Tom, 2026-08-07). Easy ships 2; Fast ships 1.
    *
-   * Absent / null / ≤0 / non-finite ⇒ NO LIMIT. That is Fast's value, so Fast
-   * is provably unchanged. Easy ships 20 (measured — see DEFAULT_EASY).
-   *
-   * Unlike the character fraction, this is ABSOLUTE, not course-relative, so
-   * it bites unevenly across courses by design — and it is INERT entirely on
-   * a course whose target language has no registered syllable counter (see
-   * makePhraseSyllableResolver). The character cap is the universal backstop
-   * standing behind it; neither replaces the other.
+   * HARD CEILING OF 2, from Tom's rule rather than from taste: "we do NOT ever
+   * want to repeat exactly the same phrase more than 2x - a phrase repeated 3x
+   * would drive people nuts, but doubled up is perfect". A row asking for 3 is
+   * clamped to 2 and warns. Absent / ≤1 ⇒ no repetition at all.
    */
-  maxPhraseSyllables?: number
+  phraseRepeatCount?: number
+  /**
+   * WHICH cycle types `phraseRepeatCount` applies to. Default is the four Tom
+   * named — BLD, REVIEW, USE and CONSOLIDATE, which are `build`, `spaced_rep`
+   * and `use` in script terms. The INTRO and bare-LEGO debut are absent by his
+   * ruling ("of course not - the intro LEGO and not the LEGO alone"); adding
+   * them here is a config decision, not a code change.
+   *
+   * SEED-PHASE production reviews are never repeated whatever this says — that
+   * sandwich is already several cycles of one sentence, so repeating it would
+   * breach the never-more-than-twice rule. Structural, not a setting.
+   */
+  repeatedCycleTypes?: string[]
+  /**
+   * Should BUILD phrases be put through the phrase-length filters at all?
+   *
+   * Tom, 2026-08-07: "no filtering on BLD phrases". Build phrases are short by
+   * construction — a new LEGO plus one or two already-known ones — and they
+   * ARE the debut round, so filtering them guts the round it is meant to
+   * gentle. Easy therefore takes its BUILD pool whole; USE pools still get the
+   * character cap. Absent ⇒ true (filter), which is the historic behaviour.
+   */
+  filterBuildPhrases?: boolean
+  /**
+   * Pull-time ceiling on a review/consolidate phrase's KNOWN-language
+   * syllables (Tom, 2026-08-07). Note all three things this is NOT: it counts
+   * the KNOWN side (the prompt the learner hears in their own language), not
+   * the target; it is a filter on WHICH use phrase is pulled from a LEGO's
+   * basket for a REVIEW or CONSOLIDATE slot, not a ceiling over the whole
+   * script; and it lifts entirely past `reviewSyllableFilterMaxRound`.
+   *
+   * If a LEGO's basket holds nothing at or under the cap, the SHORTEST phrase
+   * in the basket is pulled instead — the round is never left empty and the
+   * LEGO is never skipped.
+   *
+   * Absent / ≤0 ⇒ no filter, which is Fast's value. Easy ships 15.
+   */
+  reviewMaxKnownSyllables?: number
+  /**
+   * Last course round on which `reviewMaxKnownSyllables` applies. From the
+   * next round the filter simply comes off — nothing is backlogged and
+   * nothing cascades. Tom, 2026-08-07: "the whole idea of you've got a
+   * cascade, you've got a wall, once you get to 100 and 101, all these space
+   * repetitions is complete nonsense, makes no difference at all", because
+   * "it's the LEGO that you are practicing" and the phrase carrying it need
+   * never have been met before. Easy ships 100.
+   */
+  reviewSyllableFilterMaxRound?: number
+  /**
+   * LISTENING speed ramp for this mode, over a phrase's EXPOSURES (Tom,
+   * 2026-08-07): "it might be 0.8. Or maybe even Notepoint. Seven, the very
+   * first time, and it might be 0.8, then it might stay on 0.8 for a few
+   * times, then it might go up to one, never more than one, depending on what
+   * mode we're in. Fast can probably start at the regular speed."
+   *
+   * A step table: `[{speed, plays}, …]`, walked by exposure count, last step
+   * terminal. ALL four slots of a phrase — including the KNOWN-language one —
+   * play at the step's speed, so a phrase is internally uniform.
+   *
+   * Easy ships 0.7 ×1 → 0.8 ×4 → 1.0 for ever; Fast ships a single 1.0 step.
+   * 1.0 is a HARD ceiling enforced in code (LISTENING_SPEED_CEILING), not by
+   * these values — a DB row asking for 1.5 still plays at 1.0.
+   *
+   * Absent / malformed ⇒ the shipped ramp for that mode (never "no ramp":
+   * that would hand a beginner full speed, which is the bug this fixes).
+   */
+  listeningSpeedRamp?: ListeningRampStep[]
+  /**
+   * BELT CEILING table for listening in this mode — Tom, 2026-08-07 23:56Z,
+   * correcting the exposure-only reading that shipped first: "for Easy the BELT
+   * TABLE is authoritative... 0.8x for white/yellow belt, 0.9x for orange/green,
+   * 1.0x for blue and beyond, NEVER above 1.0. The per-exposure ramp applies
+   * UNDERNEATH the belt ceiling."
+   *
+   * So the two ramps COMPOSE rather than compete: the belt rung is the maximum
+   * for that learner, and `listeningSpeedRamp` is what approaches it from below
+   * on early hearings. A white-belt Easy learner never exceeds 0.8x however
+   * many times they have heard the phrase.
+   *
+   * Keyed on the LEARNER's position, not the replayed phrase's — Tom's wording
+   * is learner-centric ("a white-belt LEARNER's ceiling").
+   *
+   * Easy ships white/yellow 0.8, orange/green 0.9, blue+ 1.0. Fast ships a
+   * single 1.0 rung, i.e. no ceiling — "this correction is Easy-only".
+   * Absent / malformed ⇒ the shipped table for that mode (never "no ceiling").
+   */
+  listeningBeltCeilings?: ListeningBeltCeiling[]
 }
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
@@ -184,6 +282,50 @@ export interface ListeningModeConfig {
    *  rows (LearningPlayer.vue) — removing changes pod-activation timing
    *  for un-migrated learners. Keep until the dashboard backfills `pods`. */
   podActivationRound?: number
+  /**
+   * THE listening play pattern (Tom, 2026-08-07): "Every single phrase. It's
+   * played Target, Known, Target, Target. And I think that's all that
+   * happens." One pattern, mode-agnostic, layer-agnostic — Layer 1 maps it
+   * onto a seed's two recorded voices, Layer 2 onto a pod sentence's target
+   * and translation clips.
+   *
+   * This SUPERSEDES the nine-stage `PodsConfig.stagePlaylist`, which no longer
+   * drives listening at all (see `listeningUseStagePlaylist` below for the one
+   * escape hatch). Absent / malformed ⇒ DEFAULT_LISTENING_PATTERN. A pattern
+   * ending on 'known' is rejected — never strand the learner on their own
+   * language.
+   */
+  playPattern?: ListeningSlot[]
+  /**
+   * Ceiling on any listening playback rate. Intersected with the code constant
+   * LISTENING_SPEED_CEILING (1.0), so this key can only ever lower the ceiling
+   * — "never more than one" is not negotiable from the DB.
+   */
+  maxSpeed?: number
+  /**
+   * Which axis decides a listening clip's speed:
+   *
+   *   'exposure' (default, Tom 2026-08-07) — the per-mode step table over how
+   *      many times the learner has met THIS phrase (ModeConfig.listeningSpeedRamp).
+   *   'belt' — the pre-existing BELT curve Tom ruled on 2026-08-06 (0.8 white
+   *      → 0.9 yellow → 0.95 orange → 1.0 green), via computeListeningSpeed.
+   *
+   * Both exist because Tom has ruled on both and has not said which wins: the
+   * belt ruling is 2026-08-06, the exposure spec is 2026-08-07, and they are
+   * ramps over DIFFERENT axes rather than one superseding the other. The
+   * exposure ramp ships as the default; flipping this key restores the belt
+   * curve without a deploy. `computeListeningSpeed`/`beltSpeed` and their tests
+   * are deliberately kept intact for exactly this reason.
+   */
+  speedSource?: ListeningSpeedSource
+  /**
+   * ESCAPE HATCH ONLY — replay the retired nine-stage `PodsConfig.stagePlaylist`
+   * instead of the single pattern. Default false; there is no learner-facing
+   * way to reach it. It exists so the old behaviour can be restored from the
+   * DB row if the simplification turns out wrong on Tom's ear, not as a
+   * supported alternative mode.
+   */
+  listeningUseStagePlaylist?: boolean
 }
 
 /**
@@ -248,8 +390,27 @@ export const DEFAULT_FAST: ModeConfig = {
   scriptShape: {},
   // Uncapped phrase length — Fast meets exactly the phrases it always did.
   maxPhraseLengthFraction: 1.0,
-  // NO syllable limit. Fast is provably unchanged by the 2026-08-07 cap.
-  maxPhraseSyllables: 0,
+  // Every Easy lever explicitly OFF, so Fast's script is provably unchanged
+  // by the 2026-08-07 redesign: each cycle plays once, BUILD filtered as it
+  // always was, no known-side pull filter. The type list is carried even
+  // though the count of 1 makes it inert, so both modes present the same
+  // knobs on the admin page.
+  phraseRepeatCount: 1,
+  repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
+  filterBuildPhrases: true,
+  reviewMaxKnownSyllables: 0,
+  /**
+   * LISTENING — "Fast can probably start at the regular speed" (Tom,
+   * 2026-08-07). One terminal step at 1.0×, which is also the ceiling, so Fast
+   * listening never ramps: it is flat native pace, modulated only by the
+   * course's own globalSpeed. It still plays the SAME four-slot pattern as
+   * Easy, at one uniform speed per phrase — the pattern is the mode-agnostic
+   * part of the redesign; only the ramp differs by mode.
+   */
+  listeningSpeedRamp: DEFAULT_FAST_LISTENING_RAMP,
+  // No belt ceiling — a single 1.0 rung. Tom, 2026-08-07: "Fast may still start
+  // at 1.0 as you built it — this correction is Easy-only."
+  listeningBeltCeilings: DEFAULT_FAST_BELT_CEILINGS,
 }
 
 /**
@@ -298,54 +459,80 @@ export const DEFAULT_EASY: ModeConfig = {
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false,
-  // DOUBLE the reps, against the global script_shape values (7/2/12/3).
-  // These mirror the seeded easy_mode DB row exactly; the row is authoritative
-  // and these only apply when it cannot be read.
-  scriptShape: {
-    maxBuildPhrases: 14,
-    useConsolidationCount: 4,
-    maxSpacedRepPhrases: 24,
-    n1PhraseCount: 6,
-  },
+  /**
+   * NO PHRASE-COUNT INFLATION (Tom's ruling, 2026-08-07: "JUST DOUBLE").
+   *
+   * Easy plays the SAME phrase set as Fast — every override here is empty, so
+   * the global script_shape row comes through byte for byte — and its extra
+   * repetition comes entirely from playing each cycle twice. That is ~2x a
+   * Fast round. Easy previously ALSO doubled the phrase COUNTS (14/4/24/6
+   * against the global 7/2/12/3), which compounded with the doubling into a
+   * ~2.5x round nobody asked for: more DIFFERENT phrases, where what was asked
+   * for was the SAME phrase heard twice.
+   *
+   * This stays here as the knob rather than being deleted: it IS the
+   * phrase-count multiplier, editable per mode from the admin Speaking page,
+   * and it defaults to no inflation.
+   */
+  scriptShape: {},
   // HALVE the longest possible phrase (Aran, 2026-08-06) — a fraction of the
   // COURSE's longest phrase, measured in characters. Phrases still arrive
   // shortest-first; the cap only cuts the long tail, with the starvation guard
   // in capPhrasesByLength standing behind it.
   maxPhraseLengthFraction: 0.5,
   /**
-   * ABSOLUTE syllable ceiling — "skip all phrases that are more than X number
-   * of syllables" (Tom, 2026-08-07). 20 was MEASURED, not guessed.
-   *
-   * Method: count target syllables with the canonical counter (@ssi/core/text)
-   * over every non-component practice phrase of two covered courses, and find
-   * the integer threshold whose removal share best matches what today's Easy
-   * 0.5 character cap already removes.
-   *
-   *   spa_for_eng  n=15,205  syllables p50=12 p90=22 max=48
-   *                char cap (0.5 × 138 chars) removes  5.56%
-   *   fra_for_eng  n=14,118  syllables p50= 8 p90=14 max=27
-   *                char cap (0.5 ×  98 chars) removes  9.12%
-   *
-   *   threshold   spa removed   fra removed   mean
-   *      >16        30.08%         3.39%      16.7%
-   *      >18        21.99%         1.63%      11.8%
-   *      >20        15.40%         0.65%       8.0%   ← closest to 7.34%
-   *      >22         9.87%         0.23%       5.1%
-   *
-   * NOTE THE HONEST FINDING: no single absolute number matches the character
-   * cap on BOTH courses (spa alone wants ~24, fra alone wants ~13), because
-   * the character cap is course-RELATIVE — a fraction of that course's own
-   * longest phrase — while this cap is absolute, and the two courses' phrase
-   * distributions differ hugely (spa tops out at 48 syllables, fra at 27).
-   * 20 is the integer closest to the two courses' MEAN removal share (8.0% vs
-   * the char cap's 7.34%). It therefore bites hard on spa and is near-inert on
-   * fra. That unevenness is inherent to what an absolute cap IS, not a defect
-   * of the number; the character fraction remains the course-relative backstop.
-   *
-   * This is a DB row (`algorithm_config.easy_mode.maxPhraseSyllables`), so
-   * retuning by ear is a Supabase edit, not a deploy.
+   * DOUBLE EVERY PRACTICE CYCLE (Tom, 2026-08-07). Easy's repetition comes
+   * from hearing each phrase twice in a row rather than from meeting more
+   * different phrases: "we want more repetitions in each ROUND for a LEGO,
+   * but we do NOT ever want to repeat exactly the same phrase more than 2x".
+   * 2 is also the hard ceiling — see normalizePhraseRepeatCount.
    */
-  maxPhraseSyllables: 20,
+  phraseRepeatCount: 2,
+  /** BLD, REVIEW, USE and CONSOLIDATE — the four he named. Intro and the bare
+   *  LEGO are absent: "of course not - the intro LEGO and not the LEGO alone". */
+  repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
+  /**
+   * NO filtering on BUILD phrases — Tom, 2026-08-07, verbatim. The debut round
+   * hands the learner the new LEGO and then "all the places that it can fit
+   * in"; those fragments are short already, so a length filter only thins the
+   * one round that exists to be generous.
+   */
+  filterBuildPhrases: false,
+  /**
+   * KNOWN-side pull filter for REVIEW and CONSOLIDATE slots: prefer a use
+   * phrase of at most 15 syllables in the learner's OWN language, for the
+   * first 100 rounds of the course. Replaces the flat 20-target-syllable
+   * whole-mode ceiling that shipped earlier on 2026-08-07 — that counted the
+   * wrong side of the pair, applied to the whole script, and never came off.
+   *
+   * Both numbers are DB rows (`algorithm_config.easy_mode`), so retuning by
+   * ear is a Supabase edit, not a deploy.
+   */
+  reviewMaxKnownSyllables: 15,
+  reviewSyllableFilterMaxRound: 100,
+  /**
+   * LISTENING — minimal cognitive load, and slower than Fast (Tom,
+   * 2026-08-07: "they should probably have A minimal cognitive load for
+   * listening and it should be slower on easy mode in the listening").
+   *
+   * 0.7 on the very first hearing of a phrase, 0.8 for the next four, then
+   * 1.0 for ever — a phrase reaches full speed on its sixth exposure. Tom's
+   * numbers read literally; "a few times" is the 4, and it is the one number
+   * here he left deliberately vague. All of it is a DB row
+   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so retuning by ear is a
+   * Supabase edit, not a deploy.
+   */
+  listeningSpeedRamp: DEFAULT_EASY_LISTENING_RAMP,
+  /**
+   * The BELT CEILING the ramp above lives underneath (Tom, 2026-08-07 23:56Z).
+   * White/yellow 0.8, orange/green 0.9, blue and beyond 1.0 — a gentler table
+   * than the speaking side's `beltSpeed`, deliberately its own, because these
+   * are the numbers Tom gave for Easy listening specifically.
+   *
+   * A white-belt learner therefore hears 0.7 once, then 0.8 for ever: the
+   * exposure ramp's 1.0 step is unreachable until they are a blue belt.
+   */
+  listeningBeltCeilings: DEFAULT_EASY_BELT_CEILINGS,
 }
 
 /**
@@ -372,70 +559,116 @@ export function normalizeMaxPhraseLengthFraction(fraction?: number | null): numb
   return fraction
 }
 
+/** Warned-once ledger for a config row asking for more repeats than the rule allows. */
+let repeatCeilingWarned = false
+
 /**
- * Coerce a mode's `maxPhraseSyllables` into a positive limit, or Infinity.
- * Anything missing, non-finite or ≤0 degrades to Infinity — UNCAPPED, i.e.
- * the pre-2026-08-07 behaviour. Same degrade-to-permissive discipline as
- * normalizeMaxPhraseLengthFraction above: a bad DB value must never silently
- * shorten a course. Non-integers are floored, so 20.7 caps at 20 rather than
- * admitting a phantom half-syllable.
+ * Coerce a mode's `phraseRepeatCount` into 1..MAX_PHRASE_REPEAT_COUNT.
+ *
+ * Absent / non-finite / ≤1 ⇒ 1, i.e. no repetition, which is Fast's value.
+ * ABOVE THE CEILING ⇒ clamped to 2, loudly. That ceiling is Tom's rule, not a
+ * preference — "a phrase repeated 3x would drive people nuts" — so it is the
+ * one thing on this row config cannot raise.
  */
-export function normalizeMaxPhraseSyllables(max?: number | null): number {
+export function normalizePhraseRepeatCount(count?: number | null): number {
+  if (typeof count !== 'number' || !Number.isFinite(count)) return 1
+  const floored = Math.floor(count)
+  if (floored <= 1) return 1
+  if (floored > MAX_PHRASE_REPEAT_COUNT) {
+    if (!repeatCeilingWarned) {
+      repeatCeilingWarned = true
+      console.warn(
+        `[mode-config] phraseRepeatCount ${floored} exceeds the hard ceiling of ${MAX_PHRASE_REPEAT_COUNT} and has been clamped. ` +
+        'Tom, 2026-08-07: "we do NOT ever want to repeat exactly the same phrase more than 2x - a phrase repeated 3x would drive people nuts."',
+      )
+    }
+    return MAX_PHRASE_REPEAT_COUNT
+  }
+  return floored
+}
+
+/**
+ * Coerce a mode's `repeatedCycleTypes` into a set of cycle types.
+ * Absent / not an array ⇒ the four types Tom named. An EMPTY array is honoured
+ * as "repeat nothing" — that is a deliberate configuration, not a bad value.
+ */
+export function normalizeRepeatedCycleTypes(types?: string[] | null): ReadonlySet<string> {
+  if (!Array.isArray(types)) return new Set(DEFAULT_REPEATED_CYCLE_TYPES)
+  return new Set(types.filter((t) => typeof t === 'string' && t.length > 0))
+}
+
+/**
+ * Coerce a mode's `reviewMaxKnownSyllables` into a positive limit, or Infinity.
+ * Anything missing, non-finite or ≤0 degrades to Infinity — NO FILTER, i.e.
+ * Fast's behaviour. Same degrade-to-permissive discipline as
+ * normalizeMaxPhraseLengthFraction above: a bad DB value must never silently
+ * narrow what a learner meets. Non-integers are floored, so 15.7 filters at 15
+ * rather than admitting a phantom half-syllable.
+ */
+export function normalizeMaxKnownSyllables(max?: number | null): number {
   if (typeof max !== 'number' || !Number.isFinite(max)) return Infinity
   if (max <= 0) return Infinity
   return Math.floor(max)
 }
 
-/** Warned-once ledger for the syllable cap going inert, keyed by course. */
+/**
+ * Coerce `reviewSyllableFilterMaxRound` into a positive round number.
+ * Absent / non-finite / ≤0 degrades to the shipped 100 — the filter's whole
+ * point is that it lifts, so a bad DB value must never leave it on for ever.
+ */
+export const DEFAULT_REVIEW_FILTER_MAX_ROUND = 100
+export function normalizeReviewFilterMaxRound(round?: number | null): number {
+  if (typeof round !== 'number' || !Number.isFinite(round)) return DEFAULT_REVIEW_FILTER_MAX_ROUND
+  if (round <= 0) return DEFAULT_REVIEW_FILTER_MAX_ROUND
+  return Math.floor(round)
+}
+
+/** Warned-once ledger for the known-side filter going inert, keyed by course. */
 const syllableCapWarnedCourses = new Set<string>()
 
-/** What `makePhraseSyllableResolver` hands back. */
+/** What `makeKnownSyllableResolver` hands back. */
 export interface PhraseSyllableResolver {
-  /** The registry key derived from the course's `target_lang`. */
+  /** The registry key derived from the course's `known_lang`. */
   lang: string
-  /** False ⇒ no counter for this language ⇒ the syllable cap is INERT here. */
+  /** False ⇒ no counter for this language ⇒ the filter is INERT here. */
   countable: boolean
   /**
-   * A phrase's target syllables: the stored `target_syllable_count` when it is
-   * a positive number, else the canonical counter, else null (= uncountable,
-   * so the cap cannot judge this phrase and must let it through).
+   * A phrase's KNOWN-side syllables, or null when uncountable — in which case
+   * the filter cannot judge this phrase and must let it through.
    */
-  syllablesOf: (phrase: { target_syllable_count?: number | null; target_text?: string | null }) => number | null
+  syllablesOf: (phrase: { known_text?: string | null }) => number | null
 }
 
 /**
- * THE one place a phrase's syllable count is resolved for the CAP.
+ * THE one place a phrase's KNOWN-side syllable count is resolved for the
+ * review/consolidate pull filter (Tom, 2026-08-07 — the filter counts the
+ * learner's own language, not the target).
  *
- * Order: stored `target_syllable_count` (positive only) → canonical counter
- * for the course's target language (@ssi/core/text, ported verbatim from
- * Popty's tools/lib/syllable-counters.cjs) → null.
+ * There is no stored known-side count anywhere in the schema, so this is the
+ * canonical counter for the course's KNOWN language (@ssi/core/text, ported
+ * verbatim from Popty's tools/lib/syllable-counters.cjs) or nothing.
  *
- * `target_syllable_count` is effectively EMPTY in production — 10,813 of
- * 818,220 rows (1.3%), and only on cym_s_for_eng / cym_n_for_eng /
- * sbx_for_eng plus 20 spa rows; every big course is 0%. So the counter is the
- * real path, not the fallback. It is still read first because where it exists
- * it is authored data and beats a heuristic.
- *
- * WHEN THERE IS NO COUNTER (54 of 99 courses — kor, ara, zho, jpn, tha, tel,
- * mar, fas, ell, nep, dan, bul, ces, ron, srp, cat…) this returns
- * `countable: false` and warns ONCE per course. It does NOT throw, and it does
- * NOT guess with another language's rules. The cap simply does not apply, and
- * says so — which is precisely how the PREVIOUS syllable attempt failed: it
- * computed a ceiling of 0.5 from an all-1s heuristic and silently did nothing.
- * Loud inertness is the fix. The character cap still covers those courses.
+ * WHEN THERE IS NO COUNTER this returns `countable: false` and warns ONCE per
+ * course. It does NOT throw, and it does NOT guess with another language's
+ * rules. The filter simply does not apply, and says so — which is precisely
+ * how the FIRST syllable attempt failed: it computed a ceiling from an all-1s
+ * heuristic and silently did nothing. Loud inertness is the fix. English is
+ * the known language of most courses and English is registered, so the filter
+ * is live on the great majority of the estate; the character cap still stands
+ * behind it everywhere.
  */
-export function makePhraseSyllableResolver(
+export function makeKnownSyllableResolver(
   courseCode: string,
-  targetLang: string | null | undefined,
+  knownLang: string | null | undefined,
 ): PhraseSyllableResolver {
-  const lang = syllableLangOf(targetLang)
+  const lang = syllableLangOf(knownLang)
   const countable = hasSyllableCounter(lang)
 
   if (!countable && !syllableCapWarnedCourses.has(courseCode)) {
     syllableCapWarnedCourses.add(courseCode)
     console.warn(
-      `[phrase-cap] maxPhraseSyllables is INERT for ${courseCode}: no syllable counter registered for target language '${lang || '(unknown)'}'. ` +
-      'Phrases will NOT be skipped by syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
+      `[phrase-cap] reviewMaxKnownSyllables is INERT for ${courseCode}: no syllable counter registered for known language '${lang || '(unknown)'}'. ` +
+      'Review and consolidate phrases will NOT be filtered by known-side syllable count on this course — the maxPhraseLengthFraction character cap is the only length cap in force. ' +
       'To make it apply, add a counter to packages/core/src/text/syllables.ts and mirror it into ssi-dashboard-v7-clean/tools/lib/syllable-counters.cjs.',
     )
   }
@@ -444,10 +677,8 @@ export function makePhraseSyllableResolver(
     lang,
     countable,
     syllablesOf: (phrase) => {
-      const stored = phrase.target_syllable_count
-      if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) return stored
       if (!countable) return null
-      const text = phrase.target_text
+      const text = phrase.known_text
       if (!text) return null
       return countSyllables(text, lang)
     },
@@ -525,59 +756,82 @@ export function courseMaxPhraseLength<T>(
  *      passing the ceiling makes the guard swallow the cap on every LEGO
  *      smaller than it, which is most of them. Phrase volume is a hard rail —
  *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
- *   4. `limit` of Infinity (fraction 1.0 — Fast) AND no syllable cap
- *      short-circuits to the plain historic sort.
+ *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
+ *      historic sort.
  *
- * The optional `syllableCap` (added 2026-08-07, Tom: "skip all phrases that
- * are more than X number of syllables") is a SECOND, ABSOLUTE ceiling that
- * COMPOSES with the character one: a phrase survives only if it is under BOTH.
- * Omitting it, or passing a non-finite/≤0 limit, reproduces the pre-2026-08-07
- * behaviour exactly — which is what makes Fast provably unchanged.
- *
- * A phrase whose syllables resolve to `null` is UNCOUNTABLE (no counter for
- * the course's target language) and passes the syllable cap untouched. That is
- * the inertness path, and it is per-phrase rather than a global switch so a
- * course with partial stored counts still gets the cap where it can be judged.
- *
- * Rule 3 — the STARVATION GUARD — is unchanged and still wins over BOTH caps.
- * The methodology's per-LEGO floors are a hard rail ("fewer phrases is a
- * FAIL"), so an over-tight syllable cap degrades gently to the shortest
- * `minKeep` and can never empty a round.
+ * 2026-08-07: the absolute TARGET-syllable ceiling that briefly composed with
+ * this cap is gone — superseded by the known-side pull filter on review and
+ * consolidate slots (see ModeConfig.reviewMaxKnownSyllables). It counted the
+ * wrong side of the pair, applied to the whole script rather than to the pull,
+ * and never lifted. This function is back to the one measure it can always
+ * take in every script: characters of target text.
  */
-export interface PhraseSyllableCap<T> {
-  /** Max syllables allowed, inclusive. Infinity / ≤0 ⇒ no syllable cap. */
-  limit: number
-  /** Syllables of a phrase, or null when uncountable (cap inert for it). */
-  syllablesOf: (phrase: T) => number | null
-}
-
 export function capPhrasesByLength<T>(
   phrases: readonly T[],
   syllablesOf: (phrase: T) => number,
   lengthOf: (phrase: T) => number,
   limit: number,
   minKeep: number,
-  syllableCap?: PhraseSyllableCap<T> | null,
 ): T[] {
   const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
 
-  const charLimited = Number.isFinite(limit) && limit > 0
-  const sylLimit = syllableCap?.limit ?? Infinity
-  const sylLimited = Number.isFinite(sylLimit) && sylLimit > 0
+  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
 
-  if ((!charLimited && !sylLimited) || sorted.length === 0) return sorted
-
-  const capped = sorted.filter((phrase) => {
-    if (charLimited && lengthOf(phrase) > limit) return false
-    if (sylLimited) {
-      const n = syllableCap!.syllablesOf(phrase)
-      // null / NaN = uncountable — the cap cannot judge it, so it passes.
-      if (typeof n === 'number' && Number.isFinite(n) && n > sylLimit) return false
-    }
-    return true
-  })
+  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
 
   return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
+}
+
+/**
+ * The KNOWN-side pull filter for REVIEW and CONSOLIDATE slots (Tom,
+ * 2026-08-07). THE one place this rule lives.
+ *
+ * Given a LEGO's basket of use phrases and the round being generated, return
+ * the sub-basket the pull is allowed to draw from:
+ *
+ *   1. filter off, or past `maxRound` ⇒ the whole basket, untouched. Nothing
+ *      is backlogged when it lifts and nothing cascades — the LEGO is what is
+ *      being practised, so a phrase the learner has never met is fine;
+ *   2. otherwise keep phrases of at most `limit` KNOWN-language syllables. A
+ *      phrase whose known side cannot be counted (no counter for this course's
+ *      known language) passes — that is the inert path, per phrase;
+ *   3. SHORTEST-IN-BASKET FALLBACK — if that leaves nothing, return the single
+ *      shortest phrase in the basket. A LEGO is never skipped and a review
+ *      slot is never left empty because the basket happens to be long.
+ */
+export interface ReviewPullFilter<T> {
+  /** Max known-language syllables, inclusive. Infinity ⇒ filter off. */
+  limit: number
+  /** Last round on which the filter applies. */
+  maxRound: number
+  /** Known-side syllables of a phrase, or null when uncountable. */
+  syllablesOf: (phrase: T) => number | null
+}
+
+export function filterReviewPool<T>(
+  pool: readonly T[],
+  roundNumber: number,
+  filter: ReviewPullFilter<T> | null | undefined,
+): readonly T[] {
+  if (!filter || !Number.isFinite(filter.limit) || filter.limit <= 0) return pool
+  if (roundNumber > filter.maxRound) return pool
+  if (pool.length === 0) return pool
+
+  const kept = pool.filter((phrase) => {
+    const n = filter.syllablesOf(phrase)
+    if (typeof n !== 'number' || !Number.isFinite(n)) return true // uncountable ⇒ passes
+    return n <= filter.limit
+  })
+  if (kept.length > 0) return kept
+
+  let shortest = pool[0]
+  let shortestN = Infinity
+  for (const phrase of pool) {
+    const n = filter.syllablesOf(phrase)
+    const value = typeof n === 'number' && Number.isFinite(n) ? n : Infinity
+    if (value < shortestN) { shortestN = value; shortest = phrase }
+  }
+  return [shortest]
 }
 
 /** Methodology per-LEGO phrase floors the cap must never breach (ralph: >=4
@@ -588,6 +842,56 @@ export const MIN_USE_PHRASES_AFTER_CAP = 5
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
   offset: 90,
+  // The 2026-08-07 simplification: ONE pattern, exposure-ramped, capped at 1.0,
+  // and the nine-stage playlist off. See listeningExposureRamp.ts.
+  playPattern: DEFAULT_LISTENING_PATTERN,
+  maxSpeed: LISTENING_SPEED_CEILING,
+  speedSource: DEFAULT_LISTENING_SPEED_SOURCE,
+  listeningUseStagePlaylist: false,
+}
+
+/**
+ * Resolve the whole listening play/speed policy from the live `listening` row
+ * plus the active mode's `listeningSpeedRamp`. THE one place the DB row is
+ * turned into something the two listening schedulers can use, so Layer 1 and
+ * Layer 2 provably agree.
+ *
+ * Degrade-to-gentle, not degrade-to-permissive: every malformed value falls
+ * back to the shipped default rather than to "off". A missing ramp must never
+ * mean full speed for a beginner.
+ */
+export interface ListeningPlayPolicy {
+  pattern: ListeningSlot[]
+  ramp: ListeningRampStep[]
+  /** Per-mode belt ceilings — the maximum the ramp may approach, by learner
+   *  position. See ModeConfig.listeningBeltCeilings. */
+  beltCeilings: ListeningBeltCeiling[]
+  ceiling: number
+  speedSource: ListeningSpeedSource
+  /** True ⇒ replay the retired nine-stage playlist (escape hatch only). */
+  useStagePlaylist: boolean
+}
+
+export function resolveListeningPlayPolicy(
+  listening: Partial<ListeningModeConfig> | null | undefined,
+  mode: LearningMode,
+  modeConfig?: Partial<ModeConfig> | null,
+): ListeningPlayPolicy {
+  const shippedRamp = mode === 'easy' ? DEFAULT_EASY_LISTENING_RAMP : DEFAULT_FAST_LISTENING_RAMP
+  const shippedBelts = mode === 'easy' ? DEFAULT_EASY_BELT_CEILINGS : DEFAULT_FAST_BELT_CEILINGS
+  const rawCeiling = listening?.maxSpeed
+  const ceiling = typeof rawCeiling === 'number' && Number.isFinite(rawCeiling) && rawCeiling > 0
+    ? Math.min(rawCeiling, LISTENING_SPEED_CEILING)
+    : LISTENING_SPEED_CEILING
+  const source = listening?.speedSource === 'belt' ? 'belt' : DEFAULT_LISTENING_SPEED_SOURCE
+  return {
+    pattern: resolveListeningPattern(listening?.playPattern),
+    ramp: normalizeListeningRamp(modeConfig?.listeningSpeedRamp, shippedRamp),
+    beltCeilings: normalizeBeltCeilings(modeConfig?.listeningBeltCeilings, shippedBelts),
+    ceiling,
+    speedSource: source,
+    useStagePlaylist: listening?.listeningUseStagePlaylist === true,
+  }
 }
 
 const DEFAULT_PODS: PodsConfig = {
@@ -750,8 +1054,9 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           // Promotion-window read: 'fast_mode' is the new key, 'normal_mode'
           // is the live fallback alias it was copied from. An old bundle
           // reading a new DB and a new bundle reading an old DB both work —
-          // whichever row exists wins, new key first. 'turbo_boost' may still
-          // sit in the table; nothing reads it any more.
+          // whichever row exists wins, new key first. NOTE 'normal_mode' is
+          // NOT retired-mode residue — it is fast_mode's live alias and must
+          // stay until the promotion window closes.
           fast_mode: { ...DEFAULT_FAST, ...(loaded.fast_mode || loaded.normal_mode || {}) },
           easy_mode: { ...DEFAULT_EASY, ...(loaded.easy_mode || {}) },
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },

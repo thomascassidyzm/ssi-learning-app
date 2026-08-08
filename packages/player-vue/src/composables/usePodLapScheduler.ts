@@ -25,7 +25,6 @@
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
  *   • Course reset → counter back to 0 (and pod_activation_round back to NULL)
- *   • Turbo → explicit increment without playing (skipAhead method)
  *
  * `pod_activation_round` (added 2026-05-03) still gates the main-round at
  * which pods START FIRING for that user.
@@ -55,6 +54,17 @@ import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import {
+  type ListeningSlot,
+  DEFAULT_FAST_BELT_CEILINGS,
+  DEFAULT_FAST_LISTENING_RAMP,
+  DEFAULT_LISTENING_PATTERN,
+  LISTENING_SPEED_CEILING,
+  beltCeilingForSeed,
+  resolveListeningSpeed,
+} from '../playback/listeningExposureRamp'
+import type { ListeningPlayPolicy } from './useAlgorithmConfig'
+import type { TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 
 /**
@@ -364,6 +374,45 @@ export interface UsePodLapSchedulerOptions {
    *  (every round). Stretches every stage proportionally because the
    *  pod-round ratchet only ticks on actual fires. */
   roundInterval?: Ref<number> | number
+  /**
+   * THE listening play/speed policy (Tom, 2026-08-07) — one pattern, one speed
+   * per phrase, exposure-ramped, clamped at 1.0. Reactive so a Supabase edit to
+   * the `listening` row or the active mode's `listeningSpeedRamp` lands on the
+   * next lap. Omitted ⇒ the shipped Fast policy, which is what every non-player
+   * caller (tests, the admin auditioner) wants.
+   *
+   * When present and `useStagePlaylist` is false — the shipped default — this
+   * SUPERSEDES `stagePlaylist`/`stageDuration`/`stageDurations` entirely: there
+   * are no stages any more, so those options are read only by the escape hatch.
+   */
+  listeningPolicy?: Ref<ListeningPlayPolicy> | ListeningPlayPolicy
+  /** Course speed config (globalSpeed) — folded into the exposure ramp exactly
+   *  as it was into the belt ramp. Omitted ⇒ 1.0. */
+  targetSpeed?: Ref<TargetSpeedConfig> | TargetSpeedConfig
+  /**
+   * The LEARNER's current seed number — what the per-mode BELT CEILING is keyed
+   * on (Tom, 2026-08-07 23:56Z: "a white-belt learner's ceiling is 0.8x"). A
+   * pod sentence has no seed number of its own, so this is the same
+   * `beltAnchorSeed` the runtime already uses for the speaking belt.
+   *
+   * Absent / null ⇒ the FIRST (gentlest) rung, i.e. treat an unknown learner as
+   * a beginner rather than silently handing them full speed.
+   */
+  beltAnchorSeed?: Ref<number | null | undefined> | number | null | undefined
+}
+
+/**
+ * The listening pattern in POD vocabulary: 'target'/'target2' both resolve to
+ * the sentence's one target clip ('ps'), 'known' to its translation ('trans').
+ * A pod sentence has a single recorded target take, so the voice-2 distinction
+ * Layer 1 makes is a no-op here — the pattern still emits four plays.
+ *
+ * The emitted ROLE is cosmetic once a uniform speed is supplied (it drives the
+ * gap matrix and the display side), which is why every target slot maps to the
+ * plain 'ps' role rather than a speed-bearing one like 'ps08x'.
+ */
+export function podPlaylistFromPattern(pattern: readonly ListeningSlot[]): PodPlayRole[] {
+  return pattern.map((slot) => (slot === 'known' ? 'trans' : 'ps'))
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -536,8 +585,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    * Sticky flag that forces the NEXT round to fire a lap regardless of the
    * cadence rule. Set by deferLap() — typically when a session resumes
    * mid-round and the remaining cycles are too few for the pod audio to
-   * pre-warm. Cleared once we actually consume the lap (markLapCompleted
-   * / skipAhead). Cadence anchor is unaffected, so the regular schedule
+   * pre-warm. Cleared once we actually consume the lap (markLapCompleted).
+   * Cadence anchor is unaffected, so the regular schedule
    * resumes normally on the round after the deferred firing.
    */
   const deferredPodPending = ref(false)
@@ -646,6 +695,28 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
+   * The live listening policy (Tom's 2026-08-07 one-mode redesign). Absent ⇒
+   * the shipped FAST policy — one T·K·T·T pattern, a flat 1.0 ramp, ceiling
+   * 1.0 — so a caller that passes nothing (tests, previews) still gets the
+   * simplified behaviour rather than the retired stage ladder.
+   */
+  const resolveListeningPolicy = (): ListeningPlayPolicy =>
+    (unwrap(options.listeningPolicy) as ListeningPlayPolicy | undefined) ?? {
+      pattern: [...DEFAULT_LISTENING_PATTERN],
+      ramp: [...DEFAULT_FAST_LISTENING_RAMP],
+      beltCeilings: [...DEFAULT_FAST_BELT_CEILINGS],
+      ceiling: LISTENING_SPEED_CEILING,
+      speedSource: 'exposure',
+      useStagePlaylist: false,
+    }
+
+  const courseGlobalSpeed = (): number => {
+    const cfg = unwrap(options.targetSpeed) as TargetSpeedConfig | undefined
+    const g = cfg?.globalSpeed
+    return typeof g === 'number' && Number.isFinite(g) && g > 0 ? g : 1.0
+  }
+
+  /**
    * Compose the lap that should play right now, based on the current ratchet
    * value. Returns null if there's nothing to play (no sentences, or every
    * sentence's audio is missing).
@@ -664,6 +735,22 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const activeCohorts = Math.min(podRound, cohorts.length)
 
     const { stagePlaylistMap, stageDuration, stageDurationsMap, totalStages } = resolveStageConfig()
+
+    // ONE MODE (Tom, 2026-08-07). The nine-stage ladder is retired: unless the
+    // escape hatch is set, every cohort at every age plays the SAME four-slot
+    // pattern, and the only thing its exposure count decides is the single
+    // speed all four slots share. `stageInfo` is still computed because its
+    // `alive` count IS the exposure count, and the emitted `stage` field is
+    // still stamped on each play for the Progression badge and telemetry.
+    const policy = resolveListeningPolicy()
+    const globalSpeed = courseGlobalSpeed()
+    // The BELT CEILING is the learner's, not the sentence's — one value for the
+    // whole lap. The exposure ramp then approaches it from below, per cohort.
+    const beltCeiling = beltCeilingForSeed(
+      unwrap(options.beltAnchorSeed) as number | null | undefined,
+      policy.beltCeilings,
+    )
+    const singlePlaylist = podPlaylistFromPattern(policy.pattern)
 
     const plays: PodPlay[] = []
     pendingExposures = []
@@ -689,14 +776,30 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
       const stageInfo = podStageFor(1, alive, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
-      const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
+      // Escape hatch only: replay the retired ladder. Default path takes the
+      // single pattern and ignores the stage playlist entirely, which is what
+      // makes the simplification hold even when the live `pods` DB row still
+      // carries all nine stages (it does — a live row overrides code defaults).
+      const playlist = policy.useStagePlaylist
+        ? (stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)])
+        : singlePlaylist
       if (!playlist) continue
+      // `alive` is the cohort's exposure count — the number of laps this
+      // sentence has been in play. Speed is uniform across the phrase's four
+      // slots and never above 1.0. `undefined` restores the historic per-role
+      // ROLE_SPEED rates, which is what BOTH fallbacks want: the escape hatch
+      // (the ladder's 1.5×/2× reps come from the roles) and speedSource:'belt'
+      // (the belt curve is keyed on a seed number, which Layer-2 pod sentences
+      // do not have — pods never rode it, so 'belt' means "as pods were").
+      const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'
+        ? undefined
+        : resolveListeningSpeed(alive, policy.ramp, globalSpeed, policy.ceiling, beltCeiling)
       for (let k = 0; k < members.length; k++) {
         const sentence = members[k]
         if (!sentence.target_audio_id) continue
-        // Whole-sentence stage composition (explainer→trans fallback,
-        // end-on-target invariant, glue) is the shared builder.
-        plays.push(...buildMainStage(sentence, stageInfo.stage, cohort.start + k + 1, playlist))
+        // Whole-sentence composition (explainer→trans fallback, end-on-target
+        // invariant, glue) is the shared builder.
+        plays.push(...buildMainStage(sentence, stageInfo.stage, cohort.start + k + 1, playlist, uniformSpeed))
         if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
       }
     }
@@ -759,9 +862,24 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     if (TOTAL === 0) return null
     const cohorts = getCohorts()
     if (cohorts.length === 0) return null
+    const policy = resolveListeningPolicy()
     const { stagePlaylistMap } = resolveStageConfig()
-    const playlist = stagePlaylistMap[1] || stagePlaylistMap['1']
+    // Same one-mode rule as nextLap: the preview must demonstrate what the
+    // learner actually hears, so it takes the single pattern at first-exposure
+    // speed unless the escape hatch is on.
+    const playlist = policy.useStagePlaylist
+      ? (stagePlaylistMap[1] || stagePlaylistMap['1'])
+      : podPlaylistFromPattern(policy.pattern)
     if (!playlist) return null
+    const previewSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'
+      ? undefined
+      : resolveListeningSpeed(
+          1,
+          policy.ramp,
+          courseGlobalSpeed(),
+          policy.ceiling,
+          beltCeilingForSeed(unwrap(options.beltAnchorSeed) as number | null | undefined, policy.beltCeilings),
+        )
 
     // Search outward from the cohort under the cursor (nearest to "current
     // position") so the preview shows content close to where the learner
@@ -781,7 +899,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       for (let k = 0; k < cohort.size; k++) {
         const sentence = podSentences.value[cohort.start + k]
         if (!sentence.target_audio_id) continue
-        plays.push(...buildMainStage(sentence, 1, cohort.start + k + 1, playlist))
+        plays.push(...buildMainStage(sentence, 1, cohort.start + k + 1, playlist, previewSpeed))
       }
       if (plays.length === 0) continue
       const hasBookends = !!(introAudio.value && outroAudio.value)
@@ -858,21 +976,6 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
-   * Turbo path: bump the counter without playing. UI affordance is out of
-   * scope; this just exposes the increment so a settings toggle or shortcut
-   * can call it.
-   */
-  const skipAhead = async (n: number = 1): Promise<void> => {
-    if (n <= 0) return
-    const cohorts = getCohorts()
-    for (let i = 0; i < n; i++) {
-      completedPodRounds.value = podRatchetAfterLap(cohorts, completedPodRounds.value)
-    }
-    deferredPodPending.value = false
-    await persistRatchet()
-  }
-
-  /**
    * Reset the ratchet (for course reset). Also clears the activation pin so
    * it gets recaptured on next session.
    */
@@ -940,7 +1043,6 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     prefetchLap,
     deferLap,
     markLapCompleted,
-    skipAhead,
     reset,
   }
 }
