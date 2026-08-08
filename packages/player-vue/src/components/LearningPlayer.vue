@@ -5950,6 +5950,31 @@ const currentPlayableItem = ref(null)
 // ============================================
 const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
 const isAwakening = computed(() => loadingStage.value !== 'ready')
+
+// PER-CONTROL READINESS (Tom, 2026-08-08: "once it APPEARS ready, then it
+// should actually be ready").
+//
+// `loadingStage === 'ready'` means "the lesson exists": script built, rounds in
+// memory, position known. It has never meant "a tap makes a sound" — the first
+// clip's bytes are warmed off the critical path (see warmFirstKnownAudio). On a
+// fast connection those two moments are a third of a second apart, so one flag
+// looked honest; on Fast 3G they were seven seconds apart and the play button
+// spent that whole window claiming to be ready.
+//
+// So the play affordance gets its OWN signal: true once the first clip is
+// genuinely in hand (or its bounded warm-up has given up, in which case the
+// learner must still be allowed to press). Everything else keeps using
+// isAwakening — the belt badge and the Easy/Fast switch are v-if'd on it and so
+// are honest already (absent rather than fake).
+const isFirstClipReady = ref(false)
+
+// The belt screen renders off the contribution fetch, which is deliberately
+// scheduled AFTER ready so it doesn't compete for bandwidth. Until that fetch
+// settles the belt pill cannot open anything — so it says so (flashes) rather
+// than silently swallowing the tap. Settled-with-no-data keeps today's
+// behaviour: the pill stops flashing and the tap is a no-op, unchanged.
+const contributionSettled = ref(false)
+const isBeltScreenReady = computed(() => contributionSettled.value || !!contribution.data.value)
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
@@ -6157,11 +6182,30 @@ const runSwrRevalidation = async (code: string) => {
 // on the loading screen — it just proceeds to 'ready' and plays cold as
 // before. Only the known phrase is gated (it plays first, with no buffer
 // phase to hide a late arrival); the rest ride the 1-cycle lookahead.
+// Ceiling on the cold boot's first-clip warm-up. Generous on purpose: while it
+// runs the play button is FLASHING, which is the honest signal, so the wait
+// costs the learner nothing but candour. The ceiling exists only so a dead or
+// crawling network can never strand them behind a button that will not light —
+// at which point they press, and the old head-miss streaming path takes over
+// exactly as before. Measured cold on Fast 3G the clip lands in well under a
+// second once it has the link to itself; 2000 ms (the old default) was short
+// enough to expire mid-download and release the whole-course walk on top of it.
+const FIRST_CLIP_WARM_TIMEOUT_MS = 8000
+
 const warmFirstKnownAudio = async (timeoutMs = 2000) => {
   try {
     const url = cachedRounds.value?.[0]?.cycles?.[0]?.known?.audioUrl
     if (!url || typeof url !== 'string' || url.startsWith('blob:')) return
-    const warm = fetch(url, { priority: 'high' }).then(() => {}).catch(() => {})
+    // Drain the body. `fetch()` settles on the RESPONSE HEADERS, so the old
+    // `.then(() => {})` reported "warm" while the 68 KB was still on the wire —
+    // measured cold on Fast 3G it returned in ~300 ms for a clip that took a
+    // further 6 s to arrive. Reading the body to completion is what actually
+    // fills the HTTP cache entry, which is what makes the learner's tap silent-
+    // free. The result is deliberately discarded: the cache is the product.
+    const warm = fetch(url, { priority: 'high' })
+      .then((r) => r.arrayBuffer())
+      .then(() => {})
+      .catch(() => {})
     const timeout = new Promise((r) => setTimeout(r, timeoutMs))
     await Promise.race([warm, timeout])
   } catch {
@@ -12047,7 +12091,12 @@ onMounted(async () => {
   // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
     const learnerId = (auth as any)?.learnerId?.value || null
-    void playerReadySignal.then(() => contribution.fetch(courseCode.value, learnerId).catch(() => {}))
+    void playerReadySignal.then(() => contribution
+      .fetch(courseCode.value, learnerId)
+      .catch(() => {})
+      // Settled — win or lose. The belt pill stops flashing either way; it must
+      // never pulse forever because a fetch failed.
+      .then(() => { contributionSettled.value = true }))
   }
 
   // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
@@ -13782,12 +13831,30 @@ onMounted(async () => {
   // warm, the head-miss path streams the first clip. warmAudioMs now reads ~0
   // (confirms it's off the critical path) — the cold-start budget drops by it.
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
-  void warmFirstKnownAudio()
+  const firstClipWarm = warmFirstKnownAudio(FIRST_CLIP_WARM_TIMEOUT_MS)
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   await goLoadingStageReady()
-  // Play is now available — release the ready-gated background work (the
-  // whole-course walk) so it can't have competed with the critical path.
-  resolvePlayerReady?.()
+  // RIGHT OF WAY FOR THE FIRST CLIP (Tom, 2026-08-08: "the whole point for a
+  // learner is speed to usability").
+  //
+  // The ready-gated background work — the whole-course script walk (a dozen
+  // paginated 1000-row queries), the contribution fetch, tier-3 — used to be
+  // released HERE, at the ready flip, on the reading that "the critical path"
+  // ended when the button lit up. Measured cold on Fast 3G, that reading is
+  // wrong: the learner taps the instant it lights up, and the one 68 KB clip
+  // they are waiting to hear then shares the link with the entire course walk.
+  // The clip took ~6 s to arrive when it needs ~0.4 s on its own.
+  //
+  // The critical path ends at the first SOUND, not at the first paint. So the
+  // background work now waits on the same warm-up the play button waits on.
+  // warmFirstKnownAudio is self-bounded (2 s race), so this can delay the
+  // background work by at most that — and on a fast connection by ~0.
+  void firstClipWarm
+    .catch(() => { /* a failed warm-up must never strand the learner */ })
+    .then(() => {
+      isFirstClipReady.value = true
+      resolvePlayerReady?.()
+    })
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -14228,8 +14295,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // Go ready immediately; warm the first known audio in the BACKGROUND (not
   // awaited — blocking ready on it added ~600ms). Head-miss streams the first
-  // clip if the learner taps before it's warm.
+  // clip if the learner taps before it's warm. The play button stays flashing
+  // until the clip lands, same per-control honesty as the cold boot above.
+  isFirstClipReady.value = false
   void warmFirstKnownAudio()
+    .catch(() => { /* never strand the learner on a failed warm-up */ })
+    .then(() => { isFirstClipReady.value = true })
   await goLoadingStageReady()
   isInitialized.value = true
   maybeShowCourseUpdatedNotice()
@@ -14355,6 +14426,9 @@ defineExpose({
   // the resting overlay instead of mirroring an event edge.
   isAudioPlaying,
   isAwakening,
+  // Per-control readiness: the play affordance waits on the first clip's bytes,
+  // not just on the lesson existing. PlayerContainer ANDs it with isAwakening.
+  isFirstClipReady,
   togglePlayback,
   handlePause,
   handleResume,
@@ -15112,7 +15186,8 @@ defineExpose({
                in all states. -->
           <button
             class="belt-timer-unified"
-            :class="{ 'is-infplay': isInfPlayActive }"
+            :class="{ 'is-infplay': isInfPlayActive, 'is-loading': !isBeltScreenReady }"
+            :disabled="!isBeltScreenReady"
             :title="isInfPlayActive
               ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
               : (!nextBelt
@@ -16476,6 +16551,21 @@ defineExpose({
 
 .belt-timer-unified:active {
   transform: scale(0.98);
+}
+
+/* The belt screen isn't loadable yet (its contribution fetch is still in
+   flight). Say so with the same pulse the play button uses while it loads —
+   Tom, 2026-08-08: "we should show this by the belt buttons still flashing
+   until they are ready to be used". Same keyframe values as BottomNav's
+   .center-btn.is-disabled so the two controls speak one visual language. */
+.belt-timer-unified.is-loading {
+  animation: belt-pill-pulse 1.8s ease-in-out infinite;
+  cursor: default;
+}
+
+@keyframes belt-pill-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.02); }
 }
 
 .belt-timer-unified .belt-bar-track {

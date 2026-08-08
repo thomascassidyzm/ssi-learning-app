@@ -113,6 +113,15 @@ const showPronunciationBtn = ref(false)
 const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedText ?? false)
 const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
 const isPlayerReady = computed(() => !(learningPlayerRef.value?.isAwakening ?? true))
+// The PLAY affordance's own readiness (Tom, 2026-08-08). isPlayerReady means
+// "the lesson exists"; it does not mean a tap makes a sound, and cold on Fast
+// 3G those were seven seconds apart. The bottom-nav button waits for the first
+// clip's bytes too, so when it stops flashing it is telling the truth. The
+// resting overlay (belt badge, Easy/Fast) keeps the plain flag — it v-if's on
+// it, so it is honest already: absent rather than fake.
+const isPlayButtonReady = computed(
+  () => isPlayerReady.value && (learningPlayerRef.value?.isFirstClipReady ?? false),
+)
 
 // Class context (when launched from Schools)
 const classContext = ref(null)
@@ -613,7 +622,7 @@ onMounted(() => {
       :showCourseSelector="showCourseSelector"
       :hasRomanizedText="playerHasRomanized"
       :isNativeScript="playerIsNativeScript"
-      :isPlayerReady="isPlayerReady"
+      :isPlayerReady="isPlayButtonReady"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
