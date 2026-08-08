@@ -56,9 +56,11 @@ import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import {
   type ListeningSlot,
+  DEFAULT_FAST_BELT_CEILINGS,
   DEFAULT_FAST_LISTENING_RAMP,
   DEFAULT_LISTENING_PATTERN,
   LISTENING_SPEED_CEILING,
+  beltCeilingForSeed,
   resolveListeningSpeed,
 } from '../playback/listeningExposureRamp'
 import type { ListeningPlayPolicy } from './useAlgorithmConfig'
@@ -387,6 +389,16 @@ export interface UsePodLapSchedulerOptions {
   /** Course speed config (globalSpeed) — folded into the exposure ramp exactly
    *  as it was into the belt ramp. Omitted ⇒ 1.0. */
   targetSpeed?: Ref<TargetSpeedConfig> | TargetSpeedConfig
+  /**
+   * The LEARNER's current seed number — what the per-mode BELT CEILING is keyed
+   * on (Tom, 2026-08-07 23:56Z: "a white-belt learner's ceiling is 0.8x"). A
+   * pod sentence has no seed number of its own, so this is the same
+   * `beltAnchorSeed` the runtime already uses for the speaking belt.
+   *
+   * Absent / null ⇒ the FIRST (gentlest) rung, i.e. treat an unknown learner as
+   * a beginner rather than silently handing them full speed.
+   */
+  beltAnchorSeed?: Ref<number | null | undefined> | number | null | undefined
 }
 
 /**
@@ -692,6 +704,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     (unwrap(options.listeningPolicy) as ListeningPlayPolicy | undefined) ?? {
       pattern: [...DEFAULT_LISTENING_PATTERN],
       ramp: [...DEFAULT_FAST_LISTENING_RAMP],
+      beltCeilings: [...DEFAULT_FAST_BELT_CEILINGS],
       ceiling: LISTENING_SPEED_CEILING,
       speedSource: 'exposure',
       useStagePlaylist: false,
@@ -731,6 +744,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     // still stamped on each play for the Progression badge and telemetry.
     const policy = resolveListeningPolicy()
     const globalSpeed = courseGlobalSpeed()
+    // The BELT CEILING is the learner's, not the sentence's — one value for the
+    // whole lap. The exposure ramp then approaches it from below, per cohort.
+    const beltCeiling = beltCeilingForSeed(
+      unwrap(options.beltAnchorSeed) as number | null | undefined,
+      policy.beltCeilings,
+    )
     const singlePlaylist = podPlaylistFromPattern(policy.pattern)
 
     const plays: PodPlay[] = []
@@ -774,7 +793,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // do not have — pods never rode it, so 'belt' means "as pods were").
       const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'
         ? undefined
-        : resolveListeningSpeed(alive, policy.ramp, globalSpeed, policy.ceiling)
+        : resolveListeningSpeed(alive, policy.ramp, globalSpeed, policy.ceiling, beltCeiling)
       for (let k = 0; k < members.length; k++) {
         const sentence = members[k]
         if (!sentence.target_audio_id) continue
@@ -854,7 +873,13 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     if (!playlist) return null
     const previewSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'
       ? undefined
-      : resolveListeningSpeed(1, policy.ramp, courseGlobalSpeed(), policy.ceiling)
+      : resolveListeningSpeed(
+          1,
+          policy.ramp,
+          courseGlobalSpeed(),
+          policy.ceiling,
+          beltCeilingForSeed(unwrap(options.beltAnchorSeed) as number | null | undefined, policy.beltCeilings),
+        )
 
     // Search outward from the cohort under the cursor (nearest to "current
     // position") so the preview shows content close to where the learner

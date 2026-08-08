@@ -114,6 +114,105 @@ export const DEFAULT_FAST_LISTENING_RAMP: ListeningRampStep[] = [
   { speed: 1.0, plays: null },
 ]
 
+/**
+ * One rung of a per-mode BELT CEILING table: from `fromSeed` onward (inclusive),
+ * a listening clip may not exceed `speed`. Rungs are read in order and the last
+ * matching one wins, so the table must be sorted ascending by `fromSeed`
+ * (`normalizeBeltCeilings` sorts it, so a DB row need not be).
+ */
+export interface ListeningBeltCeiling {
+  /** First seed number this rung covers. The first rung should be 1. */
+  fromSeed: number
+  /** Ceiling for that band. Clamped to LISTENING_SPEED_CEILING. */
+  speed: number
+}
+
+/**
+ * EASY's shipped belt ceilings — Tom, 2026-08-07 23:56Z, correcting the
+ * exposure-only reading that shipped first: "for Easy the BELT TABLE is
+ * authoritative... 0.8x for white/yellow belt, 0.9x for orange/green, 1.0x for
+ * blue and beyond, NEVER above 1.0. The per-exposure ramp applies UNDERNEATH
+ * the belt ceiling."
+ *
+ * Keyed on seed number via the canonical belt boundaries in useBeltProgress's
+ * BELTS table (white 0, yellow 8, orange 20, green 40, blue 80):
+ *
+ *   seeds   1-19   white + yellow   0.8
+ *   seeds  20-79   orange + green   0.9
+ *   seeds  80+     blue and beyond  1.0
+ *
+ * NOTE this is a GENTLER table than the speaking side's `beltSpeed`
+ * (0.8 / 0.9 / 0.95 / 1.0 at 8 / 20 / 40) — it holds each rung for two belts
+ * and does not reach 1.0 until blue, where beltSpeed reaches it at green. It is
+ * deliberately its own table, not a reuse: Tom gave these numbers for listening
+ * on Easy specifically.
+ */
+export const DEFAULT_EASY_BELT_CEILINGS: ListeningBeltCeiling[] = [
+  { fromSeed: 1, speed: 0.8 },   // white + yellow
+  { fromSeed: 20, speed: 0.9 },  // orange + green
+  { fromSeed: 80, speed: 1.0 },  // blue and beyond
+]
+
+/**
+ * FAST's shipped belt ceilings — none. "Fast may still start at 1.0 as you
+ * built it — this correction is Easy-only" (Tom, 2026-08-07). A single rung at
+ * the global ceiling, which is a no-op.
+ */
+export const DEFAULT_FAST_BELT_CEILINGS: ListeningBeltCeiling[] = [
+  { fromSeed: 1, speed: LISTENING_SPEED_CEILING },
+]
+
+/**
+ * Coerce a belt-ceiling table out of whatever the DB row holds, degrading to
+ * `fallback` — the shipped table for that mode. Same degrade-to-GENTLE rule as
+ * the ramp: a malformed table must never mean "no ceiling".
+ *
+ * Per-rung repair: a non-finite or ≤0 speed drops the rung; a speed above the
+ * global ceiling is clamped rather than dropped; a non-finite `fromSeed`
+ * becomes 1. The result is sorted ascending, so a DB row in any order works.
+ */
+export function normalizeBeltCeilings(
+  table: readonly ListeningBeltCeiling[] | null | undefined,
+  fallback: readonly ListeningBeltCeiling[],
+): ListeningBeltCeiling[] {
+  if (!Array.isArray(table) || table.length === 0) return [...fallback]
+  const rungs: ListeningBeltCeiling[] = []
+  for (const rung of table) {
+    if (!rung || typeof rung.speed !== 'number' || !Number.isFinite(rung.speed) || rung.speed <= 0) continue
+    const fromSeed = typeof rung.fromSeed === 'number' && Number.isFinite(rung.fromSeed) && rung.fromSeed > 0
+      ? Math.floor(rung.fromSeed)
+      : 1
+    rungs.push({ fromSeed, speed: Math.min(rung.speed, LISTENING_SPEED_CEILING) })
+  }
+  if (rungs.length === 0) return [...fallback]
+  return rungs.sort((a, b) => a.fromSeed - b.fromSeed)
+}
+
+/**
+ * The belt ceiling at `seedNumber` — the LEARNER's position, not the replayed
+ * phrase's. Tom's wording is learner-centric twice over ("a white-belt
+ * LEARNER's ceiling is 0.8x", "the belt speed is always the maximum for that
+ * learner"), so a blue-belt learner replaying an early seed is not dragged back
+ * to 0.8.
+ *
+ * Below the first rung, or with an unknown position, returns the FIRST rung's
+ * speed — the gentlest, which is the safe default for "we don't know how far
+ * along this learner is".
+ */
+export function beltCeilingForSeed(
+  seedNumber: number | null | undefined,
+  table: readonly ListeningBeltCeiling[],
+): number {
+  if (!table.length) return LISTENING_SPEED_CEILING
+  const n = typeof seedNumber === 'number' && Number.isFinite(seedNumber) ? Math.floor(seedNumber) : 0
+  let ceiling = table[0].speed
+  for (const rung of table) {
+    if (n >= rung.fromSeed) ceiling = rung.speed
+    else break
+  }
+  return ceiling
+}
+
 /** Which axis decides a listening clip's speed. See the module header. */
 export type ListeningSpeedSource = 'exposure' | 'belt'
 
@@ -179,23 +278,36 @@ export function rampSpeedForExposure(
 
 /**
  * THE listening speed for one phrase's one exposure — what every listening
- * play's `playbackSpeed` comes from.
+ * play's `playbackSpeed` comes from. Two ramps compose here, and the order is
+ * Tom's (2026-08-07 23:56Z):
  *
- *   step speed  ×  the course globalSpeed  →  clamped to LISTENING_SPEED_CEILING
+ *   min( exposure-ramp step , BELT ceiling )  ×  globalSpeed  → clamp at 1.0
  *
- * `globalSpeed` folds in exactly as it did before this redesign (French ships
- * 0.95, so a French learner's first Easy exposure is 0.7 × 0.95 = 0.665) —
- * a course recorded slow stays slow, and it can only ever pull the rate DOWN
- * because of the clamp. A non-finite or ≤0 globalSpeed is read as 1.0.
+ * The BELT ceiling is the maximum for that learner. The exposure ramp is what
+ * approaches it FROM BELOW: an early hearing may be slower than the belt speed,
+ * and exposure never pushes past it. Concretely, a white-belt Easy learner sits
+ * under a 0.8 ceiling for ever — their first hearing is 0.7, hearings two to
+ * five are 0.8, and the sixth-and-after do NOT rise to 1.0, they stay at 0.8.
  *
- * `ceiling` exists so the ceiling is itself a config key, but it is intersected
- * with the code constant: a DB row asking for 1.4 gets 1.0.
+ * Taking the min BEFORE multiplying by globalSpeed is what keeps a slow-recorded
+ * course composing correctly: French (0.95) white-belt Easy is
+ * min(0.7, 0.8) × 0.95 = 0.665 on the first hearing and 0.8 × 0.95 = 0.76
+ * thereafter — never 0.8, which would be the course's own pace exceeded.
+ *
+ * `globalSpeed` can only ever pull the rate DOWN, because of the final clamp.
+ * Non-finite or ≤0 is read as 1.0.
+ *
+ * `ceiling` (the config key) is intersected with the code constant, so a DB row
+ * asking for 1.4 gets 1.0. `beltCeiling` is likewise an upper bound only —
+ * passing 1.0 (Fast's value) makes this function behave exactly as it did
+ * before the belt table existed.
  */
 export function resolveListeningSpeed(
   exposure: number,
   ramp: readonly ListeningRampStep[],
   globalSpeed: number = 1.0,
   ceiling: number = LISTENING_SPEED_CEILING,
+  beltCeiling: number = LISTENING_SPEED_CEILING,
 ): number {
   const g = typeof globalSpeed === 'number' && Number.isFinite(globalSpeed) && globalSpeed > 0
     ? globalSpeed
@@ -203,7 +315,10 @@ export function resolveListeningSpeed(
   const cap = typeof ceiling === 'number' && Number.isFinite(ceiling) && ceiling > 0
     ? Math.min(ceiling, LISTENING_SPEED_CEILING)
     : LISTENING_SPEED_CEILING
-  const raw = rampSpeedForExposure(exposure, ramp) * g
+  const belt = typeof beltCeiling === 'number' && Number.isFinite(beltCeiling) && beltCeiling > 0
+    ? Math.min(beltCeiling, LISTENING_SPEED_CEILING)
+    : LISTENING_SPEED_CEILING
+  const raw = Math.min(rampSpeedForExposure(exposure, ramp), belt) * g
   // Round to 4dp before clamping so 0.7 × 0.95 lands on 0.665 rather than
   // 0.6649999999999999 — playbackSpeed is compared in tests and logged.
   const rounded = Math.round(raw * 10000) / 10000

@@ -50,12 +50,31 @@ exactly four clips: **target · known · target · target**, all four at the **s
 speed**. The nine-stage pod ladder that varied the pattern per stage is retired,
 and with it the 1.5×/2× stretch reps and the Phase-0 explainer slot.
 
-Speed ramps over a phrase's **exposures**, never above **1.0**:
+Speed is **two ramps composed** — a belt ceiling with a per-exposure ramp
+underneath it — and never above **1.0**:
 
-| mode | 1st hearing | next four | thereafter |
-|------|-------------|-----------|------------|
-| Easy | 0.7 | 0.8 | 1.0 |
-| Fast | 1.0 | 1.0 | 1.0 |
+```
+speed = min( exposure step , belt ceiling ) x globalSpeed, clamped at 1.0
+```
+
+The belt rung is the **maximum for that learner**; the exposure ramp is what
+approaches it from below on early hearings.
+
+| Easy belt ceiling | | Easy exposure ramp | |
+|---|---|---|---|
+| white + yellow (seeds 1-19) | 0.8 | 1st hearing | 0.7 |
+| orange + green (20-79) | 0.9 | next four | 0.8 |
+| blue and beyond (80+) | 1.0 | thereafter | 1.0 |
+
+So a **white-belt Easy learner never exceeds 0.8×** however many times they have
+heard the phrase — 0.7 once, then 0.8 for ever; the ramp's 1.0 step is
+unreachable until blue belt. **Fast has no ceiling** and starts at 1.0 — the
+belt table is Easy-only.
+
+This is its **own** table, not the speaking side's `beltSpeed` (0.8/0.9/0.95/1.0
+at seeds 8/20/40): gentler, holding each rung for two belts and not reaching 1.0
+until blue. The ceiling is keyed on the **learner's** position, not the replayed
+phrase's.
 
 The course `globalSpeed` still multiplies in and can only slow a clip down
 (French 0.95 → a first Easy hearing is 0.665). **1.0 is clamped in code**, not

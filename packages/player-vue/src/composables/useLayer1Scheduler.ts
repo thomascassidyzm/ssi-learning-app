@@ -61,7 +61,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 import { computeListeningSpeed, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
-import { type ListeningSlot, resolveListeningSpeed } from '../playback/listeningExposureRamp'
+import {
+  type ListeningSlot,
+  beltCeilingForSeed,
+  resolveListeningSpeed,
+} from '../playback/listeningExposureRamp'
 import type { ListeningPlayPolicy } from './useAlgorithmConfig'
 
 // ============================================================================
@@ -491,6 +495,17 @@ export interface UseLayer1SchedulerOptions {
    * caller gets and what keeps the belt tests meaningful.
    */
   listeningPolicy?: Ref<ListeningPlayPolicy> | ListeningPlayPolicy
+  /**
+   * The LEARNER's current seed number, for the per-mode BELT CEILING (Tom,
+   * 2026-08-07 23:56Z). Deliberately the learner's position and NOT the
+   * replayed seed's own number: his wording is learner-centric ("a white-belt
+   * LEARNER's ceiling is 0.8x"), so a blue belt replaying an early seed is not
+   * dragged back to 0.8. This is a change from the 2026-08-06 belt ramp, which
+   * keyed Layer 1 on each replayed seed.
+   *
+   * Absent / null ⇒ the gentlest rung.
+   */
+  beltAnchorSeed?: Ref<number | null | undefined> | number | null | undefined
 }
 
 const unwrap = <T,>(v: Ref<T> | T): T =>
@@ -718,6 +733,14 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     // seedPlaylist and the belt ramp, exactly as before.
     const policy = resolveListeningPolicy()
     const exposureRamped = !!policy && policy.speedSource === 'exposure'
+    // One belt ceiling for the whole cup — it is the learner's position, not
+    // the replayed seed's. The exposure ramp approaches it from below per seed.
+    const beltCeiling = policy
+      ? beltCeilingForSeed(
+          unwrap(options.beltAnchorSeed) as number | null | undefined,
+          policy.beltCeilings,
+        )
+      : 1.0
     const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist
     const ordinals = sortedOrdinals.value
     const orderIndex = introOrderIndex()
@@ -738,6 +761,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
             policy!.ramp,
             speedCfg().globalSpeed,
             policy!.ceiling,
+            beltCeiling,
           )
         : undefined
       plays.push(...buildSeedPlays({
@@ -785,7 +809,13 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const policy = resolveListeningPolicy()
     const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist
     const previewSpeed = policy && policy.speedSource === 'exposure'
-      ? resolveListeningSpeed(1, policy.ramp, speedCfg().globalSpeed, policy.ceiling)
+      ? resolveListeningSpeed(
+          1,
+          policy.ramp,
+          speedCfg().globalSpeed,
+          policy.ceiling,
+          beltCeilingForSeed(unwrap(options.beltAnchorSeed) as number | null | undefined, policy.beltCeilings),
+        )
       : undefined
     const seedMap = seeds.value
     const plays: L1Play[] = []

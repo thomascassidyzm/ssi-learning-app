@@ -19,11 +19,15 @@ import {
   type ListeningRampStep,
   type ListeningSlot,
   type ListeningSpeedSource,
+  type ListeningBeltCeiling,
+  DEFAULT_EASY_BELT_CEILINGS,
   DEFAULT_EASY_LISTENING_RAMP,
+  DEFAULT_FAST_BELT_CEILINGS,
   DEFAULT_FAST_LISTENING_RAMP,
   DEFAULT_LISTENING_PATTERN,
   DEFAULT_LISTENING_SPEED_SOURCE,
   LISTENING_SPEED_CEILING,
+  normalizeBeltCeilings,
   normalizeListeningRamp,
   resolveListeningPattern,
 } from '../playback/listeningExposureRamp'
@@ -173,6 +177,26 @@ export interface ModeConfig {
    * that would hand a beginner full speed, which is the bug this fixes).
    */
   listeningSpeedRamp?: ListeningRampStep[]
+  /**
+   * BELT CEILING table for listening in this mode — Tom, 2026-08-07 23:56Z,
+   * correcting the exposure-only reading that shipped first: "for Easy the BELT
+   * TABLE is authoritative... 0.8x for white/yellow belt, 0.9x for orange/green,
+   * 1.0x for blue and beyond, NEVER above 1.0. The per-exposure ramp applies
+   * UNDERNEATH the belt ceiling."
+   *
+   * So the two ramps COMPOSE rather than compete: the belt rung is the maximum
+   * for that learner, and `listeningSpeedRamp` is what approaches it from below
+   * on early hearings. A white-belt Easy learner never exceeds 0.8x however
+   * many times they have heard the phrase.
+   *
+   * Keyed on the LEARNER's position, not the replayed phrase's — Tom's wording
+   * is learner-centric ("a white-belt LEARNER's ceiling").
+   *
+   * Easy ships white/yellow 0.8, orange/green 0.9, blue+ 1.0. Fast ships a
+   * single 1.0 rung, i.e. no ceiling — "this correction is Easy-only".
+   * Absent / malformed ⇒ the shipped table for that mode (never "no ceiling").
+   */
+  listeningBeltCeilings?: ListeningBeltCeiling[]
 }
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
@@ -384,6 +408,9 @@ export const DEFAULT_FAST: ModeConfig = {
    * part of the redesign; only the ramp differs by mode.
    */
   listeningSpeedRamp: DEFAULT_FAST_LISTENING_RAMP,
+  // No belt ceiling — a single 1.0 rung. Tom, 2026-08-07: "Fast may still start
+  // at 1.0 as you built it — this correction is Easy-only."
+  listeningBeltCeilings: DEFAULT_FAST_BELT_CEILINGS,
 }
 
 /**
@@ -496,6 +523,16 @@ export const DEFAULT_EASY: ModeConfig = {
    * Supabase edit, not a deploy.
    */
   listeningSpeedRamp: DEFAULT_EASY_LISTENING_RAMP,
+  /**
+   * The BELT CEILING the ramp above lives underneath (Tom, 2026-08-07 23:56Z).
+   * White/yellow 0.8, orange/green 0.9, blue and beyond 1.0 — a gentler table
+   * than the speaking side's `beltSpeed`, deliberately its own, because these
+   * are the numbers Tom gave for Easy listening specifically.
+   *
+   * A white-belt learner therefore hears 0.7 once, then 0.8 for ever: the
+   * exposure ramp's 1.0 step is unreachable until they are a blue belt.
+   */
+  listeningBeltCeilings: DEFAULT_EASY_BELT_CEILINGS,
 }
 
 /**
@@ -826,6 +863,9 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
 export interface ListeningPlayPolicy {
   pattern: ListeningSlot[]
   ramp: ListeningRampStep[]
+  /** Per-mode belt ceilings — the maximum the ramp may approach, by learner
+   *  position. See ModeConfig.listeningBeltCeilings. */
+  beltCeilings: ListeningBeltCeiling[]
   ceiling: number
   speedSource: ListeningSpeedSource
   /** True ⇒ replay the retired nine-stage playlist (escape hatch only). */
@@ -838,6 +878,7 @@ export function resolveListeningPlayPolicy(
   modeConfig?: Partial<ModeConfig> | null,
 ): ListeningPlayPolicy {
   const shippedRamp = mode === 'easy' ? DEFAULT_EASY_LISTENING_RAMP : DEFAULT_FAST_LISTENING_RAMP
+  const shippedBelts = mode === 'easy' ? DEFAULT_EASY_BELT_CEILINGS : DEFAULT_FAST_BELT_CEILINGS
   const rawCeiling = listening?.maxSpeed
   const ceiling = typeof rawCeiling === 'number' && Number.isFinite(rawCeiling) && rawCeiling > 0
     ? Math.min(rawCeiling, LISTENING_SPEED_CEILING)
@@ -846,6 +887,7 @@ export function resolveListeningPlayPolicy(
   return {
     pattern: resolveListeningPattern(listening?.playPattern),
     ramp: normalizeListeningRamp(modeConfig?.listeningSpeedRamp, shippedRamp),
+    beltCeilings: normalizeBeltCeilings(modeConfig?.listeningBeltCeilings, shippedBelts),
     ceiling,
     speedSource: source,
     useStagePlaylist: listening?.listeningUseStagePlaylist === true,

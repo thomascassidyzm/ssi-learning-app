@@ -129,9 +129,37 @@
 #   2. ONE SPEED PER PHRASE — all four clips at the same rate, INCLUDING the
 #      known-language one. This reverses the "KNOWN clips are NEVER ramped" line
 #      in the 2026-08-06 block above: they are now ramped, with everything else.
-#   3. THE RAMP IS OVER EXPOSURES, not belts. Easy: 0.7 on the first hearing,
-#      0.8 for the next four, 1.0 for ever (full speed on the sixth). Fast: one
-#      terminal 1.0 step. Layer 2 reads the exposure count off the cohort's
+#   3. TWO RAMPS COMPOSE — a BELT CEILING with the EXPOSURE ramp underneath it.
+#      Tom, 2026-08-07 23:56Z, correcting the exposure-only reading that shipped
+#      first: "for Easy the BELT TABLE is authoritative... 0.8x for white/yellow
+#      belt, 0.9x for orange/green, 1.0x for blue and beyond, NEVER above 1.0.
+#      The per-exposure ramp applies UNDERNEATH the belt ceiling."
+#
+#          speed = min( exposure step , belt ceiling ) x globalSpeed, clamp 1.0
+#
+#      The belt rung is the MAXIMUM for that learner; the exposure ramp is what
+#      approaches it from below on early hearings. A WHITE-BELT EASY LEARNER
+#      NEVER EXCEEDS 0.8x however many times they have heard the phrase: 0.7 on
+#      the first hearing, 0.8 thereafter, and the ramp's 1.0 step is unreachable
+#      until they are a blue belt.
+#
+#      Easy belt table (its OWN table, NOT the speaking side's beltSpeed —
+#      gentler, holding each rung for two belts and not reaching 1.0 until
+#      blue, where beltSpeed reaches it at green):
+#          seeds   1-19   white + yellow    0.8
+#          seeds  20-79   orange + green    0.9
+#          seeds  80+     blue and beyond   1.0
+#      Fast has NO ceiling (a single 1.0 rung) — "this correction is Easy-only".
+#      Exposure ramp, Easy: 0.7 x1, 0.8 x4, then 1.0. Fast: one terminal 1.0.
+#
+#      The ceiling is keyed on the LEARNER's position (beltAnchorSeed), not the
+#      replayed phrase's — Tom's wording is learner-centric twice over ("a
+#      white-belt LEARNER's ceiling"). This is a deliberate change from the
+#      2026-08-06 belt ramp, which keyed Layer 1 on each replayed seed's own
+#      number, and it means a blue belt replaying an early seed is not dragged
+#      back to 0.8.
+#
+#      Layer 2 reads the exposure count off the cohort's
 #      existing `alive` clock; Layer 1 DERIVES it from the cup wheel (one cup
 #      poured per round, so a seed is heard once per turn of the wheel —
 #      seedExposureAt/batchReadyRound), keeping Layer 1 stateless and
@@ -154,8 +182,9 @@
 #     computeListeningSpeed/beltSpeed and listeningSpeedRamp.test.ts are
 #     deliberately untouched: the belt ruling and the exposure spec are ramps
 #     over DIFFERENT axes and Tom has ruled on both, so neither is deleted on
-#     the other's account. The exposure ramp ships as the default; WHICH WINS
-#     IS AN OPEN QUESTION FOR TOM.
+#     the other's account. RESOLVED 2026-08-07 23:56Z: they COMPOSE — see rule 3
+#     above. This switch survives as the way to fall all the way back to the
+#     pre-redesign belt-only behaviour.
 #   - listening.listeningUseStagePlaylist: true restores the nine-stage ladder.
 #
 # EVERY number is a config key, per Tom's standing rule that "all of this

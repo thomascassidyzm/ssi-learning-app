@@ -11,10 +11,13 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_EASY_BELT_CEILINGS,
   DEFAULT_EASY_LISTENING_RAMP,
   DEFAULT_FAST_LISTENING_RAMP,
   DEFAULT_LISTENING_PATTERN,
   LISTENING_SPEED_CEILING,
+  beltCeilingForSeed,
+  normalizeBeltCeilings,
   normalizeListeningRamp,
   rampSpeedForExposure,
   resolveListeningPattern,
@@ -29,6 +32,7 @@ import {
 } from '../composables/useLayer1Scheduler'
 import { usePodLapScheduler, podPlaylistFromPattern } from '../composables/usePodLapScheduler'
 import { resolveListeningPlayPolicy, DEFAULT_EASY, DEFAULT_FAST } from '../composables/useAlgorithmConfig'
+import { beltSpeed } from '../providers/toSimpleRounds'
 import type { ListeningPlayPolicy } from '../composables/useAlgorithmConfig'
 
 // ============================================================================
@@ -48,7 +52,7 @@ const podSentence = (i: number) => ({
   glue_to_next: false,
 })
 
-function makeMockSupabase(podSentences: any[]) {
+function makeMockSupabase(podSentences: any[], completedPodRounds = 0) {
   const builder = (table: string) => {
     const chain: any = {
       select: () => chain,
@@ -59,7 +63,7 @@ function makeMockSupabase(podSentences: any[]) {
       maybeSingle: () =>
         Promise.resolve({
           data: table === 'course_enrollments'
-            ? { pod_activation_round: 1, completed_pod_rounds: 0 }
+            ? { pod_activation_round: 1, completed_pod_rounds: completedPodRounds }
             : null,
           error: null,
         }),
@@ -244,7 +248,7 @@ describe('4 — Easy is slower, Fast starts at the regular speed', () => {
     }
   })
 
-  it('Easy dwells then reaches full speed: 0.7 · 0.8 ×4 · then 1.0 for ever', () => {
+  it('the Easy RAMP alone is 0.7 · 0.8 ×4 · then 1.0 (the belt ceiling caps it — see 4b)', () => {
     const easy = policyFor('easy').ramp
     const curve = [1, 2, 3, 4, 5, 6, 7, 100].map(e => resolveListeningSpeed(e, easy, 1.0))
     expect(curve).toEqual([0.7, 0.8, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0])
@@ -260,6 +264,138 @@ describe('4 — Easy is slower, Fast starts at the regular speed', () => {
     const at = (mainRound: number) =>
       seedExposureAt({ mainRound, activationRound: 30, cups: 30, readyRound: 30 })
     expect([at(30), at(59), at(60), at(89), at(90)]).toEqual([1, 1, 2, 2, 3])
+  })
+})
+
+// ============================================================================
+// 4b. THE BELT CEILING (Tom, 2026-08-07 23:56Z — correcting exposure-only)
+//     "for Easy the BELT TABLE is authoritative... 0.8x for white/yellow belt,
+//     0.9x for orange/green, 1.0x for blue and beyond, NEVER above 1.0. The
+//     per-exposure ramp applies UNDERNEATH the belt ceiling."
+// ============================================================================
+
+describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
+  const easy = () => policyFor('easy')
+
+  it('THE ASSERTION: a white-belt Easy learner never exceeds 0.8x, at ANY exposure', () => {
+    const { ramp, beltCeilings, ceiling } = easy()
+    const white = beltCeilingForSeed(1, beltCeilings)
+    expect(white).toBe(0.8)
+    for (let e = 1; e <= 200; e++) {
+      expect(resolveListeningSpeed(e, ramp, 1.0, ceiling, white)).toBeLessThanOrEqual(0.8)
+    }
+    // ...and specifically it does NOT rise to 1.0 on the sixth hearing, which
+    // is exactly what exposure-only shipped and what this corrects.
+    expect(resolveListeningSpeed(6, ramp, 1.0, ceiling, white)).toBe(0.8)
+    expect(resolveListeningSpeed(99, ramp, 1.0, ceiling, white)).toBe(0.8)
+  })
+
+  it('the ramp still approaches the ceiling FROM BELOW on early hearings', () => {
+    const { ramp, beltCeilings, ceiling } = easy()
+    const white = beltCeilingForSeed(1, beltCeilings)
+    const curve = [1, 2, 3, 4, 5, 6].map(e => resolveListeningSpeed(e, ramp, 1.0, ceiling, white))
+    // 0.7 first (slower than the ceiling), then held at the ceiling for ever.
+    expect(curve).toEqual([0.7, 0.8, 0.8, 0.8, 0.8, 0.8])
+  })
+
+  it('Tom\'s belt table, band by band', () => {
+    const t = easy().beltCeilings
+    // white (1-7) + yellow (8-19) → 0.8
+    expect([1, 7, 8, 19].map(s => beltCeilingForSeed(s, t))).toEqual([0.8, 0.8, 0.8, 0.8])
+    // orange (20-39) + green (40-79) → 0.9
+    expect([20, 39, 40, 79].map(s => beltCeilingForSeed(s, t))).toEqual([0.9, 0.9, 0.9, 0.9])
+    // blue (80+) and beyond → 1.0
+    expect([80, 150, 280, 400, 9999].map(s => beltCeilingForSeed(s, t))).toEqual([1.0, 1.0, 1.0, 1.0, 1.0])
+  })
+
+  it('it is its OWN table, gentler than the speaking beltSpeed curve', () => {
+    const t = easy().beltCeilings
+    // beltSpeed reaches 0.95 at orange and 1.0 at green; this holds 0.9 through
+    // green and does not reach 1.0 until blue. Deliberate — Tom's numbers.
+    expect(beltCeilingForSeed(20, t)).toBe(0.9)
+    expect(beltSpeed(20)).toBe(0.95)
+    expect(beltCeilingForSeed(40, t)).toBe(0.9)
+    expect(beltSpeed(40)).toBe(1.0)
+  })
+
+  it('the ceiling only ever LOWERS the exposure ramp, never raises it', () => {
+    const { ramp, ceiling } = easy()
+    for (const belt of [0.8, 0.9, 1.0]) {
+      for (let e = 1; e <= 20; e++) {
+        const capped = resolveListeningSpeed(e, ramp, 1.0, ceiling, belt)
+        const uncapped = resolveListeningSpeed(e, ramp, 1.0, ceiling, 1.0)
+        expect(capped).toBeLessThanOrEqual(uncapped)
+      }
+    }
+  })
+
+  it('FAST is untouched — no ceiling, still starts at 1.0', () => {
+    const { ramp, beltCeilings, ceiling } = policyFor('fast')
+    for (const seed of [1, 20, 80, 400]) {
+      expect(beltCeilingForSeed(seed, beltCeilings)).toBe(1.0)
+      expect(resolveListeningSpeed(1, ramp, 1.0, ceiling, beltCeilingForSeed(seed, beltCeilings))).toBe(1.0)
+    }
+  })
+
+  it('an unknown learner position takes the GENTLEST rung, not full speed', () => {
+    const t = easy().beltCeilings
+    expect(beltCeilingForSeed(null, t)).toBe(0.8)
+    expect(beltCeilingForSeed(undefined, t)).toBe(0.8)
+    expect(beltCeilingForSeed(0, t)).toBe(0.8)
+  })
+
+  it('composes with the course globalSpeed — French white-belt Easy tops out at 0.76', () => {
+    const { ramp, beltCeilings, ceiling } = easy()
+    const white = beltCeilingForSeed(1, beltCeilings)
+    expect(resolveListeningSpeed(1, ramp, 0.95, ceiling, white)).toBe(0.665) // 0.7 x 0.95
+    expect(resolveListeningSpeed(99, ramp, 0.95, ceiling, white)).toBe(0.76) // 0.8 x 0.95
+  })
+
+  it('the table is config-driven and degrades to the shipped one, never to no ceiling', () => {
+    const bespoke = policyFor('easy', {}, {
+      listeningBeltCeilings: [{ fromSeed: 1, speed: 0.6 }, { fromSeed: 50, speed: 1.0 }],
+    }).beltCeilings
+    expect(beltCeilingForSeed(1, bespoke)).toBe(0.6)
+    expect(beltCeilingForSeed(50, bespoke)).toBe(1.0)
+    // Out-of-order rows are sorted; over-1.0 rows are clamped, not dropped.
+    expect(normalizeBeltCeilings(
+      [{ fromSeed: 80, speed: 1.5 }, { fromSeed: 1, speed: 0.8 }],
+      DEFAULT_EASY_BELT_CEILINGS,
+    )).toEqual([{ fromSeed: 1, speed: 0.8 }, { fromSeed: 80, speed: 1.0 }])
+    for (const junk of [null, undefined, [], [{ speed: 0, fromSeed: 1 }]] as any[]) {
+      expect(normalizeBeltCeilings(junk, DEFAULT_EASY_BELT_CEILINGS)).toEqual(DEFAULT_EASY_BELT_CEILINGS)
+    }
+  })
+
+  it('end to end: a white-belt Easy learner\'s pod lap never emits above 0.8', async () => {
+    // The scheduler is handed the learner's anchor seed; every emitted play must
+    // respect the ceiling however aged the cohort is.
+    for (const exposureLap of [0, 5, 40]) {
+      const s = usePodLapScheduler({
+        supabase: makeMockSupabase([podSentence(1)], exposureLap),
+        courseCode: 'c',
+        learnerId: 'u',
+        listeningPolicy: easy(),
+        beltAnchorSeed: 1,
+      })
+      await s.initialize()
+      const lap = s.nextLap()!
+      expect(lap.plays.length).toBeGreaterThan(0)
+      expect(lap.plays.every(p => p.playbackSpeed <= 0.8)).toBe(true)
+    }
+  })
+
+  it('end to end: a blue-belt Easy learner DOES reach 1.0 once the ramp tops out', async () => {
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase([podSentence(1)], 40),
+      courseCode: 'c',
+      learnerId: 'u',
+      listeningPolicy: easy(),
+      beltAnchorSeed: 120,
+    })
+    await s.initialize()
+    const lap = s.nextLap()!
+    expect(lap.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
   })
 })
 

@@ -3581,6 +3581,11 @@ const podScheduler = supabase?.value
       // (which stays wired only for the DB escape hatch).
       listeningPolicy: listeningPlayPolicy,
       targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // The learner's position — what the per-mode belt ceiling is keyed on.
+      // Wrapped in a computed because `beltAnchorSeed` is declared further down
+      // this script block: a bare reference here is a TDZ error, a lazy getter
+      // is not.
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
       // sentence goes straight to Stage 1. The per-atom breakdown a
       // sentence used to get from AUDIO reps now comes from the
@@ -3653,6 +3658,7 @@ const l1Scheduler = supabase?.value
       targetSpeed: computed(() => currentTargetSpeedConfig()),
       // Same policy object as the pods — one pattern, one ramp, one ceiling.
       listeningPolicy: listeningPlayPolicy,
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
     })
   : null
 

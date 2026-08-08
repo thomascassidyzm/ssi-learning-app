@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
 import {
+  DEFAULT_FAST_BELT_CEILINGS,
   DEFAULT_FAST_LISTENING_RAMP,
   DEFAULT_LISTENING_PATTERN,
   LISTENING_SPEED_CEILING,
@@ -18,6 +19,7 @@ import type { ListeningPlayPolicy } from './useAlgorithmConfig'
 const STAGE_LADDER_POLICY: ListeningPlayPolicy = {
   pattern: [...DEFAULT_LISTENING_PATTERN],
   ramp: [...DEFAULT_FAST_LISTENING_RAMP],
+  beltCeilings: [...DEFAULT_FAST_BELT_CEILINGS],
   ceiling: LISTENING_SPEED_CEILING,
   speedSource: 'exposure',
   useStagePlaylist: true,
