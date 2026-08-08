@@ -1,94 +1,95 @@
-# Easy mode redesign — landed on dev, 2026-08-07/08
+# Easy mode redesign — landed on dev
 
-Four things you asked for. Three are code and are live on dev. The fourth
-(timing) was already done earlier tonight and was left alone.
+Amended 2026-08-08 with your three clarifications: just double, everything a
+setting, and a basket contains its own LEGO by definition.
 
 ---
 
-## The one thing that needs you: how long an Easy round now is
+## Round length, as ruled
 
-Real numbers, generated from `fra_for_eng` on live data, median cycles per
-round across rounds 20–120 — the early-course stretch Easy is actually for:
+Real numbers from `fra_for_eng` on live data, median cycles per round across
+rounds 20–120 — the early-course stretch Easy is for:
 
 | | cycles per round | vs Fast |
 |---|---|---|
 | **Fast** | **22** | — |
-| **Easy before tonight** (doubled phrase COUNTS only) | **29** | 1.3× |
-| **Easy now** (doubled counts **and** every cycle played twice) | **56** | **2.5×** |
-| Easy if you halve the counts back to Fast's | 42 | 1.9× |
+| Easy as it stood an hour ago (doubled counts + doubled cycles) | 56 | 2.5× |
+| **Easy now — just double** | **42** | **1.9×** |
 
-So an Easy round is now about two and a half times a Fast round, not four —
-the doubled counts don't multiply out fully because most LEGOs don't have
-fourteen build phrases to give.
+The phrase-count inflation is gone. An Easy round is the **same phrase set as
+Fast**, with each build, review, use and consolidate cycle played twice. The
+extra time now comes from hearing the same thing again, not from meeting more
+different things.
 
-At roughly 11 seconds a cycle, plus Easy's bigger pauses, that is very
-roughly **10 minutes per round** on Easy against 4 on Fast.
+## Everything is a setting
 
-**I left the doubled phrase COUNTS exactly as they were** — `maxBuildPhrases`
-14, `useConsolidationCount` 4, `maxSpacedRepPhrases` 24, `n1PhraseCount` 6.
-Your new ruling gets its repetition from playing each phrase twice, so those
-counts are now a second, older source of the same thing.
+Nothing about Easy is hardcoded any more. Six knobs, all `algorithm_config`
+rows, all editable per mode on the admin **Speaking** page — the same page as
+the timing knobs:
 
-**My recommendation: halve them back to Fast's values** (7 / 2 / 12 / 3), which
-lands Easy at 42 cycles a round — still nearly twice Fast, but with the extra
-coming from *hearing each thing twice* rather than from *meeting twice as many
-different things*, which is what you actually said you wanted. It is a DB row,
-so it is a Supabase edit and no deploy either way.
+| Knob | Easy | Fast |
+|---|---|---|
+| Repetitions per practice cycle | twice | once |
+| Which cycles repeat | BUILD, REVIEW, USE/consolidate | same list, inert at once |
+| Phrase-count multiplier (`scriptShape`) | none | none |
+| Filter BUILD phrases | leave them whole | filter |
+| Review phrase length, known language | 15 syllables | no filter |
+| …and the round it stops applying at | 100 | — |
 
-One word — "halve" or "leave" — and it's done.
+Two is a **ceiling, not a default**: a row hand-edited to say three is clamped
+back to two by the player and says so in the console, because that is your
+rule rather than a preference. The introduction and the bare LEGO are off the
+repeat list by your ruling, and either can be switched on from that page
+without a deploy.
 
----
+The admin page also loses the old "Maximum phrase syllables" control — it
+counted the target side, applied to the whole script rather than the review
+pull, and never lifted. Any stale value is deleted from the row on load, so it
+cannot outlive the knob that set it.
 
-## What landed
+## What else landed
 
-**Easy now plays every practice phrase twice, back to back.** Every build
-phrase, every review, every consolidate — heard, then heard again immediately.
-Never three times. The introduction and the LEGO on its own still play once,
-exactly as you said.
+**Easy plays every practice phrase twice, back to back** — build, review,
+consolidate. Never three times. Introduction and the LEGO on its own play once.
 
 **Easy no longer filters build phrases at all.** They arrive whole, as
-authored. The debut round is generous again.
+authored.
 
-**The 20-syllable ceiling from earlier tonight is gone**, replaced by what you
-described: when a review or consolidate slot reaches into a LEGO's basket, it
-prefers a phrase of at most 15 syllables **in the learner's own language** —
-and only for the first 100 rounds. From round 101 the filter simply comes off.
-Nothing is backlogged, nothing cascades. If a LEGO has nothing short enough,
-it gets its shortest phrase rather than being skipped, and every phrase pulled
-still contains the LEGO being practised.
+**The review pull filter**, as you described it: when a REVIEW or CONSOLIDATE
+slot reaches into a LEGO's basket it prefers a phrase of at most 15 syllables
+**in the learner's own language**, for the first 100 rounds; past that the
+filter simply comes off, nothing backlogged and nothing cascading. A LEGO with
+nothing short enough gets its shortest phrase rather than being skipped.
 
-**Fast is untouched** — proved by test, not asserted: a Fast script is
-byte-for-byte identical to one generated with the whole feature absent.
+**No "phrase contains its LEGO" check exists** — per your clarification, a
+basket is that LEGO's own BLD and USE phrases, so it is true by definition. The
+test that pretended to prove it is deleted.
 
-Both thresholds (15 syllables, 100 rounds) are DB rows, so retuning by ear is
-a Supabase edit, not a deploy. The live `easy_mode` row already carries them.
+**Fast is untouched**, proved by test rather than asserted: byte-for-byte
+identical to a run with the whole feature absent.
 
-## Two defaults I chose, each correctable in one word
+## One thing I found and fixed
 
-- **Listening, pod and bookend cycles are NOT doubled.** You named build, use,
-  review and consolidate; these are none of those. Say "double listening too"
-  and it's a one-line change.
-- **Debut USE selection is NOT filtered** by the 15-syllable rule — only
-  review and consolidate, as you specified. Say "debut too" to widen it.
-- **Seed-phase production reviews are NOT doubled.** Those are already a
-  four-cycle sandwich of one sentence, so doubling them would be four hearings
-  of the same thing — which breaks the never-three-times rule.
+The doubling as first landed would have missed the rounds you actually hear
+first. The start of every session is served by a separate, deliberately
+mode-blind fast path — the instant-playback cycles endpoint — which never
+touches the script generator. Easy would have played round one undoubled and
+then started doubling mid-session, out of nowhere. Both paths now share one
+rule and one setting. Worth naming because the same blind spot silently
+swallowed the phrase-length cap before it.
 
 ## What failed
 
-Nothing. Typecheck, the full 1,903-test suite and lint are all green.
+Nothing. Typecheck, the full 1,916-test suite and lint are all green.
 
 ## Gaps, honestly
 
-- The Popty script that seeds these config rows
-  (`scripts/learning-modes/create-mode-rows.cjs`) lives only on an **unmerged**
-  branch in the dashboard repo, and still writes the old `maxPhraseSyllables`
-  key with none of the three new ones. Whoever lands that branch needs to add
-  them, or a future re-seed will quietly undo Easy. I did not edit another
-  agent's in-flight branch.
-- Verification on dev is that the deployed bundle carries the new code and the
-  live config row carries the new values. The pedagogical judgement — does
-  doubled-up actually feel right — is yours, by ear.
+The Popty script that seeds these config rows
+(`scripts/learning-modes/create-mode-rows.cjs`) lives only on an **unmerged**
+branch in the dashboard repo and still writes the old target-syllable key with
+none of the new ones. Whoever lands that branch needs to add them, or a future
+re-seed will quietly undo Easy. I did not edit another agent's in-flight
+branch.
 
 ## Where to hear it
 
