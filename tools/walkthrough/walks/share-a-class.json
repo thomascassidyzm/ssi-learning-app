@@ -11,7 +11,7 @@
     },
     {
       "anchor": "class-teacher-add",
-      "say": "**Add a co-teacher** is how you share it. Nobody is added until you pick a name and confirm.",
+      "say": "**Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.",
       "advance": { "on": "click" }
     },
     {

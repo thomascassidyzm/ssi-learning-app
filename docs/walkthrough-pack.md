@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `b26c1e68be11` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `1072cbc63382` · generated 2026-08-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -59,6 +59,17 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## move-a-teacher-between-classes — Move a teacher to another class
+
+Personas: teacher · place: class-detail
+
+1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
+2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
+3. [`assign-classes-list` · next] Every class in the school, with the ones this teacher already takes already ticked. Ticking a second, or a third, is all 'belonging to several classes' means — there is no separate step for it.
+4. [`assign-classes-list` · next] A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.
+5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
+   - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -92,7 +103,7 @@ Personas: leader · place: node-home (org/group/school)
 Personas: teacher · place: class-detail
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
-2. [`class-teacher-add` · click] **Add a co-teacher** is how you share it. Nobody is added until you pick a name and confirm.
+2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.
 3. [`class-teacher-picker` · next] You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
