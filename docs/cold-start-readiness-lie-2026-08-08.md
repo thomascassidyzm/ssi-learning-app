@@ -116,13 +116,19 @@ or auth:
   has been a deliberate no-op since May (`LearningPlayer.vue:5444`), so the
   `await` on it in the play handler (`7671`) costs nothing.
 
-One thing I could not measure, stated plainly: **how much of the 7.2 s is the
-clip's own download and how much is contention** with the seven other audio
-fetches and the whole-course background walk that is deliberately released at the
-same instant (`resolvePlayerReady()`, `LearningPlayer.vue:13790`). At 1.6 Mbps a
-68 KB file alone should take well under a second, so contention is clearly doing
-most of the work — but I did not isolate it. Serialising the first clip ahead of
-everything else on one run, and re-measuring, would settle it.
+**It is the network, not a jammed main thread.** The whole-course background walk
+is deliberately released at this same instant (`resolvePlayerReady()`,
+`LearningPlayer.vue:13790`), and it used to run as one 12–13 second main-thread
+task. Running the existing `e2e/post-ready-interactivity-probe.mjs` against
+staging with a 4× CPU throttle: the largest single main-thread task after ready is
+**104 ms**, and a tap dispatched at the ready paint is processed in **15–19 ms**.
+The cooperative slicing that was put in for that problem is holding. So the seven
+seconds is bytes on the wire, not a frozen thread.
+
+What I still have not isolated: at 1.6 Mbps a 68 KB file on its own should arrive
+in well under a second, so most of the 7.2 s must be **contention** with the seven
+sibling audio fetches and the remaining app assets. That is the strong inference,
+but I did not prove it by serialising the first clip and re-measuring.
 
 ### 2. Why the other controls are dead too
 
@@ -139,14 +145,17 @@ What is dead is dead for two different reasons:
 | Play button | Flashes, then stops flashing ~7 s before it can make a sound | The audio is not fetched until the flip |
 | Belt badge | Not rendered at all until ready | `v-if="isPlayerReady"` |
 | Easy / Fast switch | Not rendered at all until ready | `v-if="isPlayerReady"` |
-| Belt pill (jump to a belt) | Visible and tappable from ~0.8 s, but a tap does nothing visible for 1.35 s even at the ready moment | It opens a lazily-loaded screen whose code chunk is only fetched *after* ready, on idle (`LearningPlayer.vue:13848`) |
+| Belt pill (jump to a belt) | Visible and tappable from ~0.8 s, but a tap does nothing visible for 1.35 s even at the ready moment | The screen it opens is `v-if="contribution.data.value"` (`LearningPlayer.vue:14518`) and that fetch is *deliberately scheduled to begin only after ready* (`:12050`) |
 | Belt step ‹‹ / ›› | Visible from ~0.8 s; back is correctly disabled at position zero | Header chrome renders before the player has anything to step |
 | Course name (switch course) | Visible and tappable from ~0.8 s | Renders on the course row alone, by design |
 
-So Tom's "belt position isn't ready" has a specific cause of its own: the belt
-screen is a separate code chunk that the app deliberately does not start fetching
-until *after* it has told you it is ready. On Fast 3G that is a second, smaller
-lie sitting on top of the first.
+So Tom's "belt position isn't ready" has a specific and rather exact cause of its
+own: the belt screen refuses to render until its data has arrived, and the app
+deliberately does not *start* fetching that data until after it has told you it is
+ready — the comment says so, and the reason is sound (it is display-only, so it
+was pushed off the critical path so as not to compete for bandwidth). The pill is
+never disabled and never acknowledges the tap, so on Fast 3G it is a silent no-op
+by construction. A second, smaller lie sitting on top of the first.
 
 The two hidden controls are the honest ones — they simply do not appear. The
 damaging ones are the controls that are drawn, look live, and are not.
@@ -202,36 +211,50 @@ readiness notion per surface, several new reactive values, and a per-control
 visual language to design. **Better ✓ × Simpler ✗ (a flag per surface, forever)
 × Cheaper ✗.** Fails on Simpler.
 
-**C. Make the press itself honest: the app already has the words.**
-`SimplePlayer` already has a `buffering` phase, and the player already has a
-message for it — *"Just grabbing the next phrase…"* (`LearningPlayer.vue:5534`,
-markup at `14751`). I measured whether it shows during the seven-second gap.
-**It never appears — not in a single sample of any run.** The learner gets
-"GET READY TO SPEAK" and silence instead. Surfacing the message that already
-exists, during the gap that already exists, is the smallest honest change in the
-app.
+**C. Make the press itself honest — show that it is fetching.**
+The app has the words already: *"Just grabbing the next phrase…"*
+(`LearningPlayer.vue:5534`, markup at `14751`). I measured whether it shows during
+the seven-second gap. **It never appears — not in a single sample of any run.**
+The learner gets "GET READY TO SPEAK" and silence instead.
 
-### Recommendation: C.
+**An important correction to what that costs.** The message is not merely
+unsurfaced — the state that drives it can never be entered. It is bound to
+`SimplePlayer`'s `buffering` phase, and that phase is only entered when a
+`ensureKnownReady` override is supplied (`SimplePlayer.ts:1119-1120`). That
+override was deliberately removed on 2026-05-23 and is supplied nowhere in the app
+today — I checked; the only remaining reference is a test. It was removed for a
+serious reason, written up at `LearningPlayer.vue:9655`: its non-Range prefetch
+made the service worker answer a later Range request with a 200, which iOS Safari
+cannot handle — it stalls forever, `ended` never fires, and the session cascades.
+**So reviving the gate is emphatically not the fix.**
+
+The version that avoids all of that: drive the message off the **audio element's
+own waiting state** rather than off a gate. We do not need to *hold* playback
+until the bytes land — that is the thing that broke iOS. We only need to *say* we
+are waiting, which the element already knows and reports. Display-only: no gate,
+no change to fetch order, no non-Range prefetch, no iOS exposure.
+
+### Recommendation: C, in its display-only form.
 
 **Better** — the learner is never told to speak before there is anything to hear;
 seven seconds of apparent breakage becomes seven seconds of visible, explained
 fetching, which is the difference between a broken app and a slow one.
-**Simpler** — no new readiness concept, no new flag, no new copy: it is the
-engine's own buffering state reaching the screen it was written for.
+**Simpler** — no new readiness concept and no new copy; it reuses the message that
+is already written, driven by a state the audio element already exposes.
 **Cheaper** — nothing extra is fetched, nothing is delayed, no change to the load
-order or the deliberate 600 ms saving; on a fast connection the message flashes
-for 0.3 s and nothing else changes.
+order or to the deliberate 600 ms saving; on a fast connection it flashes for
+0.3 s and nothing else changes.
 
-**One rider, and it is Tom's call, not mine.** C makes the wait honest; it does
-not make it shorter. If seven seconds of honest waiting is still too long a first
-impression, the follow-on is the contention question left open in Q1 — give the
-first clip exclusive right of way ahead of the seven sibling fetches and the
-whole-course walk that are all released at the ready moment. That is a
-measure-first job, not a guess, and it is separable from C.
+**Two riders, both Tom's call.**
 
-The belt-pill chunk is a small separate item: it is fetched on idle *after* ready
-(`LearningPlayer.vue:13848`), which is why the tap looks dead. Moving that one
-prefetch earlier is independent of everything above.
+1. C makes the wait honest; it does not make it shorter. If seven seconds of
+   honest waiting is still too poor a first impression, the follow-on is the
+   contention question — give the first clip right of way ahead of the seven
+   sibling fetches released at the ready moment. Measure first; it is separable
+   from C.
+2. The belt pill is a small separate item with its own answer: either start the
+   contribution fetch earlier, or have the pill acknowledge the tap while it
+   waits. Independent of everything above.
 
 ---
 
@@ -259,6 +282,9 @@ Gaps, stated honestly:
   measurement was `c4809b5e` (8 Aug 2026, 02:11 UTC); runs were made between
   10:50 and 12:20 UTC the same morning.
 - **Contention versus download** inside the 7.2 s is unresolved, as set out in Q1.
+  Main-thread blocking is *not* the cause — that was measured and ruled out.
+- The code trace behind the mechanism claims was done independently against
+  `545e08f7` and is published separately: https://watson-1.tail4968cb.ts.net/d/0479ec41
 - Chromium headless on Linux, throttled with Chrome's own Fast 3G preset. Real
   iOS Safari has tighter parallel-connection limits than Chromium — which the
   codebase already knows (`LearningPlayer.vue:5416`) — so a real phone is more
