@@ -485,10 +485,12 @@ export const DEFAULT_EASY: ModeConfig = {
    * and it defaults to no inflation.
    */
   scriptShape: {},
-  // HALVE the longest possible phrase (Aran, 2026-08-06) — a fraction of the
-  // COURSE's longest phrase, measured in characters. Phrases still arrive
-  // shortest-first; the cap only cuts the long tail, with the starvation guard
-  // in capPhrasesByLength standing behind it.
+  // INERT since 2026-08-08 — nothing reads this. It was Aran's "halve the
+  // longest possible phrase" (2026-08-06), a character cap on the phrase POOL
+  // and therefore generation-time by nature, which is exactly why it could not
+  // survive a mode that has to switch live. Easy's length rule is now the
+  // play-time skip below. The value stays so the live DB row (which still
+  // carries 0.5) keeps a matching shape; it changes nothing for any learner.
   maxPhraseLengthFraction: 0.5,
   /**
    * DOUBLE EVERY PRACTICE CYCLE (Tom, 2026-08-07). Easy's repetition comes
@@ -502,23 +504,35 @@ export const DEFAULT_EASY: ModeConfig = {
    *  LEGO are absent: "of course not - the intro LEGO and not the LEGO alone". */
   repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
   /**
-   * NO filtering on BUILD phrases — Tom, 2026-08-07, verbatim. The debut round
-   * hands the learner the new LEGO and then "all the places that it can fit
-   * in"; those fragments are short already, so a length filter only thins the
-   * one round that exists to be generous.
+   * INERT since 2026-08-08 — nothing reads this. Tom's underlying ruling ("no
+   * filtering on BLD phrases", 2026-08-07) survives it: with the character cap
+   * gone there is nothing for BUILD to opt out of at generation time, and the
+   * play-time skip never touches a build or debut cycle
+   * (LENGTH_SKIPPABLE_CYCLE_TYPES in playback/modeRenderRules.ts).
    */
   filterBuildPhrases: false,
   /**
-   * KNOWN-side pull filter for REVIEW and CONSOLIDATE slots: prefer a use
-   * phrase of at most 15 syllables in the learner's OWN language, for the
-   * first 100 rounds of the course. Replaces the flat 20-target-syllable
-   * whole-mode ceiling that shipped earlier on 2026-08-07 — that counted the
-   * wrong side of the pair, applied to the whole script, and never came off.
+   * THE LIVE EASY LENGTH RULE, read at PLAY time: a REVIEW or USE/CONSOLIDATE
+   * cycle whose KNOWN side runs past 15 syllables is passed over (Tom,
+   * 2026-08-08: "the longest ones are skipped in easy mode. Anything greater
+   * than x syllables. Set as default 15 but it could change in admin configs").
+   * It counts the KNOWN side — the prompt in the learner's own language — not
+   * the target. A DB row, so retuning by ear is a Supabase edit, not a deploy.
    *
-   * Both numbers are DB rows (`algorithm_config.easy_mode`), so retuning by
-   * ear is a Supabase edit, not a deploy.
+   * KNOW WHAT CHANGED WITH IT. Until 2026-08-08 this was a pull-time PREFERENCE
+   * applied while generating the script, and it had a starvation guard: a LEGO
+   * whose basket held nothing at or under the cap still got its SHORTEST phrase
+   * (`filterReviewPool`). As a play-time SKIP there is no such guard — a LEGO
+   * whose use phrases are all long simply is not reviewed in Easy. That is the
+   * price of the rule switching live, and it is deliberate, not an oversight.
    */
   reviewMaxKnownSyllables: 15,
+  /**
+   * INERT since 2026-08-08 — nothing reads this. The play-time skip carries no
+   * round cutoff ("anything greater than x syllables", with no condition
+   * attached), so the rule now runs for the whole course rather than lifting
+   * after round 100 as it did while it lived in the generator.
+   */
   reviewSyllableFilterMaxRound: 100,
   /**
    * LISTENING — minimal cognitive load, and slower than Fast (Tom,
