@@ -21,10 +21,12 @@ import {
   capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
   normalizeMaxPhraseLengthFraction, normalizeMaxKnownSyllables,
   normalizeReviewFilterMaxRound, makeKnownSyllableResolver, filterReviewPool,
+  normalizePhraseRepeatCount, normalizeRepeatedCycleTypes,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
 import type { ReviewPullFilter } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import { repeatPhraseCycles } from './repeatPhraseCycles'
 
 export interface ScriptItem {
   uuid: string
@@ -191,19 +193,20 @@ export interface LearningScriptResult {
 }
 
 /**
- * Phrase-POOL shaping knobs — how the basket for each LEGO is picked, all off
- * by default, so a caller that passes nothing generates byte-identical output
- * to the historic walk.
- *
- * THESE ARE NOT MODE OPTIONS. Easy and Fast share one script (Tom, 2026-08-08);
- * the player passes nothing here and the two modes differ only at play time —
- * see playback/modeRenderRules.ts. They stay as a generic, tested capability
- * for shaping a course's pools from config, and nothing that varies with the
- * learner's mode may ever be routed through them again: whatever is baked here
- * is baked into a CACHED script, which is precisely what made a mode switch
- * need a cache clear and a course restart.
+ * The Easy-mode levers, all off by default — so a caller that passes nothing
+ * (and Fast, which passes them all off explicitly) generates byte-identical
+ * output to the pre-2026-08-07 walk.
  */
-export interface PhrasePoolOptions {
+export interface EasyModeOptions {
+  /**
+   * How many times each eligible practice cycle plays, back to back (Tom,
+   * 2026-08-07). 1 / absent ⇒ once, which is Fast. Easy ships 2, and 2 is also
+   * the hard ceiling — a higher value is clamped, loudly.
+   */
+  phraseRepeatCount?: number
+  /** Which cycle types the repeat applies to. Defaults to build / spaced_rep /
+   *  use — BLD, REVIEW, USE and CONSOLIDATE. */
+  repeatedCycleTypes?: string[]
   /** False ⇒ BUILD phrases bypass the phrase-length cap entirely ("no
    *  filtering on BLD phrases" — Tom, 2026-08-07). Default true. */
   filterBuildPhrases?: boolean
@@ -377,11 +380,13 @@ export async function generateLearningScript(
    */
   maxPhraseLengthFraction: number = 1,
   /**
-   * Phrase-POOL shaping — the BUILD-filter switch and the known-side
-   * review/consolidate pull filter. Off by default. NOT a mode input: the
-   * player passes nothing, because Easy and Fast share one script.
+   * The active mode's Easy levers — doubling, the BUILD-filter switch, and the
+   * known-side review/consolidate pull filter (Tom, 2026-08-07). Everything is
+   * off by default, and Fast passes them all off, so Fast's script is provably
+   * unchanged. Replaces the absolute TARGET-syllable ceiling that briefly
+   * occupied this slot earlier the same night.
    */
-  poolOptions: PhrasePoolOptions = {},
+  easyOptions: EasyModeOptions = {},
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -516,7 +521,7 @@ export async function generateLearningScript(
     // Skipped entirely when no filter is set (Fast), so Fast issues exactly the
     // queries it always did. A failed/missing row leaves known_lang null,
     // which makes the filter inert and warn — never throws, never guesses.
-    normalizeMaxKnownSyllables(poolOptions.reviewMaxKnownSyllables) < Infinity
+    normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables) < Infinity
       ? supabase
           .from('courses')
           .select('known_lang')
@@ -533,8 +538,8 @@ export async function generateLearningScript(
   // A courses-table read error is NOT fatal — the filter going inert costs the
   // learner nothing (the character cap still applies), while throwing would
   // cost them the whole script.
-  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(poolOptions.reviewMaxKnownSyllables)
-  const REVIEW_FILTER_MAX_ROUND = normalizeReviewFilterMaxRound(poolOptions.reviewSyllableFilterMaxRound)
+  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables)
+  const REVIEW_FILTER_MAX_ROUND = normalizeReviewFilterMaxRound(easyOptions.reviewSyllableFilterMaxRound)
   if (courseRowResult?.error) {
     console.warn(`[phrase-cap] could not read courses.known_lang for ${courseCode} — review pull filter may be inert:`, courseRowResult.error.message)
   }
@@ -552,7 +557,7 @@ export async function generateLearningScript(
 
   // "No filtering on BLD phrases" (Tom, 2026-08-07) — Easy takes its BUILD
   // pool whole. Default true keeps every other caller on the historic path.
-  const FILTER_BUILD_PHRASES = poolOptions.filterBuildPhrases !== false
+  const FILTER_BUILD_PHRASES = easyOptions.filterBuildPhrases !== false
 
   // All build loops below tick this — no single main-thread slice of the
   // walk may exceed the budget (post-READY interactivity, founder 2026-07-30).
@@ -1866,16 +1871,18 @@ export async function generateLearningScript(
     return true
   })
 
-  // NO MODE DOUBLING HERE — deliberately, and permanently (Tom, 2026-08-08).
-  //
-  // Easy's "play every practice cycle twice" used to be applied at exactly this
-  // point, duplicating script items before the A-64 floor. That is what made
-  // the mode a property of the generated bytes: the script is cached, so
-  // switching Easy→Fast left an already-doubled queue in place and kept
-  // doubling until the learner cleared the cache and restarted the course.
-  // Repetition is now a PLAY-TIME rule read at the cycle boundary — see
-  // playback/modeRenderRules.ts and SimplePlayer's `getCyclePlayCount`. One
-  // script, two render rules. Do not reintroduce a repeat pass here.
+  // ── EASY doubling (Tom, 2026-08-07) ──────────────────────────────────────
+  // "in EASY mode, double up every phrase, every BLD, every USE, every REVIEW,
+  // every CONSOLIDATE". BOTH the count and the eligible types are config, read
+  // off the mode row. Runs AFTER the consecutive-duplicate removal above, which
+  // would strip the second copy, and BEFORE the A-64 floor below, which allows
+  // exactly two in a row and so guarantees "doubled" can never become tripled.
+  // A count of 1 (Fast) returns the input array untouched, so Fast's script is
+  // byte-identical to the pre-2026-08-07 walk.
+  const doubledItems = repeatPhraseCycles(playableItems, {
+    count: normalizePhraseRepeatCount(easyOptions.phraseRepeatCount),
+    types: normalizeRepeatedCycleTypes(easyOptions.repeatedCycleTypes),
+  })
 
   // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
   // "No mode should ever repeat the same prompt more than twice consecutively."
@@ -1906,7 +1913,7 @@ export async function generateLearningScript(
     roundCapped.push(...capped.items)
     roundBuffer = []
   }
-  for (const item of playableItems) {
+  for (const item of doubledItems) {
     await yieldTick()
     if (currentRound !== null && item.roundNumber !== currentRound) flushRound()
     currentRound = item.roundNumber

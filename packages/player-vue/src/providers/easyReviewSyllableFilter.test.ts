@@ -1,15 +1,6 @@
 /**
  * THE KNOWN-SIDE PULL FILTER on REVIEW and CONSOLIDATE slots (Tom, 2026-08-07).
  *
- * SCOPE NOTE, 2026-08-08: this is now a GENERATOR CAPABILITY, not a mode.
- * Easy's long-phrase handling moved to a play-time skip (Tom: "exactly the same
- * script, but with different rules"), so the player passes no pool options at
- * all and both modes generate the identical script. The filter below is still
- * the one place a course-wide known-side pull rule would live if config ever
- * wants one — it is simply no longer reachable from `learningMode`, and must
- * never be wired back to it: whatever is baked here is baked into a CACHED
- * script, which is exactly the bug the play-time move fixed.
- *
  * Three things at once, and all three matter:
  *   - it counts syllables in the KNOWN language — the prompt the learner hears
  *     in their own language — not the target;

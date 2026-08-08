@@ -14,7 +14,7 @@ import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
 import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
-import { DEFAULT_REPEATED_CYCLE_TYPES, MAX_PHRASE_REPEAT_COUNT } from '../playback/modeRenderRules'
+import { DEFAULT_REPEATED_CYCLE_TYPES, MAX_PHRASE_REPEAT_COUNT } from '../providers/repeatPhraseCycles'
 import {
   type ListeningRampStep,
   type ListeningSlot,
@@ -78,28 +78,26 @@ export interface ModeConfig {
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
   /**
-   * RETIRED as a mode input (Tom, 2026-08-08): "exactly the same script, but
-   * with different rules". Easy and Fast now share ONE generated script, so
-   * nothing here may reshape it per mode — the player builds the script from
-   * the GLOBAL `script_shape` row alone. Both live rows carry `{}`, so nothing
-   * changed underneath anyone.
+   * OPTIONAL per-mode override of the GLOBAL `script_shape` row. Keys mirror
+   * ScriptShapeConfig exactly; anything omitted falls through to the global
+   * value. Layering happens in exactly ONE place — `resolveScriptShape()`
+   * below — so there is no second merge rule to keep in sync.
    *
-   * The field stays readable rather than being dropped (no migration, no lost
-   * rows), and `resolveScriptShape` stays as the one merge rule for any future
-   * NON-mode overlay. Do not wire it back to `learningMode`.
+   * This is where Easy and Fast are allowed to differ in SHAPE, and it is the
+   * ONLY way they may: a mode GENERATES a different round, it never plays a
+   * subset of one. There is no per-cycle cull on the mode path — SimplePlayer's
+   * `shouldSkipCycle` hook belongs to adaptation v2 alone.
    */
   scriptShape?: Partial<ScriptShapeConfig>
   /**
-   * RETIRED as a mode input (Tom, 2026-08-08) — see `scriptShape` above. A
-   * character cap on the phrase POOL is generation-time by nature, so it
-   * cannot be part of a mode that must switch live. Easy's long phrases are
-   * now passed over at PLAY time instead (`reviewMaxKnownSyllables`, applied
-   * by playback/modeRenderRules.ts), which is one rule where there were three
-   * and lands on the very next cycle.
-   *
-   * `capPhrasesByLength()` remains the one place the rule lives for any
-   * non-mode caller. The row stays readable; the player passes 1.0 (uncapped)
-   * for every learner.
+   * Cap on phrase LENGTH, expressed as a fraction of the longest phrase in
+   * the WHOLE COURSE (not per-LEGO — see courseMaxPhraseLength). Range (0, 1].
+   *   1.0 — uncapped; today's exact behaviour. Fast ships 1.0, so Fast is
+   *         provably unchanged.
+   *   0.5 — Easy: half the longest possible phrase (Aran, 2026-08-06).
+   * Applied by `capPhrasesByLength()` below — the ONE place the rule lives.
+   * Sorting is always shortest-first; this is a CAP, not a sort direction.
+   * A missing or invalid value degrades to 1.0 (uncapped), never to a cap.
    */
   maxPhraseLengthFraction?: number
   /**
@@ -126,41 +124,33 @@ export interface ModeConfig {
    */
   repeatedCycleTypes?: string[]
   /**
-   * RETIRED as a mode input (Tom, 2026-08-08) — see `scriptShape` above. With
-   * no per-mode character cap left to bypass, there is nothing for Easy to opt
-   * out of at generation time. Tom's underlying ruling — "no filtering on BLD
-   * phrases" (2026-08-07) — is now carried by the play-time skip, which never
-   * touches a BUILD or debut cycle (LENGTH_SKIPPABLE_CYCLE_TYPES).
+   * Should BUILD phrases be put through the phrase-length filters at all?
+   *
+   * Tom, 2026-08-07: "no filtering on BLD phrases". Build phrases are short by
+   * construction — a new LEGO plus one or two already-known ones — and they
+   * ARE the debut round, so filtering them guts the round it is meant to
+   * gentle. Easy therefore takes its BUILD pool whole; USE pools still get the
+   * character cap. Absent ⇒ true (filter), which is the historic behaviour.
    */
   filterBuildPhrases?: boolean
   /**
-   * PLAY-TIME ceiling on a practice cycle's KNOWN-language syllables — the
-   * "skip" half of Easy (Tom, 2026-08-08: "certain phrases - the longest ones
-   * are skipped in easy mode. Anything greater than x syllables. Set as
-   * default 15 but it could change in admin configs").
+   * Pull-time ceiling on a review/consolidate phrase's KNOWN-language
+   * syllables (Tom, 2026-08-07). Note all three things this is NOT: it counts
+   * the KNOWN side (the prompt the learner hears in their own language), not
+   * the target; it is a filter on WHICH use phrase is pulled from a LEGO's
+   * basket for a REVIEW or CONSOLIDATE slot, not a ceiling over the whole
+   * script; and it lifts entirely past `reviewSyllableFilterMaxRound`.
    *
-   * It counts the KNOWN side — the prompt the learner hears in their own
-   * language — not the target: an earlier flat target-syllable cap counted the
-   * wrong side of the pair. It is applied at the cycle boundary by
-   * `playback/modeRenderRules.ts`, so changing mode mid-session changes what
-   * the very next cycle does, with no regeneration.
+   * If a LEGO's basket holds nothing at or under the cap, the SHORTEST phrase
+   * in the basket is pulled instead — the round is never left empty and the
+   * LEGO is never skipped.
    *
-   * REVIEW and USE/CONSOLIDATE cycles only. BUILD, the debut, the intro and
-   * every listening/pod/bookend cycle are exempt. A course whose known
-   * language has no registered syllable counter is inert and says so — an
-   * unmeasurable cycle always plays.
-   *
-   * Absent / ≤0 ⇒ no skip, which is Fast's value. Easy ships 15, from the DB
-   * row, so retuning by ear is a Supabase edit rather than a deploy.
+   * Absent / ≤0 ⇒ no filter, which is Fast's value. Easy ships 15.
    */
   reviewMaxKnownSyllables?: number
   /**
-   * RETIRED (Tom, 2026-08-08): the skip is course-wide with no round cutoff —
-   * "anything greater than x syllables", with no condition attached. The row
-   * stays readable so no migration is needed; nothing reads it.
-   *
-   * Historic note — last course round on which `reviewMaxKnownSyllables`
-   * applied. From the next round the filter simply came off — nothing is backlogged and
+   * Last course round on which `reviewMaxKnownSyllables` applies. From the
+   * next round the filter simply comes off — nothing is backlogged and
    * nothing cascades. Tom, 2026-08-07: "the whole idea of you've got a
    * cascade, you've got a wall, once you get to 100 and 101, all these space
    * repetitions is complete nonsense, makes no difference at all", because
@@ -1116,6 +1106,11 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const listeningConfig = computed(() => configs.value.listening as ListeningModeConfig)
   const podsConfig = computed(() => configs.value.pods as PodsConfig)
   const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
+  /** The effective script shape for a mode: the global `script_shape` row with
+   *  that mode's `scriptShape` override layered on top. Fast carries no
+   *  override, so it resolves to the global row unchanged. */
+  const scriptShapeForMode = (mode: LearningMode): ScriptShapeConfig =>
+    resolveScriptShape(scriptShapeConfig.value, modeConfig(mode))
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
   const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
   const adaptationV2Config = computed(() => configs.value.adaptation_v2 as AdaptationV2Config)
@@ -1146,6 +1141,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     fastConfig,
     easyConfig,
     modeConfig,
+    scriptShapeForMode,
     listeningConfig,
     podsConfig,
     scriptShapeConfig,

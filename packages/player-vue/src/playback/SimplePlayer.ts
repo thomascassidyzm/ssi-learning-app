@@ -37,27 +37,9 @@ export interface SimplePlayerRuntimeOverrides {
   /** Return true to skip this cycle entirely (advance to the next). Consulted
    * before starting any phase, so a mid-round change shortens the remaining
    * round on the next cycle boundary. Retired Turbo used this to cull its
-   * tagged cycles; adaptation v2 and the Easy known-side length rule are the
-   * live callers (see playback/modeRenderRules.ts). Skipping moves the cursor
-   * FORWARD over script positions — it never leaves a hole to come back to. */
+   * tagged cycles; adaptation v2 is the only remaining caller — the Easy /
+   * Fast modes differ by script-shape OVERRIDE, never by a cull. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
-  /**
-   * How many times this cycle plays, back to back, before the cursor advances.
-   * 1 (or absent) is the historic behaviour; Easy returns 2 so every practice
-   * cycle is heard twice.
-   *
-   * Consulted at the CYCLE BOUNDARY, from the live mode, which is the whole
-   * point: Easy and Fast are one script rendered under different play-time
-   * rules, never two scripts (Tom, 2026-08-08). Flipping the toggle mid-session
-   * lands on the very next cycle with no regeneration and no cache clear —
-   * baking the repeats into the generated script is what made a mode switch
-   * need a cache clear and a restart.
-   *
-   * The repeat play is the SAME script position: cycleIndex does not move, so
-   * progress, the persisted cursor and round completion all stay position-based
-   * and a mid-round switch can neither skip nor re-serve anything.
-   */
-  getCyclePlayCount?: (cycle: Cycle) => number
   /**
    * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
    * ready to play from the local cache. While we wait, the player sits
@@ -383,18 +365,6 @@ export class SimplePlayer {
 
   /** Runtime overrides — set via setRuntimeOverrides, may be reassigned at any time. */
   private runtimeOverrides: SimplePlayerRuntimeOverrides = {}
-
-  /**
-   * Play-time repeat bookkeeping (Easy mode's doubling — see
-   * `getCyclePlayCount`). `repeatAnchor` is the position the count belongs to,
-   * as "roundIndex:cycleIndex". Anchoring rather than resetting means EVERY
-   * reposition path — play, pause/resume, stepCycle, jumpToRound, skipRound,
-   * stop, round advance, a round list mutated underneath us — is self-correcting
-   * without needing to remember to clear a counter: land anywhere other than
-   * where the count was taken and the count is simply not yours.
-   */
-  private repeatAnchor: string | null = null
-  private repeatPlaysDone = 0
 
   constructor(rounds: Round[], overrides: SimplePlayerRuntimeOverrides = {}) {
     this.rounds = rounds
@@ -899,11 +869,6 @@ export class SimplePlayer {
     this.audio.pause()
     this.retryAttempted = false
     this.retryUrl = null
-    // A deliberate reposition starts the landing cycle's repeat count fresh —
-    // stepping back onto a cycle you already heard twice should play it as the
-    // live mode says, not finish an old count.
-    this.repeatAnchor = null
-    this.repeatPlaysDone = 0
   }
 
   // Controls
@@ -1675,8 +1640,7 @@ export class SimplePlayer {
   }
 
   private advanceCycle(): void {
-    const justPlayed = this.currentCycle
-    this.emit('cycle_completed', { cycle: justPlayed, round: this.currentRound })
+    this.emit('cycle_completed', { cycle: this.currentCycle, round: this.currentRound })
 
     const round = this.currentRound
     if (!round || !round.cycles) {
@@ -1684,25 +1648,6 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-
-    // Easy mode's doubling, applied HERE rather than in the script: replay the
-    // same cycle in place before the cursor moves on. Read from the live mode
-    // at this boundary, so a toggle mid-session takes effect on the very next
-    // cycle — and a learner who flips to Fast part-way through a doubled
-    // cycle's first play simply doesn't get the second.
-    if (justPlayed && this.state.isPlaying) {
-      const anchor = `${this.state.roundIndex}:${this.state.cycleIndex}`
-      const plays = this.repeatAnchor === anchor ? this.repeatPlaysDone + 1 : 1
-      const wanted = Math.max(1, Math.floor(this.runtimeOverrides.getCyclePlayCount?.(justPlayed) ?? 1))
-      if (plays < wanted) {
-        this.repeatAnchor = anchor
-        this.repeatPlaysDone = plays
-        this.startPhase('prompt')
-        return
-      }
-    }
-    this.repeatAnchor = null
-    this.repeatPlaysDone = 0
     // Find the next non-skipped cycle. Lets the runtime cull take effect
     // mid-round: the current cycle finishes, then the override jumps over
     // any cycles it now wants skipped before the next prompt.

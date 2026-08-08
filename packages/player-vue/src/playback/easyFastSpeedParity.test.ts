@@ -92,12 +92,7 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     expect(DEFAULT_EASY.pause_boot_ms!).toBeGreaterThan(DEFAULT_FAST.pause_boot_ms!)
     expect(DEFAULT_EASY.min_pause_ms).toBeGreaterThan(DEFAULT_FAST.min_pause_ms)
     expect(DEFAULT_EASY.post_voice2_gap_ms!).toBeGreaterThan(DEFAULT_FAST.post_voice2_gap_ms!)
-    // Repetition and the long-phrase skip are PLAY-TIME rules now (Tom,
-    // 2026-08-08 — one script, two render rules), so the difference is asserted
-    // on the numbers the runtime overrides read, not on a script-shape lever.
-    expect(DEFAULT_EASY.phraseRepeatCount!).toBeGreaterThan(DEFAULT_FAST.phraseRepeatCount!)
-    expect(DEFAULT_EASY.reviewMaxKnownSyllables!).toBeGreaterThan(0)
-    expect(DEFAULT_FAST.reviewMaxKnownSyllables!).toBe(0)
+    expect(DEFAULT_EASY.maxPhraseLengthFraction!).toBeLessThan(DEFAULT_FAST.maxPhraseLengthFraction!)
     // …and the one thing they must NOT differ on any more:
     expect(DEFAULT_EASY.playback_speed).toBe(DEFAULT_FAST.playback_speed)
   })

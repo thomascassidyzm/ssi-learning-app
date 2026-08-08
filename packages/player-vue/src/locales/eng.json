@@ -19,9 +19,7 @@
     "listeningDesc": "Audio only, no speaking",
     "easy": "Easy",
     "fast": "Fast",
-    "learningModeLabel": "Learning mode",
-    "switchingToEasy": "Switching to Easy mode",
-    "switchingToFast": "Switching to Fast mode"
+    "learningModeLabel": "Learning mode"
   },
   "courseSelector": {
     "title": "Choose Your Course",

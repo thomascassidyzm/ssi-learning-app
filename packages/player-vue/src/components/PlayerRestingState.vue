@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, forSpeakersLabel, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
@@ -60,31 +60,14 @@ const handleChangeCourse = () => {
   emit('change-course')
 }
 
-// Easy / Fast — Fast is the default and the long-standing pace; Easy gives
-// roughly double the thinking time, plays every practice phrase twice, and
-// passes over the longest phrases.
-//
-// The switch takes effect on the NEXT phrase, always. Both modes play the same
-// script under different play-time rules (Tom, 2026-08-08), so there is
-// nothing to rebuild and nothing to clear — which is why this is a plain
-// confirmation and not a "restart to apply" prompt.
-const MODE_SWITCH_NOTICE_MS = 2400
-const modeSwitchNotice = ref(null)
-let modeSwitchNoticeTimer = null
-
+// Easy / Fast — the mode you pick BEFORE you start, which is why it lives on
+// the resting screen rather than in the mid-session mode tray. Fast is the
+// default and is the long-standing pace; Easy gives roughly double the
+// thinking time and double the repetitions.
 const setMode = (mode) => {
   if (mode === props.learningMode) return
   emit('set-learning-mode', mode)
-  modeSwitchNotice.value = mode === 'easy'
-    ? t('modes.switchingToEasy', 'Switching to Easy mode')
-    : t('modes.switchingToFast', 'Switching to Fast mode')
-  if (modeSwitchNoticeTimer) clearTimeout(modeSwitchNoticeTimer)
-  modeSwitchNoticeTimer = setTimeout(() => { modeSwitchNotice.value = null }, MODE_SWITCH_NOTICE_MS)
 }
-
-onUnmounted(() => {
-  if (modeSwitchNoticeTimer) clearTimeout(modeSwitchNoticeTimer)
-})
 </script>
 
 <template>
@@ -139,39 +122,11 @@ onUnmounted(() => {
         >{{ t('modes.fast', 'Fast') }}</button>
       </div>
 
-      <!-- Confirmation that the switch has landed. It applies from the next
-           phrase — no restart, no cache clear — so this says so and fades. -->
-      <Transition name="mode-notice">
-        <p v-if="modeSwitchNotice" class="mode-switch-notice" role="status" aria-live="polite">
-          {{ modeSwitchNotice }}
-        </p>
-      </Transition>
-
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ===== Learning-mode switch confirmation ===== */
-.mode-switch-notice {
-  margin: 8px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary, #6b6660);
-  text-align: center;
-  pointer-events: none;
-}
-
-.mode-notice-enter-active,
-.mode-notice-leave-active {
-  transition: opacity 220ms ease;
-}
-
-.mode-notice-enter-from,
-.mode-notice-leave-to {
-  opacity: 0;
-}
-
 /* ===== Learning-mode switch (easy / fast) ===== */
 .mode-switch {
   display: inline-flex;
