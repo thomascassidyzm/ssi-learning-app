@@ -502,6 +502,17 @@ const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
 const selectedScene = ref(null)
 
+// A course whose pod-0 holds no sentences has no Dialogues to offer, so the
+// tab is HIDDEN rather than shown leading to an empty shelf (Tom 2026-08-08:
+// the pod is hidden while it's ungated, never offered-but-empty). General
+// rule, not a per-course carve-out — any course in this state is covered.
+// Deliberately optimistic while loading and on error: a transient read
+// failure must never make a real pod vanish, and the error state has its own
+// message inside the tab.
+const podsAvailable = computed(
+  () => pods.isLoading.value || !!pods.error.value || pods.scenes.value.length > 0,
+)
+
 // Pagination
 const BATCH_SIZE = 50
 const VISIBLE_WINDOW = 7
@@ -734,7 +745,7 @@ const exitScene = () => {
 // Going offline mid-session while sat on 'All' (e.g. the connection drops)
 // bounces back to Dialogues — 'All' never has offline audio to play.
 watch(() => props.isOffline, (offline) => {
-  if (offline && view.value === 'phrases') setView('pods')
+  if (offline && view.value === 'phrases') setView(podsAvailable.value ? 'pods' : 'seeds')
 })
 
 const setView = (v) => {
@@ -761,6 +772,17 @@ const setView = (v) => {
     hasMore.value = false
   }
 }
+
+// Dialogues is the default view, so a course with no pod would open straight
+// onto the empty shelf the hidden tab exists to prevent. As soon as the read
+// settles on "no scenes", fall through to Core — the deepest surface that is
+// always populated. Not immediate: the composable starts its read during
+// setup, so podsAvailable is true on the first tick for every real course and
+// this always fires on the loading→settled transition instead — which keeps
+// setView's own dependencies (stopPlayback, loadSeeds) out of their TDZ.
+watch(podsAvailable, (available) => {
+  if (!available && view.value === 'pods') setView('seeds')
+})
 
 const loadLegoOrdinals = async () => {
   if (!supabase?.value || !props.courseCode) return
@@ -1938,6 +1960,7 @@ watch(
          All       = every USE phrase the learner has met. -->
     <div class="view-tabs" @click.stop>
       <button
+        v-if="podsAvailable"
         class="view-tab"
         :class="{ active: view === 'pods' }"
         @click="setView('pods')"
@@ -1959,7 +1982,7 @@ watch(
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
     <div
-      v-if="view === 'pods' && !selectedScene"
+      v-if="view === 'pods' && !selectedScene && podsAvailable"
       class="scene-list-wrap"
       @click.stop
     >
