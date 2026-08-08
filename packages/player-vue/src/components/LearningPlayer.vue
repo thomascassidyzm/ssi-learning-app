@@ -57,7 +57,13 @@ import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
-import { useAlgorithmConfig, normalizePhraseRepeatCount, normalizeRepeatedCycleTypes, type LearningMode } from '../composables/useAlgorithmConfig'
+import {
+  useAlgorithmConfig,
+  resolveListeningPlayPolicy,
+  normalizePhraseRepeatCount,
+  normalizeRepeatedCycleTypes,
+  type LearningMode,
+} from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
@@ -3537,6 +3543,21 @@ watch(learnerId, (id) => {
   if (id) metaCommentary?.setLearnerId(id)
 })
 
+/**
+ * THE listening play/speed policy (Tom, 2026-08-07) — ONE simplified mode.
+ * Every listening phrase, in BOTH layers, plays target · known · target ·
+ * target, with all four clips at one speed picked by how many times the
+ * learner has met that phrase, never above 1.0.
+ *
+ * Built once here and handed to both schedulers so Layer 1 and Layer 2
+ * provably cannot drift apart. Reactive on the `listening` DB row AND on the
+ * active mode's `listeningSpeedRamp`, so switching Easy↔Fast re-ramps on the
+ * next lap without a reload.
+ */
+const listeningPlayPolicy = computed(() =>
+  resolveListeningPlayPolicy(listeningConfig.value, learningMode.value, activeModeConfig.value),
+)
+
 // ============================================
 // LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
 // Replaces the old script-baked pod emission. Fires between rounds when
@@ -3555,6 +3576,11 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // The 2026-08-07 one-mode redesign: one T·K·T·T pattern at one
+      // exposure-ramped speed, superseding the nine-stage playlist above
+      // (which stays wired only for the DB escape hatch).
+      listeningPolicy: listeningPlayPolicy,
+      targetSpeed: computed(() => currentTargetSpeedConfig()),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
       // sentence goes straight to Stage 1. The per-atom breakdown a
       // sentence used to get from AUDIO reps now comes from the
@@ -3625,6 +3651,8 @@ const l1Scheduler = supabase?.value
       // config the speaking rounds bake with, so listening can never drift
       // away from the speaking curve.
       targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // Same policy object as the pods — one pattern, one ramp, one ceiling.
+      listeningPolicy: listeningPlayPolicy,
     })
   : null
 
@@ -4490,6 +4518,14 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
       plays: inputLap.plays.map((p) => {
         const play = p as PodPlay
         if (play.isLayer1) return play
+        // 2026-08-07 (Tom): a play whose speed came from the EXPOSURE ramp is
+        // already final — globalSpeed folded in, 1.0 ceiling applied, and the
+        // same rate on all four slots. Re-ramping it here would both
+        // double-apply the course speed and re-split the phrase, because this
+        // pass only touches target roles. Skipped exactly as Layer 1 is. The
+        // belt ramp still governs everything that ISN'T exposure-ramped:
+        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
       }),

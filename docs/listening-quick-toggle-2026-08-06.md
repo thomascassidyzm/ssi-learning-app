@@ -8,6 +8,12 @@ from quite easily."
 Verified on the live dev build (`ssi-learning-app-git-dev-zenjin.vercel.app`),
 phone viewport, a learner who has never opened developer settings.
 
+> **Superseded in part (2026-08-07).** The toggle and its UI are unchanged, but
+> what the toggle turns ON is now one simplified listening mode: every phrase
+> plays target · known · target · target, all four clips at one speed, ramped
+> over exposures and never above 1.0. The nine-stage ladder is retired. See
+> `docs/cold-start-and-playback.md` and `apml/learning/listening-layers.apml`.
+
 ## What it looks like now
 
 Listening mode sits in the mode tray between Pronunciation and Offline, as a plain
