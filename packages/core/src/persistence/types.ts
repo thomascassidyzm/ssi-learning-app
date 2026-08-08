@@ -36,8 +36,13 @@ export interface LearnerPreferences {
   session_duration_minutes: number;
   /** Whether to show encouragements */
   encouragements_enabled: boolean;
-  /** Whether turbo mode is enabled */
-  turbo_mode_enabled: boolean;
+  /** Which of the two learner-facing modes is active. 'fast' is the default
+   *  and is the historical "normal" mode; 'easy' doubles the thinking time
+   *  and the reps and HALVES the longest phrase. Replaced
+   *  `turbo_mode_enabled` on 2026-08-06 when Turbo was retired. Optional so
+   *  a learner row written before that date still typechecks — absent
+   *  reads as 'fast'. */
+  learning_mode?: 'easy' | 'fast';
   /** Volume level (0-1) */
   volume: number;
   /** Last accessed course code (cross-device persistence) */

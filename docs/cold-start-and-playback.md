@@ -43,5 +43,57 @@ On ready, the console logs `[ColdStart] launch→ready Xms total (incl. app-shel
 - `instantPlayback.prefetchTier3` — next-round cycle metadata.
 - `audioCache.persistent.ensure` — direct cache warming from pods, L1, `warmFirstKnownAudio`, and prep-cycle races.
 
+## Listening playback is ONE mode (Tom, 2026-08-07)
+
+Every listening phrase — Layer-1 seed cups and Layer-2 pod laps alike — plays
+exactly four clips: **target · known · target · target**, all four at the **same
+speed**. The nine-stage pod ladder that varied the pattern per stage is retired,
+and with it the 1.5×/2× stretch reps and the Phase-0 explainer slot.
+
+Speed is **two ramps composed** — a belt ceiling with a per-exposure ramp
+underneath it — and never above **1.0**:
+
+```
+speed = min( exposure step , belt ceiling ) x globalSpeed, clamped at 1.0
+```
+
+The belt rung is the **maximum for that learner**; the exposure ramp is what
+approaches it from below on early hearings.
+
+| Easy belt ceiling | | Easy exposure ramp | |
+|---|---|---|---|
+| white + yellow (seeds 1-19) | 0.8 | 1st hearing | 0.7 |
+| orange + green (20-79) | 0.9 | next four | 0.8 |
+| blue and beyond (80+) | 1.0 | thereafter | 1.0 |
+
+So a **white-belt Easy learner never exceeds 0.8×** however many times they have
+heard the phrase — 0.7 once, then 0.8 for ever; the ramp's 1.0 step is
+unreachable until blue belt. **Fast has no ceiling** and starts at 1.0 — the
+belt table is Easy-only.
+
+This is its **own** table, not the speaking side's `beltSpeed` (0.8/0.9/0.95/1.0
+at seeds 8/20/40): gentler, holding each rung for two belts and not reaching 1.0
+until blue. The ceiling is keyed on the **learner's** position, not the replayed
+phrase's.
+
+The course `globalSpeed` still multiplies in and can only slow a clip down
+(French 0.95 → a first Easy hearing is 0.665). **1.0 is clamped in code**, not
+just in the default config: the configs are live `algorithm_config` rows that
+override code defaults at runtime, so a row asking for 1.5 still plays at 1.0.
+
+Every number is a config key — the pattern, the ramp table, the ceiling, and
+which axis decides the speed. Per-mode ramps live on `easy_mode` / `fast_mode`
+(`listeningSpeedRamp`); the mode-agnostic pattern, ceiling and speed source live
+on the `listening` row.
+
+Two things are kept and restorable **by config alone, no deploy**:
+`listening.speedSource: 'belt'` brings back the 2026-08-06 belt curve, and
+`listening.listeningUseStagePlaylist: true` brings back the nine-stage ladder.
+
+Code: `packages/player-vue/src/playback/listeningExposureRamp.ts` (the one home)
+· `useLayer1Scheduler` · `usePodLapScheduler` · spec in
+`apml/learning/listening-layers.apml` · locked by
+`packages/player-vue/src/playback/listeningOneMode.test.ts`.
+
 ## Known doc debt
 Some `// AudioPrefetcher's …` comments inside `LearningPlayer.vue` still reference the removed module — non-functional, slated for a comment sweep.

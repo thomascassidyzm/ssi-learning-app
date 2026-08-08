@@ -643,6 +643,144 @@ describe('SimplePlayer — background-safe pause', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Post-voice2 gap (Easy mode, Tom 2026-08-07).
+//
+// Easy holds a beat of silence after voice2 "to stop the next cycle just
+// coming in and taking over" — and, because voice2 is the phase with the
+// target text on screen, that text stays up for the beat too. The hold is
+// delivered by the SAME background-safe protocol as the pause phase: an
+// exactly-length silent clip on the main element, advancing on its 'ended',
+// with an equal-length backstop timer. Fast returns 0 and must be untouched.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — post-voice2 gap', () => {
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 6; i++) await Promise.resolve()
+  }
+
+  // Walk a pauseDuration:0 cycle prompt → voice1 → voice2 → end of cycle.
+  async function playThroughVoice2(player: SimplePlayer): Promise<void> {
+    player.play()
+    await flush()
+    mockAudio._endedHandler!()   // prompt → voice1 (pause skipped)
+    await flush()
+    mockAudio._endedHandler!()   // voice1 → voice2
+    await flush()
+    mockAudio._endedHandler!()   // voice2 → end of cycle
+    await flush()
+  }
+
+  it('Easy: holds a silent clip after voice2 instead of starting the next cycle', async () => {
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { getPostVoice2GapMs: () => 1000 },
+    )
+    await playThroughVoice2(player)
+
+    // The hold is sounding, and the next cycle has NOT started.
+    expect(isSilentPauseClip(mockAudio.src)).toBe(true)
+    expect(mockAudio.loop).toBe(false)
+    expect(player.currentState.roundIndex).toBe(0)
+    expect(player.currentState.phase).toBe('voice2')
+
+    // Backstop timer ends the hold and the next round's prompt starts.
+    vi.advanceTimersByTime(1000)
+    await flush()
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.phase).toBe('prompt')
+  })
+
+  it("Easy: the hold clip's own 'ended' advances too (the background-safe path)", async () => {
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { getPostVoice2GapMs: () => 1000 },
+    )
+    await playThroughVoice2(player)
+    expect(isSilentPauseClip(mockAudio.src)).toBe(true)
+
+    // Timers frozen (backgrounded tab) — the clip's natural 'ended' carries it.
+    mockAudio._endedHandler!()
+    await flush()
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.phase).toBe('prompt')
+
+    // And the now-stale backstop timer must not double-advance.
+    vi.advanceTimersByTime(5000)
+    await flush()
+    expect(player.currentState.roundIndex).toBe(1)
+  })
+
+  it('Fast: a 0 gap starts the next cycle immediately, exactly as before', async () => {
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { getPostVoice2GapMs: () => 0 },
+    )
+    await playThroughVoice2(player)
+
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.phase).toBe('prompt')
+    expect(mockAudio.src).toBe('https://example.com/k.mp3')
+  })
+
+  it('no override at all behaves identically to Fast', async () => {
+    const player = new SimplePlayer([makeRound('S0001L01'), makeRound('S0002L01')])
+    await playThroughVoice2(player)
+
+    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.phase).toBe('prompt')
+  })
+
+  it('a failure to sound the silent hold never halts the cycle', async () => {
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { getPostVoice2GapMs: () => 1000 },
+    )
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+    await playThroughVoice2(player)
+
+    // The element errors on the silent clip (phase is still 'voice2').
+    mockAudio.error = { code: 4 }
+    mockAudio._errorHandler!(new Event('error'))
+    await flush()
+    expect(failed).toHaveLength(0)
+
+    // The backstop still ends the hold.
+    vi.advanceTimersByTime(1000)
+    await flush()
+    expect(player.currentState.roundIndex).toBe(1)
+  })
+
+  it('pausing during the hold stops the clip and does not advance', async () => {
+    const player = new SimplePlayer(
+      [makeRound('S0001L01'), makeRound('S0002L01')],
+      { getPostVoice2GapMs: () => 1000 },
+    )
+    await playThroughVoice2(player)
+    expect(isSilentPauseClip(mockAudio.src)).toBe(true)
+
+    player.pause()
+    vi.advanceTimersByTime(5000)
+    await flush()
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(player.currentState.roundIndex).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Plan 005: staleness guard on the awaited resolveUrl in startPhase.
 //
 // resolveUrl (offline/cache path) can take tens–hundreds of ms. If a jump

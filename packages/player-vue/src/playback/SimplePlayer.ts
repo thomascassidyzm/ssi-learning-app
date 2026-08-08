@@ -12,18 +12,33 @@ import type { Cycle, Round } from '@ssi/core'
 
 /**
  * Runtime overrides that LearningPlayer can supply to apply mode-dependent
- * timing (Turbo) without baking it into the script. Pure callbacks — the
- * engine reads them at the moment of each phase, so flipping Turbo
- * mid-round takes effect on the very next pause / voice phase.
+ * timing (the Easy / Fast learning modes) without baking it into the script.
+ * Pure callbacks — the engine reads them at the moment of each phase, so
+ * flipping mode mid-round takes effect on the very next pause / voice phase.
  */
 export interface SimplePlayerRuntimeOverrides {
   /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
   getPauseDuration?: (cycle: Cycle) => number | undefined
-  /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
-  getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
-  /** Return true to skip this cycle entirely (advance to the next). Used by Turbo to
-   * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
-   * Turbo mid-round shortens the remaining round on the next cycle boundary. */
+  // NOTE: there is deliberately no mode speed hook here. Target-voice speed has
+  // exactly ONE source — the baked `cycle.playbackSpeed` from `computeCycleSpeed`
+  // / `computeListeningSpeed`. Easy owned such a hook until 2026-08-07 and used
+  // it to cancel the belt ramp, so beginners on Easy heard speech faster than
+  // beginners on Fast. Modes differ by pause, repetition and phrase length —
+  // never by speed.
+  /**
+   * Extra silence (ms) held AFTER voice2 before the next cycle starts, on top
+   * of whatever the cycle already bakes in as `lingerMs`. Easy mode uses it so
+   * the next cycle doesn't come straight in over the top of the one just
+   * heard — and, because voice2 is the phase with the target text on screen,
+   * the text stays up for that bit longer (Tom, 2026-08-07). Return undefined
+   * / 0 to leave the cycle's baked linger alone. Fast returns 0.
+   */
+  getPostVoice2GapMs?: (cycle: Cycle) => number | undefined
+  /** Return true to skip this cycle entirely (advance to the next). Consulted
+   * before starting any phase, so a mid-round change shortens the remaining
+   * round on the next cycle boundary. Retired Turbo used this to cull its
+   * tagged cycles; adaptation v2 is the only remaining caller — the Easy /
+   * Fast modes differ by script-shape OVERRIDE, never by a cull. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
   /**
    * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
@@ -216,7 +231,7 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // (owned at LearningPlayer level via useAudioSessionKeepalive) is left exactly
 // as-is underneath.
 //
-// The existing dynamic/Turbo pause-duration timer is kept as a trim/backstop:
+// The existing dynamic/mode pause-duration timer is kept as a trim/backstop:
 // whichever of (clip 'ended', trim timer) fires first advances, guarded by
 // playGeneration against a double advance.
 //
@@ -226,12 +241,36 @@ const PHASE_START_TIMEOUT_MS = 8_000
 // an empty src iOS treats as nothing).
 
 // Fixed clip length, comfortably longer than any realistic pause (DEFAULT is
-// 6500ms; adaptive/Turbo never exceed it by much). The trim timer cuts it
-// short for the actual dynamic/Turbo pause; the natural 'ended' is the
+// 6500ms; adaptive/mode pauses never exceed it by much). The trim timer cuts
+// it short for the actual dynamic/mode pause; the natural 'ended' is the
 // background backstop when the timer is frozen.
 const SILENT_CLIP_DURATION_S = 12
 
 const SILENT_PAUSE_CLIP = buildSilentWavDataUri(SILENT_CLIP_DURATION_S)
+
+/**
+ * Silent clips cut to an EXACT length, for the post-voice2 linger.
+ *
+ * The pause phase can use one long clip plus a trim timer because a frozen
+ * (backgrounded) timer only overshoots a pause that was seconds long anyway.
+ * The linger is ~1-2s, so an overshoot to the 12s clip would be a glaring
+ * hole in the session under lock. Cutting the clip to the exact linger makes
+ * its natural 'ended' — the event iOS does NOT freeze — the primary advance,
+ * with the timer as a same-length backstop.
+ *
+ * Cached per rounded-to-50ms duration: a session uses two or three distinct
+ * linger lengths, so this builds a handful of small strings once.
+ */
+const lingerClipCache = new Map<number, string>()
+function silentClipForMs(ms: number): string {
+  const key = Math.max(50, Math.round(ms / 50) * 50)
+  let clip = lingerClipCache.get(key)
+  if (!clip) {
+    clip = buildSilentWavDataUri(key / 1000)
+    lingerClipCache.set(key, clip)
+  }
+  return clip
+}
 
 /**
  * Consecutive skipped clips at which the log escalates from "a puncture" to
@@ -284,6 +323,10 @@ export class SimplePlayer {
   // frozen while backgrounded. 0 when not in a pause.
   private pauseEndsAt: number = 0
   private lingerTimer: ReturnType<typeof setTimeout> | null = null
+  // True only while the silent linger clip is sounding on this.audio (the
+  // post-voice2 hold). Lets the 'ended' hub tell a linger clip apart from a
+  // real voice clip — same shape as pauseClipActive.
+  private lingerClipActive: boolean = false
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -336,6 +379,10 @@ export class SimplePlayer {
       // UI moves through phases while no sound came out. Pause phase,
       // idle, and buffering don't have audio in flight, so ignore those.
       if (this.state.phase === 'pause' || this.state.phase === 'idle' || this.state.phase === 'buffering') return
+      // The post-voice2 linger sounds a silent clip while phase is still
+      // 'voice2'. A failure to sound SILENCE is not a learner-visible failure
+      // — the backstop timer still ends the hold — so never retry/halt on it.
+      if (this.lingerClipActive) return
       // Ignore errors against a src generation a reposition has already
       // superseded (e.g. audio.pause() interrupting a load whose 'error'
       // task fires after startPhase() re-armed phase in the same tick).
@@ -501,8 +548,6 @@ export class SimplePlayer {
     let rate = 1.0
     if (isTarget && this.currentCycle) {
       rate = this.currentCycle.playbackSpeed ?? 1.0
-      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
-      rate *= multiplier
     }
     this.audio.playbackRate = rate
     this.audio.play().catch((err) => {
@@ -613,7 +658,7 @@ export class SimplePlayer {
 
   /**
    * Replace the runtime overrides. Used when LearningPlayer wants to
-   * supply Turbo-aware callbacks after the player has been constructed,
+   * supply mode-aware callbacks after the player has been constructed,
    * e.g. once the algorithm config has loaded from Supabase.
    */
   setRuntimeOverrides(overrides: SimplePlayerRuntimeOverrides): void {
@@ -839,11 +884,12 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Skip leading turboOmit cycles when Turbo is on. If every cycle is
-    // skipped, the round is empty in this mode — advance to the next.
+    // Honour the runtime cull (adaptation v2's shouldSkipCycle) on the
+    // round's leading cycles. If every cycle is skipped the round has nothing
+    // left to play — advance to the next.
     const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
     if (startIdx === -1) {
-      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped under Turbo, advancing`)
+      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped by the runtime cull, advancing`)
       this.updateState({ isPlaying: true })
       this.advanceRound()
       return
@@ -908,7 +954,7 @@ export class SimplePlayer {
   }
 
   // Mirror of findNextPlayableCycleIndex, walking backwards. Used by
-  // stepCycle(-1) so a Turbo-culled cycle is skipped over when stepping
+  // stepCycle(-1) so a runtime-culled cycle is skipped over when stepping
   // back rather than landing on a cycle that won't play.
   private findPrevPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
@@ -932,7 +978,7 @@ export class SimplePlayer {
    * the step is a no-op — the caller owns what happens off the edge
    * (the header forward enters INF PLAY; nothing precedes the start).
    *
-   * Turbo-skipped cycles are honoured via find{Next,Prev}PlayableCycleIndex
+   * Runtime-culled cycles are honoured via find{Next,Prev}PlayableCycleIndex
    * so a single tap lands on the next *playable* cycle, never a culled one.
    * Routes through jumpToRound so play-state preservation, audio teardown
    * and cycle clamping all reuse the audited path.
@@ -1303,17 +1349,14 @@ export class SimplePlayer {
     this.retryIsTarget = isTarget
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
-    // Runtime override (Turbo) can multiply the baked rate; the override is
-    // expected to gate itself on cycle type so it doesn't double up on
-    // listening cycles that already have an explicit speed.
+    // The baked rate is the whole truth: no mode may multiply it (see the
+    // runtime-overrides note at the top of this file).
     let rate = 1.0
     if (isTarget && this.currentCycle) {
       rate = this.currentCycle.playbackSpeed ?? 1.0
-      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
-      rate *= multiplier
     }
-    // Speed >1.05× is unexpected on speaking cycles (Turbo only goes
-    // to 1.25×) but expected on L1 ps2x and L2 pod-stage 2× plays.
+    // Speed >1.05× is unexpected on speaking cycles (neither Easy nor Fast
+    // exceeds 1.0×) but expected on L1 ps2x and L2 pod-stage 2× plays.
     // Only warn for non-listening cycles to keep the console useful.
     const isExpectedFastCycle = this.currentCycle?.type === 'listening'
       || this.currentCycle?.type === 'pod'
@@ -1383,7 +1426,7 @@ export class SimplePlayer {
 
   private startPausePhase(): void {
     const cycle = this.currentCycle
-    // Runtime override (Turbo) can shorten the pause; if it returns
+    // The mode runtime override can shorten the pause; if it returns
     // undefined, fall back to the baked cycle.pauseDuration.
     const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
     const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
@@ -1395,7 +1438,8 @@ export class SimplePlayer {
     // now-playing session asserted and the advance firing while the tab is
     // backgrounded / the screen is locked, exactly as the pod lap's real
     // clips do. The clip is longer than any realistic pause; the trim timer
-    // cuts it to the precise dynamic/Turbo duration. See buildSilentWavDataUri.
+    // cuts it to the precise pause duration for this cycle. See
+    // buildSilentWavDataUri.
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen
     this.pauseClipActive = true
@@ -1416,8 +1460,8 @@ export class SimplePlayer {
       // Ditto — fall through to the timer.
     }
 
-    // Trim timer: bounds the (longer) clip to the exact dynamic/Turbo pause
-    // duration. While foregrounded this fires on time; while backgrounded iOS
+    // Trim timer: bounds the (longer) clip to the exact pause duration for
+    // this cycle. While foregrounded this fires on time; while backgrounded iOS
     // may throttle it, in which case the clip's own 'ended' (or the visibility
     // catch-up) carries the advance instead.
     this.pauseTimer = setTimeout(() => {
@@ -1478,6 +1522,14 @@ export class SimplePlayer {
       clearTimeout(this.lingerTimer)
       this.lingerTimer = null
     }
+    // Stop the silent linger clip wherever the timer is cleared — the same
+    // single chokepoint clearPauseTimer uses. Every exit path (pause / stop /
+    // stopForReposition / tripGestureRequired) already calls this, so the clip
+    // can never be left sounding into the next cycle.
+    if (this.lingerClipActive) {
+      this.lingerClipActive = false
+      try { this.audio.pause() } catch { /* element may already be torn down */ }
+    }
   }
 
   private onAudioEnded(): void {
@@ -1493,21 +1545,81 @@ export class SimplePlayer {
       return
     }
 
+    // The silent linger clip reaching its natural end is the background-safe
+    // trigger for "post-voice2 hold is over". Route it through endLinger so it
+    // shares the single, generation-guarded advance path with the backstop
+    // timer. Checked BEFORE getNextPhase because the phase is still 'voice2'
+    // here — without this we'd fall straight back into the linger branch.
+    if (this.lingerClipActive) {
+      this.endLinger()
+      return
+    }
+
     const nextPhase = this.getNextPhase()
     if (nextPhase) {
       this.startPhase(nextPhase)
     } else {
-      // End of cycle — linger if requested (intro/debut tiles stay visible)
-      const linger = this.currentCycle?.lingerMs
-      if (linger && linger > 0) {
-        this.lingerTimer = setTimeout(() => {
-          this.lingerTimer = null
-          if (this.state.isPlaying) this.advanceCycle()
-        }, linger)
+      // End of cycle — hold before the next cycle starts. Two sources, and we
+      // take the longer: the cycle's own baked linger (intro/debut tiles stay
+      // visible) and the active mode's post-voice2 gap (Easy).
+      const cycle = this.currentCycle
+      const modeGap = cycle ? this.runtimeOverrides.getPostVoice2GapMs?.(cycle) : undefined
+      const linger = Math.max(cycle?.lingerMs ?? 0, modeGap ?? 0)
+      if (linger > 0) {
+        this.startLinger(linger)
       } else {
         this.advanceCycle()
       }
     }
+  }
+
+  /**
+   * Hold after voice2 for `duration` ms, then advance to the next cycle.
+   *
+   * Sounds an exactly-`duration` silent clip on the MAIN element so the hold
+   * advances on a media 'ended' event rather than a bare setTimeout — the same
+   * background/lock-screen protocol the PAUSE phase uses (see the
+   * "Background-safe PAUSE phase" block above). The timer is kept as an equal-
+   * length backstop for environments where the clip can't sound; whichever
+   * fires first advances, guarded by playGeneration against a double advance.
+   */
+  private startLinger(duration: number): void {
+    const gen = ++this.playGeneration
+    this.lastAssignedSrcGen = gen
+    this.lingerClipActive = true
+    try {
+      this.audio.src = silentClipForMs(duration)
+      this.audio.playbackRate = 1.0
+      this.audio.loop = false // NEVER loop — the disabled 2026-05-23 oscillation landmine.
+      const p = this.audio.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Non-critical: the backstop timer still ends the hold. Never halt
+          // the cycle on silence, and never trip gesture-required off it.
+        })
+      }
+    } catch {
+      // Ditto — fall through to the timer.
+    }
+
+    this.lingerTimer = setTimeout(() => {
+      if (gen !== this.playGeneration) return
+      this.endLinger()
+    }, duration)
+  }
+
+  /**
+   * End the post-voice2 hold exactly once and advance. Idempotent: the
+   * playGeneration bump makes a second caller (clip 'ended' arriving just
+   * after the backstop timer, or vice versa) a no-op.
+   */
+  private endLinger(): void {
+    if (!this.lingerClipActive) return
+    this.lingerClipActive = false
+    ++this.playGeneration // invalidate the backstop timer and any trailing 'ended'
+    this.clearLingerTimer()
+    this.audio.pause()
+    if (this.state.isPlaying) this.advanceCycle()
   }
 
   private getNextPhase(): Phase | null {
@@ -1536,9 +1648,9 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Find the next non-skipped cycle. Lets Turbo cull tagged cycles
-    // mid-round: the current cycle finishes, then the runtime override
-    // jumps over any turboOmit'd cycles before the next prompt.
+    // Find the next non-skipped cycle. Lets the runtime cull take effect
+    // mid-round: the current cycle finishes, then the override jumps over
+    // any cycles it now wants skipped before the next prompt.
     const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
       this.updateState({ cycleIndex: nextIdx })

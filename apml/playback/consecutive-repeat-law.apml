@@ -1,0 +1,254 @@
+# APML Playback: The consecutive-repeat law (A-64)
+# SSI Learning App
+# Version: 1.2.1
+# Last updated: 2026-08-08
+# Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
+#         packages/player-vue/src/providers/generateLearningScript.ts
+#         packages/player-vue/src/providers/backendCyclesToRounds.ts
+#         packages/player-vue/src/providers/toSimpleRounds.ts
+#         packages/player-vue/src/composables/usePodLapScheduler.ts
+#         packages/player-vue/src/composables/useLayer1Scheduler.ts
+#         packages/player-vue/src/composables/useOfflinePlay.ts
+
+## ============================================================================
+## THE LAW
+## ============================================================================
+
+SPECIFICATION:
+  name: "No prompt three times in a row"
+  ruling: |
+    Tom, 2026-08-06, clearing plate item A-64, verbatim:
+
+      "no mode should ever repeat the same prompt more than twice
+       consecutively"
+
+    It binds EVERY mode: the 4-phase learning player in Easy and Fast,
+    Listening mode / the pods, infinite play, and every degraded or fallback
+    playback path. Two identical prompts back to back is legal. Three is not,
+    under any configuration.
+  scope: |
+    CONSECUTIVENESS ONLY. Spaced repetition is untouched — a phrase may be
+    revisited any number of times across a session, and total repetition
+    counts are preserved wherever the arithmetic allows. The fix for a third
+    consecutive play is to RE-INTERLEAVE it (move it past a differing item),
+    never to delete it. A rep is dropped only when there is genuinely nothing
+    to interleave against.
+  easy_doubling: |
+    2026-08-07 — Easy mode now DELIBERATELY plays every BUILD, REVIEW, USE and
+    CONSOLIDATE cycle twice in a row (providers/repeatPhraseCycles.ts). That is
+    legal under this law and is exactly why the law is a maximum of TWO: Tom's
+    own framing, "a phrase repeated 3x would drive people nuts, but doubled up
+    is perfect". The repeat COUNT is config (algorithm_config, per mode) but is
+    clamped to 2 in code, so no row can ever ask this law to be broken.
+
+    ORDERING IS LOAD-BEARING, on BOTH paths. The repeat runs AFTER the
+    generator's consecutive-duplicate removal — which would otherwise strip the
+    twin on sight — and BEFORE this law's floor, which therefore stands
+    downstream of the repeater on the script-walk path (generateLearningScript)
+    and on the instant-playback path (backendCyclesToRounds, where
+    repeatRoundCycles runs before capRoundCycles). Any future emitter that
+    wants a deliberate repeat must sit in the same place.
+  identity: |
+    "The same prompt" = identical normalised known text paired with identical
+    normalised target text (the getPhraseId notion). Listening items are the
+    exception: a pod sentence play carries no known text and a pod translation
+    carries no target text, so pod plays are identified by AUDIO ID — which
+    makes 'ps' and 'ps2x' (the same clip at 1× and 2×) correctly the same
+    prompt.
+
+## ============================================================================
+## THE ENFORCEMENT POINT
+## ============================================================================
+
+COMPONENT:
+  file: "packages/player-vue/src/playback/capConsecutiveRepeats.ts"
+  exports:
+    - "capConsecutiveRepeats(items, identityOf, options) → { items, dropped, tail, reordered, forcedKeeps }"
+    - "capRoundCycles(rounds, identityOf) → { rounds, dropped, reorderedRounds } — per-round, seam-seeded"
+    - "cyclePromptIdentity(cycle) → string — prompt identity for a player Cycle"
+    - "findConsecutiveBreach(items, identityOf, max) → index | -1"
+  purity: "Pure. No I/O, no mutation of the input."
+  algorithm: |
+    Earliest legal item that keeps the remainder schedulable. Walk the queue
+    and emit the first remaining item that neither creates a third consecutive
+    repeat nor strands the tail. Input order survives except where the law
+    forces a swap.
+
+    The feasibility lookahead is load-bearing: an identity with c copies fits
+    only if c <= max * (others + 1) - trailing_run. Plain first-legal-wins
+    emits A,B,B out of A,B,B,A,B,B,B and then has to drop a B; the lookahead
+    finds B,B,A,B,B,A,B and keeps all seven. With it, a rep is dropped only
+    when NO ordering could have kept it.
+  options:
+    max: "Identical items allowed back to back. Default 2 — the law."
+    seed: "Identities immediately preceding this sequence, so the cap holds across a boundary the caller processes in separate calls."
+    minKeep: "Never return fewer than N items even if the law would empty the sequence. Keeping the session alive outranks the cap; such items are counted in forcedKeeps."
+
+## ============================================================================
+## APPLICATION SITES
+## ============================================================================
+
+SITE:
+  name: "Main learning script + infinite play"
+  file: "packages/player-vue/src/providers/generateLearningScript.ts"
+  placement: |
+    A final per-round pass over the playable item list, after the
+    consecutive-duplicate dedup and the missing-text filter, before the
+    round recount and return.
+  round_confinement: |
+    Re-interleaving NEVER crosses a round boundary — rounds are the player's
+    unit of position. Each round is capped separately and seeded with the
+    previous round's tail, so the law holds at the seam without an item ever
+    migrating between rounds.
+  identity_fn: "scriptItemIdentity (exported from the same module)"
+  status: |
+    A FLOOR, not a repair. The pre-existing consecutive-duplicate pass already
+    collapses adjacent identical ordinary cycles to one, so the main loop and
+    the infinite-play tail were already lawful — verified by removing the cap
+    and watching the A-64 regression tests still pass. The cap exists so that
+    no future emitter, no algorithm_config script_shape value (Easy mode's
+    doubled n1PhraseCount included) and no listening item type can breach.
+
+SITE:
+  name: "The round adapters — the true last word for the main player"
+  files:
+    - "packages/player-vue/src/providers/backendCyclesToRounds.ts (backendCyclesToRounds + infPlayCyclesToRounds)"
+    - "packages/player-vue/src/providers/toSimpleRounds.ts"
+  placement: "capRoundCycles() on the returned Round[], immediately before SimplePlayer receives them."
+  why_here: |
+    INSTANT_PLAYBACK_ALL is true in LearningPlayer.vue, so EVERY course takes
+    the instant-playback path: the server cycles route → useInstantPlayback →
+    backendCyclesToRounds → SimplePlayer. That path never touches
+    generateLearningScript, so a cap living only in the generator protects
+    nobody on the live default path. The adapters are the one point both paths
+    pass through.
+
+    Placing it here also survives the adapters' own missing-audio filtering,
+    which drops unplayable cycles and can therefore pull two previously
+    separated prompts together.
+  anchored_opening: |
+    A round's LEADING intro / component_intro / debut cycles are ANCHORED —
+    passed through untouched and never displaced by re-interleaving, because a
+    round must open with its intro then its debut (asserted by
+    validateLearningScript, assumed by the UI). Their identities still seed the
+    cap for the rest of the round.
+
+    Honest consequence: the anchored opening is EXEMPT from the law. A round
+    whose intro and debut are both textually identical to the two cycles ending
+    the previous round would breach at the seam. That needs two adjacent LEGOs
+    carrying the same bare text — a content defect, not a scheduling one — so it
+    is not reachable with real content. The alternative (hoisting a build phrase
+    in front of the intro) breaks a structural invariant to fix an unreachable
+    case, which is the worse trade.
+  covers_server_route: |
+    api/courses/[code]/cycles.ts emits `intro` then `debut` with IDENTICAL
+    known_text + target_text (buildLegoCycles reads lego.known_text /
+    legoTargets.target_text for both) and then appends build phrases with no
+    adjacency check — so a first BUILD phrase duplicating the bare LEGO text
+    gives three in a row. Capping client-side covers every consumer of that
+    route without a second, drifting server-side implementation.
+
+SITE:
+  name: "Layer-1 listening cups"
+  file: "packages/player-vue/src/composables/useLayer1Scheduler.ts"
+  placement: "buildSeedPlays(), on the returned plays, identified by audio id."
+  breach_it_closes: |
+    DEFAULT_SEED_PLAYLIST (t1·known·t2·t1) is lawful — the trailing t2·t1 pair
+    is two plays of the same clip, which the law allows. But the playlist is
+    admin-tunable via algorithm_config['listening'].seedPlaylist with no
+    validation, so a saved ['known','t1','t1','t2'] would emit three identical
+    target plays. The cap makes that unreachable from config.
+
+SITE:
+  name: "Listening mode pod laps"
+  file: "packages/player-vue/src/composables/usePodLapScheduler.ts"
+  placement: "nextLap(), on the composed play list, after buildMainStage."
+  breach_it_closes: |
+    THE real breach. A pod whose active cohorts hold a single sentence emits a
+    playlist that ends on that clip (stage 8 = ['ps2x','ps2x']) and the next
+    lap restarts on the same clip. Verified three-in-a-row without the cap.
+  cross_lap: |
+    The previous lap's tail is carried into the next lap as `seed`, because
+    laps run back to back. It is NOT carried when bookends are present — the
+    intro/outro clips genuinely separate the two laps.
+  degenerate_lap: |
+    minKeep: 1. A one-clip lap arriving on top of a tail that already holds
+    two of it is reduced rather than emptied, and the shortfall is logged. A
+    lap never returns zero plays.
+  configuration_independence: |
+    Applied downstream of resolveStageConfig, so an admin-saved stage playlist
+    in algorithm_config.pods cannot breach the law.
+
+SITE:
+  name: "Offline degradation ladder"
+  file: "packages/player-vue/src/composables/useOfflinePlay.ts"
+  placement: "getNextPlayableCycle(), across all three degradation levels."
+  behaviour: |
+    A cycle that has already played twice in a row is excluded from the
+    scheduled pick and from the belt-only pool while any other cached cycle
+    exists. Level 3 ('repeat') is the one place the law yields: with literally
+    one cached cycle, keeping the session alive wins, and the breach is logged
+    as a warning rather than passing silently.
+
+## ============================================================================
+## KNOWN RESIDUE — audited, deliberately not capped
+## ============================================================================
+
+RESIDUE:
+  simpleplayer_resume:
+    file: "packages/player-vue/src/playback/SimplePlayer.ts (resume())"
+    finding: |
+      resume() deliberately restarts the CURRENT cycle from the prompt phase —
+      "if the learner has stopped the app at all, we give them the full 4-phase
+      cycle from the top". Construction: cycles N and N+1 carry the same text
+      (legal, two in a row); the learner pauses part-way through N+1 and
+      resumes; the prompt sounds a third time. PlayerConductor can reach the
+      same path automatically when an interlude or seek times out or throws.
+    decision: |
+      NOT capped. A queue-level cap cannot see it — only a resume-time check
+      could — and changing resume semantics to chase an interaction-dependent
+      edge risks a worse regression than the edge itself. Logged for Tom.
+  stage0_and_atom_fusion:
+    files:
+      - "packages/player-vue/src/composables/usePodStage0.ts + @ssi/core stage0Sequence.ts"
+      - "packages/player-vue/src/composables/usePodAtomFusion.ts"
+    finding: |
+      buildLadder's visits loop can construct three in a row at a visit
+      boundary when visits >= 2. usePodAtomFusion has no caller outside its own
+      test.
+    decision: |
+      NOT capped — unreachable from learner-facing playback. Stage 0 was retired
+      from the runtime 2026-07-14 and survives only behind the admin route
+      /admin/pod-auditioner. Revisit if either is ever re-wired into playback.
+
+## ============================================================================
+## TESTS
+## ============================================================================
+
+TESTS:
+  - file: "packages/player-vue/src/playback/capConsecutiveRepeats.test.ts"
+    covers: |
+      Unit behaviour plus a 400-case property sweep: output never contains
+      three consecutive equal identities, nothing is invented or duplicated,
+      and totals are preserved whenever max*(others+1) allows.
+  - file: "packages/player-vue/src/providers/a64ConsecutivePromptCap.test.ts"
+    covers: |
+      The A-64 case directly — Easy-mode script shape (n1PhraseCount 6,
+      useConsolidationCount 4, maxBuildPhrases 14, maxSpacedRepPhrases 24)
+      against USE pools of 1, 2 and 3 phrases, for the main loop and the
+      infinite-play tail, plus the default (Fast) shape.
+  - file: "packages/player-vue/src/providers/a64RoundAdapters.test.ts"
+    covers: |
+      The round adapters — backendCyclesToRounds, infPlayCyclesToRounds and
+      toSimpleRounds — against the intro/debut/build triple the server cycles
+      route makes possible, within a round and across the round seam. Three of
+      these five tests fail without the cap.
+  - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
+    covers: |
+      Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened
+      across consecutive laps into the sequence the learner actually hears.
+
+## ============================================================================
+## Last updated: 2026-08-08
+## APML v2.0.0
+## ============================================================================

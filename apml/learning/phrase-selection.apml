@@ -251,6 +251,70 @@ spec PhraseSelector:
         - target2_audio_id: "UUID for target voice 2"
 
   # ===========================================================================
+  # MODE PHRASE-LENGTH CAPS (see apml/interfaces/learning-player.apml)
+  # ===========================================================================
+
+  mode_length_caps:
+    description: |
+      Easy mode narrows what this spec selects from. As of 2026-08-07 there are
+      TWO independent rules, and they act at DIFFERENT MOMENTS:
+
+        maxPhraseLengthFraction  0.5 for Easy, 1.0 (uncapped) for Fast.
+                                 Course-RELATIVE: a fraction of the longest
+                                 phrase in the whole course, in CHARACTERS.
+                                 Applied to the USE pools when the pools are
+                                 built. The universal backstop — works in every
+                                 script, in every writing system.
+                                 capPhrasesByLength(), useAlgorithmConfig.ts.
+
+        filterBuildPhrases       FALSE for Easy (2026-08-07, Tom: "no filtering
+                                 on BLD phrases"), true for Fast. Easy's BUILD
+                                 pools bypass the character cap entirely: build
+                                 phrases are short by construction and they ARE
+                                 the debut round.
+
+        reviewMaxKnownSyllables  15 for Easy, none for Fast (2026-08-07).
+        + reviewSyllableFilterMaxRound (100)
+                                 A PULL-TIME filter, not a pool cap: when a
+                                 REVIEW (spaced_rep) or CONSOLIDATE slot draws
+                                 a use phrase from a LEGO's basket, it prefers
+                                 one of at most 15 syllables in the KNOWN
+                                 language — the learner's own — counted by the
+                                 canonical registry in @ssi/core/text. Active
+                                 for rounds 1-100 only; from round 101 the
+                                 basket opens fully, with nothing backlogged
+                                 and nothing cascading, because it is the LEGO
+                                 being practised and the phrase carrying it
+                                 need never have been met before.
+                                 SHORTEST-IN-BASKET FALLBACK: a basket with
+                                 nothing under the cap yields its shortest
+                                 phrase, so a LEGO is never skipped and a
+                                 review slot is never empty. INERT AND LOUD
+                                 where the KNOWN language has no counter
+                                 (warns once per course, and the generator
+                                 result reports syllableCapApplied=false).
+                                 filterReviewPool(), useAlgorithmConfig.ts.
+
+      A LEGO'S BASKET (Tom, 2026-08-07): a basket is that LEGO's OWN debut
+      phrases — its BLD and USE rows — so every phrase in it contains its LEGO
+      BY DEFINITION. A spaced-rep REVIEW pull is a USE phrase from an EARLIER
+      LEGO's basket, and the same definition holds. "The pulled phrase must
+      contain the target LEGO" is therefore automatic, not a rule to implement
+      and not something to test; it is not checked anywhere and must not be.
+
+      SUPERSEDED: the absolute maxPhraseSyllables ceiling that shipped earlier
+      on 2026-08-07 is removed. It counted the TARGET side, applied to the whole
+      script rather than to the pull, and never lifted.
+
+      No rule may breach the methodology phrase floors: the STARVATION GUARD
+      returns the shortest >=4 BUILD / >=5 USE rather than let a cap empty a
+      LEGO, because phrase volume is a hard rail ("fewer phrases is a FAIL").
+
+      Fast sets none of them, so Fast's selection is byte-identical to the
+      pre-2026-08-06 behaviour. Full detail:
+      apml/interfaces/learning-player.apml -> LEARNING_MODE.
+
+  # ===========================================================================
   # IMPLEMENTATION REQUIREMENTS
   # ===========================================================================
 
@@ -286,6 +350,9 @@ spec PhraseSelector:
       Or simply don't query for them.
 
 # ===========================================================================
-# GENERATED: 2026-01-19
+# GENERATED: 2026-01-19 — Last updated: 2026-08-08 (Easy redesign: BUILD
+#   unfiltered, known-side pull filter on review/consolidate for rounds 1-100,
+#   absolute target-syllable ceiling removed; a basket contains its own LEGO by
+#   definition, so no containment check exists)
 # APML v2.0.0
 # ===========================================================================
