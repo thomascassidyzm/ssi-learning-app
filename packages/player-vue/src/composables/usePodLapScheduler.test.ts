@@ -1,6 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
+import {
+  DEFAULT_FAST_LISTENING_RAMP,
+  DEFAULT_LISTENING_PATTERN,
+  LISTENING_SPEED_CEILING,
+} from '../playback/listeningExposureRamp'
+import type { ListeningPlayPolicy } from './useAlgorithmConfig'
+
+/**
+ * The ESCAPE-HATCH policy — replays the retired nine-stage ladder (Tom's
+ * 2026-08-07 simplification kept it reachable by DB config alone, see
+ * ListeningModeConfig.listeningUseStagePlaylist). The stage-shaped invariants
+ * below — the Phase-0 explainer slot, the end-on-target close, the per-role
+ * ps2x speeds — only exist on this path now, so they are tested on it.
+ */
+const STAGE_LADDER_POLICY: ListeningPlayPolicy = {
+  pattern: [...DEFAULT_LISTENING_PATTERN],
+  ramp: [...DEFAULT_FAST_LISTENING_RAMP],
+  ceiling: LISTENING_SPEED_CEILING,
+  speedSource: 'exposure',
+  useStagePlaylist: true,
+}
 
 // ============================================================================
 // Supabase mock — covers the four query shapes the scheduler issues:
@@ -208,19 +229,27 @@ describe('usePodLapScheduler — nextLap composition', () => {
     // The cold-start window serves that opening exchange and nothing more: a
     // turn plus its reply, never a lone line and never the whole scene. Each
     // sentence plays its full Stage-1 pattern before the next:
-    // ['ps','explainer','ps'] with no explainer_audio_id falls back to the
-    // TRANSLATION → ['ps','trans','ps']. Meaning always arrives. Still all
-    // 1.0× (speed ramp from stage 3).
+    // ONE MODE (Tom, 2026-08-07): every sentence, at every age, plays the same
+    // four-slot target·known·target·target pattern. The stage ladder that used
+    // to vary this per stage is retired; `stage` is still stamped (it is the
+    // exposure clock) but no longer changes what you hear. Default policy =
+    // Fast's flat 1.0 ramp.
     expect(lap!.plays.map(p => p.playRole)).toEqual(
-      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
+      ['ps', 'trans', 'ps', 'ps', 'ps', 'trans', 'ps', 'ps'])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 1, 2, 2, 2, 2])
     expect(lap!.plays.every(p => p.stage === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
     expect(lap!.outro?.id).toBe('outro-1')
   })
 
-  it('Phase 0 plays the explainer INSTEAD of the translation when explainer audio exists', async () => {
+  it('the EXPLAINER slot no longer plays: one mode, one pattern (Tom 2026-08-07)', async () => {
+    // The Phase-0 explainer was stage 1 of the retired ladder. Tom's
+    // simplification is "that's all that happens" — the single pattern has no
+    // explainer slot, so a sentence WITH explainer audio now hears its plain
+    // translation like every other. The audio and its code path are kept
+    // (buildMainStage still resolves the slot) but nothing references it on the
+    // default path. Flagged to Tom as the one deliberate content loss.
     state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
@@ -229,9 +258,22 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+    expect(lap!.plays.find(p => p.playRole === 'explainer')).toBeUndefined()
+  })
+
+  it('the explainer is still reachable through the stage-ladder escape hatch', async () => {
+    state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      listeningPolicy: STAGE_LADDER_POLICY,
+    })
+    await s.initialize()
+    const lap = s.nextLap()
     expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'explainer', 'ps'])
     expect(lap!.plays.find(p => p.playRole === 'explainer')!.audioId).toBe('exp-1')
-    expect(lap!.plays.find(p => p.playRole === 'trans')).toBeUndefined()
   })
 
   it('Phase 0 retires after 2 rounds: alive=3 lands in Phase 1 with the plain translation pattern', async () => {
@@ -244,9 +286,11 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
-    // podRound=3 → sentence 1 alive=3 → stage 2 ('Phase 1': ['ps','trans','ps']).
+    // podRound=3 → sentence 1 alive=3. Under ONE MODE the age changes nothing
+    // about the pattern — that is the whole point of the simplification. Only
+    // the SPEED is allowed to vary with age, and Fast's ramp is flat.
     const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
-    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
+    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
     expect(s1.find(p => p.playRole === 'explainer')).toBeUndefined()
   })
 
@@ -359,6 +403,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps', 'trans'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -372,6 +417,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps2x', 'trans'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -386,6 +432,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps', 'trans', 'ps2x'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -454,7 +501,7 @@ describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)',
     const lap = s.nextLapPreviewFallback()
     expect(lap).not.toBeNull()
     // The whole second cohort previews — an exchange, like a real lap.
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 5, 5, 5])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 4, 5, 5, 5, 5])
   })
 
   it('searches outward from the ratchet cursor, reaching the farthest sentence only when nothing closer is playable', async () => {
@@ -522,12 +569,13 @@ describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)
     // "3 target sentences then 3 known sentences" bug (Tom 2026-06-16).
     expect(ids).not.toContain('TURN_TGT')
     expect(ids).not.toContain('TURN_KN')
-    // Each sentence plays fully (ps,trans,ps via the explainer→trans fallback)
-    // before the next — target→known→target PER sentence.
-    expect(ids).toEqual(['t0', 'k0', 't0', 't1', 'k1', 't1'])
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    // Each sentence plays its FULL four-slot pattern before the next —
+    // target→known→target→target PER sentence (Tom 2026-08-07).
+    expect(ids).toEqual(['t0', 'k0', 't0', 't0', 't1', 'k1', 't1', 't1'])
+    expect(lap!.plays.map(p => p.playRole)).toEqual(
+      ['ps', 'trans', 'ps', 'ps', 'ps', 'trans', 'ps', 'ps'])
     // Distinct sentenceIdx → podGapMs treats the two sentences as separate chunks.
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 1, 2, 2, 2, 2])
   })
 
   it('a row without a split passes through as one whole-turn unit (back-compat)', async () => {
@@ -541,7 +589,7 @@ describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)
     await s.initialize()
     const lap = s.nextLap()
     // The whole-turn clip plays as a single unit — unchanged behaviour.
-    expect(lap!.plays.map(p => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT'])
+    expect(lap!.plays.map(p => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT', 'TURN_TGT'])
     expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
   })
 })

@@ -15,6 +15,18 @@ import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
 import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
 import {
+  type ListeningRampStep,
+  type ListeningSlot,
+  type ListeningSpeedSource,
+  DEFAULT_EASY_LISTENING_RAMP,
+  DEFAULT_FAST_LISTENING_RAMP,
+  DEFAULT_LISTENING_PATTERN,
+  DEFAULT_LISTENING_SPEED_SOURCE,
+  LISTENING_SPEED_CEILING,
+  normalizeListeningRamp,
+  resolveListeningPattern,
+} from '../playback/listeningExposureRamp'
+import {
   type EncouragementTaperConfig,
   DEFAULT_ENCOURAGEMENT_TAPER,
 } from '../services/MetaCommentaryService'
@@ -130,6 +142,25 @@ export interface ModeConfig {
    * never have been met before. Easy ships 100.
    */
   reviewSyllableFilterMaxRound?: number
+  /**
+   * LISTENING speed ramp for this mode, over a phrase's EXPOSURES (Tom,
+   * 2026-08-07): "it might be 0.8. Or maybe even Notepoint. Seven, the very
+   * first time, and it might be 0.8, then it might stay on 0.8 for a few
+   * times, then it might go up to one, never more than one, depending on what
+   * mode we're in. Fast can probably start at the regular speed."
+   *
+   * A step table: `[{speed, plays}, …]`, walked by exposure count, last step
+   * terminal. ALL four slots of a phrase — including the KNOWN-language one —
+   * play at the step's speed, so a phrase is internally uniform.
+   *
+   * Easy ships 0.7 ×1 → 0.8 ×4 → 1.0 for ever; Fast ships a single 1.0 step.
+   * 1.0 is a HARD ceiling enforced in code (LISTENING_SPEED_CEILING), not by
+   * these values — a DB row asking for 1.5 still plays at 1.0.
+   *
+   * Absent / malformed ⇒ the shipped ramp for that mode (never "no ramp":
+   * that would hand a beginner full speed, which is the bug this fixes).
+   */
+  listeningSpeedRamp?: ListeningRampStep[]
 }
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
@@ -215,6 +246,50 @@ export interface ListeningModeConfig {
    *  rows (LearningPlayer.vue) — removing changes pod-activation timing
    *  for un-migrated learners. Keep until the dashboard backfills `pods`. */
   podActivationRound?: number
+  /**
+   * THE listening play pattern (Tom, 2026-08-07): "Every single phrase. It's
+   * played Target, Known, Target, Target. And I think that's all that
+   * happens." One pattern, mode-agnostic, layer-agnostic — Layer 1 maps it
+   * onto a seed's two recorded voices, Layer 2 onto a pod sentence's target
+   * and translation clips.
+   *
+   * This SUPERSEDES the nine-stage `PodsConfig.stagePlaylist`, which no longer
+   * drives listening at all (see `listeningUseStagePlaylist` below for the one
+   * escape hatch). Absent / malformed ⇒ DEFAULT_LISTENING_PATTERN. A pattern
+   * ending on 'known' is rejected — never strand the learner on their own
+   * language.
+   */
+  playPattern?: ListeningSlot[]
+  /**
+   * Ceiling on any listening playback rate. Intersected with the code constant
+   * LISTENING_SPEED_CEILING (1.0), so this key can only ever lower the ceiling
+   * — "never more than one" is not negotiable from the DB.
+   */
+  maxSpeed?: number
+  /**
+   * Which axis decides a listening clip's speed:
+   *
+   *   'exposure' (default, Tom 2026-08-07) — the per-mode step table over how
+   *      many times the learner has met THIS phrase (ModeConfig.listeningSpeedRamp).
+   *   'belt' — the pre-existing BELT curve Tom ruled on 2026-08-06 (0.8 white
+   *      → 0.9 yellow → 0.95 orange → 1.0 green), via computeListeningSpeed.
+   *
+   * Both exist because Tom has ruled on both and has not said which wins: the
+   * belt ruling is 2026-08-06, the exposure spec is 2026-08-07, and they are
+   * ramps over DIFFERENT axes rather than one superseding the other. The
+   * exposure ramp ships as the default; flipping this key restores the belt
+   * curve without a deploy. `computeListeningSpeed`/`beltSpeed` and their tests
+   * are deliberately kept intact for exactly this reason.
+   */
+  speedSource?: ListeningSpeedSource
+  /**
+   * ESCAPE HATCH ONLY — replay the retired nine-stage `PodsConfig.stagePlaylist`
+   * instead of the single pattern. Default false; there is no learner-facing
+   * way to reach it. It exists so the old behaviour can be restored from the
+   * DB row if the simplification turns out wrong on Tom's ear, not as a
+   * supported alternative mode.
+   */
+  listeningUseStagePlaylist?: boolean
 }
 
 /**
@@ -285,6 +360,15 @@ export const DEFAULT_FAST: ModeConfig = {
   doublePhraseCycles: false,
   filterBuildPhrases: true,
   reviewMaxKnownSyllables: 0,
+  /**
+   * LISTENING — "Fast can probably start at the regular speed" (Tom,
+   * 2026-08-07). One terminal step at 1.0×, which is also the ceiling, so Fast
+   * listening never ramps: it is flat native pace, modulated only by the
+   * course's own globalSpeed. It still plays the SAME four-slot pattern as
+   * Easy, at one uniform speed per phrase — the pattern is the mode-agnostic
+   * part of the redesign; only the ramp differs by mode.
+   */
+  listeningSpeedRamp: DEFAULT_FAST_LISTENING_RAMP,
 }
 
 /**
@@ -373,6 +457,19 @@ export const DEFAULT_EASY: ModeConfig = {
    */
   reviewMaxKnownSyllables: 15,
   reviewSyllableFilterMaxRound: 100,
+  /**
+   * LISTENING — minimal cognitive load, and slower than Fast (Tom,
+   * 2026-08-07: "they should probably have A minimal cognitive load for
+   * listening and it should be slower on easy mode in the listening").
+   *
+   * 0.7 on the very first hearing of a phrase, 0.8 for the next four, then
+   * 1.0 for ever — a phrase reaches full speed on its sixth exposure. Tom's
+   * numbers read literally; "a few times" is the 4, and it is the one number
+   * here he left deliberately vague. All of it is a DB row
+   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so retuning by ear is a
+   * Supabase edit, not a deploy.
+   */
+  listeningSpeedRamp: DEFAULT_EASY_LISTENING_RAMP,
 }
 
 /**
@@ -644,6 +741,51 @@ export const MIN_USE_PHRASES_AFTER_CAP = 5
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
   offset: 90,
+  // The 2026-08-07 simplification: ONE pattern, exposure-ramped, capped at 1.0,
+  // and the nine-stage playlist off. See listeningExposureRamp.ts.
+  playPattern: DEFAULT_LISTENING_PATTERN,
+  maxSpeed: LISTENING_SPEED_CEILING,
+  speedSource: DEFAULT_LISTENING_SPEED_SOURCE,
+  listeningUseStagePlaylist: false,
+}
+
+/**
+ * Resolve the whole listening play/speed policy from the live `listening` row
+ * plus the active mode's `listeningSpeedRamp`. THE one place the DB row is
+ * turned into something the two listening schedulers can use, so Layer 1 and
+ * Layer 2 provably agree.
+ *
+ * Degrade-to-gentle, not degrade-to-permissive: every malformed value falls
+ * back to the shipped default rather than to "off". A missing ramp must never
+ * mean full speed for a beginner.
+ */
+export interface ListeningPlayPolicy {
+  pattern: ListeningSlot[]
+  ramp: ListeningRampStep[]
+  ceiling: number
+  speedSource: ListeningSpeedSource
+  /** True ⇒ replay the retired nine-stage playlist (escape hatch only). */
+  useStagePlaylist: boolean
+}
+
+export function resolveListeningPlayPolicy(
+  listening: Partial<ListeningModeConfig> | null | undefined,
+  mode: LearningMode,
+  modeConfig?: Partial<ModeConfig> | null,
+): ListeningPlayPolicy {
+  const shippedRamp = mode === 'easy' ? DEFAULT_EASY_LISTENING_RAMP : DEFAULT_FAST_LISTENING_RAMP
+  const rawCeiling = listening?.maxSpeed
+  const ceiling = typeof rawCeiling === 'number' && Number.isFinite(rawCeiling) && rawCeiling > 0
+    ? Math.min(rawCeiling, LISTENING_SPEED_CEILING)
+    : LISTENING_SPEED_CEILING
+  const source = listening?.speedSource === 'belt' ? 'belt' : DEFAULT_LISTENING_SPEED_SOURCE
+  return {
+    pattern: resolveListeningPattern(listening?.playPattern),
+    ramp: normalizeListeningRamp(modeConfig?.listeningSpeedRamp, shippedRamp),
+    ceiling,
+    speedSource: source,
+    useStagePlaylist: listening?.listeningUseStagePlaylist === true,
+  }
 }
 
 const DEFAULT_PODS: PodsConfig = {

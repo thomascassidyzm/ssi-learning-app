@@ -142,7 +142,19 @@ export function buildMainStage(
   stage: number,
   sentenceIdx: number,
   playlist: PodPlayRole[],
+  /**
+   * UNIFORM SPEED for every slot of this sentence, overriding ROLE_SPEED
+   * (Tom, 2026-08-07: a listening phrase's four clips are "all at... The same
+   * speed"). Supplied by the exposure ramp — see
+   * player-vue/src/playback/listeningExposureRamp.ts. Omitted ⇒ the historic
+   * per-role rates, which is what the admin Pod-stage auditioner and the
+   * escape-hatch stage playlist still want.
+   */
+  uniformSpeed?: number,
 ): PodPlay[] {
+  const useUniform = typeof uniformSpeed === 'number' && Number.isFinite(uniformSpeed) && uniformSpeed > 0
+  const speedFor = (role: PodPlayRole): number =>
+    useUniform ? uniformSpeed! : (ROLE_SPEED[role] ?? 1.0)
   const sentencePlays: PodPlay[] = []
   for (let j = 0; j < playlist.length; j++) {
     let playRole = playlist[j]
@@ -171,7 +183,7 @@ export function buildMainStage(
       playRole,
       audioId,
       text: isTrans ? sentence.known_text : sentence.target_text,
-      playbackSpeed: ROLE_SPEED[playRole] ?? 1.0,
+      playbackSpeed: speedFor(playRole),
       glueToNextChunk: false, // set on the ACTUAL last play below
     })
   }
@@ -192,7 +204,7 @@ export function buildMainStage(
       playRole: closeRole,
       audioId: sentence.target_audio_id!,
       text: sentence.target_text,
-      playbackSpeed: ROLE_SPEED[closeRole] ?? 1.0,
+      playbackSpeed: speedFor(closeRole),
       glueToNextChunk: false,
     })
     if (!_warnedTrailingKnownStages.has(stage)) {
