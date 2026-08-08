@@ -22,10 +22,13 @@ describe('pack shape', () => {
 
 describe('walksFor (offer filtering)', () => {
   it('filters by persona × place × kind', () => {
-    // Class detail is the teacher's whole desk: running a session, and the
-    // three co-teaching capabilities (A-74) — sharing, inviting, handover.
+    // Class detail is the teacher's whole desk: running a session, the three
+    // co-teaching capabilities (A-74) — sharing, inviting, handover — and,
+    // since 2026-08-08, reading the class↔teacher relationship the other way
+    // round to move somebody between classes.
     expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
-      'hand-over-the-lead', 'invite-a-supply-teacher', 'run-class-session', 'share-a-class',
+      'hand-over-the-lead', 'invite-a-supply-teacher', 'move-a-teacher-between-classes',
+      'run-class-session', 'share-a-class',
     ])
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])

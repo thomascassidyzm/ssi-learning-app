@@ -1,5 +1,6 @@
 # Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
-# Last updated: 2026-08-06 (co-teaching coverage: share-a-class, invite-a-supply-teacher,
+# Last updated: 2026-08-08 (move-a-teacher-between-classes joins the class-detail set;
+#               2026-08-06 co-teaching coverage: share-a-class, invite-a-supply-teacher,
 #               hand-over-the-lead; card genre extracted to WalkCard.vue, shared with the
 #               org onboarding gate — one teaching voice, two mounts; the password and
 #               install actions get a permanent home and become real pack walks)
@@ -95,5 +96,6 @@ walks_v1 (11):
   - share-a-class: class-detail — teacher — adding a co-teacher: who can be added, and that they get the whole class but not the lead (A-74, 2026-08-06)
   - invite-a-supply-teacher: class-detail — teacher — the CLASS-scoped co-teacher link for a colleague with no account yet, held apart from the student join link
   - hand-over-the-lead: class-detail — teacher — passing the lead, and what does NOT move with it (pupils, progress, sessions, your own place on the class)
+  - move-a-teacher-between-classes: class-detail — teacher — the class↔teacher relationship read the OTHER way round ("which classes does this person take?"), via Other classes → the tick list. Teaches that a move is one untick plus one tick, and that belonging to several classes is just several ticks — the two things Tom went looking for on 2026-08-08 and could not find (2026-08-08)
   - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
   - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind
