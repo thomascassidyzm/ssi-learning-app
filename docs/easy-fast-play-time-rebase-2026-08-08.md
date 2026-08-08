@@ -13,9 +13,10 @@ asked for: **one script, two sets of play-time rules, toggle with impunity.**
 
 Three things need you, and only one of them is really a question:
 
-1. **Easy now skips long review phrases outright instead of choosing a shorter one.**
-   On Spanish that is **28% of all use phrases**, course-wide, forever. That is the real
-   decision on this page.
+1. **Easy now skips long phrases outright instead of choosing a shorter one.** On
+   `eng_for_ita` that is **27% of LEGOs losing review entirely** and **56% of use phrases
+   skipped**, course-wide, forever — and the skip also reaches ordinary practice cycles the
+   rule was never scoped to. That is the real decision on this page.
 2. Two smaller Easy levers went dead in the same move — the "halve the longest phrase"
    cap, and the round-100 cutoff after which the length rule used to come off.
 3. Nothing else. Fast is provably untouched.
@@ -115,34 +116,64 @@ LEGO was always reviewed.
 As a **play-time skip** there is no guard. A cycle over the limit is passed over, and its
 slot yields nothing.
 
-Measured against the live phrase tables, counting the known side with the app's own syllable
-counter:
+Measured against the live phrase tables across **all 54 live courses whose known language has a
+syllable counter**, counting the known side with the app's own counter. (25 further live courses
+have no counter for their known language — the rule is inert there, so the honest answer is zero,
+not "unmeasured". 20 draft courses were excluded as not live.)
 
-| Course | LEGOs with USE phrases | LEGOs that lose review entirely | Use phrases over 15 syllables |
-|---|---:|---:|---:|
-| spa_for_eng | 1,317 | 47 (3.6%) | **2,828 / 10,072 (28.1%)** |
-| deu_for_eng | 1,368 | 73 (5.3%) | **1,251 / 8,566 (14.6%)** |
-| fra_for_eng | 1,400 | 6 (0.4%) | 240 / 9,008 (2.7%) |
-| cym_s_for_eng | 276 | 4 (1.4%) | 45 / 1,360 (3.3%) |
-| cym_n_for_eng | 251 | 2 (0.8%) | 56 / 1,364 (4.1%) |
+Across those 54: **688 of 43,361 LEGOs (1.6%) lose review entirely**, and **14,871 of 231,496 use
+phrases (6.4%) are skipped**. 37 of the 54 show no starvation at all. But it is not spread evenly
+— it concentrates, badly:
 
-Whole LEGOs going dark is rare — under 5% everywhere. The number to look at is the right-hand
-column: **an Easy learner on Spanish now has more than a quarter of their review and use
-cycles silently passed over**, German a seventh, and it never lifts. Welsh and French are
-genuinely negligible on both axes.
+| Course | LEGOs losing review entirely | Use phrases skipped |
+|---|---:|---:|
+| eng_for_ita | **27.1%** | **56.2%** |
+| cat_for_spa | **23.9%** | **59.2%** |
+| gle_for_eng | **19.3%** | **47.4%** |
+| eng_for_por | **13.7%** | **43.3%** |
+| deu_for_eng | 5.1% | 11.8% |
+| eng_for_fra | 3.5% | 21.8% |
+| eng_for_spa | 3.5% | 21.4% |
+| spa_for_eng | 3.2% | 22.6% |
+| eus_for_spa | 2.0% | 14.1% |
+| *the other 45* | 0–1.5% | mostly 0 |
+
+Read the top four rows again: on **English for Italian speakers**, an Easy learner loses **more
+than a quarter of their LEGOs to no review at all**, and hears **56% of use phrases skipped**. Those
+are courses where the English-side prompt is simply longer than 15 syllables most of the time. The
+threshold of 15 was a first-pass guess tuned by eye on English-known courses, and it does not
+travel.
+
+**And the skip is wider than the rule you described.** You scoped the 15-syllable rule to what
+happens *"when a REVIEW or CONSOLIDATE slot reaches into a LEGO's basket"* — a choice between
+phrases. The play-time version also skips **ordinary USE practice cycles** in the main round, which
+were never length-filtered under any previous design. That widening is a good part of why the skip
+rates above are as high as they are.
 
 **Three ways to go, my recommendation first:**
 
-- **(a) Put the starvation guard back at play time** — if skipping would leave a LEGO's
-  review slot empty, play it anyway. Keeps your ruling ("the longest ones are skipped"),
-  keeps the toggle instant, and stops a quarter of Spanish review disappearing. Small,
-  contained change.
-- **(b) Ship as is.** Defensible if you meant the skip literally and unconditionally. It is
-  a real pedagogical change to Easy on Spanish and German, not a rounding error.
-- **(c) Retune the threshold per course** from the DB row — 15 is a first-pass guess and
-  Spanish English-side prompts are evidently longer than French ones.
+- **(a) Put the starvation guard back, and narrow the skip to review/consolidate.** If skipping
+  would leave a LEGO with no review at all, play it anyway; and leave ordinary practice USE cycles
+  alone, as every written version of this rule did. Keeps your ruling — the longest ones are
+  skipped — keeps the toggle instant, and stops a quarter of `eng_for_ita` going dark. Contained
+  change, entirely at play time.
+- **(b) Ship as is.** Defensible if you meant the skip literally and unconditionally, but four
+  courses take real damage and nobody would find out from a test.
+- **(c) Retune the threshold per course** from the DB row. Right thing eventually — 15 clearly
+  doesn't fit Italian- and Portuguese-known courses — but it is tuning by ear on 54 courses, and it
+  doesn't fix starvation on its own.
 
-I would do (a). It is the only one where nothing about Easy gets quietly worse.
+I would do (a), and treat (c) as the follow-up once someone has listened to Easy on `eng_for_ita`.
+
+### One more thing to know about, not a decision
+
+Pausing part-way through the second play of a doubled cycle and resuming starts the prompt a third
+time. Measured: the prompt *starts* three times, but only two plays *complete* — the resumed play
+replaces the interrupted one, so the learner still gets exactly two whole hearings. It is
+pre-existing resume behaviour that Easy widens (it used to need two adjacent cycles with the same
+text; now it needs no special content). Left alone deliberately: suppressing the second play after
+a resume would mean a pause silently costs an Easy learner their repetition. Logged in the law's
+residue section.
 
 ### The two that are just bookkeeping
 
@@ -191,5 +222,5 @@ passing; the browser run is confirmation on the real article, and it is still ru
 
 ## Landing
 
-Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, four commits, pushed to origin.
+Branch `fix/easy-fast-play-time-rules-rebase-2026-08-08`, six commits, pushed to origin.
 **Not merged** to dev, staging or main. **Not deployed** anywhere. Yours to call.
