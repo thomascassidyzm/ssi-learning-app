@@ -23,6 +23,15 @@
  *     do NOT get introduced"). The cycles endpoint no longer emits it; this
  *     adapter refuses it as a backstop. Components reach the learner only as
  *     visual tiles on the intro/debut cards, never as their own cycle.
+ *   - `spaced_rep` cycles (since 2026-08-09) are cross-LEGO: their `lego_id`
+ *     names the EARLIER LEGO under review, while `round_lego_id` names the
+ *     round they play in. The buffer in `useInstantPlayback` keys on
+ *     `round_lego_id ?? lego_id`, so they arrive here already grouped with the
+ *     round that scheduled them — the same arrangement `toSimpleRounds` gets
+ *     from the walk, where a review item carries the reviewed LEGO's `legoKey`
+ *     and the current round's `roundNumber`. They map to the ordinary
+ *     four-phase Cycle; the type string is what lets the mode runtime
+ *     (adaptationOverrides' spacedRepCap, Easy's cycle repetition) see them
  *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
  *     curve from `toSimpleRounds`. It MUST be: the runtime override in
  *     LearningPlayer only ever CANCELS a baked ramp (Easy does), it never
@@ -166,7 +175,12 @@ export function backendCyclesToRounds(
     for (const bc of legoCycles) {
       // Belt band from the round map's seed — authoritative and always
       // present, unlike the per-cycle `seed_number` on older wire shapes.
-      const cycle = toPlayerCycle(bc, targetSpeed, entry.seed)
+      // A review cycle is the exception: it belongs to THIS round but is a
+      // phrase from an earlier seed, and the walk speeds it by its OWN seed
+      // (toSimpleRounds passes `i.seedId`, the reviewed LEGO's). Use the
+      // cycle's own seed there so both producers ramp it identically.
+      const isReview = !!bc.round_lego_id && bc.round_lego_id !== bc.lego_id
+      const cycle = toPlayerCycle(bc, targetSpeed, isReview ? bc.seed_number : entry.seed)
       if (cycle) cycles.push(cycle)
     }
     if (cycles.length === 0) continue
@@ -208,10 +222,12 @@ export function backendCyclesToRounds(
  * the cycle is structurally unplayable (missing all target audio
  * — same skip-policy as `toSimpleRounds`).
  *
- * The backend emits `intro | component_intro | debut | build | use`
- * today; `listening` is reserved for a future endpoint extension and is
+ * The backend emits `intro | component_intro | debut | build | spaced_rep |
+ * use` today; `listening` is reserved for a future endpoint extension and is
  * handled here defensively so when it lands we don't have to change the
- * adapter.
+ * adapter. `spaced_rep` needs no special handling: it is an ordinary
+ * four-phase production cycle, and the seed-sandwich variant the walk emits at
+ * offsets ≥144 is not served by this endpoint.
  *
  * Exported for the INF PLAY adapter (infPlayCyclesToRounds) which
  * reuses the same cycle-shaping logic but groups by inf_round rather

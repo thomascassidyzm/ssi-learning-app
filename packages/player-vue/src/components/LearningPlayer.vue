@@ -2231,7 +2231,8 @@ watch(
 // AUDIO PREFETCH LADDER (explicit phases)
 // ============================================================================
 //
-// Phase 1 — instant: bootstrap fetches ~15 cycles via /api/courses/:code/cycles
+// Phase 1 — instant: bootstrap fetches one whole round (~25 cycles, incl. its
+//   spaced review) via /api/courses/:code/cycles
 //          (useInstantPlayback.bootstrap), so the first cycle starts in <2s.
 // Phase 2 — background: generateScript() walks the whole course locally
 //          (loadAllData → handoff replaces simplePlayer's queue with the
