@@ -24,7 +24,7 @@ const SessionComplete = defineAsyncComponent(() => import('./SessionComplete.vue
 const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton.vue'))
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
-import { useScriptCache, setCachedScript, setScriptCacheMode, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
+import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
 import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
@@ -9503,23 +9503,12 @@ watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
   if (mode === 'easy' || mode === 'fast') learningMode.value = mode
 })
 
-// The script cache is keyed on the mode (a mode-blind key is what made "clear
-// your browser cache" the only way to change modes). Point it at the active
-// mode BEFORE anything reads it — immediate, and `restoreLearningMode` has
-// already run above, so the first read at mount is correct.
-watch(learningMode, (mode) => { setScriptCacheMode(mode) }, { immediate: true })
-
 // Any writer of the mode — the toggle, the cross-device preference landing
-// after auth, the new-learner default — must (1) reshape the loaded queue's
-// repeats, or the learner keeps hearing the mode they just left, and (2) walk
-// the course again, because the OTHER half of a mode is which phrases it picks
-// and no reshape can conjure those. The toggle also calls both synchronously so
-// the timing and reps land on the very next cycle; a reshape that is already in
-// the right shape is a no-op, and the rebuild is single-flight.
-watch(learningMode, (mode) => {
-  applyModeRepeatsToQueue()
-  void rebuildScriptForMode(mode)
-})
+// after auth, the new-learner default — must reshape the loaded queue's
+// repeats, or the learner keeps hearing the mode they just left. The toggle
+// also calls this synchronously so the change lands on the very next cycle;
+// a reshape that is already in the right shape is a no-op.
+watch(learningMode, () => { applyModeRepeatsToQueue() })
 
 /** Has this learner ever expressed a mode preference — on the learner row
  *  (cross-device) or on this device? An explicit choice outranks any default,
@@ -10326,90 +10315,6 @@ const applyModeRepeatsToQueue = () => {
 }
 
 /**
- * REBUILD THE SCRIPT FOR THE MODE THE LEARNER JUST CHOSE.
- *
- * Tom, 2026-08-09, after the repeat-only fix failed his retest: "switching the
- * mode toggle mid-session does not correctly change WHICH PHRASES PLAY —
- * complete fail" … "toggling the button should be the trigger", with no manual
- * cache clear and no reload.
- *
- * Repetition was only ever half of Easy. The other half — the halved
- * phrase-length cap, the unfiltered BUILD phrases, the review syllable filter
- * and the sliding USE word cap — SELECTS a different phrase set inside the
- * walk, so no amount of reshaping the loaded queue can produce it. Only a walk
- * can, and so the toggle now runs one.
- *
- * It runs in the BACKGROUND, deliberately: the learner keeps hearing the round
- * they are in (already the new mode's timing and reps, which land live), and
- * the new phrase set is spliced in from the next round via
- * replaceQueueFromCurrent. That is the whole reason not to block — a
- * course-wide walk is several queries, and stalling someone mid-round to
- * deliver a change they will meet 40 seconds later is the worse trade.
- *
- * Single-flight, and re-checked on landing: a learner who toggles twice while
- * the first walk is out gets the walk for where they ENDED UP, never a stale
- * one applied on top.
- */
-let modeRebuildToken = 0
-const modeRebuildInFlight = ref(false)
-const rebuildScriptForMode = async (mode: LearningMode) => {
-  // Nothing loaded yet ⇒ the normal mount path is about to build under this
-  // very mode. A second walk here would race it for no gain.
-  if (!loadedRounds.value?.length) return
-  if (!supabase?.value) return
-  const token = ++modeRebuildToken
-  const course = courseCode.value
-  modeRebuildInFlight.value = true
-  const t0 = Date.now()
-  try {
-    const result = await generateScript()
-    // Stale on landing: the learner toggled again, or changed course.
-    if (token !== modeRebuildToken || course !== courseCode.value || learningMode.value !== mode) {
-      console.log('[LearningPlayer] Mode rebuild landed stale — discarded')
-      return
-    }
-    if (!result?.items?.length) return
-    const freshRounds = toSimpleRoundsWithComponents(result.items) as any[]
-    if (freshRounds.length === 0) return
-    if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-    // Keep the round in flight verbatim; every round after it comes from the
-    // new mode's walk. The engine owns the splice, we snapshot it — never a
-    // hand-rolled second copy of that algorithm (M4 pull-consistency).
-    simplePlayer.replaceQueueFromCurrent(freshRounds as any)
-    loadedRounds.value = simplePlayer.rounds.value as any
-    // Write it under the NEW mode's cache key, so a reload lands on this same
-    // script instead of the other mode's — the second half of the bug.
-    try {
-      await setCachedScript(course, {
-        rounds: freshRounds,
-        totalSeeds: freshRounds.length,
-        totalLegos: freshRounds.length,
-        totalCycles: result.cycleCount,
-        estimatedMinutes: Math.round(result.cycleCount * 0.2),
-        audioMapObj: {},
-        courseWelcome: cachedCourseWelcome.value || undefined,
-        mainLoopRoundCount: result.mainLoopRoundCount,
-      })
-    } catch (cacheErr) {
-      console.warn('[LearningPlayer] Mode rebuild cache write failed (non-fatal):', cacheErr)
-    }
-    logEvent('learning_mode_script_rebuilt', {
-      mode,
-      courseCode: course,
-      rounds: freshRounds.length,
-      ms: Date.now() - t0,
-    })
-    console.log(`[LearningPlayer] Mode rebuild (${mode}): ${freshRounds.length} rounds spliced in ${Date.now() - t0}ms`)
-  } catch (err) {
-    // Non-fatal by design: the old script keeps playing under the new mode's
-    // timing and reps, which is strictly the previous behaviour.
-    console.warn('[LearningPlayer] Mode rebuild failed (non-fatal):', err)
-  } finally {
-    if (token === modeRebuildToken) modeRebuildInFlight.value = false
-  }
-}
-
-/**
  * Switch learning mode.
  *
  * What lands WHEN — this is the honest split, worth knowing before you
@@ -10428,14 +10333,14 @@ const rebuildScriptForMode = async (mode: LearningMode) => {
  *     this: FAST kept playing EASY's doubled phrases for the rest of the
  *     session, and — because the script cache is keyed on course alone — for
  *     every session after it too (Tom, reproduced live).
- *   • FROM THE NEXT ROUND, this session, no reload: WHICH PHRASES PLAY — the
- *     halved phrase-length cap, the BUILD-phrase filter, the review syllable
- *     filter and the USE word cap. Those SELECT items inside the walk, so they
- *     cannot be reshaped out of the loaded queue; `rebuildScriptForMode` runs
- *     the walk in the background and splices the result in behind the round in
- *     flight. Until 2026-08-09 this was deferred to "the next script build",
- *     which — with a mode-blind script cache — meant a manual browser cache
- *     clear, and so in practice never (Tom, retested live).
+ *   • NEXT SCRIPT BUILD (next session, or a course switch): the halved
+ *     phrase-length cap, the BUILD-phrase filter and the review syllable
+ *     filter. Those DROP items at generation time, so they cannot be restored
+ *     from the loaded queue — only a walk can. We deliberately do NOT force a
+ *     blocking mid-session regeneration for them: a full-course walk is six
+ *     course-wide queries, and stalling a learner mid-round is the worse
+ *     trade. `generateScript`'s dedupe key includes the mode, so the next
+ *     build genuinely rebuilds rather than serving the other mode's walk.
  */
 const setLearningMode = (mode: LearningMode) => {
   if (learningMode.value === mode) return

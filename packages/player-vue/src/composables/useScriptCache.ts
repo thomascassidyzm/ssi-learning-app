@@ -57,58 +57,8 @@ const scriptDb = (): Promise<IDBPDatabase> => {
   return scriptDbPromise
 }
 
-/**
- * THE LEARNING MODE IS PART OF THE SCRIPT'S IDENTITY (Tom, 2026-08-09).
- *
- * Easy and Fast do not merely play the same script differently — they select
- * DIFFERENT PHRASES at walk time (`maxPhraseLengthFraction`, `filterBuildPhrases`,
- * `reviewMaxKnownSyllables`, `useWordCapTiers`). A cache keyed on course alone
- * therefore hands an Easy learner the Fast walk, and vice versa, on every
- * reload — which is exactly why "clear the browser cache and reload" was the
- * only thing that ever made a mode change stick. Toggling the button is meant
- * to be the trigger; the cache has to be able to tell the two apart for that
- * to be possible at all.
- *
- * Set by whoever owns the mode (LearningPlayer, from its `learningMode` ref)
- * rather than threaded through fourteen call sites — a single write point
- * cannot be half-applied, whereas one missed read site would silently restore
- * the bug. Seeded from localStorage at module load so the very first read at
- * mount is already mode-correct, before any watcher has run.
- */
-let scriptCacheMode: string = (() => {
-  try {
-    const m = typeof localStorage !== 'undefined' ? localStorage.getItem('ssi-learning-mode') : null
-    return m === 'easy' || m === 'fast' ? m : 'fast'
-  } catch { return 'fast' }
-})()
-
-/** Point the cache at a mode's slot. Idempotent; safe to call on every change. */
-export const setScriptCacheMode = (mode: string): void => {
-  if (mode === 'easy' || mode === 'fast') scriptCacheMode = mode
-}
-
 // Versioned key so a SCRIPT_VERSION bump orphans old entries (→ regenerate).
-// The mode segment is the 2026-08-09 addition; `legacyIdbKey` is the same key
-// WITHOUT it, kept only for the offline fallback below.
-const idbKey = (courseCode: string): string => `${SCRIPT_VERSION}:${courseCode}:${scriptCacheMode}`
-const legacyIdbKey = (courseCode: string): string => `${SCRIPT_VERSION}:${courseCode}`
-
-/**
- * Drop EVERY cached walk for a course — both modes and the pre-mode-key entry.
- * Content invalidation is about the content being wrong, which is true of all
- * of them; dropping only the active mode's would leave the other mode serving
- * a stale walk the moment the learner toggled.
- */
-const deleteAllCachedScripts = async (courseCode: string): Promise<void> => {
-  const db = await scriptDb()
-  for (const key of [
-    `${SCRIPT_VERSION}:${courseCode}:easy`,
-    `${SCRIPT_VERSION}:${courseCode}:fast`,
-    legacyIdbKey(courseCode),
-  ]) {
-    try { await db.delete(SCRIPT_STORE, key) } catch { /* noop */ }
-  }
-}
+const idbKey = (courseCode: string): string => `${SCRIPT_VERSION}:${courseCode}`
 
 // One-time migration: scripts used to live in localStorage and overflowed the
 // 5MB quota. Purge those stale copies on load to reclaim the space.
@@ -205,33 +155,11 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
   try {
     const db = await scriptDb()
     const data = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as CachedScript | undefined
-    if (data) {
-      // No TTL — cache persists until version bump or explicit clear (PWA: the
-      // cache is the source of truth).
-      console.log('[ScriptCache] Loaded from IndexedDB')
-      return data
-    }
-    // Mode-keying (2026-08-09) orphaned every entry written before it, and
-    // those entries cannot say which mode built them. ONLINE we deliberately
-    // ignore them: a miss just walks the course fresh under the mode that is
-    // actually active, which is the behaviour the toggle is supposed to have.
-    // OFFLINE there is no walk to fall back on, and a mode-unknown script is
-    // still far better than a learner who cannot play at all — so, and only
-    // then, we serve it.
-    // The same reasoning covers the OTHER mode's entry: offline, a script in
-    // the wrong shape beats silence, and the moment the learner is back online
-    // the walk under their real mode replaces it.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      const other = scriptCacheMode === 'easy' ? 'fast' : 'easy'
-      for (const key of [`${SCRIPT_VERSION}:${courseCode}:${other}`, legacyIdbKey(courseCode)]) {
-        const fallback = (await db.get(SCRIPT_STORE, key)) as CachedScript | undefined
-        if (fallback) {
-          console.log(`[ScriptCache] Offline: serving ${key} — no entry for the active mode`)
-          return fallback
-        }
-      }
-    }
-    return null
+    if (!data) return null
+    // No TTL — cache persists until version bump or explicit clear (PWA: the
+    // cache is the source of truth).
+    console.log('[ScriptCache] Loaded from IndexedDB')
+    return data
   } catch (err) {
     console.warn('[ScriptCache] Read failed:', (err as any)?.name, '—', (err as any)?.message, err)
     return null
@@ -317,10 +245,6 @@ export const setCachedScript = async (
     // CachedScript is pure data (no Dates/functions), so JSON is lossless here.
     const plain = JSON.parse(JSON.stringify(fullData)) as CachedScript
     await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
-    // This course now has a mode-keyed entry, so the pre-mode-key one can
-    // never be the better answer again (its mode is unknown, and even the
-    // offline fallback above would rather have this). Reclaim its space once.
-    try { await db.delete(SCRIPT_STORE, legacyIdbKey(courseCode)) } catch { /* noop */ }
     // A write at the live vintage IS the revalidation — the next session
     // hydrates fresh. Vintage-preserving writes leave the staleness standing.
     if (plain.contentStamp && plain.contentStamp === liveContentStamps.get(courseCode)) {
@@ -545,7 +469,7 @@ const doCheckContentVersion = async (
             ? `[ScriptCache] ${courseCode} script cached before audio stamps existed — dropping once so repaired clips are re-fetched at their new revision`
             : `[ScriptCache] Audio stamp moved (${storedAudioStamp} → ${liveAudioStamp}) — dropping ${courseCode} script cache so repaired clips are re-fetched at their new revision`
         )
-        try { await deleteAllCachedScripts(courseCode) } catch { /* noop */ }
+        try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
         staleScripts.delete(courseCode)
         invalidated = true
       }
@@ -584,7 +508,7 @@ const doCheckContentVersion = async (
 
       // Clear script cache for this course (now in IndexedDB). The entry is
       // gone, so there's nothing left to be stale.
-      try { await deleteAllCachedScripts(courseCode) } catch { /* noop */ }
+      try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
       staleScripts.delete(courseCode)
 
       // Clear Service Worker audio cache (CacheFirst entries with old UUIDs)

@@ -72,9 +72,6 @@ export interface UseSimplePlayerReturn {
    * separate rounds mirror with the index from
    * findRoundIndexForBeltThreshold, which can desync from it). */
   findLegoIdForBeltThreshold: (seedThreshold: number) => string | null
-  /** The engine's own round array, snapshotted (M4 pull-consistency) — read
-   *  it, never mutate it; the engine owns every insertion and splice. */
-  rounds: Ref<Round[]>
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
@@ -510,7 +507,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   return {
     state,
     isInitialized,
-    rounds: roundsRef,
     currentRound,
     currentCycle,
     phase,
