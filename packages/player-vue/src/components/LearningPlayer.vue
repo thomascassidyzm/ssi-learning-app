@@ -546,6 +546,10 @@ const runGenerateScript = (
       filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
       reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
       reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
+      // Sliding ENGLISH-side word cap on USE phrases (Tom, 2026-08-09):
+      // 8 words to round 20, 10 to round 100, uncapped after. Fast ships an
+      // empty ladder, and the cap is inert on non-English-involved courses.
+      useWordCapTiers: activeModeConfig.value.useWordCapTiers,
     },
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
@@ -14278,6 +14282,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
             filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
             reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
             reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
+            // Sliding ENGLISH-side word cap on USE phrases (Tom, 2026-08-09).
+            useWordCapTiers: activeModeConfig.value.useWordCapTiers,
           },
         )
       }
