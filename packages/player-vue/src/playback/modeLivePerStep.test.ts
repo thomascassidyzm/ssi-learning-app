@@ -60,9 +60,13 @@ function makeRound(legoId: string, roundNumber: number, n = 3): Round {
     cycles: Array.from({ length: n }, (_, i) => ({
       id: `${legoId}-c${i + 1}`,
       type: 'build',
-      known: { text: `known ${i + 1}`, audioUrl: `https://example.com/${legoId}-${i}-k.mp3` },
+      // Texts carry the legoId so cycles in DIFFERENT rounds have different
+      // prompt identities — otherwise the walker's A-64 live cap (correctly)
+      // steps over a next-round cycle that reads identically to the one just
+      // doubled, which is not what these repetition tests are probing.
+      known: { text: `known ${legoId} ${i + 1}`, audioUrl: `https://example.com/${legoId}-${i}-k.mp3` },
       target: {
-        text: `target ${i + 1}`,
+        text: `target ${legoId} ${i + 1}`,
         voice1Url: `https://example.com/${legoId}-${i}-t1.mp3`,
         voice2Url: `https://example.com/${legoId}-${i}-t2.mp3`,
       },

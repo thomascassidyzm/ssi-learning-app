@@ -1,6 +1,7 @@
 // SimplePlayer.ts - Clean playback engine (~180 lines)
 
 import { buildSilentWavDataUri } from './silentWav'
+import { cyclePromptIdentity } from './capConsecutiveRepeats'
 
 // Cycle/Round moved to `@ssi/core` (bundle-cutover Phase 1,
 // docs/bundle-cutover-design.md §3, §5 step 1) — canonical source is
@@ -346,6 +347,28 @@ const SELF_STOP_GRACE_MS = 400
  */
 const MAX_CYCLE_PLAYS = 2
 
+/**
+ * The A-64 law, enforced on the LIVE stream: no PROMPT (normalised known +
+ * target text, `cyclePromptIdentity`) may sound more than twice consecutively
+ * — across cycle AND round boundaries, exactly as the build-time cap seeds
+ * itself across the round seam.
+ *
+ * Why the walker must enforce this itself: the build-time cap
+ * (`capRoundCycles`) runs over SINGLE copies of each cycle, and "repeat runs
+ * BEFORE the law's floor" was a load-bearing ordering when Easy's doubling was
+ * baked into the script. The 2026-08-09 refactor moved the doubling into this
+ * walker (`getCycleRepeatCount`, read live at each cycle end) — which is
+ * DOWNSTREAM of that cap, so a legal build-time run of two same-prompt twins
+ * (e.g. S0001L03 `build_2` + `use_1`, identical text and audio, adjacent)
+ * became FOUR consecutive identical plays on Easy. Verified live 2026-08-09.
+ * The walker is now where repetition lives, so the walker is where the law
+ * lives too: a repeat is only granted while the live run is under the cap, and
+ * a next cycle that would extend a full run is stepped over (its spaced-rep
+ * revisits later in the session are untouched — the law is about
+ * consecutiveness only).
+ */
+const MAX_CONSECUTIVE_PROMPT_PLAYS = 2
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -397,6 +420,19 @@ export class SimplePlayer {
   // reposition (cycleIndex/roundIndex move, jump, skip) so a repeat can never
   // leak across cycles; read only by advanceCycle's live repeat check.
   private currentCyclePlays: number = 0
+  // The A-64 live run: the prompt identity of the most recent completed
+  // play(s) and how many times that identity has sounded consecutively —
+  // ACROSS cycles and round boundaries (twin cycles with identical text are a
+  // run, and the build-time cap already seeds across the round seam). Reset on
+  // learner repositions (jump, skip, stop): a deliberate move breaks the
+  // consecutiveness the law is about.
+  private livePromptRunIdentity: string | null = null
+  private livePromptRunLength: number = 0
+  // True when any clip of the cycle currently at the cursor was silently
+  // SKIPPED (dead audio). A phrase the learner never heard cannot count
+  // toward "twice consecutively", so such a cycle does not extend the A-64
+  // run — the safe direction for a degraded session is to keep playing.
+  private currentCycleHadSilentSkip: boolean = false
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -764,6 +800,9 @@ export class SimplePlayer {
     const cycle = this.currentCycle
     // Counted before the emit so the telemetry payload carries this skip.
     this.consecutiveSkips++
+    // A silent skip means this cycle was not (fully) heard — it must not
+    // extend the A-64 live run (see advanceCycle).
+    this.currentCycleHadSilentSkip = true
     if (this.consecutiveSkips >= CONSECUTIVE_SKIP_ALARM) {
       console.error(
         `[SimplePlayer] ${this.consecutiveSkips} clips skipped in a row with nothing audible — ` +
@@ -1025,13 +1064,34 @@ export class SimplePlayer {
     return idx === -1 ? 0 : idx
   }
 
-  private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
+  /**
+   * `excludeIdentity` is the A-64 live-run exclusion: when the same prompt has
+   * just sounded MAX_CONSECUTIVE_PROMPT_PLAYS times in a row, any cycle
+   * carrying that identity is stepped over. Only the natural-advance callers
+   * pass it — jumps and skips are learner repositions that reset the run.
+   */
+  private findNextPlayableCycleIndex(round: Round, fromIndex: number, excludeIdentity: string | null = null): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
-    if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
     for (let i = fromIndex; i < round.cycles.length; i++) {
-      if (!skip(round.cycles[i])) return i
+      const cycle = round.cycles[i]
+      if (excludeIdentity !== null && cyclePromptIdentity(cycle) === excludeIdentity) continue
+      if (skip && skip(cycle)) continue
+      return i
     }
     return -1
+  }
+
+  /** The prompt identity the A-64 live run currently bans, or null. */
+  private excludedPromptIdentity(): string | null {
+    return this.livePromptRunLength >= MAX_CONSECUTIVE_PROMPT_PLAYS ? this.livePromptRunIdentity : null
+  }
+
+  /** Break the A-64 live run — called on learner repositions (jump, skip,
+   *  stop), where the deliberate move ends the consecutiveness the law is
+   *  about. Natural advances (cycle → cycle, round → round) do NOT reset. */
+  private resetPromptRun(): void {
+    this.livePromptRunIdentity = null
+    this.livePromptRunLength = 0
   }
 
   /**
@@ -1065,8 +1125,10 @@ export class SimplePlayer {
     // learner (or the app) has already decided where playback goes next.
     this.interrupted = false
     // A reposition lands on a different cycle: the live repeat counter belongs
-    // to the cycle we are leaving and must never follow the cursor.
+    // to the cycle we are leaving and must never follow the cursor. The same
+    // deliberate move breaks the A-64 consecutiveness run.
     this.currentCyclePlays = 0
+    this.resetPromptRun()
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -1159,6 +1221,7 @@ export class SimplePlayer {
     this.clearSafetyTimer()
     this.clearLingerTimer()
     this.currentCyclePlays = 0
+    this.resetPromptRun()
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -1878,9 +1941,29 @@ export class SimplePlayer {
     // at round start is exactly the bug.
     const justPlayed = this.currentCycle
     this.currentCyclePlays += 1
+    // Extend the A-64 live run with the play that just completed. Every
+    // completed play passes through here — first plays and repeats alike — so
+    // a doubled cycle contributes two to the run, and a twin cycle with the
+    // same text extends rather than restarts it. A cycle with a silently
+    // SKIPPED clip is exempt: the learner did not hear it, so it neither
+    // extends nor breaks the run.
+    const hadSilentSkip = this.currentCycleHadSilentSkip
+    this.currentCycleHadSilentSkip = false
+    if (justPlayed && !hadSilentSkip) {
+      const identity = cyclePromptIdentity(justPlayed)
+      if (identity === this.livePromptRunIdentity) {
+        this.livePromptRunLength += 1
+      } else {
+        this.livePromptRunIdentity = identity
+        this.livePromptRunLength = 1
+      }
+    }
     if (
       justPlayed &&
       this.currentCyclePlays < this.repeatCountFor(justPlayed) &&
+      // The law outranks the mode: a repeat is only granted while the live
+      // same-prompt run is still under the cap (see MAX_CONSECUTIVE_PROMPT_PLAYS).
+      this.livePromptRunLength < MAX_CONSECUTIVE_PROMPT_PLAYS &&
       !this.runtimeOverrides.shouldSkipCycle?.(justPlayed)
     ) {
       this.startPhase('prompt')
@@ -1896,8 +1979,10 @@ export class SimplePlayer {
     }
     // Find the next non-skipped cycle. Lets the runtime cull take effect
     // mid-round: the current cycle finishes, then the override jumps over
-    // any cycles it now wants skipped before the next prompt.
-    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+    // any cycles it now wants skipped before the next prompt — and, when the
+    // live same-prompt run is already at the cap, steps over any twin cycle
+    // that would extend it to a third consecutive hearing.
+    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1, this.excludedPromptIdentity())
     if (nextIdx !== -1) {
       this.currentCyclePlays = 0
       this.updateState({ cycleIndex: nextIdx })
@@ -1942,8 +2027,11 @@ export class SimplePlayer {
       // cycle out, opening at 0 plays a cycle this mode said not to play. So
       // the entry point is DERIVED here, live, exactly as play() already
       // derived it from a standstill; and a round the mode empties entirely is
-      // stepped over rather than stalled on.
-      const startIdx = this.findNextPlayableCycleIndex(nextRound, 0)
+      // stepped over rather than stalled on. The A-64 exclusion crosses the
+      // seam with us: a round opening on a twin of the prompt that just
+      // sounded twice would breach the law at the boundary, exactly the case
+      // the build-time cap's cross-round seeding used to cover.
+      const startIdx = this.findNextPlayableCycleIndex(nextRound, 0, this.excludedPromptIdentity())
       if (startIdx === -1) {
         console.debug(`[SimplePlayer] Round ${nextRound?.roundNumber}: every cycle selected out by the active mode, stepping over`)
         this.updateState({ roundIndex: nextIndex, cycleIndex: 0 })

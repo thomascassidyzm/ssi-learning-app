@@ -1,8 +1,9 @@
 # APML Playback: The consecutive-repeat law (A-64)
 # SSI Learning App
-# Version: 1.2.1
-# Last updated: 2026-08-08
-# Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
+# Version: 1.3.0
+# Last updated: 2026-08-09
+# Source: packages/player-vue/src/playback/SimplePlayer.ts (the LIVE enforcement)
+#         packages/player-vue/src/playback/capConsecutiveRepeats.ts
 #         packages/player-vue/src/providers/generateLearningScript.ts
 #         packages/player-vue/src/providers/backendCyclesToRounds.ts
 #         packages/player-vue/src/providers/toSimpleRounds.ts
@@ -34,20 +35,23 @@ SPECIFICATION:
     never to delete it. A rep is dropped only when there is genuinely nothing
     to interleave against.
   easy_doubling: |
-    2026-08-07 — Easy mode now DELIBERATELY plays every BUILD, REVIEW, USE and
-    CONSOLIDATE cycle twice in a row (providers/repeatPhraseCycles.ts). That is
-    legal under this law and is exactly why the law is a maximum of TWO: Tom's
-    own framing, "a phrase repeated 3x would drive people nuts, but doubled up
-    is perfect". The repeat COUNT is config (algorithm_config, per mode) but is
-    clamped to 2 in code, so no row can ever ask this law to be broken.
+    2026-08-07 — Easy mode DELIBERATELY plays every BUILD, REVIEW, USE and
+    CONSOLIDATE cycle twice in a row. That is legal under this law and is
+    exactly why the law is a maximum of TWO: Tom's own framing, "a phrase
+    repeated 3x would drive people nuts, but doubled up is perfect". The repeat
+    COUNT is config (algorithm_config, per mode) but is clamped to 2 in code,
+    so no row can ever ask this law to be broken.
 
-    ORDERING IS LOAD-BEARING, on BOTH paths. The repeat runs AFTER the
-    generator's consecutive-duplicate removal — which would otherwise strip the
-    twin on sight — and BEFORE this law's floor, which therefore stands
-    downstream of the repeater on the script-walk path (generateLearningScript)
-    and on the instant-playback path (backendCyclesToRounds, where
-    repeatRoundCycles runs before capRoundCycles). Any future emitter that
-    wants a deliberate repeat must sit in the same place.
+    2026-08-09 — the doubling moved OUT of the script and INTO the walker
+    (SimplePlayer's getCycleRepeatCount override, read live at each cycle end)
+    so a mid-session mode toggle takes effect immediately. That refactor broke
+    the previous ordering invariant ("repeat runs BEFORE this law's floor"):
+    the build-time cap sees only SINGLE copies, and the walker's live repeat
+    runs downstream of it — so a legal build-time pair of same-prompt twins
+    (live example: zho_for_eng S0001L03 `build_2` + `use_1`, identical text
+    and audio ids, adjacent in the round) became FOUR consecutive identical
+    plays on Easy. Verified in a real browser 2026-08-09. The fix is the
+    walker-level enforcement below — the law now lives where repetition lives.
   identity: |
     "The same prompt" = identical normalised known text paired with identical
     normalised target text (the getPhraseId notion). Listening items are the
@@ -57,7 +61,37 @@ SPECIFICATION:
     prompt.
 
 ## ============================================================================
-## THE ENFORCEMENT POINT
+## THE LIVE ENFORCEMENT — the walker itself (2026-08-09)
+## ============================================================================
+
+COMPONENT:
+  file: "packages/player-vue/src/playback/SimplePlayer.ts"
+  constant: "MAX_CONSECUTIVE_PROMPT_PLAYS = 2"
+  mechanism: |
+    The walker tracks the LIVE same-prompt run (identity = cyclePromptIdentity,
+    the same notion the build-time cap uses): every completed play — first
+    plays and live repeats alike — extends or restarts the run, across cycle
+    AND round boundaries (mirroring the build-time cap's cross-round seeding).
+    Two consequences:
+      1. a live repeat (getCycleRepeatCount) is only granted while the run is
+         under the cap — the law outranks the mode;
+      2. on natural advance, a next cycle whose identity would extend a
+         full run is stepped over (its spaced-rep revisits later in the
+         session are untouched — consecutiveness only).
+    The run RESETS on learner repositions (jump, skip, stop): a deliberate
+    move ends the consecutiveness the law is about, so a learner who jumps
+    onto a twin still gets it in full. A cycle with a silently SKIPPED clip
+    (dead audio) neither extends nor breaks the run — a phrase never heard
+    cannot count toward "twice consecutively".
+  displaced_twin: |
+    Unlike the build-time cap, the walker cannot re-interleave — position is
+    the player's unit of state. A twin stepped over on this pass is simply not
+    played on this pass. Honest trade: the learner just heard that exact
+    phrase twice, and its spaced-rep revisits are untouched, so the loss is a
+    third-and-fourth consecutive hearing nobody wants.
+
+## ============================================================================
+## THE BUILD-TIME ENFORCEMENT POINT
 ## ============================================================================
 
 COMPONENT:
@@ -226,6 +260,11 @@ RESIDUE:
 ## ============================================================================
 
 TESTS:
+  - file: "packages/player-vue/src/playback/a64LiveRepeatCap.test.ts"
+    covers: |
+      The walker-level (live) enforcement — the S0001L03 adjacent-twin case
+      under Easy and Fast, three-in-a-row under Fast, the round seam, run
+      breaking by a differing cycle, and the learner-jump reset.
   - file: "packages/player-vue/src/playback/capConsecutiveRepeats.test.ts"
     covers: |
       Unit behaviour plus a 400-case property sweep: output never contains
@@ -249,6 +288,6 @@ TESTS:
       across consecutive laps into the sequence the learner actually hears.
 
 ## ============================================================================
-## Last updated: 2026-08-08
+## Last updated: 2026-08-09
 ## APML v2.0.0
 ## ============================================================================
