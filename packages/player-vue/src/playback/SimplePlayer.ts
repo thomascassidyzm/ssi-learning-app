@@ -95,7 +95,30 @@ type EventName =
   | 'round_completed'
   | 'session_complete'
   | 'audio_failed' // Browser needs a fresh user gesture to play audio (iOS autoplay).
+  | 'interrupted' // Something OUTSIDE the app paused our element (see AudioInterruptedEvent).
 type EventCallback = (data?: unknown) => void
+
+/**
+ * Emitted when the audio element was paused by something that is NOT us and
+ * is NOT the learner — the web-platform face of an iOS audio-session
+ * interruption: another app (a WhatsApp notification sound, a maps voice
+ * prompt, a call) takes the audio session, iOS pauses our element, and the
+ * session is left believing it is playing while nothing sounds.
+ *
+ * The engine NEVER self-resumes off this — it only records the interruption
+ * and reports it. Recovery is a transition, and every transition belongs to
+ * PlayerConductor (see PlayerConductor.resumeAfterInterruption).
+ */
+export interface AudioInterruptedEvent {
+  /** Phase the session was in when the interruption landed. */
+  phase: Phase
+  /** True when the interruption hit one of the SILENT clips (pause phase or
+   * post-voice2 linger) — the windows with no stall watchdog, and therefore
+   * the ones that strand the session permanently rather than skipping a clip. */
+  duringSilentClip: boolean
+  /** Whether the page was backgrounded at the moment of the interruption. */
+  hidden: boolean
+}
 
 export interface AudioFailedEvent {
   /**
@@ -280,6 +303,18 @@ function silentClipForMs(ms: number): string {
  */
 const CONSECUTIVE_SKIP_ALARM = 3
 
+/**
+ * How long after one of OUR OWN stops of the audio element a `pause` event is
+ * still attributed to us rather than to an outside interruption.
+ *
+ * The element's `pause` event is queued as a task, so our own pause()/src
+ * assignment lands its event within a tick or two — but a backgrounded tab can
+ * run that task late. 400ms is far beyond any same-tick queue delay and far
+ * short of a real interruption, which arrives with no preceding stop of ours
+ * at all.
+ */
+const SELF_STOP_GRACE_MS = 400
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -342,6 +377,16 @@ export class SimplePlayer {
   // should have elapsed. Bounds the worst case; never the primary mechanism
   // (the clip 'ended' is).
   private onVisibilityHandler: () => void
+  // Fires whenever the element stops sounding — ours or not. See onElementPause.
+  private onPauseHandler: () => void
+  // Timestamp of the last stop of the element WE caused (audio.pause(), or a
+  // src assignment, which also fires 'pause' via the media load algorithm).
+  // Anything outside SELF_STOP_GRACE_MS of this was somebody else's doing.
+  private selfStopAt: number = 0
+  // Set when an outside agent paused us mid-session; cleared by
+  // resumeFromInterruption (or by any transition that supersedes it). The
+  // engine never acts on this itself — the conductor does.
+  private interrupted: boolean = false
   // Generation counter: increments on every playAudio call.
   // Stale play() rejections and safety timeouts check this to avoid
   // advancing the phase machine from a superseded audio request.
@@ -401,18 +446,119 @@ export class SimplePlayer {
     this.audio.addEventListener('timeupdate', this.onTimeUpdateHandler)
     this.audio.addEventListener('loadedmetadata', this.onTimeUpdateHandler)
 
+    this.onPauseHandler = () => this.onElementPause()
+    this.audio.addEventListener('pause', this.onPauseHandler)
+
     this.onVisibilityHandler = () => {
       // Only relevant during a backgrounded PAUSE. Back in the foreground and
       // the pause window has elapsed → advance now rather than waiting on a
       // trim timer iOS may have frozen. The clip's own 'ended' usually beats
       // this; it's the belt-and-braces backstop.
       if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      this.detectSilentClipInterruption()
       if (this.state.phase !== 'pause' || !this.state.isPlaying) return
       if (this.pauseEndsAt > 0 && Date.now() >= this.pauseEndsAt) this.endPausePhase()
     }
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityHandler)
     }
+  }
+
+  /**
+   * Mark the element as having been stopped BY US — either an explicit
+   * audio.pause() or a `.src` assignment (the media load algorithm pauses a
+   * playing element and fires 'pause' too). Every one of our own stops goes
+   * through here so onElementPause can tell our stops apart from an outside
+   * interruption without inspecting call stacks.
+   */
+  private markSelfAudioStop(): void {
+    this.selfStopAt = Date.now()
+  }
+
+  /** Stop the element, recording it as ours. The only sanctioned pause path. */
+  private stopAudioElement(): void {
+    this.markSelfAudioStop()
+    this.audio.pause()
+  }
+
+  /**
+   * The element stopped sounding. If the session believes it is playing and
+   * we did not stop it ourselves, something OUTSIDE the app did — an iOS
+   * audio-session interruption (another app's notification sound, a maps
+   * prompt, a call), a lock-screen/bluetooth pause, or the OS reclaiming
+   * audio focus from a backgrounded tab.
+   *
+   * We only RECORD it. Resuming is a transition and belongs to the conductor
+   * — and resuming while the interrupting audio is still sounding would just
+   * be rejected anyway.
+   */
+  private onElementPause(): void {
+    if (!this.state.isPlaying) return              // learner-paused / stopped — not ours to touch
+    if (this.state.phase === 'idle') return
+    if (this.audio.ended) return                   // natural end; 'ended' owns this
+    if (Date.now() - this.selfStopAt < SELF_STOP_GRACE_MS) return
+    this.noteInterruption()
+  }
+
+  /**
+   * Belt-and-braces detector, run when the page returns to the foreground:
+   * the session thinks it is playing, but the element is paused mid-SILENT
+   * clip (pause phase or post-voice2 linger).
+   *
+   * Those two windows are the ones with no stall watchdog — a voice clip
+   * killed by an interruption still has armSafetyTimer to notice and advance,
+   * but a silent clip has only its own 'ended' (which an interruption
+   * cancels) and a setTimeout iOS freezes while backgrounded. If the 'pause'
+   * event was itself dropped while hidden, this is the only thing that ever
+   * notices, and it is exactly the intermittent case.
+   */
+  private detectSilentClipInterruption(): void {
+    if (!this.state.isPlaying) return
+    if (!this.pauseClipActive && !this.lingerClipActive) return
+    if (!this.audio.paused) return
+    if (Date.now() - this.selfStopAt < SELF_STOP_GRACE_MS) return
+    this.noteInterruption()
+  }
+
+  private noteInterruption(): void {
+    if (this.interrupted) return
+    this.interrupted = true
+    const duringSilentClip = this.pauseClipActive || this.lingerClipActive
+    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+    console.warn(
+      `[SimplePlayer] Audio stopped by something outside the app (audio-session interruption) — ` +
+      `phase=${this.state.phase} silentClip=${duringSilentClip} hidden=${hidden}. ` +
+      `Awaiting a conductor-driven resume.`,
+    )
+    this.emit('interrupted', { phase: this.state.phase, duringSilentClip, hidden } satisfies AudioInterruptedEvent)
+  }
+
+  /** True while an outside interruption is recorded and unrecovered. */
+  get hasPendingInterruption(): boolean {
+    return this.interrupted
+  }
+
+  /**
+   * Recover from a recorded outside interruption by replaying the current
+   * cycle from PROMPT — the same reasoning as resume(): whatever the learner
+   * was mid-way through is gone from their head, so they get the whole cycle.
+   *
+   * No-ops unless an interruption is actually pending AND the session still
+   * believes it is playing, so a learner who deliberately paused is never
+   * un-paused, and a second call can never double-play (the flag is cleared
+   * before the restart, and stopForReposition's generation bump makes any
+   * in-flight audio work from before the interruption inert).
+   *
+   * Called ONLY by PlayerConductor.resumeAfterInterruption.
+   */
+  resumeFromInterruption(): void {
+    if (!this.interrupted) return
+    this.interrupted = false
+    if (!this.state.isPlaying) return
+    if (this.state.phase === 'idle') return
+    console.log('[SimplePlayer] Recovering from audio interruption — replaying the current cycle from prompt')
+    this.stopForReposition()
+    this.startPhase('prompt')
   }
 
   /**
@@ -444,7 +590,7 @@ export class SimplePlayer {
    */
   private tripGestureRequired(lastError: string): void {
     console.warn('[SimplePlayer] Audio needs user gesture — pausing session')
-    this.audio.pause()
+    this.stopAudioElement()
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -540,6 +686,9 @@ export class SimplePlayer {
     this.lastAssignedSrcGen = gen
     console.warn(`[SimplePlayer] Retrying audio (attempt 2/2): ${url}`)
     try {
+      // A src assignment pauses a playing element and fires 'pause' — ours,
+      // not an interruption. Same at every other src assignment below.
+      this.markSelfAudioStop()
       this.audio.src = url
       this.audio.load()
     } catch (err) {
@@ -594,7 +743,7 @@ export class SimplePlayer {
       `errorCode=${errorCode} lastError=${lastError}`,
     )
     this.emit('audio_failed', this.buildFailedContext(errorCode, 2, lastError))
-    this.audio.pause()
+    this.stopAudioElement()
     this.clearSafetyTimer()
     // Retry budget is per clip — the next clip gets its own.
     this.retryAttempted = false
@@ -863,10 +1012,13 @@ export class SimplePlayer {
    */
   private stopForReposition(): void {
     ++this.playGeneration
+    // Any deliberate reposition supersedes a recorded interruption — the
+    // learner (or the app) has already decided where playback goes next.
+    this.interrupted = false
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
-    this.audio.pause()
+    this.stopAudioElement()
     this.retryAttempted = false
     this.retryUrl = null
   }
@@ -917,7 +1069,10 @@ export class SimplePlayer {
     // "[SimplePlayer] play() rejected: The operation was aborted" during a
     // round-boundary pause, with the session silently going dead.
     ++this.playGeneration
-    this.audio.pause()
+    // A deliberate pause outranks any recorded interruption: from here the
+    // learner owns the play state, and nothing may un-pause them.
+    this.interrupted = false
+    this.stopAudioElement()
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -944,7 +1099,8 @@ export class SimplePlayer {
   }
 
   stop(): void {
-    this.audio.pause()
+    this.interrupted = false
+    this.stopAudioElement()
     this.audio.src = ''
     this.audio.playbackRate = 1.0
     this.clearPauseTimer()
@@ -1347,6 +1503,7 @@ export class SimplePlayer {
     this.retryAttempted = false
     this.retryUrl = url
     this.retryIsTarget = isTarget
+    this.markSelfAudioStop()
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
     // The baked rate is the whole truth: no mode may multiply it (see the
@@ -1444,6 +1601,7 @@ export class SimplePlayer {
     this.lastAssignedSrcGen = gen
     this.pauseClipActive = true
     try {
+      this.markSelfAudioStop()
       this.audio.src = SILENT_PAUSE_CLIP
       this.audio.playbackRate = 1.0
       this.audio.loop = false // NEVER loop — that is the disabled oscillation landmine.
@@ -1484,7 +1642,7 @@ export class SimplePlayer {
     this.pauseEndsAt = 0
     ++this.playGeneration // invalidate the trim timer and any trailing 'ended'
     this.clearPauseTimer()
-    this.audio.pause()
+    this.stopAudioElement()
     this.onAudioEnded()
   }
 
@@ -1500,7 +1658,7 @@ export class SimplePlayer {
     if (this.pauseClipActive) {
       this.pauseClipActive = false
       this.pauseEndsAt = 0
-      try { this.audio.pause() } catch { /* element may already be torn down */ }
+      try { this.stopAudioElement() } catch { /* element may already be torn down */ }
     }
   }
 
@@ -1528,7 +1686,7 @@ export class SimplePlayer {
     // can never be left sounding into the next cycle.
     if (this.lingerClipActive) {
       this.lingerClipActive = false
-      try { this.audio.pause() } catch { /* element may already be torn down */ }
+      try { this.stopAudioElement() } catch { /* element may already be torn down */ }
     }
   }
 
@@ -1588,6 +1746,7 @@ export class SimplePlayer {
     this.lastAssignedSrcGen = gen
     this.lingerClipActive = true
     try {
+      this.markSelfAudioStop()
       this.audio.src = silentClipForMs(duration)
       this.audio.playbackRate = 1.0
       this.audio.loop = false // NEVER loop — the disabled 2026-05-23 oscillation landmine.
@@ -1618,7 +1777,7 @@ export class SimplePlayer {
     this.lingerClipActive = false
     ++this.playGeneration // invalidate the backstop timer and any trailing 'ended'
     this.clearLingerTimer()
-    this.audio.pause()
+    this.stopAudioElement()
     if (this.state.isPlaying) this.advanceCycle()
   }
 
@@ -1703,6 +1862,7 @@ export class SimplePlayer {
     this.stop()
     this.audio.removeEventListener('ended', this.onEndedHandler)
     this.audio.removeEventListener('error', this.onErrorHandler)
+    this.audio.removeEventListener('pause', this.onPauseHandler)
     this.audio.removeEventListener('timeupdate', this.onTimeUpdateHandler)
     this.audio.removeEventListener('loadedmetadata', this.onTimeUpdateHandler)
     if (typeof document !== 'undefined') {
