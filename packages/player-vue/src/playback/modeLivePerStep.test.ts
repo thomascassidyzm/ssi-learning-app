@@ -224,6 +224,42 @@ describe('the walker re-derives repetition live, per step', () => {
     expect(prompts).toEqual(['0:1', '0:1'])
   })
 
+  /**
+   * PAUSE → SWITCH → RESUME MUST NOT MAKE THREE (measured live on dev,
+   * 2026-08-09). The Easy/Fast control lives on the RESTING screen, so pause →
+   * switch → resume is the ONLY way a learner switches mid-session — and on
+   * Easy it played the phrase THREE times: the interrupted play, resume()'s
+   * restart from the prompt, then the repeat advanceCycle still owed because
+   * nothing had counted the restart. Three is the one thing config may not buy.
+   */
+  it('a pause and resume SPENDS a hearing rather than adding one — Easy still totals two', async () => {
+    const player = new SimplePlayer([makeRound('S0001L01', 1, 2)], { getCycleRepeatCount: () => 2 })
+    const prompts = trackPrompts(player)
+    player.play()
+    await flush()
+    // Interrupted part-way through the first play, which is what reaching the
+    // resting-screen control actually costs.
+    player.pause()
+    player.resume()
+    await playOneCycleThrough()
+
+    // Two prompts on cycle 0 (the interrupted one and the restart), then the
+    // walker moves on — no third hearing.
+    expect(prompts).toEqual(['0:0', '0:0', '0:1'])
+  })
+
+  it('Fast is untouched by that — it never reached the repeat branch anyway', async () => {
+    const player = new SimplePlayer([makeRound('S0001L01', 1, 2)], { getCycleRepeatCount: () => 1 })
+    const prompts = trackPrompts(player)
+    player.play()
+    await flush()
+    player.pause()
+    player.resume()
+    await playOneCycleThrough()
+
+    expect(prompts).toEqual(['0:0', '0:0', '0:1'])
+  })
+
   it('no hook at all = play once (every existing caller is untouched)', async () => {
     const player = new SimplePlayer([makeRound('S0001L01', 1, 2)])
     const prompts = trackPrompts(player)
