@@ -9,16 +9,15 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     process.env.GIT_COMMIT?.slice(0, 7) ||
                     `dev-${Date.now().toString(36)}`
 
-// SW self-update policy by environment:
-//   dev      → auto-update on reload (rapid churn; testers want fresh code,
-//              and mixed stale bundles across deploys were a testing nightmare)
-//   staging  → prompt-only, like production (the external/Colombo team vets
-//              staging as a prod CANDIDATE, so they must experience the real
-//              tap-to-update flow — and this is the only place that flow gets
-//              exercised before it reaches live users)
-//   main/prod→ prompt-only, honouring the never-auto-interrupt-a-live-session rule
-// Vercel tags BOTH dev and staging as VERCEL_ENV='preview' (production branch is
-// `main`), so we additionally carve staging out by branch name.
+// Dev-only affordances (the `?wedge=1` boot-watchdog rehearsal cheat). Vercel
+// tags BOTH dev and staging as VERCEL_ENV='preview' (production branch is
+// `main`), so staging is carved out by branch name — it must behave exactly
+// like production, since it's the prod CANDIDATE the external team vets.
+//
+// NOTE (2026-08-07): this flag used to ALSO drive skipWaiting/clientsClaim, so
+// dev and local builds let a new SW claim a live page the moment it installed.
+// That is a mid-session teardown by another name — see the skipWaiting comment
+// below for why no environment does it any more.
 const swSelfUpdate = process.env.VERCEL_ENV !== 'production'
   && process.env.VERCEL_GIT_COMMIT_REF !== 'staging'
 
@@ -100,6 +99,19 @@ export default defineConfig(({ mode }) => ({
           '**/board/**',            // one-off board reports, never an offline learner path
         ],
 
+        // The precache route must not answer navigations either (2026-08-07).
+        // Workbox's PrecacheRoute is registered FIRST, before any runtimeCaching
+        // route, and by default it retries a URL ending in "/" with
+        // `directoryIndex` appended — so a navigation to "/" matched the
+        // precached index.html and was served CacheFirst from the OLD shell. The
+        // NetworkFirst navigation route below never saw it, which quietly made
+        // "just reload to get the new build" untrue: the ONLY way new code ever
+        // reached a learner was a new SW ACTIVATING and swapping the precache —
+        // i.e. exactly the destructive path that killed live sessions. Null
+        // leaves index.html precached (precacheFallback still serves it offline)
+        // while letting navigations reach the network first.
+        directoryIndex: null,
+
         // NO precache NavigationRoute. vite-plugin-pwa DEFAULTS navigateFallback
         // to 'index.html', which registers a NavigationRoute bound to the
         // precached shell FIRST — shadowing the NetworkFirst navigation route
@@ -127,11 +139,19 @@ export default defineConfig(({ mode }) => ({
         // remains the only way the new SW takes control. Tom's hard rule
         // (2026-05-22, learnt the hard way during a session): NEVER
         // interrupt a playing session with an automatic update.
-        // Preview/local: self-update so testers run fresh code on reload
-        // (mixed stale bundles were the testing nightmare). PRODUCTION: both
-        // false — honour the never-auto-interrupt rule documented above.
-        skipWaiting: swSelfUpdate,
-        clientsClaim: swSelfUpdate,
+        // FALSE IN EVERY ENVIRONMENT (2026-08-07). Dev/preview used to set
+        // both true so testers "got fresh code on reload" — but a new SW that
+        // claims a live page also runs Workbox's precache cleanup, which
+        // deletes every chunk whose content changed in that build. The page
+        // keeps running with a hole where its own code used to be, and the
+        // next lazy import 404s: the app dies mid-session with no user action
+        // at all. Reproduced in e2e/sw-update-probe.mjs (dev config: the new
+        // SW claims the page and 10 of 21 entry chunks go 404).
+        // Testers still get fresh code on reload without this: navigations are
+        // NetworkFirst, so a plain reload always fetches the new index.html
+        // and its new chunks. One lifecycle, all environments.
+        skipWaiting: false,
+        clientsClaim: false,
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [

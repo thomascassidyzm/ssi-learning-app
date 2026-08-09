@@ -50,6 +50,11 @@
       "types": "./dist/script/index.d.ts",
       "import": "./dist/script/index.mjs",
       "require": "./dist/script/index.js"
+    },
+    "./text": {
+      "types": "./dist/text/index.d.ts",
+      "import": "./dist/text/index.mjs",
+      "require": "./dist/text/index.js"
     }
   },
   "scripts": {

@@ -11,6 +11,7 @@ export default defineConfig({
     'audio/index': 'src/audio/index.ts',
     'pods/index': 'src/pods/index.ts',
     'script/index': 'src/script/index.ts',
+    'text/index': 'src/text/index.ts',
   },
   format: ['cjs', 'esm'],
   dts: true,

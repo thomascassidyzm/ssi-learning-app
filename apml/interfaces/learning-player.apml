@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.19 (2026-07-14)
+# Version: 2.1.27 (2026-08-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -307,11 +307,99 @@ TILE_ASSEMBLY:
     prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
 
 ## ============================================================================
+## LEARNING MODE — EASY / FAST (2026-08-06)
+## ============================================================================
+
+LEARNING_MODE:
+  description: "The two learner-facing modes. Turbo was RETIRED 2026-08-06; there is exactly `easy` and `fast`."
+  source: "packages/player-vue/src/components/LearningPlayer.vue (learningMode ref, isEasyMode computed, setLearningMode/toggleLearningMode) + components/PlayerRestingState.vue (the control)"
+
+  modes:
+    fast:
+      default: "For EXISTING learners only — see default_by_history below."
+      semantics: "Behaviourally identical to the pre-2026-08-06 `normal` mode — a learner who never touches the toggle sees no change at all. Keeps the baked belt speed ramp (getPlaybackSpeedMultiplier returns 1.0) and the global script_shape unchanged."
+    easy:
+      semantics: "Gentler. Six independent knobs — pause timing, phrase-count overlay, phrase-length cap, repeat count, repeated cycle types, BUILD filtering, and the known-side review pull filter — every one of them an algorithm_config row editable on the admin Speaking page. Nothing about Easy is hardcoded (Tom, 2026-08-07)."
+      time: "Every pause term is 2x Fast (boot, assembly slope, floor, ceiling, multiplier) AND the belt taper is off (pause_belt_boot / pause_belt_assembly both 1.0 vs Fast's 0.8 assembly taper). Audio plays at native 1.0x — Easy cancels the beginner belt speed ramp, never speeds the voice past 1.0x."
+      reps: "NO PHRASE-COUNT INFLATION (Tom's ruling, 2026-08-07: 'JUST DOUBLE'). Easy's per-mode `script_shape` overlay is EMPTY, so Easy generates exactly the global shape — the same phrase SET as Fast — and its extra repetition comes entirely from playing each cycle twice. Measured on fra_for_eng: 42 cycles per round against Fast's 22, i.e. ~2x. Easy previously ALSO doubled the four count knobs (14/4/24/6 against the global 7/2/12/3), which compounded with the doubling into a ~2.5x round nobody asked for — more DIFFERENT phrases, where what was asked for was the SAME phrase heard twice. The overlay REMAINS as the phrase-count multiplier, per mode, on the admin Speaking page; it simply defaults to no inflation. `spacedRepOffsets` is still never overridden: the Fibonacci ladder is WHEN a review fires, not how many reps it gives."
+      length: "`maxPhraseLengthFraction: 0.5` — a CAP, not a sort direction. The ceiling is ABSOLUTE and COURSE-WIDE: 0.5 x the longest phrase in the whole course, measured in CHARACTERS of target text. Ordering stays shortest-first everywhere (so Fast, at 1.0 = uncapped, is provably byte-identical to before). Measured reasons for characters-not-syllables and course-wide-not-per-LEGO: target_syllable_count is NULL across whole courses and the syllable fallback returns 1 for non-Latin scripts, and BUILD pools average ~3.2 phrases so a per-LEGO ceiling never bit. A STARVATION GUARD keeps >=4 BUILD / >=5 USE per LEGO — phrase volume is a hard methodology rail, so the cap yields to it. Invalid/missing degrades to 1.0 (uncapped), never to a cap."
+      repetition: "DOUBLING (Tom, 2026-08-07): every BUILD, REVIEW (spaced_rep), USE and CONSOLIDATE cycle plays EXACTLY TWICE, back to back — 'in EASY mode, double up every phrase, every BLD, every USE, every REVIEW, every CONSOLIDATE'. Never three times: 'a phrase repeated 3x would drive people nuts, but doubled up is perfect'. The INTRO cycle and the bare LEGO debut play ONCE — asked directly, Tom: 'of course not - the intro LEGO and not the LEGO alone'. FULLY PARAMETRISED (Tom, same night: 'ALL of this must be parametrised into the EASY settings in the app's configs — nothing hardcoded'): `phraseRepeatCount` (Easy 2, Fast 1) and `repeatedCycleTypes` (default build/spaced_rep/use) are both algorithm_config rows, editable per mode on the admin Speaking page. The ONE thing config cannot raise is the ceiling of 2 — normalizePhraseRepeatCount clamps a row asking for 3 and warns, because that is Tom's rule, not a preference. SEED-PHASE production reviews are never repeated whatever the type list says: that sandwich is already several cycles of one sentence. Implemented as a pure pass — providers/repeatPhraseCycles.ts — with TWO entry points that must stay in step: `repeatPhraseCycles` over the script walk's finished item list (AFTER the consecutive-duplicate removal, which would strip the twin, and BEFORE the A-64 floor, which allows at most two in a row and so guarantees doubled can never become tripled), and `repeatRoundCycles` inside backendCyclesToRounds for the INSTANT-PLAYBACK path. The second is not optional: INSTANT_PLAYBACK_ALL serves the first rounds of every session from the mode-blind cycles endpoint, so a repeat living only in the walk left the learner's first rounds undoubled and the doubling appearing mid-session. Each copy carries its own uuid/id (<original>_x2). A count of 1 returns the input untouched, so Fast stays byte-identical."
+      build_phrases: "NO FILTERING ON BUILD (Tom, 2026-08-07, verbatim: 'no filtering on BLD phrases'). Easy passes filterBuildPhrases:false and its BUILD pools bypass the character cap entirely — build phrases are short by construction ('they usually only have one or two additional LEGOs from the previous material') and they ARE the debut round, so filtering them guts the round that exists to be generous. Fast keeps the historic filtered behaviour."
+      review_pull_filter: "`reviewMaxKnownSyllables: 15` + `reviewSyllableFilterMaxRound: 100` (Tom, 2026-08-07). A PULL-TIME filter on which use phrase a REVIEW or CONSOLIDATE slot draws from a LEGO's basket — NOT a ceiling on the script. It counts the KNOWN language (the learner's own, the prompt side), not the target, using the canonical registry in @ssi/core/text (a verbatim port of ssi-dashboard-v7-clean/tools/lib/syllable-counters.cjs — a KNOWN, NAMED cross-repo duplication; changes must be mirrored, fixtures included). ACTIVE FOR ROUNDS 1-100 ONLY; from round 101 the basket opens fully, nothing backlogged, nothing cascading — per Tom, 'the whole idea of you have got a cascade, you have got a wall, once you get to 100 and 101, all these space repetitions is complete nonsense, makes no difference at all', because 'it's the LEGO that you are practicing' and every pulled phrase contains that LEGO whether or not the learner has met the phrase before. SHORTEST-IN-BASKET FALLBACK: a basket with nothing at or under the cap yields its shortest phrase, so a LEGO is never skipped and a review slot is never empty. INERT AND LOUD where the KNOWN language has no registered counter — one console warning per course plus `syllableCapApplied: false` on the generator result, never a silent no-op, which is exactly how the first syllable attempt failed. English is the known language of most courses and is registered. Debut BUILD/USE selection is deliberately NOT filtered. SUPERSEDES the absolute `maxPhraseSyllables: 20` target-side ceiling that shipped earlier the same night: that counted the wrong side of the pair, applied to the whole script rather than the pull, and never lifted. Both numbers are algorithm_config easy_mode DB rows, so retuning by ear is a Supabase edit, not a deploy."
+
+  default_by_history:
+    rule: "ASYMMETRIC (Aran via Tom, 2026-08-06). A learner with NO play history starts on EASY. A learner with ANY play history keeps TODAY'S behaviour — FAST — so nothing silently slows down mid-course for anyone already playing."
+    why_module_default_stays_fast: "`DEFAULT_LEARNING_MODE` remains 'fast' deliberately: every pre-existing learner, and every path that reads the mode BEFORE progress resolves, must land on the unchanged experience. Easy is applied as a decision on top, never as the base."
+    decision: "composables/newLearnerMode.ts — `resolveNewLearnerMode()`, a pure function returning the mode to apply or NULL for leave-alone. Returns null (not 'fast') on every leave-alone path so the caller never writes a mode it did not decide, which would clobber a choice still arriving from the learner row."
+    gate: "Gated on `progressHistoryResolved` — before the saved-progress read returns, 'no history' and 'not loaded yet' are both empty; acting on the second would put an existing learner on Easy. A guest resolves TRUE synchronously (no server history by definition); a FAILED read never resolves."
+    history_signals: "highest_completed_lego_id | last_completed_lego_id | highestCompletedRoundIndex !== null (round 0 is real play) | completedRounds > 0"
+    explicit_choice_wins: "If the learner has ever chosen a mode (learner row OR localStorage), the default never fires — in either direction, forever."
+    not_a_behavioural_signal: "Applied WITHOUT routing through setLearningMode(), so it emits no `learning_mode_toggle`: a silent default is not a learner judgement and must not enter the manual-dial evidence stream."
+    status: "Tom has flagged this default as overridable by him; built as ruled, not yet challenged."
+
+  control:
+    surface: "Segmented Easy | Fast control on the RESTING SCREEN (PlayerRestingState.vue) — the mode you pick BEFORE you start, not a mid-session tray toggle. Rendered only when isPlayerReady; pointer-events re-enabled locally because .resting-state is pointer-events:none."
+    wiring: "PlayerRestingState props :learning-mode, emits set-learning-mode -> LearningPlayer.setLearningMode(mode)"
+    copy: "locales modes.easy / modes.fast / modes.learningModeLabel"
+    not_in_tray: "ModeTray no longer carries a mode entry for this — the Turbo row and its explanation popup were deleted with Turbo."
+
+  persistence:
+    source_of_truth: "learner preferences `learning_mode: 'easy' | 'fast'` (optional; absent reads as 'fast') — replaced `turbo_mode_enabled`"
+    fallback: "localStorage key `ssi-learning-mode` for signed-out learners; the learner row wins once auth resolves (watched)"
+
+  config:
+    rows: "algorithm_config `fast_mode` + `easy_mode` (was `normal_mode` + `turbo_boost`)"
+    backward_compatible: "fast_mode falls back to the legacy normal_mode row; easy_mode falls back to DEFAULT_EASY layered over the tuned fast/normal values. A missing row can never break playback. The player writes no rows."
+
+  timing_of_effect:
+    immediate: "Pause / thinking time and playback speed — they go through SimplePlayer runtime overrides read fresh at every phase, so they land on the next cycle boundary."
+    next_script_build: "Doubled reps + BOTH phrase-length caps (the halved character fraction and the absolute syllable ceiling) — baked at script-generation time, so they land on the next session or a course switch. No blocking mid-session regeneration by design. generateScript's dedupe key includes the mode so the other mode's cached walk is never served."
+
+  analytics: "player_events `learning_mode_toggle` with payload { mode } (replaced `turbo_toggle`). Also fed to useBehaviouralEvidence as a MANUAL DIAL — the learner outranking the engine — which sets manualOverrideActive for adaptation v2 and never enters a unit's difficulty series."
+
+  retired_with_turbo:
+    cycle_cull: "`turboOmit` is GONE from ScriptItem, Cycle and toSimpleRounds — no learner gets a thinned-out round any more. SimplePlayer's generic shouldSkipCycle hook remains and is used by adaptation v2 alone."
+    points_multiplier: "The turbo-usage session points multiplier is retired — sessionMultiplier is a flat 1.0, which is what every non-Turbo learner already got."
+    pod_ratchet: "DELETED 2026-08-07. `usePodLapScheduler.skipAhead` — the pod-lap ratchet bump on skip — was Turbo's alone and had no caller left; the method and its test are gone. The pod counter now only ever advances by a PLAYED lap (markLapCompleted)."
+    historical_events: "MANUAL_DIAL_EVENT_TYPES still contains 'turbo_toggle' ONLY so evidence replayed from pre-2026-08-06 sessions still counts as a manual dial. KEPT DELIBERATELY — dropping it would silently rewrite past behavioural evidence. The same argument keeps the 'turbo_toggle' count in the player_events rollup function in supabase/schema.sql."
+    speed_override: "DELETED 2026-08-07. SimplePlayerRuntimeOverrides never regained a speed callback after Turbo went — playback rate comes from exactly ONE source, the baked `cycle.playbackSpeed`. The speedRampSync test block that guarded Turbo's target/baked round-trip is gone with it."
+    config_row: "DELETED 2026-08-07. The `turbo_boost` row is removed from `algorithm_config`. NOT to be confused with `normal_mode`, which is LIVE — it is fast_mode's promotion-window fallback alias and must stay."
+    learner_preference: "DELETED 2026-08-07. The dead `turbo_mode_enabled` key is stripped from every `learners.preferences` blob AND from the column DEFAULT, so new learners are not created with it again. It was false on all 1,092 learners carrying it, so the sweep is behaviourally a no-op."
+
+## ============================================================================
+## MODE TRAY (the mode button and its popup)
+## ============================================================================
+
+MODE_TRAY:
+  source: "packages/player-vue/src/components/ModeTray.vue — rendered inside BottomNav.vue"
+  rows: "Pronunciation guide | Listening mode | Offline mode (the Turbo row went with Turbo)"
+
+  dismiss:
+    behaviour: "A pointerdown ANYWHERE outside the tray closes it, as does Escape and the trigger button. Fixed 2026-08-07 — Tom reported ~10 times that the trigger was the only way out."
+    where_it_lives: "A DOCUMENT-level pointerdown listener in capture phase, attached only while the tray is open, watching the .mode-tray-container root. Not the backdrop element."
+    why_not_the_backdrop: "The .tray-backdrop is position:fixed;inset:0, which LOOKS full-screen and is not: .bottom-nav carries transform:translateX(-50%), and a transformed ancestor is the containing block for fixed descendants — so the backdrop measures 358x72px at the nav pill in an 844px-tall viewport (measured live, e2e/mode-tray-outside-tap-probe.mjs). It could only ever dismiss taps already on the nav. The backdrop is now purely the dim, never the dismiss."
+    why_not_teleport: "Teleporting the backdrop to <body> to escape that containing block is exactly what 1c41b1d2 (2026-07-16) REMOVED: in embedded play (.player-container.is-teach-embedded, also transformed) it rejoins the root stacking context, paints above the locally z-indexed tray and eats every row tap. That fix restored the rows and left the outside-tap dismiss dead — which is the bug this replaces. A document listener sidesteps the containing-block question entirely and can swallow nothing."
+    no_reopen_race: "The trigger button is INSIDE the watched root, so its pointerdown is ignored and only its click toggles — outside-close can never fire and let the trigger immediately reopen."
+    click_swallow: "After an outside pointerdown dismisses the tray, the click that same press produces is swallowed once (capture-phase listener, scoped to the element that press landed on, 700ms self-cancel) so dismissing never doubles as a tap on the transport underneath. If no click follows — a scroll or a drag — the arming expires and eats nothing."
+    tests: "src/components/ModeTray.outsideTap.test.ts (8 unit tests) + e2e/mode-tray-outside-tap-probe.mjs (real browser against a real build; prints the backdrop's measured geometry as the evidence)."
+
+## ============================================================================
 ## LISTENING OVERLAY (headphones mode)
 ## ============================================================================
 
 LISTENING_OVERLAY:
   source: "packages/player-vue/src/components/ListeningOverlay.vue"
+  entry: |
+    The mode tray (ModeTray.vue) ONLY — a "Listening mode" on/off row sitting
+    between Pronunciation guide and Offline mode, ungated. Tom's ruling
+    (2026-08-06, 22:38Z): listening mode belongs in the place learners already
+    knew, and Settings is the WRONG home for it — so the Settings → Tools row
+    that briefly held it, and its openListening emit, are GONE. The row emits
+    toggleListening → BottomNav → PlayerContainer.handleToggleListening →
+    LearningPlayer.handleListeningToggle, which opens when closed and closes
+    when open, so one row is the whole round trip. The transport back/play
+    button (BottomNav exitListeningMode) is unchanged as the other way out.
+    Full detail: apml/interfaces/listening-mode.apml ENTRY_POINT.
   tabs: |
     Dialogues | Core | All — in that order, Dialogues is the DEFAULT view
     (Tom 2026-06-07). Dialogues = Layer 2 pod scenes (useListeningPods,
@@ -827,6 +915,13 @@ COMPOSABLES:
     exposure: "Once-ever science bits (owner ruling 2026-07-24): instruction exposure is per-learner SERVER state (learner_meta_commentary_state, own-row RLS; localStorage is only a fast/offline mirror) — a wiped device recovers from the server and never replays a heard bit. The service re-keys via setLearnerId when the real learner id resolves after setup (guest→signed-in, play-as-class), carrying guest progress forward by furthest-wins merge. Backfill for pre-2026-07 learners: gated migration 20260724_backfill_meta_commentary_exposure.sql.gated (spec + tests in services/commentaryBackfillSpec.ts)."
     taper: "Encouragement taper (owner ruling 2026-08-06, superseding 2026-07-24): random encouragements dial down with experience and switch fully OFF past a threshold — the fire interval is multiplied by 1/(1-p) through the taper zone (p = position through it), Infinity beyond. Experience = the learner's CUMULATIVE LEARNING MINUTES ACROSS ALL COURSES, NOT their position in the current course: the seed-denominated version treated a veteran of hundreds of hours starting a fresh course as a total beginner (Tom, staging German seed 2, 2026-08-06). Default window 600→1800 minutes (10h→30h; 30h is the owner's stated tedium point). Signal source: /api/me/engaged-time (admin_practice_minutes RPC, sums sessions.duration_seconds across ALL of the learner's courses), fetched by PlayerContainer and passed to LearningPlayer as the cumulativeLearningMinutes prop; null (guest/offline/not-yet-landed) means UNKNOWN and is treated as beginner. Admin-tunable via algorithm_config key 'meta_commentary' ({encouragementTaper:{taperStartMinutes,offAtMinutes}}); stale seed-denominated keys are ignored in favour of the defaults. Instructions are never tapered; the ?fc dev cheat bypasses the taper."
 
+  interjection_display:
+    purpose: "What the hero card shows while a between-rounds interjection (Aran's voice) is sounding"
+    source: "packages/player-vue/src/components/LearningPlayer.vue (showInterjection, .interjection-display CSS) + packages/player-vue/src/playback/interjectionDisplay.ts"
+    invariant: "The card follows the AUDIO, never the next LEGO — the engine has advanced roundIndex onto the next round but its intro audio hasn't started, so falling through to the normal branch renders an EMPTY card. Display: a five-bar synthetic 'your guide is speaking' wave (not audio-reactive — no AnalyserNode tap, iOS lock risk), plus a short rotating INSTRUCTION_CAPTIONS line for instructions only. Encouragements are wave-only by design (Tom 2026-06-02: calm, non-distracting, just listen)."
+    gating: "shouldShowInterjection(playingCommentaryAudio, type) — playback/interjectionDisplay.ts. ANY commentary that is not the course welcome shows the wave, INCLUDING one whose type is missing or unrecognised: an unknown interjection degrades to 'guide is speaking', never to a blank box. The welcome keeps its own separate 'listen to your guide' surface."
+    contrast: "The wave bars and the instruction caption are ink-anchored (color-mix(in srgb, var(--belt-color) N%, #2C2622)), NEVER a bare var(--belt-color). Regression 2026-08-06 (Tom, staging French, 8 min in): white belt IS #ffffff, so on the Mist white card five white bars and a white caption rendered as a completely empty box. The blend keeps the belt accent while guaranteeing contrast at every belt. Locked by playback/interjectionDisplay.test.ts."
+
   useBeltProgress:
     purpose: "Track belt progression with localStorage + Supabase sync"
     source: "packages/player-vue/src/composables/useBeltProgress.ts"
@@ -934,6 +1029,25 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.26:
+    date: "2026-08-06"
+    title: "A-64 — no mode plays the same prompt three times in a row"
+    changes:
+      - "Tom's ruling, verbatim: 'no mode should ever repeat the same prompt more than twice consecutively'. A DESIGN LAW binding every mode — the 4-phase player in Easy and Fast, Listening mode / the pods, infinite play, and every degraded fallback path. Two in a row is legal; three is not, under any configuration. Full spec: apml/playback/consecutive-repeat-law.apml."
+      - "ONE enforcement point rather than per-mode caps: packages/player-vue/src/playback/capConsecutiveRepeats.ts — a pure, unit-tested helper that re-interleaves an ordered sequence so no identity appears more than twice consecutively. It MOVES reps rather than deleting them; a feasibility lookahead makes the greedy optimal, so a rep is dropped only when no ordering could have kept it (n differing items separate at most 2*(n+1) copies of one identity)."
+      - "generateLearningScript.ts: a final PER-ROUND cap pass over the playable item list (scriptItemIdentity), each round seeded with the previous round's tail so the seam holds while no item ever migrates across a round boundary. This is a FLOOR, not a repair — the pre-existing consecutive-duplicate pass already collapsed adjacent identical ordinary cycles, so the main loop and the infinite-play tail were already lawful (verified by removing the cap and watching the regression tests still pass). The cap exists so no future emitter and no algorithm_config script_shape value, Easy mode's doubled n1PhraseCount included, can breach."
+      - "usePodLapScheduler.ts nextLap(): the real breach, now closed. A pod whose active cohorts hold a single sentence emits a playlist ending on that clip (stage 8 = ['ps2x','ps2x']) and the next lap restarts on it — three in a row, reproduced in test. Pod plays are identified by AUDIO ID so 'ps' and 'ps2x' correctly count as the same prompt. The previous lap's tail carries into the next lap unless bookends separate them; minKeep:1 means a degenerate one-clip lap is reduced and logged, never emptied."
+      - "useOfflinePlay.ts getNextPlayableCycle(): the degradation ladder no longer hands back a cycle that has already played twice while any other cached cycle exists. Level 3 ('repeat') is the single place the law yields — with literally one cached cycle, keeping the session alive wins and the breach is logged as a warning rather than passing silently."
+
+  v2.1.25:
+    date: "2026-08-06"
+    title: "Listening exercises go straight in — the pod-start reminder popup is deleted"
+    changes:
+      - "Aran, via Tom: the popup that opened a listening exercise was distracting, and it stood on the screen the displayed text needs. Tom's ruling: 'perhaps we just don't bother with it — just go straight in with the audio into now just listen for a while'. So the one-shot pod-listening-reminder transient (usePodListeningReminder + its banner, styles and test) is DELETED. A lap now opens on its own spoken bookend and nothing else."
+      - "The lap's on-screen surfaces are now exactly two: PodTurnDisplay's teleprompter (L2 only — L1 cups stay audio-only) and the small textless ambient headphones mark, which runs the whole lap instead of only after the transient faded. No instruction text appears during a lap at all. PodTurnDisplay's reminderTopInset prop is gone with the band it reserved."
+      - "The preparation content SURVIVES the popup (Tom: neither he nor Aran asked to delete it). It lives in the learner explainer 'How this works' as 'What the listening stretches ask of you' — the birdsong line, in the learner voice — and the fuller listening home is Settings → Tools → Listening mode. The explainer's modes list was corrected in the same pass: Listening is in Settings now, not behind the sliders button."
+      - "Unchanged: main-cycle listening types (listen_intro / listening / listen_outro, playingPodLapAudio=false) still show the passive-attention phase hint in the hero card — it is an inline hint on an otherwise-idle card, not a popup over the dialogue."
+
   v2.1.24:
     date: "2026-07-31"
     title: "Settings 'What's new' is fed by the release train — shipped notes bundled at build time"
@@ -1102,6 +1216,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-06
+## GENERATED: 2026-01-18 — Last updated: 2026-08-08 (Easy redesign, amended: JUST DOUBLE — phrase-count inflation removed, repeat count and cycle types parametrised, doubling extended to the instant-playback path)
 ## APML v2.1.0
 ## ============================================================================

@@ -21,7 +21,7 @@ import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from 
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
 import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -1159,22 +1159,20 @@ const handleUpdateToLatest = () => {
     {
       key: 'apply', label: 'Switching to the latest version',
       run: async () => {
-        // Drop the navigation/runtime caches FIRST so the fresh shell is fetched
-        // (NOT the audio cache — keep the downloads). This MUST happen before
-        // SKIP_WAITING: activating the new SW fires `controllerchange`, on which
-        // vite-plugin-pwa reloads the page itself — so anything after the post
-        // here can be skipped by that reload.
+        // Drop the navigation/runtime caches (NOT the audio cache — keep the
+        // downloads) so the reload at the end of runFixFlow fetches the fresh
+        // shell rather than a cached one.
         try {
           const keys = await caches.keys()
           await Promise.all(keys.filter((k) => !/audio/i.test(k)).map((k) => caches.delete(k)))
         } catch { /* Cache API unavailable */ }
-        const reg = await navigator.serviceWorker?.getRegistration?.()
-        if (reg?.waiting) {
-          // Activate the waiting SW. vite-plugin-pwa owns the reload on
-          // controllerchange; runFixFlow's guardedReload below is the fallback
-          // for when there's no waiting SW (or controllerchange never fires).
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        }
+        // Deliberately NO SKIP_WAITING here (2026-08-07). Activating the
+        // waiting worker under a live page deletes, from the precache, every
+        // chunk whose content changed — and if it lands mid-navigation it
+        // kills the NetworkFirst fetch and serves the OLD shell instead. The
+        // reload alone gets the new build (navigations are NetworkFirst); the
+        // waiting worker takes over on its own once no client is open. Same
+        // rule as PwaUpdatePrompt.onUpdate — see the comment there.
       },
     },
   ], 'Still stuck? Fully close the app and open it again.')
@@ -1922,9 +1920,13 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <!-- NO listening-mode row here. Tom's ruling (2026-08-06, 22:38Z):
+               listening mode goes back where learners already knew to find it —
+               the player's mode tray — and Settings is the WRONG home for it.
+               This row was d81fedac's replacement home; it is deliberately gone.
+               The one entry point is the ModeTray on/off row, which is also the
+               way back out, so the round trip lives on one surface. -->
           <template v-if="showViewScript">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="emit('openExplorer')">
               <div class="setting-info">
                 <span class="setting-label">View Script</span>
@@ -1937,11 +1939,11 @@ const confirmReset = async () => {
                 <line x1="16" y1="17" x2="8" y2="17"/>
               </svg>
             </div>
+
+            <div class="divider"></div>
           </template>
 
           <template v-if="hasAdminRole">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="toggleQaMode">
               <div class="setting-info">
                 <span class="setting-label">QA Mode</span>
@@ -1953,10 +1955,13 @@ const confirmReset = async () => {
                 </div>
               </div>
             </div>
+
+            <div class="divider"></div>
           </template>
 
-          <div class="divider"></div>
-
+          <!-- Dividers lead each optional row's own template above, so this
+               always-present row never lands under an orphan rule when both
+               View Script and QA Mode are hidden. -->
           <div class="setting-row clickable" @click="toggleAdaptation">
             <div class="setting-info">
               <span class="setting-label">Personalised pacing</span>

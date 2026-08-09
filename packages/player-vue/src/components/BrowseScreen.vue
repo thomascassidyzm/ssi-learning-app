@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageEndonym, t } from '@/composables/useI18n'
+import { getLanguageName, getLanguageEndonym, forSpeakersLabel } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -365,9 +365,7 @@ const isActiveCourse = (courseCode) => {
 // e.g., "Euskera para hablantes de Español" (for spa known lang)
 const getFullDisplayName = (course) => {
   const target = getLanguageName(course.target_lang)
-  const known = getLanguageName(course.known_lang)
-  const forSpeakers = t('courseSelector.forSpeakers', `for ${known} Speakers`).replace('{lang}', known)
-  return `${target} ${forSpeakers}`
+  return `${target} ${forSpeakersLabel(course.known_lang)}`
 }
 
 // Brain-view tile per enrolled course. Renders only for enrolled courses

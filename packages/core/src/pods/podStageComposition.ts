@@ -120,6 +120,19 @@ export interface PodPlay {
    *  never resolve a turn for them (product rule 2026-07-22: Layer-1 seed
    *  plays are audio-only, no display text; Layer-2 pods always show text). */
   isLayer1?: boolean
+  /**
+   * True iff `playbackSpeed` is FINAL — already the whole answer, with the
+   * course globalSpeed folded in and the 1.0 listening ceiling applied. Set by
+   * the 2026-08-07 exposure ramp (see buildMainStage's `uniformSpeed`).
+   *
+   * The runtime (LearningPlayer.playPodLap) applies the 2026-08-06 BELT ramp as
+   * a multiplier over pod plays' role rates; a play carrying this flag must be
+   * skipped there, exactly as Layer-1 plays already are. Without it the
+   * exposure speed would be belt-ramped a second time AND only on the target
+   * slots, silently breaking the rule that a phrase's four clips share one
+   * speed.
+   */
+  speedIsFinal?: boolean
 }
 
 /** Warn-once-per-stage guard for the trailing-known defensive close, so a
@@ -142,7 +155,19 @@ export function buildMainStage(
   stage: number,
   sentenceIdx: number,
   playlist: PodPlayRole[],
+  /**
+   * UNIFORM SPEED for every slot of this sentence, overriding ROLE_SPEED
+   * (Tom, 2026-08-07: a listening phrase's four clips are "all at... The same
+   * speed"). Supplied by the exposure ramp — see
+   * player-vue/src/playback/listeningExposureRamp.ts. Omitted ⇒ the historic
+   * per-role rates, which is what the admin Pod-stage auditioner and the
+   * escape-hatch stage playlist still want.
+   */
+  uniformSpeed?: number,
 ): PodPlay[] {
+  const useUniform = typeof uniformSpeed === 'number' && Number.isFinite(uniformSpeed) && uniformSpeed > 0
+  const speedFor = (role: PodPlayRole): number =>
+    useUniform ? uniformSpeed! : (ROLE_SPEED[role] ?? 1.0)
   const sentencePlays: PodPlay[] = []
   for (let j = 0; j < playlist.length; j++) {
     let playRole = playlist[j]
@@ -171,7 +196,8 @@ export function buildMainStage(
       playRole,
       audioId,
       text: isTrans ? sentence.known_text : sentence.target_text,
-      playbackSpeed: ROLE_SPEED[playRole] ?? 1.0,
+      playbackSpeed: speedFor(playRole),
+      speedIsFinal: useUniform,
       glueToNextChunk: false, // set on the ACTUAL last play below
     })
   }
@@ -192,7 +218,8 @@ export function buildMainStage(
       playRole: closeRole,
       audioId: sentence.target_audio_id!,
       text: sentence.target_text,
-      playbackSpeed: ROLE_SPEED[closeRole] ?? 1.0,
+      playbackSpeed: speedFor(closeRole),
+      speedIsFinal: useUniform,
       glueToNextChunk: false,
     })
     if (!_warnedTrailingKnownStages.has(stage)) {

@@ -7,6 +7,9 @@ import {
   AudioRecorder,
 } from '@ssi/core/audio'
 import ProsodyFeedback from './ProsodyFeedback.vue'
+// A-86: this overlay runs its own course_practice_phrases walk, so it stamps
+// the per-clip versioned ref itself before its URL builder sees the id.
+import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 
 // ============================================================================
 // Pronunciation Overlay - Record-compare-feedback loop on completed phrases
@@ -200,7 +203,8 @@ const loadPhrases = async (offset = 0) => {
     if (fetchError) throw fetchError
 
     if (data && data.length > 0) {
-      const newPhrases = data.map((p, i) => ({
+      const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+      const newPhrases = stampRowAudioRefs(revisedRefs, data).map((p, i) => ({
         id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
         seedNumber: p.seed_number,
         legoIndex: p.lego_index,

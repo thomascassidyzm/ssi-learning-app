@@ -13,6 +13,12 @@
  * in order — a scene with an odd turn count leaves its closing turn (e.g. a
  * narrator coda) as its own cohort.
  *
+ * One exception, at the cold start only (Tom, T-13, 2026-08-07): a FIRST
+ * cohort that isn't a full exchange absorbs the ones after it until it is,
+ * so a learner's first lap is never a single line played on repeat — and
+ * nothing more is ever merged, so it is never a whole scene either. See
+ * applyPodColdStartWindow for the ruling and the evidence.
+ *
  * Why not whole-scene cohorts (the 2026-07-23 model): measured on
  * ita_for_eng:pod-0, scenes 6+ run 17-36 sentences — a whole-scene debut
  * there is ~110+ plays in one lap, and Tom's staging test found even scene 1
@@ -55,6 +61,20 @@ export interface PodCohort {
   size: number
 }
 
+/**
+ * COLD-START FLOOR — the "not a lone line" half of the window. A cohort of a
+ * single sentence is not a conversation: measured on live telemetry, a Hebrew
+ * learner's first pod held exactly one sentence, and because every lap
+ * restarts from sentence one, that one clip played 19 times across 7 laps —
+ * indistinguishable from a broken app (A-52, Tom 2026-08-07).
+ *
+ * Two sentences is the smallest thing that is still an EXCHANGE — a turn and
+ * its reply — which is what the cold start is supposed to be. The ceiling
+ * half of the window lives in applyPodColdStartWindow: nothing beyond that
+ * one exchange is ever merged in.
+ */
+export const POD_COLD_START_MIN_SENTENCES = 2
+
 /** Same-scene test: rows with a missing scene_number never force a break. */
 const sameScene = (a: number | null | undefined, b: number | null | undefined): boolean =>
   a == null || b == null || a === b
@@ -65,8 +85,12 @@ const sameScene = (a: number | null | undefined, b: number | null | undefined): 
  * in progress); within each scene, turns (maximal glue_to_next runs) pair off
  * in order into EXCHANGES — each cohort is one exchange, a trailing lone turn
  * standing alone.
+ *
+ * This is the PURE exchange partition, without the cold-start window —
+ * `buildPodCohorts` is this plus `applyPodColdStartWindow`, and is what
+ * callers want.
  */
-export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+export function buildPodExchangeCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
   // Pass 1 — scene runs (the walls). Scene identity of the current run is the
   // last non-null scene_number seen, so a null row bridges rather than resets
   // (…1, null, 1… stays one scene, …1, null, 2… breaks at the 2).
@@ -104,6 +128,63 @@ export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
     }
   }
   return cohorts
+}
+
+/**
+ * THE COLD-START WINDOW (Tom's ruling on T-13, 2026-08-07) — one policy with
+ * two sides, because both failures are real and they bracket the same thing:
+ *
+ *   "the cold start must be ONE FULL EXCHANGE — a lone line ('Good morning,
+ *    Sarah') is not enough, but the WHOLE SCENE arriving at once is too much."
+ *
+ * FLOOR: a first cohort below POD_COLD_START_MIN_SENTENCES is not yet an
+ * exchange (it can only be a lone trailing turn — a scene whose whole content
+ * is one line). It absorbs following WHOLE exchanges until it is one, or the
+ * pod runs out. The merge may cross a scene wall in that case: the wall
+ * governs the ramp, and a lone line outranks it for one cohort.
+ *
+ * CEILING: nothing else is ever merged. A cohort that is already an exchange
+ * stands alone, however short — a turn plus its reply IS the intended first
+ * serving. This is what the earlier floor-only rule (min 3) got wrong: it
+ * stacked a second exchange onto any two-sentence opener, and on eus_for_spa
+ * that pulled 2 + 5 = the entire opening scene into lap one, which is exactly
+ * the "whole scene at once" Tom saw in Aran's session. Measured across all 70
+ * live pods: 45 open on a 3-sentence exchange and are untouched either way;
+ * the 25 that open on a 2-sentence exchange (every eng_for_* pod among them)
+ * now serve that exchange alone instead of a merged 4 — eus_for_spa, 7. No
+ * live pod currently opens on a lone line, so the floor is the safety net for
+ * the shape A-52 measured rather than an everyday path.
+ *
+ * The window lives in the partition rather than in the scheduler on purpose:
+ * the partition stays the single PURE source of truth, so the ratchet
+ * (podCohortRoundFor / podRatchetAfterLap), stage cohesion and alive-counting
+ * all follow it with no further change, and every client derives the same
+ * cohorts from the same rows. That purity is also why the window is NOT
+ * conditioned on the learner's easy/fast mode even though the ruling arose on
+ * easy: a mode-dependent partition would have the two modes disagree about
+ * where laps begin while sharing one sentence ratchet, so toggling mode would
+ * shift a learner's cohort boundaries under them. One exchange is the right
+ * first serving in either mode.
+ *
+ * Later cohorts are untouched in every case — this is about the cold start,
+ * not about lap size in general.
+ */
+export function applyPodColdStartWindow(cohorts: readonly PodCohort[]): PodCohort[] {
+  let size = 0
+  let n = 0
+  while (n < cohorts.length && size < POD_COLD_START_MIN_SENTENCES) {
+    size += cohorts[n].size
+    n++
+  }
+  return n > 1 ? [{ start: 0, size }, ...cohorts.slice(n)] : [...cohorts]
+}
+
+/**
+ * The cohort partition callers use: exchange cohorts (scene walls, adjacency
+ * pairs) with the cold-start window applied to the first one.
+ */
+export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+  return applyPodColdStartWindow(buildPodExchangeCohorts(rows))
 }
 
 /** 0-based ordinal of the cohort containing sentence index `idx`, or -1. */

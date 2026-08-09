@@ -1,24 +1,46 @@
 name: Verify (typecheck + tests)
 
 # Feedback-loop gate mandated by CLAUDE.md ("all feedback loops must pass
-# before commit"). Runs the four verification gates on every claude/**, dev,
-# staging and main push and on pull requests. auto-merge-claude.yml gates its
-# merge on an identical set of gates via a needs:verify job so nothing lands
+# before commit"). Runs the verification gates on every dev, staging and main
+# push and on pull requests. auto-merge-claude.yml gates its merge on a
+# byte-identical set of gates via an in-file needs:verify job so nothing lands
 # on dev red.
+#
+# claude/** is deliberately NOT in the push list (removed 2026-08-07): those
+# pushes already run this exact job inside auto-merge-claude.yml, and only the
+# in-file one can block the merge — so a run here was a duplicate that gated
+# nothing (452 CI-minutes in four days). The release-train candidate report
+# reads verdicts from BOTH workflows, so claude-branch commits stay evidenced.
 #
 # staging/main are included so the weekly release train's Thursday candidate
 # report (tools/release-train/) can read a REAL verdict on the exact tree being
 # promoted, instead of inferring one from the branch commits were tested on.
-# These runs gate nothing — they are the promotion's evidence.
+# These runs gate nothing — they are the promotion's evidence, which is also why
+# they are exempted from cancel-in-progress below.
 
 on:
   push:
     branches:
-      - 'claude/**'
       - dev
       - staging
       - main
+    # Prose/ops-only commits cannot break lint, typecheck, tests or the build,
+    # so they do not pay for the full suite. Any commit that also touches code
+    # still runs it — paths-ignore only skips when EVERY changed file matches.
+    # Pull requests are unfiltered, so a docs-only PR is still verified.
+    paths-ignore:
+      - 'docs/**'
+      - 'ops/**'
+      - '**.md'
   pull_request:
+
+# One live run per ref: a superseded push stops paying for a dead run.
+# staging/main are excluded because their runs are the promotion's evidence for
+# a specific SHA — cancelling one would leave that tree unverified in the
+# candidate report.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging' && github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

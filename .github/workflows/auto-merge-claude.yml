@@ -17,6 +17,13 @@ on:
 permissions:
   contents: write
 
+# One live run per branch. A rapid second push supersedes the first: the newer
+# run verifies and merges the branch TIP, which already contains the older
+# commit, so cancelling loses no work — only the wasted minutes.
+concurrency:
+  group: auto-merge-claude-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Gate: the branch must pass the four feedback loops before it can merge to
   # dev. Kept in-file (rather than relying on the separate verify.yml) because a

@@ -15,16 +15,17 @@
  *     cycles array of that LEGO's Round)
  *   - audio URLs are the `/api/audio/<uuid>` proxy paths the SimplePlayer
  *     already consumes
- *   - pauseDuration is baked here using the same DEFAULT_NORMAL fallback
+ *   - pauseDuration is baked here using the same DEFAULT_FAST fallback
  *     as `toSimpleRounds` — runtime overrides recompute it from live
  *     algorithm_config at play time, so this fallback is only seen by
  *     environments without live config
- *   - `component_intro` IS emitted (since 2026-08-04) — the M-LEGO
- *     per-piece "as in" narrations. It shares the intro treatment here:
- *     presentation audio takes the prompt slot, no pause.
+ *   - `component_intro` is DROPPED (Tom's ruling, 2026-08-06: "Components
+ *     do NOT get introduced"). The cycles endpoint no longer emits it; this
+ *     adapter refuses it as a backstop. Components reach the learner only as
+ *     visual tiles on the intro/debut cards, never as their own cycle.
  *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
  *     curve from `toSimpleRounds`. It MUST be: the runtime override in
- *     LearningPlayer only ever CANCELS a baked ramp (for Turbo), it never
+ *     LearningPlayer only ever CANCELS a baked ramp (Easy does), it never
  *     applies one — and the runtime pause override reads
  *     `cycle.playbackSpeed` as its belt proxy. See the note on
  *     `computeCycleSpeed`
@@ -38,9 +39,11 @@
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import type { BackendCycle, RoundMap } from '../composables/useInstantPlayback'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
+import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
+import { repeatRoundCycles, type RepeatPhraseCyclesOptions } from './repeatPhraseCycles'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
@@ -91,7 +94,9 @@ export function infPlayCyclesToRounds(
       cycles: playerCycles,
     })
   }
-  return rounds
+  // A-64 floor — see capRoundCycles. INF PLAY rounds come straight off the
+  // wire, so this is the only cap they get.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 /**
@@ -130,6 +135,15 @@ export function backendCyclesToRounds(
    * the bug this parameter exists to close: pass the real config.
    */
   targetSpeed: TargetSpeedConfig = {},
+  /**
+   * The active mode's cycle-repeat setting (Tom, 2026-08-07 — Easy plays every
+   * practice cycle twice). Omitted, or a count of 1, leaves the rounds exactly
+   * as they were, which is Fast. This path is otherwise mode-blind by design,
+   * so without it an Easy learner's FIRST rounds — the ones the instant cycles
+   * endpoint serves before the full walk lands — would play undoubled, and the
+   * doubling would then appear mid-session out of nowhere.
+   */
+  repeat?: RepeatPhraseCyclesOptions | null,
 ): Round[] {
   const rounds: Round[] = []
 
@@ -170,13 +184,23 @@ export function backendCyclesToRounds(
         ? { legoTargetTextNative: introCycle.target_text_native }
         : {}),
       legoKnownText: introCycle.known_text,
-      cycles,
+      // Easy's repetition, on the instant path. Applied before the A-64 floor
+      // below, which allows two in a row and so keeps "twice" from becoming
+      // three. Without a repeat option this is `cycles` unchanged — Fast.
+      cycles: repeat ? repeatRoundCycles(cycles, repeat) : cycles,
     })
   }
 
   // `roundMap.rounds` is already sorted by round_index, so the rounds
   // array is in script order. No explicit sort needed.
-  return rounds
+  //
+  // A-64 floor (Tom, 2026-08-06). THIS is the instant-playback path that
+  // INSTANT_PLAYBACK_ALL makes the live default for every course, and it never
+  // touches generateLearningScript — so without this call the law would hold
+  // only on the legacy generator path. Applied after the missing-audio skip in
+  // toPlayerCycle, which can itself pull two previously separated prompts
+  // together.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 /**
@@ -201,10 +225,14 @@ export function toPlayerCycle(
    *  instead, which is authoritative and always present. */
   seedNumber: number = bc.seed_number,
 ): Cycle | null {
-  // `component_intro` is an introduction too — the per-piece "as in"
-  // narration for one component of an M-LEGO. It gets the same treatment
-  // as `intro`: presentation audio in the prompt slot, no production pause.
-  const isIntro = bc.type === 'intro' || bc.type === 'component_intro'
+  // COMPONENTS ARE NEVER INTRODUCED (Tom, 2026-08-06). The cycles endpoint
+  // stopped emitting `component_intro` on that ruling; this is the render-side
+  // backstop, so a component introduction cannot reach a learner even if some
+  // producer starts emitting one again. Dropping it here is safe: `null` is
+  // the adapter's existing "unplayable cycle" return and callers already skip.
+  if (bc.type === 'component_intro') return null
+
+  const isIntro = bc.type === 'intro'
   const isListening = bc.type === 'listening'
 
   // Baked target-voice speed for this cycle's belt band. Drives BOTH the
@@ -255,10 +283,11 @@ export function toPlayerCycle(
   //    in simplePlayer.setRuntimeOverrides to apply the same belt/context
   //    curves at play time. That keeps this adapter pure."
   // That assumption was FALSE and cost every learner their belt ramp from the
-  // instant-playback cutover until 2026-08-04. `getPlaybackSpeedMultiplier`
-  // only CANCELS a baked ramp (for Turbo); it never applies one. The speed is
-  // now baked above, from the course's real `voice_config.target_speed` which
-  // the caller threads in as `targetSpeed`.
+  // instant-playback cutover until 2026-08-04: the play-time override it named
+  // only ever CANCELLED a baked ramp (Easy's did), never applied one. The speed
+  // is now baked above, from the course's real `voice_config.target_speed`
+  // which the caller threads in as `targetSpeed` — and the override itself is
+  // gone (2026-08-07), so this bake is the only speed there is.
 
   // Decomposition → componentLegoIds / componentLegoTexts. The backend's
   // `decomposition` is per-token (one entry per word, with optional legoId
@@ -293,12 +322,12 @@ export function toPlayerCycle(
       : computePauseDuration(
           bc.durations.target1_ms ?? 0,
           bc.durations.target2_ms ?? 0,
-          DEFAULT_NORMAL,
+          DEFAULT_FAST,
           speed,
         ),
     // Linger after voice2 on intros so the learner can read the reveal.
     ...(isIntro ? { lingerMs: 2000 } : {}),
-    // Raw target durations exposed so runtime overrides (Turbo) can
+    // Raw target durations exposed so the mode runtime overrides can
     // recompute the pause with their own formula instead of just
     // scaling the baked value. Matches `toSimpleRounds`.
     ...(bc.durations.target1_ms ? { target1DurationMs: bc.durations.target1_ms } : {}),
@@ -326,7 +355,7 @@ export function toPlayerCycle(
     ...(Array.isArray(bc.display_tiling) && bc.display_tiling.length > 0 ? { displayTiling: bc.display_tiling } : {}),
     // Baked belt/global speed. Omitted at exactly 1.0 so the wire shape
     // matches `toSimpleRounds` (which also only sets it when != 1.0) and
-    // Turbo's `target / baked` cancellation reads the same default.
+    // the modes' `target / baked` cancellation reads the same default.
     ...(speed !== 1.0 ? { playbackSpeed: speed } : {}),
   }
 

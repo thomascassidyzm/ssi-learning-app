@@ -183,22 +183,45 @@ const ISO3_TO_LOCALE: Record<string, string> = {
 }
 
 /**
- * Get language name using Intl.DisplayNames.
+ * Get a language name in the reading language.
+ *
+ * Our own locale JSON wins, then Intl.DisplayNames, then the raw code.
+ *
+ * The JSON has to come first. Intl.DisplayNames does NOT report failure:
+ * on a device whose ICU carries no display-name data for the interface
+ * language it silently answers in ENGLISH, and an English answer is
+ * indistinguishable from a correct one ("Icelandic" is not the code "is",
+ * so the old `name !== bcp47` guard accepted it). That is how a Welsh
+ * interface produced "Islandeg i siaradwyr English" — the sentence frame
+ * comes from cym.json and is always Welsh, while the language name came
+ * from Intl and could quietly fall back to English. Our JSON carries
+ * curated names for every language we ship, so consulting it first makes
+ * the name as device-independent as the sentence around it.
  *
  * By default renders in the current UI locale. Pass `overrideLangCode`
  * (ISO 639-3) to render the name in a specific language instead — used
  * by the Premium-courses list so each card reads in the perspective
  * of the learner who would take that course (e.g. "Inglés" instead of
  * "English" on the Spanish-speaker card).
- *
- * Falls back to locale JSON files, then to the raw code.
  */
 export const getLanguageName = (langCode: string | null | undefined, overrideLangCode?: string): string => {
   // A display helper must never throw: a course row with no target_lang
   // (e.g. a class pointing at a course code the catalogue can't resolve)
   // crashed the whole player render through this line (2026-07-16).
   if (!langCode) return ''
-  // Try Intl.DisplayNames first (browser-native, always up to date)
+
+  // 1. Our own curated names, in the reading language. For an override we
+  //    can only use the JSON if that locale's chunk is already loaded —
+  //    this helper is synchronous, so an unloaded override falls to Intl.
+  const messages = overrideLangCode
+    ? loadedLocales[overrideLangCode]
+    : currentMessages.value
+  const curated = messages?.languages?.[langCode]
+  // Dialect keys (cym_n, nob…) carry their full name in the JSON, suffix
+  // included — so a hit is returned exactly as authored.
+  if (typeof curated === 'string' && curated) return curated
+
+  // 2. Intl.DisplayNames — browser-native, covers anything not in the JSON.
   // Use explicit mapping if available, otherwise try the raw code (works for many ISO 639-3 codes)
   const bcp47 = ISO3_TO_BCP47[langCode] || langCode
   const localeCode = overrideLangCode
@@ -221,8 +244,75 @@ export const getLanguageName = (langCode: string | null | undefined, overrideLan
     // Intl.DisplayNames not supported or code unknown — fall through
   }
 
-  // Fallback: locale JSON files
+  // 3. Last resort: the English JSON (via t()'s own fallback), then the code.
   return t(`languages.${langCode}`, langCode.toUpperCase())
+}
+
+/**
+ * French elision: `de` + a vowel-initial name contracts to `d'`.
+ *
+ * "pour les locuteurs de Anglais" is not a sentence a French speaker would
+ * write — it reads "de Anglais" where the language demands "d'Anglais".
+ * The template can't do this itself: whether it elides depends on the name
+ * that lands in the slot, which is chosen at runtime.
+ */
+const FRENCH_ELIDABLE: Record<string, string> = { de: "d'", le: "l'", la: "l'", que: "qu'" }
+const FRENCH_VOWEL_INITIAL = /^[aeiouyàâäéèêëîïíôöòûüùœæ]/i
+
+/**
+ * h aspiré blocks elision ("le hongrois"), h muet does not ("l'hébreu") —
+ * and nothing about the spelling says which: it is a per-word property of
+ * French, so it has to be listed. Only the h-initial language names we ship
+ * need a ruling; anything unlisted is treated as aspiré, which leaves the
+ * name untouched rather than mangling it.
+ */
+const FRENCH_MUTE_H = new Set([
+  'heb', // hébreu — l'hébreu
+  'hin', // hindi — l'hindi
+  // Aspiré, deliberately absent: hau (le haoussa), hun (le hongrois).
+])
+
+const elidesInFrench = (langCode: string, langName: string): boolean => {
+  if (FRENCH_VOWEL_INITIAL.test(langName)) return true
+  return /^h/i.test(langName) && FRENCH_MUTE_H.has(langCode)
+}
+
+/**
+ * Put a language name into a `{lang}` template, honouring the interface
+ * language's own rules for composing it.
+ *
+ * Only French needs a rule today. Spanish/Portuguese "de {lang}" never
+ * elides, German compounds with a hyphen, and the rest place the name
+ * without a preposition — so everything else is a plain substitution, and
+ * the rule is keyed on the interface locale so an English fallback string
+ * can never be French-ified.
+ */
+export const interpolateLanguageName = (
+  template: string,
+  langCode: string,
+  langName: string,
+): string => {
+  if (currentLocale.value === 'fra' && elidesInFrench(langCode, langName)) {
+    for (const [word, contraction] of Object.entries(FRENCH_ELIDABLE)) {
+      const elided = template.replace(
+        new RegExp(`(^|\\s)${word} \\{lang\\}`),
+        `$1${contraction}{lang}`,
+      )
+      if (elided !== template) return elided.replace('{lang}', langName)
+    }
+  }
+  return template.replace('{lang}', langName)
+}
+
+/**
+ * The "for X speakers" course subtitle, fully composed: the name in the
+ * reading language, inside the reading language's own frame.
+ */
+export const forSpeakersLabel = (knownLangCode: string | null | undefined): string => {
+  if (!knownLangCode) return ''
+  const knownName = getLanguageName(knownLangCode)
+  const template = t('courseSelector.forSpeakers', 'for {lang} speakers')
+  return interpolateLanguageName(template, knownLangCode, knownName)
 }
 
 /**

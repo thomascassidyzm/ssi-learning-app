@@ -198,3 +198,52 @@ spec player_conductor_architecture:
     item (the ruling)" — a never-settling resolveAudioUrl, an every-await-
     hangs backstop, an always-erroring audio element, and the needs-gesture
     halt that must survive.
+
+  a22_dead_audio_id_and_the_cost_of_skipping: |
+    ADDED 2026-08-06. The bounds above were diagnosed from a CLIENT-side
+    non-settling promise. A-22 (learner "beunollyn", 2026-08-06) is a
+    different TRIGGER on the same class: a bare /api/audio/<uuid> for an
+    audio id with NO ROW in course_audio. The proxy answers with its 404 HTML
+    page, so the media element gets a resource it cannot decode and reports
+    MEDIA_ERR_SRC_NOT_SUPPORTED (code 4). A 0.6s clip cost a 39-second dead
+    stall and the whole session.
+
+    Verified: the bounds above DO convert this trigger into a logged skip —
+    five of the six A-22 regressions passed on arrival. They are kept as a
+    fence. The one that had to be written rather than merely confirmed is the
+    needs-gesture carve-out: browsers reject play() for an undecodable source
+    with NotSupportedError, and isGestureRequiredError matches only
+    NotAllowedError / gesture wording, so a 404 can never reach the one
+    remaining halt. A missing file is not a tap problem. If that ever
+    regresses, A-22 stops sessions again by another door.
+
+    THE COST OF NEVER ABORTING, and how it is paid. Skipping is INSTANT. A
+    course with a dead audio BLOCK therefore does not stall — it races to
+    'session_complete' in milliseconds with nothing audible. A stall was at
+    least self-evident to the learner; silence is not. The player must NOT
+    stop (the ruling is settled), so the failure is kept loud instead:
+      - SimplePlayer.consecutiveSkips counts clips skipped back-to-back and
+        is reset by the first real playback progress (noteAudioProgress).
+      - It rides the existing audio_failed payload as an ADDITIVE field, so
+        admin diagnostics keep grouping on the unchanged shape. One skip is a
+        puncture; a climbing number is one hollow session rather than N
+        unrelated punctures.
+      - At CONSECUTIVE_SKIP_ALARM (3 — one whole cycle: prompt + both target
+        voices) the log escalates and names it as a RELEASE-GATE failure.
+        That is where the LOUD FAIL belongs: a course that cannot play past a
+        missing taught-LEGO must never ship. The runtime never aborts.
+
+    Estate context (census, scripts/a22-dead-audio-census.mjs, 2026-08-06):
+    the content tables are audio-COMPLETE — 1,995,859 audio ids referenced by
+    course_legos + course_practice_phrases + course_seeds, ZERO dangling. The
+    provider already filters rows whose audio id IS NULL, so a null is
+    invisible to the player; only a present-but-dangling id can 404. Since
+    none exist in current content, an id like A-22's reaches the network from
+    a SUPERSEDED reference — a client script cached before a regeneration.
+    useScriptCache has NO TTL and serves stale-while-revalidate, and 96 of
+    143 courses gained new audio within 30 days, so that window is wide and
+    estate-wide. Root-cause ownership of the specific deletion sits with the
+    separate A-22 investigation, not here.
+
+    Regressions: playback/SimplePlayer.test.ts, describe "A-22: a dead audio
+    id (404 from the proxy) never stops the session".

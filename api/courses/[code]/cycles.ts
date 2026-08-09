@@ -3,8 +3,14 @@
  *
  * Instant-playback critical path. Returns the next `n` fully-assembled
  * cycles starting from the LEGO matching `:from`, in script order
- * (intro -> component_intro(s) -> debut -> BUILDs -> USEs per LEGO, then
- * next LEGO).
+ * (intro -> debut -> BUILDs -> USEs per LEGO, then next LEGO).
+ *
+ * COMPONENTS ARE NEVER INTRODUCED (Tom, 2026-08-06). Only LEGOs get
+ * introductions. Component rows are tiling parts of a whole thought; the
+ * learner absorbs them inside the carrier M-LEGO's own introduction, and a
+ * component debut hands the learner no producible intention. This endpoint
+ * emitted `component_intro` cycles between 2026-08-04 (9e9a19bf) and
+ * 2026-08-06; it does not any more, and must not again.
  *
  * Frontend calls this with limit=1 on Start (for instant first cycle),
  * then limit=15 once audio is playing.
@@ -98,13 +104,12 @@ interface CoursePhraseRow {
   target2_audio_id: string | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
-  /** Component rows carry their own "as in" narration — the clip that
-   * contextualises this piece inside its parent M-LEGO. Only ever non-null
-   * on `phrase_role = 'component'` rows. */
+  /** Historic per-component "as in" narration on `phrase_role = 'component'`
+   * rows. NEVER played: components are never introduced (Tom, 2026-08-06). */
   presentation_audio_id?: string | null
-  /** false = visual-only tile (particles/stubs that make no sense alone);
-   * such components get a ghost tile on the intro card but never their own
-   * audio cycle. Absent/null is treated as true. */
+  /** Authoring flag on component rows. NOT a licence to introduce the `true`
+   * ones — components are never introduced either way (Tom, 2026-08-06).
+   * Retained only because component rows still render as visual tiles. */
   introduce?: boolean | null
 }
 
@@ -427,15 +432,16 @@ export default async function handler(
 }
 
 /**
- * Emit the cycle sequence for one LEGO: intro -> component_intro(s) ->
- * debut -> BUILD phrases -> USE phrases. Phrases honour their `position`
- * order from the DB.
+ * Emit the cycle sequence for one LEGO: intro -> debut -> BUILD phrases ->
+ * USE phrases. Phrases honour their `position` order from the DB.
  *
- * No filtering by audio completeness here for the main cycle types — the
- * spec says return everything in script order and let the frontend decide.
- * The audio.* keys are simply omitted when their IDs are null; the player
- * handles missing roles. `component_intro` is the exception: it is skipped
- * outright when unplayable (see buildComponentIntroCycles).
+ * No filtering by audio completeness here — the spec says return everything
+ * in script order and let the frontend decide. The audio.* keys are simply
+ * omitted when their IDs are null; the player handles missing roles.
+ *
+ * Component rows never produce a cycle of any kind: components are never
+ * introduced (Tom, 2026-08-06). They reach the learner only as visual tiles
+ * via `lego.components` on the intro and debut cards.
  */
 export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle[] {
   const out: Cycle[] = []
@@ -484,12 +490,12 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
     is_new: isNew,
   })
 
-  // COMPONENT INTROS — for M-LEGOs, the per-piece "as in" narrations that
-  // give each component its context inside the parent phrase. Emitted after
-  // the M-LEGO's own intro and before its debut, matching the client's
-  // TYPE_ORDER (validateLearningScript.ts) so a round that mixes producers
-  // still validates.
-  out.push(...buildComponentIntroCycles(lego, phrases))
+  // NO COMPONENT INTROS. Between 2026-08-04 and 2026-08-06 this is where
+  // `buildComponentIntroCycles` inserted one `component_intro` per component,
+  // narrating each tiling piece as its own introduction. Tom's ruling of
+  // 2026-08-06 — "Components do NOT get introduced" — removed it. The
+  // M-LEGO's own intro already names its pieces inline; that IS the LEGO's
+  // introduction. A per-component introduction is the bug.
 
   // DEBUT — the standard 4-phase cycle on the LEGO itself.
   out.push({
@@ -554,79 +560,6 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
     claimed.add(key)
     useIdx++
     out.push(phraseToCycle(p, legoId, seed, 'use', useIdx))
-  }
-
-  return out
-}
-
-/**
- * Build the `component_intro` cycles for one LEGO.
- *
- * A component row (`phrase_role = 'component'`) is one tiling piece of an
- * M-LEGO, and it carries its OWN presentation clip contextualising that piece
- * inside the parent phrase — the live "as in" shape, verbatim from the data:
- *
- *   lego  S0005L02  "to practise speaking" / "fare pratica parlando"
- *     └ "The Italian for: 'to practise', as in — 'to practise speaking', is:"
- *     └ "The Italian for: 'speaking',    as in — 'to practise speaking', is:"
- *
- * Two rules govern what actually becomes a cycle:
- *
- *  1. `introduce === false` means "visual tile only" — stubs that make no
- *     sense detached (single-letter prepositions, particles with no known-
- *     language equivalent). They still render as ghost tiles under the intro
- *     card via `lego.components`, but they never get their own audio cycle.
- *     Same rule the legacy generator applies.
- *
- *  2. Skip, don't emit a hole. A component with no presentation narration and
- *     no target voice has nothing to play, so it is dropped entirely rather
- *     than emitted as a silent cycle — matching the skip-policy in
- *     `toPlayerCycle` / `toSimpleRounds`, where a structurally unplayable
- *     cycle returns null.
- *
- * Like the LEGO intro, the prompt is `presentation || known` — the component
- * rows do carry known audio, so a component whose narration is missing still
- * introduces itself with the known-language clip instead of going silent.
- */
-function buildComponentIntroCycles(
-  lego: CourseLegoRow,
-  phrases: CoursePhraseRow[]
-): Cycle[] {
-  const legoId = lego.lego_id
-  const seed = lego.seed_number
-  const out: Cycle[] = []
-  let ordinal = 0
-
-  for (const p of phrases) {
-    if (p.phrase_role !== 'component') continue
-    // Visual-only tile — rendered, never played.
-    if (p.introduce === false) continue
-    // Nothing playable: no prompt (presentation or known) or no target voice.
-    const promptId = p.presentation_audio_id || p.known_audio_id
-    if (!promptId || !p.target1_audio_id) continue
-
-    ordinal++
-    const targets = pickTargets(p)
-    out.push({
-      id: `${legoId}_component_intro_${ordinal}`,
-      type: 'component_intro',
-      lego_id: legoId,
-      seed_number: seed,
-      known_text: p.known_text ?? '',
-      target_text: targets.target_text,
-      ...(targets.target_text_native !== undefined
-        ? { target_text_native: targets.target_text_native }
-        : {}),
-      audio: buildAudio({
-        knownAudioId: p.known_audio_id,
-        target1AudioId: p.target1_audio_id,
-        target2AudioId: p.target2_audio_id,
-        presentationAudioId: p.presentation_audio_id,
-      }),
-      durations: buildDurations(p.target1_duration_ms, p.target2_duration_ms),
-      // A component is part of the LEGO being introduced, not a review item.
-      is_new: true,
-    })
   }
 
   return out

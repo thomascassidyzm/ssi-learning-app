@@ -49,6 +49,18 @@ const AUDIO_ID_COLUMNS = [
   'audio_uuid',
 ] as const
 
+/**
+ * Audio-id columns holding an ARRAY of ids. `listening_pod_sentences` splits a
+ * silence-split turn into per-sentence clips here, and those ids become the
+ * per-sentence `target_audio_id` / `known_audio_id` downstream — so leaving
+ * them bare would defeat the stamping of the row they came from.
+ */
+const AUDIO_ID_ARRAY_COLUMNS = [
+  'sentence_audio_ids',
+  'sentence_known_audio_ids',
+  'takeg_audio_ids',
+] as const
+
 /** Build `<uuid>.v<N>`; revision 1 (or absent) stays a bare uuid. */
 export function buildAudioRef(id: string, revision: number | null | undefined): string {
   return revision && revision > 1 ? `${id}.v${revision}` : id
@@ -82,6 +94,17 @@ export async function fetchRevisedAudioRefs(
   return refs
 }
 
+/**
+ * Strip a `.vN` suffix back to the bare uuid.
+ *
+ * Needed wherever a stamped ref has to go back to the DATABASE — `course_audio`
+ * is keyed by the bare uuid, so an `.in('id', …)` filter built from stamped
+ * refs matches nothing. Mirrors `parseAudioRef` on the server.
+ */
+export function bareAudioId(ref: string): string {
+  return ref.replace(/\.v\d+$/, '')
+}
+
 /** Apply a revised-ref map to one audio id, leaving unrevised ids untouched. */
 export function applyAudioRef(
   refs: Map<string, string>,
@@ -111,6 +134,55 @@ export function stampRowAudioRefs<T>(refs: Map<string, string>, rows: T[]): T[] 
       if (!next) next = { ...src }
       next[col] = stamped
     }
+    for (const col of AUDIO_ID_ARRAY_COLUMNS) {
+      const current = src[col]
+      if (!Array.isArray(current)) continue
+      if (!current.some((id) => typeof id === 'string' && refs.has(id))) continue
+      if (!next) next = { ...src }
+      next[col] = current.map((id) => (typeof id === 'string' ? refs.get(id) ?? id : id))
+    }
     return (next ?? row) as T
   })
+}
+
+// ── Shared per-course map ───────────────────────────────────────────────────
+//
+// Several lanes walk Supabase for audio ids independently — the script walk,
+// the pod lap scheduler, the Layer-1 scheduler, the listening overlay, the
+// pronunciation overlay, CourseDataProvider. Each needs the same tiny map, and
+// each fetching its own copy would multiply a per-session query by the number
+// of lanes for no benefit. One in-flight promise per course, shared.
+//
+// An EMPTY result is deliberately not memoised. Empty means either "this
+// course has no revised clips" or "the fetch failed" — the two are
+// indistinguishable by design (see fetchRevisedAudioRefs), and caching the
+// failure would strand a whole session on bare refs after one transient error.
+// Re-querying a handful of rows is cheap; being stuck stale is not.
+const revisedRefsByCourse = new Map<string, Promise<Map<string, string>>>()
+
+/**
+ * Get the revised-ref map for a course, shared across lanes.
+ *
+ * Same contract as `fetchRevisedAudioRefs`: never throws, returns an empty map
+ * when there is nothing to stamp or the lookup failed.
+ */
+export function getRevisedAudioRefs(
+  supabase: SupabaseClient | null | undefined,
+  courseCode: string,
+): Promise<Map<string, string>> {
+  if (!supabase || !courseCode) return Promise.resolve(new Map())
+  const inFlight = revisedRefsByCourse.get(courseCode)
+  if (inFlight) return inFlight
+  const pending = fetchRevisedAudioRefs(supabase, courseCode).then((refs) => {
+    if (refs.size === 0) revisedRefsByCourse.delete(courseCode)
+    return refs
+  })
+  revisedRefsByCourse.set(courseCode, pending)
+  return pending
+}
+
+/** Drop the shared map — after a content swap, or for test isolation. */
+export function clearRevisedAudioRefs(courseCode?: string): void {
+  if (courseCode) revisedRefsByCourse.delete(courseCode)
+  else revisedRefsByCourse.clear()
 }

@@ -476,10 +476,14 @@ const doCheckContentVersion = async (
       localStorage.setItem(audioStampKey, liveAudioStamp)
     }
 
+    // Listening metadata bundle: background refresh, never blocks anything.
+    // Outside the liveStamp guard on purpose (A-86) — an AUDIO repair moves
+    // audio_stamp without necessarily moving content_stamp, and the downloaded
+    // snapshot has to pick up the new `<uuid>.vN` refs either way.
+    void refreshListeningMetaIfStale(supabase, courseCode, liveStamp, liveAudioStamp).catch(() => {})
+
     if (liveStamp) {
       liveContentStamps.set(courseCode, liveStamp)
-      // Listening metadata bundle: background refresh, never blocks anything.
-      void refreshListeningMetaIfStale(supabase, courseCode, liveStamp).catch(() => {})
       // Script cache: entry built from an older content vintage → mark it
       // STALE, never drop it (SWR, founder ruling 2026-07-27): this session
       // plays the cached script immediately; the player revalidates in the

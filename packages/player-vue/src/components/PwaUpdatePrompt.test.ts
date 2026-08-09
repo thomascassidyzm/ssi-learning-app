@@ -11,15 +11,28 @@ import { ref } from 'vue'
 const needRefresh = ref(false)
 const updateServiceWorker = vi.fn().mockResolvedValue(undefined)
 vi.mock('virtual:pwa-register/vue', () => ({
-  useRegisterSW: (_opts: any) => ({
-    needRefresh,
-    offlineReady: ref(false),
-    updateServiceWorker,
-  }),
+  useRegisterSW: (opts: any) => {
+    // Hand the component a registration with a waiting worker, exactly as the
+    // real library does when a new build has installed and is waiting.
+    opts?.onRegistered?.({ waiting, update: vi.fn() })
+    return { needRefresh, offlineReady: ref(false), updateServiceWorker }
+  },
 }))
+
+// The registration handed to onRegistered — the component keeps it so the
+// Update tap can post SKIP_WAITING synchronously from `pagehide`.
+const waiting = { postMessage: vi.fn() }
 
 import PwaUpdatePrompt from './PwaUpdatePrompt.vue'
 import { updateAvailable, userDismissed } from '@/composables/usePwaUpdate'
+import { RELOAD_WEDGE_MS } from '@/utils/bootHeal'
+
+// jsdom's location is read-only; swap in a stub that records reloads.
+const reload = vi.fn()
+Object.defineProperty(window, 'location', {
+  configurable: true,
+  value: { ...window.location, reload, href: window.location.href },
+})
 
 describe('PwaUpdatePrompt — banner only reflects a genuinely different live build', () => {
   // needRefresh/updateAvailable/userDismissed are shared across mounts (module-
@@ -31,6 +44,8 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     needRefresh.value = false
     updateAvailable.value = false
     userDismissed.value = false
+    reload.mockClear()
+    waiting.postMessage.mockClear()
     vi.stubGlobal('fetch', vi.fn())
   })
 
@@ -62,7 +77,7 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     expect(updateAvailable.value).toBe(true)
   })
 
-  it('clears the pending-update state once the update is applied', async () => {
+  it('clears the pending-update state and navigates when the update is applied', async () => {
     ;(fetch as any).mockResolvedValue({ ok: true, json: async () => ({ buildNumber: 'def5678' }) })
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
 
@@ -76,7 +91,56 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
 
     expect(updateAvailable.value).toBe(false)
     expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
-    expect(updateServiceWorker).toHaveBeenCalledWith(true)
+    // The tap navigates in the user gesture; it does NOT hand the reload to
+    // vite-plugin-pwa's async controllerchange listener.
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  // The crash this component exists to prevent: activating the new service
+  // worker deletes, from the precache, every chunk whose content changed in
+  // that build — so a document still running when that happens loses its own
+  // code (e2e/sw-update-probe.mjs measures 10 of 21 entry chunks going 404),
+  // and if it lands mid-navigation it kills the NetworkFirst fetch and serves
+  // the OLD shell. The app therefore never activates a waiting worker: the
+  // reload alone delivers the new build, and the worker takes over by itself
+  // once no client is open.
+  it('never activates the waiting worker from a live page', async () => {
+    ;(fetch as any).mockResolvedValue({ ok: true, json: async () => ({ buildNumber: 'def5678' }) })
+    activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
+    needRefresh.value = true
+    await flushAsync()
+
+    ;(document.body.querySelector('.pwa-update-button') as HTMLElement).click()
+    await flushAsync()
+    window.dispatchEvent(new Event('pagehide'))
+
+    expect(waiting.postMessage).not.toHaveBeenCalled()
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers a relaunch tap when the update navigation did not take', async () => {
+    vi.useFakeTimers()
+    try {
+      ;(fetch as any).mockResolvedValue({ ok: true, json: async () => ({ buildNumber: 'def5678' }) })
+      activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
+      needRefresh.value = true
+      await vi.advanceTimersByTimeAsync(1)
+
+      ;(document.body.querySelector('.pwa-update-button') as HTMLElement).click()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
+
+      // The document is still here RELOAD_WEDGE_MS later — wedged webview.
+      await vi.advanceTimersByTimeAsync(RELOAD_WEDGE_MS)
+      const banner = document.body.querySelector('.pwa-update-banner')
+      expect(banner).not.toBeNull()
+      expect(banner?.textContent).toContain('Tap to relaunch')
+
+      ;(document.body.querySelector('.pwa-update-button') as HTMLElement).click()
+      expect(reload).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
