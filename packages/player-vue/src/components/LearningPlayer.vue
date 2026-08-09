@@ -9618,6 +9618,33 @@ simplePlayer.setRuntimeOverrides({
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
+  /**
+   * How many times this cycle sounds under the mode that is active RIGHT NOW.
+   *
+   * Read fresh at the END of every cycle, never snapshotted at round start —
+   * Tom's ruling after reproducing the mid-round flip on 2026-08-09: "the
+   * round walker must read current mode live per-step". Both directions land
+   * on the very next step: flip to Fast and the phrase in flight does not
+   * repeat; flip to Easy and it does, without waiting for the round boundary.
+   *
+   * Same two settings the generators use, off the same algorithm_config rows
+   * (`phraseRepeatCount`, `repeatedCycleTypes`) — so there is one definition
+   * of "Easy doubles the practice", read at build time by the script and at
+   * play time by the walker. Fast's count of 1 makes this a no-op.
+   *
+   * Never repeated: the intro and the bare LEGO debut (not in the type list —
+   * "of course not - the intro LEGO and not the LEGO alone"), and any
+   * single-audio cycle, which is the drained seed-phase sandwich, pods,
+   * listening and bookends — that sandwich is already several hearings of one
+   * sentence, so a repeat would breach the never-more-than-twice rule.
+   */
+  getCycleRepeatCount: (cycle) => {
+    if (cycle?.singleAudio) return 1
+    if (cycle?.type && MODE_BYPASS_TYPES.has(cycle.type)) return 1
+    const { count, types } = currentRepeatConfig()
+    if (count <= 1) return 1
+    return types.has(cycle?.type ?? '') ? count : 1
+  },
   getPostVoice2GapMs: (cycle) => {
     // Easy holds a beat of silence after voice2 before the next cycle starts,
     // "to stop the next cycle just coming in and taking over" (Tom,
@@ -9651,13 +9678,14 @@ simplePlayer.setRuntimeOverrides({
     // no-op unless the engine is enabled AND applying.
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
 
-    // Mode toggle, mid-ROUND. setLearningMode reshapes the forward queue, but
-    // replaceQueueFromCurrent deliberately keeps the round that is playing
-    // verbatim (swapping it would desync cycleIndex). So when the active mode
-    // repeats nothing, drop any repeat COPY still ahead of the cursor in this
-    // round — Easy→Fast then stops doubling on the very next cycle rather than
-    // at the next round. Easy's own copies are never dropped: its count is 2.
-    if (normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount) <= 1 && isRepeatCopyCycle(cycle)) return true
+    // REPETITION BELONGS TO THE WALKER (Tom, 2026-08-09). The generators bake
+    // `_x2` copies into the script; the walker now decides live, per step, how
+    // many times a cycle sounds (getCycleRepeatCount below). So the baked
+    // copies are ALWAYS dropped here — keeping them would compound with the
+    // live repeat into four plays, and they carry the mode that was active
+    // when the script was BUILT, which is precisely the stale snapshot the
+    // learner hears as "Fast is still doubling".
+    if (isRepeatCopyCycle(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any

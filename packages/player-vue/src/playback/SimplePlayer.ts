@@ -41,6 +41,27 @@ export interface SimplePlayerRuntimeOverrides {
    * Fast modes differ by script-shape OVERRIDE, never by a cull. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
   /**
+   * How many times should THIS cycle play, under the mode that is active
+   * RIGHT NOW? Consulted at the moment the cycle finishes, never snapshotted,
+   * so a mode flipped mid-round is obeyed by the very next step in both
+   * directions: Easy→Fast drops the second play of the phrase in flight, and
+   * Fast→Easy gives the phrase in flight its second play without waiting for
+   * a round boundary.
+   *
+   * Tom, 2026-08-09, after reproducing the mid-round flip: "the round walker
+   * must read current mode live per-step, not snapshot it at round-start."
+   * Repetition therefore belongs to the WALKER, not to the script: the queue
+   * carries each phrase once and the mode decides how often it sounds. (The
+   * generators still bake `_x2` copies for their own paths; LearningPlayer's
+   * shouldSkipCycle drops those so the two mechanisms can never compound into
+   * four plays.)
+   *
+   * Return 1, 0, undefined or anything non-finite to play once. Clamped to 2 —
+   * Tom's rule, not a preference: "a phrase repeated 3x would drive people
+   * nuts, but doubled up is perfect".
+   */
+  getCycleRepeatCount?: (cycle: Cycle) => number | undefined
+  /**
    * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
    * ready to play from the local cache. While we wait, the player sits
    * in the 'buffering' phase — the UI can surface a subtle message
@@ -280,6 +301,16 @@ function silentClipForMs(ms: number): string {
  */
 const CONSECUTIVE_SKIP_ALARM = 3
 
+/**
+ * The hard ceiling on how many times the walker will sound one cycle back to
+ * back. Tom's rule, not a setting: "we do NOT ever want to repeat exactly the
+ * same phrase more than 2x - a phrase repeated 3x would drive people nuts, but
+ * doubled up is perfect". A runtime override asking for more is clamped here,
+ * which is what keeps the live repeat and any repeat already baked into the
+ * script from compounding into four plays.
+ */
+const MAX_CYCLE_PLAYS = 2
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -327,6 +358,10 @@ export class SimplePlayer {
   // post-voice2 hold). Lets the 'ended' hub tell a linger clip apart from a
   // real voice clip — same shape as pauseClipActive.
   private lingerClipActive: boolean = false
+  // How many times the cycle at the CURRENT cursor has sounded. Reset on every
+  // reposition (cycleIndex/roundIndex move, jump, skip) so a repeat can never
+  // leak across cycles; read only by advanceCycle's live repeat check.
+  private currentCyclePlays: number = 0
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -863,6 +898,9 @@ export class SimplePlayer {
    */
   private stopForReposition(): void {
     ++this.playGeneration
+    // A reposition lands on a different cycle: the live repeat counter belongs
+    // to the cycle we are leaving and must never follow the cursor.
+    this.currentCyclePlays = 0
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -950,6 +988,7 @@ export class SimplePlayer {
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
+    this.currentCyclePlays = 0
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -1639,8 +1678,33 @@ export class SimplePlayer {
     return transitions[this.state.phase]
   }
 
+  /** The active mode's repeat count for a cycle, read LIVE and clamped to 2. */
+  private repeatCountFor(cycle: Cycle | null): number {
+    if (!cycle) return 1
+    const raw = this.runtimeOverrides.getCycleRepeatCount?.(cycle)
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return 1
+    return Math.max(1, Math.min(Math.floor(raw), MAX_CYCLE_PLAYS))
+  }
+
   private advanceCycle(): void {
     this.emit('cycle_completed', { cycle: this.currentCycle, round: this.currentRound })
+
+    // LIVE repeat decision — the walker's, not the script's (Tom, 2026-08-09).
+    // Asked HERE, at the moment the cycle ends, so a mode flipped halfway
+    // through a round is obeyed by this very step: Easy→Fast stops the second
+    // play of the phrase in flight, Fast→Easy grants it. Snapshotting the mode
+    // at round start is exactly the bug.
+    const justPlayed = this.currentCycle
+    this.currentCyclePlays += 1
+    if (
+      justPlayed &&
+      this.currentCyclePlays < this.repeatCountFor(justPlayed) &&
+      !this.runtimeOverrides.shouldSkipCycle?.(justPlayed)
+    ) {
+      this.startPhase('prompt')
+      return
+    }
+    this.currentCyclePlays = 0
 
     const round = this.currentRound
     if (!round || !round.cycles) {
@@ -1653,6 +1717,7 @@ export class SimplePlayer {
     // any cycles it now wants skipped before the next prompt.
     const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
+      this.currentCyclePlays = 0
       this.updateState({ cycleIndex: nextIdx })
       this.startPhase('prompt')
     } else {
@@ -1662,6 +1727,7 @@ export class SimplePlayer {
 
   private advanceRound(): void {
     this.emit('round_completed', { round: this.currentRound })
+    this.currentCyclePlays = 0
 
     // The round_completed listener (LearningPlayer.handleRoundBoundary) runs
     // synchronously up to its first await; it can call pause() in that window
