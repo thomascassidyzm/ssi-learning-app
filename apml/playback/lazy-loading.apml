@@ -1,6 +1,6 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-08-09 (cycles endpoint emits spaced review + consolidation — round-shape parity with the JS walk)
+# Last Updated: 2026-08-09 (cycles endpoint emits spaced review + consolidation — round-shape parity with the JS walk; one claim set, seeded with the debut)
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -283,9 +283,25 @@ spec lazy_loading_architecture:
           cursor    reviewCursor(offsetIndex, poolLength) reconstructs the
                     walk's per-LEGO round-robin useIndex in closed form
           tail      consolidation = at most 2 of the ROUND LEGO's own USE
-                    phrases, last in the round
+                    phrases, last in the round. Two passes, as the walk has:
+                    the first takes phrases the round has not used, and if the
+                    basket was too small for that the second allows reuse
+                    rather than leaving the round short.
         A round with nothing yet due (the opening rounds of a course) emits no
         reviews — that is correct, not the bug.
+
+        ONE CLAIM SET, SEEDED WITH THE DEBUT (integration, 2026-08-09). The
+        walk's `usedPhrasesThisRound` and the bare-LEGO guard are the same
+        mechanism and are now the same Set here. It is seeded with the debut's
+        own key, so a build or use row whose text simply repeats its own LEGO
+        (fra_for_eng S0009L01 'I speak / je parle') can never sound the LEGO a
+        second time — the doubling fix of 07eeb9c9. Rows are claimed on the
+        text the cycle will actually carry (pickTargets, i.e. the roman form on
+        romanized courses), matching how the debut was claimed.
+
+        The consolidation reuse pass relaxes the once-per-round rule but NOT
+        the bare-LEGO rule: it still skips the debut key. A round one phrase
+        short beats a round that says the LEGO twice.
 
         Known gaps vs the walk, deliberate:
           - SEED-PHASE reviews (offsets >=144, the drained t->k->t->t sandwich)
