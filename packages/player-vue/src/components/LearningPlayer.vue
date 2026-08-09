@@ -9527,6 +9527,7 @@ const activeModeConfig = computed(() => isEasyMode.value ? easyConfig.value : fa
 // Whole-queue rather than per-round because the answer is pure and a full pass
 // is a few thousand string lengths — cheap, and it happens only when the mode
 // changes or the queue grows, never per cycle.
+let lastLoggedSelectionMode: LearningMode | null = null
 const modeSelectionMemo = {
   ids: new Set<string>(),
   dirty: true,
@@ -9571,6 +9572,20 @@ const refreshModeSelection = () => {
     for (const id of selectCyclesOutForMode(round as any, cfg, ctx)) modeSelectionMemo.ids.add(id)
   }
   console.log(`[LearningPlayer] Mode selection (${learningMode.value}): ${modeSelectionMemo.ids.size} cycle(s) selected out across ${rounds.length} round(s)`)
+  // The console line above does NOT survive a production build — vite.config.js
+  // lists console.log/info/debug in `esbuild.pure`, so on dev and prod it is
+  // gone. Telemetry is the only channel that survives, and a live probe (or a
+  // future me) needs SOME observable that the selection actually re-ran under
+  // the new mode. Logged on a MODE CHANGE only, never on the queue simply
+  // growing, so this is a handful of rows per session rather than a stream.
+  if (lastLoggedSelectionMode !== learningMode.value) {
+    lastLoggedSelectionMode = learningMode.value
+    logEvent('learning_mode_selection', {
+      mode: learningMode.value,
+      selectedOut: modeSelectionMemo.ids.size,
+      rounds: rounds.length,
+    })
+  }
 }
 
 /** Does the ACTIVE mode play this cycle? Asked per step by shouldSkipCycle. */
