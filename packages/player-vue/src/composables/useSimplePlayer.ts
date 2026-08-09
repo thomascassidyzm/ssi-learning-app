@@ -76,6 +76,9 @@ export interface UseSimplePlayerReturn {
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
   reshapeQueue: (transform: (rounds: Round[]) => Round[]) => void
+  /** The rounds the ENGINE is playing — never a caller-held mirror. Anything
+   *  matching a cycle by id must read this; see the implementation's note. */
+  getEngineRounds: () => Round[]
   hasRound: (roundNumber: number) => boolean
   /** Bracket an async interlude (commentary / pod lap / L1 cup) — see
    * PlayerConductor.runInterlude. The conductor never pauses on entry;
@@ -389,6 +392,22 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * The rounds the ENGINE is actually playing, read straight off it.
+   *
+   * The same pull-consistency rule as `syncRoundsFromEngine` above, for callers
+   * that need to reason about the live queue rather than display it. Any
+   * caller-held rounds mirror is a DIFFERENT array: `cachedRounds` in
+   * LearningPlayer, for instance, is deliberately set to the whole-course walk
+   * for text/progress purposes while the engine keeps playing the bootstrap's
+   * backend-built rounds. The two carry different cycle ids, so anything that
+   * matches a cycle BY ID — the Easy/Fast selection memo — must read this, not
+   * the mirror. Reading the engine directly (rather than `roundsRef`) also
+   * side-steps the conductor's request queue: a mutation that has not yet been
+   * snapshotted back is still visible here.
+   */
+  const getEngineRounds = (): Round[] => player?.roundsSnapshot ?? []
+
+  /**
    * Add rounds dynamically (for priority loading). Ordering/dedupe by legoId
    * — the engine owns that logic; see SimplePlayer.addRounds.
    */
@@ -539,6 +558,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     appendRounds,
     replaceQueueFromCurrent,
     reshapeQueue,
+    getEngineRounds,
     hasRound,
     runInterlude,
     runSeek,

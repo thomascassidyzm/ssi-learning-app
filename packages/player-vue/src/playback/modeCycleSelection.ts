@@ -111,6 +111,18 @@ export const isTeachingCycle = (cycle: Cycle): boolean =>
  * phrase" it can honestly name. It is a lower bound on the walk's figure (the
  * queue is a selection from the pools), so the cap it produces is slightly
  * tighter — the same direction Easy is pulling, never looser.
+ *
+ * "A LOWER BOUND, SLIGHTLY TIGHTER" IS ONLY TRUE OF A WHOLE-COURSE ARRAY. On
+ * the instant path the loaded window can be five early rounds, whose longest
+ * phrase is a fraction of the course's — and Easy's cap is a FRACTION of this
+ * number, so measuring off that window doesn't tighten the cap, it collapses
+ * it, and every round falls back to the per-type floors. Worse, the figure then
+ * moves as the window moves, so the same phrase is played in one round and
+ * dropped in the next with the learner doing nothing.
+ *
+ * So the caller must feed this a stable, course-wide measure and never let it
+ * shrink — see `minimum` on makeModeSelectionContext, and the high-water mark
+ * LearningPlayer keeps.
  */
 export function courseMaxCycleLength(rounds: readonly Round[]): number {
   let max = 0
@@ -124,18 +136,25 @@ export function courseMaxCycleLength(rounds: readonly Round[]): number {
   return max
 }
 
-/** Build the context the rules measure against. */
+/**
+ * Build the context the rules measure against.
+ *
+ * `minimum` is a floor under the measured length — the caller's high-water mark
+ * across every rounds array it has seen. Without it the cap breathes in and out
+ * with whatever window happens to be loaded (see courseMaxCycleLength above).
+ */
 export function makeModeSelectionContext(
   rounds: readonly Round[],
   courseCode: string,
   knownLang: string | null | undefined,
   needsSyllables: boolean,
+  minimum = 0,
 ): ModeSelectionContext {
   const resolver: PhraseSyllableResolver | null = needsSyllables
     ? makeKnownSyllableResolver(courseCode, knownLang)
     : null
   return {
-    courseMaxPhraseLength: courseMaxCycleLength(rounds),
+    courseMaxPhraseLength: Math.max(courseMaxCycleLength(rounds), minimum),
     knownSyllables: (cycle) =>
       resolver ? resolver.syllablesOf({ known_text: cycle?.known?.text }) : null,
   }
