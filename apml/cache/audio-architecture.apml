@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — pod lap + Layer-1 schedulers, the offline listening snapshot, both overlays, CourseDataProvider, the pod-stage QA surface. One shared per-course map (getRevisedAudioRefs), array id columns covered, bareAudioId for DB lookups. See versioned_audio_refs.all_client_lanes_stamped)
+# Last Updated: 2026-08-09 (SCRIPT CACHE KEY CARRIES THE LEARNING MODE — `v10:<course>:<mode>`. A mode-blind key served each mode the other's walk on every load, which is why a manual browser cache clear was the only way a mode change ever landed. See script_cache.key_carries_the_learning_mode)
+# Prev: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — pod lap + Layer-1 schedulers, the offline listening snapshot, both overlays, CourseDataProvider, the pod-stage QA surface. One shared per-course map (getRevisedAudioRefs), array id columns covered, bareAudioId for DB lookups. See versioned_audio_refs.all_client_lanes_stamped)
 # Prev: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
 # Prev: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
 # Prev: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
@@ -145,6 +146,17 @@ spec audio_caching_architecture:
         replaced. This was the live German symptom on 2026-08-06: the repair,
         the stamp and the drop lane all fired correctly and the learner still
         heard pre-repair audio. SCRIPT_VERSION v10 orphans the v9 entries.
+      key_carries_the_learning_mode: |
+        The IndexedDB script key is `v10:<courseCode>:<mode>` (2026-08-09), not
+        `v10:<courseCode>`. Easy and Fast SELECT different phrases inside the
+        walk, so a mode-blind key handed each mode the other's script on every
+        load — which is why "clear your browser cache" was the only way anyone
+        ever saw a mode change land. setScriptCacheMode() points the key, called
+        from the one watcher that owns `learningMode`. Online, a miss is correct:
+        it walks the course fresh under the active mode. Offline only, a miss
+        falls back to the other mode's entry, then the pre-mode-key entry —
+        a wrongly-shaped script beats no script. Every stamp-driven invalidation
+        deletes ALL of a course's entries, both modes and the legacy one.
       shared_map: |
         getRevisedAudioRefs(supabase, courseCode) — ONE in-flight query per
         course, shared by every lane. An EMPTY result is deliberately not
