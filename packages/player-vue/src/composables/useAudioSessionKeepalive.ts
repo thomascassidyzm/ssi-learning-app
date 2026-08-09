@@ -54,6 +54,22 @@ import { watch, onMounted, onUnmounted, type Ref, type ComputedRef } from 'vue'
  */
 const RELEASE_DEBOUNCE_MS = 2000
 
+/**
+ * How long we wait before trying the context again after a resume() that iOS
+ * rejected. While another app still holds the audio session, resume() fails
+ * outright — the retry is what carries us over a short interruption (a
+ * notification chime) with no visibilitychange to lean on.
+ */
+const INTERRUPTION_RETRY_MS = 1500
+
+/**
+ * How many times a single interruption is retried before we stop. The context
+ * is also re-resumed on every return to the foreground and on every
+ * statechange, so giving up here is never the last word — it only stops an
+ * unbounded timer chain on a device that will not hand the session back.
+ */
+const MAX_INTERRUPTION_RETRIES = 4
+
 export function useAudioSessionKeepalive(
   active: Ref<boolean> | ComputedRef<boolean>
 ): void {
@@ -65,12 +81,55 @@ export function useAudioSessionKeepalive(
   // intentional suspends (release()) apart from iOS-induced ones
   // (backgrounding, system memory pressure).
   let shouldBeRunning = false
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let retriesLeft = MAX_INTERRUPTION_RETRIES
+  let onStateChange: (() => void) | null = null
 
   const cancelPendingRelease = (): void => {
     if (releaseTimer) {
       clearTimeout(releaseTimer)
       releaseTimer = null
     }
+  }
+
+  const cancelPendingRetry = (): void => {
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      retryTimer = null
+    }
+  }
+
+  /**
+   * Put the context back into `running` whenever we still want it running.
+   *
+   * The state we are really here for is iOS Safari's non-standard
+   * **`interrupted`** — WebKit's own name for "another app took the audio
+   * session" (a WhatsApp notification chime, a maps prompt, a call). It is NOT
+   * `suspended`, so the old `state === 'suspended'` checks skipped straight
+   * past it and the keepalive stayed dead for the rest of the session: the
+   * thing whose whole job is holding the iOS audio session quietly stopped
+   * holding it, which is why a later element play() could find no session and
+   * never come back. Anything that is not `running` and not `closed` gets a
+   * resume().
+   *
+   * resume() is rejected while the interrupting app still holds the session,
+   * hence the bounded retry.
+   */
+  const resumeContext = (): void => {
+    if (!ctx || !shouldBeRunning) return
+    // 'interrupted' is iOS-only and absent from the DOM typings.
+    const state = ctx.state as AudioContextState | 'interrupted'
+    if (state === 'running' || state === 'closed') return
+    ctx.resume().then(() => {
+      retriesLeft = MAX_INTERRUPTION_RETRIES
+    }).catch(() => {
+      if (retryTimer || retriesLeft <= 0 || !shouldBeRunning) return
+      retriesLeft--
+      retryTimer = setTimeout(() => {
+        retryTimer = null
+        resumeContext()
+      }, INTERRUPTION_RETRY_MS)
+    })
   }
 
   const ensure = (): void => {
@@ -96,6 +155,15 @@ export function useAudioSessionKeepalive(
         source.frequency.value = 0
         source.connect(gain)
         source.start()
+        // iOS announces an interruption (and its end) as a statechange, with
+        // no visibilitychange to go with it when the interrupting sound plays
+        // over the top of an open app. This is the only signal in that case.
+        onStateChange = () => {
+          const state = ctx?.state as AudioContextState | 'interrupted' | undefined
+          if (state === 'running') retriesLeft = MAX_INTERRUPTION_RETRIES
+          else resumeContext()
+        }
+        ctx.addEventListener('statechange', onStateChange)
       } catch (err) {
         console.warn('[audioSessionKeepalive] AudioContext init failed:', err)
         ctx = null
@@ -104,15 +172,13 @@ export function useAudioSessionKeepalive(
       }
     }
 
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch((err) => {
-        console.warn('[audioSessionKeepalive] resume failed:', err)
-      })
-    }
+    retriesLeft = MAX_INTERRUPTION_RETRIES
+    resumeContext()
   }
 
   const release = (): void => {
     shouldBeRunning = false
+    cancelPendingRetry()
     if (ctx && ctx.state === 'running') {
       ctx.suspend().catch(() => { /* best-effort */ })
     }
@@ -131,15 +197,15 @@ export function useAudioSessionKeepalive(
   })
 
   // When a backgrounded tab returns to the foreground, defensively
-  // re-resume. iOS Safari can suspend the context while hidden even
-  // if we never asked it to — visibility change is the cleanest moment
-  // to restore.
+  // re-resume. iOS Safari can suspend the context while hidden even if we
+  // never asked it to, and an interruption by another app leaves it
+  // `interrupted` — visibility change is the cleanest moment to restore
+  // either, because that is when the session is ours again.
   const handleVisibilityChange = (): void => {
     if (typeof document === 'undefined') return
     if (document.visibilityState === 'visible' && shouldBeRunning) {
-      if (ctx && ctx.state === 'suspended') {
-        ctx.resume().catch(() => { /* best-effort */ })
-      }
+      retriesLeft = MAX_INTERRUPTION_RETRIES
+      resumeContext()
     }
   }
 
@@ -151,6 +217,12 @@ export function useAudioSessionKeepalive(
 
   onUnmounted(() => {
     cancelPendingRelease()
+    cancelPendingRetry()
+    shouldBeRunning = false
+    if (ctx && onStateChange) {
+      ctx.removeEventListener('statechange', onStateChange)
+      onStateChange = null
+    }
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }

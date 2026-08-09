@@ -13,7 +13,7 @@
  *      controller's job, not ours.
  *
  * Prefetch tiers run during playback (never block):
- *   - Tier 1: rest of the current round's cycles (limit=15)
+ *   - Tier 1: rest of the current round's cycles (limit=BOOTSTRAP_LIMIT)
  *   - Tier 3: next round's cycles
  *
  * Listening/presentation audio is NOT bulk-prefetched here (the old
@@ -54,8 +54,20 @@ export interface BackendCycle {
   /** `component_intro` = the per-piece "as in" narration for one component
    *  of an M-LEGO. Emitted since 2026-08-04; treated as an intro variant by
    *  `toPlayerCycle` (presentation audio in the prompt slot, no pause). */
-  type: 'intro' | 'component_intro' | 'debut' | 'build' | 'use' | 'listening'
+  type: 'intro' | 'component_intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening'
+  /** The LEGO this cycle is ABOUT. For a `spaced_rep` cycle that is the
+   *  EARLIER LEGO being reviewed, not the round it plays in — see
+   *  `round_lego_id`. */
   lego_id: string
+  /** The LEGO whose ROUND this cycle belongs to. Set only on cross-LEGO
+   *  cycles (spaced review), where it differs from `lego_id`; absent
+   *  everywhere else, so `round_lego_id ?? lego_id` is always the round key.
+   *  This is the buffer/pagination key — `next_lego_id` names a round LEGO. */
+  round_lego_id?: string
+  /** Index into the endpoint's Fibonacci offset list — 0 is N-1. spaced_rep only. */
+  fib_position?: number
+  /** Round number of the LEGO being reviewed. spaced_rep only. */
+  review_of?: number
   seed_number: number
   known_text: string
   target_text: string
@@ -139,15 +151,29 @@ const CYCLES_STORAGE_PREFIX = 'ssi-instant-playback-cycles-'
  * audio can start playing immediately. The spec originally proposed
  * limit=1 + tier-1-during-playback, but appending cycles to an
  * already-running round adds engine complexity for ~zero latency win
- * (the cycles endpoint costs roughly the same for limit=1 vs limit=15
+ * (the cycles endpoint costs roughly the same for limit=1 vs a full round
  * once the Lambda is warm — the payload is tiny either way). Cheaper
  * × simpler to grab the full round at bootstrap.
  */
-const BOOTSTRAP_LIMIT = 15
+/**
+ * 25, not 15, since 2026-08-09. A round is now the walk's full shape —
+ * intro + debut + BUILD ×≤7 + spaced_rep ×≤12 + USE ×≤2 = at most 23 cycles.
+ * At 15 the endpoint would cut every round in half, `next_lego_id` would point
+ * back at the same LEGO on every fetch, `isLegoComplete` would never clear the
+ * partial flag, and `backendCyclesToRounds` would emit NO round at all. The
+ * limit has to clear a whole round for the "grab the full round at bootstrap"
+ * design above to hold.
+ */
+const BOOTSTRAP_LIMIT = 25
 /** Tier 1: rest of the current round. Kept for backwards compatibility but bootstrap now covers it. */
-const TIER_1_LIMIT = 15
+const TIER_1_LIMIT = 25
 /** Tier 3: next round. Same limit as tier 1. */
-const TIER_3_LIMIT = 15
+const TIER_3_LIMIT = 25
+/** INF PLAY's limit counts ROUNDS, not cycles, and its endpoint caps at 15 —
+ *  a different unit from the three above, so it gets its own constant rather
+ *  than riding a main-loop cycle count that happens to clamp to the same
+ *  number. */
+const INFPLAY_ROUND_LIMIT = 15
 
 // ============================================================================
 // ROUND-MAP CACHE (localStorage, version-stamped)
@@ -440,7 +466,7 @@ export async function prewarmInstantCaches(
     let cycles = readCachedCycles(courseCode, first.legoId, map.version)
     if (!cycles) {
       const res = await coalescedJsonGet(
-        `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=15`,
+        `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=${BOOTSTRAP_LIMIT}`,
       )
       if (!res.ok) return
       cycles = res.data as CyclesResponse
@@ -633,7 +659,7 @@ export function useInstantPlayback(
       if (cached) {
         // Only return cache if it covers >= the requested limit — a tiny
         // cached response (e.g. an old limit=1 entry) shouldn't satisfy a
-        // limit=15 request.
+        // full-round request.
         if (cached.cycles.length >= limit || cached.next_lego_id === null) {
           return cached
         }
@@ -684,10 +710,15 @@ export function useInstantPlayback(
     const buf = cycleBuffer.value
     const legosInBatch = new Set<string>()
     for (const cycle of cycles) {
-      legosInBatch.add(cycle.lego_id)
-      const existing = buf.get(cycle.lego_id)
+      // Bucket by ROUND, not by subject. A spaced-review cycle is about an
+      // earlier LEGO but plays in this round; keying it on `lego_id` would
+      // file it back under a round the learner has already left (or has not
+      // reached), and `backendCyclesToRounds` would never emit it.
+      const roundKey = cycle.round_lego_id ?? cycle.lego_id
+      legosInBatch.add(roundKey)
+      const existing = buf.get(roundKey)
       if (!existing) {
-        buf.set(cycle.lego_id, [cycle])
+        buf.set(roundKey, [cycle])
         continue
       }
       // Dedupe by cycle.id — re-fetching the same round is a no-op,
@@ -795,7 +826,7 @@ export function useInstantPlayback(
     nextInfRoundCursor.value = Math.max(1, fromRound)
     const ctrl = makeAbort()
     try {
-      const result = await fetchInfPlayCycles(nextInfRoundCursor.value, BOOTSTRAP_LIMIT, ctrl.signal)
+      const result = await fetchInfPlayCycles(nextInfRoundCursor.value, INFPLAY_ROUND_LIMIT, ctrl.signal)
       infPlayCycles.value = result.cycles
       nextInfRoundCursor.value = result.nextInfRound
       const firstCycle = result.cycles[0]
@@ -840,7 +871,7 @@ export function useInstantPlayback(
     try {
       const result = await fetchInfPlayCycles(
         nextInfRoundCursor.value,
-        BOOTSTRAP_LIMIT,
+        INFPLAY_ROUND_LIMIT,
         ctrl.signal,
       )
       if (result.cycles.length === 0) return

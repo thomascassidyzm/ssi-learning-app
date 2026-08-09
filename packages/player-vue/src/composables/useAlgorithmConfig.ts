@@ -159,6 +159,30 @@ export interface ModeConfig {
    */
   reviewSyllableFilterMaxRound?: number
   /**
+   * SLIDING WORD-COUNT CAP on USE phrases, by course round (Tom, 2026-08-09).
+   * A ladder of `{maxRound, maxWords}` rungs: the first rung whose `maxRound`
+   * the current round is at or under decides the ceiling; past the last rung
+   * the cap comes off entirely. Easy ships 8 words to round 20, 10 words to
+   * round 100, uncapped from 101.
+   *
+   * WORDS, not milliseconds. Duration was measured first and rejected: baked-in
+   * leading/trailing silence differs by language and by render batch, so an ms
+   * ceiling ranked a short Arabic phrase as longer than a rambling French one.
+   *
+   * Counted on whichever side of the pair is ENGLISH — known_text when English
+   * is the known language, target_text when English is the target. The scale
+   * was validated on English-involved courses only (fra_for_eng, eng_for_zho,
+   * eng_for_ara, eng_for_hin, eng_for_spa), so it applies ONLY where English is
+   * on one side. A course with English on neither side (kor_for_tam, and 46
+   * others) gets no cap at all — deferred, deliberately, not blocked.
+   *
+   * STARVATION GUARD: if a round has no USE phrase left under the ceiling, the
+   * cap comes off for that round rather than leaving it empty.
+   *
+   * Absent / malformed / empty ⇒ no cap, which is Fast's value.
+   */
+  useWordCapTiers?: UseWordCapTier[]
+  /**
    * LISTENING speed ramp for this mode, over a phrase's EXPOSURES (Tom,
    * 2026-08-07): "it might be 0.8. Or maybe even Notepoint. Seven, the very
    * first time, and it might be 0.8, then it might stay on 0.8 for a few
@@ -198,6 +222,26 @@ export interface ModeConfig {
    */
   listeningBeltCeilings?: ListeningBeltCeiling[]
 }
+
+/**
+ * One rung of the Easy USE word-count ladder — see ModeConfig.useWordCapTiers.
+ * `maxRound` is inclusive; `maxWords` is the ENGLISH-side ceiling on that span.
+ */
+export interface UseWordCapTier {
+  maxRound: number
+  maxWords: number
+}
+
+/**
+ * Easy's shipped ladder (Tom, 2026-08-09): 8 words for rounds 1-20, 10 words
+ * for rounds 21-100, uncapped from 101. A DB row on
+ * `algorithm_config.easy_mode.useWordCapTiers` overrides it, so retuning by ear
+ * is a Supabase edit rather than a deploy.
+ */
+export const DEFAULT_EASY_USE_WORD_CAP_TIERS: readonly UseWordCapTier[] = [
+  { maxRound: 20, maxWords: 8 },
+  { maxRound: 100, maxWords: 10 },
+]
 
 /** The two learning modes (Aran's ruling 2026-08-06). Fast is the default. */
 export type LearningMode = 'easy' | 'fast'
@@ -399,6 +443,9 @@ export const DEFAULT_FAST: ModeConfig = {
   repeatedCycleTypes: ['build', 'spaced_rep', 'use'],
   filterBuildPhrases: true,
   reviewMaxKnownSyllables: 0,
+  // No USE word cap — Fast meets exactly the phrases it always did, on every
+  // course, English-involved or not.
+  useWordCapTiers: [],
   /**
    * LISTENING — "Fast can probably start at the regular speed" (Tom,
    * 2026-08-07). One terminal step at 1.0×, which is also the ceiling, so Fast
@@ -510,6 +557,13 @@ export const DEFAULT_EASY: ModeConfig = {
    */
   reviewMaxKnownSyllables: 15,
   reviewSyllableFilterMaxRound: 100,
+  /**
+   * SLIDING WORD CAP on USE phrases — 8 words to round 20, 10 to round 100,
+   * uncapped after (Tom, 2026-08-09). Counted on the ENGLISH side of the pair,
+   * and live ONLY on courses with English on one side; the 47 courses with
+   * English on neither side are explicitly deferred and take no cap.
+   */
+  useWordCapTiers: [...DEFAULT_EASY_USE_WORD_CAP_TIERS],
   /**
    * LISTENING — minimal cognitive load, and slower than Fast (Tom,
    * 2026-08-07: "they should probably have A minimal cognitive load for
@@ -832,6 +886,117 @@ export function filterReviewPool<T>(
     if (value < shortestN) { shortestN = value; shortest = phrase }
   }
   return [shortest]
+}
+
+/**
+ * Coerce a mode's `useWordCapTiers` into a valid, ascending ladder.
+ * Anything missing, not an array, or with no usable rung degrades to `[]` —
+ * NO CAP, i.e. Fast's behaviour and today's behaviour. Same degrade-to-
+ * permissive discipline as every other normalizer here: a bad DB value must
+ * never silently narrow what a learner meets. Non-integers are floored.
+ */
+export function normalizeUseWordCapTiers(tiers?: readonly UseWordCapTier[] | null): UseWordCapTier[] {
+  if (!Array.isArray(tiers)) return []
+  return tiers
+    .filter((t): t is UseWordCapTier =>
+      !!t &&
+      typeof t.maxRound === 'number' && Number.isFinite(t.maxRound) && t.maxRound > 0 &&
+      typeof t.maxWords === 'number' && Number.isFinite(t.maxWords) && t.maxWords > 0)
+    .map((t) => ({ maxRound: Math.floor(t.maxRound), maxWords: Math.floor(t.maxWords) }))
+    .sort((a, b) => a.maxRound - b.maxRound)
+}
+
+/** True for any spelling of English as a course's known/target language. */
+export function isEnglishLang(lang: string | null | undefined): boolean {
+  const base = syllableLangOf(lang)
+  return base === 'eng' || base === 'en'
+}
+
+/**
+ * Which side of a course's pair is ENGLISH — the side the word cap counts.
+ * `null` ⇒ English is on neither side ⇒ NO CAP (Tom, 2026-08-09: the sliding
+ * scale was validated on English-involved pairs only; the rest is deferred).
+ * Known wins if both sides are somehow English.
+ */
+export function englishSideOfCourse(
+  knownLang: string | null | undefined,
+  targetLang: string | null | undefined,
+): 'known' | 'target' | null {
+  if (isEnglishLang(knownLang)) return 'known'
+  if (isEnglishLang(targetLang)) return 'target'
+  return null
+}
+
+/**
+ * Words in a stretch of English text. Punctuation and stray whitespace do not
+ * count; a contraction ("don't") and a hyphenated compound ("twenty-one") each
+ * count as the one word a reader would say.
+ */
+export function countEnglishWords(text: string | null | undefined): number {
+  if (!text) return 0
+  const words = text.match(/[\p{L}\p{N}]+(?:['’’-][\p{L}\p{N}]+)*/gu)
+  return words ? words.length : 0
+}
+
+/** The resolved USE word cap for one run: which side to count, and the ladder. */
+export interface UseWordCap {
+  side: 'known' | 'target'
+  tiers: readonly UseWordCapTier[]
+}
+
+/**
+ * Resolve the word cap for a run, or `null` when it does not apply.
+ * Null on: no tiers (Fast, or a malformed row), or English on neither side of
+ * the course. Both are "behave exactly as today", never "guess".
+ */
+export function makeUseWordCap(
+  knownLang: string | null | undefined,
+  targetLang: string | null | undefined,
+  tiers?: readonly UseWordCapTier[] | null,
+): UseWordCap | null {
+  const ladder = normalizeUseWordCapTiers(tiers)
+  if (ladder.length === 0) return null
+  const side = englishSideOfCourse(knownLang, targetLang)
+  if (!side) return null
+  return { side, tiers: ladder }
+}
+
+/** The English-side word ceiling on a given round; Infinity past the ladder. */
+export function useWordLimitForRound(cap: UseWordCap | null | undefined, roundNumber: number): number {
+  if (!cap) return Infinity
+  for (const tier of cap.tiers) {
+    if (roundNumber <= tier.maxRound) return tier.maxWords
+  }
+  return Infinity
+}
+
+/**
+ * THE one place the Easy USE word cap is applied (Tom, 2026-08-09).
+ *
+ * Given a pool of USE phrases and the round being generated, return the
+ * sub-pool the round may draw from:
+ *   1. no cap, or past the last rung ⇒ the pool untouched;
+ *   2. otherwise keep phrases of at most the rung's words on the ENGLISH side.
+ *      A phrase with no text on that side cannot be judged and passes;
+ *   3. STARVATION GUARD — if that leaves NOTHING, the cap comes off for this
+ *      round and the whole pool comes back. A capped round is never an empty
+ *      round; phrase volume is the harder rail.
+ */
+export function capUsePoolByWords<T extends { known_text?: string | null; target_text?: string | null }>(
+  pool: readonly T[],
+  roundNumber: number,
+  cap: UseWordCap | null | undefined,
+): readonly T[] {
+  if (!cap || pool.length === 0) return pool
+  const limit = useWordLimitForRound(cap, roundNumber)
+  if (!Number.isFinite(limit)) return pool
+
+  const kept = pool.filter((phrase) => {
+    const words = countEnglishWords(cap.side === 'known' ? phrase.known_text : phrase.target_text)
+    if (words === 0) return true // nothing to judge ⇒ passes
+    return words <= limit
+  })
+  return kept.length > 0 ? kept : pool
 }
 
 /** Methodology per-LEGO phrase floors the cap must never breach (ralph: >=4
