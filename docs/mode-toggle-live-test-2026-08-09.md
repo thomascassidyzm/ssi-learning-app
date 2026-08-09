@@ -5,11 +5,12 @@ claim that the toggle now genuinely changes playback is exactly what this test
 decides. Nothing below asserts it works.
 
 **Where to test:** https://ssi-learning-app-git-dev-zenjin.vercel.app
-**Build that must be live:** `a0bb2b7` **or `af07602`** — confirm at
-https://ssi-learning-app-git-dev-zenjin.vercel.app/version.json before starting.
-`a0bb2b7` is the code under test; `af07602` is this document sitting on top of
-it and changes no app code, so either is fine. Anything else and you are
-testing the wrong bundle — stop.
+**Build that must be live:** `a0bb2b7` **or any hash committed after it** —
+confirm at https://ssi-learning-app-git-dev-zenjin.vercel.app/version.json
+before starting. `a0bb2b7` is the code under test; everything after it on dev
+tonight is this document only, and each doc push rebuilds dev with a new hash,
+so a later hash is expected and fine. An *earlier* hash means the deploy has
+not caught up — wait and re-check rather than testing the wrong bundle.
 
 ---
 
