@@ -61,6 +61,7 @@ import {
   selectCyclesOutForMode,
   selectionIsInert,
   makeModeSelectionContext,
+  courseMaxCycleLength,
   type ModeSelectionConfig,
 } from '../playback/modeCycleSelection'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
@@ -9536,6 +9537,15 @@ const modeSelectionMemo = {
   clear() { this.dirty = true },
 }
 
+/**
+ * High-water mark for "the course's longest phrase", the denominator of Easy's
+ * length cap. Held across recomputes because the arrays it is measured from
+ * grow and shrink as windows load — and a cap that moves on its own would drop
+ * a phrase in one round and play it in the next with the learner doing nothing.
+ * Reset on a course change, where the measure genuinely belongs to a new course.
+ */
+let modeSelectionMaxPhraseLength = 0
+
 /** The active mode's selection rules, straight off its ModeConfig row. */
 const currentModeSelectionConfig = (): ModeSelectionConfig => ({
   maxPhraseLengthFraction: activeModeConfig.value.maxPhraseLengthFraction ?? 1,
@@ -9553,7 +9563,23 @@ const currentModeSelectionConfig = (): ModeSelectionConfig => ({
 
 /** Recompute the memo when the mode moved, or when the queue grew under it. */
 const refreshModeSelection = () => {
-  const rounds = (loadedRounds.value ?? []) as any[]
+  // THE ENGINE'S QUEUE, NEVER THE MIRROR. `loadedRounds` (= cachedRounds) is a
+  // text/progress mirror that the instant path deliberately swaps to the
+  // WHOLE-COURSE walk while the engine keeps playing the bootstrap's
+  // backend-built rounds — the handoff sets it and says in as many words that
+  // it "does not touch the live playback queue". The two arrays mint cycle ids
+  // in different namespaces: the walk numbers every cycle from one
+  // script-global counter (`S0009L01_build_147`), the /cycles endpoint numbers
+  // per type per LEGO (`S0009L01_build_2`). So a memo built from the mirror and
+  // matched against the engine's cycles agrees on nothing, and
+  // `modeSelectsCycleOut` returns false for every cycle it is ever asked about.
+  //
+  // That was the bug behind "the toggle doesn't change which phrases play"
+  // (Tom, 2026-08-09): the repeat lever worked, because it reads config rather
+  // than matching ids, while the selection lever was silently inert from the
+  // moment the full-script handoff landed — a few seconds into every session,
+  // on every course, since INSTANT_PLAYBACK_ALL.
+  const rounds = simplePlayer.getEngineRounds() as any[]
   if (!modeSelectionMemo.dirty && modeSelectionMemo.roundCount === rounds.length) return
   modeSelectionMemo.dirty = false
   modeSelectionMemo.roundCount = rounds.length
@@ -9562,11 +9588,21 @@ const refreshModeSelection = () => {
   // Fast selects nothing out, so it never pays for the pass — and that is also
   // the proof that Fast's behaviour is bit-identical to before.
   if (selectionIsInert(cfg) || rounds.length === 0) return
+  // The cap's denominator is the course's longest phrase. Measured off the
+  // engine queue alone that shrinks to whatever window is loaded, so take the
+  // whole-course mirror into account too and hold the answer as a high-water
+  // mark: the cap may not move under a learner who did nothing.
+  modeSelectionMaxPhraseLength = Math.max(
+    modeSelectionMaxPhraseLength,
+    courseMaxCycleLength(rounds as any),
+    courseMaxCycleLength((loadedRounds.value ?? []) as any),
+  )
   const ctx = makeModeSelectionContext(
     rounds as any,
     courseCode.value,
     props.course?.known_lang,
     cfg.reviewMaxKnownSyllables > 0,
+    modeSelectionMaxPhraseLength,
   )
   for (const round of rounds) {
     for (const id of selectCyclesOutForMode(round as any, cfg, ctx)) modeSelectionMemo.ids.add(id)
@@ -9629,6 +9665,21 @@ watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
 // is rebuilt and nothing is invalidated: the queue is the same content either
 // way, and the mode is only ever a view of it.
 watch(learningMode, () => { modeSelectionMemo.clear() })
+
+// The mode's TUNING is a DB row, and retuning Easy is meant to be a Supabase
+// edit rather than a deploy. The rows land asynchronously, so a memo computed
+// before they arrive is built from the shipped defaults and — without this —
+// would stand for the rest of the session, silently ignoring the live tuning.
+watch(algorithmConfigLoaded, () => { modeSelectionMemo.clear() })
+
+// A course change replaces both the queue and the phrase population the length
+// cap is measured against. The memo's round-count check cannot see a swap that
+// happens to keep the same length, and the high-water mark belongs to the old
+// course, so both are dropped explicitly.
+watch(courseCode, () => {
+  modeSelectionMaxPhraseLength = 0
+  modeSelectionMemo.clear()
+})
 
 /** Has this learner ever expressed a mode preference — on the learner row
  *  (cross-device) or on this device? An explicit choice outranks any default,
