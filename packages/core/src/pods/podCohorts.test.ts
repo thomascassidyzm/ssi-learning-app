@@ -182,40 +182,62 @@ describe('cold-start window — lap 1 is one full exchange (Tom, T-13, 2026-08-0
     expect(applyPodColdStartWindow([])).toEqual([])
   })
 
-  it('the floor may cross a scene wall when scene 1 is a single line', () => {
-    // Scene 1 is a single-line narrator opener; scene 2 opens with a Q+A.
+  it('the floor merges the opening pair whatever the scene structure', () => {
+    // Scene 1 is a single-line narrator opener; scene 2 opens with a Q+A. The
+    // first serving is two sentences; the wall does not hold a lone line alone.
     const rows = [r(1), r(2), r(2)]
-    expect(buildPodExchangeCohorts(rows)).toEqual([
-      { start: 0, size: 1 },
-      { start: 1, size: 2 },
+    expect(buildPodCohorts(rows)).toEqual([
+      { start: 0, size: 2 },
+      { start: 2, size: 1 },
     ])
-    expect(buildPodCohorts(rows)).toEqual([{ start: 0, size: 3 }])
   })
+})
 
-  it('buildPodCohorts = exchange partition + window', () => {
+describe('ONE new sentence per pod visit (Tom, 2026-08-09)', () => {
+  it('buildPodCohorts = one sentence per lap, with a two-sentence cold start', () => {
     const rows = [r(1), r(1), r(1), r(1), r(2), r(2)]
     expect(buildPodCohorts(rows)).toEqual([
       { start: 0, size: 2 },
-      { start: 2, size: 2 },
-      { start: 4, size: 2 },
+      { start: 2, size: 1 },
+      { start: 3, size: 1 },
+      { start: 4, size: 1 },
+      { start: 5, size: 1 },
     ])
   })
 
-  it('the ratchet follows the partition: lap 1 covers exactly the first exchange', () => {
+  it('no lap after the first ever debuts more than one sentence — whatever the turn/scene shape', () => {
+    // The live shape that broke it: long same-speaker turns (glue runs) inside
+    // one scene, which the exchange partition packed into 3-8 sentence laps.
+    const rows = [r(1, true), r(1, true), r(1, true), r(1), r(1, true), r(1), r(2), r(2, true), r(2)]
+    const cohorts = buildPodCohorts(rows)
+    expect(cohorts[0].size).toBe(POD_COLD_START_MIN_SENTENCES)
+    expect(cohorts.slice(1).every((c) => c.size === 1)).toBe(true)
+    // Every sentence is introduced exactly once, in order.
+    expect(cohorts.reduce((n, c) => n + c.size, 0)).toBe(rows.length)
+  })
+
+  it('a one-sentence pod keeps its single cohort', () => {
+    expect(buildPodCohorts([r(1)])).toEqual([{ start: 0, size: 1 }])
+    expect(buildPodCohorts([])).toEqual([])
+  })
+
+  it('the ratchet follows the partition: lap 1 covers the opening pair, then one a lap', () => {
     const cohorts = buildPodCohorts([r(1), r(1), r(1), r(1), r(2), r(2)])
     expect(podCohortRoundFor(cohorts, 0)).toBe(1)
     expect(podRatchetAfterLap(cohorts, 0)).toBe(2)
-    // Second lap debuts the next exchange.
+    // Second lap replays the pair one step older and debuts ONE new sentence.
     expect(podCohortRoundFor(cohorts, 2)).toBe(2)
-    expect(podRatchetAfterLap(cohorts, 2)).toBe(4)
+    expect(podRatchetAfterLap(cohorts, 2)).toBe(3)
+    expect(podCohortRoundFor(cohorts, 3)).toBe(3)
+    expect(podRatchetAfterLap(cohorts, 3)).toBe(4)
   })
 
-  it('a learner mid-cohort under an older partition rolls forward, never backwards', () => {
-    // Stored=1 (one sentence heard on the legacy per-sentence model) → cohort 1
-    // is started, so round 2: it replays whole, one step older.
+  it('a learner mid-flight under the exchange partition rolls forward, never backwards', () => {
+    // Stored=5 (five sentences covered under yesterday's exchange laps) reads
+    // as five cohorts started → round 5; the next lap debuts sentence 6.
     const cohorts = buildPodCohorts([r(1), r(1), r(1), r(1), r(2), r(2)])
-    expect(podCohortRoundFor(cohorts, 1)).toBe(2)
-    expect(podRatchetAfterLap(cohorts, 1)).toBe(4)
+    expect(podCohortRoundFor(cohorts, 5)).toBe(5)
+    expect(podRatchetAfterLap(cohorts, 5)).toBe(6)
   })
 })
 

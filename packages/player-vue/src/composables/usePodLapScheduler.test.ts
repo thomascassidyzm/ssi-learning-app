@@ -296,12 +296,11 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(s1.find(p => p.playRole === 'explainer')).toBeUndefined()
   })
 
-  it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
-    // Three SCENES of two sentences → cohorts [s1+s2], [s3+s4], [s5+s6];
-    // the cold-start window leaves all three alone (each is already one full
-    // exchange). Ratchet = 2 sentences covered (cohort 1 completed) → round 2:
-    // cohort 1 alive=2 (still stage 1, Phase-0 lasts 2 rounds), cohort 2
-    // debuts at alive=1; cohort 3 is not in the intake window yet.
+  it('the second lap replays the opening pair one step older and debuts exactly ONE new sentence (Tom 2026-08-09)', async () => {
+    // ONE new sentence per visit: cohorts are [s1+s2] (the cold-start pair),
+    // then [s3], [s4], [s5], [s6]. Ratchet = 2 sentences covered (the opening
+    // pair completed) → round 2: the pair replays one step older and sentence
+    // 3 debuts alone. Sentences 4-6 are not in the intake window yet.
     state.podSentences = [
       { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
@@ -317,11 +316,10 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap!.podRound).toBe(2)
     const idxs = new Set(lap!.plays.map(p => p.sentenceIdx))
-    expect(idxs).toEqual(new Set([1, 2, 3, 4]))
-    // Cohort-mates always share a stage.
+    expect(idxs).toEqual(new Set([1, 2, 3]))
+    // Cohort-mates always share a stage — here, the cold-start pair.
     const stageOf = (idx: number) => new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))
     expect(stageOf(1)).toEqual(stageOf(2))
-    expect(stageOf(3)).toEqual(stageOf(4))
   })
 
   it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
@@ -330,9 +328,10 @@ describe('usePodLapScheduler — nextLap composition', () => {
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
       { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
-    // Cohorts: [s1+s2], [s3+s4], [s5+s6]. 4 sentences covered = cohorts 1-2
-    // completed → round 3: cohort 1 alive=3 (stage 2 under Phase-0's 2-round
-    // duration), cohort 2 alive=2 (stage 1), cohort 3 debuts at alive=1.
+    // Cohorts: [s1+s2], [s3], [s4], [s5], [s6]. 4 sentences covered = cohorts
+    // 1-3 completed → round 4: the opening PAIR is alive=4 (stage 2 under
+    // Phase-0's 2-round duration) and moves as one; s3 alive=3 (stage 2), s4
+    // alive=2 and s5 alive=1 (both stage 1); s6 is not in the window yet.
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
@@ -341,12 +340,14 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
-    expect(lap!.podRound).toBe(3)
+    expect(lap!.podRound).toBe(4)
     const stages = (idx: number) => [...new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))]
     expect(stages(1)).toEqual([2])
     expect(stages(2)).toEqual([2])
-    expect(stages(3)).toEqual([1])
+    expect(stages(3)).toEqual([2])
     expect(stages(4)).toEqual([1])
+    expect(stages(5)).toEqual([1])
+    expect(stages(6)).toEqual([])
   })
 
   it('two-doors lift raises a cohort only as far as its LEAST-drilled member (cohesion beats drill-ahead)', async () => {
@@ -502,8 +503,8 @@ describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)',
     expect(s.nextLap()).toBeNull() // confirms the windowed path is genuinely stuck
     const lap = s.nextLapPreviewFallback()
     expect(lap).not.toBeNull()
-    // The whole second cohort previews — an exchange, like a real lap.
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 4, 5, 5, 5, 5])
+    // The next playable cohort previews — one sentence, like a real lap.
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 4])
   })
 
   it('searches outward from the ratchet cursor, reaching the farthest sentence only when nothing closer is playable', async () => {

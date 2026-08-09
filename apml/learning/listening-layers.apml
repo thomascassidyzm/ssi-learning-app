@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-07 (ONE listening mode: T-K-T-T, exposure ramp, 1.0 cap)
+# Last updated: 2026-08-09 (pod intake: ONE new sentence per visit, two at the cold start)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -305,6 +305,34 @@
 # learner's easy/fast mode even though the ruling arose on Easy: the partition
 # is PURE, and a mode-dependent one would have the two modes disagree about
 # where laps begin while sharing one sentence ratchet.
+#
+# UPDATE (2026-08-09, Tom — SUPERSEDES the 2026-07-24 exchange intake):
+# ONE NEW SENTENCE PER POD VISIT. Verbatim: "max 1 new sentence per POD visit,
+# 2 only if they genuinely belong together (Bonjour Sarah! / Bonjour, comment
+# allez-vous?). Next POD visit should move that first selection into Lap 2 and
+# introduce ONE new sentence, not a pile of new content."
+#
+# What was wrong: intake is partitioned over the FLATTENED per-sentence list
+# (flattenPodRows splits a silence-split turn into one unit per sentence), but
+# the exchange rule — a speaker turn plus its reply — was sized on authored
+# TURN rows, and a turn is a whole paragraph. Measured live on 2026-08-09,
+# fra/spa/deu_for_eng:pod-0 (142 turn-rows → 294 sentences): 71 cohorts, mean
+# 4.14 sentences per lap, max 8, and 59 of 71 laps debuting more than two.
+#
+# The fix is in the same PURE partition (@ssi/core/pods/podCohorts.ts):
+# buildPodCohorts = buildPodSentenceCohorts + applyPodColdStartWindow — one
+# cohort per SENTENCE, with the unchanged T-13 cold-start floor merging the
+# opening line into a two-sentence first serving. On fra_for_eng that is
+# exactly Tom's example: lap 1 = "Bonjour, Sarah !" + "Bonjour.", lap 2 adds
+# "Comment allez-vous ?" alone, and every later lap adds one.
+# The SENTENCE is also the unit the ratchet has always stored
+# (course_enrollments.completed_pod_rounds), so this is a return to the legacy
+# pacing: live learners migrate in place, no reset, monotonic forward.
+# Scene walls and the exchange partition survive as buildPodExchangeCohorts —
+# no longer the intake unit, kept as the tested definition of "a turn plus its
+# reply" and the record of the 2026-07-24 ruling. Stage cohesion is unchanged
+# and now binds only the cold-start pair. ?pod=1 / ?podview=1 previews compose
+# a cohort, so they now preview one sentence (two at the pod's opening).
 #
 # The body of this spec below is preserved for historical context.
 # =============================================================================
