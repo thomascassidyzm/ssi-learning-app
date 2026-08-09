@@ -1011,6 +1011,20 @@ export class SimplePlayer {
    * Find the next cycle index in a round that the runtime override says to play.
    * Returns -1 if every remaining cycle is being skipped — caller advances the round.
    */
+  /**
+   * The position a round OPENS on under the mode active right now.
+   *
+   * A round's cycles carry fixed, cached positions; which of them this mode
+   * plays is a live question, so the opening position is derived rather than
+   * assumed to be 0. Falls back to 0 when the mode plays none of them — the
+   * caller decides whether that means "step over" or "nothing to do".
+   */
+  private firstPlayableCycleIndex(round: Round | undefined): number {
+    if (!round?.cycles?.length) return 0
+    const idx = this.findNextPlayableCycleIndex(round, 0)
+    return idx === -1 ? 0 : idx
+  }
+
   private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
     if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
@@ -1236,9 +1250,18 @@ export class SimplePlayer {
     }
     const round = this.rounds[index]
     const cycleCount = round?.cycles?.length ?? 0
-    const safeCycle = cycleCount > 0
+    const clamped = cycleCount > 0
       ? Math.min(Math.max(cycleIndex | 0, 0), cycleCount - 1)
       : 0
+    // A caller names a POSITION; where the walk actually lands is derived from
+    // it under the live mode (Tom, 2026-08-09). Resolving forward here matters
+    // most when we land PAUSED — play() would have derived it on resume, but
+    // until then `currentCycle` is what the UI shows, and showing a cycle this
+    // mode does not play is the text/audio desync in miniature. Falls back to
+    // the clamped position when the mode plays nothing from here on, so a jump
+    // never silently becomes a no-op.
+    const forward = cycleCount > 0 ? this.findNextPlayableCycleIndex(round, clamped) : -1
+    const safeCycle = forward === -1 ? clamped : forward
     const wasPlaying = this.state.isPlaying
     this.stopForReposition()
     // Must set isPlaying: false so play() doesn't early-return
@@ -1897,7 +1920,12 @@ export class SimplePlayer {
     // set to 'idle' so resume() routes through startPhase('prompt').
     if (!this.state.isPlaying) {
       if (this.state.roundIndex < this.rounds.length - 1) {
-        this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0, phase: 'idle' })
+        const nextIndex = this.state.roundIndex + 1
+        this.updateState({
+          roundIndex: nextIndex,
+          cycleIndex: this.firstPlayableCycleIndex(this.rounds[nextIndex]),
+          phase: 'idle',
+        })
       } else {
         this.updateState({ phase: 'idle' })
         this.emit('session_complete')
@@ -1906,7 +1934,23 @@ export class SimplePlayer {
     }
 
     if (this.state.roundIndex < this.rounds.length - 1) {
-      this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0 })
+      const nextIndex = this.state.roundIndex + 1
+      const nextRound = this.rounds[nextIndex]
+      // POSITION IS NOT PLAY SEQUENCE (Tom, 2026-08-09). Entering a round used
+      // to mean position 0, literally — which is only ever right because
+      // position 0 is the intro. The moment the active mode selects an early
+      // cycle out, opening at 0 plays a cycle this mode said not to play. So
+      // the entry point is DERIVED here, live, exactly as play() already
+      // derived it from a standstill; and a round the mode empties entirely is
+      // stepped over rather than stalled on.
+      const startIdx = this.findNextPlayableCycleIndex(nextRound, 0)
+      if (startIdx === -1) {
+        console.debug(`[SimplePlayer] Round ${nextRound?.roundNumber}: every cycle selected out by the active mode, stepping over`)
+        this.updateState({ roundIndex: nextIndex, cycleIndex: 0 })
+        this.advanceRound()
+        return
+      }
+      this.updateState({ roundIndex: nextIndex, cycleIndex: startIdx })
       const round = this.currentRound
       if (round) {
         console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
