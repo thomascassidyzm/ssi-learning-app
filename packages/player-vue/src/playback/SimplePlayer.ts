@@ -1064,9 +1064,15 @@ export class SimplePlayer {
     // Any deliberate reposition supersedes a recorded interruption — the
     // learner (or the app) has already decided where playback goes next.
     this.interrupted = false
-    // A reposition lands on a different cycle: the live repeat counter belongs
-    // to the cycle we are leaving and must never follow the cursor.
-    this.currentCyclePlays = 0
+    // The live repeat counter is NOT cleared here. It belongs to the CYCLE, so
+    // it is dropped by the one thing that leaves a cycle — jumpToRound, which
+    // every cycle- and round-level move routes through — and it survives a move
+    // WITHIN a cycle. Clearing it here made every phase-strip tap hand the
+    // cycle back its full Easy allowance: tap during the second hearing and the
+    // walker owed a third, tap again and a fourth, with no ceiling. That is
+    // Tom's report of 2026-08-09 ("clicking a phase button mid-cycle causes the
+    // CYCLE TO RESET, so every cycle ends up playing the same content over and
+    // over"), pinned in phaseStripSeek.test.ts.
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -1276,6 +1282,12 @@ export class SimplePlayer {
     const safeCycle = forward === -1 ? clamped : forward
     const wasPlaying = this.state.isPlaying
     this.stopForReposition()
+    // LEAVING a cycle drops its hearings counter, so the cycle we land on gets
+    // its own full count rather than the leftover of the one we left. This is
+    // the ONE place it happens — every cycle- and round-level move (stepCycle,
+    // the header jumps, the mid-round resume) routes through here, and a move
+    // WITHIN a cycle (skipToPhase, resume's restart) deliberately does not.
+    this.currentCyclePlays = 0
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: index, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)

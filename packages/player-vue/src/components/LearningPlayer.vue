@@ -5610,26 +5610,34 @@ const clearSkipPrepDialog = () => {
 // (engine → onPhaseChanged callback → ref → watcher), an extra push hop the
 // derived currentPhase (M2) no longer needs. Starting an animation is a
 // legitimate edge reaction; the phase STATE itself is the computed below.
+// Both the visible countdown and the SimplePlayer's setTimeout go through
+// computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
+// affect both in lockstep. cfg is fastConfig or easyConfig — the live
+// values from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
+//
+// A function rather than watcher-body code because the SPEAK phase can now be
+// ENTERED FROM ITSELF: tapping the strip's mic segment during the gap restarts
+// the engine's pause window, and `watch` on a same-value phase never fires — so
+// the countdown would sit at wherever it had got to while the real gap started
+// again. Both callers run the same computation.
+const startSpeakCountdown = () => {
+  const cycle = simplePlayer.currentCycle.value
+  const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+  // Belt proxy for the pause curve — must match getPauseDuration exactly, so
+  // the ring and the real gap stay in lockstep. See the note there on why
+  // Easy pins it at 1.0 rather than reading the baked belt speed.
+  const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
+  const duration = computePauseDuration(
+    cycle?.target1DurationMs ?? 0,
+    cycle?.target2DurationMs ?? 0,
+    cfg,
+    spd,
+  )
+  startRingAnimation(duration)
+}
+
 watch(() => simplePlayer.phase.value, (phase) => {
-  // Both the visible countdown and the SimplePlayer's setTimeout go through
-  // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
-  // affect both in lockstep. cfg is fastConfig or easyConfig — the live
-  // values from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
-  if (phase === 'pause') {
-    const cycle = simplePlayer.currentCycle.value
-    const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-    // Belt proxy for the pause curve — must match getPauseDuration exactly, so
-    // the ring and the real gap stay in lockstep. See the note there on why
-    // Easy pins it at 1.0 rather than reading the baked belt speed.
-    const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
-    const duration = computePauseDuration(
-      cycle?.target1DurationMs ?? 0,
-      cycle?.target2DurationMs ?? 0,
-      cfg,
-      spd,
-    )
-    startRingAnimation(duration)
-  }
+  if (phase === 'pause') startSpeakCountdown()
 })
 
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
@@ -6753,13 +6761,18 @@ const showPhaseStrip = computed(() => {
 
 // Click handler for the phase-strip segments. Routes to the SimplePlayer
 // engine which interrupts the current phase and starts the target one fresh.
-// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
-function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only:
+// a tap is a SEEK, it never restarts the cycle and never spends or buys one of
+// the cycle's hearings (SimplePlayer.stopForReposition, phaseStripSeek.test.ts).
+//
+// All four segments, mic included — "once a cycle is playing he should be able
+// to go to ANY part of that same cycle freely" (Tom, 2026-08-09).
+function jumpToCyclePhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2') {
   // A1 (metrics): the phase pill is a self-assessment signal. Capture it BEFORE
   // the jump — fromPhase + toPhase + how long they sat there. Direction is the
   // confidence read (forward = "I've got it / verify"; back = "let me re-hear").
   // Raw elapsed + pauseDuration are stored unnormalised (decide the ratio later).
-  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : Phase.PROMPT
+  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : phase === 'pause' ? Phase.SPEAK : Phase.PROMPT
   const fromPhase = currentPhase.value
   const order: Record<string, number> = { [Phase.PROMPT]: 0, [Phase.SPEAK]: 1, [Phase.VOICE_1]: 2, [Phase.VOICE_2]: 3 }
   const fromIdx = order[fromPhase] ?? 0
@@ -6787,6 +6800,12 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   behaviouralEvidence.onPlayerEvent('phase_skip', phaseSkipPayload, cycle)
 
   simplePlayer.skipToPhase(phase)
+
+  // Re-entering SPEAK from SPEAK restarts the engine's gap but not the phase
+  // WATCHER (same value in, no fire), so the countdown is restarted here.
+  // Harmless on a fresh entry — the watcher's call and this one compute the
+  // same duration from the same cycle.
+  if (phase === 'pause') startSpeakCountdown()
 }
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
@@ -15103,18 +15122,23 @@ defineExpose({
             <rect x="17" y="13" width="5" height="8" rx="2"/>
           </svg>
         </button>
-        <div
+        <button
+          type="button"
           class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+          aria-label="Back to your turn to speak"
+          @click="jumpToCyclePhase('pause')"
         >
-          <div class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></div>
+          <!-- span, not div: a button's content model is phrasing content, and
+               the fill is absolutely positioned so display makes no difference. -->
+          <span class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <rect x="9" y="3" width="6" height="12" rx="3"/>
             <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
             <line x1="12" y1="19" x2="12" y2="22"/>
             <line x1="8" y1="22" x2="16" y2="22"/>
           </svg>
-        </div>
+        </button>
         <button
           type="button"
           class="phase-segment phase-segment--voice1"
@@ -17932,20 +17956,22 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0.9;
 }
 
-/* Active pause keeps its bg transparent — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * The fill IS the only red; icon stays dark for readability. */
+/* Active pause MUST NOT take the solid red bg the other segments take —
+ * the section bg and the growing fill would both be --ssi-red and the
+ * countdown would be invisible. So the segment's TRACK is the accent at
+ * 15% (the same soft red the hover state uses) and the fill is the only
+ * solid red; the icon stays dark for readability over the sweep.
+ *
+ * Why a track and not `transparent`: with a transparent track the growing
+ * fill is a solid red block starting at the segment's LEFT edge while the
+ * mic icon sits at its centre — so mid-countdown the pill reads as "an
+ * unlabelled red block between the headphones and the mic, with neither
+ * button highlighted", which is exactly how Tom read his 2026-08-09
+ * screenshot. The highlight was on the right segment all along; the SPEAK
+ * segment just didn't look like a segment. The soft track gives it its
+ * full 40% back, so the active phase is always legibly one of the four. */
 .phase-segment--pause.is-active {
-  background: transparent;
-  color: rgba(0, 0, 0, 0.7);
-}
-
-/* Active pause MUST override the red bg — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * Keep the section bg transparent so the fill IS the only red, and dim
- * the icon to dark for readability over the white→red sweep. */
-.phase-segment--pause.is-active {
-  background: transparent;
+  background: var(--accent-soft);
   color: rgba(0, 0, 0, 0.7);
 }
 
