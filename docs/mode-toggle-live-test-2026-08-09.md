@@ -5,9 +5,11 @@ claim that the toggle now genuinely changes playback is exactly what this test
 decides. Nothing below asserts it works.
 
 **Where to test:** https://ssi-learning-app-git-dev-zenjin.vercel.app
-**Build that must be live:** `a0bb2b7` — confirm at
+**Build that must be live:** `a0bb2b7` **or `af07602`** — confirm at
 https://ssi-learning-app-git-dev-zenjin.vercel.app/version.json before starting.
-If it says anything else, stop; you are testing the wrong bundle.
+`a0bb2b7` is the code under test; `af07602` is this document sitting on top of
+it and changes no app code, so either is fine. Anything else and you are
+testing the wrong bundle — stop.
 
 ---
 
