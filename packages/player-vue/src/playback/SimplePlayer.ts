@@ -1147,6 +1147,18 @@ export class SimplePlayer {
     // This also fixes the "looks frozen" UX where pausing in the silent
     // pause phase + resuming used to restart the silent timer with no
     // audio cue that anything had happened.
+    //
+    // AND THAT RESTART IS A HEARING, so it counts against the repeat ceiling.
+    // Measured live on dev 2026-08-09, pausing mid-cycle to reach the Easy/Fast
+    // control (which lives on the resting screen, so pause → switch → resume is
+    // the ONLY way a learner switches mid-session) and resuming on Easy played
+    // the phrase THREE times: the interrupted play, the restart above, and then
+    // the repeat that advanceCycle still had to give because no play had been
+    // counted yet. Three is the one thing config may not buy — "a phrase
+    // repeated 3x would drive people nuts" — so the restart is counted here,
+    // which spends exactly the repeat the learner has already been given.
+    // Fast is untouched: its count of 1 never reaches the repeat branch.
+    this.currentCyclePlays = Math.min(this.currentCyclePlays + 1, MAX_CYCLE_PLAYS)
     this.startPhase('prompt')
   }
 
