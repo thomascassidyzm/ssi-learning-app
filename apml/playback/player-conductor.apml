@@ -1,6 +1,6 @@
 # APML v1.0.0 - PlayerConductor (SimplePlayer transition ownership)
 # SSI Learning App
-# Last Updated: 2026-08-06
+# Last Updated: 2026-08-09
 
 spec player_conductor_architecture:
   version: "1.0.0"
@@ -75,6 +75,7 @@ spec player_conductor_architecture:
     request: "(engine => void) => void — direct, synchronous, always-immediate engine control. Used internally by useSimplePlayer's play/pause/resume/stop/skip*/jumpToRound/addRounds/appendRounds/replaceQueueFromCurrent, and safe to call from INSIDE an interlude/seek body (never touches the serialization queue, so it can't deadlock against itself)."
     runInterlude: "(kind, fn, opts?) => Promise<void> — see interlude(kind, resumeTo) above. Exposed as simplePlayer.runInterlude in the composable."
     runSeek: "(fn(isStale), opts?) => Promise<T|undefined> — see seeking(intent) above. Exposed as simplePlayer.runSeek in the composable."
+    resumeAfterInterruption: "() => void — recover from an OUTSIDE audio-session interruption. Acts ONLY from the stable playing state and ONLY when the engine reports hasPendingInterruption; a no-op otherwise, so it is safe to call speculatively on every return to the foreground. Exposed as simplePlayer.resumeAfterInterruption; wired to document visibilitychange inside useSimplePlayer. See outside_audio_interruptions below."
 
   dev_guard: |
     installDevGuard (dev/test builds only, import.meta.env.DEV or
@@ -247,3 +248,81 @@ spec player_conductor_architecture:
 
     Regressions: playback/SimplePlayer.test.ts, describe "A-22: a dead audio
     id (404 from the proxy) never stops the session".
+
+  outside_audio_interruptions: |
+    ADDED 2026-08-09. Tom, on iOS: the app is backgrounded and playing, he
+    switches to another app (WhatsApp — not recording, not a call), and that
+    SOMETIMES kills the session — playback does not resume when he comes back.
+
+    WHAT IT IS. The native diagnosis is an unhandled AVAudioSession
+    interruption; the web equivalent is exact. Another app takes the iOS audio
+    session (even for a notification sound), iOS pauses our single reused
+    HTMLAudioElement, and the element fires 'pause'. Nothing listened for that
+    event. So the engine went on believing it was playing — state.isPlaying
+    true, phase set, PlayerConductor showing a healthy 'playing' — with
+    nothing sounding and no event able to advance it.
+
+    WHY IT WAS INTERMITTENT — the phase decides the outcome, and only two of
+    the phases are fatal:
+      - Interruption during a REAL voice clip: armSafetyTimer is running (a
+        stall detector fed by timeupdate). It fires after 10s of no progress
+        and advances. The learner loses a clip; the session survives. This is
+        the "it usually just carries on" case.
+      - Interruption during one of the two SILENT clips — the PAUSE phase
+        (startPausePhase) or the post-voice2 LINGER (startLinger) — has NO
+        watchdog at all. Those phases rely on the silent clip's own 'ended'
+        (which the interruption cancels) plus a setTimeout that iOS freezes
+        while backgrounded. Nothing ever fires again: the session is dead
+        exactly where it stood. Given the pause phase is several seconds of
+        every ~11s cycle, this is a large minority of interruptions — which
+        is precisely the reported "SOMETIMES".
+
+    THE FIX, in three parts, splitting DETECTION (engine) from the
+    TRANSITION (conductor) so the conductor keeps its ownership invariant:
+      - SimplePlayer listens for the element's 'pause'. Ours are marked:
+        every deliberate stop goes through stopAudioElement()/
+        markSelfAudioStop(), including every `.src` assignment (the media load
+        algorithm pauses a playing element and fires 'pause' too). A 'pause'
+        arriving with the session believing it is playing and no self-stop
+        within SELF_STOP_GRACE_MS (400ms) is somebody else's — recorded on
+        `interrupted`, reported via the new 'interrupted' event
+        (AudioInterruptedEvent {phase, duringSilentClip, hidden}). The engine
+        NEVER self-resumes off it.
+      - Belt-and-braces for a 'pause' task dropped by a backgrounded tab: on
+        returning to visible, a session that believes it is playing while a
+        SILENT clip sits paused is the same interruption, and is recorded the
+        same way (detectSilentClipInterruption). Restricted to the silent-clip
+        windows deliberately — the voice phases already have the stall
+        watchdog, and a broader check would false-positive on the legitimate
+        awaits between phase entry and playAudio.
+      - PlayerConductor.resumeAfterInterruption() performs the transition:
+        only from the stable `playing` state, only with an interruption
+        pending, and via engine.resumeFromInterruption(), which replays the
+        CURRENT CYCLE FROM PROMPT (resume()'s existing reasoning — whatever
+        the learner was mid-way through is gone from their head) and clears
+        the flag before restarting, so a second call cannot double-play.
+
+    THE CRUX — never un-pause the learner. A player that resumes against a
+    deliberate pause is a worse bug than the one being fixed, so the
+    distinction is enforced at BOTH layers and by three independent facts:
+    pause()/stop()/stopForReposition clear `interrupted` (a deliberate
+    transition outranks any recorded interruption); the engine refuses unless
+    state.isPlaying is still true; and the conductor refuses from every state
+    except `playing` — userPaused, ended, loading, and both transient states
+    (interlude/seeking own their own landings) are all left alone.
+
+    WIRING (useSimplePlayer.ts): document visibilitychange → visible calls
+    resumeAfterInterruption. Plus one bounded retry
+    (FOREGROUND_RECOVERY_DELAY_MS, 1.5s) when the interruption is detected
+    while already visible — a notification sound over an open app produces no
+    visibilitychange at all, and a play() issued while the other app still
+    holds the session is simply rejected. The AudioContext keepalive
+    (composables/useAudioSessionKeepalive.ts) already re-resumed an
+    iOS-suspended context on the same event; this closes the element half,
+    which was the missing one.
+
+    Regressions: playback/audioInterruption.test.ts (external pause + return
+    to visible => resumes; learner pause + return => stays paused; a learner
+    pause AFTER an interruption still wins; our own stops are never
+    interruptions; the dropped-pause-event fallback; no double-play) and
+    playback/PlayerConductor.test.ts describe "resumeAfterInterruption".
