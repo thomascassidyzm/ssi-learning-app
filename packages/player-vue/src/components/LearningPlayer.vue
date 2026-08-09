@@ -56,6 +56,7 @@ import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
+import { reshapeRoundRepeats, isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
 import {
   useAlgorithmConfig,
@@ -9501,6 +9502,13 @@ watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
   if (mode === 'easy' || mode === 'fast') learningMode.value = mode
 })
 
+// Any writer of the mode — the toggle, the cross-device preference landing
+// after auth, the new-learner default — must reshape the loaded queue's
+// repeats, or the learner keeps hearing the mode they just left. The toggle
+// also calls this synchronously so the change lands on the very next cycle;
+// a reshape that is already in the right shape is a no-op.
+watch(learningMode, () => { applyModeRepeatsToQueue() })
+
 /** Has this learner ever expressed a mode preference — on the learner row
  *  (cross-device) or on this device? An explicit choice outranks any default,
  *  forever, so this gates the new-learner default below. */
@@ -9642,6 +9650,14 @@ simplePlayer.setRuntimeOverrides({
     // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
     // no-op unless the engine is enabled AND applying.
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
+
+    // Mode toggle, mid-ROUND. setLearningMode reshapes the forward queue, but
+    // replaceQueueFromCurrent deliberately keeps the round that is playing
+    // verbatim (swapping it would desync cycleIndex). So when the active mode
+    // repeats nothing, drop any repeat COPY still ahead of the cursor in this
+    // round — Easy→Fast then stops doubling on the very next cycle rather than
+    // at the next round. Easy's own copies are never dropped: its count is 2.
+    if (normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount) <= 1 && isRepeatCopyCycle(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
@@ -10249,6 +10265,27 @@ const exitAllModes = () => {
 }
 
 /**
+ * Re-apply the ACTIVE mode's phrase-repeat rule to the rounds already loaded.
+ * Pure and query-free — see reshapeRoundRepeats. Safe to call on any queue
+ * (Fast→Fast is a no-op reference-equal transform, so no splice happens).
+ */
+const applyModeRepeatsToQueue = () => {
+  try {
+    const repeat = currentRepeatConfig()
+    simplePlayer.reshapeQueue((rounds) => reshapeRoundRepeats(rounds as any, repeat) as any)
+    // Keep the legacy mirror in step so the text/progress walk and any later
+    // cache write see the same shape the engine is playing.
+    if (loadedRounds.value?.length) {
+      loadedRounds.value = reshapeRoundRepeats(loadedRounds.value as any, repeat) as any
+    }
+  } catch (err) {
+    // A mode toggle must never break playback — worst case the reps land on
+    // the next build, which is the old behaviour.
+    console.warn('[LearningPlayer] Mode repeat reshape failed (non-fatal):', err)
+  }
+}
+
+/**
  * Switch learning mode.
  *
  * What lands WHEN — this is the honest split, worth knowing before you
@@ -10256,18 +10293,30 @@ const exitAllModes = () => {
  *   • IMMEDIATELY (next cycle boundary): pause / thinking time and playback
  *     speed, because those go through the runtime overrides above, which are
  *     read fresh at every phase.
- *   • NEXT SCRIPT BUILD (next session, or a course switch): the doubled reps
- *     and the halved phrase-length cap, because those are baked into the
- *     script at generation time. We deliberately do NOT force a blocking
- *     mid-session regeneration — a full-course walk is six course-wide
- *     queries, and stalling a learner mid-round to reshape a round they are
- *     halfway through is a worse trade than letting the reps land next time.
- *     `generateScript`'s dedupe key includes the mode, so the next build
- *     genuinely rebuilds rather than serving the other mode's cached walk.
+ *   • IMMEDIATELY (this round, and every round after): the doubled reps.
+ *     They are baked into the script at generation time, but repetition is a
+ *     purely additive shape, so `reshapeRoundRepeats` re-derives it from the
+ *     queue the engine already holds — strip the `_x2` copies, re-double under
+ *     the new mode — with no regeneration and no query. The forward queue is
+ *     spliced here; the round already playing is handled by the runtime
+ *     `shouldSkipCycle` gate, which drops any repeat copy still ahead of the
+ *     cursor when the new mode's count is 1. Before 2026-08-09 nothing did
+ *     this: FAST kept playing EASY's doubled phrases for the rest of the
+ *     session, and — because the script cache is keyed on course alone — for
+ *     every session after it too (Tom, reproduced live).
+ *   • NEXT SCRIPT BUILD (next session, or a course switch): the halved
+ *     phrase-length cap, the BUILD-phrase filter and the review syllable
+ *     filter. Those DROP items at generation time, so they cannot be restored
+ *     from the loaded queue — only a walk can. We deliberately do NOT force a
+ *     blocking mid-session regeneration for them: a full-course walk is six
+ *     course-wide queries, and stalling a learner mid-round is the worse
+ *     trade. `generateScript`'s dedupe key includes the mode, so the next
+ *     build genuinely rebuilds rather than serving the other mode's walk.
  */
 const setLearningMode = (mode: LearningMode) => {
   if (learningMode.value === mode) return
   learningMode.value = mode
+  applyModeRepeatsToQueue()
   // Signed-out learners only have localStorage; signed-in learners get both
   // so a fresh device still reads the right mode before auth resolves.
   try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked */ }
@@ -12426,6 +12475,13 @@ onMounted(async () => {
           try {
             const cachedScript = await getCachedScript(courseCode.value)
             if (cachedScript && cachedScript.rounds.length > 0) {
+              // The script cache is keyed on COURSE, not mode, so a walk
+              // generated under Easy hydrates for a learner who is now on Fast
+              // (and vice versa). Reshape the repeats to the ACTIVE mode before
+              // anything indexes into these rounds — without this, the mode
+              // toggle stayed broken across reloads, which is what made Tom's
+              // 2026-08-09 repro look permanent.
+              cachedScript.rounds = reshapeRoundRepeats(cachedScript.rounds as any, currentRepeatConfig()) as any
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               // SWR: this hydration deliberately serves even a STALE-stamped
               // entry (checkContentVersion no longer drops it) — play now,
@@ -12549,7 +12605,8 @@ onMounted(async () => {
                 typeof cachedInf.mainLoopRoundCount === 'number' && cachedInf.mainLoopRoundCount > 0 &&
                 cachedInf.rounds.length > cachedInf.mainLoopRoundCount + Math.max(0, inferInfPlayRoundIndex - 1)
               ) {
-                fullRounds = cachedInf.rounds as any[]
+                // Mode-blind cache key — reshape repeats to the active mode.
+                fullRounds = reshapeRoundRepeats(cachedInf.rounds as any, currentRepeatConfig()) as any[]
                 builtMainLoopCount = cachedInf.mainLoopRoundCount
                 if (cachedInf.courseWelcome) cachedCourseWelcome.value = cachedInf.courseWelcome
                 // SWR: a stale-stamped entry still hydrates (play now,
@@ -14234,6 +14291,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   const cachedScript = await getCachedScript(newCourseCode)
 
   if (cachedScript) {
+    // Mode-blind cache key — reshape repeats to the active mode (see above).
+    cachedScript.rounds = reshapeRoundRepeats(cachedScript.rounds as any, currentRepeatConfig()) as any
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
     // SWR: a stale-stamped entry still serves this session; background
     // revalidation writes the fresh script for next time.

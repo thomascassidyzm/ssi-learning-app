@@ -75,6 +75,7 @@ export interface UseSimplePlayerReturn {
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
+  reshapeQueue: (transform: (rounds: Round[]) => Round[]) => void
   hasRound: (roundNumber: number) => boolean
   /** Bracket an async interlude (commentary / pod lap / L1 cup) — see
    * PlayerConductor.runInterlude. The conductor never pauses on entry;
@@ -391,6 +392,25 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Reshape the queue in place from a pure transform of the engine's OWN
+   * snapshot (never from a caller-held mirror — M4 pull-consistency). Used by
+   * the Easy/Fast toggle to re-apply the new mode's phrase-repeat rule to
+   * rounds that were built under the old one, with no regeneration.
+   *
+   * The splice keeps the in-flight round verbatim (replaceQueueFromCurrent),
+   * so the change lands from the NEXT round; the current round is handled by
+   * the runtime skip hook. A transform returning the same array is a no-op.
+   */
+  const reshapeQueue = (transform: (rounds: Round[]) => Round[]) => {
+    if (!player || !conductor) return
+    const current = player.roundsSnapshot
+    const next = transform(current)
+    if (next === current || next.length === 0) return
+    conductor.request((e) => e.replaceQueueFromCurrent(next))
+    syncRoundsFromEngine()
+  }
+
+  /**
    * Check if a round exists by roundNumber
    */
   const hasRound = (roundNumber: number): boolean => {
@@ -458,6 +478,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     addRounds,
     appendRounds,
     replaceQueueFromCurrent,
+    reshapeQueue,
     hasRound,
     runInterlude,
     runSeek,
