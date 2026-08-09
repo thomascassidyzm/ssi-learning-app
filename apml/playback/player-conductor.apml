@@ -316,10 +316,31 @@ spec player_conductor_architecture:
     (FOREGROUND_RECOVERY_DELAY_MS, 1.5s) when the interruption is detected
     while already visible — a notification sound over an open app produces no
     visibilitychange at all, and a play() issued while the other app still
-    holds the session is simply rejected. The AudioContext keepalive
-    (composables/useAudioSessionKeepalive.ts) already re-resumed an
-    iOS-suspended context on the same event; this closes the element half,
-    which was the missing one.
+    holds the session is simply rejected.
+
+    THE LAYER UNDERNEATH (corrected 2026-08-09, second pass). The element fix
+    above is only half of it. The AudioContext keepalive
+    (composables/useAudioSessionKeepalive.ts) is what actually HOLDS the iOS
+    audio session, and it was checking `state === 'suspended'` in all three of
+    its recovery paths. An interruption does not suspend the context — iOS
+    Safari parks it in its own non-standard **'interrupted'** state, which
+    those checks skipped straight past. So the keepalive silently stopped
+    keeping anything alive for the rest of the session, and a later element
+    play() could find no audio session at all: the same symptom, one layer
+    down, and a second reason the same interruption sometimes never came back.
+    Now every path (ensure, a new 'statechange' listener, return-to-visible)
+    resumes anything that is not running/closed, with a bounded retry
+    (INTERRUPTION_RETRY_MS 1.5s × MAX_INTERRUPTION_RETRIES 4) because resume()
+    is rejected while the interrupting app still holds the session. The
+    statechange listener matters on its own: a chime over an open app produces
+    no visibilitychange, so it is the only signal in that case. The crux holds
+    identically here — recovery is gated on `shouldBeRunning`, which a learner
+    pause clears via release(), so a deliberately paused session is never
+    revived. Regressions: composables/useAudioSessionKeepalive.test.ts.
+
+    STILL OPEN (not fixed here, deliberately): ListeningOverlay.vue runs its
+    own audio element and Media Session for pod playback and has neither half
+    of this — an interruption during a listening pod is still unhandled.
 
     Regressions: playback/audioInterruption.test.ts (external pause + return
     to visible => resumes; learner pause + return => stays paused; a learner
