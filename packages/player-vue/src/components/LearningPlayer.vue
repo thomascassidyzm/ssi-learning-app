@@ -27,6 +27,7 @@ import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
 import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
+import { easyOptionsForMode, maxPhraseLengthFractionForMode } from '../providers/modeScriptOptions'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { podPlayShowsTurnText, podLapPlayedSentenceIndices, podLapDisplayRange } from '@ssi/core/pods'
@@ -535,18 +536,13 @@ const runGenerateScript = (
     // Phrase-length CAP for the active mode — a fraction of the longest
     // phrase in the whole course. Fast is uncapped (1.0) and so provably
     // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
-    activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+    maxPhraseLengthFractionForMode(activeModeConfig.value),
     // The Easy levers (Tom, 2026-08-07): every practice cycle doubled, BUILD
     // phrases unfiltered, and a known-side syllable filter on review and
     // consolidate pulls for the first 100 rounds. Fast carries them all off,
-    // so Fast is provably unchanged.
-    {
-      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-      filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-      reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-      reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-    },
+    // so Fast is provably unchanged. The mapping lives in modeScriptOptions —
+    // one place, so no call site can be half-right.
+    easyOptionsForMode(activeModeConfig.value),
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -13231,8 +13227,11 @@ onMounted(async () => {
             // (set up further down) extends the loaded set chunk-by-chunk
             // as the player advances.
             let result
+            // Course AND mode must both match: a preload generated under the
+            // other mode's levers is the wrong script, not a faster one.
             const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
-              eagerScript.courseCode.value === courseCode.value
+              eagerScript.courseCode.value === courseCode.value &&
+              eagerScript.matchesMode?.(activeModeConfig.value)
             const config = podActivationOverride !== null
               ? { ...baseListeningConfig, podActivationRound: podActivationOverride }
               : baseListeningConfig
@@ -14261,7 +14260,9 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     let freshResult
     beginBlockingRegenNotice()
     try {
-      if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
+      // Mode as well as course — see the twin check on the cold-start path.
+      if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode
+          && eagerScript.matchesMode?.(activeModeConfig.value)) {
         console.log('[LearningPlayer] Awaiting eager preload for course switch:', newCourseCode)
         freshResult = await eagerScript.scriptPromise.value
       } else {
@@ -14270,15 +14271,9 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
-          activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+          maxPhraseLengthFractionForMode(activeModeConfig.value),
           // Twin of the wrapper above — every mode lever travels together.
-          {
-            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-            filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-            reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-            reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-          },
+          easyOptionsForMode(activeModeConfig.value),
         )
       }
     } finally {

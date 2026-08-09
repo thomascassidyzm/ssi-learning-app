@@ -20,7 +20,16 @@
 
 import { ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { generateLearningScript, type LearningScriptResult } from '../providers/generateLearningScript'
+import {
+  generateLearningScript,
+  DEFAULT_LISTENING_CONFIG,
+  DEFAULT_SCRIPT_SHAPE,
+  type LearningScriptResult,
+  type ListeningConfig,
+  type ScriptShape,
+} from '../providers/generateLearningScript'
+import { easyOptionsForMode, maxPhraseLengthFractionForMode } from '../providers/modeScriptOptions'
+import type { ModeConfig } from './useAlgorithmConfig'
 import { checkContentVersion } from './useScriptCache'
 
 /**
@@ -45,6 +54,28 @@ export const LOOKAHEAD_TRIGGER_ROUNDS = 5
  */
 export const LOOKAHEAD_CHUNK_SEEDS = 3
 
+/**
+ * Everything the walk needs to produce the ACTIVE MODE's script rather than
+ * the generator's bare defaults.
+ *
+ * This used to be omitted entirely — `generateLearningScript(supabase, code)`
+ * and nothing else — so a preloaded script was always Fast's, whatever mode
+ * the learner was in. It is a required argument now: a caller that doesn't
+ * know the mode can't accidentally preload the wrong one.
+ */
+export interface PreloadScriptOptions {
+  /** The active mode's config row (easyConfig / fastConfig). */
+  modeConfig: Partial<ModeConfig> | null | undefined
+  /** Live listening config, pod-activation pin already merged. */
+  listening?: ListeningConfig
+  /** The global script shape with the active mode's overlay applied. */
+  scriptShape?: ScriptShape
+  /** Revival rounds after the main loop. */
+  infinitePlayLookahead?: number
+  /** Pod-lap firing cadence — keeps the L1-outro merge in sync. */
+  podRoundInterval?: number
+}
+
 export interface EagerScriptPreload {
   /** Resolves with seeds 1..INITIAL_PRELOAD_SEEDS */
   scriptPromise: Ref<Promise<LearningScriptResult> | null>
@@ -53,21 +84,53 @@ export interface EagerScriptPreload {
   /** The course code this preload is for */
   courseCode: Ref<string>
   /** Trigger a fresh preload (e.g. on course switch) */
-  preload: (supabase: SupabaseClient, code: string) => void
+  preload: (supabase: SupabaseClient, code: string, options: PreloadScriptOptions) => void
+  /**
+   * True only when the preloaded (or in-flight) script was generated with THIS
+   * mode's levers. Consumers must check it before using the preload: the mode
+   * can change between the preload firing and the script being consumed, and
+   * an Easy learner served Fast's script is exactly the bug this file had.
+   */
+  matchesMode: (modeConfig: Partial<ModeConfig> | null | undefined) => boolean
 }
+
+/** Fingerprint of the mode levers that actually change the generated script. */
+const modeKeyOf = (modeConfig: Partial<ModeConfig> | null | undefined): string =>
+  JSON.stringify([easyOptionsForMode(modeConfig), maxPhraseLengthFractionForMode(modeConfig)])
 
 export function useEagerScriptPreload(): EagerScriptPreload {
   const scriptPromise = ref<Promise<LearningScriptResult> | null>(null)
   const scriptResult = ref<LearningScriptResult | null>(null)
   const courseCode = ref('')
 
-  const preload = (supabase: SupabaseClient, code: string) => {
-    // Single-flight per course: a walk for this course is already running or
+  // Course + mode-arguments fingerprint of the walk currently in flight.
+  // Easy and Fast produce genuinely different scripts, so single-flight has to
+  // key on the mode too — otherwise a mode switch is served the other mode's
+  // walk, which is the same wrong-script bug by another route.
+  let inFlightKey: string | null = null
+  const walkModeKey = ref<string | null>(null)
+
+  const preload = (supabase: SupabaseClient, code: string, options: PreloadScriptOptions) => {
+    const {
+      modeConfig,
+      listening = DEFAULT_LISTENING_CONFIG,
+      scriptShape = DEFAULT_SCRIPT_SHAPE,
+      infinitePlayLookahead = 50,
+      podRoundInterval = 5,
+    } = options
+
+    const easyOptions = easyOptionsForMode(modeConfig)
+    const maxPhraseLengthFraction = maxPhraseLengthFractionForMode(modeConfig)
+    const key = JSON.stringify([code, easyOptions, maxPhraseLengthFraction, scriptShape, listening, infinitePlayLookahead, podRoundInterval])
+
+    // Single-flight per course+mode: a matching walk is already running or
     // resolved — every caller shares it via scriptPromise/scriptResult. Without
     // this, multiple triggers on one cold start each ran the WHOLE course-wide
     // walk concurrently, multiplying the phrase-table fetches right when the
     // instant bootstrap needs the network.
-    if (code === courseCode.value && scriptPromise.value) return
+    if (key === inFlightKey && scriptPromise.value) return
+    inFlightKey = key
+    walkModeKey.value = modeKeyOf(modeConfig)
 
     // Reset if switching courses
     if (code !== courseCode.value) {
@@ -80,7 +143,16 @@ export function useEagerScriptPreload(): EagerScriptPreload {
 
     const promise = checkContentVersion(supabase, code)
       .catch(() => {}) // non-blocking: offline is fine
-      .then(() => generateLearningScript(supabase, code))
+      .then(() => generateLearningScript(
+        supabase,
+        code,
+        infinitePlayLookahead,
+        listening,
+        scriptShape,
+        maxPhraseLengthFraction,
+        easyOptions,
+        podRoundInterval,
+      ))
       .then(result => {
         console.log(`[eagerScriptPreload] Done: ${result.items.length} items, ${result.roundCount} rounds in ${Date.now() - start}ms`)
         if (courseCode.value !== code) return result // course switched mid-load
@@ -95,5 +167,8 @@ export function useEagerScriptPreload(): EagerScriptPreload {
     scriptPromise.value = promise
   }
 
-  return { scriptPromise, scriptResult, courseCode, preload }
+  const matchesMode = (modeConfig: Partial<ModeConfig> | null | undefined): boolean =>
+    walkModeKey.value !== null && walkModeKey.value === modeKeyOf(modeConfig)
+
+  return { scriptPromise, scriptResult, courseCode, preload, matchesMode }
 }
