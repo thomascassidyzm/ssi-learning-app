@@ -157,6 +157,27 @@ function pickTargets(row: {
 }
 
 /**
+ * Within-round identity of a phrase: normalised known text + normalised target
+ * text. Deliberately character-for-character the same notion the script path
+ * uses (`getPhraseId`/`normalizeText` in `generateLearningScript.ts`), so the
+ * two builders claim and skip exactly the same rows.
+ */
+function normalizeForKey(text: string | null | undefined): string {
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?;:\u00a1\u00bf'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g, '')
+}
+
+function phraseKey(
+  knownText: string | null | undefined,
+  targetText: string | null | undefined
+): string {
+  return `${normalizeForKey(knownText)}|${normalizeForKey(targetText)}`
+}
+
+/**
  * Build the audio block for a cycle. Omit keys whose IDs are null so the
  * response stays lean — the frontend treats absence as "no audio for this
  * role" (e.g. presentation only exists on intro cycles).
@@ -507,13 +528,36 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
   )
   const uses = phrases.filter((p) => p.phrase_role === 'use')
 
+  // The debut IS the bare LEGO — claim it so no later cycle replays it, and
+  // claim each phrase as it is emitted so a duplicated row cannot play twice.
+  // Most courses carry build rows whose text equals their own LEGO
+  // (fra_for_eng S0009L01 'I speak / je parle'); emitting one as a BUILD makes
+  // the known-word step fire again immediately after the debut — twice over,
+  // once the Easy-mode x2 repeat doubles it — and burns a build slot a real
+  // phrase should have had. It also breaks the rule that a BUILD is the new
+  // LEGO plugged into ALREADY-KNOWN vocabulary.
+  //
+  // Both other sequence builders have always had this guard —
+  // `generateLearningScript.ts` (the script path) and the dashboard's
+  // `services/learning-script-generator.cjs`. This endpoint never did, which
+  // is why the same LEGO doubled when it was entered by a skip or cold start
+  // and played clean on natural progression.
+  const claimed = new Set<string>([phraseKey(lego.known_text, legoTargets.target_text)])
+
   let buildIdx = 0
   for (const p of builds) {
+    // Skip BEFORE taking an ordinal, so a skipped row costs nothing.
+    const key = phraseKey(p.known_text, pickTargets(p).target_text)
+    if (claimed.has(key)) continue
+    claimed.add(key)
     buildIdx++
     out.push(phraseToCycle(p, legoId, seed, 'build', buildIdx))
   }
   let useIdx = 0
   for (const p of uses) {
+    const key = phraseKey(p.known_text, pickTargets(p).target_text)
+    if (claimed.has(key)) continue
+    claimed.add(key)
     useIdx++
     out.push(phraseToCycle(p, legoId, seed, 'use', useIdx))
   }
