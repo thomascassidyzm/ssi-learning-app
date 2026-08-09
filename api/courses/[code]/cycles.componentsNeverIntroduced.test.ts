@@ -93,7 +93,12 @@ describe('buildLegoCycles — components are never introduced (Tom, 2026-08-06)'
 
   it('orders intro -> debut with nothing between them', () => {
     const out = buildLegoCycles(lego(), [component(), use({ position: 9 })])
-    expect(out.map((c) => c.type)).toEqual(['intro', 'debut', 'use'])
+    // Was ['intro','debut','use'] until 2026-08-09, when the endpoint took on
+    // the walk's full round shape: the lone USE row is promoted into a BUILD
+    // slot (BUILD priority beats consolidation), then replayed by the
+    // consolidation tail. What this test guards is unchanged — the component
+    // row produces nothing, and nothing sits between intro and debut.
+    expect(out.map((c) => c.type)).toEqual(['intro', 'debut', 'build', 'use'])
   })
 
   it('introduce=true is NOT a licence to introduce — still no cycle', () => {

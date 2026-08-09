@@ -22,9 +22,10 @@ import {
   normalizeMaxPhraseLengthFraction, normalizeMaxKnownSyllables,
   normalizeReviewFilterMaxRound, makeKnownSyllableResolver, filterReviewPool,
   normalizePhraseRepeatCount, normalizeRepeatedCycleTypes,
+  normalizeUseWordCapTiers, makeUseWordCap, capUsePoolByWords,
   MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
 } from '../composables/useAlgorithmConfig'
-import type { ReviewPullFilter } from '../composables/useAlgorithmConfig'
+import type { ReviewPullFilter, UseWordCap, UseWordCapTier } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import { repeatPhraseCycles } from './repeatPhraseCycles'
 
@@ -190,6 +191,15 @@ export interface LearningScriptResult {
    * the once-per-course console warning from makeKnownSyllableResolver.
    */
   syllableCapApplied: boolean
+  /**
+   * Did the sliding USE word cap actually apply (Tom, 2026-08-09)?
+   *
+   * False when the mode carries no ladder (Fast), or when English is on
+   * NEITHER side of this course — the deferred case, where Easy behaves
+   * exactly as it did before. Same visibility discipline as syllableCapApplied:
+   * an inert cap must be readable, not invisible.
+   */
+  useWordCapApplied: boolean
 }
 
 /**
@@ -214,6 +224,13 @@ export interface EasyModeOptions {
   reviewMaxKnownSyllables?: number
   /** Last round on which that filter applies; it lifts from the next round. */
   reviewSyllableFilterMaxRound?: number
+  /**
+   * Sliding word-count cap on USE phrases, by round (Tom, 2026-08-09). Empty /
+   * absent ⇒ off, which is Fast. Easy ships 8 words to round 20, 10 to round
+   * 100, uncapped after. Counted on the ENGLISH side of the pair and applied
+   * only on courses with English on one side — see ModeConfig.useWordCapTiers.
+   */
+  useWordCapTiers?: UseWordCapTier[]
 }
 
 /**
@@ -419,6 +436,11 @@ export async function generateLearningScript(
   const PHRASE_LENGTH_FRACTION = normalizeMaxPhraseLengthFraction(maxPhraseLengthFraction)
   const phraseLengthOf = (p: Phrase): number => phraseTextLength(p.target_text)
 
+  // Resolved BEFORE the query batch below, because both levers decide whether
+  // the courses-table read is issued at all.
+  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables)
+  const USE_WORD_CAP_TIERS = normalizeUseWordCapTiers(easyOptions.useWordCapTiers)
+
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
     return text.toLowerCase().trim().replace(/[.,!?;:¡¿'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g, '')
@@ -515,16 +537,17 @@ export async function generateLearningScript(
     // returns an empty map on any error (a missed suffix costs one stale clip,
     // a thrown error costs the whole script). See ./revisedAudioRefs.
     fetchRevisedAudioRefs(supabase, courseCode),
-    // The course's KNOWN LANGUAGE — the one thing the review/consolidate pull
-    // filter needs and nothing else here did. Smallest possible fetch: one
-    // column, one row, in the existing parallel batch so it costs no latency.
-    // Skipped entirely when no filter is set (Fast), so Fast issues exactly the
-    // queries it always did. A failed/missing row leaves known_lang null,
-    // which makes the filter inert and warn — never throws, never guesses.
-    normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables) < Infinity
+    // The course's LANGUAGES — what the review/consolidate pull filter needs
+    // (known side) and what the USE word cap needs (which side is English).
+    // Smallest possible fetch: two columns, one row, in the existing parallel
+    // batch so it costs no latency. Skipped entirely when neither lever is set
+    // (Fast), so Fast issues exactly the queries it always did. A failed or
+    // missing row leaves both null, which makes both levers inert and warn —
+    // never throws, never guesses.
+    MAX_KNOWN_SYLLABLES < Infinity || USE_WORD_CAP_TIERS.length > 0
       ? supabase
           .from('courses')
-          .select('known_lang')
+          .select('known_lang, target_lang')
           .eq('course_code', courseCode)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -538,13 +561,13 @@ export async function generateLearningScript(
   // A courses-table read error is NOT fatal — the filter going inert costs the
   // learner nothing (the character cap still applies), while throwing would
   // cost them the whole script.
-  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables)
   const REVIEW_FILTER_MAX_ROUND = normalizeReviewFilterMaxRound(easyOptions.reviewSyllableFilterMaxRound)
+  const courseLangs = (courseRowResult?.data as { known_lang?: string; target_lang?: string } | null) || null
   if (courseRowResult?.error) {
-    console.warn(`[phrase-cap] could not read courses.known_lang for ${courseCode} — review pull filter may be inert:`, courseRowResult.error.message)
+    console.warn(`[phrase-cap] could not read courses.known_lang/target_lang for ${courseCode} — review pull filter and USE word cap may be inert:`, courseRowResult.error.message)
   }
   const knownSyllableResolver = MAX_KNOWN_SYLLABLES < Infinity
-    ? makeKnownSyllableResolver(courseCode, (courseRowResult?.data as { known_lang?: string } | null)?.known_lang)
+    ? makeKnownSyllableResolver(courseCode, courseLangs?.known_lang)
     : null
   const REVIEW_PULL_FILTER: ReviewPullFilter<Phrase> | null = knownSyllableResolver
     ? {
@@ -554,6 +577,27 @@ export async function generateLearningScript(
       }
     : null
   const syllableCapApplied = Boolean(knownSyllableResolver?.countable)
+
+  // SLIDING USE WORD CAP for this run (Tom, 2026-08-09). Null on Fast (no
+  // ladder) and null on a course with English on neither side — the deferred
+  // 47, which keep today's Easy exactly. Every application goes through
+  // useWordCap() below, so the round number is never guessed.
+  const USE_WORD_CAP: UseWordCap | null = makeUseWordCap(
+    courseLangs?.known_lang,
+    courseLangs?.target_lang,
+    USE_WORD_CAP_TIERS,
+  )
+  const useWordCapApplied = USE_WORD_CAP !== null
+  if (USE_WORD_CAP_TIERS.length > 0 && !USE_WORD_CAP) {
+    console.warn(
+      `[phrase-cap] USE word cap is INERT for ${courseCode}: English is on neither side ` +
+      `(known '${courseLangs?.known_lang ?? '(unknown)'}', target '${courseLangs?.target_lang ?? '(unknown)'}'). ` +
+      'Tom, 2026-08-09: the sliding scale was validated on English-involved pairs only; non-English pairs are deferred, not capped.',
+    )
+  }
+  /** Apply the word cap to a USE pool for the round it will be played in. */
+  const useWordCapped = (pool: readonly Phrase[], round: number): readonly Phrase[] =>
+    capUsePoolByWords(pool, round, USE_WORD_CAP)
 
   // "No filtering on BLD phrases" (Tom, 2026-08-07) — Easy takes its BUILD
   // pool whole. Default true keeps every other caller on the historic path.
@@ -1383,13 +1427,17 @@ export async function generateLearningScript(
       // Twin of the BUILD sort above — same shortest-first order, same cap.
       // 'needed' is only the slots still unfilled, so the starvation guard
       // measures against what this round actually has to place.
-      const sortedUsePhrases = capPhrasesByLength<Phrase>(
+      // …then the sliding ENGLISH-side word cap for THIS round (Tom,
+      // 2026-08-09): 8 words to round 20, 10 to 100, uncapped after, and off
+      // entirely on a course with English on neither side. Its starvation guard
+      // hands the whole pool back rather than leave the round short.
+      const sortedUsePhrases = useWordCapped(capPhrasesByLength<Phrase>(
         phrases.use,
         phraseSyllables,
         phraseLengthOf,
         PHRASE_LENGTH_LIMIT,
         MIN_USE_PHRASES_AFTER_CAP,
-      )
+      ), roundNumber)
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1503,7 +1551,7 @@ export async function generateLearningScript(
         // that round the basket opens fully — "it's the LEGO that you are
         // practicing", so a phrase never met before is no obstacle. Rotation
         // still walks useIndex round-robin, just over the eligible sub-basket.
-        const reviewPool = filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER)
+        const reviewPool = useWordCapped(filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER), roundNumber)
         const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
           const phrase = reviewPool[state.useIndex % reviewPool.length]
@@ -1559,6 +1607,7 @@ export async function generateLearningScript(
       // CONSOLIDATE draws from the same known-side-filtered pool as review
       // (Tom named REVIEW and CONSOLIDATE together) — consolidate cycles ARE
       // use phrases. Debut BUILD/USE selection above is deliberately untouched.
+      // (sortedUsePhrases already carries this round's word cap.)
       const consolidatePool = filterReviewPool(sortedUsePhrases, roundNumber, REVIEW_PULL_FILTER)
       // First pass: unused USE phrases
       for (const phrase of consolidatePool) {
@@ -1697,7 +1746,11 @@ export async function generateLearningScript(
       for (const legoKey of chosenKeys) {
         const state = legoState.get(legoKey)
         if (!state || state.usePhrases.length === 0) continue
-        const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+        // Same word cap as every other USE draw. On a course whose main loop
+        // ends before round 100 the tail is still inside the ladder, so it
+        // cannot be assumed uncapped.
+        const infUsePool = useWordCapped(state.usePhrases, roundNumber)
+        const phrase = infUsePool[state.useIndex % infUsePool.length]
         state.useIndex++
         if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1761,7 +1814,7 @@ export async function generateLearningScript(
         // rounds sit past the main loop, so on any real course this is already
         // beyond REVIEW_FILTER_MAX_ROUND and the basket is whole; it is here so
         // a short course's revival rounds obey the same rule as its main ones.
-        const reviewPool = filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER)
+        const reviewPool = useWordCapped(filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER), roundNumber)
         const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
           const phrase = reviewPool[state.useIndex % reviewPool.length]
@@ -1963,5 +2016,5 @@ export async function generateLearningScript(
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
   console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized, syllableCapApplied }
+  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized, syllableCapApplied, useWordCapApplied }
 }

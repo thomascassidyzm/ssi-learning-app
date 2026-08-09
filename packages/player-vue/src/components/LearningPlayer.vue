@@ -56,12 +56,22 @@ import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
+import { isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
+import {
+  selectCyclesOutForMode,
+  selectionIsInert,
+  makeModeSelectionContext,
+  courseMaxCycleLength,
+  type ModeSelectionConfig,
+} from '../playback/modeCycleSelection'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
 import {
   useAlgorithmConfig,
   resolveListeningPlayPolicy,
   normalizePhraseRepeatCount,
   normalizeRepeatedCycleTypes,
+  normalizeReviewFilterMaxRound,
+  makeUseWordCap,
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
@@ -531,22 +541,30 @@ const runGenerateScript = (
     listening,
     // Per-mode script shape: the global script_shape row with the active
     // mode's overlay on top. Fast carries no overlay ⇒ unchanged.
+    // THE ONE REMAINING MODE INPUT TO THE WALK, and it is inert by default.
+    // `ModeConfig.scriptShape` is the per-mode phrase-COUNT overlay on the
+    // admin Speaking page (how many different BUILD/USE/review phrases a round
+    // holds), and both shipped modes carry `{}` — so today the walk is
+    // genuinely mode-neutral and one cached script serves both. SETTING A
+    // NON-EMPTY OVERLAY WOULD RE-INTRODUCE A MODE-DEPENDENT SCRIPT, and with
+    // it the very bug this file just spent two attempts fixing: the cached
+    // walk would carry one mode's round sizes and a toggle could not change
+    // them. If that knob is ever wanted, round SIZE has to move into the
+    // player's live selection alongside length, filter and repetition.
     scriptShapeForMode(learningMode.value),
-    // Phrase-length CAP for the active mode — a fraction of the longest
-    // phrase in the whole course. Fast is uncapped (1.0) and so provably
-    // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
-    activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-    // The Easy levers (Tom, 2026-08-07): every practice cycle doubled, BUILD
-    // phrases unfiltered, and a known-side syllable filter on review and
-    // consolidate pulls for the first 100 rounds. Fast carries them all off,
-    // so Fast is provably unchanged.
-    {
-      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-      filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-      reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-      reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-    },
+    // THE WALK IS MODE-NEUTRAL AND GENEROUS (Tom's architecture call,
+    // 2026-08-09). It emits the FULL set — no phrase-length cap, no BUILD
+    // filter, no review syllable filter, no USE word cap, no doubling — and
+    // the player selects from it live, per step, under whichever mode is
+    // active (playback/modeCycleSelection.ts + the getCycleRepeatCount
+    // override). Every one of those levers used to run HERE, where it DROPS
+    // items: a dropped phrase is unrecoverable from the queue, which is
+    // precisely why a mid-session toggle could never change which phrases
+    // played. One script, both modes, cached and never invalidated by a
+    // toggle — that is what "the instructions belong in the player, not in
+    // the cached script data" buys.
+    1,
+    MODE_NEUTRAL_WALK_OPTIONS,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -558,14 +576,41 @@ const runGenerateScript = (
   )
 }
 
-// The active mode's cycle-repeat setting, in the shape backendCyclesToRounds
-// and the script walk both take. Easy plays every practice cycle twice (Tom,
-// 2026-08-07); Fast's count of 1 makes every call a no-op. Read fresh each
-// time so a mode switch mid-session takes effect on the next build.
+/**
+ * The active mode's cycle-repeat setting. Read fresh on every call, because
+ * the WALKER asks for it at the end of every cycle — see the
+ * `getCycleRepeatCount` runtime override. Nothing builds with it any more.
+ */
 const currentRepeatConfig = () => ({
   count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
   types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
 })
+
+/**
+ * What the BUILDERS get instead: no repetition at all.
+ *
+ * Tom's architecture call, 2026-08-09 — "the instructions for WHICH cycles get
+ * selected/played and HOW MANY TIMES belongs in the player logic, not the
+ * cached script data". So the script and the instant-path rounds carry each
+ * phrase EXACTLY ONCE, in both modes, and the walker decides live how often it
+ * sounds. One script, cacheable, shared: a toggle changes what is heard without
+ * touching a byte of what is cached.
+ */
+const MODE_NEUTRAL_REPEATS = { count: 1, types: new Set<string>() }
+
+/**
+ * The same neutrality, in the shape `generateSimpleScript` takes: every Easy
+ * lever OFF, so one walk serves both modes and the player does the selecting.
+ * `maxPhraseLengthFraction` travels as its own argument and is likewise 1.
+ */
+const MODE_NEUTRAL_WALK_OPTIONS = {
+  phraseRepeatCount: 1,
+  repeatedCycleTypes: [] as string[],
+  filterBuildPhrases: false,
+  reviewMaxKnownSyllables: 0,
+  reviewSyllableFilterMaxRound: 0,
+  useWordCapTiers: [] as never[],
+}
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
 // learner so it's stable across sessions/regenerations for a given learner
@@ -1632,7 +1677,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
-          currentRepeatConfig(),
+          MODE_NEUTRAL_REPEATS,
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -2227,7 +2272,8 @@ watch(
 // AUDIO PREFETCH LADDER (explicit phases)
 // ============================================================================
 //
-// Phase 1 — instant: bootstrap fetches ~15 cycles via /api/courses/:code/cycles
+// Phase 1 — instant: bootstrap fetches one whole round (~25 cycles, incl. its
+//   spaced review) via /api/courses/:code/cycles
 //          (useInstantPlayback.bootstrap), so the first cycle starts in <2s.
 // Phase 2 — background: generateScript() walks the whole course locally
 //          (loadAllData → handoff replaces simplePlayer's queue with the
@@ -5564,26 +5610,34 @@ const clearSkipPrepDialog = () => {
 // (engine → onPhaseChanged callback → ref → watcher), an extra push hop the
 // derived currentPhase (M2) no longer needs. Starting an animation is a
 // legitimate edge reaction; the phase STATE itself is the computed below.
+// Both the visible countdown and the SimplePlayer's setTimeout go through
+// computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
+// affect both in lockstep. cfg is fastConfig or easyConfig — the live
+// values from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
+//
+// A function rather than watcher-body code because the SPEAK phase can now be
+// ENTERED FROM ITSELF: tapping the strip's mic segment during the gap restarts
+// the engine's pause window, and `watch` on a same-value phase never fires — so
+// the countdown would sit at wherever it had got to while the real gap started
+// again. Both callers run the same computation.
+const startSpeakCountdown = () => {
+  const cycle = simplePlayer.currentCycle.value
+  const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+  // Belt proxy for the pause curve — must match getPauseDuration exactly, so
+  // the ring and the real gap stay in lockstep. See the note there on why
+  // Easy pins it at 1.0 rather than reading the baked belt speed.
+  const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
+  const duration = computePauseDuration(
+    cycle?.target1DurationMs ?? 0,
+    cycle?.target2DurationMs ?? 0,
+    cfg,
+    spd,
+  )
+  startRingAnimation(duration)
+}
+
 watch(() => simplePlayer.phase.value, (phase) => {
-  // Both the visible countdown and the SimplePlayer's setTimeout go through
-  // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
-  // affect both in lockstep. cfg is fastConfig or easyConfig — the live
-  // values from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
-  if (phase === 'pause') {
-    const cycle = simplePlayer.currentCycle.value
-    const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-    // Belt proxy for the pause curve — must match getPauseDuration exactly, so
-    // the ring and the real gap stay in lockstep. See the note there on why
-    // Easy pins it at 1.0 rather than reading the baked belt speed.
-    const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
-    const duration = computePauseDuration(
-      cycle?.target1DurationMs ?? 0,
-      cycle?.target2DurationMs ?? 0,
-      cfg,
-      spd,
-    )
-    startRingAnimation(duration)
-  }
+  if (phase === 'pause') startSpeakCountdown()
 })
 
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
@@ -5950,6 +6004,31 @@ const currentPlayableItem = ref(null)
 // ============================================
 const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
 const isAwakening = computed(() => loadingStage.value !== 'ready')
+
+// PER-CONTROL READINESS (Tom, 2026-08-08: "once it APPEARS ready, then it
+// should actually be ready").
+//
+// `loadingStage === 'ready'` means "the lesson exists": script built, rounds in
+// memory, position known. It has never meant "a tap makes a sound" — the first
+// clip's bytes are warmed off the critical path (see warmFirstKnownAudio). On a
+// fast connection those two moments are a third of a second apart, so one flag
+// looked honest; on Fast 3G they were seven seconds apart and the play button
+// spent that whole window claiming to be ready.
+//
+// So the play affordance gets its OWN signal: true once the first clip is
+// genuinely in hand (or its bounded warm-up has given up, in which case the
+// learner must still be allowed to press). Everything else keeps using
+// isAwakening — the belt badge and the Easy/Fast switch are v-if'd on it and so
+// are honest already (absent rather than fake).
+const isFirstClipReady = ref(false)
+
+// The belt screen renders off the contribution fetch, which is deliberately
+// scheduled AFTER ready so it doesn't compete for bandwidth. Until that fetch
+// settles the belt pill cannot open anything — so it says so (flashes) rather
+// than silently swallowing the tap. Settled-with-no-data keeps today's
+// behaviour: the pill stops flashing and the tap is a no-op, unchanged.
+const contributionSettled = ref(false)
+const isBeltScreenReady = computed(() => contributionSettled.value || !!contribution.data.value)
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
@@ -6157,11 +6236,30 @@ const runSwrRevalidation = async (code: string) => {
 // on the loading screen — it just proceeds to 'ready' and plays cold as
 // before. Only the known phrase is gated (it plays first, with no buffer
 // phase to hide a late arrival); the rest ride the 1-cycle lookahead.
+// Ceiling on the cold boot's first-clip warm-up. Generous on purpose: while it
+// runs the play button is FLASHING, which is the honest signal, so the wait
+// costs the learner nothing but candour. The ceiling exists only so a dead or
+// crawling network can never strand them behind a button that will not light —
+// at which point they press, and the old head-miss streaming path takes over
+// exactly as before. Measured cold on Fast 3G the clip lands in well under a
+// second once it has the link to itself; 2000 ms (the old default) was short
+// enough to expire mid-download and release the whole-course walk on top of it.
+const FIRST_CLIP_WARM_TIMEOUT_MS = 8000
+
 const warmFirstKnownAudio = async (timeoutMs = 2000) => {
   try {
     const url = cachedRounds.value?.[0]?.cycles?.[0]?.known?.audioUrl
     if (!url || typeof url !== 'string' || url.startsWith('blob:')) return
-    const warm = fetch(url, { priority: 'high' }).then(() => {}).catch(() => {})
+    // Drain the body. `fetch()` settles on the RESPONSE HEADERS, so the old
+    // `.then(() => {})` reported "warm" while the 68 KB was still on the wire —
+    // measured cold on Fast 3G it returned in ~300 ms for a clip that took a
+    // further 6 s to arrive. Reading the body to completion is what actually
+    // fills the HTTP cache entry, which is what makes the learner's tap silent-
+    // free. The result is deliberately discarded: the cache is the product.
+    const warm = fetch(url, { priority: 'high' })
+      .then((r) => r.arrayBuffer())
+      .then(() => {})
+      .catch(() => {})
     const timeout = new Promise((r) => setTimeout(r, timeoutMs))
     await Promise.race([warm, timeout])
   } catch {
@@ -6663,13 +6761,18 @@ const showPhaseStrip = computed(() => {
 
 // Click handler for the phase-strip segments. Routes to the SimplePlayer
 // engine which interrupts the current phase and starts the target one fresh.
-// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
-function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only:
+// a tap is a SEEK, it never restarts the cycle and never spends or buys one of
+// the cycle's hearings (SimplePlayer.stopForReposition, phaseStripSeek.test.ts).
+//
+// All four segments, mic included — "once a cycle is playing he should be able
+// to go to ANY part of that same cycle freely" (Tom, 2026-08-09).
+function jumpToCyclePhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2') {
   // A1 (metrics): the phase pill is a self-assessment signal. Capture it BEFORE
   // the jump — fromPhase + toPhase + how long they sat there. Direction is the
   // confidence read (forward = "I've got it / verify"; back = "let me re-hear").
   // Raw elapsed + pauseDuration are stored unnormalised (decide the ratio later).
-  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : Phase.PROMPT
+  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : phase === 'pause' ? Phase.SPEAK : Phase.PROMPT
   const fromPhase = currentPhase.value
   const order: Record<string, number> = { [Phase.PROMPT]: 0, [Phase.SPEAK]: 1, [Phase.VOICE_1]: 2, [Phase.VOICE_2]: 3 }
   const fromIdx = order[fromPhase] ?? 0
@@ -6697,6 +6800,12 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   behaviouralEvidence.onPlayerEvent('phase_skip', phaseSkipPayload, cycle)
 
   simplePlayer.skipToPhase(phase)
+
+  // Re-entering SPEAK from SPEAK restarts the engine's gap but not the phase
+  // WATCHER (same value in, no fire), so the countdown is restarted here.
+  // Harmless on a fresh entry — the watcher's call and this one compute the
+  // same duration from the same cycle.
+  if (phase === 'pause') startSpeakCountdown()
 }
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
@@ -9426,6 +9535,121 @@ const isEasyMode = computed(() => learningMode.value === 'easy')
 /** The live ModeConfig for whichever mode is active. */
 const activeModeConfig = computed(() => isEasyMode.value ? easyConfig.value : fastConfig.value)
 
+// ── WHICH CYCLES THIS MODE PLAYS, decided live ────────────────────────────
+//
+// Tom's architecture call, 2026-08-09: "The instructions for WHICH cycles get
+// selected/played and HOW MANY TIMES belongs in the player logic, not the
+// cached script data." The rules themselves are pure and live in
+// playback/modeCycleSelection.ts; this is the live wiring — a memo of the
+// cycles the ACTIVE mode selects out, consulted by the runtime shouldSkipCycle
+// gate on every step and thrown away the instant the mode moves.
+//
+// Whole-queue rather than per-round because the answer is pure and a full pass
+// is a few thousand string lengths — cheap, and it happens only when the mode
+// changes or the queue grows, never per cycle.
+let lastLoggedSelectionMode: LearningMode | null = null
+const modeSelectionMemo = {
+  ids: new Set<string>(),
+  dirty: true,
+  roundCount: -1,
+  /** Called by every writer of the mode — the next step re-decides. */
+  clear() { this.dirty = true },
+}
+
+/**
+ * High-water mark for "the course's longest phrase", the denominator of Easy's
+ * length cap. Held across recomputes because the arrays it is measured from
+ * grow and shrink as windows load — and a cap that moves on its own would drop
+ * a phrase in one round and play it in the next with the learner doing nothing.
+ * Reset on a course change, where the measure genuinely belongs to a new course.
+ */
+let modeSelectionMaxPhraseLength = 0
+
+/** The active mode's selection rules, straight off its ModeConfig row. */
+const currentModeSelectionConfig = (): ModeSelectionConfig => ({
+  maxPhraseLengthFraction: activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+  filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
+  reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
+  reviewSyllableFilterMaxRound: normalizeReviewFilterMaxRound(activeModeConfig.value.reviewSyllableFilterMaxRound),
+  // Resolved against the COURSE's languages — null (inert) when English is on
+  // neither side, exactly as the walk resolved it.
+  useWordCap: makeUseWordCap(
+    props.course?.known_lang,
+    props.course?.target_lang,
+    activeModeConfig.value.useWordCapTiers,
+  ),
+})
+
+/** Recompute the memo when the mode moved, or when the queue grew under it. */
+const refreshModeSelection = () => {
+  // THE ENGINE'S QUEUE, NEVER THE MIRROR. `loadedRounds` (= cachedRounds) is a
+  // text/progress mirror that the instant path deliberately swaps to the
+  // WHOLE-COURSE walk while the engine keeps playing the bootstrap's
+  // backend-built rounds — the handoff sets it and says in as many words that
+  // it "does not touch the live playback queue". The two arrays mint cycle ids
+  // in different namespaces: the walk numbers every cycle from one
+  // script-global counter (`S0009L01_build_147`), the /cycles endpoint numbers
+  // per type per LEGO (`S0009L01_build_2`). So a memo built from the mirror and
+  // matched against the engine's cycles agrees on nothing, and
+  // `modeSelectsCycleOut` returns false for every cycle it is ever asked about.
+  //
+  // That was the bug behind "the toggle doesn't change which phrases play"
+  // (Tom, 2026-08-09): the repeat lever worked, because it reads config rather
+  // than matching ids, while the selection lever was silently inert from the
+  // moment the full-script handoff landed — a few seconds into every session,
+  // on every course, since INSTANT_PLAYBACK_ALL.
+  const rounds = simplePlayer.getEngineRounds() as any[]
+  if (!modeSelectionMemo.dirty && modeSelectionMemo.roundCount === rounds.length) return
+  modeSelectionMemo.dirty = false
+  modeSelectionMemo.roundCount = rounds.length
+  modeSelectionMemo.ids.clear()
+  const cfg = currentModeSelectionConfig()
+  // Fast selects nothing out, so it never pays for the pass — and that is also
+  // the proof that Fast's behaviour is bit-identical to before.
+  if (selectionIsInert(cfg) || rounds.length === 0) return
+  // The cap's denominator is the course's longest phrase. Measured off the
+  // engine queue alone that shrinks to whatever window is loaded, so take the
+  // whole-course mirror into account too and hold the answer as a high-water
+  // mark: the cap may not move under a learner who did nothing.
+  modeSelectionMaxPhraseLength = Math.max(
+    modeSelectionMaxPhraseLength,
+    courseMaxCycleLength(rounds as any),
+    courseMaxCycleLength((loadedRounds.value ?? []) as any),
+  )
+  const ctx = makeModeSelectionContext(
+    rounds as any,
+    courseCode.value,
+    props.course?.known_lang,
+    cfg.reviewMaxKnownSyllables > 0,
+    modeSelectionMaxPhraseLength,
+  )
+  for (const round of rounds) {
+    for (const id of selectCyclesOutForMode(round as any, cfg, ctx)) modeSelectionMemo.ids.add(id)
+  }
+  console.log(`[LearningPlayer] Mode selection (${learningMode.value}): ${modeSelectionMemo.ids.size} cycle(s) selected out across ${rounds.length} round(s)`)
+  // The console line above does NOT survive a production build — vite.config.js
+  // lists console.log/info/debug in `esbuild.pure`, so on dev and prod it is
+  // gone. Telemetry is the only channel that survives, and a live probe (or a
+  // future me) needs SOME observable that the selection actually re-ran under
+  // the new mode. Logged on a MODE CHANGE only, never on the queue simply
+  // growing, so this is a handful of rows per session rather than a stream.
+  if (lastLoggedSelectionMode !== learningMode.value) {
+    lastLoggedSelectionMode = learningMode.value
+    logEvent('learning_mode_selection', {
+      mode: learningMode.value,
+      selectedOut: modeSelectionMemo.ids.size,
+      rounds: rounds.length,
+    })
+  }
+}
+
+/** Does the ACTIVE mode play this cycle? Asked per step by shouldSkipCycle. */
+const modeSelectsCycleOut = (cycle: { id?: string } | null | undefined): boolean => {
+  if (!cycle?.id) return false
+  refreshModeSelection()
+  return modeSelectionMemo.ids.has(cycle.id)
+}
+
 const LEARNING_MODE_KEY = 'ssi-learning-mode'
 
 /**
@@ -9451,6 +9675,29 @@ restoreLearningMode()
 // so a signed-in learner's cross-device choice wins over this device's.
 watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
   if (mode === 'easy' || mode === 'fast') learningMode.value = mode
+})
+
+// Any writer of the mode — the toggle, the cross-device preference landing
+// after auth, the new-learner default — drops the per-round selection memo.
+// The walker asks `shouldSkipCycle` before every step, so the very next step
+// re-decides which cycles this round plays under the mode now active. Nothing
+// is rebuilt and nothing is invalidated: the queue is the same content either
+// way, and the mode is only ever a view of it.
+watch(learningMode, () => { modeSelectionMemo.clear() })
+
+// The mode's TUNING is a DB row, and retuning Easy is meant to be a Supabase
+// edit rather than a deploy. The rows land asynchronously, so a memo computed
+// before they arrive is built from the shipped defaults and — without this —
+// would stand for the rest of the session, silently ignoring the live tuning.
+watch(algorithmConfigLoaded, () => { modeSelectionMemo.clear() })
+
+// A course change replaces both the queue and the phrase population the length
+// cap is measured against. The memo's round-count check cannot see a swap that
+// happens to keep the same length, and the high-water mark belongs to the old
+// course, so both are dropped explicitly.
+watch(courseCode, () => {
+  modeSelectionMaxPhraseLength = 0
+  modeSelectionMemo.clear()
 })
 
 /** Has this learner ever expressed a mode preference — on the learner row
@@ -9562,6 +9809,33 @@ simplePlayer.setRuntimeOverrides({
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
+  /**
+   * How many times this cycle sounds under the mode that is active RIGHT NOW.
+   *
+   * Read fresh at the END of every cycle, never snapshotted at round start —
+   * Tom's ruling after reproducing the mid-round flip on 2026-08-09: "the
+   * round walker must read current mode live per-step". Both directions land
+   * on the very next step: flip to Fast and the phrase in flight does not
+   * repeat; flip to Easy and it does, without waiting for the round boundary.
+   *
+   * Same two settings the generators use, off the same algorithm_config rows
+   * (`phraseRepeatCount`, `repeatedCycleTypes`) — so there is one definition
+   * of "Easy doubles the practice", read at build time by the script and at
+   * play time by the walker. Fast's count of 1 makes this a no-op.
+   *
+   * Never repeated: the intro and the bare LEGO debut (not in the type list —
+   * "of course not - the intro LEGO and not the LEGO alone"), and any
+   * single-audio cycle, which is the drained seed-phase sandwich, pods,
+   * listening and bookends — that sandwich is already several hearings of one
+   * sentence, so a repeat would breach the never-more-than-twice rule.
+   */
+  getCycleRepeatCount: (cycle) => {
+    if (cycle?.singleAudio) return 1
+    if (cycle?.type && MODE_BYPASS_TYPES.has(cycle.type)) return 1
+    const { count, types } = currentRepeatConfig()
+    if (count <= 1) return 1
+    return types.has(cycle?.type ?? '') ? count : 1
+  },
   getPostVoice2GapMs: (cycle) => {
     // Easy holds a beat of silence after voice2 before the next cycle starts,
     // "to stop the next cycle just coming in and taking over" (Tom,
@@ -9594,6 +9868,26 @@ simplePlayer.setRuntimeOverrides({
     // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
     // no-op unless the engine is enabled AND applying.
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
+
+    // REPETITION BELONGS TO THE WALKER (Tom, 2026-08-09). Nothing bakes `_x2`
+    // copies any more — the builders take MODE_NEUTRAL_REPEATS and the walker
+    // decides live, per step, how many times a cycle sounds
+    // (getCycleRepeatCount above). This drop stays for the scripts ALREADY in
+    // people's caches, which were written while the generators still baked
+    // them: keeping those would compound with the live repeat into four plays,
+    // and they carry the mode that was active when the script was BUILT, which
+    // is exactly the stale snapshot a learner hears as "Fast is still
+    // doubling". Harmless on a neutral script — there is nothing to match.
+    if (isRepeatCopyCycle(cycle)) return true
+
+    // WHICH CYCLES THIS MODE PLAYS — live, per step (Tom's architecture call,
+    // 2026-08-09: "the instructions for WHICH cycles get selected/played …
+    // belongs in the player logic, not the cached script data"). The queue is
+    // the generous, mode-neutral set; Easy and Fast are two selections over it.
+    // Memoised per round because the answer is pure, and the memo is dropped
+    // the instant the mode moves — so a toggle re-decides the round in flight
+    // before its next step, with no rebuild and no reload.
+    if (modeSelectsCycleOut(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
@@ -10203,23 +10497,33 @@ const exitAllModes = () => {
 /**
  * Switch learning mode.
  *
- * What lands WHEN — this is the honest split, worth knowing before you
- * change it:
- *   • IMMEDIATELY (next cycle boundary): pause / thinking time and playback
- *     speed, because those go through the runtime overrides above, which are
- *     read fresh at every phase.
- *   • NEXT SCRIPT BUILD (next session, or a course switch): the doubled reps
- *     and the halved phrase-length cap, because those are baked into the
- *     script at generation time. We deliberately do NOT force a blocking
- *     mid-session regeneration — a full-course walk is six course-wide
- *     queries, and stalling a learner mid-round to reshape a round they are
- *     halfway through is a worse trade than letting the reps land next time.
- *     `generateScript`'s dedupe key includes the mode, so the next build
- *     genuinely rebuilds rather than serving the other mode's cached walk.
+ * EVERYTHING LANDS ON THE NEXT STEP. There is no longer a split between what
+ * takes effect now and what waits for a rebuild, because a mode is no longer
+ * anything the script knows about.
+ *
+ * Tom's architecture call, 2026-08-09, after two attempts had put the fix in
+ * the wrong layer: "the instructions for WHICH cycles get selected/played and
+ * HOW MANY TIMES belongs in the player logic, not the cached script data.
+ * Speed and pause-length are already correctly read live by the player (this
+ * part works)." So the mode now works the way speed and pause already did:
+ *   • pause / thinking time and playback speed — runtime overrides, read fresh
+ *     at every phase (unchanged, and the proof the pattern works);
+ *   • HOW MANY TIMES a cycle sounds — `getCycleRepeatCount`, asked at the
+ *     moment a cycle ends, so Easy→Fast drops the second play of the phrase in
+ *     flight and Fast→Easy grants it;
+ *   • WHICH cycles play — `shouldSkipCycle`, which consults the per-round
+ *     selection computed by playback/modeCycleSelection.ts. The memo is
+ *     dropped on every mode change, so the walker re-decides the current round
+ *     before its very next step.
+ *
+ * The script itself is generated mode-neutral and generous: one walk, both
+ * modes, cached and never invalidated by a toggle. That is what makes all
+ * three of the above possible without a query, a rebuild or a reload.
  */
 const setLearningMode = (mode: LearningMode) => {
   if (learningMode.value === mode) return
   learningMode.value = mode
+  modeSelectionMemo.clear()
   // Signed-out learners only have localStorage; signed-in learners get both
   // so a fresh device still reads the right mode before auth resolves.
   try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked */ }
@@ -12047,7 +12351,12 @@ onMounted(async () => {
   // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
     const learnerId = (auth as any)?.learnerId?.value || null
-    void playerReadySignal.then(() => contribution.fetch(courseCode.value, learnerId).catch(() => {}))
+    void playerReadySignal.then(() => contribution
+      .fetch(courseCode.value, learnerId)
+      .catch(() => {})
+      // Settled — win or lose. The belt pill stops flashing either way; it must
+      // never pulse forever because a fetch failed.
+      .then(() => { contributionSettled.value = true }))
   }
 
   // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
@@ -12637,7 +12946,7 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
-                currentRepeatConfig(),
+                MODE_NEUTRAL_REPEATS,
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12740,7 +13049,7 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
-                  currentRepeatConfig(),
+                  MODE_NEUTRAL_REPEATS,
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -13782,12 +14091,30 @@ onMounted(async () => {
   // warm, the head-miss path streams the first clip. warmAudioMs now reads ~0
   // (confirms it's off the critical path) — the cold-start budget drops by it.
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
-  void warmFirstKnownAudio()
+  const firstClipWarm = warmFirstKnownAudio(FIRST_CLIP_WARM_TIMEOUT_MS)
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   await goLoadingStageReady()
-  // Play is now available — release the ready-gated background work (the
-  // whole-course walk) so it can't have competed with the critical path.
-  resolvePlayerReady?.()
+  // RIGHT OF WAY FOR THE FIRST CLIP (Tom, 2026-08-08: "the whole point for a
+  // learner is speed to usability").
+  //
+  // The ready-gated background work — the whole-course script walk (a dozen
+  // paginated 1000-row queries), the contribution fetch, tier-3 — used to be
+  // released HERE, at the ready flip, on the reading that "the critical path"
+  // ended when the button lit up. Measured cold on Fast 3G, that reading is
+  // wrong: the learner taps the instant it lights up, and the one 68 KB clip
+  // they are waiting to hear then shares the link with the entire course walk.
+  // The clip took ~6 s to arrive when it needs ~0.4 s on its own.
+  //
+  // The critical path ends at the first SOUND, not at the first paint. So the
+  // background work now waits on the same warm-up the play button waits on.
+  // warmFirstKnownAudio is self-bounded (2 s race), so this can delay the
+  // background work by at most that — and on a fast connection by ~0.
+  void firstClipWarm
+    .catch(() => { /* a failed warm-up must never strand the learner */ })
+    .then(() => {
+      isFirstClipReady.value = true
+      resolvePlayerReady?.()
+    })
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -14203,15 +14530,9 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
-          activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-          // Twin of the wrapper above — every mode lever travels together.
-          {
-            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-            filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-            reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-            reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-          },
+          1, // mode-neutral walk — see runGenerateScript
+          // Twin of the wrapper above — the walk is mode-neutral on both paths.
+          MODE_NEUTRAL_WALK_OPTIONS,
         )
       }
     } finally {
@@ -14228,8 +14549,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // Go ready immediately; warm the first known audio in the BACKGROUND (not
   // awaited — blocking ready on it added ~600ms). Head-miss streams the first
-  // clip if the learner taps before it's warm.
+  // clip if the learner taps before it's warm. The play button stays flashing
+  // until the clip lands, same per-control honesty as the cold boot above.
+  isFirstClipReady.value = false
   void warmFirstKnownAudio()
+    .catch(() => { /* never strand the learner on a failed warm-up */ })
+    .then(() => { isFirstClipReady.value = true })
   await goLoadingStageReady()
   isInitialized.value = true
   maybeShowCourseUpdatedNotice()
@@ -14355,6 +14680,9 @@ defineExpose({
   // the resting overlay instead of mirroring an event edge.
   isAudioPlaying,
   isAwakening,
+  // Per-control readiness: the play affordance waits on the first clip's bytes,
+  // not just on the lesson existing. PlayerContainer ANDs it with isAwakening.
+  isFirstClipReady,
   togglePlayback,
   handlePause,
   handleResume,
@@ -14794,18 +15122,23 @@ defineExpose({
             <rect x="17" y="13" width="5" height="8" rx="2"/>
           </svg>
         </button>
-        <div
+        <button
+          type="button"
           class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+          aria-label="Back to your turn to speak"
+          @click="jumpToCyclePhase('pause')"
         >
-          <div class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></div>
+          <!-- span, not div: a button's content model is phrasing content, and
+               the fill is absolutely positioned so display makes no difference. -->
+          <span class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <rect x="9" y="3" width="6" height="12" rx="3"/>
             <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
             <line x1="12" y1="19" x2="12" y2="22"/>
             <line x1="8" y1="22" x2="16" y2="22"/>
           </svg>
-        </div>
+        </button>
         <button
           type="button"
           class="phase-segment phase-segment--voice1"
@@ -15112,7 +15445,8 @@ defineExpose({
                in all states. -->
           <button
             class="belt-timer-unified"
-            :class="{ 'is-infplay': isInfPlayActive }"
+            :class="{ 'is-infplay': isInfPlayActive, 'is-loading': !isBeltScreenReady }"
+            :disabled="!isBeltScreenReady"
             :title="isInfPlayActive
               ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
               : (!nextBelt
@@ -16478,6 +16812,21 @@ defineExpose({
   transform: scale(0.98);
 }
 
+/* The belt screen isn't loadable yet (its contribution fetch is still in
+   flight). Say so with the same pulse the play button uses while it loads —
+   Tom, 2026-08-08: "we should show this by the belt buttons still flashing
+   until they are ready to be used". Same keyframe values as BottomNav's
+   .center-btn.is-disabled so the two controls speak one visual language. */
+.belt-timer-unified.is-loading {
+  animation: belt-pill-pulse 1.8s ease-in-out infinite;
+  cursor: default;
+}
+
+@keyframes belt-pill-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.02); }
+}
+
 .belt-timer-unified .belt-bar-track {
   flex: 1;
   min-width: var(--belt-bar-width);
@@ -17607,20 +17956,22 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0.9;
 }
 
-/* Active pause keeps its bg transparent — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * The fill IS the only red; icon stays dark for readability. */
+/* Active pause MUST NOT take the solid red bg the other segments take —
+ * the section bg and the growing fill would both be --ssi-red and the
+ * countdown would be invisible. So the segment's TRACK is the accent at
+ * 15% (the same soft red the hover state uses) and the fill is the only
+ * solid red; the icon stays dark for readability over the sweep.
+ *
+ * Why a track and not `transparent`: with a transparent track the growing
+ * fill is a solid red block starting at the segment's LEFT edge while the
+ * mic icon sits at its centre — so mid-countdown the pill reads as "an
+ * unlabelled red block between the headphones and the mic, with neither
+ * button highlighted", which is exactly how Tom read his 2026-08-09
+ * screenshot. The highlight was on the right segment all along; the SPEAK
+ * segment just didn't look like a segment. The soft track gives it its
+ * full 40% back, so the active phase is always legibly one of the four. */
 .phase-segment--pause.is-active {
-  background: transparent;
-  color: rgba(0, 0, 0, 0.7);
-}
-
-/* Active pause MUST override the red bg — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * Keep the section bg transparent so the fill IS the only red, and dim
- * the icon to dark for readability over the white→red sweep. */
-.phase-segment--pause.is-active {
-  background: transparent;
+  background: var(--accent-soft);
   color: rgba(0, 0, 0, 0.7);
 }
 

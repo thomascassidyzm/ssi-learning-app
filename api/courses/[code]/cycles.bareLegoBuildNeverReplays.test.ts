@@ -108,13 +108,34 @@ describe('buildLegoCycles — the bare-LEGO build row', () => {
     expect(cycles.filter((c) => c.type === 'use')).toHaveLength(0)
   })
 
-  it('plays a duplicated phrase row only once', () => {
+  it('claims a duplicated phrase row once per phase, then fills the tail as the walk does', () => {
+    // Rewritten 2026-08-09 when the spaced-review parity fix landed alongside
+    // this one. Before that fix the endpoint had no consolidation second pass,
+    // so a two-identical-rows basket yielded exactly one USE cycle. The walk
+    // (generateLearningScript.ts, the declared source of truth) DOES have that
+    // second pass — "reuse USE phrases already used in BUILD (pool was too
+    // small)" — and parity means this endpoint moves to match the walk, never
+    // the reverse. So the assertion moves, not the behaviour.
+    //
+    // The invariant this file exists to protect is untouched and asserted
+    // below: the LEGO's own words are never replayed. A degenerate basket is
+    // synthetic anyway — the authoring floor is ≥5 USE phrases per LEGO.
     const dup = { known_text: 'I speak French', target_text: 'je parle français' }
     const cycles = buildLegoCycles(lego(), [
       phrase({ position: 7, phrase_role: 'use', ...dup }),
       phrase({ position: 8, phrase_role: 'use', ...dup }),
     ])
-    expect(cycles.filter((c) => c.type === 'use')).toHaveLength(1)
+    // Claimed once: the second identical row is skipped by the round's claim
+    // set, so only one of the two ever reaches a BUILD slot.
+    expect(cycles.filter((c) => c.type === 'build')).toHaveLength(1)
+    // The consolidation tail is filled by the walk's reuse pass rather than
+    // left short.
+    expect(cycles.filter((c) => c.type === 'use')).toHaveLength(2)
+    // And the bare LEGO is still spoken by the intro and the debut alone.
+    expect(cycles.filter((c) => c.known_text === 'I speak').map((c) => c.type)).toEqual([
+      'intro',
+      'debut',
+    ])
   })
 
   it('leaves a LEGO with no bare-LEGO row untouched', () => {

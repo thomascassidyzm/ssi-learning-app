@@ -25,7 +25,14 @@ import { refreshListeningMetaIfStale } from './listeningMetaCache'
 // clip in it resolves to the pre-repair bytes in both downstream caches — and
 // the audio_stamp drop lane below could not heal that, because the regenerated
 // walk emitted bare uuids too. Orphaning v9 once is what retires those.
-const SCRIPT_VERSION = 'v10' // v10: audio refs carry their revision suffix
+// v11: the walk went MODE-NEUTRAL (2026-08-09). Every v10 entry was generated
+// with the ACTIVE mode's caps already applied — Easy's entries are a thinned
+// subset, missing the long phrases Fast is supposed to play, and nothing can
+// put them back. The player now selects live from a generous superset, so v10
+// entries are the wrong SHAPE, not merely stale. This is a one-time format
+// bump on the existing lever, NOT a toggle-triggered invalidation: from v11
+// onward one cached script serves both modes and a toggle never touches it.
+const SCRIPT_VERSION = 'v11' // v11: the walk is mode-neutral (see below)
 const SCRIPT_DB_NAME = 'ssi-script-cache'
 const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
