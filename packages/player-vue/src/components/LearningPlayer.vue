@@ -56,13 +56,21 @@ import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
-import { reshapeRoundRepeats, isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
+import { isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
+import {
+  selectCyclesOutForMode,
+  selectionIsInert,
+  makeModeSelectionContext,
+  type ModeSelectionConfig,
+} from '../playback/modeCycleSelection'
 import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
 import {
   useAlgorithmConfig,
   resolveListeningPlayPolicy,
   normalizePhraseRepeatCount,
   normalizeRepeatedCycleTypes,
+  normalizeReviewFilterMaxRound,
+  makeUseWordCap,
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
@@ -532,26 +540,30 @@ const runGenerateScript = (
     listening,
     // Per-mode script shape: the global script_shape row with the active
     // mode's overlay on top. Fast carries no overlay ⇒ unchanged.
+    // THE ONE REMAINING MODE INPUT TO THE WALK, and it is inert by default.
+    // `ModeConfig.scriptShape` is the per-mode phrase-COUNT overlay on the
+    // admin Speaking page (how many different BUILD/USE/review phrases a round
+    // holds), and both shipped modes carry `{}` — so today the walk is
+    // genuinely mode-neutral and one cached script serves both. SETTING A
+    // NON-EMPTY OVERLAY WOULD RE-INTRODUCE A MODE-DEPENDENT SCRIPT, and with
+    // it the very bug this file just spent two attempts fixing: the cached
+    // walk would carry one mode's round sizes and a toggle could not change
+    // them. If that knob is ever wanted, round SIZE has to move into the
+    // player's live selection alongside length, filter and repetition.
     scriptShapeForMode(learningMode.value),
-    // Phrase-length CAP for the active mode — a fraction of the longest
-    // phrase in the whole course. Fast is uncapped (1.0) and so provably
-    // unchanged; Easy ships 0.5, Aran's "halve the longest possible phrase".
-    activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-    // The Easy levers (Tom, 2026-08-07): every practice cycle doubled, BUILD
-    // phrases unfiltered, and a known-side syllable filter on review and
-    // consolidate pulls for the first 100 rounds. Fast carries them all off,
-    // so Fast is provably unchanged.
-    {
-      phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-      repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-      filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-      reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-      reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-      // Sliding ENGLISH-side word cap on USE phrases (Tom, 2026-08-09):
-      // 8 words to round 20, 10 to round 100, uncapped after. Fast ships an
-      // empty ladder, and the cap is inert on non-English-involved courses.
-      useWordCapTiers: activeModeConfig.value.useWordCapTiers,
-    },
+    // THE WALK IS MODE-NEUTRAL AND GENEROUS (Tom's architecture call,
+    // 2026-08-09). It emits the FULL set — no phrase-length cap, no BUILD
+    // filter, no review syllable filter, no USE word cap, no doubling — and
+    // the player selects from it live, per step, under whichever mode is
+    // active (playback/modeCycleSelection.ts + the getCycleRepeatCount
+    // override). Every one of those levers used to run HERE, where it DROPS
+    // items: a dropped phrase is unrecoverable from the queue, which is
+    // precisely why a mid-session toggle could never change which phrases
+    // played. One script, both modes, cached and never invalidated by a
+    // toggle — that is what "the instructions belong in the player, not in
+    // the cached script data" buys.
+    1,
+    MODE_NEUTRAL_WALK_OPTIONS,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -563,14 +575,41 @@ const runGenerateScript = (
   )
 }
 
-// The active mode's cycle-repeat setting, in the shape backendCyclesToRounds
-// and the script walk both take. Easy plays every practice cycle twice (Tom,
-// 2026-08-07); Fast's count of 1 makes every call a no-op. Read fresh each
-// time so a mode switch mid-session takes effect on the next build.
+/**
+ * The active mode's cycle-repeat setting. Read fresh on every call, because
+ * the WALKER asks for it at the end of every cycle — see the
+ * `getCycleRepeatCount` runtime override. Nothing builds with it any more.
+ */
 const currentRepeatConfig = () => ({
   count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
   types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
 })
+
+/**
+ * What the BUILDERS get instead: no repetition at all.
+ *
+ * Tom's architecture call, 2026-08-09 — "the instructions for WHICH cycles get
+ * selected/played and HOW MANY TIMES belongs in the player logic, not the
+ * cached script data". So the script and the instant-path rounds carry each
+ * phrase EXACTLY ONCE, in both modes, and the walker decides live how often it
+ * sounds. One script, cacheable, shared: a toggle changes what is heard without
+ * touching a byte of what is cached.
+ */
+const MODE_NEUTRAL_REPEATS = { count: 1, types: new Set<string>() }
+
+/**
+ * The same neutrality, in the shape `generateSimpleScript` takes: every Easy
+ * lever OFF, so one walk serves both modes and the player does the selecting.
+ * `maxPhraseLengthFraction` travels as its own argument and is likewise 1.
+ */
+const MODE_NEUTRAL_WALK_OPTIONS = {
+  phraseRepeatCount: 1,
+  repeatedCycleTypes: [] as string[],
+  filterBuildPhrases: false,
+  reviewMaxKnownSyllables: 0,
+  reviewSyllableFilterMaxRound: 0,
+  useWordCapTiers: [] as never[],
+}
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
 // learner so it's stable across sessions/regenerations for a given learner
@@ -1637,7 +1676,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
-          currentRepeatConfig(),
+          MODE_NEUTRAL_REPEATS,
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -9476,6 +9515,71 @@ const isEasyMode = computed(() => learningMode.value === 'easy')
 /** The live ModeConfig for whichever mode is active. */
 const activeModeConfig = computed(() => isEasyMode.value ? easyConfig.value : fastConfig.value)
 
+// ── WHICH CYCLES THIS MODE PLAYS, decided live ────────────────────────────
+//
+// Tom's architecture call, 2026-08-09: "The instructions for WHICH cycles get
+// selected/played and HOW MANY TIMES belongs in the player logic, not the
+// cached script data." The rules themselves are pure and live in
+// playback/modeCycleSelection.ts; this is the live wiring — a memo of the
+// cycles the ACTIVE mode selects out, consulted by the runtime shouldSkipCycle
+// gate on every step and thrown away the instant the mode moves.
+//
+// Whole-queue rather than per-round because the answer is pure and a full pass
+// is a few thousand string lengths — cheap, and it happens only when the mode
+// changes or the queue grows, never per cycle.
+const modeSelectionMemo = {
+  ids: new Set<string>(),
+  dirty: true,
+  roundCount: -1,
+  /** Called by every writer of the mode — the next step re-decides. */
+  clear() { this.dirty = true },
+}
+
+/** The active mode's selection rules, straight off its ModeConfig row. */
+const currentModeSelectionConfig = (): ModeSelectionConfig => ({
+  maxPhraseLengthFraction: activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+  filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
+  reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
+  reviewSyllableFilterMaxRound: normalizeReviewFilterMaxRound(activeModeConfig.value.reviewSyllableFilterMaxRound),
+  // Resolved against the COURSE's languages — null (inert) when English is on
+  // neither side, exactly as the walk resolved it.
+  useWordCap: makeUseWordCap(
+    props.course?.known_lang,
+    props.course?.target_lang,
+    activeModeConfig.value.useWordCapTiers,
+  ),
+})
+
+/** Recompute the memo when the mode moved, or when the queue grew under it. */
+const refreshModeSelection = () => {
+  const rounds = (loadedRounds.value ?? []) as any[]
+  if (!modeSelectionMemo.dirty && modeSelectionMemo.roundCount === rounds.length) return
+  modeSelectionMemo.dirty = false
+  modeSelectionMemo.roundCount = rounds.length
+  modeSelectionMemo.ids.clear()
+  const cfg = currentModeSelectionConfig()
+  // Fast selects nothing out, so it never pays for the pass — and that is also
+  // the proof that Fast's behaviour is bit-identical to before.
+  if (selectionIsInert(cfg) || rounds.length === 0) return
+  const ctx = makeModeSelectionContext(
+    rounds as any,
+    courseCode.value,
+    props.course?.known_lang,
+    cfg.reviewMaxKnownSyllables > 0,
+  )
+  for (const round of rounds) {
+    for (const id of selectCyclesOutForMode(round as any, cfg, ctx)) modeSelectionMemo.ids.add(id)
+  }
+  console.log(`[LearningPlayer] Mode selection (${learningMode.value}): ${modeSelectionMemo.ids.size} cycle(s) selected out across ${rounds.length} round(s)`)
+}
+
+/** Does the ACTIVE mode play this cycle? Asked per step by shouldSkipCycle. */
+const modeSelectsCycleOut = (cycle: { id?: string } | null | undefined): boolean => {
+  if (!cycle?.id) return false
+  refreshModeSelection()
+  return modeSelectionMemo.ids.has(cycle.id)
+}
+
 const LEARNING_MODE_KEY = 'ssi-learning-mode'
 
 /**
@@ -9504,11 +9608,12 @@ watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
 })
 
 // Any writer of the mode — the toggle, the cross-device preference landing
-// after auth, the new-learner default — must reshape the loaded queue's
-// repeats, or the learner keeps hearing the mode they just left. The toggle
-// also calls this synchronously so the change lands on the very next cycle;
-// a reshape that is already in the right shape is a no-op.
-watch(learningMode, () => { applyModeRepeatsToQueue() })
+// after auth, the new-learner default — drops the per-round selection memo.
+// The walker asks `shouldSkipCycle` before every step, so the very next step
+// re-decides which cycles this round plays under the mode now active. Nothing
+// is rebuilt and nothing is invalidated: the queue is the same content either
+// way, and the mode is only ever a view of it.
+watch(learningMode, () => { modeSelectionMemo.clear() })
 
 /** Has this learner ever expressed a mode preference — on the learner row
  *  (cross-device) or on this device? An explicit choice outranks any default,
@@ -9679,14 +9784,25 @@ simplePlayer.setRuntimeOverrides({
     // no-op unless the engine is enabled AND applying.
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
 
-    // REPETITION BELONGS TO THE WALKER (Tom, 2026-08-09). The generators bake
-    // `_x2` copies into the script; the walker now decides live, per step, how
-    // many times a cycle sounds (getCycleRepeatCount below). So the baked
-    // copies are ALWAYS dropped here — keeping them would compound with the
-    // live repeat into four plays, and they carry the mode that was active
-    // when the script was BUILT, which is precisely the stale snapshot the
-    // learner hears as "Fast is still doubling".
+    // REPETITION BELONGS TO THE WALKER (Tom, 2026-08-09). Nothing bakes `_x2`
+    // copies any more — the builders take MODE_NEUTRAL_REPEATS and the walker
+    // decides live, per step, how many times a cycle sounds
+    // (getCycleRepeatCount above). This drop stays for the scripts ALREADY in
+    // people's caches, which were written while the generators still baked
+    // them: keeping those would compound with the live repeat into four plays,
+    // and they carry the mode that was active when the script was BUILT, which
+    // is exactly the stale snapshot a learner hears as "Fast is still
+    // doubling". Harmless on a neutral script — there is nothing to match.
     if (isRepeatCopyCycle(cycle)) return true
+
+    // WHICH CYCLES THIS MODE PLAYS — live, per step (Tom's architecture call,
+    // 2026-08-09: "the instructions for WHICH cycles get selected/played …
+    // belongs in the player logic, not the cached script data"). The queue is
+    // the generous, mode-neutral set; Easy and Fast are two selections over it.
+    // Memoised per round because the answer is pure, and the memo is dropped
+    // the instant the mode moves — so a toggle re-decides the round in flight
+    // before its next step, with no rebuild and no reload.
+    if (modeSelectsCycleOut(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
@@ -10294,58 +10410,35 @@ const exitAllModes = () => {
 }
 
 /**
- * Re-apply the ACTIVE mode's phrase-repeat rule to the rounds already loaded.
- * Pure and query-free — see reshapeRoundRepeats. Safe to call on any queue
- * (Fast→Fast is a no-op reference-equal transform, so no splice happens).
- */
-const applyModeRepeatsToQueue = () => {
-  try {
-    const repeat = currentRepeatConfig()
-    simplePlayer.reshapeQueue((rounds) => reshapeRoundRepeats(rounds as any, repeat) as any)
-    // Keep the legacy mirror in step so the text/progress walk and any later
-    // cache write see the same shape the engine is playing.
-    if (loadedRounds.value?.length) {
-      loadedRounds.value = reshapeRoundRepeats(loadedRounds.value as any, repeat) as any
-    }
-  } catch (err) {
-    // A mode toggle must never break playback — worst case the reps land on
-    // the next build, which is the old behaviour.
-    console.warn('[LearningPlayer] Mode repeat reshape failed (non-fatal):', err)
-  }
-}
-
-/**
  * Switch learning mode.
  *
- * What lands WHEN — this is the honest split, worth knowing before you
- * change it:
- *   • IMMEDIATELY (next cycle boundary): pause / thinking time and playback
- *     speed, because those go through the runtime overrides above, which are
- *     read fresh at every phase.
- *   • IMMEDIATELY (this round, and every round after): the doubled reps.
- *     They are baked into the script at generation time, but repetition is a
- *     purely additive shape, so `reshapeRoundRepeats` re-derives it from the
- *     queue the engine already holds — strip the `_x2` copies, re-double under
- *     the new mode — with no regeneration and no query. The forward queue is
- *     spliced here; the round already playing is handled by the runtime
- *     `shouldSkipCycle` gate, which drops any repeat copy still ahead of the
- *     cursor when the new mode's count is 1. Before 2026-08-09 nothing did
- *     this: FAST kept playing EASY's doubled phrases for the rest of the
- *     session, and — because the script cache is keyed on course alone — for
- *     every session after it too (Tom, reproduced live).
- *   • NEXT SCRIPT BUILD (next session, or a course switch): the halved
- *     phrase-length cap, the BUILD-phrase filter and the review syllable
- *     filter. Those DROP items at generation time, so they cannot be restored
- *     from the loaded queue — only a walk can. We deliberately do NOT force a
- *     blocking mid-session regeneration for them: a full-course walk is six
- *     course-wide queries, and stalling a learner mid-round is the worse
- *     trade. `generateScript`'s dedupe key includes the mode, so the next
- *     build genuinely rebuilds rather than serving the other mode's walk.
+ * EVERYTHING LANDS ON THE NEXT STEP. There is no longer a split between what
+ * takes effect now and what waits for a rebuild, because a mode is no longer
+ * anything the script knows about.
+ *
+ * Tom's architecture call, 2026-08-09, after two attempts had put the fix in
+ * the wrong layer: "the instructions for WHICH cycles get selected/played and
+ * HOW MANY TIMES belongs in the player logic, not the cached script data.
+ * Speed and pause-length are already correctly read live by the player (this
+ * part works)." So the mode now works the way speed and pause already did:
+ *   • pause / thinking time and playback speed — runtime overrides, read fresh
+ *     at every phase (unchanged, and the proof the pattern works);
+ *   • HOW MANY TIMES a cycle sounds — `getCycleRepeatCount`, asked at the
+ *     moment a cycle ends, so Easy→Fast drops the second play of the phrase in
+ *     flight and Fast→Easy grants it;
+ *   • WHICH cycles play — `shouldSkipCycle`, which consults the per-round
+ *     selection computed by playback/modeCycleSelection.ts. The memo is
+ *     dropped on every mode change, so the walker re-decides the current round
+ *     before its very next step.
+ *
+ * The script itself is generated mode-neutral and generous: one walk, both
+ * modes, cached and never invalidated by a toggle. That is what makes all
+ * three of the above possible without a query, a rebuild or a reload.
  */
 const setLearningMode = (mode: LearningMode) => {
   if (learningMode.value === mode) return
   learningMode.value = mode
-  applyModeRepeatsToQueue()
+  modeSelectionMemo.clear()
   // Signed-out learners only have localStorage; signed-in learners get both
   // so a fresh device still reads the right mode before auth resolves.
   try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked */ }
@@ -12504,13 +12597,6 @@ onMounted(async () => {
           try {
             const cachedScript = await getCachedScript(courseCode.value)
             if (cachedScript && cachedScript.rounds.length > 0) {
-              // The script cache is keyed on COURSE, not mode, so a walk
-              // generated under Easy hydrates for a learner who is now on Fast
-              // (and vice versa). Reshape the repeats to the ACTIVE mode before
-              // anything indexes into these rounds — without this, the mode
-              // toggle stayed broken across reloads, which is what made Tom's
-              // 2026-08-09 repro look permanent.
-              cachedScript.rounds = reshapeRoundRepeats(cachedScript.rounds as any, currentRepeatConfig()) as any
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               // SWR: this hydration deliberately serves even a STALE-stamped
               // entry (checkContentVersion no longer drops it) — play now,
@@ -12634,8 +12720,7 @@ onMounted(async () => {
                 typeof cachedInf.mainLoopRoundCount === 'number' && cachedInf.mainLoopRoundCount > 0 &&
                 cachedInf.rounds.length > cachedInf.mainLoopRoundCount + Math.max(0, inferInfPlayRoundIndex - 1)
               ) {
-                // Mode-blind cache key — reshape repeats to the active mode.
-                fullRounds = reshapeRoundRepeats(cachedInf.rounds as any, currentRepeatConfig()) as any[]
+                fullRounds = cachedInf.rounds as any[]
                 builtMainLoopCount = cachedInf.mainLoopRoundCount
                 if (cachedInf.courseWelcome) cachedCourseWelcome.value = cachedInf.courseWelcome
                 // SWR: a stale-stamped entry still hydrates (play now,
@@ -12776,7 +12861,7 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
-                currentRepeatConfig(),
+                MODE_NEUTRAL_REPEATS,
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12879,7 +12964,7 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
-                  currentRepeatConfig(),
+                  MODE_NEUTRAL_REPEATS,
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -14320,8 +14405,6 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   const cachedScript = await getCachedScript(newCourseCode)
 
   if (cachedScript) {
-    // Mode-blind cache key — reshape repeats to the active mode (see above).
-    cachedScript.rounds = reshapeRoundRepeats(cachedScript.rounds as any, currentRepeatConfig()) as any
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
     // SWR: a stale-stamped entry still serves this session; background
     // revalidation writes the fresh script for next time.
@@ -14362,17 +14445,9 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
           scriptShapeForMode(learningMode.value),
-          activeModeConfig.value.maxPhraseLengthFraction ?? 1,
-          // Twin of the wrapper above — every mode lever travels together.
-          {
-            phraseRepeatCount: activeModeConfig.value.phraseRepeatCount ?? 1,
-            repeatedCycleTypes: activeModeConfig.value.repeatedCycleTypes,
-            filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
-            reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
-            reviewSyllableFilterMaxRound: activeModeConfig.value.reviewSyllableFilterMaxRound,
-            // Sliding ENGLISH-side word cap on USE phrases (Tom, 2026-08-09).
-            useWordCapTiers: activeModeConfig.value.useWordCapTiers,
-          },
+          1, // mode-neutral walk — see runGenerateScript
+          // Twin of the wrapper above — the walk is mode-neutral on both paths.
+          MODE_NEUTRAL_WALK_OPTIONS,
         )
       }
     } finally {
