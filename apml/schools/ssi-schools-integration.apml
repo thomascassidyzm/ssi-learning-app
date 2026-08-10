@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.9.0"
-  date: "2026-08-07"   # class detail degrades per panel; no code-less invite link anywhere
+  version: "1.10.0"
+  date: "2026-08-10"   # login-code idempotence + failed-attempt telemetry
   author: "Tom Cassidy"
   status: "draft"
 
@@ -385,6 +385,70 @@ principle SingleAuthOnboarding:
         read off the node payload's rollup.learnerCount.
     Rule: one enrolled student retires every banner, so a school that IS
     running is never nagged.
+
+principle SignInCodeIdempotence:
+  statement: "A resubmitted login code never tells a signed-in person they failed — and every real failure leaves a trace"
+
+  why: |
+    Supabase returns ONE generic message for wrong, expired and already-used
+    codes alike: "Token has expired or is invalid". Neither this app nor
+    Popty ever writes the word "incorrect" — both pass that string straight
+    through. So the message can never say WHICH of the three happened, and a
+    double-tap on verify (the second call re-sending a token the first has
+    already consumed) rendered a failure to a learner who was, on the server,
+    signed in. Diagnosed 2026-08-10 from an editor's "it says my code is
+    incorrect" report: the account was healthy and had signed in seventeen
+    seconds after requesting a fresh code.
+
+    Onboarding.vue already guarded this, per-address; the other five OTP
+    screens did not. And nothing anywhere recorded a FAILED attempt — only a
+    success leaves a timestamp — so the report took reconstruction from
+    success timestamps rather than a lookup.
+
+  idempotent_success_check: |
+    Before ANY screen renders an invalid/expired error from verifyOtp, it asks
+    hasLiveSessionFor(client, email) — "is there already a live session for
+    this address?" A yes means the submit was a resubmit of a code that
+    already worked: the screen continues down its normal post-auth path
+    instead of showing an error. A no, or a client that cannot answer, leaves
+    the pre-existing error behaviour exactly as it was.
+
+    Shared home: packages/player-vue/src/auth/loginCode.ts.
+    Wired into all six OTP screens: RedeemCode.vue, components/auth/
+    SignInModal.vue, containers/SchoolsContainer.vue, containers/
+    TeachContainer.vue, views/teach/WithTeacher.vue, views/onboarding/
+    Onboarding.vue (which keeps its own per-address otpVerified guard — the
+    session check catches the concurrent double-tap that races past it).
+
+  failed_attempt_telemetry: |
+    A genuine failure emits ONE `login_code_failed` event into the existing
+    player_events stream (usePlayerLog -> POST /api/player-events, which
+    accepts unauthenticated clients — exactly the state a failing learner is
+    in). Flushed immediately rather than on the 5s timer: a learner just told
+    their code is wrong is the learner about to close the tab.
+
+    Payload is THREE fields and nothing else — email, screen, error_type.
+    NEVER the code. classifyOtpError() returns a fixed label
+    (expired_or_invalid | rate_limited | network | server | other) rather than
+    passing raw text through, so nothing typed can echo back into telemetry.
+
+    Screen slugs (the thing a future investigation greps for):
+      redeem-code | sign-in-modal | schools-container | teach-container |
+      with-teacher | onboarding
+
+    An already-signed-in resubmit is NOT a failure and is never counted as
+    one: it emits the distinct `login_code_already_signed_in` event, so the
+    metric cannot lie about the very case the guard above fixed.
+
+    Logging is fire-and-forget and silent on failure by construction — a
+    telemetry problem must never become a login problem.
+
+  pinned_by: |
+    src/auth/loginCode.test.ts (classification, session check, payload
+    redaction, silent failure) and src/views/RedeemCode.test.ts — the
+    double-tap regression (two verifies in flight, first wins, second returns
+    the consumed-token error, no error reaches the learner) and the
+    failure-logging shape (exactly one event, no code in the payload).
 
 principle SchoolCreationOnePrimitive:
   statement: |

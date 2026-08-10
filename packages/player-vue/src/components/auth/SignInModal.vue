@@ -4,8 +4,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 
 const { isOpen, inviteCodeMode, close } = useAuthModal()
+const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
 
 const emit = defineEmits<{
   success: [payload?: { role?: string; redirectTo?: string }]
@@ -225,6 +227,16 @@ const handleVerify = async () => {
     })
 
     if (verifyError) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(client, email.value)) {
+        loginCodeAudit.alreadySignedIn(email.value)
+        await handlePostAuth()
+        return
+      }
+      loginCodeAudit.failed(email.value, verifyError.message)
       error.value = verifyError.message || 'Invalid verification code. Please try again.'
       return
     }

@@ -6,6 +6,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import {
   TRACKS,
   coursesForTrack,
@@ -23,6 +24,7 @@ import '@/styles/schools-tokens.css'
 // (/schools2 retired 2026-08-02 — it is now a pure redirect to /schools1.)
 const props = defineProps<{ track: OnboardingTrack }>()
 const supabase = inject('supabase', ref(null)) as any
+const loginCodeAudit = useLoginCodeAudit('onboarding')
 const auth = inject<any>('auth', null)
 
 const cfg = computed(() => TRACKS[props.track])
@@ -695,8 +697,16 @@ async function verify() {
         type: 'email',
       })
       if (e) {
-        error.value = e.message || 'That code did not work'
-        return
+        // The per-address guard above stops a same-email retry re-verifying a
+        // consumed token, but a concurrent double-tap can still race past it —
+        // so ask whether the sign-in already worked before calling it a failure.
+        // (the fall-through below records it as verified, same as a clean pass)
+        if (!(await hasLiveSessionFor(supabase.value, addr))) {
+          loginCodeAudit.failed(addr, e.message)
+          error.value = e.message || 'That code did not work'
+          return
+        }
+        loginCodeAudit.alreadySignedIn(addr)
       }
       otpVerified.value = true
       verifiedEmail.value = addr

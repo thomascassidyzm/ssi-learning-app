@@ -6,10 +6,12 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { labelForCourse } from '@/lib/teacherCourses'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 
 const route = useRoute()
 const supabase = inject('supabase', ref(null)) as any
+const loginCodeAudit = useLoginCodeAudit('with-teacher')
 
 interface PublicTeacher {
   id: string
@@ -379,6 +381,18 @@ async function handleVerifyOtp() {
       type: 'email',
     })
     if (error) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(supabase.value, loginEmail.value)) {
+        loginCodeAudit.alreadySignedIn(loginEmail.value)
+        await refreshSession()
+        showLogin.value = false
+        await proceedAfterAuth()
+        return
+      }
+      loginCodeAudit.failed(loginEmail.value, error.message)
       loginError.value = error.message || 'Invalid code'
       return
     }
