@@ -124,11 +124,13 @@ export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   // Stage 1 — "Phase 0" (Tom 2026-06-10): the sentence's introduction.
   // The explainer plays INSTEAD of the translation — raw target, Tom's
   // voice walking the chunks ("'X' means Y. 'A' means B."), target again.
-  // Lasts 2 pod-rounds (DEFAULT_STAGE_DURATIONS) so the explainer is
-  // heard exactly twice, then retires for good. A sentence with no
-  // explainer_audio_id (fully-repeat line or vocab coda — the upstream
-  // first-encounter discipline) plays its TRANSLATION in that slot
-  // instead, so meaning always arrives (see the lap composer fallback).
+  // Lasts ONE pod-round (DEFAULT_STAGE_DURATIONS), then retires for good.
+  // It used to last 2 so the explainer was heard twice; Tom cancelled the
+  // repeat on 2026-08-10 — "we don't want it at all — the visualisation
+  // covers the need to explain". A sentence with no explainer_audio_id
+  // (fully-repeat line or vocab coda — the upstream first-encounter
+  // discipline) plays its TRANSLATION in that slot instead, so meaning
+  // always arrives (see the lap composer fallback).
   1: ['ps', 'explainer', 'ps'],
   // Stage 2 — "Phase 1": explainer retired, regular translation pattern,
   // still all 1.0×. Lasts 3 pod-rounds. Aran's 2026-05-07 bridge stage
@@ -152,11 +154,17 @@ export const DEFAULT_STAGE_DURATION = 5
 
 /**
  * Per-stage duration overrides (pod-rounds). Stages not listed fall back
- * to the uniform stageDuration. Phase 0 (stage 1) = 2 rounds so the
- * explainer plays exactly twice; Phase 1 (stage 2) = 3 rounds of the
- * plain translation pattern (Tom 2026-06-10).
+ * to the uniform stageDuration — so stage 1 must stay LISTED even at 1:
+ * deleting the key would silently give it DEFAULT_STAGE_DURATION (5).
+ *
+ * Stage 1 = 1 round (Tom, 2026-08-10). It used to be 2 so the explainer was
+ * heard exactly twice; Tom cancelled that: "we don't want it at all — the
+ * visualisation covers the need to explain". The karaoke-scroll does the
+ * explaining job now, so the introduction gets one bite, like every other
+ * non-repeating stage. Phase 1 (stage 2) = 3 rounds, unchanged (Tom
+ * 2026-06-10).
  */
-export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 2, 2: 3 }
+export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 1, 2: 3 }
 
 /**
  * Map an alive-count to a stage. Transitional stages 1..(totalStages-1)

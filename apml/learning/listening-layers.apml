@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-10 (pod visual is the karaoke teleprompter, not tiles; Easy listening speed back to 1.0x)
+# Last updated: 2026-08-10 (Stage 1 explainer repeat cancelled — one pod-round, not two; pod visual is the karaoke teleprompter, not tiles; Easy listening speed back to 1.0x)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -24,13 +24,25 @@
 #     intermediates are dropped.
 #   - Pod stage definitions corrected (see STAGE_PLAYLIST in player code).
 #   - UPDATE 2026-06-10 (Tom): pod stage 1 is now "Phase 0" — the explainer
-#     plays INSTEAD of the translation for 2 pod-rounds (per-stage durations
-#     via PodsConfig.stageDurations), then retires; stage 2 "Phase 1" is the
+#     plays INSTEAD of the translation, then retires; stage 2 "Phase 1" is the
 #     plain translation pattern for 3 rounds; speed ramp follows. Sentences
 #     with no explainer audio (first-encounter discipline upstream: fully-
 #     repeat lines, vocab codas) play their translation in the explainer
 #     slot. See DEFAULT_STAGE_PLAYLIST/DEFAULT_STAGE_DURATIONS in
 #     usePodLapScheduler.ts and DEFAULT_PODS in useAlgorithmConfig.ts.
+#   - UPDATE 2026-08-10 (Tom): the "heard exactly twice" part of Phase 0 is
+#     CANCELLED. Stage 1 lasts ONE pod-round, like every other non-repeating
+#     stage. Tom's words: "we don't want it at all — the visualisation covers
+#     the need to explain" — the karaoke-scroll teleprompter (2026-07-22) does
+#     the explaining job, so a second audio bite at the breakdown is redundant.
+#     Code defaults now read stageDurations {1: 1, 2: 3} in BOTH
+#     usePodLapScheduler.DEFAULT_STAGE_DURATIONS and
+#     useAlgorithmConfig.DEFAULT_PODS. Stage 1 stays LISTED at 1 — an unlisted
+#     stage inherits DEFAULT_STAGE_DURATION (5), the opposite of the ruling.
+#     This is a defaults-and-comments change only: the whole stage ladder is
+#     already RETIRED on the learner path (see the RETIRED block below), and
+#     the live `pods` algorithm_config row still carries stageDurations
+#     {'1': 2}, which is Tom's to change and moot while the ladder is off.
 #   - Reserve overflow (older than active-10 + reserve-50) will eventually
 #     feed into Choice Pods (P1 music / P2 sport / P3 society) — TBD.
 #

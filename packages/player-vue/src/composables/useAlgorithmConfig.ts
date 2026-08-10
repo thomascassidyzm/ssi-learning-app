@@ -1068,9 +1068,15 @@ const DEFAULT_PODS: PodsConfig = {
   // Stage count is dynamic — the runtime reads the key count, the
   // highest-numbered key is the eternal hold.
   // Stage 1 = "Phase 0" (Tom 2026-06-10): the explainer plays INSTEAD of
-  // the translation, for 2 pod-rounds, then retires for good. Sentences
+  // the translation, for ONE pod-round, then retires for good. It was 2 —
+  // the explainer heard twice — until Tom cancelled the repeat on
+  // 2026-08-10 ("the visualisation covers the need to explain"). Sentences
   // without explainer audio (fully-repeat lines, vocab codas) play their
   // translation in that slot via the scheduler fallback.
+  // NB the LIVE `pods` row in algorithm_config still carries
+  // stageDurations {'1': 2} and overrides this fallback wherever it loads;
+  // both are moot while the ladder is off the learner path (see
+  // listeningUseStagePlaylist), and the DB row is Tom's to change.
   // Stage 2 = "Phase 1": plain translation pattern, 3 rounds. The speed
   // ramp (Aran's 2026-05-07 bridge) follows from stage 3.
   stagePlaylist: {
@@ -1085,7 +1091,9 @@ const DEFAULT_PODS: PodsConfig = {
     '9': ['ps2x'],
   },
   stageDuration: 5,
-  stageDurations: { '1': 2, '2': 3 },
+  // Stage 1 must stay LISTED at 1 — an unlisted stage falls back to
+  // stageDuration (5), the opposite of Tom's 2026-08-10 ruling.
+  stageDurations: { '1': 1, '2': 3 },
   gapSuperTightMs: 100,
   gapTightMs: 200,
   gapGluedMs: 300,
