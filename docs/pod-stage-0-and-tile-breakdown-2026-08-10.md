@@ -157,11 +157,25 @@ explainer only through the deliberate escape hatch.
 
 ## What failed
 
-Nothing. One gap is still open at the time of writing: a live browser probe of the dev
-deployment was dispatched to watch an actual pod lap and confirm by eye and ear what the code
-and DB say. It had not returned when this was written. The findings above rest on the live
-`algorithm_config` rows, the live `listening_pod_sentences` census and the code path, all of
-which agree; the probe would add an observed confirmation rather than change the answer.
+Nothing, and the gap is now closed. A live browser probe of the dev deployment watched three
+consecutive pod laps end to end and confirms both answers by observation, not inference:
+
+- **Question 1.** The real `player-events` telemetry for those laps shows only
+  `pod_intro` → `ps` → `trans` → `ps` → `ps` per sentence → `pod_outro`. The role `explainer`
+  does not appear once, in any lap.
+- **Question 2.** A mid-lap DOM check found `PodTurnDisplay` mounted and `LegoAssembly`
+  absent from the DOM entirely, in all three laps. The twelve screenshots show the karaoke
+  scrolling dialogue and nothing else.
+
+Evidence — screenshots, raw telemetry, DOM dump, console logs — is under
+`docs/pod-lap-probe-2026-08-10/` in the repo, uncommitted.
+
+The probe noted one residual doubt of its own: it observed a single course (Chinese for
+English, guest, white belt), so it could not rule out a per-course config enabling the stage
+ladder somewhere else. **That doubt does not survive the DB read.** The escape hatch is
+`listeningUseStagePlaylist` on the ONE global `listening` row in `algorithm_config` — there
+is no per-course or per-learner variant of that row, and the key is absent from it. It is off
+for every course and every learner.
 
 ---
 
