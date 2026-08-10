@@ -398,6 +398,36 @@
 # and now binds only the cold-start pair. ?pod=1 / ?podview=1 previews compose
 # a cohort, so they now preview one sentence (two at the pod's opening).
 #
+# VERIFIED 2026-08-10, and the one consequence that bites in practice:
+#
+# Tom reported he was "STILL getting the full first couple of scenes... he
+# hasn't built up from the first three phrases onwards, don't know if that's a
+# global or local error". Answer: LOCAL — the algorithm is correct, his account
+# state is not.
+#
+# Census against the LIVE pod rows (e2e/pod-cohort-census-live.mjs, which runs
+# the real flatten + buildPodCohorts): deu/fra/spa_for_eng each 142 turn-rows
+# -> 294 sentences -> 293 cohorts, mean 1.00, max 2, ZERO laps debuting more
+# than two. The intake partition does exactly what the ruling says, globally.
+#
+# The consequence: "live learners migrate in place, no reset" is monotonic and
+# correct, but it means a learner who used pods under the OLD regime carries a
+# ratchet ALREADY INFLATED by 3-8-sentence laps — and every lap REPLAYS the
+# whole accumulated set (the pod is one organism; only the newest cohort is
+# new). So a pre-fix learner sees a paragraph on their very next lap, from
+# correct code. Telemetry for learner beunollyn on deu_for_eng: three pod laps
+# ever, all before the fix, at 12 / 32 / 44 plays = 3 / 8 / 11 sentences,
+# leaving completed_pod_rounds = 11 — which is precisely scene 1 (8 sentences)
+# plus scene 2 (3), i.e. "the full first couple of scenes", to the sentence.
+#
+# The remedy for a TEST account is the existing reset path in
+# usePodLapScheduler (completed_pod_rounds: 0, pod_activation_round: null);
+# applied to that enrollment on 2026-08-10 (11 -> 0). Whether to reset or
+# backfill REAL learners carrying an inflated ratchet is a product decision,
+# NOT a code one — it would discard genuine listening progress — and is
+# deliberately not taken here. Live scale at 2026-08-10: 86 enrollments with a
+# non-zero ratchet, 56 of them above 2.
+#
 # The body of this spec below is preserved for historical context.
 # =============================================================================
 
