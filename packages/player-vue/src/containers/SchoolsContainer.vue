@@ -19,12 +19,14 @@ import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import MissionCard from '@/missions/MissionCard.vue'
 import { activatePendingMission } from '@/missions/useMission'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import { useSchoolsRail } from '@/composables/schools/useSchoolsRail'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
+const loginCodeAudit = useLoginCodeAudit('schools-container')
 
 // Set client immediately during setup (before child components call useSchoolContext)
 if (supabase.value) {
@@ -220,6 +222,15 @@ async function handleVerifyOtp() {
       type: 'email',
     })
     if (error) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(supabase.value, loginEmail.value)) {
+        loginCodeAudit.alreadySignedIn(loginEmail.value)
+        return
+      }
+      loginCodeAudit.failed(loginEmail.value, error.message)
       loginError.value = error.message || 'Invalid code'
       return
     }
