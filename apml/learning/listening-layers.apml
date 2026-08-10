@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-10 (Easy listening speed back to 1.0x — belt ceiling and exposure ramp both flat)
+# Last updated: 2026-08-10 (pod visual is the karaoke teleprompter, not tiles; Easy listening speed back to 1.0x)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -299,6 +299,25 @@
 # loadStage0ClipMaps, stage0ViewFor) had zero other callers once removed from
 # the scheduler and were deleted outright (see @ssi/core/pods/index.ts header
 # for the fuller account).
+#
+# UPDATE (2026-07-22, Tom — supersedes the LEGO-tile half of the 2026-07-14
+# entry above; the Stage-0 retirement half still stands). The always-visible
+# visual that replaced Stage-0 is NO LONGER a LEGO-tile breakdown. PodTurnDisplay.vue
+# now renders the WHOLE pod's sentence list as a Spotify/karaoke-style scrolling
+# teleprompter (the shared TeleprompterScroll component, same pattern Listening
+# Mode's Dialogues view uses): the sounding sentence at full prominence with its
+# known-language gloss, earlier lines scrolled up and dimmed, later ones below at
+# reduced opacity, a speaker chip on each turn's first line. Dialogues are linear,
+# so lines scroll rather than cram.
+#
+# WHAT THIS MEANS, stated plainly because the 2026-07-14 text above reads as if it
+# were still true: as of today there is NO per-atom breakdown of a pod sentence
+# anywhere in the main flow — not as audio (Stage-0, retired 2026-07-14) and not
+# as tiles (retired 2026-07-22). LegoAssembly does not render during a pod lap:
+# its v-if is `currentPhraseLegoBlocks.length > 0 && isPlaying`, and isPlaying is
+# simplePlayer.isPlaying, which is paused for the whole lap. The learner sees the
+# target sentence and its translation, and hears the four-slot pattern; the
+# atom_map data that fed the tiles is loaded by the scheduler but rendered nowhere.
 #
 # UPDATE (2026-07-24, Tom — supersedes the 2026-07-23 whole-scene-per-lap
 # ruling): Layer-2 pod INTAKE is by COHORT, where a cohort is one EXCHANGE and

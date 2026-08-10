@@ -106,6 +106,20 @@ export {
  * gets a clean target / known / target / target intro. Aran's 2026-05-07
  * insertion (new stage 2) bridges the jump from "no 2×" to "all 2×".
  */
+/**
+ * DEAD ON THE LEARNER PATH — read this before believing anything below.
+ *
+ * Two things make this map unreachable for a real learner in the main flow:
+ *   1. the 2026-08-07 one-mode redesign — unless `listeningUseStagePlaylist`
+ *      is set on the `listening` config row (it is not; there is no
+ *      learner-facing way to set it), nextLap() ignores the stage playlist
+ *      entirely and plays `policy.pattern` for every cohort at every age;
+ *   2. even through that escape hatch, the LIVE `pods` row in algorithm_config
+ *      overrides this whole map, and its stage 1 is ['ps','trans','ps','ps'] —
+ *      no `explainer` slot anywhere in its nine stages.
+ * So the `explainer` role below reaches nobody but the admin auditioner. The
+ * per-stage comments describe the retired ladder, kept as its record.
+ */
 export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   // Stage 1 — "Phase 0" (Tom 2026-06-10): the sentence's introduction.
   // The explainer plays INSTEAD of the translation — raw target, Tom's
@@ -767,8 +781,11 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // ratchet-driven — drilling ahead never pulls a cohort into laps early.
       //
       // Every cohort enters straight at Stage 1 on its first view (Stage-0
-      // retired 2026-07-14 — the breakdown is the always-visible LEGO-tile
-      // display podTurnDisplay builds from atom_map, not audio reps).
+      // retired 2026-07-14). Its intended replacement — the always-visible
+      // LEGO-tile display PodTurnDisplay built from atom_map — was itself
+      // replaced on 2026-07-22 by the karaoke teleprompter, so there is
+      // currently NO per-atom breakdown of a pod sentence in the main flow,
+      // audio or visual. Stated here because this comment used to promise one.
       const derivedAlive = podRound - c + 1
       const storedLift = Math.min(...members.map((m) =>
         (m.sentence_id ? (podExposures.get(m.sentence_id) ?? 0) : 0) + 1))

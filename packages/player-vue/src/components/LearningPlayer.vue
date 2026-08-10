@@ -3633,10 +3633,11 @@ const podScheduler = supabase?.value
       // is not.
       beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
-      // sentence goes straight to Stage 1. The per-atom breakdown a
-      // sentence used to get from AUDIO reps now comes from the
-      // always-visible LEGO-tile display (podTurnDisplay), driven by the
-      // same atom_map data but rendered visually, never played.
+      // sentence goes straight to Stage 1. Its replacement, the always-visible
+      // LEGO-tile display, was itself replaced on 2026-07-22 by PodTurnDisplay's
+      // karaoke teleprompter, so a pod sentence currently gets NO per-atom
+      // breakdown at all — the atom_map is still loaded and still rendered
+      // nowhere. See apml/learning/listening-layers.apml (2026-07-22 update).
     })
   : null
 
