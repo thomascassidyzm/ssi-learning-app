@@ -36,7 +36,7 @@ console.log('CLICKED=' + clicked)
 await page.waitForTimeout(3000)
 
 const domSnaps = []
-const deadline = Date.now() + 780_000
+const deadline = Date.now() + 500_000
 let lapsSeen = 0
 while (Date.now() < deadline) {
   await page.waitForTimeout(4000)

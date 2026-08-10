@@ -83,6 +83,30 @@ there is **no stage-1-specific introduction at all**. Every stage plays the same
 pattern, so there is no distinct "explainer introduction" for a sentence to
 receive a second time. The behaviour Tom cancelled has no mechanism left to fire.
 
+An independent probe run in parallel (job #66) reproduced this separately: three
+consecutive laps, 28 telemetry events, `explainer` zero times, every clip at
+speed 1.0, `PodTurnDisplay` mounted and `LegoAssembly` absent. Its own residual
+doubt — that some other course might enable the ladder — is closed by the DB read
+above: there is a single global `listening` row and the key is absent.
+
+### EXPLICIT GAP — what I could not observe live
+
+**I did not watch a cohort cross from one pod round into the next on the real
+(non-preview) learner path.** I tried: a plain `?reset=1&stream` session ran for
+~8.5 minutes of continuous speaking cycles (`target1`/`target2`/`known`, all at
+speed 1.0) and never reached pod activation — pods fire from main round 5, and
+real-time round pacing does not get there inside the window I can hold a
+foreground browser session open. An earlier, longer attempt was killed by session
+teardown before it flushed any output.
+
+So all pod-lap evidence here — mine and job #66's — comes from the `?podview=1`
+preview cheat, which presents laps back-to-back at `podRound: 1` rather than
+ageing a cohort. What that evidence proves is that no explainer clip is ever
+played and every lap is one identical four-slot pattern at one speed. What it does
+not directly show is a specific sentence being served in pod round 2. Under
+one-mode those two rounds would be byte-identical anyway, which is why the gap is
+narrow — but it is a gap, and it is stated rather than papered over.
+
 ## Feedback loops
 
 `@ssi/core` build, `player-vue` typecheck, `player-vue` test (215 files, 2061
