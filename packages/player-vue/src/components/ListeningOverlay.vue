@@ -258,8 +258,10 @@ const props = defineProps({
     default: false
   },
   /** The learner's mode — 'easy' or 'fast'. Easy opens every listening
-   *  surface at EASY_LISTENING_SPEED (Tom, T-13, 2026-08-07); the speed row
-   *  is still theirs to change for the session. */
+   *  surface at EASY_LISTENING_SPEED, which since 2026-08-10 is 1.0 — Tom:
+   *  "return the default listening speed settings to 1.0x on EASY". Both modes
+   *  therefore open at 1.0; the speed row is still theirs to change for the
+   *  session, and reinstating an Easy-specific opening pace is one constant. */
   learningMode: {
     type: String,
     default: 'fast'

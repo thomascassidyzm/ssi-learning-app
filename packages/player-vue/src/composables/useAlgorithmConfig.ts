@@ -565,26 +565,31 @@ export const DEFAULT_EASY: ModeConfig = {
    */
   useWordCapTiers: [...DEFAULT_EASY_USE_WORD_CAP_TIERS],
   /**
-   * LISTENING — minimal cognitive load, and slower than Fast (Tom,
-   * 2026-08-07: "they should probably have A minimal cognitive load for
-   * listening and it should be slower on easy mode in the listening").
+   * LISTENING — native pace, 1.0×, the same as Fast.
    *
-   * 0.7 on the very first hearing of a phrase, 0.8 for the next four, then
-   * 1.0 for ever — a phrase reaches full speed on its sixth exposure. Tom's
-   * numbers read literally; "a few times" is the 4, and it is the one number
-   * here he left deliberately vague. All of it is a DB row
-   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so retuning by ear is a
-   * Supabase edit, not a deploy.
+   * SUPERSEDED 2026-08-10 (Tom, testing listening live): "'Easy' seems to have
+   * slowed the conversations in the listening section - I don't think we want
+   * to be doing that... I think we can return the default listening speed
+   * settings to 1.0x on EASY, I think we moved them to 0.8x."
+   *
+   * That supersedes his 2026-08-07 "it should be slower on easy mode in the
+   * listening", and the ramp it produced (0.7 once, 0.8 for four, then 1.0).
+   * Easy is still gentler than Fast everywhere else on this row — longer
+   * pauses, doubled reps, shorter phrases; it is the LISTENING SPEED alone
+   * that goes back to 1.0. Still a DB row
+   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so the gentle curve is
+   * one Supabase edit away.
    */
   listeningSpeedRamp: DEFAULT_EASY_LISTENING_RAMP,
   /**
-   * The BELT CEILING the ramp above lives underneath (Tom, 2026-08-07 23:56Z).
-   * White/yellow 0.8, orange/green 0.9, blue and beyond 1.0 — a gentler table
-   * than the speaking side's `beltSpeed`, deliberately its own, because these
-   * are the numbers Tom gave for Easy listening specifically.
+   * The BELT CEILING the ramp above lives underneath — now a single no-op rung
+   * at 1.0, the same as Fast's.
    *
-   * A white-belt learner therefore hears 0.7 once, then 0.8 for ever: the
-   * exposure ramp's 1.0 step is unreachable until they are a blue belt.
+   * SUPERSEDED 2026-08-10 by the same ruling. Tom's 2026-08-07 23:56Z table
+   * (white/yellow 0.8, orange/green 0.9, blue+ 1.0) was a HARD ceiling, so an
+   * early-course Easy learner was pinned at 0.8 for ever however often they met
+   * a phrase — the specific thing he heard. Still a DB row
+   * (`algorithm_config.easy_mode.listeningBeltCeilings`).
    */
   listeningBeltCeilings: DEFAULT_EASY_BELT_CEILINGS,
 }

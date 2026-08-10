@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-09 (pod intake: ONE new sentence per visit, two at the cold start)
+# Last updated: 2026-08-10 (Easy listening speed back to 1.0x — belt ceiling and exposure ramp both flat)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -164,6 +164,10 @@
 #      poured per round, so a seed is heard once per turn of the wheel —
 #      seedExposureAt/batchReadyRound), keeping Layer 1 stateless and
 #      resume-safe, which is the property the whole cup model rests on.
+#      SUPERSEDED 2026-08-10 AS TO EASY'S SHIPPED NUMBERS — see the UPDATE
+#      block below. The composition rule, the tables and the machinery are all
+#      unchanged; what changed is that Easy now SHIPS a flat 1.0 in both, so
+#      neither holds a learner below native pace by default.
 #   4. 1.0 IS A HARD CEILING, clamped in CODE (LISTENING_SPEED_CEILING), not in
 #      the default config values — the configs are live `algorithm_config` rows
 #      that override code defaults at runtime, so a row carrying 1.5 must still
@@ -192,6 +196,66 @@
 # per-mode ramp tables on ModeConfig.listeningSpeedRamp (alongside the Easy
 # SPEAKING knobs), the mode-agnostic pattern/ceiling/speed-source on the
 # `listening` row.
+#
+# UPDATE (2026-08-10, Tom — EASY LISTENING GOES BACK TO 1.0x):
+#
+# Verbatim, after testing listening live: "'Easy' seems to have slowed the
+# conversations in the listening section - I don't think we want to be doing
+# that"; and "I think we can return the default listening speed settings to
+# 1.0x on EASY, I think we moved them to 0.8x."
+#
+# He was right that we moved them, and it was the BELT CEILING he could hear:
+# rule 3's Easy table is a HARD ceiling the exposure ramp can never climb past,
+# so an early-course Easy learner was pinned at 0.8x for ever however many
+# times they met a phrase — and beltCeilingForSeed returns the FIRST rung for
+# an unknown learner position, so an unknown position landed on 0.8 too.
+#
+# THREE separate Easy-only 0.8s were live, not one, and all three go to 1.0.
+# Only fixing the first would have been inaudible to Tom on the surface he was
+# actually testing, so the whole set moves together:
+#
+#   (a) DEFAULT_EASY_BELT_CEILINGS  [{fromSeed 1, 1.0}]
+#       (was 0.8 / 0.9 / 1.0 at seeds 1 / 20 / 80 — rule 3 above)
+#   (b) DEFAULT_EASY_LISTENING_RAMP [{1.0, terminal}]
+#       (was 0.7 x1, 0.8 x4, then 1.0)
+#   (c) EASY_LISTENING_SPEED = 1.0 in providers/toSimpleRounds.ts
+#       (was 0.8 — the T-13 ruling in the 2026-08-07 block above). At 1.0 the
+#       cap min(beltSpeed, EASY_LISTENING_SPEED) is a no-op, so Easy rides the
+#       plain belt ramp exactly as Fast does. TWO consumers, both of which Tom
+#       could hear: computeListeningSpeed, which still governs the Stage-0
+#       sequences and fusion drills that are NOT exposure-ramped (see the
+#       runtime note below); and ListeningOverlay.vue's speed row, which
+#       OPENED at 0.8x on Easy — that is the Dialogues surface, i.e. literally
+#       "the conversations in the listening section", and both modes now open
+#       at 1.0.
+#
+# Easy listening therefore plays at native pace from the first hearing, at
+# every belt, modulated only by the course globalSpeed (French 0.95 -> 0.95).
+#
+# NOT re-opened: the 2026-08-06 BELT ramp (0.8 white -> 0.9 yellow -> 0.95
+# orange -> 1.0 green) still governs the non-exposure-ramped listening paths
+# for EVERY learner in BOTH modes. Today's ruling is that Easy was slowed
+# RELATIVE TO FAST and should not be; it is not a ruling on the belt curve,
+# which Tom gave separately and has not withdrawn. So a white-belt learner on
+# either mode still meets 0.8x on Stage-0 / fusion-drill clips. Flagged rather
+# than silently changed.
+#
+# WHAT DID NOT CHANGE, deliberately:
+#   - LISTENING_SPEED_CEILING = 1.0. "Never more than one" is a separate,
+#     still-standing ruling and listening still cannot play above 1.0x.
+#   - The ramp and belt-ceiling MACHINERY, the min-then-globalSpeed composition
+#     order, beltCeilingForSeed's learner-centric keying, and the
+#     degrade-to-shipped-table normalisers. All intact and all tested — the
+#     acceptance suite now drives them from explicit fixtures (GENTLE_RAMP /
+#     GENTLE_BELTS in listeningOneMode.test.ts) rather than from the shipped
+#     defaults, so the gentle curves stay covered.
+#   - Easy is still gentler than Fast on every OTHER axis: longer pauses,
+#     doubled reps, maxPhraseLengthFraction 0.5, review syllable filter.
+#   - Both tables remain DB values (algorithm_config.easy_mode.
+#     listeningSpeedRamp / .listeningBeltCeilings), so the 2026-08-07 curves
+#     are one Supabase edit away if Tom ever wants them back — no deploy.
+#     Verified 2026-08-10: the live easy_mode row carries NEITHER key, so the
+#     code defaults are what learners actually hear.
 #
 # Runtime note: PodPlay.speedIsFinal marks an exposure-ramped play so
 # LearningPlayer.playPodLap does not belt-ramp it a second time (it would have

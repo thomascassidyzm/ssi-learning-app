@@ -120,18 +120,30 @@ export function computeCycleSpeed(
 }
 
 /**
- * EASY-MODE LISTENING PACE (Tom's ruling on T-13, 2026-08-07): "EASY setting
- * defaults listening playback to 0.8× speed."
+ * EASY-MODE LISTENING PACE — 1.0×, i.e. no Easy-specific slowing at all.
  *
- * It is the white-belt rung of the existing belt ramp, held for as long as the
- * learner stays on Easy — not a second curve. Applied as a CAP on the ramp
- * (`min(beltSpeed, 0.8)`), so Easy is never faster than the belt would give
- * and a learner who moves up belts on Easy keeps the beginner's pace until
- * they choose Fast. Like the belt ramp it multiplies the clip's own role rate,
- * so a 2× stretch rep stays a fast rep relative to that pace (1.6×), and it is
- * for TARGET clips only — the known-language meaning anchor is never slowed.
+ * SUPERSEDED 2026-08-10 (Tom, testing listening live): "'Easy' seems to have
+ * slowed the conversations in the listening section - I don't think we want to
+ * be doing that"; "I think we can return the default listening speed settings
+ * to 1.0x on EASY, I think we moved them to 0.8x."
+ *
+ * WHAT THIS REPLACES — his T-13 ruling of 2026-08-07, "EASY setting defaults
+ * listening playback to 0.8× speed", which shipped as `0.8` here: the
+ * white-belt rung of the belt ramp held for as long as the learner stayed on
+ * Easy, applied as `min(beltSpeed, 0.8)`.
+ *
+ * At 1.0 that cap is a no-op — `min(beltSpeed, 1.0)` IS `beltSpeed` — so Easy
+ * listening now plays at exactly the same rate as Fast. The 2026-08-06 BELT
+ * ramp itself (0.8 white → 0.9 yellow → 0.95 orange → 1.0 green) is a separate,
+ * still-standing ruling that applies to every learner in both modes, and is
+ * deliberately NOT touched here: today's ruling is about Easy having been
+ * slowed relative to Fast, not about the belt curve.
+ *
+ * The constant and both its consumers (`computeListeningSpeed`'s cap, and the
+ * Dialogues overlay's opening speed) stay wired, so restoring an Easy-specific
+ * pace is a one-line change rather than a re-build.
  */
-export const EASY_LISTENING_SPEED = 0.8
+export const EASY_LISTENING_SPEED = 1.0
 
 /**
  * Final playback rate for ONE target-language clip in a LISTENING exercise
