@@ -117,6 +117,9 @@ describe('vercel.json — security response headers', () => {
     expect(csp).toContain('https://fonts.googleapis.com') // schools dashboard fonts
     expect(csp).toContain('https://fonts.gstatic.com')
     expect(csp).toContain('https://*.paddle.com') // Paddle.js + checkout iframe
+    // paddle.js itself pulls in public.profitwell.com — observed as the only
+    // non-eruda violation of the whole live walk, on the checkout overlay.
+    expect(csp).toContain('https://*.profitwell.com')
     expect(csp).toContain('amazonaws.com') // presigned S3 audio (bulk offline download)
     expect(csp).toContain('supabase.co') // auth + data
     expect(csp).toMatch(/media-src[^;]*blob:/) // AudioCache blobs
