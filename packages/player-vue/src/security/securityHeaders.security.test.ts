@@ -1,22 +1,28 @@
 /**
  * SECURITY AUDIT 2026-08-11 — area 5 (client-config), finding CLIENT-CONFIG-01.
  *
- * vercel.json ships NO security response headers. This is a CHARACTERIZATION
- * suite: the `it(...)` cases below assert the CURRENT (missing-header) state so
- * CI stays green, and each is paired with an `it.todo` naming the header that
- * should exist. When the headers are added, the characterization tests fail
- * loudly — which is the intended signal to convert them into the todo's shape.
+ * FIXED 2026-08-11: vercel.json now ships the security response headers. This
+ * suite flipped from characterization (asserting the headers were ABSENT) to
+ * regression locks (asserting they are PRESENT and correctly valued), per the
+ * `it.todo`s the audit left behind.
+ *
+ * One header is deliberately NOT enforced yet: the full `Content-Security-Policy`
+ * ships as `Content-Security-Policy-Report-Only` while the origin inventory is
+ * proven against real traffic (Paddle checkout and presigned-S3 audio could not
+ * be exercised end-to-end before shipping). The ENFORCED CSP carries
+ * `frame-ancestors 'none'` only — the clickjacking half, which cannot break a
+ * page load. See docs/security-headers-2026-08-11.md.
  *
  * Why it matters here specifically:
- *  - No `Content-Security-Policy`: the app has three v-html sinks and an admin
+ *  - `Content-Security-Policy`: the app has three v-html sinks and an admin
  *    surface. CSP is the defence-in-depth layer that turns a future escaping
  *    slip from "account takeover" into "blocked script".
- *  - No `X-Frame-Options` / `frame-ancestors`: saysomethingin.app can be framed
- *    by any origin, so the schools/admin dashboards are clickjackable.
- *  - No `Strict-Transport-Security`: first-visit downgrade is possible.
- *  - No `Referrer-Policy`: full URLs (including /schools/classes/:id and
+ *  - `X-Frame-Options` / `frame-ancestors`: without them saysomethingin.app can
+ *    be framed by any origin, so the schools/admin dashboards are clickjackable.
+ *  - `Strict-Transport-Security`: first-visit downgrade is possible without it.
+ *  - `Referrer-Policy`: full URLs (including /schools/classes/:id and
  *    /admin/users/:learnerId/progress) leak to third-party origins via Referer.
- *  - No `X-Content-Type-Options: nosniff`.
+ *  - `X-Content-Type-Options: nosniff`.
  *
  * NOTE ON THE ONE HEADER THAT IS SET: `/api/audio/(.*)` sends
  * `Access-Control-Allow-Origin: *`. That is deliberate and acceptable — the
@@ -26,6 +32,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 
 const REPO_ROOT = resolve(__dirname, '../../../..')
@@ -42,9 +49,21 @@ function allHeaderKeys(cfg: VercelConfig): string[] {
   return (cfg.headers ?? []).flatMap((r) => r.headers.map((h) => h.key.toLowerCase()))
 }
 
+/** The catch-all rule that carries the security headers for every route. */
+function broadRule(cfg: VercelConfig): VercelHeaderRule {
+  const rule = (cfg.headers ?? []).find((r) => r.source === '/(.*)')
+  expect(rule, 'vercel.json must carry a /(.*) rule with the security headers').toBeDefined()
+  return rule!
+}
+
+function headerValue(rule: VercelHeaderRule, key: string): string | undefined {
+  return rule.headers.find((h) => h.key.toLowerCase() === key.toLowerCase())?.value
+}
+
 describe('vercel.json — security response headers', () => {
-  const MISSING = [
+  const REQUIRED = [
     'content-security-policy',
+    'content-security-policy-report-only',
     'x-frame-options',
     'strict-transport-security',
     'referrer-policy',
@@ -52,16 +71,95 @@ describe('vercel.json — security response headers', () => {
     'permissions-policy',
   ]
 
-  // SECURITY FINDING CLIENT-CONFIG-01: each of these headers SHOULD be present
-  // on the app's HTML responses. They are all absent today; these assertions
-  // pin that fact rather than pretending otherwise.
-  it.each(MISSING)('currently does NOT set %s (finding CLIENT-CONFIG-01)', (header) => {
-    expect(allHeaderKeys(loadVercelConfig())).not.toContain(header)
+  // SECURITY FINDING CLIENT-CONFIG-01 (fixed): each of these headers is served
+  // on every route by the /(.*) rule. These are regression locks — deleting one
+  // silently re-opens the finding.
+  it.each(REQUIRED)('sets %s on every route (finding CLIENT-CONFIG-01)', (header) => {
+    expect(broadRule(loadVercelConfig()).headers.map((h) => h.key.toLowerCase())).toContain(header)
+    expect(allHeaderKeys(loadVercelConfig())).toContain(header)
   })
 
-  it('configures headers for exactly two routes today — audio CORS and version.json caching', () => {
+  it('denies framing outright — X-Frame-Options: DENY plus CSP frame-ancestors', () => {
+    const rule = broadRule(loadVercelConfig())
+    expect(headerValue(rule, 'X-Frame-Options')).toBe('DENY')
+    // The ENFORCED policy is frame-ancestors-only on purpose: it is the one
+    // directive that cannot break a page load, so it ships ahead of the rest.
+    expect(headerValue(rule, 'Content-Security-Policy')).toBe("frame-ancestors 'none'")
+  })
+
+  it('sets the safe Referrer-Policy and nosniff', () => {
+    const rule = broadRule(loadVercelConfig())
+    expect(headerValue(rule, 'Referrer-Policy')).toBe('strict-origin-when-cross-origin')
+    expect(headerValue(rule, 'X-Content-Type-Options')).toBe('nosniff')
+  })
+
+  it('keeps HSTS at two years and adds includeSubDomains (no preload — that is a one-way door)', () => {
+    const hsts = headerValue(broadRule(loadVercelConfig()), 'Strict-Transport-Security')!
+    expect(hsts).toContain('max-age=63072000')
+    expect(hsts).toContain('includeSubDomains')
+    expect(hsts).not.toContain('preload')
+  })
+
+  it('leaves the microphone available to self — PronunciationOverlay calls getUserMedia', () => {
+    const pp = headerValue(broadRule(loadVercelConfig()), 'Permissions-Policy')!
+    expect(pp).toContain('microphone=(self)')
+    expect(pp).toContain('camera=()')
+    expect(pp).toContain('geolocation=()')
+    // `payment` is deliberately UNLISTED: Paddle's checkout iframe needs the
+    // browser default, and listing it wrong would break real card payments.
+    expect(pp).not.toContain('payment')
+  })
+
+  it('the report-only CSP covers every origin the app actually loads from', () => {
+    const csp = headerValue(broadRule(loadVercelConfig()), 'Content-Security-Policy-Report-Only')!
+    // Origins inventoried from the built bundle + index.html on 2026-08-11.
+    expect(csp).toContain("default-src 'self'")
+    expect(csp).toContain('https://fonts.googleapis.com') // schools dashboard fonts
+    expect(csp).toContain('https://fonts.gstatic.com')
+    expect(csp).toContain('https://*.paddle.com') // Paddle.js + checkout iframe
+    expect(csp).toContain('amazonaws.com') // presigned S3 audio (bulk offline download)
+    expect(csp).toContain('supabase.co') // auth + data
+    expect(csp).toMatch(/media-src[^;]*blob:/) // AudioCache blobs
+    expect(csp).toMatch(/media-src[^;]*data:/) // silentWav data: URIs
+    expect(csp).toMatch(/worker-src[^;]*blob:/) // service worker / workbox
+    // Inline scripts are hashed, never blanket-allowed — that is the whole
+    // point of the policy for the v-html sinks.
+    expect(csp).not.toContain("'unsafe-inline'; script-src")
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-eval'/)
+  })
+
+  it("the CSP script hash still matches index.html's inline boot watchdog", () => {
+    // If the boot-watchdog script is edited, this hash goes stale. Under
+    // Report-Only that is only noise — but promoting the policy to enforced
+    // with a stale hash would white-screen the app, so CI catches the drift here.
+    const html = readFileSync(resolve(REPO_ROOT, 'packages/player-vue/index.html'), 'utf8')
+    const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+    expect(inline).toHaveLength(1)
+
+    const hash = 'sha256-' + createHash('sha256').update(inline[0][1], 'utf8').digest('base64')
+    const csp = headerValue(broadRule(loadVercelConfig()), 'Content-Security-Policy-Report-Only')!
+    expect(csp).toContain(`'${hash}'`)
+  })
+
+  it('the internal schools mockups keep same-origin framing (they iframe each other)', () => {
+    // public/_schools-mockups/flows/*.html frame sibling mockup pages, so the
+    // global DENY is relaxed to SAMEORIGIN for that prefix only — cross-origin
+    // framing stays blocked there too.
+    const rule = (loadVercelConfig().headers ?? []).find((r) => r.source === '/_schools-mockups/(.*)')
+    expect(rule).toBeDefined()
+    expect(headerValue(rule!, 'X-Frame-Options')).toBe('SAMEORIGIN')
+    expect(headerValue(rule!, 'Content-Security-Policy')).toBe("frame-ancestors 'self'")
+  })
+
+  it('still configures the two original route rules — audio CORS and version.json caching', () => {
     const cfg = loadVercelConfig()
-    expect((cfg.headers ?? []).map((r) => r.source)).toEqual(['/api/audio/(.*)', '/version.json'])
+    expect((cfg.headers ?? []).map((r) => r.source)).toEqual([
+      '/(.*)',
+      '/_schools-mockups/(.*)',
+      '/api/audio/(.*)',
+      '/version.json',
+    ])
   })
 
   it('the audio CORS wildcard stays credential-free (this control must HOLD)', () => {
@@ -78,12 +176,7 @@ describe('vercel.json — security response headers', () => {
     expect(keys).not.toContain('access-control-allow-credentials')
   })
 
-  it.todo('CLIENT-CONFIG-01: set Content-Security-Policy on HTML responses — note index.html has an inline boot-watchdog <script>, so it needs a hash/nonce (not just script-src self)')
-  it.todo("CLIENT-CONFIG-01: set X-Frame-Options: DENY (and CSP frame-ancestors 'none') so /schools and /admin cannot be framed")
-  it.todo('CLIENT-CONFIG-01: set Strict-Transport-Security: max-age=63072000; includeSubDomains; preload')
-  it.todo('CLIENT-CONFIG-01: set Referrer-Policy: strict-origin-when-cross-origin so learner/class ids do not leak in Referer')
-  it.todo('CLIENT-CONFIG-01: set X-Content-Type-Options: nosniff')
-  it.todo('CLIENT-CONFIG-01: set a restrictive Permissions-Policy (the app needs microphone only where speech features run)')
+  it.todo('CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces')
 })
 
 describe('vite build config — production source maps', () => {
