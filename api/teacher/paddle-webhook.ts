@@ -33,12 +33,21 @@
  *
  * Status mapping: Paddle's trialing/active/past_due/paused/canceled → our
  * subscriptions.status enum (active | past_due | cancelled | none).
+ *
+ * TRUST BOUNDARY (security fix 2026-08-11, ADMIN-ENT-01 / TENANCY-03): for the
+ * PLATFORM kinds ('school_platform', 'org_platform'), the tenant written to is
+ * NEVER taken from customData — the browser composes customData, so trusting it
+ * let anyone buy one seat, name a victim school, and clobber its seat count,
+ * billing pointers and platform_status. The target is resolved server-side by
+ * resolveSchoolTarget / resolveOrgTarget below; a payment that resolves to no
+ * node is rejected and logged rather than written to a guessed row.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { EventName } from '@paddle/paddle-node-sdk'
 import { paddle, webhookSecret } from '../_utils/paddle'
+import { leaderGroupId } from '../_utils/orgPlatform'
 
 // Paddle signature verification requires the raw, unmodified request body.
 // Disable Vercel's default body parser on this endpoint.
@@ -459,16 +468,130 @@ const PLATFORM_STATUS_MAP: Record<string, string> = {
   canceled: 'cancelled',
 }
 
+// ── SERVER-SIDE TENANT RESOLUTION (security fix 2026-08-11, ADMIN-ENT-01) ────
+//
+// customData is composed in the BROWSER. Trusting customData.school_id /
+// group_id as the address of a privileged write meant anyone could buy one
+// £15 seat, name a victim school, and clobber that school's seat count,
+// platform_status and provider_* billing pointers — then cancel their own sub
+// and take the victim's dashboard down with it.
+//
+// The target is now derived from things the payer cannot forge:
+//   1. The EXISTING binding. If some row already carries this Paddle
+//      subscription id, that row IS the target — this is every renewal,
+//      seat change and cancellation, and it makes a live subscription
+//      structurally unable to migrate onto a different tenant.
+//   2. Otherwise (first bind) the PAYER's own node, resolved from the Paddle
+//      customer's email — read from Paddle's API with our server key, never
+//      from the request body — through learner_emails → learners.user_id, and
+//      then the same ownership rule the authenticated endpoints use
+//      (schools.admin_user_id / an admin school user_tag; govt_admins.group_id
+//      for orgs).
+// No resolution → REJECT and log loudly. A payment that can't be tied to a
+// node is a manual-remediation case, never a write to a guessed row.
+
+/** The auth uid behind the Paddle customer who actually paid, or null. */
+async function resolvePayerAuthUid(
+  supabase: any,
+  customerId: string | undefined
+): Promise<string | null> {
+  if (!customerId) return null
+  try {
+    const customer = await paddle.customers.get(customerId)
+    const payerEmail = (customer?.email || '').trim().toLowerCase()
+    if (!payerEmail) return null
+
+    const { data: emailRows } = await supabase
+      .from('learner_emails')
+      .select('learner_id')
+      .eq('email', payerEmail)
+    const learnerIds = (emailRows || []).map((r: any) => r.learner_id).filter(Boolean)
+    if (learnerIds.length === 0) return null
+
+    const { data: learners } = await supabase
+      .from('learners')
+      .select('user_id')
+      .in('id', learnerIds)
+    const uid = (learners || []).map((l: any) => l.user_id).find(Boolean)
+    return uid || null
+  } catch (e: any) {
+    console.warn('[paddle-webhook] payer resolution failed:', e?.message)
+    return null
+  }
+}
+
+/** The school this subscription may write to — existing binding, else the payer's own. */
+async function resolveSchoolTarget(supabase: any, data: any): Promise<string | null> {
+  const { data: bound } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('provider_subscription_id', data.id)
+    .maybeSingle()
+  if (bound?.id) return bound.id as string
+
+  const authUid = await resolvePayerAuthUid(supabase, data.customerId)
+  if (!authUid) return null
+
+  const { data: ownSchool } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('admin_user_id', authUid)
+    .maybeSingle()
+  if (ownSchool?.id) return ownSchool.id as string
+
+  // Same admin-only tag rule as api/school/update-seats.ts — a plain teacher
+  // tag must NOT be able to address the school's billing.
+  const { data: tag } = await supabase
+    .from('user_tags')
+    .select('tag_value')
+    .eq('user_id', authUid)
+    .eq('tag_type', 'school')
+    .eq('role_in_context', 'admin')
+    .is('removed_at', null)
+    .limit(1)
+    .maybeSingle()
+  if (tag?.tag_value) return String(tag.tag_value).replace('SCHOOL:', '')
+
+  return null
+}
+
+/** The org this subscription may write to — existing binding, else the payer's own. */
+async function resolveOrgTarget(supabase: any, data: any): Promise<string | null> {
+  const { data: bound } = await supabase
+    .from('groups')
+    .select('id')
+    .eq('provider_subscription_id', data.id)
+    .maybeSingle()
+  if (bound?.id) return bound.id as string
+
+  const authUid = await resolvePayerAuthUid(supabase, data.customerId)
+  if (!authUid) return null
+  return await leaderGroupId(supabase, authUid)
+}
+
+/** Log when the browser named a different node than the server resolved. */
+function logTargetMismatch(kind: string, claimed: unknown, resolved: string): void {
+  if (claimed && claimed !== resolved) {
+    console.warn(
+      `[paddle-webhook] TENANT MISMATCH (${kind}): customData named ${String(claimed)} but the payer's own node is ${resolved} — writing to the server-resolved node`
+    )
+  }
+}
+
 async function handleSchoolPlatformSubscription(
   supabase: any,
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
-  const schoolId = customData.school_id as string | undefined
+  const schoolId = await resolveSchoolTarget(supabase, data)
   if (!schoolId) {
-    console.error('[paddle-webhook] school_platform subscription missing school_id in customData')
+    console.error(
+      '[paddle-webhook] REJECTED school_platform subscription: could not resolve a school the payer administers (no existing binding for this subscription, and the Paddle customer maps to no school admin). Needs manual binding.',
+      { subscriptionId: data.id, customerId: data.customerId, customData }
+    )
     return
   }
+  logTargetMismatch('school_platform', customData.school_id, schoolId)
 
   const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
   // ABSOLUTE set from Paddle's billing period (idempotent on retry/out-of-order).
@@ -523,11 +646,15 @@ async function handleOrgPlatformSubscription(
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
-  const groupId = customData.group_id as string | undefined
+  const groupId = await resolveOrgTarget(supabase, data)
   if (!groupId) {
-    console.error('[paddle-webhook] org_platform subscription missing group_id in customData')
+    console.error(
+      '[paddle-webhook] REJECTED org_platform subscription: could not resolve an org the payer leads (no existing binding for this subscription, and the Paddle customer maps to no govt_admins row). Needs manual binding.',
+      { subscriptionId: data.id, customerId: data.customerId, customData }
+    )
     return
   }
+  logTargetMismatch('org_platform', customData.group_id, groupId)
 
   const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
   // ABSOLUTE set from Paddle's billing period (idempotent on retry/out-of-order).
