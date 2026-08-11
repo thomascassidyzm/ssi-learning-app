@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
+# Last Updated: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
+# Prev: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
 # Prev: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — see versioned_audio_refs.all_client_lanes_stamped)
 # Prev: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
 # Prev: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
@@ -419,6 +420,16 @@ spec audio_caching_architecture:
         concurrency (24 idle / 6 playing), skipping the per-clip serverless
         proxy hop. Proxy path (12 / 4) remains the fallback for endpoint
         failure, denied ids, and clips whose direct fetch fails.
+      auth: >
+        SECURITY (INPUT-01, 2026-08-11): batch-urls denies premium
+        past-preview ids to callers it cannot identify, unconditionally — NOT
+        behind ENTITLEMENT_ENFORCE (absent in production, defaults fail-open).
+        This module therefore sends an Authorization bearer: the Supabase
+        session access_token when signed in, else a live `ssi-try-token`
+        entitlement token, else no header. Free/community courses and preview
+        seeds (<= Yellow, seed 19) are never gated, so anonymous guests keep
+        full bulk download of everything they may have. The per-clip proxy
+        keeps its fail-open posture — `<audio src>` cannot send a header.
       jit_url_resolution: >
         Presigned URLs are requested JUST-IN-TIME, one chunk at a time: resolve
         chunk → download chunk to completion → resolve next chunk. Never

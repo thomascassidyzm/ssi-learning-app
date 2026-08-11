@@ -32,6 +32,8 @@
  * 99.9%-then-dead-end report, 2026-07-31.
  */
 
+import { resolveSupabase } from '../composables/schools/client'
+
 export interface BatchUrlsResult {
   urls: Record<string, string>
   denied: string[]
@@ -293,14 +295,44 @@ async function runDownloadPass(
 // always better than waiting forever (founder stall, 2026-07-31).
 const BATCH_URLS_TIMEOUT_MS = 20_000
 
+/**
+ * Bearer for batch-urls, best-effort. The endpoint denies premium
+ * past-preview clips to callers it cannot identify (SECURITY INPUT-01), so we
+ * present whichever grant this browser holds: the Supabase session token if
+ * signed in, else a server-minted try-link entitlement token. The server
+ * accepts either on the same header. No grant → no header, and free/preview
+ * content still downloads exactly as before.
+ */
+async function batchUrlsBearer(): Promise<string | null> {
+  try {
+    const client = resolveSupabase(null)
+    const session = client ? (await client.auth.getSession()).data.session : null
+    if (session?.access_token) return session.access_token
+  } catch {
+    // fall through to the try-link token
+  }
+  try {
+    const tryToken = sessionStorage.getItem('ssi-try-token')
+    const exp = Number(sessionStorage.getItem('ssi-try-exp') || '0')
+    if (tryToken && exp > Date.now()) return tryToken
+  } catch {
+    // no storage access — anonymous
+  }
+  return null
+}
+
 /** POST /api/audio/batch-urls for one chunk of ids. Null on any failure or timeout. */
 export async function fetchBatchAudioUrls(ids: string[]): Promise<BatchUrlsResult | null> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), BATCH_URLS_TIMEOUT_MS)
   try {
+    const bearer = await batchUrlsBearer()
     const res = await fetch('/api/audio/batch-urls', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+      },
       body: JSON.stringify({ audioIds: ids }),
       signal: controller.signal,
     })
