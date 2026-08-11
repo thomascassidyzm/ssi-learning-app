@@ -1228,3 +1228,41 @@ step-identical by parsing and comparing; `node --check` on the report script; re
 (auto-merge, verify + merge both green, merged to dev), with no duplicate `verify.yml` run.
 **Search width:** visible-options.
 **Decided by:** agent.
+
+## 2026-08-11 — INPUT-01: batch-urls gets an unconditional caller check, not `ENTITLEMENT_ENFORCE=strict`
+**Move:** `POST /api/audio/batch-urls` now denies premium past-preview ids to callers it cannot
+identify — a verified Supabase session OR a valid entitlement token — with NO env var in the
+decision. `bulkAudioDownload.ts` sends the Supabase session access_token, falling back to a live
+`ssi-try-token`. The shared `resolveAudioEntitlement` default and the per-clip proxy are untouched.
+**Better:** closes the actual hole — 500 direct-to-S3 presigned URLs per anonymous request was the
+entire paid catalogue, downloadable with no account — and closes it in a way that cannot silently
+un-close. `ENTITLEMENT_ENFORCE` was verified ABSENT from Vercel production; a control that lives in
+a var nobody set is not a control.
+**Simpler:** one condition on one endpoint, reusing `api/_utils/auth.verifyAuthToken` (already the
+estate's caller check) and the existing `gated` flag the resolver already computes. Adds no new
+concept, no new secret, no new table, no config to keep in sync across three environments.
+**Cheaper (total):** at most one `getUser()` per batch request, lazily — a batch of free/preview
+clips costs nothing. Client-side it is a local `getSession()` read, the same pattern already used by
+`setInstantPlaybackAuthProvider`. No infra, no migration, no ops runbook.
+**Searched & rejected:**
+- **Flip `ENTITLEMENT_STRICT`'s default to fail-closed** (the brief's preferred option) — rejected
+  on evidence: the ONLY entitlement-token mint site is `api/try-link/validate.ts`, and no client
+  path attaches a token to any audio request. Strict mode today denies every premium clip past
+  seed 19 to EVERY caller, paying subscribers included. That is a total-outage "fix". The code
+  comments at `audioAccess.ts:405-408` say exactly this, and they are correct.
+- **`vercel env add ENTITLEMENT_ENFORCE=strict production`** — rejected for the same reason, and
+  worse: it takes effect with no deploy and no code review, so the outage arrives instantly and
+  invisibly.
+- **Require a session on the per-clip proxy too** — rejected: the proxy is reached by
+  `<audio src>`, which cannot set an Authorization header. Its fail-open posture is load-bearing.
+  It is also the wrong shape to attack: one serverless hop per clip, versus 500 URLs per POST.
+- **Resolve real entitlement (`resolveEffectiveSubscription`) instead of mere session** — rejected
+  for now: a DB read per request, and it risks locking out school/tutor students if the resolver's
+  coverage is incomplete. A session check is strictly better than today and cannot regress a payer.
+  The full entitlement read belongs with the subscriber token mint, not ahead of it.
+**Verified:** api suite 1201 passed; player-vue 2071 passed, typecheck clean, lint 0 errors; and
+LIVE on the dev alias — anonymous POST for `fra_for_eng` S0100L01 returns `{"urls":{},"denied":[…]}`
+while the same request against production still hands out the presigned URL, and an anonymous
+request for a preview-seed clip is still served.
+**Search width:** visible-options (four alternatives, two of them the brief's own).
+**Decided by:** agent.
