@@ -16531,7 +16531,16 @@ GRANT ALL ON TABLE public.classes TO service_role;
 -- Name: TABLE learners; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,MAINTAIN ON TABLE public.learners TO authenticated;
+GRANT SELECT,DELETE,MAINTAIN ON TABLE public.learners TO authenticated;
+GRANT INSERT(id) ON TABLE public.learners TO authenticated;
+GRANT INSERT(user_id) ON TABLE public.learners TO authenticated;
+GRANT INSERT(display_name) ON TABLE public.learners TO authenticated;
+GRANT INSERT(preferences) ON TABLE public.learners TO authenticated;
+GRANT INSERT(verified_emails) ON TABLE public.learners TO authenticated;
+GRANT INSERT(needs_verification) ON TABLE public.learners TO authenticated;
+GRANT INSERT(welcome_played_at) ON TABLE public.learners TO authenticated;
+GRANT INSERT(created_at) ON TABLE public.learners TO authenticated;
+GRANT INSERT(updated_at) ON TABLE public.learners TO authenticated;
 GRANT ALL ON TABLE public.learners TO service_role;
 
 
@@ -16566,8 +16575,11 @@ GRANT UPDATE(preferences) ON TABLE public.learners TO authenticated;
 --
 -- Name: COLUMN learners.verified_emails; Type: ACL; Schema: public; Owner: -
 --
-
-GRANT UPDATE(verified_emails) ON TABLE public.learners TO authenticated;
+-- UPDATE(verified_emails) was REVOKEd from authenticated on 2026-08-11
+-- (AUTH-CORE-02, supabase/migrations/20260811_lock_learner_identity_columns.sql).
+-- The INSERT grant above survives, policed for CONTENT by the
+-- enforce_verified_emails_provenance trigger; the browser's back-fill now goes
+-- through public.sync_my_verified_emails().
 
 
 --
