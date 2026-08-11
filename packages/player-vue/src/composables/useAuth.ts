@@ -253,11 +253,19 @@ export function useAuth(): AuthState & AuthActions {
           // Never back-fill a link-auth placeholder into verified_emails — it's
           // not a real inbox and would surface as the user's primary email.
           if (email && !isPlaceholderEmail(email) && !emails.includes(email)) {
-            emails = [...emails, email]
-            await supabase.value
-              .from('learners')
-              .update({ verified_emails: emails })
-              .eq('id', existingLearner.id)
+            // Server-side append. The direct UPDATE this replaces was the
+            // AUTH-CORE-02 hole: UPDATE(verified_emails) was granted to
+            // `authenticated`, and own-row RLS constrains WHICH row you write,
+            // never the array's CONTENTS — so anyone could plant a third
+            // party's address here and inherit their email-allowlist grant
+            // (api/access/grant-emails.ts) or family attachment
+            // (api/family/invite.ts). The grant was revoked
+            // 2026-08-11 (supabase/migrations/20260811_lock_learner_identity_columns.sql);
+            // sync_my_verified_emails() derives the address from auth.users
+            // instead of trusting the caller.
+            const { data: synced, error: syncErr } = await supabase.value.rpc('sync_my_verified_emails')
+            if (syncErr) console.warn('[useAuth] sync_my_verified_emails failed (non-fatal):', syncErr.message)
+            else emails = synced || emails
           }
         } catch (err) {
           console.warn('[useAuth] verified_emails enrichment failed (non-fatal):', err)
