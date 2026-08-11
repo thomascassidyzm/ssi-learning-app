@@ -6,6 +6,69 @@ Run as reset-eve spare-capacity work on branch `sec/audit-2026-08-11`.
 no fix was applied, nothing was promoted, no live exploit traffic was sent, and nothing on the
 money path was touched. Every claim here comes from reading code in this repo.
 
+## Verdict — the whole audit in one screen
+
+Six areas, 5 workers plus the coordinator, ~1,100 test cases added, **0 production files changed**.
+
+**One critical, found twice independently.** The Paddle webhook validates *what was paid* with real
+rigour and never asks *who it is for*. `customData.school_id` is composed in browser JavaScript
+(`useSchoolCheckout.ts:86-89`) and lands in a service-role `UPDATE … WHERE id = $that`
+(`paddle-webhook.ts:486-493`) over `platform_status`, `teacher_seats` and `provider_customer_id` —
+the last of which mints the school's billing portal (`school/portal.ts:53-63`). Anyone who knows a
+school's UUID — every teacher and pupil in it — buys one legitimate £15 seat naming the victim,
+then cancels it. **£15 to switch a paying school dark.** Areas 2 and 4 reached this independently
+from different directions; every link was then re-verified by the coordinator.
+
+**The pattern worth more than any single finding.** Three of the most serious items are the *same*
+failure: a deliberate hardening pass that migrated the helpers and missed one caller.
+
+| The pass | What it fixed | What it missed |
+|---|---|---|
+| `c2f04665` (2026-08-06) path→`parent_id` subtree resolvers | `groupSubtree`, `schoolScope`, `groupRollups`, `rate-compare`, and `invites.test.ts` | **`invites.ts` itself** — the handler, while its test was updated (TENANCY-01, critical) |
+| Code-entropy hardening to `crypto.randomInt` | the app-side minter, with a comment explaining why | **`generate_join_code()`** in the DB, minting the same class of credential with `random()` (ADMIN-ENT-02, high) |
+| Paddle `customData` distrust | the *tier* — a £5 price cannot buy a £15 plan | **the target tenant** — never checked at all (ADMIN-ENT-01, critical) |
+
+The security *thinking* in this codebase is good and often excellent — the fail-closed/fail-loud
+split in `verifyAdmin`, the race-free single-statement redemption RPC, `access/claim.ts` deriving
+identity from the verified token "NEVER from the body". What leaks is **completeness of sweeps**.
+The cheapest durable win is not any one fix; it is making a hardening pass enumerate its callers.
+
+**The systemic absence:** there is **no rate limiting anywhere in `api/**`** beyond two hand-rolled
+throttles (`code/validate.ts`, `possession-redeem.ts`). The same missing primitive resurfaces as
+five different-looking findings — unmetered code redemption, an unthrottled join-code oracle, an
+OTP relay, an anonymous bulk-audio endpoint, and an MX-lookup amplifier.
+
+**What is genuinely solid**, verified rather than assumed: no server secret reaches the client
+bundle; no SSRF, no raw SQL concatenation, no prototype pollution, no ReDoS, no path traversal
+reaching an S3 key; all 19 admin endpoints re-derive role server-side; no read/write authz
+asymmetry in 44 tenancy handlers; both webhook verifiers check signatures over the raw body.
+
+### Top of the queue
+
+| # | ID | Sev | Where | Costs an attacker |
+|---|---|---|---|---|
+| 1 | ADMIN-ENT-01 / TENANCY-03 | **critical** | `paddle-webhook.ts:467,486` | £15 |
+| 2 | TENANCY-01 | **critical** | `groups/[id]/invites.ts:132` | an org name |
+| 3 | AUTH-CORE-02 | high *(needs live DB check)* | `schema.sql:16570` + `access/grant-emails.ts` | nothing |
+| 4 | INPUT-01 | high *(needs live env check)* | `audio/batch-urls.ts` | nothing |
+| 5 | AUTH-CORE-01 | high | `code/redeem.ts` — no throttle on the granting sibling | patience |
+| 6 | ADMIN-ENT-02 | high | `generate_join_code()` uses `random()` | statistics |
+
+### Two live checks that change severities, neither of which this audit could make
+
+1. **`vercel env ls production | grep ENTITLEMENT_ENFORCE`** — decides whether INPUT-01 is live or
+   already mitigated. Fail-open is the documented *default* (`audioAccess.ts:403-407`).
+2. **`SELECT grantee, privilege_type FROM information_schema.column_privileges WHERE
+   table_name='learners' AND column_name='verified_emails';`** — decides whether AUTH-CORE-02 is
+   real. It rests on `supabase/schema.sql`, which CLAUDE.md records as having been stale before.
+   The same doubt applies to ADMIN-ENT-04's column-grant control, which is what actually blocks
+   self-escalation to `ssi_admin` (RLS alone would allow it).
+
+A third check was open and **has since been settled**: `curl -sI https://saysomethingin.app` returns
+only `strict-transport-security`. No CSP, no `X-Frame-Options`, no `Referrer-Policy`, no
+`X-Content-Type-Options` — confirmed against production, not just against the committed
+`vercel.json`. CLIENT-01 stands as written; the schools and admin dashboards are clickjackable.
+
 ## Contents
 
 | File | Area | Owner |
