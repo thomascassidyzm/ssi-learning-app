@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * SECURITY AUDIT 2026-08-11 — area 5 (client-config), finding CLIENT-CONFIG-04.
  *
@@ -57,7 +58,7 @@ describe('the client admin gate is spoofable via localStorage (finding CLIENT-CO
       JSON.stringify({ platformRole: 'ssi_admin', educationalRole: null }),
     )
 
-    const { useUserRole } = await import('@/composables/useUserRole')
+    const { useUserRole } = await import('../composables/useUserRole')
     const role = useUserRole()
     role.restoreFromCache()
 

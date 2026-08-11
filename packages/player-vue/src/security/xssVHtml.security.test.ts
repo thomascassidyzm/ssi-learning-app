@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * SECURITY AUDIT 2026-08-11 — area 5 (client-config), finding CLIENT-CONFIG-06.
  *
@@ -24,9 +25,29 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { mount } from '@vue/test-utils'
-import WalkCard from '@/components/admin/WalkCard.vue'
+import type { Component } from 'vue'
 
 const SRC_ROOT = resolve(__dirname, '..')
+
+/**
+ * Mounting the REAL WalkCard component is the strongest evidence in this file:
+ * it proves the shipped component escapes, rather than proving a copy of its
+ * logic does. That requires a vitest config carrying @vitejs/plugin-vue —
+ * which packages/player-vue/vitest.config.ts does.
+ *
+ * Run these with:      npx vitest run src/security     (from packages/player-vue)
+ *
+ * The repo root has no vitest config at all, so `vitest run --dir …` from there
+ * cannot compile a .vue SFC. Rather than fail in that setup, this block skips
+ * itself and says why — the remaining sinks are still covered there, because
+ * they are asserted through source reading and a logic mirror.
+ */
+let WalkCard: Component | null = null
+try {
+  WalkCard = (await import('../components/admin/WalkCard.vue')).default
+} catch {
+  // No Vue SFC transform in this vitest config — block self-skips below.
+}
 
 /** Every classic HTML-injection payload we expect the escapers to defang. */
 const PAYLOADS = [
@@ -38,9 +59,9 @@ const PAYLOADS = [
   '"><script>alert(1)</script>',
 ]
 
-describe('v-html sink 1 — WalkCard.vue (regression lock)', () => {
+describe.skipIf(!WalkCard)('v-html sink 1 — WalkCard.vue (regression lock)', () => {
   it.each(PAYLOADS)('escapes %s instead of creating live DOM nodes', (payload) => {
-    const wrapper = mount(WalkCard, {
+    const wrapper = mount(WalkCard!, {
       props: { kicker: 'TEST', say: payload, stepCount: 1, stepIndex: 0 },
     })
 
@@ -60,7 +81,7 @@ describe('v-html sink 1 — WalkCard.vue (regression lock)', () => {
   })
 
   it('still renders its one intended tag: **bold** becomes <strong>', () => {
-    const wrapper = mount(WalkCard, {
+    const wrapper = mount(WalkCard!, {
       props: { kicker: 'TEST', say: 'hello **there**', stepCount: 1, stepIndex: 0 },
     })
     const say = wrapper.find('.walk-say')
@@ -68,7 +89,7 @@ describe('v-html sink 1 — WalkCard.vue (regression lock)', () => {
   })
 
   it('a payload hidden INSIDE the bold delimiters is still escaped', () => {
-    const wrapper = mount(WalkCard, {
+    const wrapper = mount(WalkCard!, {
       props: { kicker: 'T', say: '**<img src=x onerror=alert(1)>**', stepCount: 1, stepIndex: 0 },
     })
     const say = wrapper.find('.walk-say')

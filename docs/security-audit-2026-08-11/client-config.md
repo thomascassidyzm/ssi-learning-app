@@ -395,19 +395,33 @@ Every characterization test asserting a *vulnerable* current behaviour carries a
 `// SECURITY FINDING <ID>:` comment stating what should happen instead, plus an `it.todo` naming the
 fix — so findings are executable documentation without red CI.
 
-**Verify:**
+**Verify — both invocations are green:**
 
 ```bash
-npx vitest run --dir packages/player-vue/src/security   # from repo root
+# Full fidelity (recommended) — from packages/player-vue
+npx vitest run src/security                            # 85 passed, 11 todo
+
+# From the repo root
+npx vitest run --dir packages/player-vue/src/security  # 77 passed, 8 skipped, 11 todo
 ```
+
+The 8 skipped tests are the ones that **mount the real `WalkCard.vue` component**. The repo root has
+no vitest config, so it has no `@vitejs/plugin-vue` and cannot compile a `.vue` SFC. Rather than fail
+there, that block self-skips and explains why; run from `packages/player-vue` to execute it. Nothing
+is silently dropped — the other two `v-html` sinks are covered in both setups via source assertions
+and a logic mirror.
 
 ### Gate status at commit
 
 | Gate | Result |
 |---|---|
-| `npx vitest run -c vitest.api.config.ts` | **green** — 117 files, 1307 passed, 37 todo |
+| `npx vitest run -c vitest.api.config.ts` | **green** — 1420 passed, 62 todo |
 | `npx tsc -p tsconfig.api.json --noEmit` | **clean** |
-| `npx vitest run` (full player-vue suite) | **green** — 213 files, 2047 passed, 11 todo |
+| `npx vitest run` (full player-vue suite) | **green** — 2047 passed, 3 skipped, 11 todo |
+| `npx vue-tsc --noEmit` | **clean** — zero errors in `src/security` |
 | `npx eslint src/security` | **clean** |
+
+Counts for the shared suites drift upward during the audit as the other four workers land their own
+test files; the figures above are what these gates reported at this commit.
 
 No production file was modified by this audit.
