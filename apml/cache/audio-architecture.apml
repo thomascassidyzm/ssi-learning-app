@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
+# Last Updated: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
+# Prev: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
 # Prev: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
 # Prev: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — see versioned_audio_refs.all_client_lanes_stamped)
 # Prev: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
@@ -95,6 +96,56 @@ spec audio_caching_architecture:
         id per session (a round is rebuilt several times per session; the gap
         is a property of the CONTENT). A throwing sink is swallowed —
         telemetry never interferes with playback.
+
+  ## ==========================================================================
+  ## INTRO CLIP RESOLUTION — the LINK is the truth, the lego_id on a clip is not
+  ## ==========================================================================
+
+  intro_clip_resolution:
+    added: "2026-08-11"
+    rule: |
+      "Which clip is this LEGO's introduction?" has exactly ONE answer, and it
+      is the LEGO's own link. Resolution order, highest first:
+        1. a pre-resolved presentationAudio object on the item (the /cycles
+           wire format supplies this)
+        2. course_legos.presentation_audio_id — what generateLearningScript
+           emits as ScriptItem.presentationAudioId
+        3. lego_introductions.presentation_audio_id / audio_uuid (legacy link)
+        4. LAST RESORT ONLY: course_audio WHERE role='presentation' AND
+           lego_id=<id> — matching a clip by the lego_id it carries
+
+    why_the_order: |
+      A presentation clip carries the lego_id it was CUT for, permanently. That
+      is provenance, not ownership. When content repairs a LEGO by repointing
+      it at a different, already-correct clip, the superseded clip keeps the
+      lego_id — so step 4 hands back the recording that was just superseded.
+      Step 4 is a guess; steps 1-3 are links. Never promote a guess above a link.
+
+    the_defect_this_encodes: |
+      Greek, reported on the forum 2026-08-11. 54 ell_for_eng presentation
+      clips read their bracketed grammar tag out loud — "The Greek for: 'to
+      answer (I, aorist)', is:". The content fix repointed course_legos at 54
+      already-clean clips, taking the player (which follows the link) to zero.
+      The dirty clips could be neither corrected nor deleted — a clip saying
+      the same words in the same voice already existed — so they kept their
+      lego_ids, and every by-lego_id resolver kept playing the label. Verified
+      live: all 54 LEGOs link to a clean clip; all 54 clean clips carry a
+      DIFFERENT lego_id, so a by-lego_id match returns the labelled clip 54
+      times out of 54.
+
+    resolvers:
+      - "providers/resolveIntroAudioUrl.ts — the shared precedence function (both CourseExplorer call sites)"
+      - "composables/useScriptCache.ts loadIntroAudio — builds the audioMap `intro:<legoId>` entries; steps 2,3,4 in that order"
+      - "providers/CourseDataProvider.ts getIntroductionAudio / getIntroductionAudioBatch — link first, lego_id match as fallback"
+      - "providers/generateLearningScript.ts — reads course_legos.presentation_audio_id directly (step 2); its backfill block is step 4 and only fires when the link is NULL"
+
+    scope: |
+      This is a resolver rule, not a content fix. It clears a LEGO only where a
+      corrected clip has actually been wired onto course_legos. Live census
+      2026-08-11: ell_for_eng is the only course where that repointing has been
+      done (54/54). In 43 other courses ~2,180 bracketed presentation clips
+      remain, and there the LEGO links at the labelled clip itself — those need
+      content work, and no resolver change can help them.
 
   ## ==========================================================================
   ## PER-CLIP VERSIONED AUDIO REFS — how a repaired clip busts every cache

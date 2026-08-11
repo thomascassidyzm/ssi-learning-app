@@ -691,8 +691,24 @@ export const lookupAudioLazy = async (
   }
 }
 
-// Load intro audio for LEGOs from lego_introductions table
-// Handles both v13 (presentation_audio_id → course_audio) and legacy (audio_uuid)
+// Load intro audio for LEGOs.
+//
+// RESOLUTION ORDER — the LEGO's own link first, id-matching only as a fallback:
+//   1. course_legos.presentation_audio_id  (the link; what the player plays)
+//   2. lego_introductions.presentation_audio_id / audio_uuid  (legacy link)
+//   3. course_audio WHERE role='presentation' AND lego_id=<id>  (last resort)
+//
+// Step 1 used to be missing, and that was a real content defect reaching real
+// people (Greek forum complaint, 2026-08-11): a presentation clip OWNS the
+// lego_id of the chunk it was cut for, so step 3 always hands back that clip
+// even when the LEGO has since been repointed at a different, corrected one.
+// Greek had 54 intro clips that spoke their bracketed grammar label out loud
+// ("The Greek for: 'to answer (I, aorist)', is:"); the content fix repointed
+// course_legos at 54 clean clips, but the dirty clips kept the lego_id, so
+// every consumer of this map — Course Explorer / "View Script" — still played
+// the label. The link is the single source of truth for WHICH clip; the
+// lego_id on a clip only records which chunk it was cut for.
+//
 // Uses batched queries to avoid Supabase URL length limits (400 error)
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
@@ -706,10 +722,62 @@ export const loadIntroAudio = async (
   const legoIdArray = [...legoIds]
 
   try {
-    // Batch query lego_introductions to avoid URL length limits
-    let allIntroData: any[] = []
+    // Track which LEGOs already have intro audio resolved (highest-priority
+    // source wins; later sources only fill gaps).
+    const foundLegoIds = new Set<string>()
+
+    // Resolve a set of course_audio ids to s3_keys, batched.
+    const resolveS3Keys = async (audioIds: string[]): Promise<Map<string, string>> => {
+      const s3KeyMap = new Map<string, string>()
+      for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
+        const { data: audioData } = await supabase
+          .from('course_audio')
+          .select('id, s3_key')
+          .in('id', audioIds.slice(i, i + BATCH_SIZE))
+        for (const audio of (audioData || [])) {
+          if (audio.id && audio.s3_key) s3KeyMap.set(audio.id, audio.s3_key)
+        }
+      }
+      return s3KeyMap
+    }
+
+    // STEP 1 — the LEGO's own link. This is what the player plays, so this map
+    // must agree with it. See the resolution-order note above.
+    const legoLinks: { lego_id: string; presentation_audio_id: string }[] = []
     for (let i = 0; i < legoIdArray.length; i += BATCH_SIZE) {
-      const batchIds = legoIdArray.slice(i, i + BATCH_SIZE)
+      const { data: legoRows, error: legoErr } = await supabase
+        .from('course_legos')
+        .select('lego_id, presentation_audio_id')
+        .eq('course_code', courseCode)
+        .in('lego_id', legoIdArray.slice(i, i + BATCH_SIZE))
+      if (legoErr) {
+        console.warn('[ScriptCache] Could not load LEGO presentation links:', legoErr.message)
+        continue
+      }
+      for (const row of (legoRows || [])) {
+        if (row.lego_id && row.presentation_audio_id) {
+          legoLinks.push({ lego_id: row.lego_id, presentation_audio_id: row.presentation_audio_id })
+        }
+      }
+    }
+    if (legoLinks.length > 0) {
+      const linkedKeys = await resolveS3Keys(legoLinks.map(l => l.presentation_audio_id))
+      for (const link of legoLinks) {
+        const s3Key = linkedKeys.get(link.presentation_audio_id)
+        if (s3Key) {
+          audioMap.set(`intro:${link.lego_id}`, { intro: s3Key })
+          foundLegoIds.add(link.lego_id)
+        }
+      }
+      console.log('[ScriptCache] Loaded', foundLegoIds.size, 'intro audio entries (course_legos link)')
+    }
+
+    // STEP 2 — legacy link table, for LEGOs step 1 could not resolve.
+    // Batch query lego_introductions to avoid URL length limits
+    const unlinkedLegoIds = legoIdArray.filter(id => !foundLegoIds.has(id))
+    let allIntroData: any[] = []
+    for (let i = 0; i < unlinkedLegoIds.length; i += BATCH_SIZE) {
+      const batchIds = unlinkedLegoIds.slice(i, i + BATCH_SIZE)
       const { data: batchData, error } = await supabase
         .from('lego_introductions')
         .select('lego_id, presentation_audio_id, audio_uuid')
@@ -727,32 +795,13 @@ export const loadIntroAudio = async (
 
     const introData = allIntroData
 
-    // Track which LEGOs have intro audio from lego_introductions
-    const foundLegoIds = new Set<string>()
-
     // Separate v13 (has presentation_audio_id) from legacy (only audio_uuid)
     const v13Entries = introData.filter(i => i.presentation_audio_id)
     const legacyEntries = introData.filter(i => !i.presentation_audio_id && i.audio_uuid)
 
     // Handle v13 entries: lookup s3_key from course_audio (also batched)
     if (v13Entries.length > 0) {
-      const audioIds = v13Entries.map(i => i.presentation_audio_id)
-      const s3KeyMap = new Map<string, string>()
-
-      // Batch the course_audio queries
-      for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
-        const batchAudioIds = audioIds.slice(i, i + BATCH_SIZE)
-        const { data: audioData } = await supabase
-          .from('course_audio')
-          .select('id, s3_key')
-          .in('id', batchAudioIds)
-
-        for (const audio of (audioData || [])) {
-          if (audio.id && audio.s3_key) {
-            s3KeyMap.set(audio.id, audio.s3_key)
-          }
-        }
-      }
+      const s3KeyMap = await resolveS3Keys(v13Entries.map(i => i.presentation_audio_id))
 
       for (const intro of v13Entries) {
         const s3Key = s3KeyMap.get(intro.presentation_audio_id)
@@ -773,9 +822,12 @@ export const loadIntroAudio = async (
       console.log('[ScriptCache] Loaded', legacyEntries.length, 'intro audio entries (legacy)')
     }
 
-    // FALLBACK: Query course_audio for LEGOs not in lego_introductions
-    // This handles courses (like Portuguese) where intro audio is in course_audio
-    // but not linked via lego_introductions table
+    // STEP 3 — LAST RESORT: match a clip by the lego_id it carries, for LEGOs
+    // neither link resolved. This handles courses (like Portuguese) where intro
+    // audio exists in course_audio but is not linked from anywhere. It is a
+    // guess, not a link: if a LEGO has been repointed at a different clip, the
+    // old clip still carries this lego_id — which is exactly why steps 1 and 2
+    // must win. Never promote this above them.
     const missingLegoIds = legoIdArray.filter(id => !foundLegoIds.has(id))
     if (missingLegoIds.length > 0) {
       console.log('[ScriptCache] Looking for', missingLegoIds.length, 'missing intro audios in course_audio')
