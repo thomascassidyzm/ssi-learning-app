@@ -53,14 +53,15 @@ base-uri 'self';
 object-src 'none';
 form-action 'self';
 frame-ancestors 'none';
-script-src 'self' 'sha256-V4lEMYh/40zbF4mHgsj5X757gDDWRWAbeLAzK/neODo=' https://*.paddle.com;
+script-src 'self' 'sha256-V4lEMYh/40zbF4mHgsj5X757gDDWRWAbeLAzK/neODo=' https://*.paddle.com https://*.profitwell.com;
 style-src  'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com;
 font-src   'self' data: https://fonts.gstatic.com;
 img-src    'self' data: blob: https://*.paddle.com;
 media-src  'self' data: blob: https://*.s3.eu-west-1.amazonaws.com https://*.s3.amazonaws.com;
 connect-src 'self' https://swfvymspfxmnfhevgdkg.supabase.co wss://swfvymspfxmnfhevgdkg.supabase.co
             https://*.s3.eu-west-1.amazonaws.com https://*.s3.amazonaws.com
-            https://fonts.googleapis.com https://fonts.gstatic.com https://*.paddle.com;
+            https://fonts.googleapis.com https://fonts.gstatic.com https://*.paddle.com
+            https://*.profitwell.com;
 frame-src  'self' https://*.paddle.com;
 worker-src 'self' blob:;
 manifest-src 'self'
@@ -72,6 +73,7 @@ manifest-src 'self'
 |---|---|---|
 | `fonts.googleapis.com` / `fonts.gstatic.com` | Arsenal + Open Sans for the schools dashboard, linked from `index.html` | `style-src`, `font-src`, `connect-src` |
 | `*.paddle.com` | `@paddle/paddle-js` loads `https://cdn.paddle.com`; checkout renders in a `buy.paddle.com` iframe | `script-src`, `frame-src`, `connect-src`, `img-src`, `style-src` |
+| `*.profitwell.com` | `paddle.js` itself injects `public.profitwell.com/js/profitwell.js` — found by the live walk, not by reading the bundle | `script-src`, `connect-src` |
 | `swfvymspfxmnfhevgdkg.supabase.co` (+ `wss:`) | Auth and all data reads | `connect-src` |
 | `*.s3.*.amazonaws.com` | Presigned URLs from `api/audio/batch-urls.ts` for bulk offline download (the per-file `/api/audio/:id` proxy is same-origin) | `media-src`, `connect-src` |
 | `blob:` / `data:` | `AudioCache` blob URLs, `silentWav.ts` data URIs, the service worker | `media-src`, `img-src`, `worker-src` |
@@ -85,7 +87,32 @@ watchdog fails the suite rather than silently going stale.
 `style-src` keeps `'unsafe-inline'`: Vue writes inline `style` attributes throughout, and the critical
 boot CSS is an inline `<style>`. Removing it is a separate piece of work, not a headers pass.
 
-## What was verified
+## What was verified — live, signed in, on dev
+
+Everything below was driven in headless Chromium against
+`ssi-learning-app-git-dev-zenjin.vercel.app` with a real minted tester session
+(`e2e/csp-audit-probe.mjs` and `e2e/csp-s3-probe.mjs`).
+
+| Surface | Result |
+|---|---|
+| Signed-in learner session, audio playing | **0 violations** |
+| Presigned-S3 direct fetch (the `bulkAudioDownload.ts` path) | **0 violations** — host `ssi-audio-stage.s3.eu-west-1.amazonaws.com`, `fetch` 200, blob reached `canplaythrough` |
+| `/schools` teacher dashboard | **0 violations** |
+| `/schools/all` govt-admin view | **0 violations** |
+| `/admin` root | **0 violations** |
+| Paddle checkout overlay (opened, no payment submitted) | **1 violation** — `script-src-elem` on `public.profitwell.com`, injected by `cdn.paddle.com/paddle/v2/paddle.js`. Now allowed. |
+
+The only other violation anywhere on the site is `eval` from `eruda`, which
+auto-loads on any `*.vercel.app` host (audit finding CLIENT-CONFIG-03). **No app
+code needs `unsafe-eval`** — so enforcement would cost the debug console and
+nothing else.
+
+The offline-download UI flow itself was never reachable in the probe (the
+depth-picker download button never appeared for the tester), which is why the S3
+path was exercised at the network level instead — same fetch, same directives,
+same browser judgement.
+
+## What was verified earlier (pre-deploy)
 
 - **Live production before**: `curl -sI` — only HSTS present (above).
 - **Local, under the real policy**: production build served by a static server that replays
@@ -94,17 +121,22 @@ boot CSS is an inline `<style>`. Removing it is a separate piece of work, not a 
   proves the shell, the hashed inline watchdog, the module graph and Google Fonts all pass.
 - **Not verified before shipping**: Paddle checkout, presigned-S3 offline download, and the
   signed-in schools/admin surfaces — a local build has no Supabase/Paddle env. This is why the full
-  policy is report-only.
+  policy shipped report-only, and it is what the live walk above went on to close.
 
 ## Promoting report-only → enforced (the follow-up)
 
-1. Soak on `dev`, then `staging`, exercising: a signed-in learner session with audio, an offline bulk
-   download, Paddle checkout, and the schools + admin dashboards.
-2. Collect violations from the browser console (`Content-Security-Policy-Report-Only` messages).
+1. Re-run `e2e/csp-audit-probe.mjs` against `staging` once this promotes — same surfaces, real
+   data, different tenants. Add the offline-download UI flow if a tester with the entitlement can
+   reach the depth picker.
+2. The one thing still unobserved is a **completed** Paddle checkout (the probe opens the overlay and
+   stops there, by design — no card is ever submitted). If a real sandbox purchase gets made on
+   staging, watch the console for report-only messages during it.
+3. Collect violations from the browser console (`Content-Security-Policy-Report-Only` messages).
    If field data is wanted instead of manual passes, add a `report-uri` endpoint at that point —
    deliberately not added now, since every violation would be a paid function invocation.
-3. When clean, rename the header key to `Content-Security-Policy` (merging the `frame-ancestors`
-   directive already there) and flip the `it.todo` in `securityHeaders.security.test.ts`.
+4. When clean, rename the header key to `Content-Security-Policy` (merging the `frame-ancestors`
+   directive already there) and flip the `it.todo` in `securityHeaders.security.test.ts`. Expect this
+   to break `eruda` — that is the intended outcome, not a regression.
 
 Do not promote while the script hash test is failing — a stale hash under an enforced policy
 white-screens the app.
