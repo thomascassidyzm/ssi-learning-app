@@ -95,6 +95,14 @@ if (codeType === 'ssi_admin' || codeType === 'god') {
 
 ### AUTH-CORE-02 — email-allowlist grants are delivered by a browser-writable column
 
+> **FIXED 2026-08-11.** Confirmed live against production (the GAP below is now closed: the grant WAS
+> still in place), then closed by `supabase/migrations/20260811_lock_learner_identity_columns.sql` —
+> `UPDATE(verified_emails)` revoked, contents policed by the `enforce_verified_emails_provenance`
+> trigger, back-fill moved to `sync_my_verified_emails()`. The same trace turned up a **worse**
+> unflagged hole on the same table: table-level `INSERT` gave `authenticated` `platform_role`, so
+> delete-then-insert was a one-step self-promotion to `ssi_admin` with no admin action required —
+> also closed. Full record: `docs/security-fix-learner-identity-columns-2026-08-11.md`.
+
 **Severity: high.** `api/access/grant-emails.ts:159-176`, `api/_utils/entitlementGrant.ts:74-90`, `supabase/schema.sql:16570`.
 
 **The chain, link by link.**

@@ -187,7 +187,7 @@ describe('CONTROL — learners.platform_role cannot be self-escalated', () => {
   // that excludes platform_role and educational_role. If a migration ever
   // re-grants table-level UPDATE on learners, every admin endpoint falls at once.
   it('authenticated has no table-level UPDATE on learners', () => {
-    expect(schema).toContain('GRANT SELECT,INSERT,DELETE,MAINTAIN ON TABLE public.learners TO authenticated;')
+    expect(schema).toContain('GRANT SELECT,DELETE,MAINTAIN ON TABLE public.learners TO authenticated;')
     expect(schema).not.toMatch(/GRANT[^;]*\bUPDATE\b(?![(])[^;]*ON TABLE public\.learners TO authenticated;/)
   })
 
@@ -198,5 +198,44 @@ describe('CONTROL — learners.platform_role cannot be self-escalated', () => {
     expect(columnGrants).not.toContain('platform_role')
     expect(columnGrants).not.toContain('educational_role')
     expect(columnGrants).not.toContain('dashboard_courses')
+  })
+
+  // The UPDATE side above was guarded from the start; the INSERT side was not,
+  // and on 2026-08-11 it was found wide open on the live DB: table-level INSERT
+  // plus learners_delete_own is a one-round-trip self-escalation —
+  //   DELETE FROM learners WHERE user_id = auth.uid()::text;
+  //   INSERT INTO learners (user_id, display_name, platform_role)
+  //     VALUES (auth.uid()::text, 'x', 'ssi_admin');   -> is_ssi_admin() = true
+  // Closed by 20260811_lock_learner_identity_columns.sql. A table-level INSERT
+  // re-grant would reopen it exactly as a table-level UPDATE re-grant would.
+  it('authenticated has no table-level INSERT on learners', () => {
+    expect(schema).not.toMatch(/GRANT[^;]*\bINSERT\b(?![(])[^;]*ON TABLE public\.learners TO authenticated;/)
+  })
+
+  it('the per-column INSERT allowlist excludes every privileged column', () => {
+    const columnGrants = [...schema.matchAll(/GRANT INSERT\((\w+)\) ON TABLE public\.learners TO authenticated;/g)]
+      .map((m) => m[1])
+    expect(columnGrants).toContain('user_id')
+    expect(columnGrants).toContain('display_name')
+    for (const privileged of [
+      'platform_role',
+      'educational_role',
+      'dashboard_courses',
+      'is_internal',
+      'is_demo',
+      'invite_code_id',
+      'is_class_entity',
+    ]) {
+      expect(columnGrants).not.toContain(privileged)
+    }
+  })
+
+  // AUTH-CORE-02: verified_emails is consumed as proof of mailbox ownership by
+  // api/access/grant-emails.ts (which writes grants_platform_role verbatim into
+  // learners.platform_role) and api/family/invite.ts. A browser must not be able
+  // to write it directly; the OTP path (api/email/verify.ts) uses the service
+  // role, and useAuth.ts's back-fill goes through sync_my_verified_emails().
+  it('authenticated cannot UPDATE verified_emails', () => {
+    expect(schema).not.toContain('GRANT UPDATE(verified_emails) ON TABLE public.learners TO authenticated;')
   })
 })
