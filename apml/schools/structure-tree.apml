@@ -1,8 +1,9 @@
 # APML: Structure tree — row grammar + demo-refresh verb
-# Last updated: 2026-07-20
+# Last updated: 2026-08-11
 # Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings
 # 2026-07-19 (rows are links; ⋯ maintenance-only) + 2026-07-20 (quiet chips,
-# hierarchy rails); refresh demo data as a verb on a DEMO node
+# hierarchy rails); refresh demo data as a verb on a DEMO node; founder ask
+# 2026-08-11 (individuals are created here too, as a peer verb)
 
 purpose: |
   The Structure page (/admin/structure) is the org tree's editing surface —
@@ -44,9 +45,45 @@ row_grammar:  # founder-ruled 2026-07-19/20 — name is the anchor, repetition i
   overflow: |
     Maintenance verbs only, ONE always-visible ⋯ menu with labeled words:
     Rename · Change label · Delete. Create/invite/mint live on the node
-    home's action bar (NodeActionBar), not on rows.
+    home's action bar (NodeActionBar), not on rows. The page's OWN creation
+    verbs (organisation, individual) live in the panel head — see page_verbs.
   table_lens: whole-row link + zebra stripe (rgba(44,38,34,0.03) even rows);
     rename/delete stay as row icons; label/Demo/status stay plain columns
+
+page_verbs:  # what this PAGE (not a row) can create — founder ask 2026-08-11
+  add_organisation: |
+    "+ Add organisation" in the panel head — inline name/label/demo form,
+    POST /api/groups. Organisations and schools are the things that get a
+    TRIAL (platformStatus), which is why they are the tree's own creation.
+  add_individual: |
+    "+ Add individual" sits BESIDE it, same height in the page: adding one
+    human costs what adding one school costs. Opens IndividualAccessForm
+    inline (.individual-panel) — the SAME component the /admin/invites
+    create card mounts, so there is one form and one behaviour, not two.
+    An individual is NOT a node: no row appears in the tree, and there is
+    no trial. What is created is a complimentary grant, scoped:
+      who:      person name (required; becomes entitlement_codes.label so
+                the grant is findable) + optional email + platform role
+                (learner default | ssi_admin | popty_user — teacher /
+                school_admin / govt_admin are org-shaped and stay on the
+                organisation invite path)
+      what:     every course, or a chosen set (entitlement_codes.granted_courses)
+      how_long: forever, or N days (duration_type / duration_days)
+      limits:   sign-ups cap (max_uses, DEFAULT 1 — a link for one person
+                lets in one person) + optional link expiry (expires_at)
+    endpoint: POST /api/entitlement/create   # api/entitlement/create.ts
+    redeem_cap: |
+      Enforced at redemption, not just displayed — api/code/redeem.ts checks
+      use_count >= max_uses and increments under a conditional update, so a
+      link good for N sign-ups stops at N even under concurrent redeems.
+      Codes that grant a platform role are additionally bounded server-side
+      (api/_utils/codeGuard.ts: default 1 use / 7 days, cap 50 / 90 days)
+      whatever the form sends.
+    audit: |
+      Every grant lands in the /admin/invites list (GET /api/admin/invites),
+      which carries the person's name in `what` and their email in `email`
+      so a named individual is searchable there. That page stays the audit
+      ledger; creation lives here.
 
 demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
   verb: |

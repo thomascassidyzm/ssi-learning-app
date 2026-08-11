@@ -1,6 +1,21 @@
 <script setup lang="ts">
-// Direct access code — ported from AdminAccess.vue's "direct" mode verbatim
-// (label, full|courses access, duration, limits -> POST /api/entitlement/create).
+// Individual access — the person-first form for "let this human in".
+//
+// Supersedes DirectCodeForm (the verbatim port of AdminAccess.vue's "direct"
+// mode), which asked for a Label and nothing else about WHO. Everything an
+// individual needs was already in entitlement_codes and POST
+// /api/entitlement/create — access_type + granted_courses (which courses),
+// duration_type + duration_days (for how long), max_uses (how many sign-ups
+// the link is good for, enforced atomically in api/code/redeem.ts) — so this
+// is a re-framing of an existing primitive, not new machinery.
+//
+// The difference from an organisation: individuals get NO trial. They get a
+// deliberate complimentary grant, scoped by course and duration, and the
+// admin says out loud how many people the link may let in.
+//
+// Mounted in two places, same component: the "+ Add individual" panel on
+// /admin/structure (a peer of "+ Add organisation") and the create card on
+// /admin/invites.
 import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -22,13 +37,24 @@ const isCreating = ref(false)
 const error = ref<string | null>(null)
 const mintedCode = ref<string | null>(null)
 
-const label = ref('')
+// WHO
+const personName = ref('')
+const personEmail = ref('')
+// Roles beyond a learner are org-shaped (teacher / school admin / group
+// leader all need a node to belong to) and stay on the organisation invite
+// path. What an individual can be, platform-wide, is these three.
+const role = ref<'learner' | 'ssi_admin' | 'popty_user'>('learner')
+// WHAT
 const accessType = ref<'full' | 'courses'>('full')
+const selectedCourses = ref<Set<string>>(new Set())
+// FOR HOW LONG
 const durationType = ref<'lifetime' | 'time_limited'>('lifetime')
 const durationDays = ref<number | ''>('')
-const selectedCourses = ref<Set<string>>(new Set())
+// LIMITS — one person, one sign-up, unless the admin says otherwise.
+const maxUses = ref<number | ''>(1)
 const expiresAt = ref('')
-const maxUses = ref<number | ''>('')
+
+const grantsRole = computed(() => role.value !== 'learner')
 
 const linkUrl = computed(() => mintedCode.value ? `${window.location.origin}/redeem/${mintedCode.value}` : '')
 
@@ -42,13 +68,25 @@ async function fetchCourses(): Promise<void> {
     if (err) throw err
     allCourses.value = data || []
   } catch (err) {
-    console.warn('[DirectCodeForm] courses fetch failed:', err)
+    console.warn('[IndividualAccessForm] courses fetch failed:', err)
   }
 }
 
+function reset(): void {
+  personName.value = ''
+  personEmail.value = ''
+  role.value = 'learner'
+  accessType.value = 'full'
+  selectedCourses.value = new Set()
+  durationType.value = 'lifetime'
+  durationDays.value = ''
+  maxUses.value = 1
+  expiresAt.value = ''
+}
+
 async function createCode(): Promise<void> {
-  if (!label.value.trim()) {
-    error.value = 'Label is required'
+  if (!personName.value.trim()) {
+    error.value = 'Name is required — it is how you find this grant again'
     return
   }
   if (accessType.value === 'courses' && selectedCourses.value.size === 0) {
@@ -57,6 +95,10 @@ async function createCode(): Promise<void> {
   }
   if (durationType.value === 'time_limited' && (!durationDays.value || Number(durationDays.value) < 1)) {
     error.value = 'Duration days must be at least 1'
+    return
+  }
+  if (maxUses.value !== '' && Number(maxUses.value) < 1) {
+    error.value = 'Sign-ups must be at least 1'
     return
   }
 
@@ -71,15 +113,20 @@ async function createCode(): Promise<void> {
       return
     }
 
+    const metadata: Record<string, string> = { recipient_name: personName.value.trim() }
+    if (personEmail.value.trim()) metadata.recipient_email = personEmail.value.trim()
+
     const body: Record<string, unknown> = {
       access_type: accessType.value,
       duration_type: durationType.value,
-      label: label.value.trim(),
+      label: personName.value.trim(),
+      metadata,
     }
     if (accessType.value === 'courses') body.granted_courses = [...selectedCourses.value]
     if (durationType.value === 'time_limited') body.duration_days = Number(durationDays.value)
     if (maxUses.value !== '') body.max_uses = Number(maxUses.value)
     if (expiresAt.value) body.expires_at = new Date(expiresAt.value).toISOString()
+    if (grantsRole.value) body.grants_platform_role = role.value
 
     const response = await fetch('/api/entitlement/create', {
       method: 'POST',
@@ -95,17 +142,10 @@ async function createCode(): Promise<void> {
     const result = await response.json()
     mintedCode.value = result.code
     emit('created')
-
-    label.value = ''
-    selectedCourses.value = new Set()
-    durationDays.value = ''
-    accessType.value = 'full'
-    durationType.value = 'lifetime'
-    expiresAt.value = ''
-    maxUses.value = ''
+    reset()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create code'
-    console.error('[DirectCodeForm] create error:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to create access'
+    console.error('[IndividualAccessForm] create error:', err)
   } finally {
     isCreating.value = false
   }
@@ -118,35 +158,36 @@ onMounted(fetchCourses)
   <form class="create-form" @submit.prevent="createCode">
     <div v-if="error" class="banner banner-error">{{ error }}</div>
 
-    <div class="field field-wide">
-      <label class="schools-kicker">Label <span class="required">*</span></label>
+    <div class="field">
+      <label class="schools-kicker">Name <span class="required">*</span></label>
       <input
-        v-model="label"
+        v-model="personName"
         type="text"
         class="frost-input"
-        placeholder="e.g. Welsh Govt 2026, Press Pass…"
+        placeholder="Who is this for?"
       />
+    </div>
+
+    <div class="field">
+      <label class="schools-kicker">Email <span class="optional">(optional)</span></label>
+      <input v-model="personEmail" type="email" class="frost-input" placeholder="name@example.com" />
+    </div>
+
+    <div class="field">
+      <label class="schools-kicker">They sign in as</label>
+      <select v-model="role" class="frost-select">
+        <option value="learner">Learner</option>
+        <option value="ssi_admin">SSi admin</option>
+        <option value="popty_user">Popty user</option>
+      </select>
     </div>
 
     <div class="field">
       <label class="schools-kicker">Access</label>
       <select v-model="accessType" class="frost-select">
-        <option value="full">Full access (all courses)</option>
-        <option value="courses">Specific courses</option>
+        <option value="full">Every course</option>
+        <option value="courses">Chosen courses only</option>
       </select>
-    </div>
-
-    <div class="field">
-      <label class="schools-kicker">Duration</label>
-      <select v-model="durationType" class="frost-select">
-        <option value="lifetime">Lifetime</option>
-        <option value="time_limited">Time-limited</option>
-      </select>
-    </div>
-
-    <div v-if="durationType === 'time_limited'" class="field">
-      <label class="schools-kicker">Duration (days)</label>
-      <input v-model="durationDays" type="number" min="1" class="frost-input" placeholder="30" />
     </div>
 
     <div v-if="accessType === 'courses'" class="field field-wide">
@@ -155,27 +196,51 @@ onMounted(fetchCourses)
     </div>
 
     <div class="field">
-      <label class="schools-kicker">Expires <span class="optional">(optional)</span></label>
-      <input v-model="expiresAt" type="date" class="frost-input" />
+      <label class="schools-kicker">For how long</label>
+      <select v-model="durationType" class="frost-select">
+        <option value="lifetime">Forever</option>
+        <option value="time_limited">A set number of days</option>
+      </select>
+    </div>
+
+    <div v-if="durationType === 'time_limited'" class="field">
+      <label class="schools-kicker">Days of access</label>
+      <input v-model="durationDays" type="number" min="1" class="frost-input" placeholder="30" />
     </div>
 
     <div class="field">
-      <label class="schools-kicker">Max uses <span class="optional">(blank = unlimited)</span></label>
+      <label class="schools-kicker">Sign-ups <span class="optional">(blank = unlimited)</span></label>
       <input v-model="maxUses" type="number" min="1" class="frost-input" placeholder="Unlimited" />
     </div>
 
+    <div class="field">
+      <label class="schools-kicker">Link expires <span class="optional">(optional)</span></label>
+      <input v-model="expiresAt" type="date" class="frost-input" />
+    </div>
+
+    <p class="hint field-wide">
+      Individuals do not get a trial — this is a complimentary grant. The link
+      stops working once it has been used
+      <strong>{{ maxUses === '' ? 'any number of' : maxUses }}</strong>
+      {{ Number(maxUses) === 1 ? 'time' : 'times' }}.
+      <template v-if="grantsRole">
+        Codes that hand out a role are always given an expiry and a use cap, even
+        if you leave those blank.
+      </template>
+    </p>
+
     <div v-if="linkUrl" class="field field-wide">
-      <InviteLinkField :url="linkUrl" label="Code created" copy-label="Copy link" />
+      <InviteLinkField :url="linkUrl" label="Access created" copy-label="Copy link" />
     </div>
 
     <div class="field-actions">
-      <button type="submit" class="btn-primary" :disabled="isCreating || !label.trim()">
+      <button type="submit" class="btn-primary" :disabled="isCreating || !personName.trim()">
         <svg v-if="!isCreating" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
         <span v-else class="spinner"></span>
-        {{ isCreating ? 'Creating…' : 'Create code' }}
+        {{ isCreating ? 'Creating…' : 'Create access' }}
       </button>
     </div>
   </form>
@@ -210,6 +275,13 @@ onMounted(fetchCourses)
 }
 
 .field-wide { grid-column: 1 / -1; }
+
+.hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  color: var(--schools-fg-3);
+}
 
 .field-actions {
   grid-column: 1 / -1;

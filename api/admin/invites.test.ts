@@ -234,13 +234,45 @@ describe('GET /api/admin/invites — ssi_admin aggregation', () => {
     expect(invite.what).toBe('Real account')
   })
 
-  it('maps an entitlement code', async () => {
+  // The label is who the grant is FOR — IndividualAccessForm writes the
+  // person's name there and their email into metadata.recipient_email. Both
+  // must reach the audit list or a named individual's grant reads as an
+  // anonymous "Full access" row that no search can find.
+  it('maps an entitlement code, naming who it is for', async () => {
     const res = makeRes()
     await handler(makeReq('GET'), res)
     const invite = res.body.invites.find((i: any) => i.id === 'ent-1')
     expect(invite.who).toBe('access')
     expect(invite.urlPath).toBe('/redeem/ENT789')
-    expect(invite.what).toBe('Full access · lifetime')
+    expect(invite.what).toBe('Promo — Full access · lifetime')
+  })
+
+  it('carries the recipient email off an individual grant, and stays null without one', async () => {
+    entitlementCodeRows = [
+      {
+        id: 'ent-person', code: 'PER111', access_type: 'courses', granted_courses: ['cym_for_eng'],
+        duration_type: 'time_limited', duration_days: 90, label: 'Angharad', max_uses: 1, use_count: 0,
+        expires_at: null, is_active: true, created_by: 'user-1', created_at: '2026-08-11T00:00:00Z',
+        metadata: { recipient_name: 'Angharad', recipient_email: 'angharad@example.com' },
+      },
+      {
+        id: 'ent-nameless', code: 'NON222', access_type: 'full', granted_courses: null,
+        duration_type: 'lifetime', duration_days: null, label: null, max_uses: null, use_count: 0,
+        expires_at: null, is_active: true, created_by: 'user-1', created_at: '2026-08-11T00:00:00Z',
+        metadata: {},
+      },
+    ]
+    const res = makeRes()
+    await handler(makeReq('GET'), res)
+
+    const person = res.body.invites.find((i: any) => i.id === 'ent-person')
+    expect(person.email).toBe('angharad@example.com')
+    expect(person.what).toBe('Angharad — Courses: cym_for_eng · 90 days')
+    expect(person.limits).toMatchObject({ maxUses: 1, useCount: 0 })
+
+    const nameless = res.body.invites.find((i: any) => i.id === 'ent-nameless')
+    expect(nameless.email).toBeNull()
+    expect(nameless.what).toBe('Full access · lifetime')
   })
 
   it('maps an email allowlist grant', async () => {

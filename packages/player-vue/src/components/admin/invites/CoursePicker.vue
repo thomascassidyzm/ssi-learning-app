@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Multi-select course picker — extracted verbatim from AdminAccess.vue's
 // direct-mode and grant-mode course pickers (identical markup, duplicated
-// twice there). One component, used by DirectCodeForm + EmailAllowlistForm.
+// twice there). One component, used by IndividualAccessForm + EmailAllowlistForm.
 import { ref, computed } from 'vue'
 
 interface CourseOption {
