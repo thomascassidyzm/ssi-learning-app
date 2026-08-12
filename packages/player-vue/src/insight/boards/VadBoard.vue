@@ -285,8 +285,14 @@ function openLearner(learnerId: string) {
           <strong>{{ summary.withData }} of the {{ summary.total }} learners</strong> in
           {{ scopeLabel }} have mic-derived data. The other
           {{ summary.total - summary.withData }} have no row at all in the VAD-fed
-          tables — not zeros, nothing — so they are never averaged into anything below.
-          Every figure on this board is taken over the {{ summary.withData }} who do.
+          tables — not zeros, nothing.
+          <template v-if="hasAnyData">
+            They are never averaged into anything below: every figure on this board is
+            taken over the {{ summary.withData }} who do have data.
+          </template>
+          <template v-else>
+            So there is nothing to average, and nothing below pretends otherwise.
+          </template>
         </p>
         <p class="vad-uptake-fine">
           {{ summary.legoSeries }} per-LEGO latency series ·
