@@ -12,7 +12,8 @@
 // Boards are lazily imported so the ECharts widget graph only loads when a board
 // is actually selected. Frostwell Courtyard canon; desktop-first.
 // ============================================================================
-import { ref, computed, defineAsyncComponent, type Component } from 'vue'
+import { ref, computed, defineAsyncComponent, watch, type Component } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const LifecycleBoard = defineAsyncComponent(() => import('@/insight/boards/LifecycleBoard.vue'))
@@ -21,9 +22,10 @@ const CourseScoreboard = defineAsyncComponent(() => import('@/insight/boards/Cou
 const ContentFrictionBoard = defineAsyncComponent(() => import('@/insight/boards/ContentFrictionBoard.vue'))
 const DifficultyTurnsBoard = defineAsyncComponent(() => import('@/insight/boards/DifficultyTurnsBoard.vue'))
 const CoverageBoard = defineAsyncComponent(() => import('@/insight/boards/CoverageBoard.vue'))
+const VadBoard = defineAsyncComponent(() => import('@/insight/boards/VadBoard.vue'))
 const HealthStrip = defineAsyncComponent(() => import('@/insight/boards/HealthStrip.vue'))
 
-type BoardId = 'lifecycle' | 'rates' | 'scoreboard' | 'friction' | 'difficulty' | 'coverage' | 'health'
+type BoardId = 'lifecycle' | 'rates' | 'scoreboard' | 'friction' | 'difficulty' | 'vad' | 'coverage' | 'health'
 
 interface BoardTab {
   id: BoardId
@@ -38,13 +40,29 @@ const boards: BoardTab[] = [
   { id: 'scoreboard', label: 'Course Scoreboard', blurb: 'Which courses are creating real learner value', component: CourseScoreboard },
   { id: 'friction', label: 'Content Friction', blurb: 'Where the curriculum stalls everyone', component: ContentFrictionBoard },
   { id: 'difficulty', label: 'Difficulty turns', blurb: "Who's struggling, who just turned", component: DifficultyTurnsBoard },
+  { id: 'vad', label: 'Voice & pause', blurb: 'VAD uptake, adaptive pause, prosody — by class', component: VadBoard },
   { id: 'coverage', label: 'Coverage', blurb: 'Each class as a learner — pace, dosage, efficiency', component: CoverageBoard },
   { id: 'health', label: 'Health strip', blurb: 'Is audio breaking, is my fix live', component: HealthStrip },
 ]
 
-const activeBoard = ref<BoardId>('lifecycle')
+// ?board=<id> deep-links a board (the Discovery page links straight at 'vad'),
+// and selecting a tab writes it back so the URL is always shareable. An unknown
+// or absent id falls back to the lead board rather than erroring.
+const route = useRoute()
+const router = useRouter()
+function boardFromQuery(): BoardId {
+  const q = route.query.board
+  const id = Array.isArray(q) ? q[0] : q
+  return boards.some(b => b.id === id) ? (id as BoardId) : 'lifecycle'
+}
+
+const activeBoard = ref<BoardId>(boardFromQuery())
 const activeComponent = computed<Component>(() => (boards.find(b => b.id === activeBoard.value) ?? boards[0]).component)
-function selectBoard(id: BoardId) { activeBoard.value = id }
+function selectBoard(id: BoardId) {
+  activeBoard.value = id
+  router.replace({ query: { ...route.query, board: id } })
+}
+watch(() => route.query.board, () => { activeBoard.value = boardFromQuery() })
 
 // The ONE refresh protocol on the board view: each board owns its own async
 // fetch (no page-level data here, and no polling to remove), so the universal
