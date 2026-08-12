@@ -13,7 +13,7 @@ import {
   latencyBins,
   median,
   type MetricRow,
-  type ProsodyRow,
+  type ProsodyAgg,
 } from './vadUptake'
 
 const metric = (learnerId: string, over: Partial<MetricRow> = {}): MetricRow => ({
@@ -27,13 +27,13 @@ const metric = (learnerId: string, over: Partial<MetricRow> = {}): MetricRow => 
   ...over,
 })
 
-const prosody = (userId: string, over: Partial<ProsodyRow> = {}): ProsodyRow => ({
-  user_id: userId,
-  peakEnergyDb: -14,
-  averageEnergyDb: -60,
-  startedDuringPrompt: false,
-  stillSpeakingAtVoice1: false,
-  peakCount: 10,
+const agg = (over: Partial<ProsodyAgg> = {}): ProsodyAgg => ({
+  events: 0,
+  peakEnergyDbSum: 0, peakEnergyDbBase: 0,
+  averageEnergyDbSum: 0, averageEnergyDbBase: 0,
+  peakCountSum: 0, peakCountBase: 0,
+  startedDuringPrompt: 0, startedDuringPromptBase: 0,
+  stillSpeakingAtVoice1: 0, stillSpeakingAtVoice1Base: 0,
   ...over,
 })
 
@@ -123,13 +123,15 @@ describe('summariseVad — uptake is the insight, not missing data', () => {
     expect(Number.isNaN(s.uptake as number)).toBe(false)
   })
 
-  it('rates the prosody flags over the events that actually carry them', () => {
-    const pros = new Map<string, ProsodyRow[]>([
-      ['L1', [
-        prosody('L1', { startedDuringPrompt: true, stillSpeakingAtVoice1: null }),
-        prosody('L1', { startedDuringPrompt: false, stillSpeakingAtVoice1: true }),
-        prosody('L1', { startedDuringPrompt: null, stillSpeakingAtVoice1: false }),
-      ]],
+  it('rates the prosody flags over the events that actually carry them, not all events', () => {
+    // 3 events; only 2 carried startedDuringPrompt and 2 carried stillSpeaking.
+    const pros = new Map<string, ProsodyAgg>([
+      ['L1', agg({
+        events: 3,
+        peakEnergyDbSum: -42, peakEnergyDbBase: 3,
+        startedDuringPrompt: 1, startedDuringPromptBase: 2,
+        stillSpeakingAtVoice1: 1, stillSpeakingAtVoice1Base: 2,
+      })],
     ])
     const s = summariseVad(['L1', 'L2'], names, new Map(), pros)
     expect(s.prosody.events).toBe(3)
@@ -137,7 +139,24 @@ describe('summariseVad — uptake is the insight, not missing data', () => {
     expect(s.prosody.startedDuringPromptRate).toBe(0.5)
     expect(s.prosody.stillSpeakingBase).toBe(2)
     expect(s.prosody.stillSpeakingRate).toBe(0.5)
+    expect(s.prosody.meanPeakEnergyDb).toBe(-14)
     expect(s.withProsody).toBe(1)
+  })
+
+  it('sums two learners\' prosody bases rather than averaging their averages', () => {
+    const pros = new Map<string, ProsodyAgg>([
+      ['L1', agg({ events: 1, peakEnergyDbSum: -10, peakEnergyDbBase: 1 })],
+      ['L2', agg({ events: 3, peakEnergyDbSum: -90, peakEnergyDbBase: 3 })],
+    ])
+    const s = summariseVad(['L1', 'L2'], names, new Map(), pros)
+    expect(s.prosody.events).toBe(4)
+    expect(s.prosody.meanPeakEnergyDb).toBe(-25)     // -100/4, not mean(-10, -30)
+  })
+
+  it('flags prosody as unavailable rather than reporting zeroes when the endpoint failed', () => {
+    const s = summariseVad(['L1'], names, new Map(), new Map(), false)
+    expect(s.prosody.available).toBe(false)
+    expect(s.prosody.meanPeakEnergyDb).toBeNull()
   })
 
   it('drops null latencies rather than reading them as zero', () => {

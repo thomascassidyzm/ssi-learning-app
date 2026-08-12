@@ -8,9 +8,15 @@
 // every demo learner from the analytics aggregate tables/views, so anything
 // built on analytics_* filters this telemetry straight back out (that is why
 // the Difficulty-turns board shows none of it). This module therefore reads
-// learner_lego_metrics and player_events DIRECTLY, exactly the way
+// learner_lego_metrics DIRECTLY, exactly the way
 // composables/admin/useAdminUserDetail.ts does for one learner. The exclusion
 // policy is almost certainly right and is untouched here.
+//
+// PROSODY IS THE ONE EXCEPTION, and not by choice: player_events is own-row
+// under RLS for everyone including admins, so a browser read of another
+// learner's cycle_prosody returns zero rows. It comes through the admin-gated
+// GET /api/admin/vad-prosody instead — the server-mediated door the RLS
+// doctrine calls for. See the ProsodyAgg comment.
 //
 // THE IDENTITY TRAP (CLAUDE.md): player_events.user_id is uuid but holds
 // learners.id, NOT the auth uid. Everything below keys prosody on learners.id.
@@ -55,17 +61,30 @@ export interface MetricRow {
 }
 
 /**
- * A cycle_prosody event, projected to scalars. The board deliberately does NOT
- * pull payload.envelope.contour (128 points per row) — only the derived scalars
- * the panel actually claims something about.
+ * One learner's cycle_prosody read, already folded server-side.
+ *
+ * WHY NOT A CLIENT READ like everything else here: player_events is own-row
+ * under RLS for EVERYONE, admins included — verified live 2026-08-12 with a
+ * real ssi_admin JWT (learner_lego_metrics returns another learner's rows;
+ * player_events returns 0 of their 321). So prosody comes through the
+ * admin-gated GET /api/admin/vad-prosody, which reads it with the service role
+ * and hands back aggregates only. Nothing per-event, no envelope contour.
+ *
+ * Every mean carries the base it was taken over, so any scope can be rolled up
+ * from these and still state its own denominator.
  */
-export interface ProsodyRow {
-  user_id: string                       // = learners.id (see identity trap above)
-  peakEnergyDb: number | null
-  averageEnergyDb: number | null
-  startedDuringPrompt: boolean | null
-  stillSpeakingAtVoice1: boolean | null
-  peakCount: number | null
+export interface ProsodyAgg {
+  events: number
+  peakEnergyDbSum: number
+  peakEnergyDbBase: number
+  averageEnergyDbSum: number
+  averageEnergyDbBase: number
+  peakCountSum: number
+  peakCountBase: number
+  startedDuringPrompt: number
+  startedDuringPromptBase: number
+  stillSpeakingAtVoice1: number
+  stillSpeakingAtVoice1Base: number
 }
 
 // ---- scope tree ------------------------------------------------------------
@@ -164,6 +183,8 @@ export interface ProsodySummary {
   startedDuringPromptBase: number
   stillSpeakingRate: number | null         // 0..1, over events that carry the flag
   stillSpeakingBase: number
+  /** false when the prosody endpoint was unreachable — the panel says so rather than showing dashes. */
+  available: boolean
 }
 
 export interface LearnerVadRow {
@@ -217,7 +238,8 @@ export function summariseVad(
   learnerIds: string[],
   names: Map<string, string>,
   metricsByLearner: Map<string, MetricRow[]>,
-  prosodyByLearner: Map<string, ProsodyRow[]>,
+  prosodyByLearner: Map<string, ProsodyAgg>,
+  prosodyAvailable = true,
 ): VadSummary {
   const mastery = EMPTY_MASTERY()
   const learnerLatencies: number[] = []
@@ -226,19 +248,19 @@ export function summariseVad(
   let withData = 0
   let withProsody = 0
 
-  const peakDb: number[] = []
-  const avgDb: number[] = []
-  const peaks: number[] = []
+  let peakSum = 0, peakBase = 0
+  let avgSum = 0, avgBase = 0
+  let peakCountSum = 0, peakCountBase = 0
   let promptStarts = 0, promptBase = 0
   let overruns = 0, overrunBase = 0
   let prosodyEvents = 0
 
   for (const learnerId of learnerIds) {
     const metrics = metricsByLearner.get(learnerId) ?? []
-    const prosody = prosodyByLearner.get(learnerId) ?? []
+    const prosody = prosodyByLearner.get(learnerId) ?? null
     if (metrics.length > 0) withData++
-    if (prosody.length > 0) withProsody++
-    if (metrics.length === 0 && prosody.length === 0) continue   // no rows at all — not a zero
+    if (prosody && prosody.events > 0) withProsody++
+    if (metrics.length === 0 && !prosody) continue   // no rows at all — not a zero
 
     legoSeries += metrics.length
     for (const m of metrics) {
@@ -249,13 +271,13 @@ export function summariseVad(
     const learnerMean = mean(latencies)
     if (learnerMean !== null) learnerLatencies.push(learnerMean)
 
-    for (const p of prosody) {
-      prosodyEvents++
-      if (typeof p.peakEnergyDb === 'number' && Number.isFinite(p.peakEnergyDb)) peakDb.push(p.peakEnergyDb)
-      if (typeof p.averageEnergyDb === 'number' && Number.isFinite(p.averageEnergyDb)) avgDb.push(p.averageEnergyDb)
-      if (typeof p.peakCount === 'number' && Number.isFinite(p.peakCount)) peaks.push(p.peakCount)
-      if (typeof p.startedDuringPrompt === 'boolean') { promptBase++; if (p.startedDuringPrompt) promptStarts++ }
-      if (typeof p.stillSpeakingAtVoice1 === 'boolean') { overrunBase++; if (p.stillSpeakingAtVoice1) overruns++ }
+    if (prosody) {
+      prosodyEvents += prosody.events
+      peakSum += prosody.peakEnergyDbSum; peakBase += prosody.peakEnergyDbBase
+      avgSum += prosody.averageEnergyDbSum; avgBase += prosody.averageEnergyDbBase
+      peakCountSum += prosody.peakCountSum; peakCountBase += prosody.peakCountBase
+      promptStarts += prosody.startedDuringPrompt; promptBase += prosody.startedDuringPromptBase
+      overruns += prosody.stillSpeakingAtVoice1; overrunBase += prosody.stillSpeakingAtVoice1Base
     }
 
     const lastSeen = metrics
@@ -270,7 +292,7 @@ export function summariseVad(
       legos: metrics.length,
       mastered: metrics.filter(m => m.mastery_state === 'mastered').length,
       meanLatency: learnerMean,
-      prosodyEvents: prosody.length,
+      prosodyEvents: prosody?.events ?? 0,
       lastSeenAt: lastSeen,
     })
   }
@@ -289,13 +311,14 @@ export function summariseVad(
     prosody: {
       events: prosodyEvents,
       learners: withProsody,
-      meanPeakEnergyDb: mean(peakDb),
-      meanAverageEnergyDb: mean(avgDb),
-      meanPeakCount: mean(peaks),
+      meanPeakEnergyDb: peakBase > 0 ? peakSum / peakBase : null,
+      meanAverageEnergyDb: avgBase > 0 ? avgSum / avgBase : null,
+      meanPeakCount: peakCountBase > 0 ? peakCountSum / peakCountBase : null,
       startedDuringPromptRate: promptBase > 0 ? promptStarts / promptBase : null,
       startedDuringPromptBase: promptBase,
       stillSpeakingRate: overrunBase > 0 ? overruns / overrunBase : null,
       stillSpeakingBase: overrunBase,
+      available: prosodyAvailable,
     },
     learners: rows,
   }
@@ -331,7 +354,9 @@ export interface VadRosterPayload {
   scopes: SchoolScope[]
   names: Map<string, string>
   metricsByLearner: Map<string, MetricRow[]>
-  prosodyByLearner: Map<string, ProsodyRow[]>
+  prosodyByLearner: Map<string, ProsodyAgg>
+  /** false when GET /api/admin/vad-prosody failed — the panel says so instead of showing dashes. */
+  prosodyAvailable: boolean
 }
 
 const CHUNK = 150
@@ -342,25 +367,13 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-/** Coerce PostgREST's JSON-arrow projections (which come back as strings). */
-function num(v: unknown): number | null {
-  if (v === null || v === undefined) return null
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : null
-}
-function bool(v: unknown): boolean | null {
-  if (v === true || v === 'true') return true
-  if (v === false || v === 'false') return false
-  return null
-}
-
 /**
  * One roster load for the whole board: schools, classes, class membership,
  * learners, then the two VAD-fed tables keyed on learners.id. Admin-gated
  * surface (rows name learners), so it inherits /admin's existing guard — no new
  * gate invented here.
  */
-export async function fetchVadRoster(client: SupabaseClient): Promise<VadRosterPayload> {
+export async function fetchVadRoster(client: SupabaseClient, authToken?: string | null): Promise<VadRosterPayload> {
   const [schoolsRes, classesRes, tagsRes] = await Promise.all([
     client.from('schools').select('id, school_name'),
     client.from('classes').select('id, class_name, school_id, course_code').eq('is_active', true),
@@ -408,29 +421,27 @@ export async function fetchVadRoster(client: SupabaseClient): Promise<VadRosterP
     }
   }
 
-  const prosodyByLearner = new Map<string, ProsodyRow[]>()
-  for (const part of chunk(learnerIds, CHUNK)) {
-    // Scalar projections only — the 128-point envelope contour stays on the server.
-    const { data, error } = await client
-      .from('player_events')
-      .select('user_id, payload->>peakEnergyDb, payload->>averageEnergyDb, payload->>startedDuringPrompt, payload->>stillSpeakingAtVoice1, payload->envelope->>peakCount')
-      .eq('event_type', 'cycle_prosody')
-      .in('user_id', part)
-    if (error) throw error
-    for (const raw of (data ?? []) as Record<string, unknown>[]) {
-      const row: ProsodyRow = {
-        user_id: String(raw.user_id),
-        peakEnergyDb: num(raw.peakEnergyDb),
-        averageEnergyDb: num(raw.averageEnergyDb),
-        startedDuringPrompt: bool(raw.startedDuringPrompt),
-        stillSpeakingAtVoice1: bool(raw.stillSpeakingAtVoice1),
-        peakCount: num(raw.peakCount),
+  // Prosody comes from the admin endpoint, not the browser: player_events is
+  // own-row under RLS for admins too, so a client read returns nothing. A
+  // failure here degrades the panel to a stated gap, never to silent dashes.
+  const prosodyByLearner = new Map<string, ProsodyAgg>()
+  let prosodyAvailable = false
+  try {
+    const res = await fetch('/api/admin/vad-prosody', {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    })
+    if (res.ok) {
+      const body = (await res.json()) as { byLearner?: Record<string, ProsodyAgg> }
+      for (const [learnerId, agg] of Object.entries(body.byLearner ?? {})) {
+        prosodyByLearner.set(learnerId, agg)
       }
-      const list = prosodyByLearner.get(row.user_id) ?? []
-      list.push(row)
-      prosodyByLearner.set(row.user_id, list)
+      prosodyAvailable = true
+    } else {
+      console.warn('[vadUptake] prosody endpoint returned', res.status)
     }
+  } catch (e) {
+    console.warn('[vadUptake] prosody endpoint unreachable', e)
   }
 
-  return { scopes, names, metricsByLearner, prosodyByLearner }
+  return { scopes, names, metricsByLearner, prosodyByLearner, prosodyAvailable }
 }

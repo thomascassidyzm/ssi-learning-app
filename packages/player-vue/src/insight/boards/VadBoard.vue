@@ -19,6 +19,11 @@
 // This board reads learner_lego_metrics and player_events directly, the way the
 // per-learner admin page does. The exclusion policy is untouched.
 //
+// PROSODY COMES FROM THE SERVER, everything else from the browser: player_events
+// is own-row under RLS for admins too, so a client read of another learner's
+// cycle_prosody returns nothing. GET /api/admin/vad-prosody is the
+// server-mediated door. If it fails, the panel SAYS it failed.
+//
 // ADMIN-ONLY surface: the learner table names learners (PII). It lives only
 // under the already admin-gated /admin/stats route — no new route, no new gate.
 // ============================================================================
@@ -36,7 +41,7 @@ import {
 } from '../data/vadUptake'
 import type { InsightSpec, ResolvedInsight, RankedBarData, DistributionData, TableData } from '../spec'
 
-const { getClient } = useAdminClient()
+const { getClient, getAuthToken } = useAdminClient()
 const router = useRouter()
 
 const isLoading = ref(true)
@@ -48,7 +53,7 @@ const selectedClassId = ref<string | null>(null)   // null = whole school
 // ---- load ------------------------------------------------------------------
 onMounted(async () => {
   try {
-    const payload = await fetchVadRoster(getClient())
+    const payload = await fetchVadRoster(getClient(), await getAuthToken())
     roster.value = payload
     // Open on the school with the MOST learners carrying VAD data, so the board
     // lands populated rather than on whichever school sorts first. Flagged as a
@@ -313,13 +318,18 @@ function openLearner(learnerId: string) {
         <section class="vad-panel">
           <header class="vad-panel-head">
             <h3 class="vad-panel-title">How they sound</h3>
-            <p class="vad-panel-sub">
+            <p v-if="summary.prosody.available" class="vad-panel-sub">
               Straight off the {{ summary.prosody.events }} <code>cycle_prosody</code>
               events from {{ summary.prosody.learners }} learner{{ summary.prosody.learners === 1 ? '' : 's' }}.
               Only what the envelope payload actually carries — nothing inferred.
             </p>
+            <p v-else class="vad-panel-sub vad-panel-gap">
+              Prosody is unavailable right now — <code>/api/admin/vad-prosody</code> didn't
+              answer, and <code>player_events</code> is own-row under RLS so the browser
+              can't read it directly. This is a stated gap, not a set of zeroes.
+            </p>
           </header>
-          <dl class="vad-metrics">
+          <dl v-if="summary.prosody.available" class="vad-metrics">
             <div class="vad-metric">
               <dt>Peak loudness</dt>
               <dd>{{ fmt1(summary.prosody.meanPeakEnergyDb) }} <span class="u">dB</span></dd>
@@ -589,6 +599,7 @@ function openLearner(learnerId: string) {
   margin: 0;
   max-width: 68ch;
 }
+.vad-panel-gap { color: rgba(var(--tone-red), 1); }
 .vad-panel-sub code {
   font-family: var(--font-mono);
   background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
