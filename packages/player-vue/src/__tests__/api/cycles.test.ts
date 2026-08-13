@@ -148,6 +148,54 @@ describe('GET /api/courses/:code/cycles', () => {
     expect(body.next_lego_id).toBeNull()
   })
 
+  // Tom, 2026-08-13: the intro's authored mapping is "the breakdown that feeds
+  // into the LEGO TILE ASSEMBLER function". It never reached the player because
+  // this endpoint did not carry it.
+  describe('the intro\'s authored word mapping', () => {
+    const withMapping = (known_gloss_segments: unknown) => {
+      rpcResponse = {
+        data: {
+          course: { course_code: 'test_course', version: 4 },
+          rounds: [{ round_index: 1, seed_number: 1, lego_index: 1, lego_id: 'S0001L01' }],
+          legos: [makeLegoRow(1, { target_text: 'hitz bat', known_gloss_segments })],
+          phrases: [],
+        },
+        error: null,
+      }
+      tableResponses.courses = {
+        data: { target_lang: 'eus', pricing_tier: 'free', is_community: false },
+        error: null,
+      }
+    }
+
+    it('travels on the intro and debut cycles', async () => {
+      withMapping([{ span: 1, known: 'word' }, { span: 1, known: 'a' }])
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
+      const cycles = (res._body as any).cycles
+      expect(cycles.map((c: any) => c.gloss_segments)).toEqual([
+        [{ span: 1, known: 'word' }, { span: 1, known: 'a' }],
+        [{ span: 1, known: 'word' }, { span: 1, known: 'a' }],
+      ])
+    })
+
+    it('is omitted when the stored mapping no longer covers the target text', async () => {
+      // Authored against an older wording — rendering it would put the wrong
+      // known chunk under the right target word.
+      withMapping([{ span: 5, known: 'a word' }])
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
+      expect((res._body as any).cycles.every((c: any) => c.gloss_segments === undefined)).toBe(true)
+    })
+
+    it('is omitted when nobody has mapped the row', async () => {
+      withMapping(null)
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
+      expect((res._body as any).cycles.every((c: any) => c.gloss_segments === undefined)).toBe(true)
+    })
+  })
+
   it('denies an unauthenticated caller requesting cycles beyond the free-preview window on a premium course', async () => {
     setupRpcFixture([25])
     tableResponses.courses = {

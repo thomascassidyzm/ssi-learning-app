@@ -73,6 +73,12 @@ export interface BackendCycle {
   target_text: string
   target_text_native?: string
   components?: Array<{ known: string; target: string }>
+  /** The intro's AUTHORED word mapping: literal known-language chunks in the
+   *  TARGET's own word order, each covering `span` consecutive target words.
+   *  Emitted by the cycles endpoint on intro/debut cycles when a human has
+   *  segmented the row in Popty. PREFERRED over `components` when present —
+   *  componentisation stays the fallback (Tom, 2026-08-13). */
+  gloss_segments?: Array<{ span: number; known: string }>
   decomposition?: Array<{
     legoId: string | null
     target: string

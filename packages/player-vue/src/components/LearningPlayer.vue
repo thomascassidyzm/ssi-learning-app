@@ -82,6 +82,7 @@ import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -2568,6 +2569,25 @@ const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
         ? (cycle.target?.textNative || cycle.target?.text || '')
         : (cycle.target?.text || '')
       if (targetText) {
+        // Strategy 0 (authoritative): the AUTHORED word mapping (Tom,
+        // 2026-08-13). One tile per target word in the target's own order,
+        // each chunk's literal known text centred under the words it covers —
+        // "the literal builds in the known language that 'map' to the correct
+        // order in the target language". This is a re-SOURCING, not a special
+        // case: where nobody has mapped the row, the single whole-LEGO tile
+        // below is unchanged and componentisation still glosses it downstream.
+        const authored = tilesFromGlossSegments(
+          targetText,
+          (cycle as any).glossSegments,
+          ({ text, index, glossGroup, known }) => ({
+            id: `${legoId}_gs${index}`,
+            targetText: text,
+            glossGroup,
+            isSalient: true,
+            ...(known ? { knownText: known } : {}),
+          }),
+        )
+        if (authored) return authored
         return [{
           id: legoId, targetText, isSalient: true,
           ...(cycleKnownText ? { knownText: cycleKnownText } : {}),
@@ -2920,6 +2940,24 @@ function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
   const t = (cycle?.type || '').toLowerCase()
   if (t !== 'intro' && t !== 'debut') return tiles
   if (!tiles || tiles.length === 0) return tiles
+  // The AUTHORED mapping wins wherever one exists (Tom, 2026-08-13). It only
+  // applies when the tiling in hand is one-tile-per-target-word — the columns
+  // the author actually segmented against. A romanised or device-segmented
+  // tiling with a different count is not those columns, so it falls through to
+  // the claim-match below rather than pairing chunks onto the wrong tiles.
+  const authored = (cycle as any)?.glossSegments as GlossSegment[] | undefined
+  if (Array.isArray(authored) && authored.length > 0
+      && authored.reduce((n, s) => n + (s?.span || 0), 0) === tiles.length) {
+    const out = tiles.map((x) => ({ ...x }))
+    let col = 0
+    authored.forEach((seg, gi) => {
+      for (let k = 0; k < seg.span; k++, col++) {
+        out[col].glossGroup = gi
+        if (k === 0 && seg.known) out[col].knownText = seg.known
+      }
+    })
+    return out
+  }
   const norm = (s: string) =>
     (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
   const knownWhole = cycle?.known?.text || ''

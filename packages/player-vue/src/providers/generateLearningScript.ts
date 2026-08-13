@@ -28,6 +28,7 @@ import {
 import type { ReviewPullFilter, UseWordCap, UseWordCapTier } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import { repeatPhraseCycles } from './repeatPhraseCycles'
+import { authoredGlossSegments } from '../utils/authoredGlossSegments'
 
 export interface ScriptItem {
   uuid: string
@@ -73,6 +74,11 @@ export interface ScriptItem {
   components?: Array<{ known: string; target: string }>
   /** Native script variant of components */
   componentsNative?: Array<{ known: string; target: string }>
+  /** The intro's AUTHORED word mapping — literal known chunks in the TARGET's
+   *  own word order, each covering `span` consecutive target words. Preferred
+   *  over `components` by the tile assembler; componentisation stays the
+   *  fallback (Tom, 2026-08-13). */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
@@ -475,7 +481,7 @@ export async function generateLearningScript(
   const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs, courseRowResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_gloss_segments, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
@@ -1323,6 +1329,10 @@ export async function generateLearningScript(
       const usedPhrasesThisRound = new Set<string>()
       const legoComponents = componentsByLego.get(phraseKey)
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
+      // The authored mapping, when a human has segmented this LEGO and the
+      // segmentation still covers the target text. Preferred by the tile
+      // assembler; componentisation above stays the fallback.
+      const legoGlossSegments = authoredGlossSegments(lego)
 
       // Per-ITEM audio invariant (see the allLegos comment above). The intro
       // plays prompt → target1 → target2 with no pause, so it needs a prompt
@@ -1360,6 +1370,7 @@ export async function generateLearningScript(
           isNew: true,
           ...(legoComponents ? { components: legoComponents } : {}),
           ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+          ...(legoGlossSegments ? { glossSegments: legoGlossSegments } : {}),
         })
       }
 
@@ -1382,6 +1393,7 @@ export async function generateLearningScript(
           isNew: true,
           ...(legoComponents ? { components: legoComponents } : {}),
           ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+          ...(legoGlossSegments ? { glossSegments: legoGlossSegments } : {}),
         })
       }
       // The debut IS the bare LEGO — claim it so no later phase replays it. Some

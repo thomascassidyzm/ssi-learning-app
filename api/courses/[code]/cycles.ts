@@ -113,6 +113,11 @@ interface CourseLegoRow {
   target_text: string | null
   target_text_roman: string | null
   components: Array<{ known: string; target: string }> | null
+  /** The human's own segmentation of the known gloss against the TARGET's word
+   *  order — authored in Popty's mapping editor, stored per LEGO. Each chunk
+   *  covers `span` consecutive target words; the spans sum to the target's word
+   *  count. Projected by 20260813_course_cycles_window_gloss_segments.sql. */
+  known_gloss_segments: Array<{ span: number; known: string }> | null
   is_new: boolean | null
   known_audio_id: string | null
   target1_audio_id: string | null
@@ -177,6 +182,47 @@ function parseLegoId(legoId: string): { seedNumber: number; legoIndex: number } 
     seedNumber: parseInt(m[1], 10),
     legoIndex: parseInt(m[2], 10),
   }
+}
+
+/**
+ * The intro's AUTHORED word mapping, ready for the tile assembler — PURE.
+ *
+ * Tom, 2026-08-13: the mapping is "the breakdown that feeds into the LEGO TILE
+ * ASSEMBLER function... to show the literal builds in the known language that
+ * 'map' to the correct order in the target language". Each chunk covers `span`
+ * consecutive TARGET words and carries the literal known-language text that
+ * sits under them. Target order is never touched — the known side reading wrong
+ * when the orders differ is the whole point (`hitz bat` reads `word` `a`).
+ *
+ * Returned only when the segmentation still covers the target text exactly. A
+ * mapping authored against an older wording no longer describes this sentence,
+ * and rendering it would put the wrong English under the right Basque — so a
+ * stale mapping is dropped and componentisation stays the fallback, which is
+ * exactly what it did before anyone authored anything.
+ *
+ * Native vs roman: the spans are counted against the NATIVE target words, the
+ * side the author segmented in Popty. Callers pairing this onto a romanised
+ * tiling must check the word counts agree.
+ */
+export function authoredGlossSegments(
+  lego: { target_text: string | null; known_gloss_segments: unknown },
+): Array<{ span: number; known: string }> | undefined {
+  const stored = lego.known_gloss_segments
+  if (!Array.isArray(stored) || stored.length === 0) return undefined
+  const wordCount = String(lego.target_text ?? '').trim().split(/\s+/).filter(Boolean).length
+  if (wordCount < 1) return undefined
+  let total = 0
+  const out: Array<{ span: number; known: string }> = []
+  for (const seg of stored) {
+    if (!seg || typeof seg !== 'object') return undefined
+    const span = (seg as { span?: unknown }).span
+    const known = (seg as { known?: unknown }).known
+    if (!Number.isInteger(span) || (span as number) < 1) return undefined
+    if (typeof known !== 'string') return undefined
+    total += span as number
+    out.push({ span: span as number, known })
+  }
+  return total === wordCount ? out : undefined
 }
 
 /**
@@ -706,6 +752,11 @@ export function buildLegoCycles(
     Array.isArray(lego.components) && lego.components.length > 0
       ? lego.components.map((c) => ({ known: c?.known ?? '', target: c?.target ?? '' }))
       : undefined
+  // The authored mapping, when there is one. It does not replace `components`
+  // on the wire — the client prefers it and falls back to componentisation, so
+  // both have to travel (Tom: "componentisation as fallback, mapping as the new
+  // primary source").
+  const glossSegments = authoredGlossSegments(lego)
 
   // INTRO — the "reveal" cycle. The prompt is the presentation narration
   // ("The Italian for: 'to speak', as in — 'I want to speak Italian', is:")
@@ -732,6 +783,7 @@ export function buildLegoCycles(
       ? { target_text_native: legoTargets.target_text_native }
       : {}),
     ...(components ? { components } : {}),
+    ...(glossSegments ? { gloss_segments: glossSegments } : {}),
     audio: buildAudio({
       knownAudioId: lego.known_audio_id,
       target1AudioId: lego.target1_audio_id,
@@ -761,6 +813,7 @@ export function buildLegoCycles(
       ? { target_text_native: legoTargets.target_text_native }
       : {}),
     ...(components ? { components } : {}),
+    ...(glossSegments ? { gloss_segments: glossSegments } : {}),
     audio: buildAudio({
       knownAudioId: lego.known_audio_id,
       target1AudioId: lego.target1_audio_id,
