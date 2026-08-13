@@ -17,8 +17,9 @@
  * shows one tile with the whole known sentence under it. What was missing is a
  * better SOURCE. So this is a re-sourcing, not a special case:
  *
- *   - authored mapping WHEREVER one exists — the primary feed;
- *   - componentisation everywhere else — unchanged, unbypassed, the fallback.
+ *   - authored mapping WHEREVER one exists on an M-LEGO — the primary feed;
+ *   - componentisation everywhere else — unchanged, unbypassed, the fallback;
+ *   - an A-LEGO never splits: one word on at least one side, one tile.
  *
  * (Tom: "work with the existing mechanism, not around it or in place of it.")
  */
@@ -46,9 +47,15 @@ export function targetWordsOf(targetText: string | null | undefined): string[] {
  * componentisation, which is exactly what it did before anyone authored it.
  */
 export function authoredGlossSegments(lego: {
+  type?: string | null
   target_text?: string | null
   known_gloss_segments?: unknown
 }): GlossSegment[] | undefined {
+  // An A-LEGO is one word in at least one language, so it cannot be split and
+  // mapped (Tom, 2026-08-13). It renders as a single unsplit tile — correct
+  // behaviour, not a gap. Refused here too so a row authored before that rule
+  // landed can never reach a learner as pieces.
+  if (lego?.type !== 'M') return undefined
   const stored = lego?.known_gloss_segments
   if (!Array.isArray(stored) || stored.length === 0) return undefined
   const wordCount = targetWordsOf(lego.target_text).length

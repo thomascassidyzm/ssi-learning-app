@@ -157,7 +157,7 @@ describe('GET /api/courses/:code/cycles', () => {
         data: {
           course: { course_code: 'test_course', version: 4 },
           rounds: [{ round_index: 1, seed_number: 1, lego_index: 1, lego_id: 'S0001L01' }],
-          legos: [makeLegoRow(1, { target_text: 'hitz bat', known_gloss_segments })],
+          legos: [makeLegoRow(1, { type: 'M', target_text: 'hitz bat', known_gloss_segments })],
           phrases: [],
         },
         error: null,
@@ -183,6 +183,19 @@ describe('GET /api/courses/:code/cycles', () => {
       // Authored against an older wording — rendering it would put the wrong
       // known chunk under the right target word.
       withMapping([{ span: 5, known: 'a word' }])
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
+      expect((res._body as any).cycles.every((c: any) => c.gloss_segments === undefined)).toBe(true)
+    })
+
+    // An A-LEGO cannot be split, so it never travels with one (Tom, 2026-08-13).
+    it('is omitted for an A-LEGO even when one is stored', async () => {
+      withMapping([{ span: 1, known: 'word' }, { span: 1, known: 'a' }])
+      ;(rpcResponse.data as any).legos = [makeLegoRow(1, {
+        type: 'A',
+        target_text: 'hitz bat',
+        known_gloss_segments: [{ span: 1, known: 'word' }, { span: 1, known: 'a' }],
+      })]
       const res = makeRes()
       await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
       expect((res._body as any).cycles.every((c: any) => c.gloss_segments === undefined)).toBe(true)

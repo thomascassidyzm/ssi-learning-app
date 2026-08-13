@@ -205,8 +205,14 @@ function parseLegoId(legoId: string): { seedNumber: number; legoIndex: number } 
  * tiling must check the word counts agree.
  */
 export function authoredGlossSegments(
-  lego: { target_text: string | null; known_gloss_segments: unknown },
+  lego: { type?: string | null; target_text: string | null; known_gloss_segments: unknown },
 ): Array<{ span: number; known: string }> | undefined {
+  // An A-LEGO is one word in at least one language, so it cannot be split and
+  // mapped (Tom, 2026-08-13) — it renders as a single unsplit tile, and that is
+  // correct, not a gap. Popty no longer lets one be authored; this refuses any
+  // that were authored before that rule landed, so no learner sees an A-LEGO
+  // cut into pieces.
+  if (lego?.type !== 'M') return undefined
   const stored = lego.known_gloss_segments
   if (!Array.isArray(stored) || stored.length === 0) return undefined
   const wordCount = String(lego.target_text ?? '').trim().split(/\s+/).filter(Boolean).length

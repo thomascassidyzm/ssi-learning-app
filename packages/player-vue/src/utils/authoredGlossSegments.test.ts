@@ -6,8 +6,8 @@ import {
 } from './authoredGlossSegments'
 
 // The two rows Tom named on 2026-08-13.
-const HITZ_BAT = { target_text: 'hitz bat' }
-const GOGORATZEN = { target_text: 'gogoratzen saiatzen ari naiz' }
+const HITZ_BAT = { type: 'M', target_text: 'hitz bat' }
+const GOGORATZEN = { type: 'M', target_text: 'gogoratzen saiatzen ari naiz' }
 
 const mk = ({ text, index, glossGroup, known }: {
   text: string; index: number; glossGroup: number; known: string
@@ -51,6 +51,20 @@ describe('authoredGlossSegments — reading a stored mapping', () => {
     for (const known_gloss_segments of bad) {
       expect(authoredGlossSegments({ ...HITZ_BAT, known_gloss_segments })).toBeUndefined()
     }
+  })
+
+  // Tom, 2026-08-13: an A-LEGO is one word in at least one language, so it
+  // cannot be split. It renders as a single unsplit tile — correct, not a gap.
+  it('refuses an A-LEGO even when one was authored before the rule landed', () => {
+    expect(authoredGlossSegments({
+      type: 'A',
+      target_text: 'hitz bat',
+      known_gloss_segments: [{ span: 1, known: 'word' }, { span: 1, known: 'a' }],
+    })).toBeUndefined()
+    expect(authoredGlossSegments({
+      target_text: 'hitz bat',
+      known_gloss_segments: [{ span: 1, known: 'word' }, { span: 1, known: 'a' }],
+    })).toBeUndefined()
   })
 
   it('is undefined when nobody has mapped the row — componentisation takes over', () => {
