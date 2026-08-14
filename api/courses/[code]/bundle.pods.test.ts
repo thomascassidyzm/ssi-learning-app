@@ -9,6 +9,13 @@
  * `pod-0-gated-<date>` / `pod-0-retired-<date>` rows, interleaved in arbitrary
  * order because `pod_order` is NULL on every pod row and is coerced to 0.
  *
+ * Severity, stated honestly: LATENT, not an active incident. `BundlePod` is a type
+ * with no runtime consumer — nothing outside tests reads `bundle.pods` today, and
+ * `iterateBundleAudio` (named in the comment at bundle.ts:408) does not exist yet.
+ * The staged pod was serialised into the response and read by nobody. It becomes a
+ * real incident the day offline listening is wired up, which is why the filter goes
+ * in now and why this test exists to hold it.
+ *
  * This is also the switchover contract: `pod-0` is live, `pod-0-*` is not. If the
  * filter is ever dropped, promoting a staged canon stops being safe.
  */
