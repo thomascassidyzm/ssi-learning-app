@@ -66,6 +66,18 @@ describe('getLanguageName', () => {
     expect(getLanguageName('nep')).toBe('Nepaleg')
   })
 
+  it('calls a language what the people building it call it, not what ICU does', async () => {
+    // ICU says "Pennsylvania German", "Hakka Chinese", "Min Nan Chinese". The
+    // course teams — and the course-builder dashboard, which mirrors these
+    // names — say Pennsylvania Dutch, Hakka, Taiwanese Hokkien. A learner and
+    // a course-builder must not read two different words for one language.
+    await setLocale('eng')
+    stubDisplayNames((code) => ({ pdc: 'Pennsylvania German', hak: 'Hakka Chinese', nan: 'Min Nan Chinese' })[code] || code)
+    expect(getLanguageName('pdc')).toBe('Pennsylvania Dutch')
+    expect(getLanguageName('hak')).toBe('Hakka')
+    expect(getLanguageName('nan')).toBe('Taiwanese Hokkien')
+  })
+
   it('returns an empty string for a missing code rather than throwing', () => {
     expect(getLanguageName(null)).toBe('')
     expect(getLanguageName(undefined)).toBe('')
