@@ -383,10 +383,23 @@ export default async function handler(
         )
         .eq('course_code', code)
         .order('seed_number', { ascending: true }),
+      // Only learner-facing pods. The player reads the exact id
+      // `${course}:pod-0` (useListeningPods.ts, listeningMetaCache.ts,
+      // usePodLapScheduler.ts, generateLearningScript.ts, usePodStage0.ts), so a
+      // pod parked on any OTHER `pod-0-*` slug is staging or archive and is
+      // invisible to it — `pod-0-unrecorded` (the working copy that carries
+      // ~110 untranslated, unrecorded sentences mid-rewrite; see
+      // tools/pods/clone-pod.cjs in the dashboard repo) and
+      // `pod-0-retired-<date>` / `pod-0-gated-<date>` (superseded, kept for
+      // rollback). Without this filter the offline bundle shipped all of them:
+      // pod_order is NULL on every row today and is coerced to 0 below, so they
+      // arrived interleaved with the real pod in arbitrary order. `pod-1` and
+      // the choice pods (`music`, `travel-situations`) are deliberately kept.
       supabase
         .from('listening_pods')
         .select('id, pod_order, title')
         .eq('course_code', code)
+        .not('slug', 'like', 'pod-0-%')
         .order('pod_order', { ascending: true, nullsFirst: true }),
       // Bookends live in course_audio (role-based), not on listening_pods.
       // One pair per course today — shared across all that course's pods.
