@@ -172,6 +172,10 @@ async function main() {
 
   const resumeAt = Date.now()
   await page.reload({ waitUntil: 'domcontentloaded' })
+  // The shell has to finish booting offline before the central control is
+  // live — clicking into a half-mounted player is a no-op, and the probe then
+  // reports "no audio" for a reason that has nothing to do with the fix.
+  await page.waitForTimeout(12_000)
   await startPlayback(page)
 
   // ── Phase 3: watch the belt for the whole offline window. ──────────────
