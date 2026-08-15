@@ -979,14 +979,14 @@ COMPOSABLES:
   useOfflineInfPlayNotice:
     purpose: "Tell the learner, once, WHY the material started coming round again"
     source: "packages/player-vue/src/composables/useOfflineInfPlayNotice.ts"
-    ruling: "Tom 2026-08-15, after testing the cache-first change: 'we need a message to let the learner know … you're offline so we're just going to give you a chance to practice what you've already covered. You'll get new items when you next go online'"
+    ruling: "Tom 2026-08-15, after testing the cache-first change: 'we need a message to let the learner know'. Shipped wording is the CAUSE-NEUTRAL one he then chose: 'We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.' Cause-neutral because the notice fires for airplane mode AND for a connection too weak to complete, which the learner cannot tell apart — asserting 'you're offline' at someone on full bars would be a lie. No heading: the message and nothing more."
     trigger: "markOfflineInfPlayEngaged(offlinePlaybackActive()) is called from LearningPlayer's appendCachedLoopForOffline() at the single point where offline recycling actually engages — so it rides exactly the signal the playback path rides (toggle OR browser-offline OR observed stall, config/networkGate.ts), never a second connectivity check. Online recycles raise nothing."
     behaviour:
       - "NEVER pauses or gates audio — playback continues underneath (the whole point of 'play what you have')."
       - "Dismissible, centred modal reusing the paywall shell (.paywall-overlay/.paywall-card); centred, so no safe-area inset applies."
       - "At most ONCE per session: dismissed stays dismissed, including a recover-then-drop-again cycle. No nagging."
-    copy: "i18n keys player.offlinePracticeTitle / offlinePracticeBody / offlinePracticeBodyNew / offlinePracticeAck — eng.json only; every other locale falls back to English via t(). British 'practise'; no parentheses."
-    second_surface: "ProgressModal.vue renders the same two sentences (same keys) in the belt strip when isInfplay && isOffline, so a learner who dismissed the dialog can still find the explanation."
+    copy: "i18n keys player.offlinePracticeBody / offlinePracticeAck. MACHINE-TRANSLATED into all 21 shipped UI locales on Tom's explicit approval 2026-08-15 (ara aze ben cym deu fra gle guj hin ita jpn kor lit pan por sin spa tam urd yor zho), each matching that locale's existing UI register — fra vous, deu/spa/por/ita/cym/lit informal, South-Asian polite. English via t() fallback remains for any language the app does not yet localise. British 'practise'; no parentheses in any language; a test asserts every locale file carries the keys and none is a copy of the English."
+    second_surface: "ProgressModal.vue renders the same sentence (same key) in the belt strip when isInfplay && isOffline, so a learner who dismissed the dialog can still find the explanation."
 
   useLegoNetwork:
     purpose: "(REMOVED) was: D3 force simulation for LEGO network (legacy)"

@@ -42,9 +42,7 @@
     "tapToStart": "Tap to start",
     "pause": "Pause",
     "resume": "Resume",
-    "offlinePracticeTitle": "You're offline",
-    "offlinePracticeBody": "You're offline, so we're just going to give you a chance to practise what you've already covered.",
-    "offlinePracticeBodyNew": "You'll get new items when you next go online.",
+    "offlinePracticeBody": "We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.",
     "offlinePracticeAck": "Got it"
   },
   "home": {

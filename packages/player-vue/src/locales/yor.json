@@ -22,7 +22,9 @@
     "seeAndHear": "Wò kí o sì gbọ́",
     "tapToStart": "Fọwọ́ kàn láti bẹ̀rẹ̀",
     "pause": "Dáwọ́",
-    "resume": "Tẹ̀síwájú"
+    "resume": "Tẹ̀síwájú",
+    "offlinePracticeBody": "A ò lè rí àwọn ohun tuntun gbà báyìí, nítorí náà èyí ni àǹfààní láti ṣe àdáṣe ohun tí o ti kọ́ tẹ́lẹ̀ — àwọn ohun tuntun yóò dé bí a bá ti lè rí wọn gbà.",
+    "offlinePracticeAck": "Ó yé mi"
   },
   "home": {
     "goodMorning": "Ẹ kú àárọ̀",

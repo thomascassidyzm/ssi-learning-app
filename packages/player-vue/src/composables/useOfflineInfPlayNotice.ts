@@ -2,10 +2,16 @@
  * The word to the learner when offline infinite play engages.
  *
  * Tom, 2026-08-15, after testing the cache-first playback change on his phone:
+ * "Basically worked but we need a message to let the learner know". The shipped
+ * wording is the cause-NEUTRAL one he then chose:
  *
- *   "Basically worked but we need a message to let the learner know … you're
- *    offline so we're just going to give you a chance to practice what you've
- *    already covered. You'll get new items when you next go online"
+ *   "We can't reach new items right now, so here's a chance to practise what
+ *    you've already covered — new items will come through as soon as we can
+ *    reach them."
+ *
+ * Cause-neutral is the honest form: this fires for airplane mode AND for a
+ * connection too weak to complete anything, and the learner cannot tell those
+ * apart. Telling someone with full bars that they are "offline" would be a lie.
  *
  * The rule this serves is #595's: play what you have, never gate the learner.
  * So this is a NOTICE, not a gate — it never pauses audio, it is dismissible,

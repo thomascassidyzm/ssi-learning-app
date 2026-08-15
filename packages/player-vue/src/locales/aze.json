@@ -22,7 +22,9 @@
     "seeAndHear": "Gör və eşit",
     "tapToStart": "Başlamaq üçün toxunun",
     "pause": "Dayandır",
-    "resume": "Davam et"
+    "resume": "Davam et",
+    "offlinePracticeBody": "Hazırda yeni materiallara çata bilmirik, ona görə də bu, artıq keçdiklərinizi məşq etmək üçün gözəl fürsətdir — yeni materiallar onlara çata bildiyimiz kimi gələcək.",
+    "offlinePracticeAck": "Anladım"
   },
   "home": {
     "goodMorning": "Sabahınız xeyir",

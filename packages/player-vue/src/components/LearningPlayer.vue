@@ -15048,17 +15048,23 @@ defineExpose({
        underneath, which is the whole point of "play what you have". Reuses the
        paywall shell (centred modal, so no safe-area inset needed). -->
   <Transition name="fade">
-    <div v-if="offlineInfPlayNoticeVisible" class="paywall-overlay" @click.self="dismissOfflineInfPlayNotice">
+    <div
+      v-if="offlineInfPlayNoticeVisible"
+      class="paywall-overlay"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.')"
+      @click.self="dismissOfflineInfPlayNotice"
+    >
       <div class="paywall-card">
-        <h2 class="paywall-title">{{ t('player.offlinePracticeTitle', "You're offline") }}</h2>
+        <!-- No heading: Tom's ruling is the message and nothing more. Inventing
+             a title would be the app being cleverer than the copy it was given. -->
         <p class="paywall-subtitle">
-          {{ t('player.offlinePracticeBody', "You're offline, so we're just going to give you a chance to practise what you've already covered.") }}
-          <br />
-          {{ t('player.offlinePracticeBodyNew', "You'll get new items when you next go online.") }}
+          {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
         </p>
         <div class="paywall-actions">
           <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
-            {{ t('player.offlinePracticeAck', 'Got it') }}
+            {{ t('player.offlinePracticeAck', 'Got it') }}<!-- acknowledge, never a gate -->
           </button>
         </div>
       </div>

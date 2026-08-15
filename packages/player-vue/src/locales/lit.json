@@ -22,7 +22,9 @@
     "seeAndHear": "Žiūrėk ir klausyk",
     "tapToStart": "Bakstelėk, kad pradėtum",
     "pause": "Pauzė",
-    "resume": "Tęsti"
+    "resume": "Tęsti",
+    "offlinePracticeBody": "Šiuo metu negalime pasiekti naujų dalykų, tad tai proga pasikartoti tai, ką jau išmokai — nauji dalykai atkeliaus vos tik juos pasieksime.",
+    "offlinePracticeAck": "Supratau"
   },
   "home": {
     "goodMorning": "Labas rytas",

@@ -348,10 +348,9 @@ onUnmounted(() => {
             <!-- The offline infinite-play explanation, in Tom's words. The
                  one-shot dialog says this when offline play engages; this is
                  where a learner who dismissed it (or opened the modal later)
-                 finds it again. Same two sentences, same keys. -->
+                 finds it again. Same sentence, same key. -->
             <p v-if="isInfplay && isOffline" class="belt-strip-offline-note">
-              {{ t('player.offlinePracticeBody', "You're offline, so we're just going to give you a chance to practise what you've already covered.") }}
-              {{ t('player.offlinePracticeBodyNew', "You'll get new items when you next go online.") }}
+              {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
             </p>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
