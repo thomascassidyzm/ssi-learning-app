@@ -17,6 +17,7 @@ import { PodStateStore } from '@ssi/core'
 // the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
 import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
+import { isOfflineish } from '../config/networkGate'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -258,8 +259,10 @@ const props = defineProps({
     default: false
   },
   /** The learner's mode — 'easy' or 'fast'. Easy opens every listening
-   *  surface at EASY_LISTENING_SPEED (Tom, T-13, 2026-08-07); the speed row
-   *  is still theirs to change for the session. */
+   *  surface at EASY_LISTENING_SPEED, which since 2026-08-10 is 1.0 — Tom:
+   *  "return the default listening speed settings to 1.0x on EASY". Both modes
+   *  therefore open at 1.0; the speed row is still theirs to change for the
+   *  session, and reinstating an Easy-specific opening pace is one constant. */
   learningMode: {
     type: String,
     default: 'fast'
@@ -1002,7 +1005,9 @@ const loadSeeds = async () => {
     // opens instantly instead of waiting on a doomed fetch.
     const seedsFromCache = async () => (await getCachedListeningMeta(props.courseCode))?.coreSeeds ?? null
     let data = null
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // Cache-first whenever the network is offline OR observed stalling —
+    // not only when the browser admits it. (Tom 2026-08-15.)
+    if (isOfflineish()) {
       data = await seedsFromCache()
     }
     if (!data) {
@@ -1055,7 +1060,7 @@ const loadSeeds = async () => {
     console.error('[ListeningOverlay] loadSeeds error:', err)
     // Offline with nothing downloaded: a clear human state, never an
     // infinite spinner or a raw fetch error (Tom's airplane-mode test).
-    error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+    error.value = isOfflineish()
       ? "Core isn't downloaded yet — connect once and download for offline to bring it along."
       : 'Failed to load seeds'
   } finally {

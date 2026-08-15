@@ -17,6 +17,7 @@ import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows } from './listeningMetaCache'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs, bareAudioId } from '../providers/revisedAudioRefs'
+import { isOfflineish } from '../config/networkGate'
 
 export interface PodSentence {
   id: string
@@ -207,7 +208,13 @@ export function useListeningPods(
 
     try {
       let loaded: { rows: any[]; textById: Map<string, string> } | null = null
-      const offlineNow = typeof navigator !== 'undefined' && navigator.onLine === false
+      // `isOfflineish`, not `navigator.onLine === false`: the browser reports
+      // online on a connection too weak to complete anything, and on that
+      // signal we used to run a RETRYING live read before ever looking at the
+      // cache — the slowest possible way to reach content we already had.
+      // Now an observed stall counts as offline for this decision too.
+      // (Tom 2026-08-15: "play what you have".)
+      const offlineNow = isOfflineish()
       // Offline: cache first (no doomed fetch, no error noise). Online (or
       // cache miss): live fetch, falling back to cache when the fetch fails
       // mid-air (connection dropped after onLine reported true).
@@ -423,7 +430,10 @@ export function useListeningPods(
       console.error('[useListeningPods] fetch failed:', msg)
       // Offline with no downloaded metadata: a clear human state, never the
       // raw TypeError (Tom's airplane-mode test, 2026-07-09).
-      error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+      // Honest failure: we are offline-ish AND the cache is empty, so there
+      // genuinely is nothing to play. That message, never a raw TypeError —
+      // and never for the case where content IS cached.
+      error.value = isOfflineish()
         ? "Dialogues aren't downloaded yet — connect once and download for offline to bring them along."
         : msg
     } finally {

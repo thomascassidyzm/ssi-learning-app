@@ -3,6 +3,7 @@ import {
   beltSpeed,
   computeCycleSpeed,
   computeListeningSpeed,
+  EASY_LISTENING_SPEED,
   type TargetSpeedConfig,
 } from '../providers/toSimpleRounds'
 import { buildSeedPlays, L1_ROLE_SPEED } from '../composables/useLayer1Scheduler'
@@ -90,14 +91,35 @@ describe('computeListeningSpeed — one curve, shared with speaking', () => {
 // Tom's ruling on T-13, 2026-08-07: "EASY setting defaults listening playback
 // to 0.8× speed." It is the white-belt rung held for as long as the learner
 // stays on Easy — a cap on the same curve, never a second one.
-describe('computeListeningSpeed — EASY holds the beginner pace (Tom, T-13)', () => {
+/**
+ * SUPERSEDED 2026-08-10. Tom's T-13 ruling of 2026-08-07 — "EASY setting
+ * defaults listening playback to 0.8× speed" — is replaced by his ruling after
+ * testing listening live: "'Easy' seems to have slowed the conversations in the
+ * listening section - I don't think we want to be doing that... return the
+ * default listening speed settings to 1.0x on EASY."
+ *
+ * EASY_LISTENING_SPEED is now 1.0, so the Easy cap is a no-op and Easy
+ * listening rides the plain belt ramp, exactly as Fast does. These tests
+ * therefore assert Easy ≡ Fast rather than Easy ≡ 0.8. The belt ramp itself
+ * (2026-08-06) is untouched and still covered by the FAST cases above.
+ */
+describe('computeListeningSpeed — EASY is no longer slowed (Tom, 2026-08-10)', () => {
   const EASY: TargetSpeedConfig = { ...NATIVE, easyMode: true }
 
-  it.each(BANDS)('$belt belt (seed $seed) plays target clips at 0.8× on Easy', ({ seed }) => {
-    expect(computeListeningSpeed(1.0, seed, EASY)).toBe(0.8)
+  it.each(BANDS)('$belt belt (seed $seed) plays target clips at the belt rate on Easy', ({ seed, rate }) => {
+    expect(computeListeningSpeed(1.0, seed, EASY)).toBe(rate)
   })
 
-  it('is a cap, never a speed-up: Easy is never faster than the belt would give', () => {
+  it('THE REGRESSION: a white-belt Easy learner is not held at 0.8 by an Easy-only cap', () => {
+    // The cap is `min(beltSpeed, EASY_LISTENING_SPEED)`; at 1.0 it can never
+    // bite. Asserted on the constant too, so lowering it is a deliberate act.
+    expect(EASY_LISTENING_SPEED).toBe(1.0)
+    for (const { seed } of BANDS) {
+      expect(computeListeningSpeed(1.0, seed, EASY)).toBe(computeListeningSpeed(1.0, seed, NATIVE))
+    }
+  })
+
+  it('is still a cap, never a speed-up — Easy is never faster than the belt would give', () => {
     for (const { seed } of BANDS) {
       expect(computeListeningSpeed(1.0, seed, EASY)).toBeLessThanOrEqual(
         computeListeningSpeed(1.0, seed, NATIVE),
@@ -112,12 +134,12 @@ describe('computeListeningSpeed — EASY holds the beginner pace (Tom, T-13)', (
   })
 
   it('still multiplies the pod role rate: a stretch rep stays fast relative to the pace', () => {
-    expect(computeListeningSpeed(ROLE_SPEED.ps2x, 400, EASY)).toBe(1.6)
-    expect(computeListeningSpeed(ROLE_SPEED.ps15x, 400, EASY)).toBe(1.2)
+    expect(computeListeningSpeed(ROLE_SPEED.ps2x, 400, EASY)).toBe(2.0)
+    expect(computeListeningSpeed(ROLE_SPEED.ps15x, 400, EASY)).toBe(1.5)
   })
 
   it('folds in the course globalSpeed, and keeps the legacy exemption', () => {
-    expect(computeListeningSpeed(1.0, 400, { ...FRENCH, easyMode: true })).toBe(0.76)
+    expect(computeListeningSpeed(1.0, 400, { ...FRENCH, easyMode: true })).toBe(0.95)
     expect(computeListeningSpeed(1.0, 400, { ...LEGACY, easyMode: true })).toBe(0.9)
   })
 

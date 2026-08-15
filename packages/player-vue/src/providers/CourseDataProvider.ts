@@ -566,7 +566,13 @@ export class CourseDataProvider {
 
   /**
    * Get introduction audio for a LEGO ("The German for X is...")
-   * Queries course_audio directly where role='presentation' and lego_id matches.
+   *
+   * Follows the LEGO's own link (course_legos.presentation_audio_id) first;
+   * matching a clip by the lego_id it carries is only a fallback for LEGOs
+   * with no link. The order matters: a presentation clip keeps the lego_id it
+   * was cut for even after that LEGO is repointed at a corrected clip, so the
+   * lego_id match hands back the superseded recording. (Greek, 2026-08-11 —
+   * 54 intros that read their grammar label aloud.)
    */
   async getIntroductionAudio(legoId: string): Promise<{
     id: string
@@ -577,7 +583,33 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Query course_audio directly for presentation audio by lego_id
+      // The link first — this is the clip the player plays.
+      const { data: legoRow } = await this.client
+        .from('course_legos')
+        .select('presentation_audio_id')
+        .eq('course_code', this.courseId)
+        .eq('lego_id', legoId)
+        .maybeSingle()
+
+      if (legoRow?.presentation_audio_id) {
+        const { data: linked } = await this.client
+          .from('course_audio')
+          .select('id, duration_ms, origin')
+          .eq('id', legoRow.presentation_audio_id)
+          .maybeSingle()
+
+        if (linked?.id) {
+          const ref = applyAudioRef(await this.revisedRefs(), linked.id)!
+          return {
+            id: ref,
+            url: this.buildProxyUrl(ref),
+            duration_ms: linked.duration_ms,
+            origin: linked.origin || 'tts',
+          }
+        }
+      }
+
+      // Fallback: no link — match a clip by the lego_id it carries.
       const { data, error } = await this.client
         .from('course_audio')
         .select('id, s3_key, duration_ms, origin')
@@ -609,6 +641,10 @@ export class CourseDataProvider {
   /**
    * Batch load introduction audio for multiple LEGOs
    * More efficient than individual getIntroductionAudio calls (one query instead of N)
+   *
+   * Same resolution order as getIntroductionAudio: the LEGO's own link wins,
+   * lego_id matching only fills the gaps. See that method for why.
+   *
    * @param legoIds - Array of LEGO IDs to load intro audio for
    * @returns Map of legoId -> intro audio ref
    */
@@ -622,19 +658,52 @@ export class CourseDataProvider {
     if (!this.client || legoIds.length === 0) return result
 
     try {
+      const revised = await this.revisedRefs()
+
+      // The links first.
+      const { data: legoRows } = await this.client
+        .from('course_legos')
+        .select('lego_id, presentation_audio_id')
+        .eq('course_code', this.courseId)
+        .in('lego_id', legoIds)
+
+      const linked = (legoRows || []).filter(r => r.lego_id && r.presentation_audio_id)
+      if (linked.length > 0) {
+        const { data: linkedAudio } = await this.client
+          .from('course_audio')
+          .select('id, duration_ms')
+          .in('id', linked.map(r => r.presentation_audio_id))
+
+        const byId = new Map((linkedAudio || []).map(a => [a.id, a]))
+        for (const row of linked) {
+          const audio = byId.get(row.presentation_audio_id)
+          if (!audio) continue
+          const ref = applyAudioRef(revised, audio.id)!
+          result.set(row.lego_id, {
+            id: ref,
+            url: this.buildProxyUrl(ref),
+            duration_ms: audio.duration_ms,
+          })
+        }
+      }
+
+      // Fallback: LEGOs with no usable link — match by the lego_id a clip carries.
+      const unresolved = legoIds.filter(id => !result.has(id))
+      if (unresolved.length === 0) return result
+
       const { data, error } = await this.client
         .from('course_audio')
         .select('id, s3_key, duration_ms, lego_id')
         .eq('course_code', this.courseId)
         .eq('role', 'presentation')
-        .in('lego_id', legoIds)
+        .in('lego_id', unresolved)
 
       if (error || !data) {
         return result
       }
 
-      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
-        if (row.lego_id && row.id) {
+      for (const row of stampRowAudioRefs(revised, data)) {
+        if (row.lego_id && row.id && !result.has(row.lego_id)) {
           result.set(row.lego_id, {
             id: row.id,
             url: this.buildProxyUrl(row.id),

@@ -92,7 +92,7 @@ const moreGroups: NavMenuGroup[] = [
       {
         label: 'Invites (audit)',
         to: '/admin/invites',
-        desc: 'Every code ever minted — read-only; make new ones from a node in Structure',
+        desc: 'Every code ever minted — make new ones from Structure: a node, or "+ Add individual"',
         iconPaths: ICONS.access,
         match: (p) => p.startsWith('/admin/invites'),
       },

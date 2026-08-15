@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createHmac } from 'crypto'
 
 const FREE_ID = '11111111-1111-1111-1111-111111111111'
 const PREMIUM_PAST_PREVIEW_ID = '22222222-2222-2222-2222-222222222222'
@@ -63,12 +64,32 @@ vi.mock('@supabase/supabase-js', () => {
   }
 })
 
+/** Stand-in for Supabase Auth: `Bearer good-session` is the only valid one. */
+vi.mock('../_utils/auth', () => ({
+  verifyAuthToken: (req: any) =>
+    Promise.resolve(
+      req?.headers?.authorization === 'Bearer good-session'
+        ? { valid: true, userId: 'user-1' }
+        : { valid: false, error: 'Missing or invalid Authorization header' },
+    ),
+}))
+
+process.env.ENTITLEMENT_TOKEN_SECRET = 'test-entitlement-secret'
 process.env.SUPABASE_URL = 'https://example.supabase.co'
+
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 process.env.S3_AUDIO_BUCKET = 'ssi-audio-test'
 process.env.AWS_ACCESS_KEY_ID = 'test'
 process.env.AWS_SECRET_ACCESS_KEY = 'test'
 process.env.ENTITLEMENT_ENFORCE = ''
+
+/** Mint a real HMAC entitlement token the way api/try-link/validate.ts does. */
+function mintEntitlementToken(): string {
+  const b64url = (b: Buffer) => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const payload = b64url(Buffer.from(JSON.stringify({ exp: Date.now() + 60_000, scope: 'all' }), 'utf8'))
+  const sig = b64url(createHmac('sha256', 'test-entitlement-secret').update(payload).digest())
+  return `${payload}.${sig}`
+}
 
 function makeRes() {
   const res: Partial<VercelResponse> & { _status?: number; _json?: unknown; _headers: Record<string, string> } = {
@@ -162,12 +183,39 @@ describe('POST /api/audio/batch-urls', () => {
     expect(json.denied).toContain(BAD_SHAPE_ID)
   })
 
-  it('fail-open (default): premium past-preview audio with no entitlement token still gets a url', async () => {
+  // The shared resolver still fails OPEN by default (the per-clip proxy needs
+  // that — `<audio src>` cannot send a header). This endpoint closes it behind
+  // a verified session, unconditionally, because it is the bulk shape and its
+  // only legitimate caller is a fetch() that CAN send one. INPUT-01, 2026-08-11.
+  it('anonymous: premium past-preview audio is denied even with ENTITLEMENT_ENFORCE unset', async () => {
     const res = makeRes()
     await handler(makeReq({ body: { audioIds: [PREMIUM_PAST_PREVIEW_ID] } }), res)
     const json = res._json as { urls: Record<string, string>; denied: string[] }
+    expect(json.urls[PREMIUM_PAST_PREVIEW_ID]).toBeUndefined()
+    expect(json.denied).toContain(PREMIUM_PAST_PREVIEW_ID)
+  })
+
+  it('verified session: premium past-preview audio gets a url', async () => {
+    const res = makeRes()
+    await handler(
+      makeReq({ headers: { authorization: 'Bearer good-session' }, body: { audioIds: [PREMIUM_PAST_PREVIEW_ID] } }),
+      res,
+    )
+    const json = res._json as { urls: Record<string, string>; denied: string[] }
     expect(json.urls[PREMIUM_PAST_PREVIEW_ID]).toBeDefined()
     expect(json.denied).not.toContain(PREMIUM_PAST_PREVIEW_ID)
+  })
+
+  // A try-link visitor has no Supabase session at all — the server-minted
+  // entitlement token is their whole grant, and it must keep working.
+  it('valid entitlement token, no session: premium past-preview audio gets a url', async () => {
+    const res = makeRes()
+    await handler(
+      makeReq({ headers: { authorization: `Bearer ${mintEntitlementToken()}` }, body: { audioIds: [PREMIUM_PAST_PREVIEW_ID] } }),
+      res,
+    )
+    const json = res._json as { urls: Record<string, string>; denied: string[] }
+    expect(json.urls[PREMIUM_PAST_PREVIEW_ID]).toBeDefined()
   })
 
   it('strict mode: premium past-preview audio with no entitlement token is denied', async () => {

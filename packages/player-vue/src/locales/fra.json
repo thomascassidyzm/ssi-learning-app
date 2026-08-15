@@ -22,7 +22,9 @@
     "seeAndHear": "Voir et écouter",
     "tapToStart": "Appuyez pour commencer",
     "pause": "Pause",
-    "resume": "Reprendre"
+    "resume": "Reprendre",
+    "offlinePracticeBody": "Nous ne pouvons pas accéder à de nouveaux éléments pour le moment, alors voici l'occasion de vous entraîner sur ce que vous avez déjà vu — les nouveaux éléments arriveront dès que nous pourrons y accéder.",
+    "offlinePracticeAck": "D'accord"
   },
   "home": {
     "goodMorning": "Bonjour",

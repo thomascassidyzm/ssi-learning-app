@@ -113,6 +113,9 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
+import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
+import { isNetworkPresumedDown } from '../config/networkGate'
+import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -3633,10 +3636,11 @@ const podScheduler = supabase?.value
       // is not.
       beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
-      // sentence goes straight to Stage 1. The per-atom breakdown a
-      // sentence used to get from AUDIO reps now comes from the
-      // always-visible LEGO-tile display (podTurnDisplay), driven by the
-      // same atom_map data but rendered visually, never played.
+      // sentence goes straight to Stage 1. Its replacement, the always-visible
+      // LEGO-tile display, was itself replaced on 2026-07-22 by PodTurnDisplay's
+      // karaoke teleprompter, so a pod sentence currently gets NO per-atom
+      // breakdown at all — the atom_map is still loaded and still rendered
+      // nowhere. See apml/learning/listening-layers.apml (2026-07-22 update).
     })
   : null
 
@@ -10685,8 +10689,23 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
   return true
 }
 
+// Offline PLAYBACK engages on three signals, and the deliberate toggle is only
+// the first of them:
+//   1. offlineActive — the learner chose it (or a completed download set it).
+//   2. !isOnline     — the browser admits it is offline (airplane mode).
+//   3. isNetworkPresumedDown() — we OBSERVED the critical path stalling.
+//
+// (3) is the weak-signal case, and it is the one Tom's 2026-08-15 ruling was
+// actually about: `navigator.onLine` reports TRUE on a connection so weak that
+// nothing completes, so (2) alone left a learner streaming into a hang with a
+// full cache on the device. The behavioural distinction between deliberate
+// offline and accidental offline is retired here — a learner who forgot to
+// flip the toggle now gets exactly what one who remembered gets.
+//
+// The toggle survives as INTENT (don't spend my data on background downloads,
+// and the UI copy), not as playback permission. The lease lock still governs.
 const offlinePlaybackActive = (): boolean =>
-  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+  (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
@@ -11327,11 +11346,42 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
 // isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
 const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
 
+// The offline infinite-play urn, held across appends so one without-replacement
+// pass spans them (see appendCachedLoopForOffline). Rebuilt whenever the
+// measured cache changes; dropped on teardown with the rest of this instance.
+let offlineUrn: ReturnType<typeof createOfflineUrn> | null = null
+let offlineUrnSignature = ''
+
+/**
+ * Offline INFINITE PLAY — Tom's ruling, 2026-08-15.
+ *
+ * Step 1 of the approved algorithm is MEASURE THE CACHE: inventory what is
+ * actually fetchable right now and treat THAT list as the session syllabus,
+ * never assuming coverage. That is what the `cachedId` filter below does, and
+ * it was already right — a cycle only enters the pool if all three of its
+ * clips are genuinely in the persistent cache.
+ *
+ * What changed is step 2. This used to shuffle whole ROUNDS uniformly, so the
+ * learner got chunks of the course in random order and every phrase came round
+ * exactly as often as every other. It now draws PHRASES from a weighted urn,
+ * sampled without replacement (`playback/offlineUrn.ts`): long clips and
+ * recently-introduced clips get more tickets, but every cached phrase keeps a
+ * floor of one, so a full pass covers the whole cached syllabus and the weights
+ * control only how often within it. Spaced repetition falls out of that
+ * structure — no learner model, no per-item state.
+ *
+ * Round CARDINALITY and round SIZES are deliberately preserved: the drawn
+ * phrases are dealt back into the same number of rounds, of the same lengths,
+ * as the cached material had. The urn changes what plays and how often, not
+ * the pacing of the session or anything downstream that counts rounds.
+ */
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
   const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
   const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+
+  // ── Step 1: MEASURE THE CACHE. This inventory is the session syllabus.
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
@@ -11340,14 +11390,67 @@ const appendCachedLoopForOffline = (): number => {
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
-  for (let i = cachedOnly.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[cachedOnly[i], cachedOnly[j]] = [cachedOnly[j], cachedOnly[i]]
+
+  // ── Steps 2-4: weighted urn over the measured phrases.
+  // Duration = the target voices, which are the clips whose length actually
+  // makes a phrase hard. Position = the source round number, i.e. introduction
+  // order in the course — NOT clock time, per the ruling.
+  const byKey = new Map<string, any>()
+  const roundByKey = new Map<string, any>()
+  const candidates: UrnCandidate[] = []
+  for (const r of cachedOnly) {
+    for (const c of r.cycles) {
+      const key = c?.id ?? `${r.roundNumber}:${c?.known?.text ?? ''}:${c?.target?.text ?? ''}`
+      if (byKey.has(key)) continue
+      byKey.set(key, c)
+      roundByKey.set(key, r)
+      candidates.push({
+        key,
+        durationMs: (c?.target1DurationMs ?? 0) + (c?.target2DurationMs ?? 0),
+        position: r?.roundNumber ?? 0,
+      })
+    }
   }
+  if (candidates.length === 0) return 0
+
+  // The urn PERSISTS across appends, and that is load-bearing. Each append
+  // draws only as many phrases as the cached material has cycles, but a full
+  // urn pass is up to 4x that (one entry per ticket). A fresh urn per append
+  // would therefore only ever hand out the first quarter of each pass, and the
+  // without-replacement coverage guarantee — the whole reason for the urn —
+  // would be silently lost. Rebuild it only when the measured cache actually
+  // changes, which is what the signature detects.
+  const signature = `${candidates.length}:${candidates[0].key}:${candidates[candidates.length - 1].key}`
+  if (!offlineUrn || offlineUrnSignature !== signature) {
+    offlineUrn = createOfflineUrn(candidates)
+    offlineUrnSignature = signature
+    console.log(`[OfflineInfPlay] Measured cache: ${candidates.length} playable phrases; urn rebuilt.`)
+  }
+
+  // Deal into the SAME shape the cached material had — same number of rounds,
+  // same sizes — so nothing downstream that counts or paces rounds shifts.
+  const drawn = offlineUrn.take(cachedOnly.reduce((n, r) => n + r.cycles.length, 0))
+  if (drawn.length === 0) return 0
+
+  let cursor = 0
+  const shaped: any[] = []
+  for (const r of cachedOnly) {
+    const cycles: any[] = []
+    for (let i = 0; i < r.cycles.length && cursor < drawn.length; i++) {
+      cycles.push(byKey.get(drawn[cursor++]))
+    }
+    if (cycles.length === 0) continue
+    // Round metadata follows the first phrase actually in it, so the header
+    // never names a LEGO the round no longer contains.
+    const source = roundByKey.get(drawn[cursor - cycles.length]) ?? r
+    shaped.push({ ...source, cycles })
+  }
+  if (shaped.length === 0) return 0
+
   // Fresh round numbers above every existing one so appendRounds (dedupes by
   // roundNumber) doesn't drop them.
   let num = Math.max(0, ...(rounds.map((r) => r?.roundNumber ?? 0)))
-  const loopRounds = cachedOnly.map((r) => ({ ...r, roundNumber: ++num }))
+  const loopRounds = shaped.map((r) => ({ ...r, roundNumber: ++num }))
   simplePlayer.appendRounds(loopRounds as any)
   // CRITICAL: keep cachedRounds in lockstep with the engine queue, exactly as
   // expandScript does. The round-advance end-check (and currentRound) read
@@ -11355,6 +11458,12 @@ const appendCachedLoopForOffline = (): number => {
   // shows the summary even though the engine has more queued — the "looped
   // but then just stopped" bug.
   cachedRounds.value = [...rounds, ...loopRounds] as any
+  // Tell the learner why the material just started coming round again — once
+  // per session, dismissible, and it never touches playback (#595: play what
+  // you have, never gate). Raised HERE, at the single point where offline
+  // recycling actually engages, so every call site gets it for free and it
+  // rides the same offlinePlaybackActive() signal the playback path rides.
+  markOfflineInfPlayEngaged(offlinePlaybackActive())
   return loopRounds.length
 }
 
@@ -14928,6 +15037,35 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
           >Try to reconnect</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline infinite-play notice. Tom 2026-08-15: "we need a message to let
+       the learner know". Fires once per session at the moment cached content
+       starts being recycled, and NEVER pauses audio — playback carries on
+       underneath, which is the whole point of "play what you have". Reuses the
+       paywall shell (centred modal, so no safe-area inset needed). -->
+  <Transition name="fade">
+    <div
+      v-if="offlineInfPlayNoticeVisible"
+      class="paywall-overlay"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.')"
+      @click.self="dismissOfflineInfPlayNotice"
+    >
+      <div class="paywall-card">
+        <!-- No heading: Tom's ruling is the message and nothing more. Inventing
+             a title would be the app being cleverer than the copy it was given. -->
+        <p class="paywall-subtitle">
+          {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
+        </p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
+            {{ t('player.offlinePracticeAck', 'Got it') }}<!-- acknowledge, never a gate -->
+          </button>
         </div>
       </div>
     </div>

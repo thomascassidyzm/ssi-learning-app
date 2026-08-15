@@ -565,26 +565,31 @@ export const DEFAULT_EASY: ModeConfig = {
    */
   useWordCapTiers: [...DEFAULT_EASY_USE_WORD_CAP_TIERS],
   /**
-   * LISTENING — minimal cognitive load, and slower than Fast (Tom,
-   * 2026-08-07: "they should probably have A minimal cognitive load for
-   * listening and it should be slower on easy mode in the listening").
+   * LISTENING — native pace, 1.0×, the same as Fast.
    *
-   * 0.7 on the very first hearing of a phrase, 0.8 for the next four, then
-   * 1.0 for ever — a phrase reaches full speed on its sixth exposure. Tom's
-   * numbers read literally; "a few times" is the 4, and it is the one number
-   * here he left deliberately vague. All of it is a DB row
-   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so retuning by ear is a
-   * Supabase edit, not a deploy.
+   * SUPERSEDED 2026-08-10 (Tom, testing listening live): "'Easy' seems to have
+   * slowed the conversations in the listening section - I don't think we want
+   * to be doing that... I think we can return the default listening speed
+   * settings to 1.0x on EASY, I think we moved them to 0.8x."
+   *
+   * That supersedes his 2026-08-07 "it should be slower on easy mode in the
+   * listening", and the ramp it produced (0.7 once, 0.8 for four, then 1.0).
+   * Easy is still gentler than Fast everywhere else on this row — longer
+   * pauses, doubled reps, shorter phrases; it is the LISTENING SPEED alone
+   * that goes back to 1.0. Still a DB row
+   * (`algorithm_config.easy_mode.listeningSpeedRamp`), so the gentle curve is
+   * one Supabase edit away.
    */
   listeningSpeedRamp: DEFAULT_EASY_LISTENING_RAMP,
   /**
-   * The BELT CEILING the ramp above lives underneath (Tom, 2026-08-07 23:56Z).
-   * White/yellow 0.8, orange/green 0.9, blue and beyond 1.0 — a gentler table
-   * than the speaking side's `beltSpeed`, deliberately its own, because these
-   * are the numbers Tom gave for Easy listening specifically.
+   * The BELT CEILING the ramp above lives underneath — now a single no-op rung
+   * at 1.0, the same as Fast's.
    *
-   * A white-belt learner therefore hears 0.7 once, then 0.8 for ever: the
-   * exposure ramp's 1.0 step is unreachable until they are a blue belt.
+   * SUPERSEDED 2026-08-10 by the same ruling. Tom's 2026-08-07 23:56Z table
+   * (white/yellow 0.8, orange/green 0.9, blue+ 1.0) was a HARD ceiling, so an
+   * early-course Easy learner was pinned at 0.8 for ever however often they met
+   * a phrase — the specific thing he heard. Still a DB row
+   * (`algorithm_config.easy_mode.listeningBeltCeilings`).
    */
   listeningBeltCeilings: DEFAULT_EASY_BELT_CEILINGS,
 }
@@ -1063,9 +1068,15 @@ const DEFAULT_PODS: PodsConfig = {
   // Stage count is dynamic — the runtime reads the key count, the
   // highest-numbered key is the eternal hold.
   // Stage 1 = "Phase 0" (Tom 2026-06-10): the explainer plays INSTEAD of
-  // the translation, for 2 pod-rounds, then retires for good. Sentences
+  // the translation, for ONE pod-round, then retires for good. It was 2 —
+  // the explainer heard twice — until Tom cancelled the repeat on
+  // 2026-08-10 ("the visualisation covers the need to explain"). Sentences
   // without explainer audio (fully-repeat lines, vocab codas) play their
   // translation in that slot via the scheduler fallback.
+  // NB the LIVE `pods` row in algorithm_config still carries
+  // stageDurations {'1': 2} and overrides this fallback wherever it loads;
+  // both are moot while the ladder is off the learner path (see
+  // listeningUseStagePlaylist), and the DB row is Tom's to change.
   // Stage 2 = "Phase 1": plain translation pattern, 3 rounds. The speed
   // ramp (Aran's 2026-05-07 bridge) follows from stage 3.
   stagePlaylist: {
@@ -1080,7 +1091,9 @@ const DEFAULT_PODS: PodsConfig = {
     '9': ['ps2x'],
   },
   stageDuration: 5,
-  stageDurations: { '1': 2, '2': 3 },
+  // Stage 1 must stay LISTED at 1 — an unlisted stage falls back to
+  // stageDuration (5), the opposite of Tom's 2026-08-10 ruling.
+  stageDurations: { '1': 1, '2': 3 },
   gapSuperTightMs: 100,
   gapTightMs: 200,
   gapGluedMs: 300,

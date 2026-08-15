@@ -18,6 +18,7 @@ import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
+import { withNetworkTimeout, NETWORK_TIMEOUT } from '@/config/networkGate'
 
 // Local storage keys
 const GUEST_ID_KEY = 'ssi-guest-id'
@@ -253,11 +254,19 @@ export function useAuth(): AuthState & AuthActions {
           // Never back-fill a link-auth placeholder into verified_emails — it's
           // not a real inbox and would surface as the user's primary email.
           if (email && !isPlaceholderEmail(email) && !emails.includes(email)) {
-            emails = [...emails, email]
-            await supabase.value
-              .from('learners')
-              .update({ verified_emails: emails })
-              .eq('id', existingLearner.id)
+            // Server-side append. The direct UPDATE this replaces was the
+            // AUTH-CORE-02 hole: UPDATE(verified_emails) was granted to
+            // `authenticated`, and own-row RLS constrains WHICH row you write,
+            // never the array's CONTENTS — so anyone could plant a third
+            // party's address here and inherit their email-allowlist grant
+            // (api/access/grant-emails.ts) or family attachment
+            // (api/family/invite.ts). The grant was revoked
+            // 2026-08-11 (supabase/migrations/20260811_lock_learner_identity_columns.sql);
+            // sync_my_verified_emails() derives the address from auth.users
+            // instead of trusting the caller.
+            const { data: synced, error: syncErr } = await supabase.value.rpc('sync_my_verified_emails')
+            if (syncErr) console.warn('[useAuth] sync_my_verified_emails failed (non-fatal):', syncErr.message)
+            else emails = synced || emails
           }
         } catch (err) {
           console.warn('[useAuth] verified_emails enrichment failed (non-fatal):', err)
@@ -507,7 +516,18 @@ export function useAuth(): AuthState & AuthActions {
         // we must NOT re-sync from learner.value here — it would call
         // syncRealRoleCache(null, null) and wipe the correct values out
         // of useUserRole cache.
-        learner.value = await ensureLearnerExists()
+        // Bounded. getSession() above is already raced against a timeout, but
+        // ensureLearnerExists() is a live DB round-trip and was not — so on a
+        // weak signal boot stopped HERE, one line past the timeout that was
+        // supposed to prevent exactly this. On expiry we carry on with the
+        // cached learner record (or none) and let the row settle behind the
+        // learner; playback must not wait on it. (Tom 2026-08-15.)
+        const learnerRow = await withNetworkTimeout(ensureLearnerExists())
+        if (learnerRow === NETWORK_TIMEOUT) {
+          console.warn('[useAuth] Learner-row read exceeded its budget — continuing with the cached record.')
+        } else {
+          learner.value = learnerRow
+        }
 
         // Keep the install hand-off bridge fresh for an already-signed-in
         // Safari session (no SIGNED_IN event fires for a restored session).
@@ -525,6 +545,7 @@ export function useAuth(): AuthState & AuthActions {
         void validateSessionAlive(supabaseClient)
 
         // Check if there's guest progress to migrate
+        // Purely local (clearGuestData) — no network, so it stays awaited.
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
         if (hadGuestId) {
           await migrateGuestProgress()
