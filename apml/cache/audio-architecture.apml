@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-15 (OFFLINE INFINITE PLAY is a weighted urn sampled WITHOUT replacement over the MEASURED cache — tickets = 1 + length_bonus + recency_bonus, capped; full coverage per pass, weights control frequency within it; spaced repetition falls out of the structure with no learner model. See offline_infinite_play)
+# Last Updated: 2026-08-15 (OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE — Tom's ruling. Offline recycling takes infinite play's SELECTION without its MODE CHANGE: the learner keeps their own belt colour and belt nav, no red accent, no ∞ pill. isInfPlayActive (the formal mode: look + navigation) is split from isRecycledRoundPlayback (the round shape: belt freeze, belt-write suppression, pod cadence), with offlineRecycleBeltHeld distinguishing them. See offline_infinite_play.offline_changes_what_plays_never_where_you_are)
+# Prev: 2026-08-15 (OFFLINE INFINITE PLAY is a weighted urn sampled WITHOUT replacement over the MEASURED cache — tickets = 1 + length_bonus + recency_bonus, capped; full coverage per pass, weights control frequency within it; spaced repetition falls out of the structure with no learner model. See offline_infinite_play)
 # Prev: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
 # Prev: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
 # Prev: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
@@ -941,8 +942,63 @@ spec audio_caching_architecture:
       The deliberate offline toggle is for downloading un-played content IN
       ADVANCE. Absent that, offline playback draws only on what is already
       cached. When the learner is offline — deliberately or accidentally — the
-      app enters infinite play and cycles through cached content, mostly at
-      random.
+      app recycles cached content using the infinite-play urn below.
+
+    offline_changes_what_plays_never_where_you_are: |
+      Tom's ruling, 2026-08-15, after testing a signed-in offline resume in
+      airplane mode. Offline is meant to be UNREMARKABLE. The app quietly
+      plays what it already holds, FROM WHERE THE LEARNER ALREADY IS.
+
+        "what we want is to stay at the current belt colour and belt nav /
+         But just to play the cached phrases it has, like in infinite play /
+         But not necessarily to move to the formal infinite play section"
+
+      So offline recycling takes the SELECTION BEHAVIOUR of infinite play (the
+      urn) without the MODE CHANGE: no SSi-red accent, no ∞ glyph on the
+      central pill, no formal INF PLAY entry. The belt keeps saying "you are
+      where you were".
+
+      This required splitting one overloaded signal in LearningPlayer.vue,
+      because isInfPlayActive meant two things at once and the offline recycle
+      tripped the wrong one:
+
+        isInfPlayActive        — the formal MODE. Governs the LOOK and the
+                                 NAVIGATION: red accent (beltCssVars), the ∞
+                                 glyph and .is-infplay pill, belt-chevron
+                                 semantics. Reached ONLY by deliberate entry
+                                 (enterInfPlay, the ∞ activator), by the
+                                 persisted 'infplay' mode, by
+                                 enterInfPlayFromCache (a real skip past all
+                                 loaded content), or — for GUESTS, who never
+                                 get the persisted mode — by the round-shape
+                                 inference.
+        isRecycledRoundPlayback — the round SHAPE, by either route. Governs
+                                 what follows the shape rather than the
+                                 learner's location: suppressing the
+                                 belt-follows-the-drawn-phrase write, the belt
+                                 anchor freeze, the revival pod cadence.
+
+      offlineRecycleBeltHeld is the new flag distinguishing them. It is raised
+      at the single point where offline recycling engages
+      (appendCachedLoopForOffline), and it SUPPRESSES the round-shape
+      inference inside isInfPlayActive so USE-only rounds no longer imply the
+      formal mode. It is cleared by deliberate ∞ entry, by
+      enterInfPlayFromCache (which promotes to the formal mode, and clears it
+      unconditionally so guests keep their shape inference), and by genuine
+      main-loop content landing again.
+
+      BELT ANCHOR WHILE HELD: the urn draws from anywhere in the cached
+      syllabus and so crosses belts. The belt anchors to the learner's REAL
+      CURSOR — highest LEGO played, the canonical position — and does not
+      follow the drawn phrase's belt. A learner with no recorded cursor gets a
+      null anchor, hence no write, hence the belt HOLDS its last value.
+      [DEFAULT CHOSEN BY THE IMPLEMENTER, flagged for Tom's eye: it is the
+      direct reading of "stay at the current belt colour and belt nav".]
+
+      tests: "src/playback/offlineBeltHeld.test.ts — the offline half (no red,
+      no ∞, belt held across belt-crossing draws, the no-cursor edge, release
+      on main-loop return) and the deliberate half (the ∞ activator still goes
+      red, a deliberate tap outranks a hold, guests still infer from shape)."
 
     step_1_measure_the_cache: |
       Inventory what is actually fetchable RIGHT NOW; that list is the session
