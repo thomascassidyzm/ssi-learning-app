@@ -2126,7 +2126,9 @@ simplePlayer.onRoundCompleted((round) => {
       // exactly the cycle-to-cycle belt flip Tom flagged.
       // (playingSeedNumber itself derives from the engine via beltAnchorSeed —
       // M9 — so only the lego-id signal is pushed here.)
-      if (!isInfPlayActive.value) {
+      // Round-shape signal, not the mode: offline belt-held recycle draws the
+      // same random USE phrases, so the same belt-flip would happen. Suppress.
+      if (!isRecycledRoundPlayback.value) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
@@ -4094,9 +4096,36 @@ const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 // account) by the current round being a revival round (no intro/debut/build).
 // Single source of truth for the belt indicator, the accent colour, the forward-
 // belt-skip null, and the listening cadence. Tom 2026-06-03.
+// OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE (Tom, 2026-08-15).
+// When a signed-in learner resumes with no network we recycle their cached USE
+// phrases — infinite-play SELECTION — but they have NOT entered infinite play,
+// so the UI must go on saying "you are where you were": their own belt colour,
+// their own belt nav, no ∞ on the central pill. This flag is that distinction.
+// Raised at the single point where offline recycling actually engages
+// (appendCachedLoopForOffline), cleared the moment the learner deliberately
+// enters INF PLAY or real main-loop content resumes.
+const offlineRecycleBeltHeld = ref(false)
+
+// Are we POSITIONED in INF PLAY right now — the FORMAL mode? This governs the
+// LOOK and the NAVIGATION: the red accent, the ∞ glyph, the belt-chevron
+// semantics. Detected by the mode flag OR (crucially for GUESTS, who never get
+// the persisted 'infplay' mode — setMode is gated on a real account) by the
+// current round being a revival round. The offline belt-held recycle is
+// explicitly NOT this: same round shape, different place.
 const isInfPlayActive = computed(() =>
   currentMode.value === 'infplay'
-  || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+  || (!offlineRecycleBeltHeld.value
+      && !!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+)
+
+// Are RECYCLED (USE-only, no intro/debut/build) rounds what's playing, by
+// either route? This governs behaviour that follows the ROUND SHAPE rather
+// than the learner's location: suppressing the belt-follows-the-drawn-phrase
+// write, freezing the belt anchor, and the revival pod cadence. Offline
+// belt-held play is round-shaped exactly like INF PLAY even though the learner
+// has not gone anywhere — so it belongs here and not in isInfPlayActive.
+const isRecycledRoundPlayback = computed(() =>
+  isInfPlayActive.value || offlineRecycleBeltHeld.value
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
@@ -4111,7 +4140,7 @@ const isInfPlayActive = computed(() =>
 // belt follows the landed round again.
 const beltFreezeSeed = ref<number | null>(null)
 const beltAnchorSeed = computed<number | null>(() => {
-  if (isInfPlayActive.value) return beltFreezeSeed.value
+  if (isRecycledRoundPlayback.value) return beltFreezeSeed.value
   const legoId = visualLegoIdForRound(simplePlayer.currentRound.value)
   if (!legoId) return null
   return getSeedFromLegoId(legoId)
@@ -4127,7 +4156,17 @@ watch([beltAnchorSeed, beltProgress], ([seed]) => {
     beltProgress.value.setPlayingPosition(seed)
   }
 }, { immediate: true })
-watch(isInfPlayActive, (active) => { if (!active) beltFreezeSeed.value = null })
+watch(isRecycledRoundPlayback, (active) => { if (!active) beltFreezeSeed.value = null })
+// The belt-held recycle lasts exactly as long as recycled rounds are playing.
+// The moment genuine main-loop content lands again — network came back and
+// expandScript produced real rounds, or a belt jump landed on cached main-loop
+// material — the learner is back on the normal axis and the belt follows the
+// round again.
+watch(() => simplePlayer.currentRound.value, (round) => {
+  if (offlineRecycleBeltHeld.value && round && isMainLoopRound(round)) {
+    offlineRecycleBeltHeld.value = false
+  }
+})
 
 const beltCssVars = computed(() => {
   // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
@@ -4828,7 +4867,9 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   // suppresses the pod PREVIEW cheat itself — if both flags are set,
   // ?pod=1 still wins (existing precedence, checked above).
   if (!forcePodPreviewCheat && forceLayer1PreviewCheat && !l1PreviewFired) return false
-  if (isInfPlayActive.value) {
+  // Round-shape signal: recycled rounds have no main-loop cadence to schedule
+  // against by either route, so offline belt-held play takes the same branch.
+  if (isRecycledRoundPlayback.value) {
     const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
     const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
@@ -8808,6 +8849,9 @@ const jumpToRound = async (roundIndex) => {
  */
 const enterInfPlay = async () => {
   cancelInFlightLap()
+  // Deliberate ∞ entry outranks the offline belt-held recycle: the learner
+  // asked to go somewhere, so the red ∞ is right and the belt un-holds.
+  offlineRecycleBeltHeld.value = false
   const currentRound = simplePlayer.currentRound.value
 
   // Visual belt anchor for INF PLAY entry: the seed of the course's
@@ -11341,9 +11385,16 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
 // INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
 // (BLD phrases only ever play in a LEGO's debut round) nor component/listening
 // cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
-// spaced_rep from the same usePhrases pool). Filtering to these also means the
-// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
-// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+// spaced_rep from the same usePhrases pool). Filtering to these means the
+// recycled rounds carry NO intro/debut/build, so isMainLoopRound is false.
+// That USED to make isInfPlayActive true and paint the belt the red ∞.
+// It no longer does, and must not: Tom's ruling 2026-08-15 is that OFFLINE
+// CHANGES WHAT PLAYS, NEVER WHERE YOU ARE. This function raises
+// offlineRecycleBeltHeld, which suppresses the round-shape inference — the
+// learner keeps their own belt colour and belt nav while these rounds play.
+// The red ∞ is now reserved for DELIBERATE entry (the ∞ activator,
+// enterInfPlay) and for enterInfPlayFromCache, which promotes to the formal
+// mode after a skip past all loaded content.
 const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
 
 // The offline infinite-play urn, held across appends so one without-replacement
@@ -11464,6 +11515,20 @@ const appendCachedLoopForOffline = (): number => {
   // recycling actually engages, so every call site gets it for free and it
   // rides the same offlinePlaybackActive() signal the playback path rides.
   markOfflineInfPlayEngaged(offlinePlaybackActive())
+  // BELT HELD (Tom 2026-08-15). These rounds are infinite-play SHAPED, but the
+  // learner has not gone anywhere — so hold their own belt rather than letting
+  // it follow whichever LEGO the urn happens to draw. Anchor to their real
+  // cursor (highest LEGO played, the canonical position), which is what
+  // "stay at the current belt colour and belt nav" means. If the learner is
+  // ALREADY in formal INF PLAY, leave that alone — the red ∞ is correct there.
+  if (currentMode.value !== 'infplay') {
+    const cursorLegoId = highestCompletedLegoId.value ?? lastMainLoopLegoId.value
+    const cursorSeed = cursorLegoId ? getSeedFromLegoId(cursorLegoId) : null
+    // Null anchor → no write → the belt HOLDS its last value, which is still
+    // the right answer for a learner with no recorded cursor yet.
+    if (cursorSeed != null) beltFreezeSeed.value = cursorSeed
+    offlineRecycleBeltHeld.value = true
+  }
   return loopRounds.length
 }
 
@@ -11491,6 +11556,11 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
     return false
   }
   console.log(`[LearningPlayer] Skip past content — INF PLAY from ${looped} recycled cached rounds at index ${firstNewIdx}`)
+  // This path is a DELIBERATE skip past all loaded content, so it promotes to
+  // the formal mode and the red ∞ is correct. Drop the belt-held flag that the
+  // shared append raised — unconditionally, because guests never get the
+  // persisted 'infplay' mode and rely on the round-shape inference for it.
+  offlineRecycleBeltHeld.value = false
   // Flip the mode flag so back-belt-skip exits correctly and the next
   // session resumes in INF PLAY rather than bouncing back to the start.
   if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
