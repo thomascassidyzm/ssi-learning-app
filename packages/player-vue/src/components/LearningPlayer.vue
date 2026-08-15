@@ -2213,8 +2213,17 @@ simplePlayer.onSessionComplete(async () => {
       simplePlayer.resume()
       return
     }
-    // Nothing survived the persistent-audio filter (empty cached set) — fall
-    // through to the summary; that's the empty-cache edge, not the recycle.
+    // Nothing survived the persistent-audio filter (empty cached set). Do NOT
+    // fall through to expandScript: offline that is a full Supabase course
+    // walk with no network budget on it, and it can only fail — it just takes
+    // several seconds to find out, with "Warming up the synapses..." on screen
+    // the whole time. That wait is most of the ~5s Tom saw before the app
+    // dropped him on an infinite-play sentence, 2026-08-15. Cutting a network
+    // await that cannot succeed costs nothing and saves all of it.
+    if (wrapInfPlayAtTail()) return
+    sessionEnded.value = true
+    showPausedSummary()
+    return
   }
   // Infinite play / main loop: the course should never end. expandScript()
   // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
