@@ -147,7 +147,7 @@ function handleConfirm() {
 }
 
 .modal-title {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-family: 'Noto Sans JP', 'Noto Sans', sans-serif;
   font-size: 1.375rem;
   font-weight: 700;
   color: var(--text-primary, #ffffff);

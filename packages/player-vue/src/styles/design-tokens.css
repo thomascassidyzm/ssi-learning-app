@@ -70,8 +70,18 @@
   /* ================================================================
    * TYPOGRAPHY
    * ================================================================ */
-  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Noto Sans JP', 'DM Sans', sans-serif;
+  /* Noto Sans, not DM Sans: DM Sans carries 360 codepoints and none of the
+   * Yoruba dot-belows (ẹ ọ ṣ Ṣ), the n-grave (ǹ), the Mandarin pinyin tone
+   * vowels (ǎ ǐ ǒ ǔ ǚ ǜ), Greek or Cyrillic — so every ell/rus/ukr/bul/hye/
+   * yor/zho course fell out of the webfont mid-word onto whatever the OS
+   * happened to have. Noto Sans covers the whole estate's course text, and
+   * its latin subset is marginally SMALLER than DM Sans's, so the
+   * English-only learner pays nothing for the fix. */
+  --font-body: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Noto Sans JP', 'Noto Sans', sans-serif;
+  /* Mono is code, IDs and QA textareas only — it never renders course text, so
+   * JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live break and are left to the
+   * system `monospace` tail rather than paying for a fifth webfont. */
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
 
   /* Font weights */

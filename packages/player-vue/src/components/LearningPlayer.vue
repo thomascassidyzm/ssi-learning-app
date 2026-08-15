@@ -17171,7 +17171,7 @@ defineExpose({
 }
 
 .progress-warning-title {
-  font-family: var(--font-display, 'DM Sans', sans-serif);
+  font-family: var(--font-display, 'Noto Sans', sans-serif);
   font-size: 1.5rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);

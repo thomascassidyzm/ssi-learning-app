@@ -313,7 +313,7 @@ const shareLocation = computed(() => {
   overflow-y: auto;
   background: var(--bg-primary, #050508);
   color: var(--text-primary, #e8e3dd);
-  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-family: var(--font-body, 'Noto Sans', sans-serif);
   z-index: 9999;
   -webkit-overflow-scrolling: touch;
 }

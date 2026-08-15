@@ -1071,7 +1071,7 @@ function goHome() {
   justify-content: center;
   background: var(--bg-primary, #0a0a0f);
   padding: 1rem;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .redeem-card {
@@ -1259,7 +1259,7 @@ function goHome() {
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   font-size: inherit;
   text-decoration: underline;
 }
@@ -1418,7 +1418,7 @@ function goHome() {
   border: none;
   color: var(--text-primary, #e0e0e0);
   font-size: 1rem;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   outline: none;
 }
 
@@ -1456,7 +1456,7 @@ function goHome() {
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
@@ -1521,7 +1521,7 @@ function goHome() {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   font-size: 0.875rem;
   padding: 0;
   transition: color 0.2s ease;
@@ -1539,7 +1539,7 @@ function goHome() {
   padding: 0.5rem 1rem;
   color: var(--text-muted, #666);
   font-size: 0.875rem;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   background: none;
   border: none;
   cursor: pointer;
@@ -1563,7 +1563,7 @@ function goHome() {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   font-size: 0.875rem;
   padding: 0.25rem;
   transition: color 0.2s ease;

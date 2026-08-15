@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.29 (2026-08-09)
+# Version: 2.1.30 (2026-08-15)
 # Status: Production-ready
 
 ## ============================================================================
@@ -295,6 +295,37 @@ TILE_ASSEMBLY:
       on blocks (semantics/telemetry) but changes nothing visually. The
       display box (hero-known / known-text) renders the whole known phrase
       at weight 600.
+
+    glyph_coverage: |
+      (2026-08-15) Course text — known and target, hero line and tiles — sets
+      NO font-family of its own. It inherits `--font-body` from `body`. That
+      makes `--font-body` a CORRECTNESS surface, not a styling one: a font
+      that lacks a course's letters does not fail loudly, it silently drops
+      to a per-character OS substitute and the learner sees one word in two
+      typefaces.
+
+      `--font-body` is therefore 'Noto Sans', NOT 'DM Sans'. Measured against
+      every non-ASCII codepoint in course_seeds + course_legos +
+      course_practice_phrases across all 145 courses (825,773 rows read
+      2026-08-15), DM Sans carried 360 codepoints and was missing 169 of the
+      291 the estate's Latin/Greek/Cyrillic text uses — all Greek (ell), all
+      Cyrillic (rus/ukr/bul/mkd/hye), the Yoruba dot-belows and n-grave
+      (ẹ ọ ṣ Ṣ ǹ — yor, cym_for_yor) and the Mandarin pinyin tone vowels
+      (ǎ ǐ ǒ ǔ ǚ ǜ — zho_for_eng, released). Noto Sans misses 2 of the 291:
+      U+0331 combining macron below and U+2192 arrow, neither of which is a
+      letter of any course's alphabet.
+
+      RULE for anyone changing this token: a body font is only admissible if
+      it covers the estate's course-text codepoints. Check before swapping —
+      no popular geometric sans (DM Sans, Jost, Outfit, Poppins, Plus Jakarta,
+      Figtree) does, and neither does Roboto, which is what Android falls back
+      TO. Non-Latin scripts (CJK, Hangul, Thai, Arabic, Hebrew, Devanagari)
+      are deliberately NOT the body font's job — Noto Sans JP covers Japanese
+      via `--font-display` and the rest go to the system font.
+
+      `--font-mono` is exempt: it renders code, IDs and QA textareas only,
+      never course text, so JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live
+      break and do not justify a fifth webfont.
 
   script_toggle:
     composable: "composables/useScriptMode.ts (per-course localStorage)"
