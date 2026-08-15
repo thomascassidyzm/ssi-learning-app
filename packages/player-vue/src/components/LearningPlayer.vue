@@ -113,6 +113,7 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
+import { isNetworkPresumedDown } from '../config/networkGate'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -10686,8 +10687,23 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
   return true
 }
 
+// Offline PLAYBACK engages on three signals, and the deliberate toggle is only
+// the first of them:
+//   1. offlineActive — the learner chose it (or a completed download set it).
+//   2. !isOnline     — the browser admits it is offline (airplane mode).
+//   3. isNetworkPresumedDown() — we OBSERVED the critical path stalling.
+//
+// (3) is the weak-signal case, and it is the one Tom's 2026-08-15 ruling was
+// actually about: `navigator.onLine` reports TRUE on a connection so weak that
+// nothing completes, so (2) alone left a learner streaming into a hang with a
+// full cache on the device. The behavioural distinction between deliberate
+// offline and accidental offline is retired here — a learner who forgot to
+// flip the toggle now gets exactly what one who remembered gets.
+//
+// The toggle survives as INTENT (don't spend my data on background downloads,
+// and the UI copy), not as playback permission. The lease lock still governs.
 const offlinePlaybackActive = (): boolean =>
-  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+  (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-

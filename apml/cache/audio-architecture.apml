@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
+# Last Updated: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
+# Prev: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
 # Prev: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
 # Prev: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
 # Prev: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — see versioned_audio_refs.all_client_lanes_stamped)
@@ -866,8 +867,72 @@ spec audio_caching_architecture:
   ## QUALITY METRICS
   ## ==========================================================================
 
+  ## ==========================================================================
+  ## NEVER GATE PLAYBACK ON THE NETWORK  (Tom's ruling, 2026-08-15)
+  ## ==========================================================================
+
+  never_gate_on_network:
+    ruling: |
+      "If there's very little signal, but app is not in offline mode. It should
+       not check online for the handshake, it should just be ready from the
+       cache. If phone is in airplane mode it should ALSO play whatever it has
+       in the cache rather than do nothing. This is important because people
+       might not have remembered to put the app in offline mode deliberately.
+       The heuristic is that the app should always play whatever it has. It
+       should never allow a weak Internet connection to block the learner. …
+       Play what you have. Verify access as and when you can. Never as a gate."
+
+    the_gate_module: |
+      config/networkGate.ts is the single owner of the answer to "how long may a
+      learner be made to wait". CRITICAL_PATH_TIMEOUT_MS = 2500 for anything
+      between boot and first audio; BACKGROUND_FETCH_TIMEOUT_MS = 9000 as a
+      leak-guard for work nobody is waiting on. `withNetworkTimeout` returns a
+      NETWORK_TIMEOUT sentinel instead of hanging — and deliberately does NOT
+      swallow a real rejection, because a 403 is not the same event as a hang
+      and the caller must be free to treat them differently.
+
+    onLine_is_not_an_oracle: |
+      navigator.onLine reports TRUE on a connection too weak to complete
+      anything, and behind captive portals — the codebase already said so in
+      two comments before this pass. It is now trusted in ONE direction:
+      `onLine === false` means genuinely offline (airplane mode), so skip the
+      doomed fetch. In the other direction we ask isNetworkPresumedDown(),
+      which reports an OBSERVED critical-path stall (60s TTL, cleared by any
+      critical-path success or an 'online' event). isOfflineish() = either.
+
+    deliberate_offline_is_now_intent_only: |
+      RETIRED: the behavioural split between "learner flipped the offline
+      toggle" and "learner's phone lost signal". offlinePlaybackActive() is
+      `(offlineActive || !isOnline || isNetworkPresumedDown()) &&
+      !offlineLeaseLocked`. The toggle still exists and still persists per
+      course, but it now expresses INTENT — don't spend my data on background
+      downloads, and the UI copy — not permission to play cached bytes. A
+      learner who forgot to flip it gets what one who remembered gets.
+
+    entitlement_is_verified_never_gated: |
+      A 403 from the /cycles entitlement gate serves cached cycles rather than
+      locking the learner out; the 403 is still logged LOUDLY so a real
+      token-plumbing regression stays visible. The offline lease was already
+      correct here (lazy, hard-timeout, fail-open) and is unchanged. Read-path
+      degradation is silent-to-the-learner; WRITE-path failures stay loud, per
+      the RLS doctrine's no-false-"Saved" rule.
+
+    the_one_honest_failure: |
+      Offline-ish AND the cache is genuinely empty. Nothing to play, so say so
+      plainly — "connect once and download for offline to bring it along" —
+      never a raw TypeError, never an infinite spinner, and never for the case
+      where content IS cached.
+
+    tests: |
+      src/config/networkGate.test.ts and
+      src/composables/useInstantPlayback.cacheFirst.test.ts pin the three named
+      scenarios: airplane-mode-cache-warm, weak-signal-cache-warm (requests
+      hang; playback starts on the budget), and toggle-OFF-no-connectivity
+      (identical to airplane mode — the case that encodes the retirement),
+      plus 403-serves-cache and empty-cache-still-fails.
+
   quality_targets:
-    never_fail: "Audio must ALWAYS play, regardless of network"
+    never_fail: "Audio must ALWAYS play, regardless of network — and never WAIT on it: one 2500ms critical-path budget, then cache (networkGate)"
     atomic_binding: "Text and audio ALWAYS match (Cycle ensures this)"
     cache_first: "The player only ever reads from the cache; the network only fills it ahead"
     buffer_target: "~20 min of cycles (+pods+L1) warmed ahead of the playhead (ROLLING_SPAN_MS)"
