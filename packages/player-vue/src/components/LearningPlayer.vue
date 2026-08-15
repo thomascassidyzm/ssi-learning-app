@@ -5244,7 +5244,10 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
             // session_complete fired during this pod lap (the cadence lands a
             // lap near the tail). expandScript() grows the revival tail by a
             // batch in INF PLAY so play continues into genuinely new rounds.
-            const added = await expandScript()
+            // OFFLINE it is a Supabase course walk that can only fail, so we
+            // skip it and go straight to the wrap — same cut as the main
+            // session_complete handler.
+            const added = offlinePlaybackActive() ? 0 : await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
@@ -5345,7 +5348,9 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           sessionEnded.value = false
           simplePlayer.resume()
         } else {
-          const added = await expandScript()
+          // Offline, expandScript is a doomed network walk — skip it rather
+          // than spend seconds on it before showing the summary anyway.
+          const added = offlinePlaybackActive() ? 0 : await expandScript()
           if (added > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
