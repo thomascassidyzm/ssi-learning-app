@@ -113,6 +113,7 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
+import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
 import { isNetworkPresumedDown } from '../config/networkGate'
 import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -11457,6 +11458,12 @@ const appendCachedLoopForOffline = (): number => {
   // shows the summary even though the engine has more queued — the "looped
   // but then just stopped" bug.
   cachedRounds.value = [...rounds, ...loopRounds] as any
+  // Tell the learner why the material just started coming round again — once
+  // per session, dismissible, and it never touches playback (#595: play what
+  // you have, never gate). Raised HERE, at the single point where offline
+  // recycling actually engages, so every call site gets it for free and it
+  // rides the same offlinePlaybackActive() signal the playback path rides.
+  markOfflineInfPlayEngaged(offlinePlaybackActive())
   return loopRounds.length
 }
 
@@ -15030,6 +15037,29 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
           >Try to reconnect</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline infinite-play notice. Tom 2026-08-15: "we need a message to let
+       the learner know". Fires once per session at the moment cached content
+       starts being recycled, and NEVER pauses audio — playback carries on
+       underneath, which is the whole point of "play what you have". Reuses the
+       paywall shell (centred modal, so no safe-area inset needed). -->
+  <Transition name="fade">
+    <div v-if="offlineInfPlayNoticeVisible" class="paywall-overlay" @click.self="dismissOfflineInfPlayNotice">
+      <div class="paywall-card">
+        <h2 class="paywall-title">{{ t('player.offlinePracticeTitle', "You're offline") }}</h2>
+        <p class="paywall-subtitle">
+          {{ t('player.offlinePracticeBody', "You're offline, so we're just going to give you a chance to practise what you've already covered.") }}
+          <br />
+          {{ t('player.offlinePracticeBodyNew', "You'll get new items when you next go online.") }}
+        </p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
+            {{ t('player.offlinePracticeAck', 'Got it') }}
+          </button>
         </div>
       </div>
     </div>

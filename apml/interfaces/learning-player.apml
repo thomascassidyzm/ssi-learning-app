@@ -976,6 +976,18 @@ COMPOSABLES:
       - "Shuffled playback from cached items — OFFLINE path only; online never shuffles (appendCachedLoopForOffline / enterInfPlayFromCache refuse to run online)"
       - "Recent item avoidance (no immediate repeats)"
 
+  useOfflineInfPlayNotice:
+    purpose: "Tell the learner, once, WHY the material started coming round again"
+    source: "packages/player-vue/src/composables/useOfflineInfPlayNotice.ts"
+    ruling: "Tom 2026-08-15, after testing the cache-first change: 'we need a message to let the learner know … you're offline so we're just going to give you a chance to practice what you've already covered. You'll get new items when you next go online'"
+    trigger: "markOfflineInfPlayEngaged(offlinePlaybackActive()) is called from LearningPlayer's appendCachedLoopForOffline() at the single point where offline recycling actually engages — so it rides exactly the signal the playback path rides (toggle OR browser-offline OR observed stall, config/networkGate.ts), never a second connectivity check. Online recycles raise nothing."
+    behaviour:
+      - "NEVER pauses or gates audio — playback continues underneath (the whole point of 'play what you have')."
+      - "Dismissible, centred modal reusing the paywall shell (.paywall-overlay/.paywall-card); centred, so no safe-area inset applies."
+      - "At most ONCE per session: dismissed stays dismissed, including a recover-then-drop-again cycle. No nagging."
+    copy: "i18n keys player.offlinePracticeTitle / offlinePracticeBody / offlinePracticeBodyNew / offlinePracticeAck — eng.json only; every other locale falls back to English via t(). British 'practise'; no parentheses."
+    second_surface: "ProgressModal.vue renders the same two sentences (same keys) in the belt strip when isInfplay && isOffline, so a learner who dismissed the dialog can still find the explanation."
+
   useLegoNetwork:
     purpose: "(REMOVED) was: D3 force simulation for LEGO network (legacy)"
     source: "DELETED — composables/useLegoNetwork.ts no longer exists."
@@ -1241,6 +1253,7 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)
+## GENERATED: 2026-01-18 — Last updated: 2026-08-15 (offline infinite play now TELLS the learner why the material is repeating — one dismissible notice, never a gate; see useOfflineInfPlayNotice)
+## Previously: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)
 ## APML v2.1.0
 ## ============================================================================
