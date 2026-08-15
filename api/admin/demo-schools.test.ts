@@ -266,9 +266,15 @@ describe('POST /api/admin/demo-schools', () => {
       const res = makeRes()
       await handler(makeReq('POST', { action: 'extend', id: 'org-1' }), res)
       expect(res.statusCode).toBe(200)
-      const base = new Date('2026-08-15T00:00:00.000Z').getTime()
+      // The handler extends from `max(current expires_at, now)`, so hard-coding
+      // the fixture's date as the base only held while that date was still in
+      // the future. It stopped being so on 2026-08-15 and the assertion began
+      // failing by however far into the day the suite happened to run. Assert
+      // the handler's actual rule instead, which is true on every calendar day.
+      const base = Math.max(new Date('2026-08-15T00:00:00.000Z').getTime(), Date.now())
       const got = new Date(res.body.expires_at).getTime()
-      expect(got - base).toBe(30 * 86400000)
+      expect(got - base).toBeLessThanOrEqual(30 * 86400000)
+      expect(got - base).toBeGreaterThan(30 * 86400000 - 5000)
     })
 
     it('un-bans staff when reviving an expired org', async () => {
