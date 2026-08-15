@@ -120,3 +120,69 @@ an assertion to the hard-coded date `2026-08-15`, and the handler extends from
 `max(current expires_at, now)`. That assertion held only while the date was in the future; it
 went off **today**, failing by however far into the day the suite ran. Fixed in its own commit by
 asserting the handler's actual rule instead of a wall-clock date.
+
+---
+
+# Addendum — offline INFINITE PLAY (same day)
+
+Scope addition: when the learner is offline, cycle through cached content via a weighted urn
+rather than a uniform shuffle. Tom's approved algorithm, implemented as specified.
+
+**Where it lives:** `packages/player-vue/src/playback/offlineUrn.ts` (pure, testable), wired into
+`LearningPlayer.appendCachedLoopForOffline` — the function that already ran offline infinite play.
+
+**What was already right:** step 1, measure the cache. That function only ever pooled cycles whose
+three clips are genuinely in the persistent cache. That inventory is the session syllabus.
+
+**What changed:** it used to shuffle whole *rounds* uniformly, so the learner got chunks of the
+course in random order and every phrase came round exactly as often as every other. It now draws
+*phrases* from a weighted urn sampled without replacement — tickets = `1 + length_bonus +
+recency_bonus`, capped, floor of one each.
+
+Round cardinality and round sizes are deliberately preserved: drawn phrases are dealt back into the
+same number of rounds, of the same lengths. The urn changes what plays and how often, not the
+pacing of the session or anything downstream that counts rounds.
+
+## Taste knobs — my defaults, for you to tune by ear
+
+| Constant | Default | Reasoning |
+|---|---|---|
+| `URN_LENGTH_BONUS_TICKETS` | **2** | A long phrase carries 3 base tickets against a short phrase's 1 — round about three times as often within a pass, never crowding anything out. |
+| `URN_RECENCY_BONUS_TICKETS` | **1** | Deliberately gentler than length. Recency already correlates with "not consolidated"; stacking both at full strength would starve the early skeleton phrases the floor exists to protect. |
+| `URN_MAX_TICKETS` | **4** | Your "~4x". Long *and* newly-introduced lands exactly on 4, so the cap isn't currently binding — it's the guard if the knobs go up. |
+| `URN_TOP_FRACTION` | **1/3** | "Top third", as specified, for both bonuses. |
+| `URN_MIN_GAP` | **3** | "Back-to-back repeats of the last few items." |
+
+## Three things worth knowing, because none was obvious
+
+1. **The urn has to persist across appends.** Each append draws only as many phrases as the cached
+   material has cycles, but a full pass is up to 4× that. A fresh urn per append would hand out
+   only the first quarter of every pass — and the without-replacement coverage guarantee, the whole
+   reason for the urn, would be silently lost. It's held in the player and rebuilt only when the
+   measured cache actually changes.
+
+2. **Shuffle-then-repair doesn't work, and a single test seed hides it.** Shuffling the ticket
+   multiset and swapping forward out of clashes *starves at the tail of a pass* — by then the only
+   things left to swap with are the very phrases that are clashing. Structural, not unlucky: a
+   back-to-back repeat in the closing draws of every pass. Replaced with greedy weighted selection.
+   An 800-seed sweep is in the suite because one seed passed both broken versions.
+
+3. **On a thin cache the weighting damps itself.** A phrase holding *c* tickets needs 2c−1 slots to
+   avoid touching itself. Three cached phrases with one on 4 tickets needs 7 slots in a 6-slot pass
+   — *no ordering satisfies that*. So the cap drops to `distinct − 1` on small syllabi. This matters
+   exactly when a learner has little downloaded, which is when they'd most notice a repeat.
+
+Also: selection is O(cap) per draw via count buckets, not O(distinct). This runs mid-playback when
+the queue drains, and the straightforward version cost **~470ms** on a fully-downloaded course
+(~2000 cached phrases) — a freeze long enough to hear. Now ~11ms, with a regression test pinning it.
+
+## Verification
+
+`pnpm --filter player-vue test` — **2154 passed** (225 files). Typecheck, `typecheck:api`,
+`test:api` (1208) all pass. Zero new lint errors.
+
+`src/playback/offlineUrn.test.ts` pins: the one-ticket floor; both bonuses independently; recency as
+course position and not clock time; the cap; full syllabus coverage per pass; exact ticket counts
+across passes; no back-to-back repeat across 800 seeds × syllabus sizes 2–40 × 3 passes; the
+self-damping cap; an empty cache drawing nothing; a single cached phrase playing rather than
+stalling; and the performance floor.

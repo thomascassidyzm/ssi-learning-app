@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
+# Last Updated: 2026-08-15 (OFFLINE INFINITE PLAY is a weighted urn sampled WITHOUT replacement over the MEASURED cache — tickets = 1 + length_bonus + recency_bonus, capped; full coverage per pass, weights control frequency within it; spaced repetition falls out of the structure with no learner model. See offline_infinite_play)
+# Prev: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
 # Prev: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
 # Prev: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
 # Prev: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
@@ -930,6 +931,83 @@ spec audio_caching_architecture:
       hang; playback starts on the budget), and toggle-OFF-no-connectivity
       (identical to airplane mode — the case that encodes the retirement),
       plus 403-serves-cache and empty-cache-still-fails.
+
+  ## ==========================================================================
+  ## OFFLINE INFINITE PLAY  (Tom's ruling, 2026-08-15)
+  ## ==========================================================================
+
+  offline_infinite_play:
+    the_offline_model: |
+      The deliberate offline toggle is for downloading un-played content IN
+      ADVANCE. Absent that, offline playback draws only on what is already
+      cached. When the learner is offline — deliberately or accidentally — the
+      app enters infinite play and cycles through cached content, mostly at
+      random.
+
+    step_1_measure_the_cache: |
+      Inventory what is actually fetchable RIGHT NOW; that list is the session
+      syllabus. Never assume coverage. In code this is the `cachedId` filter in
+      LearningPlayer.appendCachedLoopForOffline: a cycle enters the pool only
+      if all three of its clips are genuinely in the persistent audio cache.
+
+    step_2_weighted_urn_without_replacement: |
+      playback/offlineUrn.ts. Tickets per phrase = 1 + length_bonus +
+      recency_bonus, capped. Every ticket goes in the urn; draw WITHOUT
+      replacement until empty, then refill.
+
+      Without-replacement is mandatory and is the whole point: it guarantees
+      full coverage of the cached syllabus every pass, so the weights control
+      only how OFTEN within a pass, never whether. A with-replacement sampler
+      would let a phrase vanish for an arbitrarily long time, which is exactly
+      what spaced repetition must not do.
+
+      The urn PERSISTS across appends (LearningPlayer holds it, rebuilt on a
+      cache-inventory signature change). Each append draws only as many phrases
+      as the cached material has cycles, while a full pass is up to 4x that —
+      so a fresh urn per append would hand out only the first quarter of each
+      pass and silently lose the coverage guarantee.
+
+    step_3_length_bonus: "Top third by clip duration gets extra tickets — hardest covered content, decays fastest. URN_LENGTH_BONUS_TICKETS, default 2."
+
+    step_4_recency_bonus: "Top third by POSITION IN COURSE (introduction order — the source round number), NOT clock time. Newest-introduced is least consolidated. URN_RECENCY_BONUS_TICKETS, default 1."
+
+    the_floor_is_load_bearing: |
+      One ticket minimum for every cached phrase, always. Early short phrases
+      must keep resurfacing because they are the skeleton inside the long ones.
+      Spaced repetition falls out of the urn structure itself — no learner
+      model, no per-item state, no scheduler. The only inputs are cache
+      contents and course position.
+
+    ordering_is_greedy_not_shuffle_then_repair: |
+      Two things had to be got right, and neither is obvious:
+
+      (a) A shuffled ticket multiset repaired by forward swaps STARVES at the
+      tail of a pass — by then the only elements left to swap with are the very
+      keys that are clashing. Structural, not unlucky: it produced a
+      back-to-back repeat in the closing draws of every pass. Replaced by
+      greedy weighted selection over keys bucketed by remaining count.
+
+      (b) On a THIN cache a heavy weighting cannot be spaced at all. A phrase
+      holding c tickets needs 2c-1 slots; three cached phrases with one on 4
+      tickets needs 7 slots in a 6-slot pass, which no ordering satisfies. So
+      the cap damps itself to `distinct - 1` on small syllabi — which matters
+      precisely when a learner has little downloaded and would most notice.
+
+      Selection is O(cap) per draw via count buckets, not O(distinct): this
+      runs mid-playback when the queue drains, and the naive form cost ~470ms
+      on a fully-downloaded course — a freeze long enough to hear.
+
+    round_shape_is_preserved: |
+      Drawn phrases are dealt back into the SAME number of rounds, of the same
+      lengths, as the cached material had. The urn changes what plays and how
+      often — not session pacing, and nothing downstream that counts rounds.
+
+    taste_knobs: |
+      URN_LENGTH_BONUS_TICKETS (2), URN_RECENCY_BONUS_TICKETS (1),
+      URN_MAX_TICKETS (4), URN_TOP_FRACTION (1/3), URN_MIN_GAP (3). Named
+      constants by design — Tom tunes these by ear.
+
+    tests: "src/playback/offlineUrn.test.ts — tickets, coverage, weighting, and an 800-seed sweep for the back-to-back property (a single seed passed both broken implementations)."
 
   quality_targets:
     never_fail: "Audio must ALWAYS play, regardless of network — and never WAIT on it: one 2500ms critical-path budget, then cache (networkGate)"
