@@ -19,6 +19,11 @@ import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 import { withNetworkTimeout, NETWORK_TIMEOUT } from '@/config/networkGate'
+import {
+  readLastKnownIdentity,
+  writeLastKnownIdentity,
+  clearLastKnownIdentity,
+} from '@/composables/lastKnownIdentity'
 
 // Local storage keys
 const GUEST_ID_KEY = 'ssi-guest-id'
@@ -75,6 +80,17 @@ export interface AuthState {
   hasSeenSignupPrompt: Ref<boolean>
   /** Whether auth is still loading */
   isLoading: Ref<boolean>
+  /**
+   * True when the identity we are reporting came from the last-known-identity
+   * record rather than from a session the server confirmed this boot.
+   *
+   * The learner IS signed in as far as every UI surface is concerned — that is
+   * the whole point of the ruling. This flag exists for the narrow set of
+   * consumers that must not act on an unconfirmed identity (privileged
+   * server-verified surfaces, anything minting or spending real entitlement).
+   * It clears the moment a real session lands behind the learner.
+   */
+  identityUnverified: Ref<boolean>
 }
 
 export interface AuthActions {
@@ -138,6 +154,9 @@ export function useAuth(): AuthState & AuthActions {
   const learner = ref<LearnerRecord | null>(null)
   const isLoading = ref(true)
   const supabase = ref<SupabaseClient | null>(null)
+  // Set when `learner` was rehydrated from the last-known-identity record and
+  // no live session has confirmed it yet. See the AuthState doc comment.
+  const identityUnverified = ref(false)
 
   // Guest state from localStorage
   const guestId = ref<string | null>(null)
@@ -428,6 +447,71 @@ export function useAuth(): AuthState & AuthActions {
   )
 
   /**
+   * Remember the identity the server has just confirmed, so the next boot can
+   * be truthful about who this is even with no network. Called on every path
+   * that sets `learner` from a live read — and only those paths.
+   */
+  function rememberIdentity(): void {
+    if (!learner.value) return
+    const { platformRole, educationalRole } = useUserRole()
+    writeLastKnownIdentity({
+      learner: learner.value,
+      authUserId: supabaseUser.value?.id ?? learner.value.user_id ?? null,
+      email: supabaseUser.value?.email ?? null,
+      platformRole: platformRole.value,
+      educationalRole: educationalRole.value,
+    })
+    identityUnverified.value = false
+  }
+
+  /** Definitive sign-out only — never a network failure. */
+  function forgetIdentity(): void {
+    clearLastKnownIdentity()
+    identityUnverified.value = false
+  }
+
+  /**
+   * Adopt the last identity the server confirmed, so the FIRST paint of a
+   * signed-in learner is signed-in — before the network is consulted at all.
+   * A live session then confirms it (rememberIdentity) or corrects it
+   * (a definitive no-session, or a revoked session's teardown).
+   *
+   * Returns true when an identity was adopted.
+   */
+  function adoptLastKnownIdentity(): boolean {
+    if (learner.value) return false
+    const remembered = readLastKnownIdentity()
+    if (!remembered) return false
+    learner.value = remembered.learner
+    identityUnverified.value = true
+    // Roles travel with the identity: useResolvedSession only counts an
+    // 'authenticated' status as resolved once the role cache has loaded, so
+    // without this an offline signed-in learner would sit on 'pending'
+    // forever and every whenResolved() waiter would hang.
+    useUserRole().setAuthoritative(remembered.platformRole, remembered.educationalRole)
+    return true
+  }
+
+  /**
+   * Whether supabase-js still holds a stored session locally.
+   *
+   * This is what separates "the refresh could not reach the server" from "this
+   * person is signed out". supabase-js drops its stored session on a definitive
+   * refresh rejection but keeps it through a network failure — so a token that
+   * is still on disk while getSession() came back empty means we could not ask,
+   * not that the answer was no. Reading storage rather than `navigator.onLine`
+   * is deliberate: onLine lies on weak signal and captive portals (see
+   * config/networkGate.ts).
+   */
+  function hasStoredSupabaseSession(): boolean {
+    try {
+      return Object.keys(localStorage).some((k) => /^sb-.+-auth-token$/.test(k))
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Handle auth state change (sign in or sign out)
    */
   async function handleAuthChange(user: User | null): Promise<void> {
@@ -437,7 +521,15 @@ export function useAuth(): AuthState & AuthActions {
     if (user && !previousUser) {
       // User just signed in
       isLoading.value = true
-      learner.value = await ensureLearnerExists()
+      const row = await ensureLearnerExists()
+      if (row) {
+        learner.value = row
+        rememberIdentity()
+      } else if (!identityUnverified.value) {
+        learner.value = null
+      }
+      // else: the row read failed while we are holding a remembered identity.
+      // A failed read is not a sign-out — keep who we know they are.
 
       // Migrate guest progress if any
       const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
@@ -448,8 +540,9 @@ export function useAuth(): AuthState & AuthActions {
       isLoading.value = false
       useResolvedSession().resolve(true)
     } else if (!user && previousUser) {
-      // User signed out
+      // User signed out — definitive, so the remembered identity goes too.
       learner.value = null
+      forgetIdentity()
       // Reinitialize guest ID
       guestId.value = getOrCreateGuestId()
       useResolvedSession().resolve(false)
@@ -479,6 +572,12 @@ export function useAuth(): AuthState & AuthActions {
     // Initialize guest ID BEFORE any async work — app is usable as guest immediately
     guestId.value = getOrCreateGuestId()
 
+    // Adopt the last identity the server confirmed, BEFORE the network is
+    // consulted, so a signed-in learner's first paint is signed-in rather than
+    // a guest who gets upgraded a second later (or, offline, never does).
+    // Everything below either confirms this or definitively corrects it.
+    const adopted = adoptLastKnownIdentity()
+
     // Listen for auth state changes (sign in, sign out, token refresh)
     // Register listener early so we catch any auth events during session check
     supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -498,7 +597,10 @@ export function useAuth(): AuthState & AuthActions {
       }
     })
 
-    // Check for existing Supabase Auth session with a timeout.
+    // Set when the session check could not reach an answer (timeout, throw)
+    // rather than answering "no session". The two must never be conflated.
+    let couldNotVerify = false
+
     // Check for existing Supabase Auth session with a timeout.
     try {
       const SESSION_TIMEOUT_MS = 5000
@@ -524,9 +626,15 @@ export function useAuth(): AuthState & AuthActions {
         // learner; playback must not wait on it. (Tom 2026-08-15.)
         const learnerRow = await withNetworkTimeout(ensureLearnerExists())
         if (learnerRow === NETWORK_TIMEOUT) {
-          console.warn('[useAuth] Learner-row read exceeded its budget — continuing with the cached record.')
-        } else {
+          console.warn('[useAuth] Learner-row read exceeded its budget — continuing with the remembered record.')
+        } else if (learnerRow) {
           learner.value = learnerRow
+          rememberIdentity()
+        } else if (!identityUnverified.value) {
+          // A genuine null with nothing remembered: no row, and nothing to
+          // fall back on. (A null while holding a remembered identity means
+          // the read failed — keep the identity, see adoptLastKnownIdentity.)
+          learner.value = null
         }
 
         // Keep the install hand-off bridge fresh for an already-signed-in
@@ -555,7 +663,10 @@ export function useAuth(): AuthState & AuthActions {
         useResolvedSession().resolve(true)
         return
       } else if (result === null) {
-        console.warn('[useAuth] Session check timed out, continuing as guest')
+        // Timed out: we did not learn that there is no session, we learned
+        // that we could not ask. Never a reason to downgrade — see the tail.
+        couldNotVerify = true
+        console.warn('[useAuth] Session check timed out — could not verify identity')
       }
 
       // No local session. On a freshly-installed iOS Home Screen app the
@@ -570,7 +681,11 @@ export function useAuth(): AuthState & AuthActions {
             const { data, error } = await supabaseClient.auth.setSession(handoff)
             if (!error && data.session?.user) {
               supabaseUser.value = data.session.user
-              learner.value = await ensureLearnerExists()
+              const handoffRow = await ensureLearnerExists()
+              if (handoffRow) {
+                learner.value = handoffRow
+                rememberIdentity()
+              }
               const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
               if (hadGuestId) {
                 await migrateGuestProgress()
@@ -586,12 +701,34 @@ export function useAuth(): AuthState & AuthActions {
         }
       }
     } catch (err) {
-      console.warn('[useAuth] Session check failed, continuing as guest:', err)
+      couldNotVerify = true
+      console.warn('[useAuth] Session check failed — could not verify identity:', err)
     }
 
     isLoading.value = false
-    // Fell through every branch above with no session — a real, definitively
-    // resolved guest, not "still loading". supabaseUser.value is null here.
+
+    // Nothing above produced a live session. Two situations that look identical
+    // from here and must NOT be treated the same (Tom, 2026-08-15 — signed in,
+    // airplane mode, shown the guest "Save Progress" nudge):
+    //
+    //   1. We could not ask. The check timed out or threw, or supabase-js still
+    //      holds a stored session it could not refresh. We remember who this is,
+    //      so they stay signed in, unverified, and the network confirms it later.
+    //   2. There is genuinely no session and nothing remembered — a real guest.
+    if (adopted && (couldNotVerify || hasStoredSupabaseSession())) {
+      identityUnverified.value = true
+      console.warn('[useAuth] Continuing as the last known signed-in learner — verification deferred')
+      useResolvedSession().resolve(true)
+      return
+    }
+
+    // Definitively no session. Anything remembered is stale by definition —
+    // a signed-out person seeing a stale identity is worse than the bug above.
+    if (adopted) {
+      learner.value = null
+      useUserRole().clear()
+    }
+    forgetIdentity()
     useResolvedSession().resolve(false)
   }
 
@@ -703,8 +840,11 @@ export function useAuth(): AuthState & AuthActions {
         console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
       }
     }
-    // Definitive local teardown — see purgeSupabaseAuthStorage.
+    // Definitive local teardown — see purgeSupabaseAuthStorage. The remembered
+    // identity goes with it: this is the one direction that would be worse than
+    // the offline bug it exists to fix.
     purgeSupabaseAuthStorage()
+    forgetIdentity()
     supabaseUser.value = null
     learner.value = null
     useUserRole().clear()
@@ -733,7 +873,13 @@ export function useAuth(): AuthState & AuthActions {
    */
   async function refreshRole(): Promise<void> {
     if (!supabaseUser.value) return
-    learner.value = await ensureLearnerExists()
+    const row = await ensureLearnerExists()
+    if (row) {
+      learner.value = row
+      rememberIdentity()
+    } else if (!identityUnverified.value) {
+      learner.value = null
+    }
   }
 
   function incrementSessionCount(): void {
@@ -852,6 +998,7 @@ export function useAuth(): AuthState & AuthActions {
     completedSessionsCount,
     hasSeenSignupPrompt,
     isLoading,
+    identityUnverified,
 
     // Actions
     signOut,
