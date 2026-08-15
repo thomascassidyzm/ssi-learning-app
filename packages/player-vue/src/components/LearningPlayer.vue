@@ -116,6 +116,7 @@ import { useOfflineLease } from '../composables/useOfflineLease'
 import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
 import { isNetworkPresumedDown } from '../config/networkGate'
 import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
+import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -9950,11 +9951,13 @@ simplePlayer.setRuntimeOverrides({
     // warmedUpAudioUrls set short-circuits to "don't skip" so we
     // don't accidentally drop everything on a fresh enrollment.
     if (currentMode.value === 'infplay' && warmedUpAudioUrls.value.size > 0) {
-      const known = (cycle as any)?.known?.audioUrl
-      const v1 = (cycle as any)?.target?.voice1Url
-      const v2 = (cycle as any)?.target?.voice2Url
-      const cached = (url: string | undefined) => !url || warmedUpAudioUrls.value.has(url)
-      if (!cached(known) || !cached(v1) || !cached(v2)) {
+      // Same fail-closed rule as the offline gate, over the warm-up set rather
+      // than the persistent cache: a BLANK url is silence, not "nothing to
+      // check". requiredClipUrls keeps deliberately-single-audio cycles honest,
+      // so only genuinely missing clips are skipped.
+      const required = requiredClipUrls(cycle as any)
+      const warmed = (url?: string | null) => !!url && warmedUpAudioUrls.value.has(url)
+      if (required.length === 0 || !required.every(warmed)) {
         return true
       }
     }
@@ -9966,10 +9969,11 @@ simplePlayer.setRuntimeOverrides({
     // degrades to "play whatever IS cached" and never freezes. Tom 2026-05-25:
     // never NOT play something because it can't find the exact next clip.
     if (offlinePlaybackActive()) {
-      const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-      const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
-      const c = cycle as any
-      if (!cachedId(c?.known?.audioUrl) || !cachedId(c?.target?.voice1Url) || !cachedId(c?.target?.voice2Url)) {
+      // FAILS CLOSED (playback/offlinePlayable.ts). The old inline gate answered
+      // "cached" for a BLANK url, so an audio-less intro — cycle 0 of the round a
+      // resume lands on — was the one cycle guaranteed to survive the filter, and
+      // played four phases of silence with its text on screen. Tom's first phrase.
+      if (!isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))) {
         return true
       }
     }
@@ -10764,8 +10768,6 @@ const offlinePlaybackActive = (): boolean =>
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
   if (!offlinePlaybackActive()) return new Set()
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const audioCached = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -10777,8 +10779,11 @@ const offlineUnavailableBeltNames = computed<Set<string>>(() => {
     const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
     const round = targetLegoId ? rounds.find((r: any) => r?.legoId === targetLegoId) : null
     const cycles = (round as any)?.cycles || []
+    // Same fail-closed gate the engine uses, so a pill reads available exactly
+    // when landing there would actually produce sound — a blank-url cycle no
+    // longer makes a belt look reachable and then hand the learner silence.
     const hasPlayableCycle = cycles.some((c: any) =>
-      audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (!hasPlayableCycle) names.add(belt.name)
   }
   return names
@@ -11429,15 +11434,14 @@ let offlineUrnSignature = ''
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
-
-  // ── Step 1: MEASURE THE CACHE. This inventory is the session syllabus.
+  // ── Step 1: MEASURE THE CACHE. This inventory is the session syllabus, so
+  // the fail-closed gate matters most here: a blank-url cycle counted as
+  // "cached" would seed the urn with a phrase that can only ever be silence.
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
       INF_PLAY_USE_TYPES.has(c?.type)
-      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      && isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
@@ -12545,6 +12549,14 @@ onMounted(async () => {
   // when offline (the lock decision). Cheap IndexedDB read; awaited so the
   // fast-path below sees the correct offlineLeaseLocked value.
   await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
+  // Hydrate the audio cache's in-memory id Set BEFORE anything consults the
+  // fail-closed offline gate. persistent.has() is a synchronous read of a Set
+  // that fills lazily; unhydrated it answers false for EVERYTHING, so every
+  // cycle with real audio would be judged uncached and skipped at exactly the
+  // moment a session starts. This is a local IndexedDB cursor walk, and it
+  // fails open — a cache that can't hydrate must not block boot.
+  await audioCache.ready().catch(() => {})
 
   // Restore the learner's explicit offline-mode selection BEFORE first play.
   // Once offline mode is chosen and the content downloaded, playback comes
