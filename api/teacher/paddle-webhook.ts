@@ -490,7 +490,25 @@ const PLATFORM_STATUS_MAP: Record<string, string> = {
 // No resolution → REJECT and log loudly. A payment that can't be tied to a
 // node is a manual-remediation case, never a write to a guessed row.
 
-/** The auth uid behind the Paddle customer who actually paid, or null. */
+/**
+ * The auth uid behind the Paddle customer who actually paid, or null.
+ *
+ * SEC15-04 (2026-08-16): an email is a WEAK identity claim on the money path,
+ * so the two ways it used to be over-trusted are closed here.
+ *
+ *  - `learner_emails.verified = true` is required. An unverified row is an
+ *    address somebody typed, not an address anybody proved they hold.
+ *  - A multi-learner match is REFUSED rather than resolved arbitrarily.
+ *    CLAUDE.md records that multiple accounts per person are INTENTIONAL
+ *    (tester accounts — do not merge learners), so a multi-match is an
+ *    expected state, and `.find(Boolean)` picked whichever row Postgres
+ *    happened to return first. On the money path the right answer is to
+ *    refuse and log for manual binding.
+ *
+ * Refusing here writes NOTHING — every caller turns a null into "reject and
+ * log", never into a downgrade. That is deliberate: a resolution failure must
+ * never be able to take a paying node's access away.
+ */
 async function resolvePayerAuthUid(
   supabase: any,
   customerId: string | undefined
@@ -501,19 +519,42 @@ async function resolvePayerAuthUid(
     const payerEmail = (customer?.email || '').trim().toLowerCase()
     if (!payerEmail) return null
 
-    const { data: emailRows } = await supabase
+    const { data: emailRows, error: emailErr } = await supabase
       .from('learner_emails')
       .select('learner_id')
       .eq('email', payerEmail)
-    const learnerIds = (emailRows || []).map((r: any) => r.learner_id).filter(Boolean)
+      .eq('verified', true)
+    if (emailErr) {
+      console.warn('[paddle-webhook] payer email lookup failed (resolving to nothing):', emailErr.message)
+      return null
+    }
+    const learnerIds = [
+      ...new Set((emailRows || []).map((r: any) => r.learner_id).filter(Boolean)),
+    ]
     if (learnerIds.length === 0) return null
+    if (learnerIds.length > 1) {
+      console.error(
+        `[paddle-webhook] REFUSING payer resolution: verified email ${payerEmail} maps to ${learnerIds.length} learners — multiple accounts per person are intentional, so "an arbitrary one of these" is not an answer on the money path. Needs manual binding.`,
+        { customerId }
+      )
+      return null
+    }
 
     const { data: learners } = await supabase
       .from('learners')
       .select('user_id')
       .in('id', learnerIds)
-    const uid = (learners || []).map((l: any) => l.user_id).find(Boolean)
-    return uid || null
+    const uids = [...new Set((learners || []).map((l: any) => l.user_id).filter(Boolean))]
+    if (uids.length !== 1) {
+      if (uids.length > 1) {
+        console.error(
+          '[paddle-webhook] REFUSING payer resolution: one learner id resolved to several auth uids. Needs manual binding.',
+          { customerId }
+        )
+      }
+      return null
+    }
+    return uids[0] as string
   } catch (e: any) {
     console.warn('[paddle-webhook] payer resolution failed:', e?.message)
     return null
