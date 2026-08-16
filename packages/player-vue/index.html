@@ -137,8 +137,41 @@
 
         var MAX_ATTEMPTS = 2;
         var ATTEMPT_KEY = 'ssi-boot-heal-attempts';
+        var SWAP_KEY = 'ssi-boot-shell-swapped';
+        var SWAP_GUARD_MS = 30000;
         var PRESERVE_CACHES = ['ssi-auth-handoff'];
         var healTriggered = false;
+
+        // Lie-fi: navigator.onLine is TRUE, requests are accepted and then
+        // hang forever. Only a real answer proves a live network — and only a
+        // live network can justify deleting the SW + precache. 2s, because
+        // anything slower than that is a network we must not trust anyway.
+        // Mirrors shouldHealOnBootFailure(networkAnswered) in utils/bootHeal.ts.
+        function networkAnswers() {
+          return new Promise(function (resolve) {
+            var settled = false;
+            function done(v) { if (!settled) { settled = true; resolve(v); } }
+            setTimeout(function () { done(false); }, 2000);
+            try {
+              fetch(window.location.origin + '/favicon.ico?boot-probe=' + Date.now(), {
+                cache: 'no-store',
+                credentials: 'omit',
+              }).then(function () { done(true); }, function () { done(false); });
+            } catch (e) { done(false); }
+          });
+        }
+
+        // The swap guard exists to stop a cached shell that ALSO fails to mount
+        // from swapping itself in forever. It must not outlive a success: a
+        // learner who reloads twice on a weak signal has to be rescued twice,
+        // which is the difference between a slow boot and Tom's "permanent"
+        // white screen. So a boot that reaches mount clears the guard.
+        var bootedWatch = setInterval(function () {
+          if (!window.__SSI_BOOTED) return;
+          clearInterval(bootedWatch);
+          try { sessionStorage.removeItem(SWAP_KEY); } catch (e) { /* storage blocked */ }
+        }, 500);
+        setTimeout(function () { clearInterval(bootedWatch); }, 60000);
 
         function readAttempts() {
           try { return parseInt(sessionStorage.getItem(ATTEMPT_KEY), 10) || 0; }
@@ -224,6 +257,41 @@
             .then(reloadOnce);
         }
 
+        // Weak-signal recovery: start the copy of the app we already hold.
+        // On a weak signal a small index.html can arrive inside the service
+        // worker's 3s navigation timeout while the hashed chunks it names
+        // cannot — and sub-resource fetches have no timeout, so the shell
+        // paints and the app never mounts. The precached shell names chunks
+        // that are precached by construction, so swapping it in mounts
+        // immediately. Mirrors shouldServeCachedShell() in utils/bootHeal.ts.
+        function serveCachedShell() {
+          if (window.__SSI_BOOTED) return;
+          // Time-expiring guard, mirroring isSwapGuardActive() in
+          // utils/bootHeal.ts: a cached shell that also fails would re-swap
+          // within seconds, but a learner reloading later on the same bad
+          // signal must be rescued again. It cannot rely on being cleared by
+          // the swapped-in document, whose inline script the CSP hash blocks
+          // whenever the cached shell comes from a different build.
+          try {
+            var swappedAt = parseInt(sessionStorage.getItem(SWAP_KEY), 10);
+            if (swappedAt && Date.now() - swappedAt < SWAP_GUARD_MS) return;
+          } catch (e) { /* storage blocked */ }
+          if (!('caches' in window)) return;
+          caches.match('/index.html', { ignoreSearch: true }).then(function (res) {
+            if (!res || window.__SSI_BOOTED) return;
+            return res.text().then(function (html) {
+              if (window.__SSI_BOOTED || !html) return;
+              try { sessionStorage.setItem(SWAP_KEY, String(Date.now())); } catch (e) { /* storage blocked */ }
+              // Replacing the document tears down the hanging entry chunk's
+              // context too — nothing is left waiting on a network that will
+              // never answer.
+              document.open();
+              document.write(html);
+              document.close();
+            });
+          }).catch(function () { /* nothing cached to fall back to */ });
+        }
+
         function heal() {
           if (healTriggered) return;
           healTriggered = true;
@@ -240,26 +308,45 @@
         // Fast path: a failed script/module load anywhere in the entry graph.
         // Two guards (mirrored in utils/bootHeal.ts — shouldHealOnBootFailure
         // + isDeployFatalResourceUrl):
-        //  - OFFLINE is a missing network, not a broken deploy. Healing
-        //    deletes the SW + precache — the only thing that makes the app
-        //    work offline — so an airplane-mode boot must never trip this.
+        //  - A MISSING NETWORK is not a broken deploy. Healing deletes the SW
+        //    + precache — the only thing that makes the app work offline — so
+        //    an airplane-mode boot must never trip this, and neither must a
+        //    weak signal. The test is whether the network actually answered,
+        //    NOT navigator.onLine: on lie-fi that flag says "online" while
+        //    every request hangs, which is exactly how a bad signal used to
+        //    end in a permanent white screen (2026-08-16).
         //  - Only SAME-ORIGIN failures count. The entry graph lives on our
         //    origin (it's what the SW precaches); Google Fonts being down or
         //    ad-blocked must never nuke the install.
         window.addEventListener('error', function (evt) {
           if (window.__SSI_BOOTED) return;
-          if (!navigator.onLine) return;
           var target = evt && evt.target;
           if (!target || (target.tagName !== 'SCRIPT' && target.tagName !== 'LINK')) return;
           var url = target.src || target.href || '';
           if (url.indexOf(window.location.origin + '/') !== 0) return;
-          heal();
+          networkAnswers().then(function (answered) {
+            if (window.__SSI_BOOTED) return;
+            if (answered) heal();
+            else serveCachedShell();
+          });
         }, true);
 
-        // Slow path: mount never happened. Same offline guard — never heal
-        // without a network to rebuild from.
+        // Weak-signal path: the boot has stalled with no error to react to,
+        // because the chunk fetches are simply hanging. Long before the
+        // deploy-broken deadline, stop waiting and start what we already have.
+        // Mirrors CACHED_SHELL_FALLBACK_MS in utils/bootHeal.ts.
         setTimeout(function () {
-          if (!window.__SSI_BOOTED && navigator.onLine) heal();
+          if (!window.__SSI_BOOTED) serveCachedShell();
+        }, 3000);
+
+        // Slow path: mount never happened, and nothing we hold could fix it.
+        // Same guard as the fast path — never heal without proof of a live
+        // network to rebuild from.
+        setTimeout(function () {
+          if (window.__SSI_BOOTED) return;
+          networkAnswers().then(function (answered) {
+            if (!window.__SSI_BOOTED && answered) heal();
+          });
         }, 15000);
       })();
     </script>
