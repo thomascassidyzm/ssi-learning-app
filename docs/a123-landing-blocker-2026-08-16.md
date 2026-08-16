@@ -84,3 +84,23 @@ Four commits — `1ccdd638`, `cfff6afc`, `a0d1f829`, `dc516057`.
 - **Branch:** `fix/a123-paddle-customer-binding-2026-08-16` (unchanged, still on origin)
 - **Merged to:** **`dev`** — fast-forwarded `6fa4c2d4` → `dc516057`, pushed
 - **Deployed to:** the dev Vercel alias only (`ssi-learning-app-git-dev-zenjin.vercel.app`, HTTP 200). **Production `main` is still `194b98b1` and has NOT picked this up — deliberately, pending your answer above.**
+
+---
+
+## Independent audit (worker #745) — verdict and what it adds
+
+A second reader audited the code cold, read-only, with no knowledge of my findings. **Same verdict: access preserved.** It confirmed independently that `entitlement_grants` is not referenced anywhere in the branch (zero hits across all 15 changed files), that every refusal site returns before its `.update()`, and that rung 1 returns at `paddle-webhook.ts:765` *before the handler ever reads `data.status`* — which is the structural reason renewal and cancellation resolve identically for a grandfathered node.
+
+It found four things I had not, none of which change the merge decision:
+
+**1. The grandfathered *cancellation* is untested at webhook level.** There are tests for a grandfathered renewal on both lanes, and for a refused cancellation writing nothing. There is no test driving `subscription.canceled` for a node that resolves on rung 1. The write-up claims "three properties, each with its own test" — that is accurate for properties 1 and 2 and thin for property 3. The claim is provable by inspection but not by test.
+
+**2. A residue class the write-up doesn't name.** A first purchase is refused when the payer's `learner_emails` row is unverified **or when the address maps to more than one learner**. CLAUDE.md records multiple accounts per person as *intentional* on this estate — tester accounts, do not merge learners — so multi-match is an expected state, not a rarity. No access is lost; a legitimate first purchase simply fails to attribute where it previously succeeded. This compounds the rung-2-only finding above: it is the same money-path risk from a second direction.
+
+**3. A third lane has the same shape of hole, unguarded.** `handleTutorPlatformSubscription` still resolves `teachers` from browser-supplied `customData.teacher_id`, then writes `platform_status` and `platform_expires_at` with no steal guard and no rung-1 check. I verified this directly. It is **pre-existing and A-123 does not make it worse**, but the write-up's framing — "who paid is now settled before the money moves" — reads as covering it, and it does not. Live exposure today: 7 teacher rows, 5 trial, **0 paying**. A follow-up ticket, not a merge blocker.
+
+**4. An upgrade can silently fail to land.** A learner on a still-active plan who buys a new one before the old lapses (Premium → Family) now has the row write blocked. They keep their existing plan — nothing removed — but the upgrade they paid for does not apply until someone intervenes. Untested case.
+
+The auditor could not execute the branch suite from its read-only checkout and reported the test numbers as unverified by it. I ran them in a worktree; the figures in the table above are mine and were observed directly.
+
+**Net:** the gaps are in *proof*, not in the code. Three of the four findings are money-path attribution risks — a purchase failing to attach — rather than access removal. That is the argument for letting this soak on staging rather than going straight to production.
