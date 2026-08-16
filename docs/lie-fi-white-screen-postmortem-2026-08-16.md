@@ -60,20 +60,30 @@ whether the app boots. Your failure was at boot, before any of that code existed
 
 ### 2. What condition was each verified under?
 
-I read the probes that shipped with them. The answer is sharper than "they all used airplane mode",
-so here it is precisely:
+I read every probe and test that shipped with them, and the answer is the opposite of what you might
+expect. **The previous work understood the hanging-network problem perfectly well** — it just never
+pointed that understanding at the app's front door:
 
-- Most of them establish their condition with the browser's own offline switch — the airplane-mode
-  equivalent, where requests fail instantly.
-- Two of the most recent ones — the identity fix and the belt-held fix — were *cleverer* than that.
-  They deliberately made requests **hang** rather than fail, using a handler that never answers. So
-  the team did understand the hanging-network problem.
-- But they hung only the **data** requests: the login server, the progress API, the audio bucket. The
-  **app's own files** — the page, its code — were always served instantly by a healthy local test
-  server, in every single probe.
+- The two live browser probes from last week — the identity fix and the belt-held fix — deliberately
+  make requests **hang** rather than fail, using a handler that never answers at all. They chose that
+  over the browser's offline switch on purpose, and said why in the code.
+- There is even a unit test named for the weak-signal case explicitly, which holds a request open
+  past the deadline while the browser still believes it is online, and another that pins the
+  distinction in a comment: *airplane mode is not a hang — it is an immediate rejection*.
+- The older probes in the suite do use the plain offline switch, but none of those files belongs to
+  the recent fixes.
 
-So the boot path has never once been tested on a bad network. Not in airplane mode, not on a hanging
-one. The condition simply did not exist in our test suite.
+So the honest finding is sharper and less comfortable than "nobody thought of it". The hang was
+modelled, named, and tested — but only ever for the **data**: the login server, the progress API, the
+audio bucket. The **app's own files** — the page and its code — were served instantly by a healthy
+local test server in every probe ever written here.
+
+The boot path has therefore never once been tested on a bad network of any kind. The condition simply
+did not exist in our suite, for the one component whose failure is destructive.
+
+Two of the recent fixes also carry no network-condition test at all, mocked or live — their evidence
+is the reasoning in the commit message plus a shared gate that the live probes exercise. That is
+worth knowing, but it is not what bit you.
 
 One probe does throttle the network to slow-3G-style speeds. It cannot catch this either, for a
 subtle reason worth recording: that throttle is attached to the page, and the component that decides
@@ -114,8 +124,12 @@ That work stopped at the app's front door. The boot watchdog runs *before* any o
 code exists, so it cannot use any of that machinery — and it was still asking the old question. It
 is also the one component whose mistake is destructive rather than merely slow.
 
-So this was not an unknown failure mode. It was a known one that had been fixed everywhere except
-the single place where getting it wrong deletes the app.
+So this was not an unknown failure mode. It was a known one, with a test named after it, fixed
+everywhere except the single place where getting it wrong deletes the app.
+
+If there is a lesson worth keeping, it is that one: when a rule like "don't trust that flag" is
+adopted, the sweep has to reach the code that runs *before* the codebase's own tools exist. That
+code always looks like it's out of scope, and it is exactly where the rule matters most.
 
 ### 4a. Was the service worker even serving the shell cache-first?
 
