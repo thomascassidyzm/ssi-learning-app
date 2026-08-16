@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.10.0"
-  date: "2026-08-10"   # login-code idempotence + failed-attempt telemetry
+  version: "1.11.0"
+  date: "2026-08-16"   # A-123: the payer is bound before the money moves
   author: "Tom Cassidy"
   status: "draft"
 
@@ -927,12 +927,59 @@ principle SeatDefaultIsRealStaffNeverACap:
     stepper, clicks Subscribe and asserts the quantity Paddle receives equals
     the seats on screen and the displayed total.
 
+  payer_binding: |
+    A-123 (2026-08-16), closing security finding SEC15-01. WHO paid is settled
+    BEFORE the checkout opens, not inferred from the Paddle payload afterwards.
+    Opening a school or org checkout first calls POST /api/billing/bind-customer
+    (authenticated): it resolves the node from the caller's own Supabase session
+    — schools.admin_user_id or an ADMIN school tag, govt_admins.group_id for an
+    org, the same admin-only rule api/school/update-seats.ts applies so a plain
+    teacher tag cannot address the school's billing — reads their email from
+    auth.users with the service key, finds/creates the Paddle customer, writes
+    provider_customer_id onto the node, and mints a server-SIGNED checkout
+    intent naming it (api/_utils/billingIntent.ts). The composables pass the
+    returned customer id instead of a browser-typed email, carry the intent in
+    customData, and FAIL CLOSED — no binding, no checkout.
+
+    The webhook then addresses a node down THE BINDING LADDER
+    (api/teacher/paddle-webhook.ts): (1) the row already bound to this
+    subscription id, (2) a valid signed intent, (3) the customer binding, (4)
+    the verified payer email. Rungs 3 and 4 are weak claims — a customer record
+    Paddle may attach by email, and an email the buyer typed — so they may only
+    bind a node holding NO live entitlement. Anything else is refused and logged
+    for manual remediation.
+
+  access_preservation: |
+    Founder condition on A-123, verbatim: "making sure no-one's access is
+    removed". Three properties, each with its own test:
+      1. A failure to resolve writes NOTHING — never platform_status
+         'cancelled', never a shortened platform_expires_at, never fewer seats,
+         never a nulled provider_*.
+      2. One subscription can never steal another's live binding
+         (api/_utils/billingBinding.ts wouldStealLiveBinding). The learner lane,
+         which addresses its write by the equally browser-composed
+         customData.supabase_user_id, gets the same guard on its subscriptions
+         row (wouldStealLiveSubscriptionRow).
+      3. Every EXISTING subscriber is grandfathered by rung 1, which is
+         unchanged — their node already carries provider_subscription_id, so
+         every renewal, seat change and cancellation resolves exactly as before
+         and re-writes provider_customer_id as it goes, healing legacy rows.
+    'active', 'past_due', a running 'trial' and a legacy NULL status all count
+    as holding something (holdsLivePlatformEntitlement) — the predicate is
+    deliberately broader than the dashboard gate, because the question here is
+    "would this write take something away", not "may they use it right now".
+
   pinned_by: |
     api/school/subscription.test.ts (teacher_count: founding admin counted,
     not double-counted once tagged, class-only co-teacher counted, removed and
     other-school tags ignored); UpgradeView.seatDefault.test.ts (seeding,
     step-down/step-up, no-stomp-during-load, subscribed path unchanged,
-    quantity-vs-display pin).
+    quantity-vs-display pin); api/teacher/paddle-payer-email-addressing.
+    security.test.ts (SEC15-01/04 closed, refusals write nothing);
+    api/teacher/paddle-billing-intent-addressing.security.test.ts (the signed
+    intent addresses the node, forged intents resolve to nothing, live bindings
+    are never stolen on either lane); api/_utils/billingBinding.test.ts and
+    api/_utils/billingIntent.test.ts.
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"
