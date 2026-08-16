@@ -77,7 +77,14 @@ beforeEach(() => {
   fetchImpl = () => subscriptionResponse({ id: 'school-1', platform_status: 'trial', teacher_seats: 1, teacher_count: 3 })
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: true,
-    json: async () => fetchImpl(url),
+    // A-123 (2026-08-16): opening a school checkout now first asks the server
+    // to bind a Paddle customer to THIS school and sign a checkout intent, so
+    // the address of the billing write is never a browser-typed email. The
+    // composable fails CLOSED without it, so the stub has to answer it.
+    json: async () =>
+      url.includes('/api/billing/bind-customer')
+        ? { customerId: 'ctm_test', intent: 'signed-intent-token', nodeId: 'school-1' }
+        : fetchImpl(url),
   })))
 })
 

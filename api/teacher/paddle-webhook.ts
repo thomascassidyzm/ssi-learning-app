@@ -48,6 +48,8 @@ import { createClient } from '@supabase/supabase-js'
 import { EventName } from '@paddle/paddle-node-sdk'
 import { paddle, webhookSecret } from '../_utils/paddle'
 import { leaderGroupId } from '../_utils/orgPlatform'
+import { holdsLivePlatformEntitlement, wouldStealLiveBinding } from '../_utils/billingBinding'
+import { verifyBillingIntent } from '../_utils/billingIntent'
 
 // Paddle signature verification requires the raw, unmodified request body.
 // Disable Vercel's default body parser on this endpoint.
@@ -186,6 +188,47 @@ export async function wouldDowngradePlan(
     return true
   }
   return false
+}
+
+/**
+ * Would writing this subscription onto `learnerId`'s row STEAL a live binding
+ * from a different subscription? (A-123, 2026-08-16.)
+ *
+ * The learner lane addresses its write by `customData.supabase_user_id`, which
+ * the browser composes — the same trust mistake SEC15-01 describes on the
+ * school lane, keyed on a uuid instead of an email. The learner lane has no
+ * pre-purchase row to hold a server-made binding, so it is protected the other
+ * way round: an incoming subscription may not overwrite a `subscriptions` row
+ * that a DIFFERENT, still-live subscription already owns.
+ *
+ * That is precisely the payoff half of the attack. Naming somebody else's
+ * account can no longer take their premium away, because the row that grants
+ * it cannot be re-pointed at the attacker's subscription and then cancelled.
+ * (Naming an account with no live subscription still grants that account
+ * premium at the payer's own expense — a gift, not a theft, and no access is
+ * lost by it.)
+ *
+ * Reuses NON_TERMINAL_SUB_STATUSES — the codebase's existing notion of "this
+ * row still grants something" — rather than inventing a second one.
+ */
+export async function wouldStealLiveSubscriptionRow(
+  supabase: any,
+  learnerId: string,
+  incomingSubscriptionId: string | null | undefined
+): Promise<boolean> {
+  const { data: existing, error } = await supabase
+    .from('subscriptions')
+    .select('provider_subscription_id, status')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  if (error || !existing?.provider_subscription_id) return false
+  if (existing.provider_subscription_id === incomingSubscriptionId) return false
+  if (!NON_TERMINAL_SUB_STATUSES.has(existing.status)) return false
+
+  console.error(
+    `[paddle-webhook] REFUSED subscription-row write for learner ${learnerId}: incoming subscription ${incomingSubscriptionId} would overwrite a row still live under a DIFFERENT subscription (${existing.provider_subscription_id}, status '${existing.status}'). One subscription may never steal another's binding. Needs manual remediation.`
+  )
+  return true
 }
 
 // Real collected amount (minor units / pence) from a transaction payload. Paddle
@@ -561,8 +604,159 @@ async function resolvePayerAuthUid(
   }
 }
 
-/** The school this subscription may write to — existing binding, else the payer's own. */
+// ── THE BINDING LADDER (A-123, 2026-08-16) ──────────────────────────────────
+//
+// A platform subscription event may address a node in exactly four ways, tried
+// in this order. Every one of them is something the buyer cannot type.
+//
+//   1. THE SUBSCRIPTION BINDING. Some row already carries this subscription id.
+//      This is every renewal, seat change and cancellation of every existing
+//      subscriber — it is unchanged, and it is why nobody who is already paying
+//      today is affected by any of this.
+//   2. THE SIGNED INTENT. api/billing/bind-customer.ts minted a token naming
+//      this node, from the verified session of the admin who opened the
+//      checkout. The signature is made with a server-only key, so unlike
+//      customData.school_id (which the browser composes) it cannot be forged,
+//      and unlike an email it cannot simply be typed.
+//   3. THE CUSTOMER BINDING, only onto a node holding no live entitlement.
+//      Same endpoint wrote provider_customer_id; this catches a checkout whose
+//      token expired. It is fenced because a Paddle customer record CAN be
+//      attached to a checkout by email, so a customer id is a weaker claim than
+//      a signature.
+//   4. THE VERIFIED PAYER EMAIL, only onto a node holding no live entitlement.
+//      The legacy path, kept so a client running stale cached JS (which sends
+//      no token) can still buy for a node that is not yet subscribed. Fenced
+//      hard, because this is the SEC15-01 channel: an email is typed by the
+//      buyer, so it must never be able to touch a node that has something to
+//      lose.
+//
+// Anything else: refuse, log, write nothing.
+//
+// ACCESS PRESERVATION (Tom's binding condition): steps 2-4 additionally refuse
+// to write onto a node whose live entitlement runs through a DIFFERENT
+// subscription (wouldStealLiveBinding). That is the guard that makes "one
+// subscription can never steal another's binding" true, and it is what stops a
+// later cancellation on the attacker's subscription landing on a victim.
+
+type PlatformTable = 'schools' | 'groups'
+
+interface BindingCandidate {
+  id: string
+  via: 'subscription' | 'intent' | 'customer' | 'email'
+}
+
+interface NodeBilling {
+  provider_subscription_id: string | null
+  platform_status: string | null
+  platform_expires_at: string | null
+  /** True when the node exists but the platform columns do not (migration
+   *  20260801_org_platform_billing / the schools equivalent unapplied). There
+   *  is then no platform entitlement in existence to protect, so the guards
+   *  have nothing to weigh — the same fail-open posture orgPlatform.ts takes. */
+  noPlatformColumns?: boolean
+}
+
+/** Read the billing state of a candidate node so the guards can be applied. */
+async function readNodeBilling(
+  supabase: any,
+  table: PlatformTable,
+  nodeId: string
+): Promise<NodeBilling | null> {
+  const { data, error } = await supabase
+    .from(table)
+    .select('provider_subscription_id, platform_status, platform_expires_at')
+    .eq('id', nodeId)
+    .maybeSingle()
+  if (!error && data) return data as NodeBilling
+  if (!error) return null // no such row
+
+  // The select failed — most plausibly because the platform columns aren't
+  // there yet. Re-ask for the row alone: if it exists, this DB has no platform
+  // billing to lose and the guards are vacuous.
+  const { data: bare } = await supabase.from(table).select('id').eq('id', nodeId).maybeSingle()
+  if (!bare) return null
+  return {
+    provider_subscription_id: null,
+    platform_status: null,
+    platform_expires_at: null,
+    noPlatformColumns: true,
+  }
+}
+
+/**
+ * Apply the access guards to a candidate that did NOT come from the
+ * subscription binding. Returns the node id, or null (refuse + log).
+ */
+async function guardCandidate(
+  supabase: any,
+  table: PlatformTable,
+  candidate: BindingCandidate,
+  data: any
+): Promise<string | null> {
+  const billing = await readNodeBilling(supabase, table, candidate.id)
+  if (!billing) {
+    // The node's billing state could not be read — a missing row, or platform
+    // columns that don't exist yet. A signed intent is trustworthy enough to
+    // proceed on; a weak claim is not, because we cannot check what the write
+    // would take away. Unreadable → refuse, never guess.
+    if (candidate.via === 'intent') return candidate.id
+    console.error(
+      `[paddle-webhook] REFUSED (${candidate.via}): could not read the billing state of ${table} ${candidate.id}, so the guards cannot be applied. Needs manual remediation.`,
+      { subscriptionId: data.id, customerId: data.customerId }
+    )
+    return null
+  }
+  if (billing.noPlatformColumns) return candidate.id
+
+  if (
+    wouldStealLiveBinding({
+      existingSubscriptionId: billing.provider_subscription_id,
+      incomingSubscriptionId: data.id,
+      status: billing.platform_status,
+      expiresAt: billing.platform_expires_at,
+    })
+  ) {
+    console.error(
+      `[paddle-webhook] REFUSED (${candidate.via}): subscription ${data.id} would overwrite ${table} ${candidate.id}, which is still entitled through a DIFFERENT subscription (${billing.provider_subscription_id}). One subscription may never steal another's binding. Needs manual remediation.`,
+      { customerId: data.customerId }
+    )
+    return null
+  }
+
+  // The weak claims (a customer id Paddle may have attached by email; an email
+  // the buyer typed) may only ever bind a node with nothing to lose.
+  if (candidate.via !== 'intent') {
+    if (holdsLivePlatformEntitlement(billing.platform_status, billing.platform_expires_at)) {
+      console.error(
+        `[paddle-webhook] REFUSED (${candidate.via}): subscription ${data.id} resolved to ${table} ${candidate.id} by a weak claim, and that node currently holds a live entitlement (status ${billing.platform_status}). Only a server-signed checkout intent may bind a node that has something to lose. Needs manual remediation.`,
+        { customerId: data.customerId }
+      )
+      return null
+    }
+  }
+
+  return candidate.id
+}
+
+/** Step 2 of the ladder: the node named by a signed, unexpired checkout intent. */
+function intentNode(data: any, scope: 'school' | 'org'): string | null {
+  const customData = (data?.customData || {}) as Record<string, unknown>
+  const payload = verifyBillingIntent(customData.billing_intent)
+  if (!payload) return null
+  if (payload.scope !== scope) {
+    console.error(
+      `[paddle-webhook] REFUSED: billing intent is scoped '${payload.scope}' but the checkout claims '${scope}'`,
+      { subscriptionId: data.id }
+    )
+    return null
+  }
+  return payload.nodeId
+}
+
+/** The school this subscription may write to. See THE BINDING LADDER above. */
 async function resolveSchoolTarget(supabase: any, data: any): Promise<string | null> {
+  // 1. The existing subscription binding — unchanged, and unguarded by design:
+  //    this row IS this subscription's node, so there is nothing to steal.
   const { data: bound } = await supabase
     .from('schools')
     .select('id')
@@ -570,6 +764,25 @@ async function resolveSchoolTarget(supabase: any, data: any): Promise<string | n
     .maybeSingle()
   if (bound?.id) return bound.id as string
 
+  // 2. The server-signed checkout intent.
+  const signed = intentNode(data, 'school')
+  if (signed) return await guardCandidate(supabase, 'schools', { id: signed, via: 'intent' }, data)
+
+  // 3. The customer binding written before the checkout opened.
+  if (data.customerId) {
+    const { data: byCustomer } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('provider_customer_id', data.customerId)
+      .maybeSingle()
+    if (byCustomer?.id) {
+      return await guardCandidate(supabase, 'schools', { id: byCustomer.id, via: 'customer' }, data)
+    }
+  }
+
+  // 4. The verified payer email — the legacy net, fenced to nodes with nothing
+  //    to lose. This is the SEC15-01 channel and it is now unable to reach any
+  //    node that currently holds access.
   const authUid = await resolvePayerAuthUid(supabase, data.customerId)
   if (!authUid) return null
 
@@ -578,7 +791,9 @@ async function resolveSchoolTarget(supabase: any, data: any): Promise<string | n
     .select('id')
     .eq('admin_user_id', authUid)
     .maybeSingle()
-  if (ownSchool?.id) return ownSchool.id as string
+  if (ownSchool?.id) {
+    return await guardCandidate(supabase, 'schools', { id: ownSchool.id, via: 'email' }, data)
+  }
 
   // Same admin-only tag rule as api/school/update-seats.ts — a plain teacher
   // tag must NOT be able to address the school's billing.
@@ -591,13 +806,17 @@ async function resolveSchoolTarget(supabase: any, data: any): Promise<string | n
     .is('removed_at', null)
     .limit(1)
     .maybeSingle()
-  if (tag?.tag_value) return String(tag.tag_value).replace('SCHOOL:', '')
+  if (tag?.tag_value) {
+    const tagged = String(tag.tag_value).replace('SCHOOL:', '')
+    return await guardCandidate(supabase, 'schools', { id: tagged, via: 'email' }, data)
+  }
 
   return null
 }
 
-/** The org this subscription may write to — existing binding, else the payer's own. */
+/** The org this subscription may write to. Same ladder as resolveSchoolTarget. */
 async function resolveOrgTarget(supabase: any, data: any): Promise<string | null> {
+  // 1. The existing subscription binding.
   const { data: bound } = await supabase
     .from('groups')
     .select('id')
@@ -605,9 +824,28 @@ async function resolveOrgTarget(supabase: any, data: any): Promise<string | null
     .maybeSingle()
   if (bound?.id) return bound.id as string
 
+  // 2. The server-signed checkout intent.
+  const signed = intentNode(data, 'org')
+  if (signed) return await guardCandidate(supabase, 'groups', { id: signed, via: 'intent' }, data)
+
+  // 3. The customer binding written before the checkout opened.
+  if (data.customerId) {
+    const { data: byCustomer } = await supabase
+      .from('groups')
+      .select('id')
+      .eq('provider_customer_id', data.customerId)
+      .maybeSingle()
+    if (byCustomer?.id) {
+      return await guardCandidate(supabase, 'groups', { id: byCustomer.id, via: 'customer' }, data)
+    }
+  }
+
+  // 4. The verified payer email — legacy net, fenced to nodes with nothing to lose.
   const authUid = await resolvePayerAuthUid(supabase, data.customerId)
   if (!authUid) return null
-  return await leaderGroupId(supabase, authUid)
+  const led = await leaderGroupId(supabase, authUid)
+  if (!led) return null
+  return await guardCandidate(supabase, 'groups', { id: led, via: 'email' }, data)
 }
 
 /** Log when the browser named a different node than the server resolved. */
@@ -850,7 +1088,12 @@ async function grantLearnerPremium(
   // need a subscription id back even when the write is skipped — returning
   // null here would silently drop that link (portal-404) even though the
   // learner already holds an equal-or-higher-ranked row.
-  if (await wouldDowngradePlan(supabase, learnerId, planName)) {
+  // Skip the row write when the incoming plan would downgrade a live higher
+  // plan, OR when it would steal a live binding from another subscription.
+  if (
+    (await wouldDowngradePlan(supabase, learnerId, planName)) ||
+    (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
+  ) {
     const { data: existingRow } = await supabase
       .from('subscriptions')
       .select('id')
@@ -945,7 +1188,9 @@ export async function handlePremiumSubscription(
   // a teacher who already holds the tutor bundle and buys/renews a plain
   // premium checkout still paid Paddle and still needs those effects to run
   // against their EXISTING (higher-ranked) subscription row.
-  const skipRowWrite = await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')
+  const skipRowWrite =
+    (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')) ||
+    (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   let subRow: { id: string } | null = null
 
   if (!skipRowWrite) {
@@ -1095,7 +1340,9 @@ export async function handleFamilySubscription(
   // 'SSi Family' is top-ranked (PLAN_PRECEDENCE = 4), so this only ever skips
   // when the owner's row is ALREADY 'SSi Family' — i.e. never a downgrade,
   // just the same guard every handler uses for renewals/status updates.
-  const skipRowWrite = await wouldDowngradePlan(supabase, learnerId, 'SSi Family')
+  const skipRowWrite =
+    (await wouldDowngradePlan(supabase, learnerId, 'SSi Family')) ||
+    (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   if (skipRowWrite) {
     console.log('[paddle-webhook] Family subscription row write skipped (existing row already outranks — unexpected, Family is top rank):', data.id)
     return
@@ -1230,7 +1477,9 @@ export async function handleStudentSubscription(
   // regardless of which plan_name ends up on their subscriptions row, so
   // enrollment/tagging must always run or the payment is silently lost
   // (webhook 200s, Paddle collected, learner never enrolled).
-  const skipRowWrite = await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')
+  const skipRowWrite =
+    (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')) ||
+    (await wouldStealLiveSubscriptionRow(supabase, learner.id, data.id))
   let subRow: { id: string } | null = null
 
   if (!skipRowWrite) {

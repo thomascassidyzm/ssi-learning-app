@@ -1,59 +1,47 @@
 /**
- * SECURITY AUDIT 2026-08-15 — finding SEC15-01 (high).
+ * SECURITY AUDIT 2026-08-15 — finding SEC15-01 (high), and its FIX.
  *
- * A follow-on audit of the 2026-08-11 fix for ADMIN-ENT-01 / TENANCY-03.
- *
- * The fix is real and it closes what it aimed at: the privileged write to
- * `schools` / `groups` is no longer addressed by `customData.school_id`, which
- * the browser composes. `resolveSchoolTarget` (api/teacher/paddle-webhook.ts)
- * now derives the target from (1) the row already bound to this Paddle
- * subscription id, else (2) "the PAYER's own node".
- *
- * SEC15-01 is about how step (2) decides who the payer is. It reads the email
- * off the Paddle customer record and looks that email up in `learner_emails`:
+ * ── THE HOLE ───────────────────────────────────────────────────────────────
+ * The 2026-08-11 fix for ADMIN-ENT-01 / TENANCY-03 was real but incomplete. It
+ * stopped `customData.school_id` — browser-composed — being the address of a
+ * privileged write to `schools`. It replaced that with "the PAYER's own node",
+ * resolved from the email on the Paddle customer record:
  *
  *     const customer = await paddle.customers.get(customerId)
  *     const payerEmail = (customer?.email || '').trim().toLowerCase()
  *     ... .from('learner_emails').select('learner_id').eq('email', payerEmail)
  *
  * That email is not a fact about the buyer. It is a field the buyer fills in at
- * checkout — the app's own checkout composes it in browser JS
- * (packages/player-vue/src/composables/useSchoolCheckout.ts:85,
- * `customer: { email }`), and nothing in this repo, and nothing Paddle does at
- * checkout time, proves the buyer owns the mailbox they typed. Paddle emails a
- * receipt there; it does not withhold the customer record until someone clicks
- * it, and the webhook fires on the payment, not on any later verification.
+ * checkout (useSchoolCheckout.ts passed `customer: { email }` straight from the
+ * browser), and nothing in this repo — and nothing Paddle does before the
+ * subscription-created webhook fires — proves the buyer owns that mailbox. So
+ * the attack survived one substitution: know the victim admin's EMAIL rather
+ * than their school UUID, which is the easier of the two to obtain. Price
+ * unchanged at one legitimate £15 seat; payoff unchanged — the victim's billing
+ * pointers overwritten, and a later cancellation flipping their school dark.
  *
- * So ADMIN-ENT-01 is re-keyed rather than closed. The attacker's prerequisite
- * changes from "know the victim school's UUID" to "know the victim school
- * admin's email address" — which is, if anything, the easier of the two to
- * obtain: it is on school websites, in signature blocks, and in every email
- * that admin has ever sent. The price is unchanged at one legitimate £15 seat.
+ * ── THE FIX (A-123, 2026-08-16) ────────────────────────────────────────────
+ * Tom scheduled the real fix with one binding condition: "making sure no-one's
+ * access is removed". Both halves are asserted below.
  *
- * The consequence is unchanged too, because the write is unchanged
- * (paddle-webhook.ts, handleSchoolPlatformSubscription): the victim school's
- * `provider_subscription_id`, `provider_customer_id`, `platform_status`,
- * `platform_expires_at` and `teacher_seats` are overwritten with the attacker's,
- * and a subsequent cancellation writes `platform_status: 'cancelled'` onto the
- * victim.
+ * Identity is now established BEFORE money moves, not inferred afterwards.
+ * api/billing/bind-customer.ts resolves the node from the caller's verified
+ * Supabase session, binds a Paddle customer to it, and mints a server-SIGNED
+ * checkout intent naming that node. The webhook resolves down a ladder of
+ * claims the buyer cannot type (api/teacher/paddle-webhook.ts, THE BINDING
+ * LADDER): the existing subscription binding, then the signed intent, then the
+ * customer binding, then — fenced to nodes that hold nothing to lose — the
+ * verified payer email. Anything else is refused and logged.
  *
- * Note the first resolution step does not save the victim. A paying school
- * already carries its own `provider_subscription_id`; the attacker's new
- * subscription has a DIFFERENT id, so no binding matches, resolution falls
- * through to the email, and the write then REPLACES the victim's binding with
- * the attacker's.
- *
- * The secure shape is to stop treating an email as an identity claim: bind the
- * Paddle customer to a learner at checkout-creation time, server-side, from the
- * verified session of whoever opened the checkout (a `provider_customer_id` on
- * the learner/school row minted by an authenticated endpoint), and resolve the
- * webhook through that binding only. Failing that, at minimum require
- * `learner_emails.verified = true` and reject a multi-learner match, which
- * narrows the attack rather than closing it.
+ * And no legitimate node can lose access by it: a refusal writes NOTHING, one
+ * subscription can never overwrite a row still live under another, and every
+ * existing subscriber keeps resolving on the first rung, which is unchanged.
  *
  * Full write-up: docs/security-audit-2026-08-15/README.md
  *
- * NOTE ON SCOPE: this test characterises today's behaviour. It changes nothing.
+ * NOTE ON SCOPE: these tests were written by the 2026-08-15 audit to
+ * CHARACTERIZE the vulnerable behaviour. They are deliberately converted here
+ * to assert the fixed behaviour, and access-preservation cases are added.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -96,10 +84,26 @@ interface SupabaseOptions {
   /** The learner_emails rows the victim's address resolves to. Default: one
    *  verified row, i.e. the strongest case the attacker can hope for. */
   emailRows?: Array<{ learner_id: string; verified: boolean }>
+  /** The victim school's own billing state. Default: a live, paying school
+   *  bound to its OWN subscription — the case the finding is about. */
+  victimBilling?: {
+    provider_subscription_id: string | null
+    provider_customer_id?: string | null
+    platform_status: string | null
+    platform_expires_at: string | null
+  } | null
+}
+
+const VICTIM_LIVE_BILLING = {
+  provider_subscription_id: 'sub_VICTIM_LEGITIMATE',
+  provider_customer_id: 'ctm_VICTIM',
+  platform_status: 'active',
+  platform_expires_at: '2027-01-01T00:00:00Z',
 }
 
 function makeSupabase(opts: SupabaseOptions = {}) {
   const emailRows = opts.emailRows ?? [{ learner_id: VICTIM_ADMIN_LEARNER, verified: true }]
+  const victimBilling = opts.victimBilling === undefined ? VICTIM_LIVE_BILLING : opts.victimBilling
   const from = (table: string) => {
     const builder: any = {}
     let pending: Record<string, unknown> | null = null
@@ -107,10 +111,26 @@ function makeSupabase(opts: SupabaseOptions = {}) {
 
     const resolveRow = (): unknown => {
       if (table === 'schools') {
-        // Step 1 of resolveSchoolTarget: is anything bound to this sub id?
-        if ('provider_subscription_id' in filters) return null
-        // Step 2b: does the payer administer a school?
+        // Ladder step 1: is anything bound to this subscription id? (For the
+        // attacker's brand-new subscription: no. For the victim's own
+        // renewal: yes, their school.)
+        if ('provider_subscription_id' in filters) {
+          return victimBilling?.provider_subscription_id === filters.provider_subscription_id
+            ? { id: VICTIM_SCHOOL_ID }
+            : null
+        }
+        // Ladder step 3: is anything bound to the attacker's customer id?
+        if ('provider_customer_id' in filters) {
+          return victimBilling?.provider_customer_id === filters.provider_customer_id
+            ? { id: VICTIM_SCHOOL_ID }
+            : null
+        }
+        // Ladder step 4: does the payer administer a school?
         if (filters.admin_user_id === VICTIM_ADMIN_AUTH_UID) return { id: VICTIM_SCHOOL_ID }
+        // The guards' read of the candidate node's own billing state.
+        if (filters.id === VICTIM_SCHOOL_ID) {
+          return victimBilling ? { id: VICTIM_SCHOOL_ID, ...victimBilling } : null
+        }
         return null
       }
       if (table === 'groups') return null
@@ -173,61 +193,100 @@ beforeEach(async () => {
   handleSubscriptionEvent = (await import('./paddle-webhook')).handleSubscriptionEvent
 })
 
-describe('SEC15-01 — the payer is resolved from a buyer-supplied email', () => {
-  // SECURITY FINDING SEC15-01: the attacker names the victim admin's email at
-  // checkout and pays with their own card. The webhook asks Paddle for "the
-  // payer's" email, gets the victim's, and writes the attacker's billing
-  // pointers onto the victim's school.
-  it('SEC15-01: a £15 payment made under the victim admin’s email writes to the victim’s school (vulnerable, characterized)', async () => {
+describe('SEC15-01 — CLOSED: an email the buyer typed can no longer address a school', () => {
+  // THE FINDING, now asserted the other way round. The attacker types the
+  // victim admin's address at checkout and pays £15 with their own card. The
+  // webhook still asks Paddle for "the payer's" email and still gets the
+  // victim's — but the email is now the WEAKEST rung of the binding ladder,
+  // and a weak claim may not touch a node that holds a live entitlement.
+  it('SEC15-01: a £15 payment made under the victim admin’s email writes NOTHING to the victim’s school', async () => {
     await handleSubscriptionEvent(makeSupabase(), attackerSubscription({ kind: 'school_platform' }))
 
-    const write = writes.find((w) => w.table === 'schools')
-    expect(write).toBeDefined()
-    expect(write!.id).toBe(VICTIM_SCHOOL_ID)
-    expect(write!.values.provider_subscription_id).toBe('sub_ATTACKER_NEW')
-    expect(write!.values.provider_customer_id).toBe('ctm_ATTACKER')
+    expect(writes.find((w) => w.table === 'schools')).toBeUndefined()
   })
 
-  // The victim's own binding is not protection: it is overwritten by the same
-  // write, so the attacker takes over the addressing for every later event.
-  it('SEC15-01: the victim’s existing Paddle binding is replaced, not respected (vulnerable, characterized)', async () => {
+  // The victim's own binding is now protection, which is the whole point:
+  // one subscription may never steal another's.
+  it('SEC15-01: the victim’s existing Paddle binding is respected, not replaced', async () => {
     await handleSubscriptionEvent(makeSupabase(), attackerSubscription({ kind: 'school_platform' }))
 
-    const write = writes.find((w) => w.table === 'schools')
-    expect(write!.values.provider_subscription_id).not.toBe('sub_VICTIM_LEGITIMATE')
-    expect(write!.values.teacher_seats).toBe(1) // the victim's seat count, clobbered
+    expect(writes).toHaveLength(0)
   })
 
-  // And the payoff: cancelling the attacker's own subscription flips the
-  // victim's school to `cancelled`, which the coverage gate turns into a
-  // school-wide 403.
-  it('SEC15-01: the attacker’s cancellation flips the victim’s school dark (vulnerable, characterized)', async () => {
+  // The payoff is gone: the attacker's cancellation lands nowhere. This is
+  // Tom's binding condition on A-123 made mechanical — no legitimate node may
+  // lose access as a side effect of anything here.
+  it('SEC15-01: the attacker’s cancellation can no longer flip the victim’s school dark', async () => {
     await handleSubscriptionEvent(
       makeSupabase(),
       attackerSubscription({ kind: 'school_platform' }, 'canceled'),
     )
 
-    const write = writes.find((w) => w.table === 'schools')
-    expect(write!.id).toBe(VICTIM_SCHOOL_ID)
-    expect(write!.values.platform_status).toBe('cancelled')
+    expect(writes.find((w) => w.table === 'schools')).toBeUndefined()
   })
 
-  // customData is genuinely ignored now — the 2026-08-11 fix holds on its own
-  // terms. This test is the control that keeps that true while SEC15-01 is open.
+  // Paddle MAY attach a checkout to a pre-existing customer record when the
+  // buyer types an address that already has one. So the customer id is a weak
+  // claim too, and is fenced identically — this is the substitution that would
+  // otherwise re-key the finding a third time.
+  it('SEC15-01: arriving on the victim’s OWN Paddle customer id is refused just the same', async () => {
+    const sub = attackerSubscription({ kind: 'school_platform' })
+    sub.customerId = 'ctm_VICTIM' // Paddle matched the typed address to the victim's customer
+
+    await handleSubscriptionEvent(makeSupabase(), sub)
+
+    expect(writes.find((w) => w.table === 'schools')).toBeUndefined()
+  })
+
+  // customData is genuinely ignored as an address — the 2026-08-11 fix holds on
+  // its own terms, and this control keeps it true.
   it('CONTROL: the school named in customData is not the school written to', async () => {
     await handleSubscriptionEvent(
       makeSupabase(),
       attackerSubscription({ kind: 'school_platform', school_id: 'some-other-school' }),
     )
 
-    const write = writes.find((w) => w.table === 'schools')
-    expect(write!.id).not.toBe('some-other-school')
+    expect(writes.find((w) => w.id === 'some-other-school')).toBeUndefined()
   })
 
-  it.todo(
-    'SEC15-01: the Paddle customer should be bound to a learner server-side at checkout creation, ' +
-      'from the verified session — never resolved after the fact from an email the buyer typed',
-  )
+  // ACCESS: the legitimate first purchase still works. A school that is not yet
+  // subscribed has nothing to lose, so the legacy email path may still bind it
+  // — which is what keeps a client running stale cached JS (no signed intent)
+  // able to buy.
+  it('ACCESS: an unsubscribed school can still be bound by the legacy email path', async () => {
+    const supabase = makeSupabase({
+      victimBilling: {
+        provider_subscription_id: null,
+        provider_customer_id: null,
+        platform_status: 'cancelled',
+        platform_expires_at: null,
+      },
+    })
+    await handleSubscriptionEvent(supabase, attackerSubscription({ kind: 'school_platform' }))
+
+    const write = writes.find((w) => w.table === 'schools')
+    expect(write).toBeDefined()
+    expect(write!.id).toBe(VICTIM_SCHOOL_ID)
+    expect(write!.values.platform_status).toBe('active')
+  })
+
+  // ACCESS / GRANDFATHERING: every existing subscriber resolves on rung 1, the
+  // subscription binding, which is untouched by all of this. Their renewals and
+  // cancellations keep tracking exactly as before.
+  it('ACCESS: an existing subscriber’s own renewal still resolves and still writes', async () => {
+    const supabase = makeSupabase()
+    const renewal = attackerSubscription({ kind: 'school_platform' })
+    renewal.id = 'sub_VICTIM_LEGITIMATE' // the school's OWN subscription renewing
+    renewal.customerId = 'ctm_VICTIM'
+
+    await handleSubscriptionEvent(supabase, renewal)
+
+    const write = writes.find((w) => w.table === 'schools')
+    expect(write).toBeDefined()
+    expect(write!.values.platform_status).toBe('active')
+    // and the binding heals itself: the customer id is (re)written on every event
+    expect(write!.values.provider_customer_id).toBe('ctm_VICTIM')
+  })
 })
 
 describe('SEC15-04 — the email lookup ignores verification and multiplicity', () => {
