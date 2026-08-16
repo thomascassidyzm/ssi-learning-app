@@ -281,11 +281,12 @@ describe('buildSeedPlays', () => {
     knownText: 'I want to learn',
   }
 
-  it('emits the 4-slot t·k·t·t sandwich, target slots belt-ramped', () => {
+  it('emits the 4-slot t·k·t·t sandwich, every slot at full pace', () => {
     const plays = buildSeedPlays(full)
     expect(plays.map((p) => p.role)).toEqual(['ps', 'trans', 'ps', 'ps'])
-    // seedNumber 7 = white belt ⇒ 0.8× on the target slots; known stays 1.0×.
-    expect(plays.map((p) => p.playbackSpeed)).toEqual([0.8, 1.0, 0.8, 0.8])
+    // seedNumber 7 is white belt, and it makes no difference: listening is
+    // never slowed (Tom, 2026-08-16). The belt ramp is a speaking-side rule.
+    expect(plays.map((p) => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 1.0])
     expect(plays.map((p) => p.audioId)).toEqual(['t1', 'k', 't2', 't1'])
     expect(plays.every((p) => p.seedNumber === 7)).toBe(true)
   })

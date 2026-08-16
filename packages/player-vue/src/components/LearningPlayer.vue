@@ -4641,9 +4641,10 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
         // already final — globalSpeed folded in, 1.0 ceiling applied, and the
         // same rate on all four slots. Re-ramping it here would both
         // double-apply the course speed and re-split the phrase, because this
-        // pass only touches target roles. Skipped exactly as Layer 1 is. The
-        // belt ramp still governs everything that ISN'T exposure-ramped:
-        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        // pass only touches target roles. Skipped exactly as Layer 1 is.
+        // Everything that ISN'T exposure-ramped goes through
+        // computeListeningSpeed, which since 2026-08-16 applies the course
+        // speed and no belt term — listening is never slowed.
         if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
@@ -6732,10 +6733,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
-    // EASY holds listening at 0.8× (Tom, T-13, 2026-08-07). Read only by
-    // computeListeningSpeed — the speaking side's Easy is longer thinking time
-    // and more reps, not a slower voice, so nothing else here changes.
-    easyMode: isEasyMode.value,
+    // No mode term here on purpose. Listening is never slowed — not by belt,
+    // not by mode (Tom, 2026-08-16) — and the speaking side's Easy is longer
+    // thinking time and more reps, not a slower voice. Nothing in this config
+    // needs to know which mode the learner is on.
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
