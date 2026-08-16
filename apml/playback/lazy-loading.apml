@@ -1,6 +1,7 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-08-09 (cycles endpoint emits spaced review + consolidation — round-shape parity with the JS walk; one claim set, seeded with the debut)
+# Last Updated: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — one critical-path budget (2500ms), cache fallback on every boot fetch failure incl. 403, and an OBSERVED network-stall signal replacing navigator.onLine. The deliberate/accidental offline distinction is retired. See never_gate_on_network)
+# Prev: 2026-08-09 (cycles endpoint emits spaced review + consolidation — round-shape parity with the JS walk; one claim set, seeded with the debut)
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -49,6 +50,56 @@ spec lazy_loading_architecture:
   ## ==========================================================================
 
   principles:
+    never_gate_on_network: |
+      Tom's ruling, 2026-08-15, verbatim:
+
+        "The heuristic is that the app should always play whatever it has. It
+         should never allow a weak Internet connection to block the learner. …
+         Play what you have. Verify access as and when you can. Never as a gate."
+
+      What this makes true, and what it retires:
+
+      ONE BUDGET. `config/networkGate.ts` owns `CRITICAL_PATH_TIMEOUT_MS = 2500`
+      — the single answer to "how long may a learner be made to wait". Every
+      network call between boot and first audio is bounded by it. Background
+      work (prefetch tiers, revalidation, prewarm) keeps a longer
+      `BACKGROUND_FETCH_TIMEOUT_MS = 9000` leak-guard, because nothing is
+      waiting on it. useInstantPlayback splits these: the coalescer's shared
+      request keeps the long leash while the CALLER detaches at 2500ms via its
+      own signal — so bootstrap serves cache at 2.5s and the request it started
+      keeps running to warm the cache for next time.
+
+      CACHE IS THE FALLBACK FOR EVERY FAILURE, not just for "offline".
+      `fetchCycles` falls to `readAnyCachedCycles` — which deliberately ignores
+      the version stamp and the requested limit — on a timeout, a transport
+      failure, a 5xx, AND a 403 from the entitlement gate. The happy-path
+      reader (`readCachedCycles`) still refuses a stale vintage; the last-resort
+      reader exists because once the network has already failed the choice is
+      not stale-vs-fresh, it is stale-vs-silence. INF PLAY, which caches
+      nothing on the happy path by design (its rounds are randomised per
+      session), now write-throughs every batch and replays it as a last resort
+      for the same reason.
+
+      OBSERVED, NOT PREDICTED. `navigator.onLine` is not a connectivity oracle —
+      it reports TRUE on one bar and behind captive portals. It is trusted in
+      one direction only: when the browser admits it is offline, believe it and
+      skip the doomed fetch. Otherwise we defer to `isNetworkPresumedDown()`,
+      which reports what actually happened: a critical-path call that timed out
+      or failed. Any critical-path success clears it, as does an `online`
+      event; it also ages out after 60s.
+
+      THE DELIBERATE/ACCIDENTAL DISTINCTION IS RETIRED. `offlinePlaybackActive()`
+      now engages on `offlineActive || !isOnline || isNetworkPresumedDown()`.
+      A learner who never touched the offline toggle gets exactly the playback
+      behaviour of one who did. The toggle survives as INTENT — "don't spend my
+      data on background downloads", and the UI copy — never as playback
+      permission. The lease lock still governs (premium design).
+
+      THE ONE HONEST FAILURE. Offline-ish with a genuinely EMPTY cache: there is
+      nothing to play, and bootstrap rejects so the caller can say so plainly
+      ("connect once and download for offline"). That message must never appear
+      for the case where content IS cached.
+
     instant_play: |
       First play must happen in < 2 seconds. The critical path is:
       resolve resume position → fetch round-map (1 tiny query, cached forever
@@ -570,8 +621,21 @@ spec lazy_loading_architecture:
 
   files:
     live:
+      - path: "packages/player-vue/src/config/networkGate.ts"
+        purpose: |
+          THE network gate. CRITICAL_PATH_TIMEOUT_MS (2500) /
+          BACKGROUND_FETCH_TIMEOUT_MS (9000); withNetworkTimeout (returns the
+          NETWORK_TIMEOUT sentinel rather than hanging, and never swallows a
+          real rejection); markNetworkStalled/clearNetworkStalled/
+          isNetworkPresumedDown (the observed-stall signal, 60s TTL);
+          isOfflineish (what cache-first branches ask instead of
+          navigator.onLine); wireNetworkRecovery (clear on 'online')
       - path: "packages/player-vue/src/composables/useInstantPlayback.ts"
-        purpose: "Round-map + on-demand cycles bootstrap; prewarmInstantCaches"
+        purpose: |
+          Round-map + on-demand cycles bootstrap; prewarmInstantCaches;
+          readAnyCachedCycles + the INF PLAY write-through cache (the
+          last-resort readers); per-caller critical-path budget on bootstrap /
+          bootstrapInfPlay via makeAbort(CRITICAL_PATH_TIMEOUT_MS)
       - path: "packages/player-vue/src/components/LearningPlayer.vue"
         purpose: |
           INSTANT_PLAYBACK_ALL flag, loadAllData/runAnimationTimeline cold-start,

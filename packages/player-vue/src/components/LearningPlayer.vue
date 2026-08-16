@@ -114,6 +114,10 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
+import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
+import { isNetworkPresumedDown } from '../config/networkGate'
+import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
+import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -2124,7 +2128,9 @@ simplePlayer.onRoundCompleted((round) => {
       // exactly the cycle-to-cycle belt flip Tom flagged.
       // (playingSeedNumber itself derives from the engine via beltAnchorSeed —
       // M9 — so only the lego-id signal is pushed here.)
-      if (!isInfPlayActive.value) {
+      // Round-shape signal, not the mode: offline belt-held recycle draws the
+      // same random USE phrases, so the same belt-flip would happen. Suppress.
+      if (!isRecycledRoundPlayback.value) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
@@ -2202,14 +2208,31 @@ simplePlayer.onSessionComplete(async () => {
   // offline play stops with a paused summary instead of recycling forever
   // — the "reviewed for a while, then stopped" bug. Tom 2026-05-30.
   if (offlinePlaybackActive()) {
+    // FORWARD FIRST. Unexpected offline keeps progressing the course from the
+    // cache; recycling is what happens when the cache runs out of forward
+    // material, not the first thing we reach for. Tom 2026-08-15.
+    const forward = await appendForwardFromCacheOffline()
+    if (forward > 0) {
+      simplePlayer.resume()
+      return
+    }
     const looped = appendCachedLoopForOffline()
     if (looped > 0) {
       console.log(`[Offline] session_complete reached offline — looped ${looped} cached rounds, resuming`)
       simplePlayer.resume()
       return
     }
-    // Nothing survived the persistent-audio filter (empty cached set) — fall
-    // through to the summary; that's the empty-cache edge, not the recycle.
+    // Nothing survived the persistent-audio filter (empty cached set). Do NOT
+    // fall through to expandScript: offline that is a full Supabase course
+    // walk with no network budget on it, and it can only fail — it just takes
+    // several seconds to find out, with "Warming up the synapses..." on screen
+    // the whole time. That wait is most of the ~5s Tom saw before the app
+    // dropped him on an infinite-play sentence, 2026-08-15. Cutting a network
+    // await that cannot succeed costs nothing and saves all of it.
+    if (wrapInfPlayAtTail()) return
+    sessionEnded.value = true
+    showPausedSummary()
+    return
   }
   // Infinite play / main loop: the course should never end. expandScript()
   // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
@@ -3403,12 +3426,18 @@ watch(currentRoundIndex, async (index) => {
 
   const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
-    // Offline: there's no network to generate new rounds, so loop the
-    // already-cached content instead of expanding. Tom 2026-05-25: offline
-    // must always play SOMETHING — never end because we can't fetch more.
+    // Offline: there's no network to GENERATE new rounds, but the cached
+    // script usually holds plenty the engine hasn't been given yet — the
+    // bootstrap path serves only a few rounds, so this watcher fires almost
+    // immediately on an offline resume. Keep going FORWARD through the course
+    // from the cache first; recycle only once that is exhausted. Tom
+    // 2026-08-15: unexpected offline is "play what you have", not a jump into
+    // infinite play three rounds into a resume.
     if (offlinePlaybackActive()) {
+      const forward = await appendForwardFromCacheOffline()
+      if (forward > 0) return
       const looped = appendCachedLoopForOffline()
-      if (looped > 0) console.log(`[Offline] no network to expand — looped ${looped} cached rounds`)
+      if (looped > 0) console.log(`[Offline] cache has no more forward rounds — looped ${looped} cached rounds`)
       return
     }
     console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
@@ -3671,10 +3700,11 @@ const podScheduler = supabase?.value
       // is not.
       beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
-      // sentence goes straight to Stage 1. The per-atom breakdown a
-      // sentence used to get from AUDIO reps now comes from the
-      // always-visible LEGO-tile display (podTurnDisplay), driven by the
-      // same atom_map data but rendered visually, never played.
+      // sentence goes straight to Stage 1. Its replacement, the always-visible
+      // LEGO-tile display, was itself replaced on 2026-07-22 by PodTurnDisplay's
+      // karaoke teleprompter, so a pod sentence currently gets NO per-atom
+      // breakdown at all — the atom_map is still loaded and still rendered
+      // nowhere. See apml/learning/listening-layers.apml (2026-07-22 update).
     })
   : null
 
@@ -4128,9 +4158,36 @@ const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 // account) by the current round being a revival round (no intro/debut/build).
 // Single source of truth for the belt indicator, the accent colour, the forward-
 // belt-skip null, and the listening cadence. Tom 2026-06-03.
+// OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE (Tom, 2026-08-15).
+// When a signed-in learner resumes with no network we recycle their cached USE
+// phrases — infinite-play SELECTION — but they have NOT entered infinite play,
+// so the UI must go on saying "you are where you were": their own belt colour,
+// their own belt nav, no ∞ on the central pill. This flag is that distinction.
+// Raised at the single point where offline recycling actually engages
+// (appendCachedLoopForOffline), cleared the moment the learner deliberately
+// enters INF PLAY or real main-loop content resumes.
+const offlineRecycleBeltHeld = ref(false)
+
+// Are we POSITIONED in INF PLAY right now — the FORMAL mode? This governs the
+// LOOK and the NAVIGATION: the red accent, the ∞ glyph, the belt-chevron
+// semantics. Detected by the mode flag OR (crucially for GUESTS, who never get
+// the persisted 'infplay' mode — setMode is gated on a real account) by the
+// current round being a revival round. The offline belt-held recycle is
+// explicitly NOT this: same round shape, different place.
 const isInfPlayActive = computed(() =>
   currentMode.value === 'infplay'
-  || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+  || (!offlineRecycleBeltHeld.value
+      && !!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+)
+
+// Are RECYCLED (USE-only, no intro/debut/build) rounds what's playing, by
+// either route? This governs behaviour that follows the ROUND SHAPE rather
+// than the learner's location: suppressing the belt-follows-the-drawn-phrase
+// write, freezing the belt anchor, and the revival pod cadence. Offline
+// belt-held play is round-shaped exactly like INF PLAY even though the learner
+// has not gone anywhere — so it belongs here and not in isInfPlayActive.
+const isRecycledRoundPlayback = computed(() =>
+  isInfPlayActive.value || offlineRecycleBeltHeld.value
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
@@ -4145,7 +4202,7 @@ const isInfPlayActive = computed(() =>
 // belt follows the landed round again.
 const beltFreezeSeed = ref<number | null>(null)
 const beltAnchorSeed = computed<number | null>(() => {
-  if (isInfPlayActive.value) return beltFreezeSeed.value
+  if (isRecycledRoundPlayback.value) return beltFreezeSeed.value
   const legoId = visualLegoIdForRound(simplePlayer.currentRound.value)
   if (!legoId) return null
   return getSeedFromLegoId(legoId)
@@ -4161,7 +4218,17 @@ watch([beltAnchorSeed, beltProgress], ([seed]) => {
     beltProgress.value.setPlayingPosition(seed)
   }
 }, { immediate: true })
-watch(isInfPlayActive, (active) => { if (!active) beltFreezeSeed.value = null })
+watch(isRecycledRoundPlayback, (active) => { if (!active) beltFreezeSeed.value = null })
+// The belt-held recycle lasts exactly as long as recycled rounds are playing.
+// The moment genuine main-loop content lands again — network came back and
+// expandScript produced real rounds, or a belt jump landed on cached main-loop
+// material — the learner is back on the normal axis and the belt follows the
+// round again.
+watch(() => simplePlayer.currentRound.value, (round) => {
+  if (offlineRecycleBeltHeld.value && round && isMainLoopRound(round)) {
+    offlineRecycleBeltHeld.value = false
+  }
+})
 
 const beltCssVars = computed(() => {
   // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
@@ -4612,9 +4679,10 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
         // already final — globalSpeed folded in, 1.0 ceiling applied, and the
         // same rate on all four slots. Re-ramping it here would both
         // double-apply the course speed and re-split the phrase, because this
-        // pass only touches target roles. Skipped exactly as Layer 1 is. The
-        // belt ramp still governs everything that ISN'T exposure-ramped:
-        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        // pass only touches target roles. Skipped exactly as Layer 1 is.
+        // Everything that ISN'T exposure-ramped goes through
+        // computeListeningSpeed, which since 2026-08-16 applies the course
+        // speed and no belt term — listening is never slowed.
         if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
@@ -4862,7 +4930,9 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   // suppresses the pod PREVIEW cheat itself — if both flags are set,
   // ?pod=1 still wins (existing precedence, checked above).
   if (!forcePodPreviewCheat && forceLayer1PreviewCheat && !l1PreviewFired) return false
-  if (isInfPlayActive.value) {
+  // Round-shape signal: recycled rounds have no main-loop cadence to schedule
+  // against by either route, so offline belt-held play takes the same branch.
+  if (isRecycledRoundPlayback.value) {
     const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
     const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
@@ -5220,14 +5290,19 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           // Offline: loop the cached content rather than ending (mirror of
           // the onSessionComplete + watcher guards — offline never ends at
           // the tail, even when session_complete fired during a pod lap).
-          if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          // Forward from cache first, recycle only when it's exhausted.
+          if (offlinePlaybackActive()
+              && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
             // session_complete fired during this pod lap (the cadence lands a
             // lap near the tail). expandScript() grows the revival tail by a
             // batch in INF PLAY so play continues into genuinely new rounds.
-            const added = await expandScript()
+            // OFFLINE it is a Supabase course walk that can only fail, so we
+            // skip it and go straight to the wrap — same cut as the main
+            // session_complete handler.
+            const added = offlinePlaybackActive() ? 0 : await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
@@ -5324,11 +5399,15 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       // Resume handling mirrors the pod block: keep the course rolling unless
       // the session ended (offline loop / expand) or the learner stopped.
       if (sessionEnded.value) {
-        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+        // Forward from cache first, recycle only when it's exhausted.
+        if (offlinePlaybackActive()
+            && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
           sessionEnded.value = false
           simplePlayer.resume()
         } else {
-          const added = await expandScript()
+          // Offline, expandScript is a doomed network walk — skip it rather
+          // than spend seconds on it before showing the summary anyway.
+          const added = offlinePlaybackActive() ? 0 : await expandScript()
           if (added > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
@@ -6692,10 +6771,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
-    // EASY holds listening at 0.8× (Tom, T-13, 2026-08-07). Read only by
-    // computeListeningSpeed — the speaking side's Easy is longer thinking time
-    // and more reps, not a slower voice, so nothing else here changes.
-    easyMode: isEasyMode.value,
+    // No mode term here on purpose. Listening is never slowed — not by belt,
+    // not by mode (Tom, 2026-08-16) — and the speaking side's Easy is longer
+    // thinking time and more reps, not a slower voice. Nothing in this config
+    // needs to know which mode the learner is on.
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
@@ -7503,10 +7582,15 @@ const handleCycleEvent = async (event) => {
           // produce any more content (no LEGOs in the course at all).
           if (preEngineRoundIndex.value >= cachedRounds.value.length) {
             if (offlinePlaybackActive()) {
-              // Offline can't expandScript (no network). Loop the cached
-              // content instead so playback never ends. Tom 2026-05-25.
-              const looped = appendCachedLoopForOffline()
-              console.warn(`[LearningPlayer] Offline tail reached — looped ${looped} cached rounds`)
+              // Offline can't expandScript (no network), but the cached
+              // script usually has forward rounds the engine lacks — take
+              // those first and keep progressing the course. Recycle only
+              // when there is genuinely nothing new left. Tom 2026-08-15.
+              const forward = await appendForwardFromCacheOffline()
+              if (forward === 0) {
+                const looped = appendCachedLoopForOffline()
+                console.warn(`[LearningPlayer] Offline tail, no forward rounds — looped ${looped} cached rounds`)
+              }
             } else {
               console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
               await expandScript()
@@ -8842,6 +8926,9 @@ const jumpToRound = async (roundIndex) => {
  */
 const enterInfPlay = async () => {
   cancelInFlightLap()
+  // Deliberate ∞ entry outranks the offline belt-held recycle: the learner
+  // asked to go somewhere, so the red ∞ is right and the belt un-holds.
+  offlineRecycleBeltHeld.value = false
   const currentRound = simplePlayer.currentRound.value
 
   // Visual belt anchor for INF PLAY entry: the seed of the course's
@@ -9940,11 +10027,13 @@ simplePlayer.setRuntimeOverrides({
     // warmedUpAudioUrls set short-circuits to "don't skip" so we
     // don't accidentally drop everything on a fresh enrollment.
     if (currentMode.value === 'infplay' && warmedUpAudioUrls.value.size > 0) {
-      const known = (cycle as any)?.known?.audioUrl
-      const v1 = (cycle as any)?.target?.voice1Url
-      const v2 = (cycle as any)?.target?.voice2Url
-      const cached = (url: string | undefined) => !url || warmedUpAudioUrls.value.has(url)
-      if (!cached(known) || !cached(v1) || !cached(v2)) {
+      // Same fail-closed rule as the offline gate, over the warm-up set rather
+      // than the persistent cache: a BLANK url is silence, not "nothing to
+      // check". requiredClipUrls keeps deliberately-single-audio cycles honest,
+      // so only genuinely missing clips are skipped.
+      const required = requiredClipUrls(cycle as any)
+      const warmed = (url?: string | null) => !!url && warmedUpAudioUrls.value.has(url)
+      if (required.length === 0 || !required.every(warmed)) {
         return true
       }
     }
@@ -9956,10 +10045,11 @@ simplePlayer.setRuntimeOverrides({
     // degrades to "play whatever IS cached" and never freezes. Tom 2026-05-25:
     // never NOT play something because it can't find the exact next clip.
     if (offlinePlaybackActive()) {
-      const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-      const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
-      const c = cycle as any
-      if (!cachedId(c?.known?.audioUrl) || !cachedId(c?.target?.voice1Url) || !cachedId(c?.target?.voice2Url)) {
+      // FAILS CLOSED (playback/offlinePlayable.ts). The old inline gate answered
+      // "cached" for a BLANK url, so an audio-less intro — cycle 0 of the round a
+      // resume lands on — was the one cycle guaranteed to survive the filter, and
+      // played four phases of silence with its text on screen. Tom's first phrase.
+      if (!isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))) {
         return true
       }
     }
@@ -10723,8 +10813,23 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
   return true
 }
 
+// Offline PLAYBACK engages on three signals, and the deliberate toggle is only
+// the first of them:
+//   1. offlineActive — the learner chose it (or a completed download set it).
+//   2. !isOnline     — the browser admits it is offline (airplane mode).
+//   3. isNetworkPresumedDown() — we OBSERVED the critical path stalling.
+//
+// (3) is the weak-signal case, and it is the one Tom's 2026-08-15 ruling was
+// actually about: `navigator.onLine` reports TRUE on a connection so weak that
+// nothing completes, so (2) alone left a learner streaming into a hang with a
+// full cache on the device. The behavioural distinction between deliberate
+// offline and accidental offline is retired here — a learner who forgot to
+// flip the toggle now gets exactly what one who remembered gets.
+//
+// The toggle survives as INTENT (don't spend my data on background downloads,
+// and the UI copy), not as playback permission. The lease lock still governs.
 const offlinePlaybackActive = (): boolean =>
-  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+  (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
@@ -10739,8 +10844,6 @@ const offlinePlaybackActive = (): boolean =>
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
   if (!offlinePlaybackActive()) return new Set()
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const audioCached = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -10752,8 +10855,11 @@ const offlineUnavailableBeltNames = computed<Set<string>>(() => {
     const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
     const round = targetLegoId ? rounds.find((r: any) => r?.legoId === targetLegoId) : null
     const cycles = (round as any)?.cycles || []
+    // Same fail-closed gate the engine uses, so a pill reads available exactly
+    // when landing there would actually produce sound — a blank-url cycle no
+    // longer makes a belt look reachable and then hand the learner silence.
     const hasPlayableCycle = cycles.some((c: any) =>
-      audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (!hasPlayableCycle) names.add(belt.name)
   }
   return names
@@ -11350,6 +11456,75 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
   }, OFFLINE_BG_RETRY_DELAYS_MS[attempt])
 }
 
+/**
+ * UNEXPECTED OFFLINE STEP 1: KEEP GOING FORWARD. Tom's ruling, 2026-08-15.
+ *
+ * There are THREE states and they are not the same thing:
+ *
+ *   1. INFINITE PLAY PROPER — the course is COMPLETED, no more LEGOs exist in
+ *      the DB. That is the ONLY completion trigger.
+ *   2. OFFLINE MODE — a deliberate download-ahead. Progresses the course
+ *      normally and CAN load new LEGOs; that is the entire point of it.
+ *   3. UNEXPECTED OFFLINE — weak signal, airplane mode. PLAY WHAT YOU HAVE:
+ *      keep going FORWARD through the normal script, loading new items from
+ *      the cache — which will almost certainly include some NEW LEGOs, since
+ *      the cache pre-fills ahead of the playhead — until nothing new can be
+ *      loaded, and only THEN recycle.
+ *
+ * Neither offline state is a completion trigger, and neither changes the belt
+ * the learner has reached.
+ *
+ * This is step 3's forward half, and it has to exist because the offline
+ * bootstrap path serves only a few rounds: the pre-tail watcher then fires
+ * almost immediately, and before this it went straight to recycling cached
+ * phrases — which looked to Tom like being dumped into infinite play three
+ * rounds into a resume, with the rest of his downloaded course sitting unread
+ * in IndexedDB.
+ *
+ * The cached script (useScriptCache, no TTL) holds the FULL generated round
+ * list, so forward material is simply the rounds the engine does not have yet.
+ * Rounds with nothing playable are skipped rather than ending the walk — a
+ * single audio-less LEGO mid-course must not cap forward progress — and the
+ * engine's own fail-closed cycle gate still polices what plays within a round.
+ *
+ * Returns the number of rounds appended; 0 means there is genuinely no forward
+ * material left in the cache, which is the ONLY condition that licenses the
+ * recycle below.
+ */
+const appendForwardFromCacheOffline = async (): Promise<number> => {
+  if (!courseCode.value) return 0
+  try {
+    const cachedScript = await getCachedScript(courseCode.value)
+    const scriptRounds = (cachedScript?.rounds || []) as any[]
+    if (scriptRounds.length === 0) return 0
+
+    const playable = (r: any) => ((r?.cycles) || []).some((c: any) =>
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
+
+    // Forward = rounds the ENGINE does not already hold. Dedupe on the engine's
+    // own truth (hasRound), never on an index into the mirror — on the resume
+    // path the engine's queue is a WINDOW at the cursor, not the head of the
+    // script array.
+    const forward = scriptRounds.filter((r) => !simplePlayer.hasRound(r?.roundNumber) && playable(r))
+    if (forward.length === 0) return 0
+
+    simplePlayer.appendRounds(forward as any)
+    // Keep the mirror in lockstep with the engine queue, exactly as
+    // expandScript does — the end-of-rounds check reads cachedRounds.length,
+    // and letting it lag is the "looped but then just stopped" bug.
+    const merged = [...((cachedRounds.value || []) as any[])]
+    const seen = new Set(merged.map((r) => r?.roundNumber))
+    for (const r of forward) if (!seen.has(r?.roundNumber)) merged.push(r)
+    merged.sort((a, b) => (a?.roundNumber ?? 0) - (b?.roundNumber ?? 0))
+    cachedRounds.value = merged as any
+    console.warn(`[Offline] forward from cache — appended ${forward.length} rounds; still progressing the course`)
+    return forward.length
+  } catch (err) {
+    console.warn('[Offline] forward-from-cache failed:', err)
+    return 0
+  }
+}
+
 // Offline infinite play. With no network we can't generate new rounds, so
 // loop the already-cached content: take every fully-cached cycle from the
 // loaded rounds, regroup into fresh rounds with continuing round numbers
@@ -11360,32 +11535,124 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
 // INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
 // (BLD phrases only ever play in a LEGO's debut round) nor component/listening
 // cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
-// spaced_rep from the same usePhrases pool). Filtering to these also means the
-// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
-// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+// spaced_rep from the same usePhrases pool). Filtering to these means the
+// recycled rounds carry NO intro/debut/build, so isMainLoopRound is false.
+// That USED to make isInfPlayActive true and paint the belt the red ∞.
+// It no longer does, and must not: Tom's ruling 2026-08-15 is that OFFLINE
+// CHANGES WHAT PLAYS, NEVER WHERE YOU ARE. This function raises
+// offlineRecycleBeltHeld, which suppresses the round-shape inference — the
+// learner keeps their own belt colour and belt nav while these rounds play.
+// The red ∞ is now reserved for DELIBERATE entry (the ∞ activator,
+// enterInfPlay) and for INFINITE PLAY PROPER — the course actually finished,
+// no more LEGOs in the DB, which is the only completion trigger there is.
+// Running out of CACHED material never qualifies: enterInfPlayFromCache no
+// longer promotes to the formal mode either.
 const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
 
+// The offline infinite-play urn, held across appends so one without-replacement
+// pass spans them (see appendCachedLoopForOffline). Rebuilt whenever the
+// measured cache changes; dropped on teardown with the rest of this instance.
+let offlineUrn: ReturnType<typeof createOfflineUrn> | null = null
+let offlineUrnSignature = ''
+
+/**
+ * Offline INFINITE PLAY — Tom's ruling, 2026-08-15.
+ *
+ * Step 1 of the approved algorithm is MEASURE THE CACHE: inventory what is
+ * actually fetchable right now and treat THAT list as the session syllabus,
+ * never assuming coverage. That is what the `cachedId` filter below does, and
+ * it was already right — a cycle only enters the pool if all three of its
+ * clips are genuinely in the persistent cache.
+ *
+ * What changed is step 2. This used to shuffle whole ROUNDS uniformly, so the
+ * learner got chunks of the course in random order and every phrase came round
+ * exactly as often as every other. It now draws PHRASES from a weighted urn,
+ * sampled without replacement (`playback/offlineUrn.ts`): long clips and
+ * recently-introduced clips get more tickets, but every cached phrase keeps a
+ * floor of one, so a full pass covers the whole cached syllabus and the weights
+ * control only how often within it. Spaced repetition falls out of that
+ * structure — no learner model, no per-item state.
+ *
+ * Round CARDINALITY and round SIZES are deliberately preserved: the drawn
+ * phrases are dealt back into the same number of rounds, of the same lengths,
+ * as the cached material had. The urn changes what plays and how often, not
+ * the pacing of the session or anything downstream that counts rounds.
+ */
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+  // ── Step 1: MEASURE THE CACHE. This inventory is the session syllabus, so
+  // the fail-closed gate matters most here: a blank-url cycle counted as
+  // "cached" would seed the urn with a phrase that can only ever be silence.
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
       INF_PLAY_USE_TYPES.has(c?.type)
-      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      && isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
-  for (let i = cachedOnly.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[cachedOnly[i], cachedOnly[j]] = [cachedOnly[j], cachedOnly[i]]
+
+  // ── Steps 2-4: weighted urn over the measured phrases.
+  // Duration = the target voices, which are the clips whose length actually
+  // makes a phrase hard. Position = the source round number, i.e. introduction
+  // order in the course — NOT clock time, per the ruling.
+  const byKey = new Map<string, any>()
+  const roundByKey = new Map<string, any>()
+  const candidates: UrnCandidate[] = []
+  for (const r of cachedOnly) {
+    for (const c of r.cycles) {
+      const key = c?.id ?? `${r.roundNumber}:${c?.known?.text ?? ''}:${c?.target?.text ?? ''}`
+      if (byKey.has(key)) continue
+      byKey.set(key, c)
+      roundByKey.set(key, r)
+      candidates.push({
+        key,
+        durationMs: (c?.target1DurationMs ?? 0) + (c?.target2DurationMs ?? 0),
+        position: r?.roundNumber ?? 0,
+      })
+    }
   }
+  if (candidates.length === 0) return 0
+
+  // The urn PERSISTS across appends, and that is load-bearing. Each append
+  // draws only as many phrases as the cached material has cycles, but a full
+  // urn pass is up to 4x that (one entry per ticket). A fresh urn per append
+  // would therefore only ever hand out the first quarter of each pass, and the
+  // without-replacement coverage guarantee — the whole reason for the urn —
+  // would be silently lost. Rebuild it only when the measured cache actually
+  // changes, which is what the signature detects.
+  const signature = `${candidates.length}:${candidates[0].key}:${candidates[candidates.length - 1].key}`
+  if (!offlineUrn || offlineUrnSignature !== signature) {
+    offlineUrn = createOfflineUrn(candidates)
+    offlineUrnSignature = signature
+    console.log(`[OfflineInfPlay] Measured cache: ${candidates.length} playable phrases; urn rebuilt.`)
+  }
+
+  // Deal into the SAME shape the cached material had — same number of rounds,
+  // same sizes — so nothing downstream that counts or paces rounds shifts.
+  const drawn = offlineUrn.take(cachedOnly.reduce((n, r) => n + r.cycles.length, 0))
+  if (drawn.length === 0) return 0
+
+  let cursor = 0
+  const shaped: any[] = []
+  for (const r of cachedOnly) {
+    const cycles: any[] = []
+    for (let i = 0; i < r.cycles.length && cursor < drawn.length; i++) {
+      cycles.push(byKey.get(drawn[cursor++]))
+    }
+    if (cycles.length === 0) continue
+    // Round metadata follows the first phrase actually in it, so the header
+    // never names a LEGO the round no longer contains.
+    const source = roundByKey.get(drawn[cursor - cycles.length]) ?? r
+    shaped.push({ ...source, cycles })
+  }
+  if (shaped.length === 0) return 0
+
   // Fresh round numbers above every existing one so appendRounds (dedupes by
   // roundNumber) doesn't drop them.
   let num = Math.max(0, ...(rounds.map((r) => r?.roundNumber ?? 0)))
-  const loopRounds = cachedOnly.map((r) => ({ ...r, roundNumber: ++num }))
+  const loopRounds = shaped.map((r) => ({ ...r, roundNumber: ++num }))
   simplePlayer.appendRounds(loopRounds as any)
   // CRITICAL: keep cachedRounds in lockstep with the engine queue, exactly as
   // expandScript does. The round-advance end-check (and currentRound) read
@@ -11393,6 +11660,26 @@ const appendCachedLoopForOffline = (): number => {
   // shows the summary even though the engine has more queued — the "looped
   // but then just stopped" bug.
   cachedRounds.value = [...rounds, ...loopRounds] as any
+  // Tell the learner why the material just started coming round again — once
+  // per session, dismissible, and it never touches playback (#595: play what
+  // you have, never gate). Raised HERE, at the single point where offline
+  // recycling actually engages, so every call site gets it for free and it
+  // rides the same offlinePlaybackActive() signal the playback path rides.
+  markOfflineInfPlayEngaged(offlinePlaybackActive())
+  // BELT HELD (Tom 2026-08-15). These rounds are infinite-play SHAPED, but the
+  // learner has not gone anywhere — so hold their own belt rather than letting
+  // it follow whichever LEGO the urn happens to draw. Anchor to their real
+  // cursor (highest LEGO played, the canonical position), which is what
+  // "stay at the current belt colour and belt nav" means. If the learner is
+  // ALREADY in formal INF PLAY, leave that alone — the red ∞ is correct there.
+  if (currentMode.value !== 'infplay') {
+    const cursorLegoId = highestCompletedLegoId.value ?? lastMainLoopLegoId.value
+    const cursorSeed = cursorLegoId ? getSeedFromLegoId(cursorLegoId) : null
+    // Null anchor → no write → the belt HOLDS its last value, which is still
+    // the right answer for a learner with no recorded cursor yet.
+    if (cursorSeed != null) beltFreezeSeed.value = cursorSeed
+    offlineRecycleBeltHeld.value = true
+  }
   return loopRounds.length
 }
 
@@ -11414,31 +11701,30 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
     return false
   }
   const firstNewIdx = simplePlayer.roundCount.value
+  // FORWARD FIRST, even here. A skip that lands past the loaded content offline
+  // has hit the edge of the CACHE, not the end of the course — the cached
+  // script usually still holds rounds the engine was never given.
+  const forward = await appendForwardFromCacheOffline()
+  if (forward > 0) {
+    simplePlayer.jumpToRound(firstNewIdx)
+    await persistCursorAtCurrentRound()
+    return true
+  }
   const looped = appendCachedLoopForOffline()
   if (looped <= 0) {
     console.warn('[LearningPlayer] Skip past content but no cached cycles to recycle — staying put')
     return false
   }
-  console.log(`[LearningPlayer] Skip past content — INF PLAY from ${looped} recycled cached rounds at index ${firstNewIdx}`)
-  // Flip the mode flag so back-belt-skip exits correctly and the next
-  // session resumes in INF PLAY rather than bouncing back to the start.
-  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-    try {
-      const finalLego = await getCourseFinalLego(courseCode.value)
-      await activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
-      currentMode.value = 'infplay'
-      if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
-    } catch (err) {
-      console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
-    }
-  }
-  // Freeze the belt at the course's final content (top reachable belt) so
-  // the display reads INF PLAY, not the empty belt we tried to skip to.
-  {
-    const fin = courseFinalLegoRef.value?.legoId
-    const finSeed = fin ? getSeedFromLegoId(fin) : null
-    if (finSeed != null) beltFreezeSeed.value = finSeed
-  }
+  // OFFLINE IS NOT A COMPLETION TRIGGER. Tom's ruling, 2026-08-15: infinite
+  // play PROPER means the course is finished — no more LEGOs in the DB — and
+  // that is the ONLY thing that may set the mode. Running out of CACHED
+  // material is a fact about this device's storage on this journey, not about
+  // the learner's progress, so this path no longer writes current_mode,
+  // no longer ratchets the cursor to the course's final LEGO, and no longer
+  // freezes the belt at the top belt. It keeps the belt HELD where the learner
+  // actually is (offlineRecycleBeltHeld, raised by the append above) and just
+  // plays what's cached until the network comes back.
+  console.log(`[LearningPlayer] Skip past cached content — recycling ${looped} cached rounds at index ${firstNewIdx}, belt held`)
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
   simplePlayer.jumpToRound(firstNewIdx)
@@ -12404,6 +12690,14 @@ onMounted(async () => {
   // when offline (the lock decision). Cheap IndexedDB read; awaited so the
   // fast-path below sees the correct offlineLeaseLocked value.
   await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
+  // Hydrate the audio cache's in-memory id Set BEFORE anything consults the
+  // fail-closed offline gate. persistent.has() is a synchronous read of a Set
+  // that fills lazily; unhydrated it answers false for EVERYTHING, so every
+  // cycle with real audio would be judged uncached and skipped at exactly the
+  // moment a session starts. This is a local IndexedDB cursor walk, and it
+  // fails open — a cache that can't hydrate must not block boot.
+  await audioCache.ready().catch(() => {})
 
   // Restore the learner's explicit offline-mode selection BEFORE first play.
   // Once offline mode is chosen and the content downloaded, playback comes
@@ -14966,6 +15260,35 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
           >Try to reconnect</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline infinite-play notice. Tom 2026-08-15: "we need a message to let
+       the learner know". Fires once per session at the moment cached content
+       starts being recycled, and NEVER pauses audio — playback carries on
+       underneath, which is the whole point of "play what you have". Reuses the
+       paywall shell (centred modal, so no safe-area inset needed). -->
+  <Transition name="fade">
+    <div
+      v-if="offlineInfPlayNoticeVisible"
+      class="paywall-overlay"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.')"
+      @click.self="dismissOfflineInfPlayNotice"
+    >
+      <div class="paywall-card">
+        <!-- No heading: Tom's ruling is the message and nothing more. Inventing
+             a title would be the app being cleverer than the copy it was given. -->
+        <p class="paywall-subtitle">
+          {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
+        </p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
+            {{ t('player.offlinePracticeAck', 'Got it') }}<!-- acknowledge, never a gate -->
+          </button>
         </div>
       </div>
     </div>

@@ -63,17 +63,92 @@ export function shouldArmBootWatchdog(hasServiceWorkerController: boolean): bool
 }
 
 /**
- * A boot failure while the device is OFFLINE is a missing network, not a
+ * A boot failure while the network is missing is a missing network, not a
  * broken deploy — and the heal ladder deletes the SW + precache, i.e. the
  * only thing that lets the app work offline at all. Found 2026-07-31 chasing
  * the always-play invariant: airplane-mode cold start served the precached
  * shell fine, then the fonts.googleapis stylesheet failed (cross-origin,
  * never cached), the fast-path watchdog "healed", and the SW-less reload
- * landed on the browser "No internet" page with every cache gone. Never
- * heal offline.
+ * landed on the browser "No internet" page with every cache gone.
+ *
+ * This used to take `navigator.onLine`, which is why it did not save Tom on a
+ * weak cellular signal (2026-08-16, white screen). Lie-fi is not offline: the
+ * radio is up, `navigator.onLine` stays TRUE, and requests are accepted and
+ * then hang instead of failing. So the old guard read "online", concluded the
+ * deploy was broken, deleted the service worker and the precache, and reloaded
+ * into a network that could not serve index.html — a white screen that
+ * survives reloads, because there is no longer anything to serve it from.
+ *
+ * The only honest test is whether the network ACTUALLY ANSWERED — a cheap
+ * same-origin request that came back inside a short deadline. A claim of being
+ * online is not evidence; a response is.
  */
-export function shouldHealOnBootFailure(isOnline: boolean): boolean {
-  return isOnline === true
+export function shouldHealOnBootFailure(networkAnswered: boolean): boolean {
+  return networkAnswered === true
+}
+
+/**
+ * How long a returning learner's boot may stall before we stop waiting for the
+ * network and start the copy of the app we already hold. A healthy boot mounts
+ * in ~150ms, and airplane mode — the experience Tom calls good — reaches
+ * ready-to-play in "3/4 secs", so 3s spends nothing a healthy network needs
+ * while staying inside the budget he already accepts.
+ */
+export const CACHED_SHELL_FALLBACK_MS = 3000
+
+/**
+ * The weak-signal recovery, and the reason the 2026-08-16 white screen was
+ * possible at all. Navigations are NetworkFirst (so fresh deploys propagate),
+ * and on a weak signal an 11 KB index.html can squeak through inside the
+ * service worker's 3s navigation timeout while the 400 KB of hashed chunks it
+ * names cannot. Those sub-resource fetches have NO timeout: the shell paints
+ * and the app never mounts. Reproduced in e2e/lie-fi-shell-boot-probe.mjs.
+ *
+ * So when the boot stalls and we hold a precached shell, we swap that shell in
+ * rather than keep waiting — its chunk hashes are precached by construction,
+ * so it mounts immediately. One build behind is not a cost a learner can
+ * detect; a white screen is. Fresh code still arrives through the normal
+ * service-worker update cycle on a network that can carry it.
+ *
+ * The guard is "already swapped WITHOUT then reaching mount", not "already
+ * swapped this session": it exists only to stop a cached shell that also fails
+ * from swapping itself in forever, so a successful boot clears it. A learner
+ * who reloads twice on a weak signal must be rescued twice — otherwise the
+ * second reload is a white screen again, which is exactly the "permanent" in
+ * Tom's field report.
+ */
+export function shouldServeCachedShell(
+  booted: boolean,
+  hasCachedShell: boolean,
+  alreadySwappedWithoutBooting: boolean,
+): boolean {
+  if (booted === true) return false
+  if (hasCachedShell !== true) return false
+  return alreadySwappedWithoutBooting !== true
+}
+
+/**
+ * How long the swap guard holds. A cached shell that also fails to mount would
+ * re-swap in seconds, so a short window stops the loop; anything later is a
+ * learner reloading again on the same bad signal, and they must be rescued
+ * again rather than handed the white screen back.
+ */
+export const SWAP_GUARD_MS = 30000
+
+/**
+ * Whether a previous swap still suppresses the next one.
+ *
+ * This is time-based rather than cleared-on-success ALONE because of the CSP:
+ * `vercel.json` pins a sha256 hash of the inline watchdog, so after a real
+ * deploy the CACHED shell's inline script hashes differently from the live
+ * header and is blocked in the swapped-in document. The app still mounts (its
+ * entry is an external module, allowed by script-src 'self') — but the blocked
+ * watchdog cannot clear its own guard. The guard therefore has to expire on
+ * its own, and clearing on a successful boot is the belt to this braces.
+ */
+export function isSwapGuardActive(swappedAtMs: number | null, nowMs: number, guardMs = SWAP_GUARD_MS): boolean {
+  if (swappedAtMs === null || !Number.isFinite(swappedAtMs)) return false
+  return nowMs - swappedAtMs < guardMs
 }
 
 /**

@@ -33,6 +33,12 @@
  */
 
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import {
+  CRITICAL_PATH_TIMEOUT_MS,
+  BACKGROUND_FETCH_TIMEOUT_MS,
+  markNetworkStalled,
+  clearNetworkStalled,
+} from '../config/networkGate'
 
 // ============================================================================
 // TYPES
@@ -265,6 +271,35 @@ function readCachedCycles(
   }
 }
 
+/**
+ * Read cached cycles IGNORING the version stamp and the requested limit.
+ *
+ * `readCachedCycles` is the correctness-first reader: it refuses a stale
+ * vintage so a content edit reaches the learner. This one is the
+ * last-resort reader, used only when the network has already failed or timed
+ * out. At that moment the choice is not "stale content vs fresh content", it
+ * is "stale content vs silence" — and Tom's ruling settles that: play what you
+ * have. The stale copy is served for this session; the next successful fetch
+ * overwrites it. (Tom 2026-08-15.)
+ */
+function readAnyCachedCycles(
+  courseCode: string,
+  fromLegoId: string,
+): CyclesResponse | null {
+  try {
+    const raw = localStorage.getItem(cyclesCacheKey(courseCode, fromLegoId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as CachedCycles
+    const r = parsed?.response
+    if (r?.course_code === courseCode && Array.isArray(r.cycles) && r.cycles.length > 0) {
+      return r
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 function writeCachedCycles(
   courseCode: string,
   fromLegoId: string,
@@ -301,7 +336,21 @@ function writeCachedCycles(
 // network. The shared promise resolves to ALREADY-PARSED JSON, so the response
 // body is never shared raw and there is no "body already read" hazard.
 
-const BOOT_FETCH_TIMEOUT_MS = 9000
+/**
+ * The SHARED fetch's own leak-guard. A fire-and-forget prewarm has no caller
+ * waiting on it, so it keeps the long leash — the point of this bound is that
+ * the request cannot live forever, not that anyone is being made to wait.
+ *
+ * The learner's actual wait is a SEPARATE, much shorter budget, applied
+ * per-caller at `makeAbort(CRITICAL_PATH_TIMEOUT_MS)` in bootstrap(). The
+ * coalescer already supports this split: a caller's signal detaches that
+ * caller from the shared promise without aborting the request other callers
+ * still depend on. So bootstrap gives up on the network at 2.5s and serves
+ * cache, while the request it started keeps running and warms the cache for
+ * the next call. (Tom 2026-08-15: "never allow a weak Internet connection to
+ * block the learner".)
+ */
+const BOOT_FETCH_TIMEOUT_MS = BACKGROUND_FETCH_TIMEOUT_MS
 
 interface CoalescedJson {
   ok: boolean
@@ -567,10 +616,15 @@ export function useInstantPlayback(
   // Internals
   // -----------------------------------------------------------
 
-  function makeAbort(): AbortController {
+  /**
+   * `budgetMs` is how long THIS caller waits, not how long the request lives.
+   * Critical-path callers pass CRITICAL_PATH_TIMEOUT_MS so the learner is
+   * never held; background callers take the default long leash.
+   */
+  function makeAbort(budgetMs: number = BOOT_FETCH_TIMEOUT_MS): AbortController {
     const ctrl = new AbortController()
     activeAborts.add(ctrl)
-    abortTimers.set(ctrl, setTimeout(() => ctrl.abort(), BOOT_FETCH_TIMEOUT_MS))
+    abortTimers.set(ctrl, setTimeout(() => ctrl.abort(), budgetMs))
     return ctrl
   }
 
@@ -597,22 +651,31 @@ export function useInstantPlayback(
       return cached
     }
 
-    // Cache miss — one tiny fetch (~20 KB for a 700-LEGO course)
-    const ctrl = makeAbort()
+    // Cache miss — one tiny fetch (~20 KB for a 700-LEGO course). Bounded by
+    // the critical-path budget: with no cached map there is nothing to fall
+    // back to, so this genuinely can fail — but it fails FAST, handing the
+    // caller to its own fallback in 2.5s rather than holding the learner for
+    // nine seconds first.
+    const ctrl = makeAbort(CRITICAL_PATH_TIMEOUT_MS)
     try {
       const res = await coalescedJsonGet(
         `${apiBase}/${encodeURIComponent(code)}/round-map`,
         ctrl.signal,
       )
       if (!res.ok) {
+        markNetworkStalled()
         throw Object.assign(
           new Error(`[InstantPlayback] round-map fetch failed: ${res.status} ${res.statusText}`),
           { status: res.status },
         )
       }
+      clearNetworkStalled()
       const map = res.data as RoundMap
       writeCachedRoundMap(code, map)
       return map
+    } catch (err) {
+      markNetworkStalled()
+      throw err
     } finally {
       releaseAbort(ctrl)
     }
@@ -676,13 +739,48 @@ export function useInstantPlayback(
       `${apiBase}/${encodeURIComponent(code)}/cycles` +
       `?from=${encodeURIComponent(fromLegoId)}&limit=${limit}`
 
-    const res = await coalescedJsonGet(url, signal)
+    // The network is now the SECOND choice, not the gate. Anything that goes
+    // wrong from here — a hang the caller's signal aborts, a 403 from the
+    // entitlement gate, a 5xx, a DNS failure in airplane mode — falls to
+    // whatever cycles this device already holds for this position rather than
+    // to a spinner. Only a genuinely empty cache produces an error, because
+    // only then is there truly nothing to play. (Tom 2026-08-15: "Play what
+    // you have. Verify access as and when you can. Never as a gate.")
+    const serveStale = (why: string): CyclesResponse | null => {
+      const stale = readAnyCachedCycles(code, fromLegoId)
+      if (stale) {
+        console.warn(
+          `[InstantPlayback] ${why} — serving ${stale.cycles.length} cached cycles for ${fromLegoId} instead of blocking the learner.`,
+        )
+      }
+      return stale
+    }
+
+    let res: CoalescedJson
+    try {
+      res = await coalescedJsonGet(url, signal)
+    } catch (err) {
+      // Abort (our own budget expiring) or a transport failure. Both mean the
+      // network did not deliver in time; neither means "stop the learner".
+      markNetworkStalled()
+      const stale = serveStale(
+        (err as Error)?.name === 'AbortError'
+          ? `cycles fetch exceeded its ${CRITICAL_PATH_TIMEOUT_MS}ms budget`
+          : `cycles fetch failed (${(err as Error)?.message ?? 'unknown'})`,
+      )
+      if (stale) return stale
+      throw err
+    }
+
     if (!res.ok) {
+      const stale = serveStale(`cycles fetch returned ${res.status} ${res.statusText}`)
+      if (stale) return stale
       throw Object.assign(
         new Error(`[InstantPlayback] cycles fetch failed: ${res.status} ${res.statusText}`),
         { status: res.status },
       )
     }
+    clearNetworkStalled()
     const response = res.data as CyclesResponse
     // Write-through cache. Stamp is the version the server returned, which
     // gets compared against the current round-map version on read.
@@ -778,14 +876,74 @@ export function useInstantPlayback(
    *  random USE per round). Each cycle has inf_round on it. */
   const infPlayCycles = ref<BackendCycle[]>([])
 
+  type InfPlayBatch = { cycles: BackendCycle[]; nextInfRound: number; mainLoopCount: number; version: number }
+
+  /**
+   * INF PLAY deliberately does NOT read from cache on the happy path — its
+   * revival rounds are randomised per session, and serving the same sequence
+   * every time would be pedagogically wrong (see the cache-fast-path note in
+   * LearningPlayer). That reasoning holds only while the network is answering.
+   * With no network, the choice collapses to "the same rounds again" vs
+   * "nothing at all", and Tom's ruling settles it: play what you have. So we
+   * write every batch through to storage and read it back ONLY as a
+   * last resort, after the network has already failed. (Tom 2026-08-15.)
+   */
+  function infPlayCacheKey(code: string, fromRound: number): string {
+    return `${CYCLES_STORAGE_PREFIX}infplay-${code}-${fromRound}`
+  }
+
+  function writeCachedInfPlay(code: string, fromRound: number, batch: InfPlayBatch): void {
+    try {
+      localStorage.setItem(infPlayCacheKey(code, fromRound), JSON.stringify(batch))
+    } catch {
+      /* storage full — a cache miss offline is no worse than today */
+    }
+  }
+
+  function readCachedInfPlay(code: string, fromRound: number): InfPlayBatch | null {
+    try {
+      const raw = localStorage.getItem(infPlayCacheKey(code, fromRound))
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as InfPlayBatch
+      return Array.isArray(parsed?.cycles) && parsed.cycles.length > 0 ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
   async function fetchInfPlayCycles(
     fromRound: number,
     limit: number,
     signal?: AbortSignal,
-  ): Promise<{ cycles: BackendCycle[]; nextInfRound: number; mainLoopCount: number; version: number }> {
+  ): Promise<InfPlayBatch> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
     const url = `${apiBase}/${encodeURIComponent(code)}/infplay-cycles?from_round=${fromRound}&limit=${limit}`
+    const serveStale = (why: string): InfPlayBatch | null => {
+      const stale = readCachedInfPlay(code, fromRound)
+      if (stale) {
+        console.warn(
+          `[InstantPlayback] ${why} — replaying ${stale.cycles.length} cached INF PLAY cycles rather than blocking the learner.`,
+        )
+      }
+      return stale
+    }
+    try {
+      return await fetchInfPlayCyclesLive(url, code, fromRound, signal)
+    } catch (err) {
+      markNetworkStalled()
+      const stale = serveStale(`INF PLAY fetch failed (${(err as Error)?.message ?? 'unknown'})`)
+      if (stale) return stale
+      throw err
+    }
+  }
+
+  async function fetchInfPlayCyclesLive(
+    url: string,
+    code: string,
+    fromRound: number,
+    signal?: AbortSignal,
+  ): Promise<InfPlayBatch> {
     // INF PLAY is even more strongly gated than /cycles — non-entitled callers
     // get a hard 403 (no partial-preview slice). Attach the session token so a
     // signed-in paid learner isn't seen as anonymous. (Same regression class as
@@ -811,12 +969,15 @@ export function useInstantPlayback(
       next_inf_round: number
       main_loop_count: number
     }
-    return {
+    clearNetworkStalled()
+    const batch: InfPlayBatch = {
       cycles: json.cycles,
       nextInfRound: json.next_inf_round,
       mainLoopCount: json.main_loop_count,
       version: json.version,
     }
+    writeCachedInfPlay(code, fromRound, batch)
+    return batch
   }
 
   /**
@@ -830,7 +991,8 @@ export function useInstantPlayback(
   async function bootstrapInfPlay(fromRound: number = 1): Promise<BootstrapResult> {
     isReady.value = false
     nextInfRoundCursor.value = Math.max(1, fromRound)
-    const ctrl = makeAbort()
+    // Critical path — the learner is waiting behind this one too.
+    const ctrl = makeAbort(CRITICAL_PATH_TIMEOUT_MS)
     try {
       const result = await fetchInfPlayCycles(nextInfRoundCursor.value, INFPLAY_ROUND_LIMIT, ctrl.signal)
       infPlayCycles.value = result.cycles
@@ -935,7 +1097,8 @@ export function useInstantPlayback(
     const cachedMap = startLegoId ? readCachedRoundMap(courseCode.value) : null
     const expectedVersion = cachedMap?.version
 
-    const ctrl = makeAbort()
+    // Critical path: the learner is waiting behind this. 2.5s, then cache.
+    const ctrl = makeAbort(CRITICAL_PATH_TIMEOUT_MS)
     let map: RoundMap
     let response: CyclesResponse
     try {

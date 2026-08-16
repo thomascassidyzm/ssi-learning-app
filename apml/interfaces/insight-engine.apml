@@ -1,7 +1,7 @@
 # APML Interface: Insight Engine Specification
 # SSI Learning App
-# Version: 1.5.3 (2026-08-07) — course labels: the engine names a course through @ssi/core's courseShortName/courseDisplayName, which now understand dialect-variant codes (cym_s_for_eng -> "Welsh (South)")
-# Status: Integrated — typecheck-green, admin chunk builds; 6 admin boards + THE LENS (node-scoped engine on every node home) + a teacher-framed TeacherInsightsView (single RateCompare widget, scope-locked to their class/learner, /teacher-insights un-gated ?demo)
+# Version: 1.6.0 (2026-08-12) — VadBoard: the first class/school-level VAD + prosody read, with mic-data UPTAKE as a first-class number; a new admin prosody endpoint (player_events is own-row even for admins); /admin/stats gains ?board=<id> deep-linking
+# Status: Integrated — typecheck-green, admin chunk builds; 7 admin boards + THE LENS (node-scoped engine on every node home) + a teacher-framed TeacherInsightsView (single RateCompare widget, scope-locked to their class/learner, /teacher-insights un-gated ?demo)
 
 ## ============================================================================
 ## OVERVIEW
@@ -183,6 +183,18 @@ BOARDS:
     demo_first: "DEMO short-circuits to demoRates (?demo) — ZERO database access. Without ?demo the board shows a 'preview with ?demo' note (no DB call), the resolver isn't wired yet."
     law: "RATE IS PRIMARY — rate of progress matters more than position; the rate leads, the furthest-LEGO position rides along only as the small secondary contextLine. Every interesting metric is a rate; the metric, the entity, and the average cohort are all swappable through ONE widget."
     data_type: "RateComparisonData lives in spec.ts as a COMPOSITE-widget type (NOT in the WidgetData union / NOT a registry kind) — RateCompare is a hand-composed board widget like HealthStrip, so the frozen 18-way spine union is untouched."
+  VadBoard:
+    lens: "Attention · voice (admin-only — the learner table names learners / PII)"
+    question: "Of the learners in this class/school, how many have mic-derived data at all — and what does it say about the ones who do?"
+    widgets: "an UPTAKE tile (the fraction, first and biggest — 'N of M learners have mic-derived data') + ranked-bar (adaptive-pause mastery mix: mastered/confident/consolidating/acquisition) + distribution (per-learner mean normalised latency, ms per character) + table (uptake class by class) + a native prosody metric panel + a native click-through learner table (row -> /admin/users/<learnerId>, the per-learner 'Adaptive pause mastery' section that already renders)"
+    data: "data/vadUptake.ts — a DIRECT browser read of learner_lego_metrics, joined to the roster via schools -> classes -> user_tags(tag_type='class', tag_value='CLASS:<id>') -> learners.user_id, all keyed on learners.id. Prosody comes from GET /api/admin/vad-prosody instead (see prosody_door)."
+    prosody_door: "GET /api/admin/vad-prosody (api/admin/vad-prosody.ts, verifyAdmin + service role) returns ONE per-learner aggregate of cycle_prosody — counts and sums with their own bases, never per-event rows and never the envelope contour. It exists because player_events is OWN-ROW under RLS for everyone INCLUDING ssi_admins: verified live 2026-08-12 with a real admin JWT, learner_lego_metrics returned another learner's 65 rows while player_events returned 0 of their 321. That same block, not the analytics exclusion, is why 'Recent activity' reads 0 for demo learners on the admin user page. The RLS posture is untouched — this is the server-mediated door the RLS doctrine calls for. When the endpoint fails the panel STATES the gap rather than rendering dashes or zeroes."
+    why_direct: "A deliberate policy migration excludes every demo learner from all analytics_* aggregates, so a board built on the rollups filters this telemetry straight back out (that is why DifficultyTurnsBoard shows none of it). This board therefore reads the two tables directly, exactly as composables/admin/useAdminUserDetail.ts does for one learner. The exclusion policy is untouched."
+    identity: "player_events.user_id is uuid but holds learners.id, NOT the auth uid (CLAUDE.md canonical pattern) — prosody is keyed on learners.id throughout."
+    law: "UPTAKE IS THE INSIGHT, NOT MISSING DATA. Roughly half the demo learners carry no row whatsoever in the VAD-fed tables — not zeros, nothing. Every aggregate states the denominator it was actually taken over; a learner with no rows is counted in the total and excluded from every average, never averaged in as a zero. A scope with zero VAD learners renders an explicit 'no learner here has mic-derived data yet' state, never an empty chart."
+    naming_honesty: "learner_lego_metrics.mean_latency_ms is a MISNOMER — the value is normalised latency in milliseconds PER CHARACTER of the target phrase (@ssi/core MetricsTracker.normalizeLatency). Every user-facing label on this board says 'ms/char'."
+    prosody_claims: "Only what the cycle_prosody payload carries: peak / average energy (dB), envelope peak count, startedDuringPrompt rate, stillSpeakingAtVoice1 rate — each with its own event base. The 128-point envelope contour is deliberately NOT fetched (scalar JSON projections only)."
+    defaults: "Opens on the school with the most VAD-carrying learners (so the board lands populated), whole-school scope, with a class chip row beneath."
   CoverageBoard:
     lens: "Coverage · class-as-learner (the SECOND teaching-insights lane — tutor-insights.md §2–§3)"
     question: "Each class as a learner — coverage, pace, dosage, efficiency over wall-clock?"
@@ -240,7 +252,7 @@ STATUS:
     - "7 resolvers (courseValue, contentFriction, retention, health, trialConversion, difficultyTurns, coverage) — RPC-first, zero-safe"
     - "InsightWidget wrapper owning the four behaviours"
     - "RateCompare composite widget (RateCompare.vue + RateTrend.vue) — the reusable 'entity vs average' rate widget"
-    - "6 boards (RatesBoard, CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard, CoverageBoard)"
+    - "7 boards (RatesBoard, CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard, CoverageBoard, VadBoard)"
     - "InsightsView host + /admin/insights route + AdminTopBar tab"
     - "TeacherInsightsView (schools-wide, single RateCompare widget, scope-locked per role) + /teacher-insights un-gated route (?demo) + /schools/analytics (embedded, real)"
     - "REAL rate-of-progress for schools (2026-07-14): analytics_class_sessions_scoped RPC (supabase/migrations/20260714_analytics_class_sessions_scoped.sql, applied+verified live, service_role-only EXECUTE) + api/school/rate-compare.ts (auth -> resolveVisibleScope -> RPC) + api/_utils/rateCompare.ts (window pace / weekly trend / distribution math)"

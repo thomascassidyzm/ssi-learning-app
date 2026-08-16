@@ -321,8 +321,12 @@ async function handleGet(supabase: SupabaseClient, userId: string, isSsiAdmin: b
         urlPath: `/redeem/${row.code}`,
         who: 'access',
         where: PLATFORM_WHERE,
-        what: formatAccessWhat(row),
-        email: null,
+        // The label is who the grant is FOR (IndividualAccessForm writes the
+        // person's name there, and the metadata bag carries their email) —
+        // without it an individual grant reads as an anonymous "Full access"
+        // row and is unfindable by name in the audit list's search.
+        what: row.label ? `${row.label} — ${formatAccessWhat(row)}` : formatAccessWhat(row),
+        email: typeof row.metadata?.recipient_email === 'string' ? row.metadata.recipient_email : null,
         limits: { expiresAt: row.expires_at, maxUses: row.max_uses, useCount: row.use_count },
         isActive: row.is_active,
         redeemedAt: null,

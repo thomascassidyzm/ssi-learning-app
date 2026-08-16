@@ -78,15 +78,14 @@ import type { ListeningPlayPolicy } from './useAlgorithmConfig'
 export type Layer1PlayRole = 'ps' | 'trans'
 
 /**
- * Role → BASE playback rate, before the belt ramp. Single source of truth.
+ * Role → BASE playback rate for a Layer-1 clip. Single source of truth.
  *
- * Both roles sit at 1.0× here, but only 'trans' actually plays at 1.0×: the
- * known-language clip is the meaning anchor in the learner's own language and
- * is never slowed. The target role's 1.0× is the *role* rate that
- * `computeListeningSpeed` then multiplies by the belt ramp
- * (0.8 → 0.9 → 0.95 → 1.0 across white/yellow/orange/green), so a beginner
- * hears the sentence at 0.8× — Tom, 2026-08-06: "LIStening exercises are way
- * too fast initially… targ lang clips start at 0.8x".
+ * Both roles sit at 1.0× and both actually play at 1.0×. 'trans' is the meaning
+ * anchor in the learner's own language and is never slowed; 'ps' is the target
+ * clip, and since 2026-08-16 listening is never slowed either — `computeListeningSpeed`
+ * multiplies this role rate by the course speed and nothing else, so a beginner
+ * hears the sentence at full pace. That exposure to native tempo is the point
+ * of the listening layer (Tom, 2026-08-16, confirming Aran).
  */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, trans: 1.0 }
 
@@ -124,15 +123,14 @@ export const DEFAULT_SEED_PLAYLIST: Layer1SlotRole[] = ['t1', 'known', 't2', 't1
  * audio drops `known` slots; t2 falls back to voice 1 when there's no second
  * voice. Pure + exported so it's unit-tested directly.
  *
- * SPEED (Tom, 2026-08-06): the TARGET slots ride the belt ramp — the very same
- * `beltSpeed` curve the speaking side bakes — keyed on the seed's OWN number,
- * exactly as a speaking review of that seed would be. 0.8× white, 0.9× yellow,
- * 0.95× orange, 1.0× green+. The KNOWN slot stays 1.0×: it's the learner's own
- * language and the meaning anchor. `targetSpeed` carries the course's
- * globalSpeed / nativeSpeed, so legacy slow-recorded courses skip the ramp on
- * identical terms to the speaking side. Omitted → native-speed defaults, i.e.
- * the ramp applies (a listening clip with no course info should still be gentle
- * for a beginner rather than silently flat 1.0×, which was the bug).
+ * SPEED (Tom, 2026-08-16): LISTENING IS NEVER SLOWED. Every slot plays at full
+ * pace — the target slots at the course globalSpeed via `computeListeningSpeed`
+ * with no belt term, the known slot at 1.0× because it's the learner's own
+ * language and the meaning anchor. The belt ramp Tom ruled on 2026-08-06 is a
+ * SPEAKING rule and lives only in `computeCycleSpeed`; a white-belt learner
+ * hears listening at the same rate a black belt does, on purpose. `targetSpeed`
+ * still carries the course globalSpeed / nativeSpeed so legacy slow-recorded
+ * courses keep their own behaviour. Omitted → native-speed defaults.
  */
 export function buildSeedPlays(
   seed: L1SeedAudio,
@@ -143,10 +141,11 @@ export function buildSeedPlays(
    * 2026-08-07: "it's all at... The same speed"). Supplied by the exposure
    * ramp — see playback/listeningExposureRamp.ts and `nextLap` below.
    *
-   * Omitted ⇒ the pre-2026-08-07 split: target slots on the BELT curve via
-   * `computeListeningSpeed`, the known slot pinned at 1.0×. That path is what
-   * `ListeningModeConfig.speedSource: 'belt'` restores, and it is still what
-   * a caller passing nothing gets, so the belt tests keep passing unchanged.
+   * Omitted ⇒ the pre-2026-08-07 split: target slots via `computeListeningSpeed`,
+   * the known slot pinned at 1.0×. That path is what
+   * `ListeningModeConfig.speedSource: 'belt'` selects, and it is still what a
+   * caller passing nothing gets — but since 2026-08-16 that path carries no
+   * belt term either, so both sources now land on full pace by default.
    */
   uniformSpeed?: number,
 ): L1Play[] {
@@ -455,8 +454,8 @@ export interface L1Play {
   /** What plays in this slot: 'ps' = target @1×, 'trans' = known-language
    *  clip. Drives the runtime gap matrix. */
   role: Layer1PlayRole
-  /** Playback rate. 'trans' is always 1.0; 'ps' is the belt-ramped rate from
-   *  computeListeningSpeed (0.8 / 0.9 / 0.95 / 1.0 × the course globalSpeed). */
+  /** Playback rate. 'trans' is always 1.0; 'ps' is the rate from
+   *  computeListeningSpeed — role rate × the course globalSpeed, belt-independent. */
   playbackSpeed: number
 }
 

@@ -22,7 +22,11 @@
  *      design, where the known clip was pinned at 1.0× while the target clips
  *      rode a ramp.
  *   3. THE RAMP IS OVER EXPOSURES, not belts — a phrase's Nth hearing picks
- *      the step. Easy starts at 0.7 and dwells; Fast starts at 1.0.
+ *      the step. SUPERSEDED 2026-08-10 as to Easy's SHIPPED NUMBERS ONLY: Easy
+ *      used to start at 0.7 and dwell; Tom heard it live and ruled "return the
+ *      default listening speed settings to 1.0x on EASY", so both Easy and Fast
+ *      now ship a single terminal step at 1.0. The ramp machinery, and the belt
+ *      ceiling that composes with it, are unchanged and still DB-retunable.
  *   4. 1.0 IS A HARD CEILING — `LISTENING_SPEED_CEILING`. No config value, no
  *      course globalSpeed, no ramp step can put a listening clip above it. The
  *      clamp is in code (`resolveListeningSpeed`), NOT merely in the default
@@ -34,12 +38,13 @@
  * progression and the 1.5×/2.0× speed-up reps. Retired — see
  * `resolveListeningPattern` and usePodLapScheduler's `resolveStageConfig`.
  *
- * WHAT THIS DOES NOT REPLACE: `computeListeningSpeed` / `beltSpeed` in
- * providers/toSimpleRounds.ts — the BELT curve (0.8 white → 0.9 yellow → 0.95
- * orange → 1.0 green) Tom ruled on 2026-08-06. That is a ramp over a different
- * axis and Tom has not said which wins, so it is kept intact, kept tested, and
- * kept reachable by config alone (`ListeningModeConfig.speedSource: 'belt'`).
- * The shipped default is the exposure ramp.
+ * WHAT THIS DOES NOT REPLACE: `computeListeningSpeed` in
+ * providers/toSimpleRounds.ts, still reachable by config alone
+ * (`ListeningModeConfig.speedSource: 'belt'`) and still the path for anything
+ * not exposure-ramped. Its belt term is GONE as of 2026-08-16 — listening is
+ * never slowed — so that alternative source now also lands on full pace.
+ * `beltSpeed` itself is untouched and still governs SPEAKING via
+ * `computeCycleSpeed`. The shipped default here is the exposure ramp.
  */
 
 /**
@@ -89,18 +94,23 @@ export const DEFAULT_LISTENING_PATTERN: ListeningSlot[] = ['target', 'known', 't
 export const LISTENING_SPEED_CEILING = 1.0
 
 /**
- * EASY's shipped ramp — Tom's numbers, read literally: "0.7 the very first
- * time, and it might be 0.8, then it might stay on 0.8 for a few times, then
- * it might go up to one".
+ * EASY's shipped ramp — a single terminal step at 1.0, the same shape as
+ * Fast's.
  *
- * So: one exposure at 0.7, four at 0.8 ("a few times"), then 1.0 for ever.
- * A phrase reaches full speed on its sixth hearing. Every number here is a DB
- * value (`algorithm_config.easy_mode.listeningSpeedRamp`) — retuning by ear is
- * a Supabase edit, not a deploy.
+ * SUPERSEDED 2026-08-10 (Tom, listening live): "I think we can return the
+ * default listening speed settings to 1.0x on EASY, I think we moved them to
+ * 0.8x." He heard the slow-down in his own listening and ruled it out. The
+ * shipped default for Easy listening is now native pace.
+ *
+ * WHAT THIS REPLACES — the exposure ramp read literally off Tom's 2026-08-07
+ * words ("0.7 the very first time... then it might stay on 0.8 for a few
+ * times, then it might go up to one"): `[{0.7,1},{0.8,4},{1.0,null}]`, one
+ * exposure at 0.7, four at 0.8, then 1.0 for ever. That reading is superseded,
+ * not deleted: the ramp MACHINERY is untouched, and every number here is a DB
+ * value (`algorithm_config.easy_mode.listeningSpeedRamp`), so the gentle curve
+ * is one Supabase edit away if Tom ever wants it back — no deploy.
  */
 export const DEFAULT_EASY_LISTENING_RAMP: ListeningRampStep[] = [
-  { speed: 0.7, plays: 1 },
-  { speed: 0.8, plays: 4 },
   { speed: 1.0, plays: null },
 ]
 
@@ -128,29 +138,29 @@ export interface ListeningBeltCeiling {
 }
 
 /**
- * EASY's shipped belt ceilings — Tom, 2026-08-07 23:56Z, correcting the
- * exposure-only reading that shipped first: "for Easy the BELT TABLE is
- * authoritative... 0.8x for white/yellow belt, 0.9x for orange/green, 1.0x for
- * blue and beyond, NEVER above 1.0. The per-exposure ramp applies UNDERNEATH
- * the belt ceiling."
+ * EASY's shipped belt ceilings — a single rung at the global ceiling, which is
+ * a no-op. Same shape as Fast's.
  *
- * Keyed on seed number via the canonical belt boundaries in useBeltProgress's
- * BELTS table (white 0, yellow 8, orange 20, green 40, blue 80):
+ * SUPERSEDED 2026-08-10 (Tom): "return the default listening speed settings to
+ * 1.0x on EASY." This table was the thing he could actually hear. It was a HARD
+ * ceiling the exposure ramp could never climb past, so an early-course Easy
+ * learner sat at 0.8× for ever no matter how many times they met a phrase —
+ * and `beltCeilingForSeed` returns the first rung for an unknown position, so
+ * an unknown position landed on 0.8 too.
  *
- *   seeds   1-19   white + yellow   0.8
- *   seeds  20-79   orange + green   0.9
- *   seeds  80+     blue and beyond  1.0
+ * WHAT THIS REPLACES — Tom's 2026-08-07 23:56Z belt table: "0.8x for
+ * white/yellow belt, 0.9x for orange/green, 1.0x for blue and beyond, NEVER
+ * above 1.0", i.e. `[{1,0.8},{20,0.9},{80,1.0}]` keyed on the useBeltProgress
+ * boundaries. That ruling is superseded by today's. The ceiling MACHINERY is
+ * untouched and the table is a DB value
+ * (`algorithm_config.easy_mode.listeningBeltCeilings`), so the belt curve is
+ * one Supabase edit away — no deploy.
  *
- * NOTE this is a GENTLER table than the speaking side's `beltSpeed`
- * (0.8 / 0.9 / 0.95 / 1.0 at 8 / 20 / 40) — it holds each rung for two belts
- * and does not reach 1.0 until blue, where beltSpeed reaches it at green. It is
- * deliberately its own table, not a reuse: Tom gave these numbers for listening
- * on Easy specifically.
+ * `LISTENING_SPEED_CEILING` (1.0) is a separate, still-standing rule — "never
+ * more than one" — and is unaffected by any of this.
  */
 export const DEFAULT_EASY_BELT_CEILINGS: ListeningBeltCeiling[] = [
-  { fromSeed: 1, speed: 0.8 },   // white + yellow
-  { fromSeed: 20, speed: 0.9 },  // orange + green
-  { fromSeed: 80, speed: 1.0 },  // blue and beyond
+  { fromSeed: 1, speed: LISTENING_SPEED_CEILING },
 ]
 
 /**
@@ -285,14 +295,19 @@ export function rampSpeedForExposure(
  *
  * The BELT ceiling is the maximum for that learner. The exposure ramp is what
  * approaches it FROM BELOW: an early hearing may be slower than the belt speed,
- * and exposure never pushes past it. Concretely, a white-belt Easy learner sits
- * under a 0.8 ceiling for ever — their first hearing is 0.7, hearings two to
- * five are 0.8, and the sixth-and-after do NOT rise to 1.0, they stay at 0.8.
+ * and exposure never pushes past it.
+ *
+ * With the SHIPPED 2026-08-10 defaults both tables are flat at 1.0 for Easy as
+ * well as Fast, so neither holds a learner below native pace — the composition
+ * below only bites when a DB row reinstates a curve. Before 2026-08-10 a
+ * white-belt Easy learner sat under a 0.8 ceiling for ever; that is the
+ * slow-down Tom heard and ruled out.
  *
  * Taking the min BEFORE multiplying by globalSpeed is what keeps a slow-recorded
- * course composing correctly: French (0.95) white-belt Easy is
- * min(0.7, 0.8) × 0.95 = 0.665 on the first hearing and 0.8 × 0.95 = 0.76
- * thereafter — never 0.8, which would be the course's own pace exceeded.
+ * course composing correctly: with a configured ramp of 0.7 under a 0.8 belt
+ * ceiling, French (globalSpeed 0.95) gives min(0.7, 0.8) × 0.95 = 0.665 on the
+ * first hearing and 0.8 × 0.95 = 0.76 thereafter — never 0.8, which would be
+ * the course's own pace exceeded.
  *
  * `globalSpeed` can only ever pull the rate DOWN, because of the final clamp.
  * Non-finite or ≤0 is read as 1.0.

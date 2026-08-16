@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-09 (pod intake: ONE new sentence per visit, two at the cold start)
+# Last updated: 2026-08-16 (LISTENING IS NEVER SLOWED — belt ramp removed from listening entirely; it stays on the speaking side only)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -24,13 +24,25 @@
 #     intermediates are dropped.
 #   - Pod stage definitions corrected (see STAGE_PLAYLIST in player code).
 #   - UPDATE 2026-06-10 (Tom): pod stage 1 is now "Phase 0" — the explainer
-#     plays INSTEAD of the translation for 2 pod-rounds (per-stage durations
-#     via PodsConfig.stageDurations), then retires; stage 2 "Phase 1" is the
+#     plays INSTEAD of the translation, then retires; stage 2 "Phase 1" is the
 #     plain translation pattern for 3 rounds; speed ramp follows. Sentences
 #     with no explainer audio (first-encounter discipline upstream: fully-
 #     repeat lines, vocab codas) play their translation in the explainer
 #     slot. See DEFAULT_STAGE_PLAYLIST/DEFAULT_STAGE_DURATIONS in
 #     usePodLapScheduler.ts and DEFAULT_PODS in useAlgorithmConfig.ts.
+#   - UPDATE 2026-08-10 (Tom): the "heard exactly twice" part of Phase 0 is
+#     CANCELLED. Stage 1 lasts ONE pod-round, like every other non-repeating
+#     stage. Tom's words: "we don't want it at all — the visualisation covers
+#     the need to explain" — the karaoke-scroll teleprompter (2026-07-22) does
+#     the explaining job, so a second audio bite at the breakdown is redundant.
+#     Code defaults now read stageDurations {1: 1, 2: 3} in BOTH
+#     usePodLapScheduler.DEFAULT_STAGE_DURATIONS and
+#     useAlgorithmConfig.DEFAULT_PODS. Stage 1 stays LISTED at 1 — an unlisted
+#     stage inherits DEFAULT_STAGE_DURATION (5), the opposite of the ruling.
+#     This is a defaults-and-comments change only: the whole stage ladder is
+#     already RETIRED on the learner path (see the RETIRED block below), and
+#     the live `pods` algorithm_config row still carries stageDurations
+#     {'1': 2}, which is Tom's to change and moot while the ladder is off.
 #   - Reserve overflow (older than active-10 + reserve-50) will eventually
 #     feed into Choice Pods (P1 music / P2 sport / P3 society) — TBD.
 #
@@ -164,6 +176,10 @@
 #      poured per round, so a seed is heard once per turn of the wheel —
 #      seedExposureAt/batchReadyRound), keeping Layer 1 stateless and
 #      resume-safe, which is the property the whole cup model rests on.
+#      SUPERSEDED 2026-08-10 AS TO EASY'S SHIPPED NUMBERS — see the UPDATE
+#      block below. The composition rule, the tables and the machinery are all
+#      unchanged; what changed is that Easy now SHIPS a flat 1.0 in both, so
+#      neither holds a learner below native pace by default.
 #   4. 1.0 IS A HARD CEILING, clamped in CODE (LISTENING_SPEED_CEILING), not in
 #      the default config values — the configs are live `algorithm_config` rows
 #      that override code defaults at runtime, so a row carrying 1.5 must still
@@ -193,13 +209,115 @@
 # SPEAKING knobs), the mode-agnostic pattern/ceiling/speed-source on the
 # `listening` row.
 #
+# UPDATE (2026-08-10, Tom — EASY LISTENING GOES BACK TO 1.0x):
+#
+# Verbatim, after testing listening live: "'Easy' seems to have slowed the
+# conversations in the listening section - I don't think we want to be doing
+# that"; and "I think we can return the default listening speed settings to
+# 1.0x on EASY, I think we moved them to 0.8x."
+#
+# He was right that we moved them, and it was the BELT CEILING he could hear:
+# rule 3's Easy table is a HARD ceiling the exposure ramp can never climb past,
+# so an early-course Easy learner was pinned at 0.8x for ever however many
+# times they met a phrase — and beltCeilingForSeed returns the FIRST rung for
+# an unknown learner position, so an unknown position landed on 0.8 too.
+#
+# THREE separate Easy-only 0.8s were live, not one, and all three go to 1.0.
+# Only fixing the first would have been inaudible to Tom on the surface he was
+# actually testing, so the whole set moves together:
+#
+#   (a) DEFAULT_EASY_BELT_CEILINGS  [{fromSeed 1, 1.0}]
+#       (was 0.8 / 0.9 / 1.0 at seeds 1 / 20 / 80 — rule 3 above)
+#   (b) DEFAULT_EASY_LISTENING_RAMP [{1.0, terminal}]
+#       (was 0.7 x1, 0.8 x4, then 1.0)
+#   (c) EASY_LISTENING_SPEED = 1.0 in providers/toSimpleRounds.ts
+#       (was 0.8 — the T-13 ruling in the 2026-08-07 block above). At 1.0 the
+#       cap min(beltSpeed, EASY_LISTENING_SPEED) is a no-op, so Easy rides the
+#       plain belt ramp exactly as Fast does. TWO consumers, both of which Tom
+#       could hear: computeListeningSpeed, which still governs the Stage-0
+#       sequences and fusion drills that are NOT exposure-ramped (see the
+#       runtime note below); and ListeningOverlay.vue's speed row, which
+#       OPENED at 0.8x on Easy — that is the Dialogues surface, i.e. literally
+#       "the conversations in the listening section", and both modes now open
+#       at 1.0.
+#
+# Easy listening therefore plays at native pace from the first hearing, at
+# every belt, modulated only by the course globalSpeed (French 0.95 -> 0.95).
+#
+# NOT re-opened: the 2026-08-06 BELT ramp (0.8 white -> 0.9 yellow -> 0.95
+# orange -> 1.0 green) still governs the non-exposure-ramped listening paths
+# for EVERY learner in BOTH modes. Today's ruling is that Easy was slowed
+# RELATIVE TO FAST and should not be; it is not a ruling on the belt curve,
+# which Tom gave separately and has not withdrawn. So a white-belt learner on
+# either mode still meets 0.8x on Stage-0 / fusion-drill clips. Flagged rather
+# than silently changed.
+#
+# WHAT DID NOT CHANGE, deliberately:
+#   - LISTENING_SPEED_CEILING = 1.0. "Never more than one" is a separate,
+#     still-standing ruling and listening still cannot play above 1.0x.
+#   - The ramp and belt-ceiling MACHINERY, the min-then-globalSpeed composition
+#     order, beltCeilingForSeed's learner-centric keying, and the
+#     degrade-to-shipped-table normalisers. All intact and all tested — the
+#     acceptance suite now drives them from explicit fixtures (GENTLE_RAMP /
+#     GENTLE_BELTS in listeningOneMode.test.ts) rather than from the shipped
+#     defaults, so the gentle curves stay covered.
+#   - Easy is still gentler than Fast on every OTHER axis: longer pauses,
+#     doubled reps, maxPhraseLengthFraction 0.5, review syllable filter.
+#   - Both tables remain DB values (algorithm_config.easy_mode.
+#     listeningSpeedRamp / .listeningBeltCeilings), so the 2026-08-07 curves
+#     are one Supabase edit away if Tom ever wants them back — no deploy.
+#     Verified 2026-08-10: the live easy_mode row carries NEITHER key, so the
+#     code defaults are what learners actually hear.
+#
 # Runtime note: PodPlay.speedIsFinal marks an exposure-ramped play so
-# LearningPlayer.playPodLap does not belt-ramp it a second time (it would have
+# LearningPlayer.playPodLap does not re-rate it a second time (it would have
 # double-counted globalSpeed and re-split the phrase, since that pass only
 # touches target roles). Stage-0 sequences and fusion drills are NOT
-# exposure-ramped and keep the belt ramp.
+# exposure-ramped and go through computeListeningSpeed instead.
 #
 # Locked by packages/player-vue/src/playback/listeningOneMode.test.ts.
+#
+# UPDATE (2026-08-16, Tom, confirming Aran): LISTENING EXERCISES ARE NEVER
+# SLOWED. This closes the flag the 2026-08-10 block left open above ("NOT
+# re-opened: the 2026-08-06 BELT ramp... still governs the non-exposure-ramped
+# listening paths"). It is now re-opened and closed: the belt ramp is removed
+# from listening entirely.
+#
+# The methodology reason, not a preference: the listening layer deliberately
+# exposes the learner to regular — and, through the pod role progression,
+# over- — speed, so that real-world native speech arrives as something they
+# are already ready for. Slowing listening removes the very thing it trains.
+# The 2026-08-06 belt ruling ("targ lang clips start at 0.8x...") stands, but
+# it is a SPEAKING/main-script rule and belongs only to computeCycleSpeed.
+#
+# SUPERSEDES, in the blocks above: the 2026-08-06 "LISTENING FOLLOWS THE BELT
+# SPEED GATING" update in full, and the T-13 Easy cap of 2026-08-07 in full.
+#
+# As implemented (packages/player-vue/src/providers/toSimpleRounds.ts):
+#   computeListeningSpeed(roleSpeed, _seedNumber, config)
+#     = roleSpeed x (config.globalSpeed ?? 1.0), floored at MIN_SPEED 0.7.
+#   - No beltSpeed term. The seed argument is deliberately IGNORED and named
+#     _seedNumber, so belt-independence is structural, not a comment.
+#   - No mode term. TargetSpeedConfig.easyMode is DELETED — it had exactly one
+#     reader, this function's Easy cap — so Easy and Fast cannot diverge on
+#     listening rate by construction. LearningPlayer no longer sets it.
+#   - Legacy slow-recorded courses (nativeSpeed false) are byte-for-byte
+#     unchanged: still roleSpeed x globalSpeed, still no ramp.
+#   - Pod role rates are untouched and are now the ONLY axis that moves a
+#     listening clip's rate: ps 1.0 / ps15x 1.5 / ps2x 2.0 x globalSpeed.
+#     A white-belt learner meets the 2.0x stretch rep at a true 2.0x.
+#   - KNOWN-language clips ('trans') stay 1.0x, as they always were.
+#   - EASY_LISTENING_SPEED (1.0) survives with ONE consumer: the Dialogues
+#     overlay's opening speed (ListeningOverlay.vue), where both modes already
+#     open at 1.0. That surface is unchanged by this update — verified, not
+#     assumed.
+#   - listening.speedSource keeps both values, but the name is now vestigial:
+#     'belt' selects the computeListeningSpeed path, which no longer has a
+#     belt term. Both sources land on full pace under the shipped defaults.
+#
+# Locked by packages/player-vue/src/playback/listeningSpeedRamp.test.ts, which
+# now asserts the two sides DIVERGE on purpose: listening identical at seed 1
+# and seed 400, speaking still 0.8 / 0.9 / 0.95 / 1.0 across the belts.
 #
 # UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
 # delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used
@@ -235,6 +353,25 @@
 # loadStage0ClipMaps, stage0ViewFor) had zero other callers once removed from
 # the scheduler and were deleted outright (see @ssi/core/pods/index.ts header
 # for the fuller account).
+#
+# UPDATE (2026-07-22, Tom — supersedes the LEGO-tile half of the 2026-07-14
+# entry above; the Stage-0 retirement half still stands). The always-visible
+# visual that replaced Stage-0 is NO LONGER a LEGO-tile breakdown. PodTurnDisplay.vue
+# now renders the WHOLE pod's sentence list as a Spotify/karaoke-style scrolling
+# teleprompter (the shared TeleprompterScroll component, same pattern Listening
+# Mode's Dialogues view uses): the sounding sentence at full prominence with its
+# known-language gloss, earlier lines scrolled up and dimmed, later ones below at
+# reduced opacity, a speaker chip on each turn's first line. Dialogues are linear,
+# so lines scroll rather than cram.
+#
+# WHAT THIS MEANS, stated plainly because the 2026-07-14 text above reads as if it
+# were still true: as of today there is NO per-atom breakdown of a pod sentence
+# anywhere in the main flow — not as audio (Stage-0, retired 2026-07-14) and not
+# as tiles (retired 2026-07-22). LegoAssembly does not render during a pod lap:
+# its v-if is `currentPhraseLegoBlocks.length > 0 && isPlaying`, and isPlaying is
+# simplePlayer.isPlaying, which is paused for the whole lap. The learner sees the
+# target sentence and its translation, and hears the four-slot pattern; the
+# atom_map data that fed the tiles is loaded by the scheduler but rendered nowhere.
 #
 # UPDATE (2026-07-24, Tom — supersedes the 2026-07-23 whole-scene-per-lap
 # ruling): Layer-2 pod INTAKE is by COHORT, where a cohort is one EXCHANGE and
@@ -333,6 +470,36 @@
 # reply" and the record of the 2026-07-24 ruling. Stage cohesion is unchanged
 # and now binds only the cold-start pair. ?pod=1 / ?podview=1 previews compose
 # a cohort, so they now preview one sentence (two at the pod's opening).
+#
+# VERIFIED 2026-08-10, and the one consequence that bites in practice:
+#
+# Tom reported he was "STILL getting the full first couple of scenes... he
+# hasn't built up from the first three phrases onwards, don't know if that's a
+# global or local error". Answer: LOCAL — the algorithm is correct, his account
+# state is not.
+#
+# Census against the LIVE pod rows (e2e/pod-cohort-census-live.mjs, which runs
+# the real flatten + buildPodCohorts): deu/fra/spa_for_eng each 142 turn-rows
+# -> 294 sentences -> 293 cohorts, mean 1.00, max 2, ZERO laps debuting more
+# than two. The intake partition does exactly what the ruling says, globally.
+#
+# The consequence: "live learners migrate in place, no reset" is monotonic and
+# correct, but it means a learner who used pods under the OLD regime carries a
+# ratchet ALREADY INFLATED by 3-8-sentence laps — and every lap REPLAYS the
+# whole accumulated set (the pod is one organism; only the newest cohort is
+# new). So a pre-fix learner sees a paragraph on their very next lap, from
+# correct code. Telemetry for learner beunollyn on deu_for_eng: three pod laps
+# ever, all before the fix, at 12 / 32 / 44 plays = 3 / 8 / 11 sentences,
+# leaving completed_pod_rounds = 11 — which is precisely scene 1 (8 sentences)
+# plus scene 2 (3), i.e. "the full first couple of scenes", to the sentence.
+#
+# The remedy for a TEST account is the existing reset path in
+# usePodLapScheduler (completed_pod_rounds: 0, pod_activation_round: null);
+# applied to that enrollment on 2026-08-10 (11 -> 0). Whether to reset or
+# backfill REAL learners carrying an inflated ratchet is a product decision,
+# NOT a code one — it would discard genuine listening progress — and is
+# deliberately not taken here. Live scale at 2026-08-10: 86 enrollments with a
+# non-zero ratchet, 56 of them above 2.
 #
 # The body of this spec below is preserved for historical context.
 # =============================================================================

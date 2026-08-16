@@ -556,10 +556,24 @@ const deleteError = ref(null)
 const deleteConfirmInput = ref('')
 const deleteConfirmMatch = computed(() => deleteConfirmInput.value.trim().toUpperCase() === 'DELETE')
 
-// Check if user is signed in
-const isSignedIn = computed(() => auth?.user?.value != null)
-const userEmail = computed(() => auth?.user?.value?.email || '')
-const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
+// Check if user is signed in.
+//
+// isAuthenticated, not `user != null`: offline (or on a handshake that never
+// completes) there is no live Supabase user object, but useAuth still knows who
+// this learner is from the last-known-identity record. Keying off the raw user
+// showed a signed-in learner the "Sign in to save your progress" nudge in
+// airplane mode — the same bug as the player's Save Progress button
+// (Tom, 2026-08-15). The learner row is the identity; the session is the proof.
+const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
+const userEmail = computed(
+  () => auth?.user?.value?.email || auth?.learner?.value?.verified_emails?.[0] || '',
+)
+const userName = computed(
+  () =>
+    auth?.user?.value?.user_metadata?.display_name ||
+    auth?.learner?.value?.display_name ||
+    '',
+)
 
 // Roles from DB (learners.platform_role) — shared cache with the router
 // guards (useUserRole), kept authoritative by useAuth on sign-in. Was

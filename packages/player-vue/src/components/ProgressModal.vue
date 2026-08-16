@@ -345,6 +345,13 @@ onUnmounted(() => {
                 </template>
               </p>
             </div>
+            <!-- The offline infinite-play explanation, in Tom's words. The
+                 one-shot dialog says this when offline play engages; this is
+                 where a learner who dismissed it (or opened the modal later)
+                 finds it again. Same sentence, same key. -->
+            <p v-if="isInfplay && isOffline" class="belt-strip-offline-note">
+              {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
+            </p>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
             </p>
@@ -745,6 +752,16 @@ onUnmounted(() => {
 .belt-strip-furthest-note strong {
   font-weight: 500;
   text-transform: capitalize;
+}
+
+.belt-strip-offline-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #6B6560;
+  text-align: center;
+  max-width: 34ch;
+  margin-inline: auto;
 }
 
 .belt-strip-hint {

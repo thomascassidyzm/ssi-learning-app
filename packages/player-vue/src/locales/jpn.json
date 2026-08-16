@@ -22,7 +22,9 @@
     "seeAndHear": "見て聞く",
     "tapToStart": "タップして開始",
     "pause": "一時停止",
-    "resume": "再開"
+    "resume": "再開",
+    "offlinePracticeBody": "今は新しい項目を取得できないので、これまでに学んだ内容を練習するチャンスです — 取得できるようになりしだい、新しい項目が届きます。",
+    "offlinePracticeAck": "了解"
   },
   "home": {
     "goodMorning": "おはようございます",

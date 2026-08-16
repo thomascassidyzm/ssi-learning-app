@@ -16,6 +16,7 @@
  */
 
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { isOfflineish } from '../config/networkGate'
 
 interface PlayerEvent {
   event_type: string
@@ -128,6 +129,19 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   /** Drain the current buffer to the network. Silent on failure. */
   const flush = async (sync: boolean = false): Promise<void> => {
     if (buffer.length === 0) return
+    // Don't fire a doomed request when we already know the network is gone.
+    // On iOS every failed foreground request is a fresh chance to trip the
+    // system "you're not connected — open Settings" alert Tom hit, and this
+    // one flushes on a 5s interval, so an offline session fires it over and
+    // over. Nothing is lost: the buffer is ALREADY dropped on failure by
+    // design (see the header) — this drops it before touching the network
+    // stack rather than after. isOfflineish() is the observed-stall signal,
+    // never navigator.onLine on its own, so a weak-but-real connection still
+    // flushes normally.
+    if (isOfflineish()) {
+      buffer.length = 0
+      return
+    }
     const batch = buffer.splice(0, buffer.length)
 
     const body = JSON.stringify({ events: batch })

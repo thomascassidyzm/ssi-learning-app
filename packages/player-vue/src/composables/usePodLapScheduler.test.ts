@@ -120,17 +120,24 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 16, 5, 4)?.stage).toBe(4)
     expect(podStageFor(1, 15, 5, 4)?.stage).toBe(3)
   })
-  it('per-stage durations: Phase 0 (2 rounds) then Phase 1 (3 rounds) then uniform', () => {
-    const d = DEFAULT_STAGE_DURATIONS // {1: 2, 2: 3}
+  it('per-stage durations: Phase 0 (ONE round — Tom 2026-08-10) then Phase 1 (3 rounds) then uniform', () => {
+    const d = DEFAULT_STAGE_DURATIONS // {1: 1, 2: 3}
+    // Stage 1 gets ONE round, not two: Tom cancelled the explainer repeat
+    // on 2026-08-10 ("the visualisation covers the need to explain").
     expect(podStageFor(1, 1, 5, 9, d)).toEqual({ stage: 1, iter: 1 })
-    expect(podStageFor(1, 2, 5, 9, d)).toEqual({ stage: 1, iter: 2 })
-    expect(podStageFor(1, 3, 5, 9, d)).toEqual({ stage: 2, iter: 1 })
-    expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
-    expect(podStageFor(1, 6, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
-    expect(podStageFor(1, 10, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
-    // Transitional total = 2 + 3 + 6×5 = 35 → eternal stage 9 from alive 36.
-    expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(8)
-    expect(podStageFor(1, 36, 5, 9, d)?.stage).toBe(9)
+    expect(podStageFor(1, 2, 5, 9, d)).toEqual({ stage: 2, iter: 1 })
+    expect(podStageFor(1, 4, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
+    expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
+    expect(podStageFor(1, 9, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
+    // Transitional total = 1 + 3 + 6×5 = 34 → eternal stage 9 from alive 35.
+    expect(podStageFor(1, 34, 5, 9, d)?.stage).toBe(8)
+    expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(9)
+  })
+  it('stage 1 is listed at 1, never deleted — an unlisted stage would inherit 5', () => {
+    // The trap the 2026-08-10 change had to avoid: dropping the key makes
+    // stage 1 last DEFAULT_STAGE_DURATION rounds, the opposite of the ruling.
+    expect(DEFAULT_STAGE_DURATIONS[1]).toBe(1)
+    expect(podStageFor(1, 2, 5, 9, { '2': 3 })?.stage).toBe(1) // unlisted ⇒ 5 rounds
   })
   it('string-keyed durations (JSON config shape) work the same', () => {
     expect(podStageFor(1, 3, 5, 9, { '1': 2, '2': 3 })?.stage).toBe(2)
@@ -322,16 +329,17 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(stageOf(1)).toEqual(stageOf(2))
   })
 
-  it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
+  it('cohorts age as ONE unit: the opening pair reaches stage 2 together, the youngest cohort stays at stage 1', async () => {
     state.podSentences = [
       { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
       { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
     // Cohorts: [s1+s2], [s3], [s4], [s5], [s6]. 4 sentences covered = cohorts
-    // 1-3 completed → round 4: the opening PAIR is alive=4 (stage 2 under
-    // Phase-0's 2-round duration) and moves as one; s3 alive=3 (stage 2), s4
-    // alive=2 and s5 alive=1 (both stage 1); s6 is not in the window yet.
+    // 1-3 completed → round 4: the opening PAIR is alive=4 and moves as one;
+    // s3 alive=3, s4 alive=2 — all stage 2 now that Phase 0 is ONE round
+    // (Tom 2026-08-10; s4 was stage 1 under the old 2-round Phase 0). s5
+    // alive=1 is the only one still at stage 1; s6 is not in the window yet.
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
@@ -345,7 +353,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(stages(1)).toEqual([2])
     expect(stages(2)).toEqual([2])
     expect(stages(3)).toEqual([2])
-    expect(stages(4)).toEqual([1])
+    expect(stages(4)).toEqual([2])
     expect(stages(5)).toEqual([1])
     expect(stages(6)).toEqual([])
   })

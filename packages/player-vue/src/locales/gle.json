@@ -36,7 +36,9 @@
     "seeAndHear": "Féach agus éist",
     "tapToStart": "Tapáil le tosú",
     "pause": "Sos",
-    "resume": "Lean ar aghaidh"
+    "resume": "Lean ar aghaidh",
+    "offlinePracticeBody": "Ní féidir linn míreanna nua a fháil faoi láthair, mar sin seo deis chun cleachtadh a dhéanamh ar a bhfuil déanta agat cheana — tiocfaidh míreanna nua chugat chomh luath agus is féidir linn iad a fháil.",
+    "offlinePracticeAck": "Tuigim"
   },
   "home": {
     "goodMorning": "Maidin mhaith",

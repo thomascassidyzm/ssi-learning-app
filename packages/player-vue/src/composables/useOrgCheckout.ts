@@ -73,12 +73,34 @@ export function useOrgCheckout() {
         return
       }
 
+      // SECURITY (A-123 / SEC15-01) — same treatment as useSchoolCheckout: the
+      // Paddle customer is bound to THIS org server-side, from this session,
+      // before the checkout opens, instead of passing a browser-typed email and
+      // letting the webhook work out who paid from it. Fails CLOSED: no
+      // binding, no checkout.
+      const bindRes = await fetch('/api/billing/bind-customer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ scope: 'org' }),
+      })
+      const bind = await bindRes.json().catch(() => ({}))
+      if (!bindRes.ok || !bind?.customerId || !bind?.intent) {
+        checkoutError.value = bind?.error || 'Could not prepare checkout — try again'
+        return
+      }
+
       const paddle = await getPaddle()
       paddle.Checkout.open({
         items: [{ priceId, quantity: seats }],
-        customer: { email },
+        customer: { id: bind.customerId },
         customData: {
           kind: 'org_platform',
+          // Server-signed address (see useSchoolCheckout) — group_id below is
+          // browser-composed and is kept for audit logging only.
+          billing_intent: bind.intent,
           group_id: opts.groupId,
           supabase_user_id: userId,
           billing,

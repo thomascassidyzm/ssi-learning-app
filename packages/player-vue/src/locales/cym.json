@@ -22,7 +22,9 @@
     "seeAndHear": "Gweld a chlywed",
     "tapToStart": "Tapio i ddechrau",
     "pause": "Oedi",
-    "resume": "Parhau"
+    "resume": "Parhau",
+    "offlinePracticeBody": "Allwn ni ddim cyrraedd eitemau newydd ar hyn o bryd, felly dyma gyfle i ymarfer yr hyn rwyt ti eisoes wedi'i ddysgu — bydd eitemau newydd yn cyrraedd cyn gynted ag y gallwn ni eu cyrraedd.",
+    "offlinePracticeAck": "Iawn"
   },
   "home": {
     "goodMorning": "Bore da",

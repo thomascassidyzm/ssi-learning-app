@@ -22,7 +22,9 @@
     "seeAndHear": "看和听",
     "tapToStart": "点击开始",
     "pause": "暂停",
-    "resume": "继续"
+    "resume": "继续",
+    "offlinePracticeBody": "现在无法获取新的内容，正好可以练习你已经学过的部分 — 一旦可以获取，新的内容就会送到。",
+    "offlinePracticeAck": "知道了"
   },
   "home": {
     "goodMorning": "早上好",

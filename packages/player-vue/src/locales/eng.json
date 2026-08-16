@@ -41,7 +41,9 @@
     "seeAndHear": "See and hear",
     "tapToStart": "Tap to start",
     "pause": "Pause",
-    "resume": "Resume"
+    "resume": "Resume",
+    "offlinePracticeBody": "We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.",
+    "offlinePracticeAck": "Got it"
   },
   "home": {
     "goodMorning": "Good morning",

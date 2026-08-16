@@ -35,6 +35,27 @@ import { resolveListeningPlayPolicy, DEFAULT_EASY, DEFAULT_FAST } from '../compo
 import { beltSpeed } from '../providers/toSimpleRounds'
 import type { ListeningPlayPolicy } from '../composables/useAlgorithmConfig'
 
+/**
+ * The SUPERSEDED 2026-08-07 Easy tables, kept here as test fixtures.
+ *
+ * On 2026-08-10 Tom ruled "return the default listening speed settings to 1.0x
+ * on EASY, I think we moved them to 0.8x", so these are no longer what Easy
+ * SHIPS. They are still exactly what a DB row may configure, and every rule
+ * about how a ramp and a ceiling COMPOSE is still live — so the mechanism tests
+ * below drive these fixtures explicitly rather than reading the shipped
+ * defaults, and the shipped-default tests assert the new 1.0.
+ */
+const GENTLE_RAMP: ListeningRampStep[] = [
+  { speed: 0.7, plays: 1 },
+  { speed: 0.8, plays: 4 },
+  { speed: 1.0, plays: null },
+]
+const GENTLE_BELTS = [
+  { fromSeed: 1, speed: 0.8 },
+  { fromSeed: 20, speed: 0.9 },
+  { fromSeed: 80, speed: 1.0 },
+]
+
 // ============================================================================
 // Fixtures — a minimal Layer-2 pod scheduler over one sentence, so the
 // pattern/speed assertions run against the real lap composer.
@@ -169,13 +190,15 @@ describe('2 — a phrase\'s four clips are all at the same speed, known slot inc
     }
   })
 
-  it('Layer 1: the KNOWN clip is no longer pinned at 1.0 while the targets ramp', () => {
+  it('Layer 1: a supplied uniform speed reaches every slot, known included', () => {
     const plays = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN), undefined, 0.7)
     expect(plays.map(p => p.playbackSpeed)).toEqual([0.7, 0.7, 0.7, 0.7])
-    // ...which is the change: with no uniform speed supplied (the pre-2026-08-07
-    // path, still reachable via speedSource:'belt'), the known clip splits off.
-    const legacy = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN))
-    expect(new Set(legacy.map(p => p.playbackSpeed)).size).toBe(2)
+    // With no uniform speed supplied (the other source, speedSource:'belt'),
+    // the slots no longer split either: since 2026-08-16 listening carries no
+    // belt term, so the target slots sit at 1.0 alongside the known clip.
+    const other = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN))
+    expect(new Set(other.map(p => p.playbackSpeed)).size).toBe(1)
+    expect(other.every(p => p.playbackSpeed === 1.0)).toBe(true)
   })
 
   it('exposure-ramped plays are flagged FINAL so the runtime does not belt-ramp them again', async () => {
@@ -231,12 +254,19 @@ describe('3 — 1.0 is a hard ceiling enforced in code, not by the default value
 })
 
 // ============================================================================
-// 4. Easy starts slower than Fast; Fast may start at 1.0
+// 4. Easy and Fast both open at the regular speed
+//
+//    SUPERSEDES the 2026-08-07 "Easy is slower" reading. Tom, 2026-08-10, after
+//    testing listening live: "'Easy' seems to have slowed the conversations in
+//    the listening section - I don't think we want to be doing that... return
+//    the default listening speed settings to 1.0x on EASY". Easy stays gentler
+//    than Fast on every OTHER axis (pauses, reps, phrase length) — the
+//    listening SPEED is what went back to native pace.
 // ============================================================================
 
-describe('4 — Easy is slower, Fast starts at the regular speed', () => {
-  it('Easy opens at 0.7 and Fast opens at 1.0', () => {
-    expect(resolveListeningSpeed(1, policyFor('easy').ramp, 1.0)).toBe(0.7)
+describe('4 — Easy and Fast both open at the regular speed', () => {
+  it('Easy opens at 1.0, and so does Fast', () => {
+    expect(resolveListeningSpeed(1, policyFor('easy').ramp, 1.0)).toBe(1.0)
     expect(resolveListeningSpeed(1, policyFor('fast').ramp, 1.0)).toBe(1.0)
   })
 
@@ -248,17 +278,26 @@ describe('4 — Easy is slower, Fast starts at the regular speed', () => {
     }
   })
 
-  it('the Easy RAMP alone is 0.7 · 0.8 ×4 · then 1.0 (the belt ceiling caps it — see 4b)', () => {
+  it('the shipped Easy ramp is flat 1.0 at every exposure — no slow opening', () => {
     const easy = policyFor('easy').ramp
     const curve = [1, 2, 3, 4, 5, 6, 7, 100].map(e => resolveListeningSpeed(e, easy, 1.0))
+    expect(curve).toEqual([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+  })
+
+  it('a configured gentle ramp still ramps — the machinery is intact, just not shipped', () => {
+    // The superseded 2026-08-07 curve, reachable from the DB row alone.
+    const gentle = policyFor('easy', {}, { listeningSpeedRamp: GENTLE_RAMP }).ramp
+    const curve = [1, 2, 3, 4, 5, 6, 7, 100].map(e => resolveListeningSpeed(e, gentle, 1.0))
     expect(curve).toEqual([0.7, 0.8, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0])
   })
 
   it('the exposure count reaches the ramp end to end, in both layers', async () => {
-    // Layer 2: cohort `alive` is the exposure clock, so a first-lap phrase is
-    // exposure 1 — Easy's 0.7.
-    const lap = await firstLap(policyFor('easy'))
+    // Layer 2: cohort `alive` is the exposure clock. With the shipped flat ramp
+    // every exposure is 1.0, so drive the GENTLE fixture to prove the clock is
+    // actually wired through rather than the speed being constant by accident.
+    const lap = await firstLap(policyFor('easy', {}, { listeningSpeedRamp: GENTLE_RAMP }))
     expect(lap.plays.every(p => p.playbackSpeed === 0.7)).toBe(true)
+    expect((await firstLap(policyFor('easy'))).plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     // Layer 1: the wheel serves a seed once per turn, so exposures advance one
     // per `cups` rounds.
     const at = (mainRound: number) =>
@@ -268,38 +307,66 @@ describe('4 — Easy is slower, Fast starts at the regular speed', () => {
 })
 
 // ============================================================================
-// 4b. THE BELT CEILING (Tom, 2026-08-07 23:56Z — correcting exposure-only)
-//     "for Easy the BELT TABLE is authoritative... 0.8x for white/yellow belt,
-//     0.9x for orange/green, 1.0x for blue and beyond, NEVER above 1.0. The
-//     per-exposure ramp applies UNDERNEATH the belt ceiling."
+// 4b. THE BELT CEILING — machinery live, Easy's table now a no-op.
+//
+//     Tom, 2026-08-07 23:56Z, gave Easy a belt table: "0.8x for white/yellow
+//     belt, 0.9x for orange/green, 1.0x for blue and beyond, NEVER above 1.0.
+//     The per-exposure ramp applies UNDERNEATH the belt ceiling."
+//
+//     SUPERSEDED 2026-08-10: that table was a HARD ceiling, so an early-course
+//     Easy learner sat at 0.8 for ever however often they met a phrase — the
+//     slow-down Tom heard live and ruled out ("return the default listening
+//     speed settings to 1.0x on EASY"). Easy now ships Fast's shape: one no-op
+//     rung at 1.0. The COMPOSITION rules below are unchanged and still tested,
+//     driven by the GENTLE_BELTS fixture — i.e. by what a DB row can still say.
 // ============================================================================
 
-describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
+describe('4b — the belt ceiling caps the exposure ramp, when one is configured', () => {
   const easy = () => policyFor('easy')
+  /** Easy as it was configured before 2026-08-10 — still a legal DB row. */
+  const gentleEasy = () => policyFor('easy', {}, {
+    listeningSpeedRamp: GENTLE_RAMP,
+    listeningBeltCeilings: GENTLE_BELTS,
+  })
 
-  it('THE ASSERTION: a white-belt Easy learner never exceeds 0.8x, at ANY exposure', () => {
+  it('THE SHIPPED ASSERTION: an Easy learner is not held below 1.0 at any belt', () => {
     const { ramp, beltCeilings, ceiling } = easy()
+    for (const seed of [null, 0, 1, 7, 19, 20, 79, 80, 400]) {
+      const belt = beltCeilingForSeed(seed, beltCeilings)
+      expect(belt).toBe(1.0)
+      expect(resolveListeningSpeed(1, ramp, 1.0, ceiling, belt)).toBe(1.0)
+      expect(resolveListeningSpeed(99, ramp, 1.0, ceiling, belt)).toBe(1.0)
+    }
+  })
+
+  it('a CONFIGURED white-belt ceiling still caps every exposure', () => {
+    const { ramp, beltCeilings, ceiling } = gentleEasy()
     const white = beltCeilingForSeed(1, beltCeilings)
     expect(white).toBe(0.8)
     for (let e = 1; e <= 200; e++) {
       expect(resolveListeningSpeed(e, ramp, 1.0, ceiling, white)).toBeLessThanOrEqual(0.8)
     }
-    // ...and specifically it does NOT rise to 1.0 on the sixth hearing, which
-    // is exactly what exposure-only shipped and what this corrects.
+    // The ramp's own 1.0 step stays unreachable underneath the ceiling.
     expect(resolveListeningSpeed(6, ramp, 1.0, ceiling, white)).toBe(0.8)
     expect(resolveListeningSpeed(99, ramp, 1.0, ceiling, white)).toBe(0.8)
   })
 
-  it('the ramp still approaches the ceiling FROM BELOW on early hearings', () => {
-    const { ramp, beltCeilings, ceiling } = easy()
+  it('the ramp still approaches a configured ceiling FROM BELOW on early hearings', () => {
+    const { ramp, beltCeilings, ceiling } = gentleEasy()
     const white = beltCeilingForSeed(1, beltCeilings)
     const curve = [1, 2, 3, 4, 5, 6].map(e => resolveListeningSpeed(e, ramp, 1.0, ceiling, white))
     // 0.7 first (slower than the ceiling), then held at the ceiling for ever.
     expect(curve).toEqual([0.7, 0.8, 0.8, 0.8, 0.8, 0.8])
   })
 
-  it('Tom\'s belt table, band by band', () => {
+  it('the shipped Easy table is a single no-op rung, the same shape as Fast\'s', () => {
     const t = easy().beltCeilings
+    expect(t).toEqual([{ fromSeed: 1, speed: LISTENING_SPEED_CEILING }])
+    expect(t).toEqual(policyFor('fast').beltCeilings)
+  })
+
+  it('a configured band table is read band by band (the superseded Easy shape)', () => {
+    const t = gentleEasy().beltCeilings
     // white (1-7) + yellow (8-19) → 0.8
     expect([1, 7, 8, 19].map(s => beltCeilingForSeed(s, t))).toEqual([0.8, 0.8, 0.8, 0.8])
     // orange (20-39) + green (40-79) → 0.9
@@ -308,18 +375,18 @@ describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
     expect([80, 150, 280, 400, 9999].map(s => beltCeilingForSeed(s, t))).toEqual([1.0, 1.0, 1.0, 1.0, 1.0])
   })
 
-  it('it is its OWN table, gentler than the speaking beltSpeed curve', () => {
+  it('listening no longer borrows the speaking beltSpeed curve either', () => {
+    // beltSpeed is the SPEAKING side's ramp and is untouched by any of this —
+    // asserted so a future edit to one is never mistaken for an edit to both.
     const t = easy().beltCeilings
-    // beltSpeed reaches 0.95 at orange and 1.0 at green; this holds 0.9 through
-    // green and does not reach 1.0 until blue. Deliberate — Tom's numbers.
-    expect(beltCeilingForSeed(20, t)).toBe(0.9)
+    expect(beltCeilingForSeed(20, t)).toBe(1.0)
     expect(beltSpeed(20)).toBe(0.95)
-    expect(beltCeilingForSeed(40, t)).toBe(0.9)
+    expect(beltCeilingForSeed(40, t)).toBe(1.0)
     expect(beltSpeed(40)).toBe(1.0)
   })
 
   it('the ceiling only ever LOWERS the exposure ramp, never raises it', () => {
-    const { ramp, ceiling } = easy()
+    const { ramp, ceiling } = gentleEasy()
     for (const belt of [0.8, 0.9, 1.0]) {
       for (let e = 1; e <= 20; e++) {
         const capped = resolveListeningSpeed(e, ramp, 1.0, ceiling, belt)
@@ -338,17 +405,23 @@ describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
   })
 
   it('an unknown learner position takes the GENTLEST rung, not full speed', () => {
-    const t = easy().beltCeilings
+    // The rule is unchanged; with the shipped flat table the gentlest rung IS
+    // 1.0, so it is asserted against a configured band table.
+    const t = gentleEasy().beltCeilings
     expect(beltCeilingForSeed(null, t)).toBe(0.8)
     expect(beltCeilingForSeed(undefined, t)).toBe(0.8)
     expect(beltCeilingForSeed(0, t)).toBe(0.8)
+    expect(beltCeilingForSeed(null, easy().beltCeilings)).toBe(1.0)
   })
 
-  it('composes with the course globalSpeed — French white-belt Easy tops out at 0.76', () => {
-    const { ramp, beltCeilings, ceiling } = easy()
+  it('composes with the course globalSpeed — French under a configured white-belt ceiling', () => {
+    const { ramp, beltCeilings, ceiling } = gentleEasy()
     const white = beltCeilingForSeed(1, beltCeilings)
     expect(resolveListeningSpeed(1, ramp, 0.95, ceiling, white)).toBe(0.665) // 0.7 x 0.95
     expect(resolveListeningSpeed(99, ramp, 0.95, ceiling, white)).toBe(0.76) // 0.8 x 0.95
+    // Shipped Easy on French is simply the course's own pace, at every belt.
+    const s = easy()
+    expect(resolveListeningSpeed(1, s.ramp, 0.95, s.ceiling, beltCeilingForSeed(1, s.beltCeilings))).toBe(0.95)
   })
 
   it('the table is config-driven and degrades to the shipped one, never to no ceiling', () => {
@@ -367,7 +440,7 @@ describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
     }
   })
 
-  it('end to end: a white-belt Easy learner\'s pod lap never emits above 0.8', async () => {
+  it('end to end: a white-belt learner under a CONFIGURED ceiling never emits above 0.8', async () => {
     // The scheduler is handed the learner's anchor seed; every emitted play must
     // respect the ceiling however aged the cohort is.
     for (const exposureLap of [0, 5, 40]) {
@@ -375,7 +448,7 @@ describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
         supabase: makeMockSupabase([podSentence(1)], exposureLap),
         courseCode: 'c',
         learnerId: 'u',
-        listeningPolicy: easy(),
+        listeningPolicy: gentleEasy(),
         beltAnchorSeed: 1,
       })
       await s.initialize()
@@ -385,7 +458,26 @@ describe('4b — the belt ceiling caps the exposure ramp, Easy only', () => {
     }
   })
 
-  it('end to end: a blue-belt Easy learner DOES reach 1.0 once the ramp tops out', async () => {
+  it('THE REGRESSION TEST (Tom, 2026-08-10): a WHITE-belt Easy pod lap emits 1.0', async () => {
+    // This is the bug he heard. Before 2026-08-10 the shipped belt table pinned
+    // a white-belt Easy learner's every listening play at 0.8 for ever; a
+    // fresh learner's very first lap is the exact case.
+    for (const anchorSeed of [null, 1, 7, 19]) {
+      const s = usePodLapScheduler({
+        supabase: makeMockSupabase([podSentence(1)], 0),
+        courseCode: 'c',
+        learnerId: 'u',
+        listeningPolicy: easy(),
+        beltAnchorSeed: anchorSeed as any,
+      })
+      await s.initialize()
+      const lap = s.nextLap()!
+      expect(lap.plays.length).toBeGreaterThan(0)
+      expect(lap.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
+    }
+  })
+
+  it('end to end: a blue-belt Easy learner is at 1.0 too', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase([podSentence(1)], 40),
       courseCode: 'c',
@@ -420,7 +512,7 @@ describe('5 — nothing is hardcoded: the ramp is whatever the config says', () 
     const slow = await firstLap(policyFor('easy', {}, { listeningSpeedRamp: [{ speed: 0.55, plays: null }] }))
     expect(slow.plays.every(p => p.playbackSpeed === 0.55)).toBe(true)
     const shipped = await firstLap(policyFor('easy'))
-    expect(shipped.plays.every(p => p.playbackSpeed === 0.7)).toBe(true)
+    expect(shipped.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
   })
 
   it('the dwell length is a config value: widen it and full speed arrives later', () => {
@@ -429,15 +521,21 @@ describe('5 — nothing is hardcoded: the ramp is whatever the config says', () 
     }).ramp
     expect(resolveListeningSpeed(10, patient, 1.0)).toBe(0.8)
     expect(resolveListeningSpeed(11, patient, 1.0)).toBe(1.0)
-    // The shipped Easy ramp is already at 1.0 by exposure 6.
+    // The shipped Easy ramp has no dwell at all — 1.0 from the first hearing.
+    expect(resolveListeningSpeed(1, policyFor('easy').ramp, 1.0)).toBe(1.0)
     expect(resolveListeningSpeed(10, policyFor('easy').ramp, 1.0)).toBe(1.0)
   })
 
-  it('a malformed ramp degrades to the shipped ramp for that mode — never to full speed', () => {
+  it('a malformed ramp degrades to the shipped ramp for that mode', () => {
     for (const junk of [null, undefined, [], [{ speed: 0 }], [{ speed: NaN, plays: 3 }]] as any[]) {
       expect(normalizeListeningRamp(junk, DEFAULT_EASY_LISTENING_RAMP)).toEqual(DEFAULT_EASY_LISTENING_RAMP)
     }
-    expect(resolveListeningSpeed(1, policyFor('easy', {}, { listeningSpeedRamp: [] as any }).ramp, 1.0)).toBe(0.7)
+    // As of 2026-08-10 the shipped Easy ramp IS full speed, so the old
+    // "never degrades to full speed" wording no longer describes the rule —
+    // what still holds is that it degrades to the SHIPPED table, never to
+    // something unconfigured. A gentle DB ramp degrades to its own fallback.
+    expect(resolveListeningSpeed(1, policyFor('easy', {}, { listeningSpeedRamp: [] as any }).ramp, 1.0)).toBe(1.0)
+    expect(normalizeListeningRamp([] as any, GENTLE_RAMP)).toEqual(GENTLE_RAMP)
   })
 })
 
@@ -507,11 +605,16 @@ describe('6 — the pattern is config, and the nine-stage ladder is retired', ()
 describe('7 — the course globalSpeed still folds in, and can only slow things down', () => {
   const FRENCH = 0.95
 
-  it('French Easy: 0.7 x 0.95 on the first hearing, 0.95 at the top of the ramp', () => {
+  it('French Easy: flat 0.95 — the course speed is the only modulation (2026-08-10)', () => {
     const easy = policyFor('easy').ramp
-    expect(resolveListeningSpeed(1, easy, FRENCH)).toBe(0.665)
-    expect(resolveListeningSpeed(2, easy, FRENCH)).toBe(0.76)
-    expect(resolveListeningSpeed(6, easy, FRENCH)).toBe(0.95)
+    expect([1, 2, 6, 99].map(e => resolveListeningSpeed(e, easy, FRENCH))).toEqual([0.95, 0.95, 0.95, 0.95])
+  })
+
+  it('a CONFIGURED gentle ramp still composes with the course speed', () => {
+    const gentle = policyFor('easy', {}, { listeningSpeedRamp: GENTLE_RAMP }).ramp
+    expect(resolveListeningSpeed(1, gentle, FRENCH)).toBe(0.665) // 0.7 x 0.95
+    expect(resolveListeningSpeed(2, gentle, FRENCH)).toBe(0.76)  // 0.8 x 0.95
+    expect(resolveListeningSpeed(6, gentle, FRENCH)).toBe(0.95)
   })
 
   it('French Fast: flat 0.95 — the course speed is the only modulation', () => {
@@ -520,7 +623,12 @@ describe('7 — the course globalSpeed still folds in, and can only slow things 
 
   it('end to end through the pod scheduler', async () => {
     const lap = await firstLap(policyFor('easy'), { globalSpeed: FRENCH, nativeSpeed: true })
-    expect(lap.plays.every(p => p.playbackSpeed === 0.665)).toBe(true)
+    expect(lap.plays.every(p => p.playbackSpeed === 0.95)).toBe(true)
+    const gentle = await firstLap(
+      policyFor('easy', {}, { listeningSpeedRamp: GENTLE_RAMP }),
+      { globalSpeed: FRENCH, nativeSpeed: true },
+    )
+    expect(gentle.plays.every(p => p.playbackSpeed === 0.665)).toBe(true)
   })
 
   it('a legacy slow-recorded course (0.9) is not sped up by the ramp reaching 1.0', () => {
