@@ -190,13 +190,15 @@ describe('2 — a phrase\'s four clips are all at the same speed, known slot inc
     }
   })
 
-  it('Layer 1: the KNOWN clip is no longer pinned at 1.0 while the targets ramp', () => {
+  it('Layer 1: a supplied uniform speed reaches every slot, known included', () => {
     const plays = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN), undefined, 0.7)
     expect(plays.map(p => p.playbackSpeed)).toEqual([0.7, 0.7, 0.7, 0.7])
-    // ...which is the change: with no uniform speed supplied (the pre-2026-08-07
-    // path, still reachable via speedSource:'belt'), the known clip splits off.
-    const legacy = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN))
-    expect(new Set(legacy.map(p => p.playbackSpeed)).size).toBe(2)
+    // With no uniform speed supplied (the other source, speedSource:'belt'),
+    // the slots no longer split either: since 2026-08-16 listening carries no
+    // belt term, so the target slots sit at 1.0 alongside the known clip.
+    const other = buildSeedPlays(L1_SEED, l1PlaylistFromPattern(DEFAULT_LISTENING_PATTERN))
+    expect(new Set(other.map(p => p.playbackSpeed)).size).toBe(1)
+    expect(other.every(p => p.playbackSpeed === 1.0)).toBe(true)
   })
 
   it('exposure-ramped plays are flagged FINAL so the runtime does not belt-ramp them again', async () => {

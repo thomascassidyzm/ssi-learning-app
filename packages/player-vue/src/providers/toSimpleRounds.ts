@@ -54,11 +54,6 @@ export interface TargetSpeedConfig {
   rampSeeds?: number          // seeds to ramp over, 0=disabled (default 10)
   rampStartSpeed?: number     // ramp multiplier at seed 1 (default 0.88)
 
-  /** True when the learner is on EASY. Read ONLY by computeListeningSpeed —
-   *  the speaking side's pace is the mode's pause/rep settings, not its rate.
-   *  See EASY_LISTENING_SPEED. */
-  easyMode?: boolean
-
   /** @deprecated Use rampSeeds instead. Kept for backwards compat. */
   beltRamp?: boolean
 }
@@ -122,26 +117,16 @@ export function computeCycleSpeed(
 /**
  * EASY-MODE LISTENING PACE — 1.0×, i.e. no Easy-specific slowing at all.
  *
- * SUPERSEDED 2026-08-10 (Tom, testing listening live): "'Easy' seems to have
- * slowed the conversations in the listening section - I don't think we want to
- * be doing that"; "I think we can return the default listening speed settings
- * to 1.0x on EASY, I think we moved them to 0.8x."
+ * Tom, 2026-08-10, testing listening live: "'Easy' seems to have slowed the
+ * conversations in the listening section - I don't think we want to be doing
+ * that"; "I think we can return the default listening speed settings to 1.0x on
+ * EASY, I think we moved them to 0.8x." That superseded his T-13 ruling of
+ * 2026-08-07 (Easy listening at 0.8×), which had shipped as `0.8` here.
  *
- * WHAT THIS REPLACES — his T-13 ruling of 2026-08-07, "EASY setting defaults
- * listening playback to 0.8× speed", which shipped as `0.8` here: the
- * white-belt rung of the belt ramp held for as long as the learner stayed on
- * Easy, applied as `min(beltSpeed, 0.8)`.
- *
- * At 1.0 that cap is a no-op — `min(beltSpeed, 1.0)` IS `beltSpeed` — so Easy
- * listening now plays at exactly the same rate as Fast. The 2026-08-06 BELT
- * ramp itself (0.8 white → 0.9 yellow → 0.95 orange → 1.0 green) is a separate,
- * still-standing ruling that applies to every learner in both modes, and is
- * deliberately NOT touched here: today's ruling is about Easy having been
- * slowed relative to Fast, not about the belt curve.
- *
- * The constant and both its consumers (`computeListeningSpeed`'s cap, and the
- * Dialogues overlay's opening speed) stay wired, so restoring an Easy-specific
- * pace is a one-line change rather than a re-build.
+ * Since 2026-08-16 nothing in `computeListeningSpeed` reads a mode at all —
+ * listening is never slowed for anyone (see that function). The constant
+ * survives as the Dialogues overlay's opening speed, its one remaining
+ * consumer, where it states the same thing: Easy opens at full pace.
  */
 export const EASY_LISTENING_SPEED = 1.0
 
@@ -149,49 +134,44 @@ export const EASY_LISTENING_SPEED = 1.0
  * Final playback rate for ONE target-language clip in a LISTENING exercise
  * (Layer-1 cups, Layer-2 pods, Stage-0 sequences, fusion drills).
  *
- * Tom, 2026-08-06, live on staging: "LIStening exercises are way too fast
- * initially — they need to follow the belt speed gating… targ lang clips start
- * at 0.8×, then in yellow belt go to 0.9×, then orange go to 0.95× and finally
- * at green they go to full speed." Listening was flat 1.0× everywhere.
+ * LISTENING IS NEVER SLOWED (Tom, 2026-08-16, confirming Aran). The clip plays
+ * at its own role rate × the course speed, and nothing else: no belt ramp, no
+ * mode adjustment, identical on Easy and Fast, identical at white belt and at
+ * black. Exposure to full — and, through the pod role progression, *faster
+ * than* full — speed is the point of the listening layer: it is what makes real
+ * native speech feel like something the learner is already ready for. Slowing
+ * it removes the very thing being trained.
  *
- * Deliberately the SAME `beltSpeed` curve the speaking side bakes via
- * `computeCycleSpeed` — not a parallel one. A second curve is exactly the bug
- * this module already paid for once (the two round-builders drifted until
- * 2026-08-04 and every learner on the new path silently played flat 1.0×).
- *
- * Difference from `computeCycleSpeed`: listening clips carry a per-ROLE rate of
- * their own (pods run a 0.8× / 1.0× / 1.5× / 2.0× progression as a sentence
- * matures), so the belt ramp applies as a MULTIPLIER on that role rate rather
- * than replacing it — a 2× stretch rep stays a fast rep *relative to* the
- * learner's belt. Hence no cap at `base`: `ps2x` legitimately exceeds it. The
- * MIN_SPEED floor still holds.
+ * WHAT THIS REPLACES — the belt ramp added here on 2026-08-06 ("targ lang clips
+ * start at 0.8×, then in yellow belt go to 0.9×…"), which applied `beltSpeed`
+ * as a multiplier on the role rate. That ruling stands for SPEAKING and is
+ * still baked by `computeCycleSpeed`; it should never have reached listening.
+ * Do not reintroduce a belt term here — this function deliberately ignores the
+ * seed it is handed, so belt-independence is structural rather than a comment.
  *
  * Known-language clips ('trans') never come through here — they're the meaning
  * anchor in the learner's own language and slowing them teaches nothing.
  *
- * @param roleSpeed  the clip's own role rate (1.0 for L1; ROLE_SPEED[role] for pods)
- * @param seedNumber the belt anchor — the L1 seed's own number, or the
- *                   learner's current seed for pods (a pod sentence has none)
+ * @param roleSpeed   the clip's own role rate (1.0 for L1; ROLE_SPEED[role] for pods)
+ * @param _seedNumber the belt anchor. IGNORED — kept in the signature because
+ *                    every call site has it and its absence is the assertion.
  */
 export function computeListeningSpeed(
   roleSpeed: number,
-  seedNumber: number,
+  _seedNumber: number,
   config: TargetSpeedConfig
 ): number {
   const base = config.globalSpeed ?? 1.0
   const round2 = (n: number) => Math.round(n * 100) / 100
 
-  // Legacy courses (voices recorded slow): no belt ramp — identical exemption
-  // to computeCycleSpeed, so the two never disagree about which courses ramp.
-  // The Easy pace rides on the ramp, so it takes the same exemption: those
-  // voices are already slow, and slowing them again is the mud Tom's ramp
-  // ruling was about avoiding at the other end.
+  // Legacy courses (voices recorded slow): left byte-for-byte as it was — those
+  // voices are already below native pace and nothing here may touch them.
   if (!config.nativeSpeed) return round2(roleSpeed * base)
 
-  const ramp = config.easyMode
-    ? Math.min(beltSpeed(seedNumber), EASY_LISTENING_SPEED)
-    : beltSpeed(seedNumber)
-  return Math.max(MIN_SPEED, round2(roleSpeed * base * ramp))
+  // Native-speed courses: role rate × course speed. No cap at `base` — `ps2x`
+  // legitimately exceeds it, which is the over-speed exposure we want. The
+  // MIN_SPEED floor stays as the guard against a pathologically slow config.
+  return Math.max(MIN_SPEED, round2(roleSpeed * base))
 }
 
 /** Compute final playback speed for a script item */

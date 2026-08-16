@@ -138,20 +138,56 @@ function subEvent(
  * handler must go through the payer-ownership path to get its target.
  */
 function payerAdminsSchool(schoolId: string) {
-  responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner' }], error: null })
+  responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner', verified: true }], error: null })
   responders.learners = () => ({ data: [{ user_id: 'payer-uid' }], error: null })
   responders.schools = (calls: any[][]) => {
     const eq = calls.find((c) => c[0] === 'eq')
     if (eq?.[1] === 'admin_user_id') return { data: { id: schoolId }, error: null }
+    // A-123: the access guards read the candidate node's own billing state
+    // before any write. This school holds NOTHING — lapsed, unbound — so the
+    // incoming subscription can take nothing away from it and the write
+    // proceeds. (The payer-email rung is deliberately fenced to exactly this
+    // case; a node that still holds access can only be addressed by a
+    // server-signed checkout intent. See THE BINDING LADDER in
+    // paddle-webhook.ts, and paddle-billing-intent-addressing.security.test.ts
+    // for the signed path.)
+    if (eq?.[1] === 'id' && eq?.[2] === schoolId) {
+      return {
+        data: {
+          id: schoolId,
+          provider_subscription_id: null,
+          platform_status: 'cancelled',
+          platform_expires_at: null,
+        },
+        error: null,
+      }
+    }
     return { data: null, error: null }
   }
 }
 
 /** Same, for an org leader (govt_admins.group_id). */
 function payerLeadsOrg(groupId: string) {
-  responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner' }], error: null })
+  responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner', verified: true }], error: null })
   responders.learners = () => ({ data: [{ user_id: 'payer-uid' }], error: null })
   responders.govt_admins = () => ({ data: { group_id: groupId }, error: null })
+  responders.groups = (calls: any[][]) => {
+    const eq = calls.find((c) => c[0] === 'eq')
+    // A-123 guard read (see payerAdminsSchool): an org holding nothing, so the
+    // incoming subscription can take nothing away and the write proceeds.
+    if (eq?.[1] === 'id' && eq?.[2] === groupId) {
+      return {
+        data: {
+          id: groupId,
+          provider_subscription_id: null,
+          platform_status: 'cancelled',
+          platform_expires_at: null,
+        },
+        error: null,
+      }
+    }
+    return { data: null, error: null }
+  }
 }
 
 describe('paddle-webhook — ADMIN-ENT-01: the billing target is resolved server-side', () => {

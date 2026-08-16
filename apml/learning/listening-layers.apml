@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-10 (Stage 1 explainer repeat cancelled — one pod-round, not two; pod visual is the karaoke teleprompter, not tiles; Easy listening speed back to 1.0x)
+# Last updated: 2026-08-16 (LISTENING IS NEVER SLOWED — belt ramp removed from listening entirely; it stays on the speaking side only)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -270,12 +270,54 @@
 #     code defaults are what learners actually hear.
 #
 # Runtime note: PodPlay.speedIsFinal marks an exposure-ramped play so
-# LearningPlayer.playPodLap does not belt-ramp it a second time (it would have
+# LearningPlayer.playPodLap does not re-rate it a second time (it would have
 # double-counted globalSpeed and re-split the phrase, since that pass only
 # touches target roles). Stage-0 sequences and fusion drills are NOT
-# exposure-ramped and keep the belt ramp.
+# exposure-ramped and go through computeListeningSpeed instead.
 #
 # Locked by packages/player-vue/src/playback/listeningOneMode.test.ts.
+#
+# UPDATE (2026-08-16, Tom, confirming Aran): LISTENING EXERCISES ARE NEVER
+# SLOWED. This closes the flag the 2026-08-10 block left open above ("NOT
+# re-opened: the 2026-08-06 BELT ramp... still governs the non-exposure-ramped
+# listening paths"). It is now re-opened and closed: the belt ramp is removed
+# from listening entirely.
+#
+# The methodology reason, not a preference: the listening layer deliberately
+# exposes the learner to regular — and, through the pod role progression,
+# over- — speed, so that real-world native speech arrives as something they
+# are already ready for. Slowing listening removes the very thing it trains.
+# The 2026-08-06 belt ruling ("targ lang clips start at 0.8x...") stands, but
+# it is a SPEAKING/main-script rule and belongs only to computeCycleSpeed.
+#
+# SUPERSEDES, in the blocks above: the 2026-08-06 "LISTENING FOLLOWS THE BELT
+# SPEED GATING" update in full, and the T-13 Easy cap of 2026-08-07 in full.
+#
+# As implemented (packages/player-vue/src/providers/toSimpleRounds.ts):
+#   computeListeningSpeed(roleSpeed, _seedNumber, config)
+#     = roleSpeed x (config.globalSpeed ?? 1.0), floored at MIN_SPEED 0.7.
+#   - No beltSpeed term. The seed argument is deliberately IGNORED and named
+#     _seedNumber, so belt-independence is structural, not a comment.
+#   - No mode term. TargetSpeedConfig.easyMode is DELETED — it had exactly one
+#     reader, this function's Easy cap — so Easy and Fast cannot diverge on
+#     listening rate by construction. LearningPlayer no longer sets it.
+#   - Legacy slow-recorded courses (nativeSpeed false) are byte-for-byte
+#     unchanged: still roleSpeed x globalSpeed, still no ramp.
+#   - Pod role rates are untouched and are now the ONLY axis that moves a
+#     listening clip's rate: ps 1.0 / ps15x 1.5 / ps2x 2.0 x globalSpeed.
+#     A white-belt learner meets the 2.0x stretch rep at a true 2.0x.
+#   - KNOWN-language clips ('trans') stay 1.0x, as they always were.
+#   - EASY_LISTENING_SPEED (1.0) survives with ONE consumer: the Dialogues
+#     overlay's opening speed (ListeningOverlay.vue), where both modes already
+#     open at 1.0. That surface is unchanged by this update — verified, not
+#     assumed.
+#   - listening.speedSource keeps both values, but the name is now vestigial:
+#     'belt' selects the computeListeningSpeed path, which no longer has a
+#     belt term. Both sources land on full pace under the shipped defaults.
+#
+# Locked by packages/player-vue/src/playback/listeningSpeedRamp.test.ts, which
+# now asserts the two sides DIVERGE on purpose: listening identical at seed 1
+# and seed 400, speaking still 0.8 / 0.9 / 0.95 / 1.0 across the belts.
 #
 # UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
 # delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used

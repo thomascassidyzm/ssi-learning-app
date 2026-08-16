@@ -125,6 +125,24 @@ export class AudioCacheImpl implements AudioCache {
   // INIT
   // ==========================================================================
 
+  /**
+   * Await the in-memory id Sets being populated from IndexedDB.
+   *
+   * `persistent.has(id)` is a SYNCHRONOUS read of `persistentIds`, and that Set
+   * is filled only by doInit()'s cursor walk — which runs lazily, off whichever
+   * async cache method happens to be called first. Until it finishes, has()
+   * answers FALSE FOR EVERYTHING.
+   *
+   * Offline that is load-bearing: every cycle with a real audio url looks
+   * uncached and gets skipped, so the only cycles that survive the gate are the
+   * ones with no audio at all. The race doesn't create the silence, it
+   * concentrates it at the start of a session — which is exactly where Tom hit
+   * it, 2026-08-15. Callers that are about to trust has() must await this first.
+   */
+  async ready(): Promise<void> {
+    await this.init()
+  }
+
   private async init(): Promise<void> {
     if (this.db) return
     if (this.initPromise) {
