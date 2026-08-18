@@ -37,6 +37,10 @@ const props = defineProps<{
   /** Index into `sentences` of the one currently sounding. Null → none lit
    *  yet (e.g. during the intro bookend, before the first sentence play). */
   activeIndex: number | null
+  /** ISO 639-3 codes, passed straight through to the teleprompter so each
+   *  side's text declares its own language for glyph coverage. */
+  targetLang?: string
+  knownLang?: string
 }>()
 
 // A speaker chip shows only on a turn's first sentence — consecutive
@@ -91,6 +95,8 @@ const topPadding = computed(() =>
     <TeleprompterScroll
       :lines="lines"
       :current-index="activeIndex ?? -1"
+      :target-lang="targetLang"
+      :known-lang="knownLang"
       :pad-block-vh="35"
       :anchor-fraction="0.5"
     />

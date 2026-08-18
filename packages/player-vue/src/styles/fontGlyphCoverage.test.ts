@@ -2,38 +2,45 @@
  * The body font is a correctness surface, not a styling one.
  *
  * Course text (known + target, hero line and tiles) sets no font-family of its
- * own — it inherits `--font-body` from `body`. So if `--font-body` names a font
- * that lacks a course's letters, nothing throws and no test goes red: the
- * browser silently substitutes an OS font per-character and the learner reads
- * one word in two typefaces.
+ * own — it inherits from `body`. So if the font in force lacks a course's
+ * letters, nothing throws and no test goes red: the browser silently
+ * substitutes an OS font per-character and the learner reads one word in two
+ * typefaces.
  *
- * That is exactly what shipped until 2026-08-15. DM Sans carries 360
- * codepoints and none of Greek, Cyrillic, the Yoruba dot-belows (ẹ ọ ṣ Ṣ), the
- * n-grave (ǹ) or the Mandarin pinyin tone vowels (ǎ ǐ ǒ ǔ ǚ ǜ) — breaking
- * ell/rus/ukr/bul/mkd/hye/yor and the released zho_for_eng.
+ * The fix is language-scoped. DM Sans stays the default everywhere — it is the
+ * brand — and text in a language DM Sans cannot spell (Greek, Cyrillic,
+ * Devanagari, Yoruba, pinyin tone vowels, the dot-below Latin of scn/rgn)
+ * declares itself with a `lang` attribute and renders WHOLLY in Noto Sans.
  *
- * These tests pin the two halves that have to agree: the token names a font
- * whose coverage was actually measured against estate course text, and the
- * stylesheet actually imports that font.
+ * These tests pin the halves that have to agree:
+ *   - the rule resolves a coverage language to the coverage font, and a
+ *     Latin-only language to the brand font;
+ *   - the CSS `:lang()` selector lists exactly what coverageLanguages.ts says;
+ *   - both families are actually imported, and the default really is DM Sans.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import {
+  COVERAGE_LANGUAGES,
+  COVERAGE_LANG_TAGS,
+  needsCoverageFont,
+  fontTokenForLang,
+} from './coverageLanguages'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const tokens = readFileSync(resolve(here, './design-tokens.css'), 'utf8')
 const styles = readFileSync(resolve(here, '../style.css'), 'utf8')
 
 /**
- * Families verified (2026-08-15) to cover every letter in course_seeds +
- * course_legos + course_practice_phrases across all 145 courses, by parsing
- * the cmap of the woff2 subsets Google actually serves. Add to this list ONLY
- * after re-running that measurement — not on the strength of a specimen page.
+ * Families verified to cover every letter of estate course text in the
+ * languages they are used for. Measured 2026-08-18 in Chromium against the
+ * woff2 subsets Google actually serves — not from a specimen page.
  */
 const COVERAGE_VERIFIED = ['Noto Sans', 'Inter', 'Source Sans 3', 'Arimo']
 
-/** Measured short on estate course text. Never the primary body font. */
+/** Measured short on the coverage languages. Never the coverage font. */
 const KNOWN_SHORT = ['DM Sans', 'Jost', 'Outfit', 'Poppins', 'Plus Jakarta Sans', 'Figtree', 'Roboto']
 
 function primaryFamily(tokenName: string): string {
@@ -43,34 +50,73 @@ function primaryFamily(tokenName: string): string {
   return first.replace(/^['"]|['"]$/g, '')
 }
 
-describe('font glyph coverage', () => {
-  it('--font-body names a family whose estate coverage was measured', () => {
-    expect(COVERAGE_VERIFIED).toContain(primaryFamily('font-body'))
+/** The languages named in the `:lang(...)` block of design-tokens.css. */
+function cssLangTags(): string[] {
+  const declarations = tokens.replace(/\/\*[\s\S]*?\*\//g, '')
+  const block = declarations.match(/((?::lang\([a-z-]+\)[,\s]*)+)\{[^}]*--font-coverage[^}]*\}/)
+  expect(block, 'design-tokens.css must carry a :lang() block applying --font-coverage').toBeTruthy()
+  return [...block![1].matchAll(/:lang\(([a-z-]+)\)/g)].map(m => m[1]).sort()
+}
+
+describe('glyph coverage — the rule', () => {
+  it('a coverage language resolves to the coverage font', () => {
+    for (const lang of ['ell', 'rus', 'ukr', 'bul', 'mkd', 'hin', 'yor', 'zho', 'scn']) {
+      expect(needsCoverageFont(lang), `${lang} must take the coverage font`).toBe(true)
+      expect(fontTokenForLang(lang)).toBe('--font-coverage')
+    }
   })
 
-  it('--font-body is not one of the families measured short on course text', () => {
-    expect(KNOWN_SHORT).not.toContain(primaryFamily('font-body'))
+  it('a Latin-only language resolves to the brand font', () => {
+    // Measured: DM Sans renders every letter these courses use.
+    for (const lang of ['eng', 'spa', 'fra', 'cym', 'deu', 'ita', 'pol', 'nld', 'gle', 'tur']) {
+      expect(needsCoverageFont(lang), `${lang} must stay on DM Sans`).toBe(false)
+      expect(fontTokenForLang(lang)).toBe('--font-body')
+    }
   })
 
-  it('the body font is actually imported, not just named', () => {
-    const family = primaryFamily('font-body')
-    // Google Fonts spells spaces as '+' in the css2 family param
-    expect(styles).toContain(`family=${family.replace(/ /g, '+')}:`)
+  it('the rule reads any shape a lang attribute comes in', () => {
+    expect(needsCoverageFont('el')).toBe(true)        // 639-1 alias
+    expect(needsCoverageFont('el-GR')).toBe(true)     // region subtag
+    expect(needsCoverageFont('EL')).toBe(true)        // :lang() is case-insensitive
+    expect(needsCoverageFont('cmn')).toBe(true)       // locale alias for zho
+    expect(needsCoverageFont('cym_n')).toBe(false)    // dialect code, Welsh is fine
+    expect(needsCoverageFont('')).toBe(false)
+    expect(needsCoverageFont(null)).toBe(false)
+    expect(needsCoverageFont(undefined)).toBe(false)
   })
 
-  it('--font-display falls back to the covered body font, not a narrow one', () => {
-    const display = tokens.match(/--font-display:\s*([^;]+);/)
-    expect(display).toBeTruthy()
-    // Noto Sans JP leads for CJK but is itself missing Ṣ/ṣ, so whatever sits
-    // behind it has to be the covered family.
-    const fallbacks = display![1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''))
-    expect(fallbacks.some(f => COVERAGE_VERIFIED.includes(f))).toBe(true)
-    for (const short of KNOWN_SHORT) expect(fallbacks).not.toContain(short)
+  it('the CSS selector and the language list say the same thing', () => {
+    // Two halves of one rule: the TS list is what code asks, the CSS list is
+    // what the browser applies. If they drift, a language silently loses its
+    // font with nothing going red — which is the exact failure mode this
+    // whole fix exists to close.
+    expect(cssLangTags()).toEqual([...COVERAGE_LANG_TAGS].sort())
+  })
+})
+
+describe('glyph coverage — the fonts behind it', () => {
+  it('the default body font is the brand font, not the coverage font', () => {
+    expect(primaryFamily('font-brand')).toBe('DM Sans')
+    expect(tokens).toMatch(/--font-body:\s*var\(--font-brand\)/)
   })
 
-  it('no stylesheet still asks for a font we removed for lacking coverage', () => {
-    // comments are allowed to explain the history; declarations are not
-    const declarations = styles.replace(/\/\*[\s\S]*?\*\//g, '')
-    expect(declarations).not.toContain('DM+Sans')
+  it('--font-coverage names a family whose estate coverage was measured', () => {
+    expect(COVERAGE_VERIFIED).toContain(primaryFamily('font-coverage'))
+    expect(KNOWN_SHORT).not.toContain(primaryFamily('font-coverage'))
+  })
+
+  it('both families are actually imported, not just named', () => {
+    for (const token of ['font-brand', 'font-coverage']) {
+      const family = primaryFamily(token)
+      // Google Fonts spells spaces as '+' in the css2 family param
+      expect(styles, `${family} must be imported`).toContain(`family=${family.replace(/ /g, '+')}:`)
+    }
+  })
+
+  it('every coverage language carries the evidence for why it is on the list', () => {
+    for (const [code, meta] of Object.entries(COVERAGE_LANGUAGES)) {
+      expect(meta.missing, `${code} must record what DM Sans could not render`).toBeTruthy()
+      expect(meta.chars, `${code} must record how much estate text that is`).toBeGreaterThan(0)
+    }
   })
 })

@@ -421,7 +421,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <div v-else-if="showLogin || showNoAccess" class="schools-login-page">
       <!-- Brand pane -->
       <aside class="schools-login-pane schools-login-pane--brand">
-        <header class="brand-logo">
+        <header class="brand-logo brand-text">
           <span class="logo-mark">S</span>
           <span class="logo-text">
             SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>

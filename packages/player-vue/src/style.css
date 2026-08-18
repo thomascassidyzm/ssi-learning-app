@@ -5,13 +5,17 @@
  * All design tokens live in styles/design-tokens.css.
  */
 
-/* Font imports — Noto Sans (body), Noto Sans JP (display/CJK), JetBrains Mono (code)
+/* Font imports — DM Sans (body, the brand face), Noto Sans (glyph-coverage
+ * exception, applied per-language), Noto Sans JP (display/CJK), JetBrains Mono
+ * (code).
  *
- * Noto Sans replaced DM Sans: DM Sans has no Greek, no Cyrillic and none of the
- * Yoruba/pinyin diacritics, so those courses rendered mid-word in whatever font
- * the OS substituted. Google serves Noto Sans split by unicode-range, so a
- * learner only downloads the subsets their course actually uses. */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap');
+ * DM Sans has no Greek, no Cyrillic and none of the Yoruba/pinyin diacritics,
+ * so text in those languages fell out of the webfont mid-word onto whatever the
+ * OS substituted. Noto Sans is loaded alongside it and applied only to the
+ * languages that need it (see styles/design-tokens.css, the :lang block).
+ * Google serves both split by unicode-range, so a learner only downloads the
+ * subsets their own language actually uses. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap');
 
 /* CSS Reset */
 * {

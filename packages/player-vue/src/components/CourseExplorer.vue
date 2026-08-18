@@ -336,6 +336,14 @@ const courseName = computed(() => {
   return props.course?.display_name || 'Course'
 })
 const courseCode = computed(() => props.course?.course_code || '')
+/**
+ * ISO 639-3 for each side, so the explorer's phrase list declares its
+ * languages and the glyph-coverage CSS can give a Greek, Cyrillic,
+ * Devanagari or Yoruba run a font that can spell it — DM Sans cannot, and an
+ * undeclared run is substituted per-character (styles/design-tokens.css).
+ */
+const courseTargetLang = computed(() => props.course?.target_lang || courseCode.value.split('_')[0] || '')
+const courseKnownLang = computed(() => props.course?.known_lang || courseCode.value.split('_for_')[1] || '')
 const currentCourseId = ref('')
 
 // Get unique seeds for dropdown
@@ -1183,9 +1191,9 @@ onUnmounted(() => {
                   <template v-else-if="item.type === 'consolidation'">CONSOLIDATE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
-                <div class="item-known">{{ item.knownText }}</div>
+                <div class="item-known" :lang="courseKnownLang">{{ item.knownText }}</div>
                 <div class="item-arrow">→</div>
-                <div class="item-target">{{ item.targetText }}</div>
+                <div class="item-target" :lang="courseTargetLang">{{ item.targetText }}</div>
 
                 <div v-if="item.type === 'spaced_rep'" class="item-fib">
                   {{ item.reviewOf === item.roundNumber - 1 ? '3x' : '1x' }}

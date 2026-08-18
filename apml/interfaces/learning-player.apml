@@ -297,35 +297,69 @@ TILE_ASSEMBLY:
       at weight 600.
 
     glyph_coverage: |
-      (2026-08-15) Course text — known and target, hero line and tiles — sets
-      NO font-family of its own. It inherits `--font-body` from `body`. That
-      makes `--font-body` a CORRECTNESS surface, not a styling one: a font
-      that lacks a course's letters does not fail loudly, it silently drops
-      to a per-character OS substitute and the learner sees one word in two
-      typefaces.
+      (2026-08-18, revising 2026-08-15) Course text — known and target, hero
+      line and tiles — sets NO font-family of its own. It inherits `--font-body`
+      from `body`. That makes the body font a CORRECTNESS surface, not a styling
+      one: a font that lacks a course's letters does not fail loudly, it
+      silently drops to a per-character OS substitute and the learner sees one
+      word in two typefaces.
 
-      `--font-body` is therefore 'Noto Sans', NOT 'DM Sans'. Measured against
-      every non-ASCII codepoint in course_seeds + course_legos +
-      course_practice_phrases across all 145 courses (825,773 rows read
-      2026-08-15), DM Sans carried 360 codepoints and was missing 169 of the
-      291 the estate's Latin/Greek/Cyrillic text uses — all Greek (ell), all
-      Cyrillic (rus/ukr/bul/mkd/hye), the Yoruba dot-belows and n-grave
-      (ẹ ọ ṣ Ṣ ǹ — yor, cym_for_yor) and the Mandarin pinyin tone vowels
-      (ǎ ǐ ǒ ǔ ǚ ǜ — zho_for_eng, released). Noto Sans misses 2 of the 291:
-      U+0331 combining macron below and U+2192 arrow, neither of which is a
-      letter of any course's alphabet.
+      The fix is LANGUAGE-SCOPED, not global. DM Sans remains `--font-brand` and
+      the default everywhere — it is the brand, and it renders 33 of the
+      estate's 47 languages in full. Text in a language DM Sans cannot spell
+      declares itself with a `lang` attribute and renders WHOLLY in
+      `--font-coverage` (Noto Sans). Language is the trigger; the character
+      never is — that is what stops a word being split across two typefaces.
 
-      RULE for anyone changing this token: a body font is only admissible if
-      it covers the estate's course-text codepoints. Check before swapping —
-      no popular geometric sans (DM Sans, Jost, Outfit, Poppins, Plus Jakarta,
-      Figtree) does, and neither does Roboto, which is what Android falls back
-      TO. Non-Latin scripts (CJK, Hangul, Thai, Arabic, Hebrew, Devanagari)
-      are deliberately NOT the body font's job — Noto Sans JP covers Japanese
-      via `--font-display` and the rest go to the system font.
+      MECHANISM (styles/design-tokens.css, foot of file), two rules in order:
+        1. `[lang]` — every element that declares its own language re-decides
+           its font from `--font-brand`. Without this, an English string nested
+           in a Greek subtree (a brand word, a known-language line) inherits the
+           coverage font.
+        2. `:lang(...)` for the measured list — sets BOTH `font-family` and
+           `--font-body`, so descendants that set `font-family: var(--font-body)`
+           themselves follow the switch without knowing about languages.
+      styles/coverageLanguages.ts holds the list and `needsCoverageFont()`;
+      styles/fontGlyphCoverage.test.ts asserts the TS list and the CSS selector
+      say the same thing, and that a coverage language resolves to Noto while a
+      Latin-only one resolves to DM Sans.
 
-      `--font-mono` is exempt: it renders code, IDs and QA textareas only,
-      never course text, so JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live
-      break and do not justify a fifth webfont.
+      LIST (measured 2026-08-18: per-language codepoint census of known_text /
+      target_text / target_text_roman across all 146 courses in the live DB,
+      each codepoint attributed to the side it came from; coverage measured in
+      Chromium 151 against the woff2 subsets Google actually serves):
+        ell rus ukr bul mkd — all Greek / all Cyrillic
+        hin mar nep         — all Devanagari
+        yor                 — ǹ Ṣ ṣ Ẹ ẹ Ọ (yor_for_eng, cym_for_yor)
+        zho                 — pinyin tone vowels ǎ ǐ ǔ ǚ ǜ (released course)
+        scn rgn sme         — ḍ / ṡ ẓ ẽ / ŧ
+        ben pan             — the danda ।, letters NOT covered (see residue)
+      A codepoint counts as a language's own only if it is in that language's
+      script and recurs — a single stray Cyrillic 'а' in a Turkish row is a data
+      bug, not a font need, and 26 Welsh rows carrying U+02BC where the rest of
+      the estate uses U+2019 do not move Welsh off the brand font.
+
+      WHERE THE `lang` ATTRIBUTE COMES FROM:
+        UI  — composables/useI18n.ts syncDocumentLang() publishes the interface
+              locale on <html lang> (it was hardcoded "en" and never moved).
+        Course text — the target/known sides declare themselves separately,
+              because either side can be a coverage language (cym_for_yor is
+              Welsh tiles over Yoruba glosses): LearningPlayer courseTargetLang
+              / courseKnownLang, LegoAssembly :lang + :known-lang, CourseExplorer,
+              ListeningOverlay, TeleprompterScroll (target-lang / known-lang
+              props, threaded through PodTurnDisplay).
+
+      RESIDUE, unchanged by this fix and stated rather than hidden: Noto Sans
+      carries latin / latin-ext / greek / cyrillic / devanagari only. Arabic,
+      Hebrew, Hangul, Thai, Armenian, Tamil, Telugu, Kannada, Gujarati, Sinhala
+      and the Bengali/Gurmukhi letters still fall to the device font, as they
+      did before. Noto Sans JP (`--font-display`) carries Japanese glyph forms,
+      so it is NOT pressed into service for Chinese Han. Adding any of these
+      means importing that script's own Noto family — a separate decision about
+      webfont weight.
+
+      `--font-mono` is exempt: it renders code, IDs and QA textareas only, never
+      course text, so JetBrains Mono's own gaps are not a live break.
 
   script_toggle:
     composable: "composables/useScriptMode.ts (per-course localStorage)"
@@ -1284,7 +1318,7 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-15 (offline infinite play now TELLS the learner why the material is repeating — one dismissible notice, never a gate; see useOfflineInfPlayNotice)
+## GENERATED: 2026-01-18 — Last updated: 2026-08-18 (glyph coverage is now LANGUAGE-scoped: DM Sans stays the default and the brand, and only the 15 languages it cannot spell flip — whole runs, never single letters — to Noto Sans; see typography.glyph_coverage)
 ## Previously: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)
 ## APML v2.1.0
 ## ============================================================================
