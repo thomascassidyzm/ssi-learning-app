@@ -103,7 +103,11 @@ async function openSearch(): Promise<void> {
       </div>
     </transition>
 
-    <!-- Search pops up OVER everything, and lists everything it can show you. -->
+    <!-- Search pops up OVER everything, and lists everything it can show you.
+         Teleported to <body> deliberately: the Library's content column carries
+         its own z-index, so a popup rendered in place is painted UNDER the
+         sticky Library header no matter how high its own z-index goes. -->
+    <Teleport to="body">
     <transition name="hl-pop">
       <div v-if="searchOpen" class="hl-pop" role="dialog" aria-label="How this works — search">
         <div class="hl-pop-scrim" @click="searchOpen = false"></div>
@@ -125,14 +129,14 @@ async function openSearch(): Promise<void> {
               :data-walk-offer="w.id"
               @click="searchOpen = false; startWalk(w.id)"
             >
-              <span class="hl-pop-result-title">{{ w.title }}</span>
-              <span class="hl-pop-result-topic">{{ walkTopic(w) }}</span>
+              {{ w.title }}
             </button>
           </div>
           <p v-else class="hl-pop-empty">Nothing on that one yet — try another word.</p>
         </div>
       </div>
     </transition>
+    </Teleport>
   </section>
 </template>
 
@@ -200,7 +204,10 @@ async function openSearch(): Promise<void> {
 .hl-fade-enter-from, .hl-fade-leave-to { opacity: 0; }
 
 /* ── Search popup ── */
-.hl-pop { position: fixed; inset: 0; z-index: 900; display: flex; justify-content: center; }
+/* Above the Library's own slide-up overlay (z 2000 in PlayerContainer) and
+   below the walk overlay (z 9500) — a walk started from a result must paint
+   over the search that launched it. */
+.hl-pop { position: fixed; inset: 0; z-index: 2100; display: flex; justify-content: center; align-items: flex-start; }
 .hl-pop-scrim { position: absolute; inset: 0; background: rgba(28, 24, 21, 0.42); }
 .hl-pop-panel {
   position: relative; width: min(520px, calc(100% - 32px));
@@ -229,15 +236,12 @@ async function openSearch(): Promise<void> {
 }
 .hl-pop-list { overflow-y: auto; padding: 6px; }
 .hl-pop-result {
-  width: 100%; display: flex; flex-direction: column; gap: 2px; text-align: left;
+  width: 100%; display: block; text-align: left;
   background: none; border: none; cursor: pointer;
-  padding: 10px 12px; border-radius: var(--radius-md, 10px); font: inherit;
+  padding: 10px 12px; border-radius: var(--radius-md, 10px);
+  font: inherit; font-size: var(--text-base, 15px); color: var(--ink-primary, #2C2622);
 }
 .hl-pop-result:hover { background: rgba(219, 30, 23, 0.06); }
-.hl-pop-result-title { font-size: var(--text-base, 15px); color: var(--ink-primary, #2C2622); }
-.hl-pop-result-topic {
-  font-size: var(--text-xs, 12px); color: var(--ink-tertiary, #8A8078);
-}
 .hl-pop-empty {
   margin: 0; padding: 18px 16px;
   font-size: var(--text-sm, 13px); color: var(--ink-tertiary, #8A8078);
