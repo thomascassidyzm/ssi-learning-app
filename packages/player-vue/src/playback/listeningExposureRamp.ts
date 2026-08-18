@@ -38,12 +38,13 @@
  * progression and the 1.5×/2.0× speed-up reps. Retired — see
  * `resolveListeningPattern` and usePodLapScheduler's `resolveStageConfig`.
  *
- * WHAT THIS DOES NOT REPLACE: `computeListeningSpeed` / `beltSpeed` in
- * providers/toSimpleRounds.ts — the BELT curve (0.8 white → 0.9 yellow → 0.95
- * orange → 1.0 green) Tom ruled on 2026-08-06. That is a ramp over a different
- * axis and Tom has not said which wins, so it is kept intact, kept tested, and
- * kept reachable by config alone (`ListeningModeConfig.speedSource: 'belt'`).
- * The shipped default is the exposure ramp.
+ * WHAT THIS DOES NOT REPLACE: `computeListeningSpeed` in
+ * providers/toSimpleRounds.ts, still reachable by config alone
+ * (`ListeningModeConfig.speedSource: 'belt'`) and still the path for anything
+ * not exposure-ramped. Its belt term is GONE as of 2026-08-16 — listening is
+ * never slowed — so that alternative source now also lands on full pace.
+ * `beltSpeed` itself is untouched and still governs SPEAKING via
+ * `computeCycleSpeed`. The shipped default here is the exposure ramp.
  */
 
 /**

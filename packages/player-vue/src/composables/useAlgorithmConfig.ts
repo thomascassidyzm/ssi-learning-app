@@ -351,15 +351,13 @@ export interface ListeningModeConfig {
    *
    *   'exposure' (default, Tom 2026-08-07) — the per-mode step table over how
    *      many times the learner has met THIS phrase (ModeConfig.listeningSpeedRamp).
-   *   'belt' — the pre-existing BELT curve Tom ruled on 2026-08-06 (0.8 white
-   *      → 0.9 yellow → 0.95 orange → 1.0 green), via computeListeningSpeed.
+   *   'belt' — the historical name for the `computeListeningSpeed` path.
    *
-   * Both exist because Tom has ruled on both and has not said which wins: the
-   * belt ruling is 2026-08-06, the exposure spec is 2026-08-07, and they are
-   * ramps over DIFFERENT axes rather than one superseding the other. The
-   * exposure ramp ships as the default; flipping this key restores the belt
-   * curve without a deploy. `computeListeningSpeed`/`beltSpeed` and their tests
-   * are deliberately kept intact for exactly this reason.
+   * The name is now vestigial: Tom ruled on 2026-08-16 that LISTENING IS NEVER
+   * SLOWED, and `computeListeningSpeed` no longer carries a belt term, so this
+   * key selects which machinery computes the rate, not whether the belt gates
+   * it. Both shipped defaults land on full pace. The belt curve lives on for
+   * SPEAKING only, in `computeCycleSpeed`.
    */
   speedSource?: ListeningSpeedSource
   /**

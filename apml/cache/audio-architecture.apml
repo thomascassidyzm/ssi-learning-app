@@ -1,6 +1,8 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-15 (THE OFFLINE CACHE GATE FAILS CLOSED — one isCyclePlayableOffline (playback/offlinePlayable.ts) replaces four inline copies whose `!id ||` answered "cached" for a BLANK url, so an audio-less intro was the one cycle guaranteed to survive the filter and play four phases of silence. Plus: AudioCache.ready() awaited at boot so a synchronous has() is never answered from an unhydrated Set, and offline session_complete no longer awaits a doomed expandScript walk. See offline_infinite_play.the_gate_fails_closed / .hydrate_before_you_trust_the_index / .never_await_a_doomed_walk)
+# Last Updated: 2026-08-16 (THE BOOT LINE STILL TRUSTED navigator.onLine — a weak signal (onLine TRUE, requests hang) let the inline boot watchdog conclude "broken deploy", delete the SW + precache and reload into a network that could not answer: permanent white screen. Healing now demands a real network ANSWER, and a boot stalled past 3s swaps in the precached shell. See offline_infinite_play.the_boot_line_still_trusted_it / .lie_fi_had_no_test_that_could_catch_it and docs/pwa-lifecycle-design.md §2.1b)
+# Prev: 2026-08-15 (THREE OFFLINE STATES, and unexpected offline is NOT modelled on infinite play — Tom's refinement. Unexpected offline keeps going FORWARD through the normal script from cache (appendForwardFromCacheOffline, ahead of the recycle at all five sites) and recycles only once forward material runs out; neither offline state is a completion trigger and neither changes the belt reached, so enterInfPlayFromCache no longer writes current_mode or ratchets the cursor. See offline_infinite_play.the_offline_model / .forward_before_recycle / .offline_is_never_a_completion_trigger)
+# Prev: 2026-08-15 (THE OFFLINE CACHE GATE FAILS CLOSED — one isCyclePlayableOffline (playback/offlinePlayable.ts) replaces four inline copies whose `!id ||` answered "cached" for a BLANK url, so an audio-less intro was the one cycle guaranteed to survive the filter and play four phases of silence. Plus: AudioCache.ready() awaited at boot so a synchronous has() is never answered from an unhydrated Set, and offline session_complete no longer awaits a doomed expandScript walk. See offline_infinite_play.the_gate_fails_closed / .hydrate_before_you_trust_the_index / .never_await_a_doomed_walk)
 # Prev: 2026-08-15 (OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE — Tom's ruling. Offline recycling takes infinite play's SELECTION without its MODE CHANGE: the learner keeps their own belt colour and belt nav, no red accent, no ∞ pill. isInfPlayActive (the formal mode: look + navigation) is split from isRecycledRoundPlayback (the round shape: belt freeze, belt-write suppression, pod cadence), with offlineRecycleBeltHeld distinguishing them. See offline_infinite_play.offline_changes_what_plays_never_where_you_are)
 # Prev: 2026-08-15 (OFFLINE INFINITE PLAY is a weighted urn sampled WITHOUT replacement over the MEASURED cache — tickets = 1 + length_bonus + recency_bonus, capped; full coverage per pass, weights control frequency within it; spaced repetition falls out of the structure with no learner model. See offline_infinite_play)
 # Prev: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
@@ -903,6 +905,63 @@ spec audio_caching_architecture:
       which reports an OBSERVED critical-path stall (60s TTL, cleared by any
       critical-path success or an 'online' event). isOfflineish() = either.
 
+    the_boot_line_still_trusted_it: |
+      2026-08-16. onLine_is_not_an_oracle was applied to PLAYBACK on 2026-08-15
+      and stopped at the app's front door. The inline boot watchdog in
+      index.html — which runs before any module, so it cannot import
+      networkGate — still asked navigator.onLine, and it is the one component
+      whose failure mode is DESTRUCTIVE: on a boot that never mounts it deletes
+      the service worker and the whole precache and reloads.
+
+      On a weak cellular signal (Tom, field report, phone, 2026-08-16) that
+      flag reads TRUE, so the watchdog concluded "broken deploy", deleted the
+      only copy of the app that could still render, and reloaded into a network
+      that could not send a new one. Permanent white screen, surviving reloads
+      — as distinct from the warm #e8e3dd boot screen, which proves the
+      document DID arrive. Brown means the shell loaded; white means it did not.
+
+      The compounding cause is the chunk trap: navigations are NetworkFirst
+      with a 3s timeout, so a ~11KB index.html can arrive inside the budget
+      while the hashed chunks it names cannot — and sub-resource fetches carry
+      NO timeout. dev redeploys constantly, so that fresh HTML names chunks the
+      old precache has never seen.
+
+      Fix, at the boot line, mirroring the same doctrine one layer earlier:
+        - Healing now requires the network to have ANSWERED (same-origin fetch,
+          cache:'no-store', 2s deadline) — not to have claimed it is online.
+          shouldHealOnBootFailure(networkAnswered) in utils/bootHeal.ts.
+        - A boot stalled past CACHED_SHELL_FALLBACK_MS (3000) swaps in the
+          PRECACHED shell (caches.match('/index.html', {ignoreSearch:true}),
+          document.write) rather than waiting: its chunk hashes are precached by
+          construction, so it mounts at once. Weak signal now behaves like
+          airplane mode, which was Tom's ruling.
+        - The swap guard EXPIRES (SWAP_GUARD_MS 30000) rather than lasting the
+          session, so a learner who reloads twice on a bad signal is rescued
+          twice. It cannot rely on being cleared by the swapped-in document,
+          whose inline script the vercel.json CSP hash blocks whenever the
+          cached shell is from a different build.
+      NetworkFirst navigation is untouched: a healthy reload still gets fresh
+      code. See docs/pwa-lifecycle-design.md §2.1b.
+
+    lie_fi_had_no_test_that_could_catch_it: |
+      Every offline probe in e2e/ establishes its condition with
+      context.setOffline(true) or by killing the server — the FAILURE path,
+      where requests reject immediately. The two most recent (identity,
+      belt-held) do hang requests via a never-resolving context.route, but only
+      for supabase/api/S3 DATA; the app's own shell and chunks were served
+      instantly by a healthy local server in every probe ever written. So a
+      fully green offline suite was compatible with a permanent white screen on
+      a weak signal.
+
+      e2e/lie-fi-shell-boot-probe.mjs closes it, hanging requests AT THE SERVER
+      (accept the socket, never answer). That is the only faithful harness
+      here: CDP Network.emulateNetworkConditions attaches to the PAGE target
+      and leaves the service worker's own fetches unthrottled, and Playwright
+      routing does not intercept SW requests at all — both were tried first and
+      both reported a healthy 116ms boot while the failure was reproducible.
+      Four runs per build: airplane (regression), uniform hang, hang + fresh
+      deploy (the real one), healthy.
+
     deliberate_offline_is_now_intent_only: |
       RETIRED: the behavioural split between "learner flipped the offline
       toggle" and "learner's phone lost signal". offlinePlaybackActive() is
@@ -940,10 +999,57 @@ spec audio_caching_architecture:
 
   offline_infinite_play:
     the_offline_model: |
-      The deliberate offline toggle is for downloading un-played content IN
-      ADVANCE. Absent that, offline playback draws only on what is already
-      cached. When the learner is offline — deliberately or accidentally — the
-      app recycles cached content using the infinite-play urn below.
+      THREE STATES, and they are not the same thing (Tom's ruling, 2026-08-15
+      — this supersedes the earlier framing that modelled unexpected offline
+      on infinite play):
+
+        1. INFINITE PLAY PROPER — the course is COMPLETED, no more LEGOs exist
+           in the DB. This is the ONLY completion trigger.
+        2. OFFLINE MODE — the deliberate download-ahead (the depth picker).
+           Progresses the course NORMALLY and CAN load new LEGOs; that is the
+           entire point of it.
+        3. UNEXPECTED OFFLINE — weak signal, airplane mode. PLAY WHAT YOU
+           HAVE: keep going FORWARD through the normal script, loading new
+           items from the cache — which will almost certainly include some NEW
+           LEGOs, since the cache pre-fills ahead of the playhead — until
+           nothing new can be loaded, and only THEN recycle cached phrases
+           until the app is next online.
+
+      NEITHER offline state is a completion trigger, and NEITHER changes the
+      belt the learner has reached.
+
+    forward_before_recycle: |
+      appendForwardFromCacheOffline (LearningPlayer.vue) is state 3's forward
+      half, and it runs AHEAD of the recycle at all five offline sites:
+      session_complete, the pre-tail expansion watcher, both lap boundaries,
+      and the pre-engine tail. The recycle runs only when it returns 0.
+
+      It has to exist because the offline BOOTSTRAP path serves only a few
+      rounds, so the pre-tail watcher fires almost immediately on a resume.
+      Before it, every offline branch went straight to recycling — which is
+      why Tom landed in recycled phrases about three rounds into a resume with
+      the rest of his downloaded course unread in IndexedDB.
+
+      Forward material is simply the rounds the ENGINE does not hold, taken
+      from the cached script (useScriptCache, no TTL, holds the FULL generated
+      round list). Two details that are load-bearing:
+        - Rounds with nothing playable are SKIPPED, not treated as the end of
+          the walk: one audio-less LEGO mid-course must not cap progress. The
+          engine's fail-closed cycle gate still polices what plays inside a
+          round.
+        - Dedupe is on the engine's own hasRound, NEVER an index into the
+          mirror. On the resume path the engine's queue is a WINDOW at the
+          cursor, not the head of the script array.
+
+    offline_is_never_a_completion_trigger: |
+      enterInfPlayFromCache (a skip landing past all loaded content offline)
+      used to write current_mode='infplay', ratchet the cursor to the course's
+      final LEGO, and freeze the belt at the top belt. All three are gone.
+
+      Running out of CACHED material is a fact about this device's storage on
+      this journey — not about the learner's progress. It holds the belt where
+      the learner actually is and plays what is cached until the network comes
+      back. Only INFINITE PLAY PROPER (state 1) may set the mode.
 
     offline_changes_what_plays_never_where_you_are: |
       Tom's ruling, 2026-08-15, after testing a signed-in offline resume in

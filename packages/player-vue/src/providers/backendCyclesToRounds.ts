@@ -356,6 +356,12 @@ export function toPlayerCycle(
     // prefer native script still get something rather than empty.
     // (Refine when the backend gains a native-script column.)
     ...(bc.components && bc.components.length > 0 ? { componentsNative: bc.components } : {}),
+    // The authored mapping, verbatim (wire snake_case → player camelCase). The
+    // tile assembler prefers this over `components`; both travel so the
+    // fallback still works on every row nobody has mapped yet.
+    ...(Array.isArray(bc.gloss_segments) && bc.gloss_segments.length > 0
+      ? { glossSegments: bc.gloss_segments }
+      : {}),
     // Phrase-decomposition parallel arrays — drive multi-tile rendering
     // for USE phrases that reference previously-introduced LEGOs.
     ...(componentLegoIds ? { componentLegoIds } : {}),

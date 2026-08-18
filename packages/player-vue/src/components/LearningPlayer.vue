@@ -82,6 +82,7 @@ import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -2223,6 +2224,14 @@ simplePlayer.onSessionComplete(async () => {
   // offline play stops with a paused summary instead of recycling forever
   // — the "reviewed for a while, then stopped" bug. Tom 2026-05-30.
   if (offlinePlaybackActive()) {
+    // FORWARD FIRST. Unexpected offline keeps progressing the course from the
+    // cache; recycling is what happens when the cache runs out of forward
+    // material, not the first thing we reach for. Tom 2026-08-15.
+    const forward = await appendForwardFromCacheOffline()
+    if (forward > 0) {
+      simplePlayer.resume()
+      return
+    }
     const looped = appendCachedLoopForOffline()
     if (looped > 0) {
       console.log(`[Offline] session_complete reached offline — looped ${looped} cached rounds, resuming`)
@@ -2599,6 +2608,25 @@ const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
         ? (cycle.target?.textNative || cycle.target?.text || '')
         : (cycle.target?.text || '')
       if (targetText) {
+        // Strategy 0 (authoritative): the AUTHORED word mapping (Tom,
+        // 2026-08-13). One tile per target word in the target's own order,
+        // each chunk's literal known text centred under the words it covers —
+        // "the literal builds in the known language that 'map' to the correct
+        // order in the target language". This is a re-SOURCING, not a special
+        // case: where nobody has mapped the row, the single whole-LEGO tile
+        // below is unchanged and componentisation still glosses it downstream.
+        const authored = tilesFromGlossSegments(
+          targetText,
+          (cycle as any).glossSegments,
+          ({ text, index, glossGroup, known }) => ({
+            id: `${legoId}_gs${index}`,
+            targetText: text,
+            glossGroup,
+            isSalient: true,
+            ...(known ? { knownText: known } : {}),
+          }),
+        )
+        if (authored) return authored
         return [{
           id: legoId, targetText, isSalient: true,
           ...(cycleKnownText ? { knownText: cycleKnownText } : {}),
@@ -2951,6 +2979,24 @@ function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
   const t = (cycle?.type || '').toLowerCase()
   if (t !== 'intro' && t !== 'debut') return tiles
   if (!tiles || tiles.length === 0) return tiles
+  // The AUTHORED mapping wins wherever one exists (Tom, 2026-08-13). It only
+  // applies when the tiling in hand is one-tile-per-target-word — the columns
+  // the author actually segmented against. A romanised or device-segmented
+  // tiling with a different count is not those columns, so it falls through to
+  // the claim-match below rather than pairing chunks onto the wrong tiles.
+  const authored = (cycle as any)?.glossSegments as GlossSegment[] | undefined
+  if (Array.isArray(authored) && authored.length > 0
+      && authored.reduce((n, s) => n + (s?.span || 0), 0) === tiles.length) {
+    const out = tiles.map((x) => ({ ...x }))
+    let col = 0
+    authored.forEach((seg, gi) => {
+      for (let k = 0; k < seg.span; k++, col++) {
+        out[col].glossGroup = gi
+        if (k === 0 && seg.known) out[col].knownText = seg.known
+      }
+    })
+    return out
+  }
   const norm = (s: string) =>
     (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
   const knownWhole = cycle?.known?.text || ''
@@ -3396,12 +3442,18 @@ watch(currentRoundIndex, async (index) => {
 
   const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
-    // Offline: there's no network to generate new rounds, so loop the
-    // already-cached content instead of expanding. Tom 2026-05-25: offline
-    // must always play SOMETHING — never end because we can't fetch more.
+    // Offline: there's no network to GENERATE new rounds, but the cached
+    // script usually holds plenty the engine hasn't been given yet — the
+    // bootstrap path serves only a few rounds, so this watcher fires almost
+    // immediately on an offline resume. Keep going FORWARD through the course
+    // from the cache first; recycle only once that is exhausted. Tom
+    // 2026-08-15: unexpected offline is "play what you have", not a jump into
+    // infinite play three rounds into a resume.
     if (offlinePlaybackActive()) {
+      const forward = await appendForwardFromCacheOffline()
+      if (forward > 0) return
       const looped = appendCachedLoopForOffline()
-      if (looped > 0) console.log(`[Offline] no network to expand — looped ${looped} cached rounds`)
+      if (looped > 0) console.log(`[Offline] cache has no more forward rounds — looped ${looped} cached rounds`)
       return
     }
     console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
@@ -4643,9 +4695,10 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
         // already final — globalSpeed folded in, 1.0 ceiling applied, and the
         // same rate on all four slots. Re-ramping it here would both
         // double-apply the course speed and re-split the phrase, because this
-        // pass only touches target roles. Skipped exactly as Layer 1 is. The
-        // belt ramp still governs everything that ISN'T exposure-ramped:
-        // Stage-0 sequences and fusion drills, which hard-code 1.0.
+        // pass only touches target roles. Skipped exactly as Layer 1 is.
+        // Everything that ISN'T exposure-ramped goes through
+        // computeListeningSpeed, which since 2026-08-16 applies the course
+        // speed and no belt term — listening is never slowed.
         if (play.speedIsFinal) return play
         if (!isTargetRole(play.playRole as PodPlayRole)) return play
         return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
@@ -5253,14 +5306,19 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           // Offline: loop the cached content rather than ending (mirror of
           // the onSessionComplete + watcher guards — offline never ends at
           // the tail, even when session_complete fired during a pod lap).
-          if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          // Forward from cache first, recycle only when it's exhausted.
+          if (offlinePlaybackActive()
+              && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
             // session_complete fired during this pod lap (the cadence lands a
             // lap near the tail). expandScript() grows the revival tail by a
             // batch in INF PLAY so play continues into genuinely new rounds.
-            const added = await expandScript()
+            // OFFLINE it is a Supabase course walk that can only fail, so we
+            // skip it and go straight to the wrap — same cut as the main
+            // session_complete handler.
+            const added = offlinePlaybackActive() ? 0 : await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
@@ -5357,11 +5415,15 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       // Resume handling mirrors the pod block: keep the course rolling unless
       // the session ended (offline loop / expand) or the learner stopped.
       if (sessionEnded.value) {
-        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+        // Forward from cache first, recycle only when it's exhausted.
+        if (offlinePlaybackActive()
+            && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
           sessionEnded.value = false
           simplePlayer.resume()
         } else {
-          const added = await expandScript()
+          // Offline, expandScript is a doomed network walk — skip it rather
+          // than spend seconds on it before showing the summary anyway.
+          const added = offlinePlaybackActive() ? 0 : await expandScript()
           if (added > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
@@ -6725,10 +6787,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
-    // EASY holds listening at 0.8× (Tom, T-13, 2026-08-07). Read only by
-    // computeListeningSpeed — the speaking side's Easy is longer thinking time
-    // and more reps, not a slower voice, so nothing else here changes.
-    easyMode: isEasyMode.value,
+    // No mode term here on purpose. Listening is never slowed — not by belt,
+    // not by mode (Tom, 2026-08-16) — and the speaking side's Easy is longer
+    // thinking time and more reps, not a slower voice. Nothing in this config
+    // needs to know which mode the learner is on.
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
@@ -7536,10 +7598,15 @@ const handleCycleEvent = async (event) => {
           // produce any more content (no LEGOs in the course at all).
           if (preEngineRoundIndex.value >= cachedRounds.value.length) {
             if (offlinePlaybackActive()) {
-              // Offline can't expandScript (no network). Loop the cached
-              // content instead so playback never ends. Tom 2026-05-25.
-              const looped = appendCachedLoopForOffline()
-              console.warn(`[LearningPlayer] Offline tail reached — looped ${looped} cached rounds`)
+              // Offline can't expandScript (no network), but the cached
+              // script usually has forward rounds the engine lacks — take
+              // those first and keep progressing the course. Recycle only
+              // when there is genuinely nothing new left. Tom 2026-08-15.
+              const forward = await appendForwardFromCacheOffline()
+              if (forward === 0) {
+                const looped = appendCachedLoopForOffline()
+                console.warn(`[LearningPlayer] Offline tail, no forward rounds — looped ${looped} cached rounds`)
+              }
             } else {
               console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
               await expandScript()
@@ -11405,6 +11472,75 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
   }, OFFLINE_BG_RETRY_DELAYS_MS[attempt])
 }
 
+/**
+ * UNEXPECTED OFFLINE STEP 1: KEEP GOING FORWARD. Tom's ruling, 2026-08-15.
+ *
+ * There are THREE states and they are not the same thing:
+ *
+ *   1. INFINITE PLAY PROPER — the course is COMPLETED, no more LEGOs exist in
+ *      the DB. That is the ONLY completion trigger.
+ *   2. OFFLINE MODE — a deliberate download-ahead. Progresses the course
+ *      normally and CAN load new LEGOs; that is the entire point of it.
+ *   3. UNEXPECTED OFFLINE — weak signal, airplane mode. PLAY WHAT YOU HAVE:
+ *      keep going FORWARD through the normal script, loading new items from
+ *      the cache — which will almost certainly include some NEW LEGOs, since
+ *      the cache pre-fills ahead of the playhead — until nothing new can be
+ *      loaded, and only THEN recycle.
+ *
+ * Neither offline state is a completion trigger, and neither changes the belt
+ * the learner has reached.
+ *
+ * This is step 3's forward half, and it has to exist because the offline
+ * bootstrap path serves only a few rounds: the pre-tail watcher then fires
+ * almost immediately, and before this it went straight to recycling cached
+ * phrases — which looked to Tom like being dumped into infinite play three
+ * rounds into a resume, with the rest of his downloaded course sitting unread
+ * in IndexedDB.
+ *
+ * The cached script (useScriptCache, no TTL) holds the FULL generated round
+ * list, so forward material is simply the rounds the engine does not have yet.
+ * Rounds with nothing playable are skipped rather than ending the walk — a
+ * single audio-less LEGO mid-course must not cap forward progress — and the
+ * engine's own fail-closed cycle gate still polices what plays within a round.
+ *
+ * Returns the number of rounds appended; 0 means there is genuinely no forward
+ * material left in the cache, which is the ONLY condition that licenses the
+ * recycle below.
+ */
+const appendForwardFromCacheOffline = async (): Promise<number> => {
+  if (!courseCode.value) return 0
+  try {
+    const cachedScript = await getCachedScript(courseCode.value)
+    const scriptRounds = (cachedScript?.rounds || []) as any[]
+    if (scriptRounds.length === 0) return 0
+
+    const playable = (r: any) => ((r?.cycles) || []).some((c: any) =>
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
+
+    // Forward = rounds the ENGINE does not already hold. Dedupe on the engine's
+    // own truth (hasRound), never on an index into the mirror — on the resume
+    // path the engine's queue is a WINDOW at the cursor, not the head of the
+    // script array.
+    const forward = scriptRounds.filter((r) => !simplePlayer.hasRound(r?.roundNumber) && playable(r))
+    if (forward.length === 0) return 0
+
+    simplePlayer.appendRounds(forward as any)
+    // Keep the mirror in lockstep with the engine queue, exactly as
+    // expandScript does — the end-of-rounds check reads cachedRounds.length,
+    // and letting it lag is the "looped but then just stopped" bug.
+    const merged = [...((cachedRounds.value || []) as any[])]
+    const seen = new Set(merged.map((r) => r?.roundNumber))
+    for (const r of forward) if (!seen.has(r?.roundNumber)) merged.push(r)
+    merged.sort((a, b) => (a?.roundNumber ?? 0) - (b?.roundNumber ?? 0))
+    cachedRounds.value = merged as any
+    console.warn(`[Offline] forward from cache — appended ${forward.length} rounds; still progressing the course`)
+    return forward.length
+  } catch (err) {
+    console.warn('[Offline] forward-from-cache failed:', err)
+    return 0
+  }
+}
+
 // Offline infinite play. With no network we can't generate new rounds, so
 // loop the already-cached content: take every fully-cached cycle from the
 // loaded rounds, regroup into fresh rounds with continuing round numbers
@@ -11423,8 +11559,10 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
 // offlineRecycleBeltHeld, which suppresses the round-shape inference — the
 // learner keeps their own belt colour and belt nav while these rounds play.
 // The red ∞ is now reserved for DELIBERATE entry (the ∞ activator,
-// enterInfPlay) and for enterInfPlayFromCache, which promotes to the formal
-// mode after a skip past all loaded content.
+// enterInfPlay) and for INFINITE PLAY PROPER — the course actually finished,
+// no more LEGOs in the DB, which is the only completion trigger there is.
+// Running out of CACHED material never qualifies: enterInfPlayFromCache no
+// longer promotes to the formal mode either.
 const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
 
 // The offline infinite-play urn, held across appends so one without-replacement
@@ -11579,36 +11717,30 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
     return false
   }
   const firstNewIdx = simplePlayer.roundCount.value
+  // FORWARD FIRST, even here. A skip that lands past the loaded content offline
+  // has hit the edge of the CACHE, not the end of the course — the cached
+  // script usually still holds rounds the engine was never given.
+  const forward = await appendForwardFromCacheOffline()
+  if (forward > 0) {
+    simplePlayer.jumpToRound(firstNewIdx)
+    await persistCursorAtCurrentRound()
+    return true
+  }
   const looped = appendCachedLoopForOffline()
   if (looped <= 0) {
     console.warn('[LearningPlayer] Skip past content but no cached cycles to recycle — staying put')
     return false
   }
-  console.log(`[LearningPlayer] Skip past content — INF PLAY from ${looped} recycled cached rounds at index ${firstNewIdx}`)
-  // This path is a DELIBERATE skip past all loaded content, so it promotes to
-  // the formal mode and the red ∞ is correct. Drop the belt-held flag that the
-  // shared append raised — unconditionally, because guests never get the
-  // persisted 'infplay' mode and rely on the round-shape inference for it.
-  offlineRecycleBeltHeld.value = false
-  // Flip the mode flag so back-belt-skip exits correctly and the next
-  // session resumes in INF PLAY rather than bouncing back to the start.
-  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-    try {
-      const finalLego = await getCourseFinalLego(courseCode.value)
-      await activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
-      currentMode.value = 'infplay'
-      if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
-    } catch (err) {
-      console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
-    }
-  }
-  // Freeze the belt at the course's final content (top reachable belt) so
-  // the display reads INF PLAY, not the empty belt we tried to skip to.
-  {
-    const fin = courseFinalLegoRef.value?.legoId
-    const finSeed = fin ? getSeedFromLegoId(fin) : null
-    if (finSeed != null) beltFreezeSeed.value = finSeed
-  }
+  // OFFLINE IS NOT A COMPLETION TRIGGER. Tom's ruling, 2026-08-15: infinite
+  // play PROPER means the course is finished — no more LEGOs in the DB — and
+  // that is the ONLY thing that may set the mode. Running out of CACHED
+  // material is a fact about this device's storage on this journey, not about
+  // the learner's progress, so this path no longer writes current_mode,
+  // no longer ratchets the cursor to the course's final LEGO, and no longer
+  // freezes the belt at the top belt. It keeps the belt HELD where the learner
+  // actually is (offlineRecycleBeltHeld, raised by the append above) and just
+  // plays what's cached until the network comes back.
+  console.log(`[LearningPlayer] Skip past cached content — recycling ${looped} cached rounds at index ${firstNewIdx}, belt held`)
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
   simplePlayer.jumpToRound(firstNewIdx)

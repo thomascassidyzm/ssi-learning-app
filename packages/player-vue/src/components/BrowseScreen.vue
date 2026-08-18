@@ -636,7 +636,6 @@ onMounted(() => {
                   </svg>
                 </div>
                 <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">Premium</div>
-                <div v-else-if="group.courses[0].new_app_status === 'beta'" class="course-badge beta-badge">β</div>
 
                 <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
@@ -1049,11 +1048,6 @@ onMounted(() => {
 .course-badge.active-badge svg {
   width: 10px;
   height: 10px;
-}
-
-.course-badge.beta-badge {
-  background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-  color: #fff;
 }
 
 .course-badge.premium-badge {
