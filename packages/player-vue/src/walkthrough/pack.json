@@ -1,5 +1,5 @@
 {
-  "version": "cc28a5d39d2d",
+  "version": "3db4d711bed8",
   "generatedAt": "2026-08-18",
   "walks": [
     {
@@ -49,6 +49,57 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "go-back-over-something",
+      "title": "Go back over something",
+      "topic": "Going back over things",
+      "keywords": [
+        "back",
+        "again",
+        "revisit",
+        "repeat",
+        "redo",
+        "review",
+        "earlier",
+        "revise",
+        "jump",
+        "move",
+        "restart",
+        "start again",
+        "belts",
+        "browse"
+      ],
+      "personas": [
+        "learner"
+      ],
+      "place": {
+        "route": "library"
+      },
+      "steps": [
+        {
+          "anchor": "library-belt-browser",
+          "say": "Nothing is ever locked behind you. Tap here to open the whole course up.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "belt-browser-list",
+          "say": "Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "belt-browser-list",
+          "say": "Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
         }
       ]
     },
@@ -383,6 +434,67 @@
       ]
     },
     {
+      "id": "reading-the-course-list",
+      "title": "Reading the course list",
+      "topic": "Reading a course card",
+      "keywords": [
+        "course",
+        "courses",
+        "card",
+        "list",
+        "for english speakers",
+        "speakers",
+        "direction",
+        "premium",
+        "try free",
+        "free",
+        "paid",
+        "pay",
+        "variants",
+        "northern",
+        "southern",
+        "which one",
+        "dot"
+      ],
+      "personas": [
+        "learner"
+      ],
+      "place": {
+        "route": "library"
+      },
+      "steps": [
+        {
+          "anchor": "library-course-card",
+          "say": "Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "library-course-card",
+          "say": "The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "library-course-card",
+          "say": "**Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "library-course-grid",
+          "say": "Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      ]
+    },
+    {
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
@@ -588,6 +700,55 @@
             "on": "next"
           },
           "terminal": "The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone."
+        }
+      ]
+    },
+    {
+      "id": "what-your-numbers-mean",
+      "title": "What your numbers mean",
+      "topic": "Your numbers",
+      "keywords": [
+        "numbers",
+        "stats",
+        "activity",
+        "time",
+        "total time",
+        "minutes",
+        "hours",
+        "phrases",
+        "spoken",
+        "counting",
+        "count",
+        "tally"
+      ],
+      "personas": [
+        "learner"
+      ],
+      "place": {
+        "route": "library"
+      },
+      "steps": [
+        {
+          "anchor": "library-activity-stats",
+          "say": "These three are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "library-stat-total-time",
+          "say": "Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "library-stat-phrases",
+          "say": "Phrases is how many you have said out loud. It counts the sessions this device still remembers, so treat it as a recent tally rather than a lifetime one.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
         }
       ]
     },

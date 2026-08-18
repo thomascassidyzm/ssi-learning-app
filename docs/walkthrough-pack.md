@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `cc28a5d39d2d` · generated 2026-08-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `3db4d711bed8` · generated 2026-08-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +10,15 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## go-back-over-something — Go back over something
+
+Personas: learner · place: library
+
+1. [`library-belt-browser` · click] Nothing is ever locked behind you. Tap here to open the whole course up.
+2. [`belt-browser-list` · next] Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.
+3. [`belt-browser-list` · next] Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.
+   - terminal: If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering.
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -89,6 +98,16 @@ Personas: admin, leader, school_admin · place: node-insights
 4. [`insights-overview` · next] **Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
 
+## reading-the-course-list — Reading the course list
+
+Personas: learner · place: library
+
+1. [`library-course-card` · next] Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in.
+2. [`library-course-card` · next] The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you.
+3. [`library-course-card` · next] **Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.
+4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
+   - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
+
 ## run-class-session — Run your first class session
 
 Personas: teacher · place: class-detail
@@ -134,6 +153,15 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 3. [`ways-in-remint` · next] **Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.
 4. [`ways-in-revoke` · next] **Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.
    - terminal: The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone.
+
+## what-your-numbers-mean — What your numbers mean
+
+Personas: learner · place: library
+
+1. [`library-activity-stats` · next] These three are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.
+2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
+3. [`library-stat-phrases` · next] Phrases is how many you have said out loud. It counts the sessions this device still remembers, so treat it as a recent tally rather than a lifetime one.
+   - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
 
 ## where-you-are-in-this-course — Where you are in this course
 

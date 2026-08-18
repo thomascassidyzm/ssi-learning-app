@@ -569,8 +569,8 @@ onMounted(() => {
       <!-- ── Section 3: Activity ── -->
       <section class="section">
         <h3 class="section-label">Activity</h3>
-        <div class="stats-grid">
-          <div class="stat-card">
+        <div class="stats-grid" data-walk="library-activity-stats">
+          <div class="stat-card" data-walk="library-stat-total-time">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
@@ -595,7 +595,7 @@ onMounted(() => {
             <div class="stat-label">Words</div>
           </div>
 
-          <div class="stat-card">
+          <div class="stat-card" data-walk="library-stat-phrases">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -639,6 +639,7 @@ onMounted(() => {
             <template v-if="group.courses.length === 1">
               <button
                 class="course-card"
+                data-walk="library-course-card"
                 :class="{ active: isActiveCourse(group.courses[0].course_code) }"
                 @click="handleCourseClick(group.courses[0])"
               >
