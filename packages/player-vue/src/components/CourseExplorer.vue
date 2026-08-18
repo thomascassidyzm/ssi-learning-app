@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useVirtualList } from '@vueuse/core'
-import { CyclePhase } from '@ssi/core'
+import { CyclePhase, dirFor } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { resolveIntroAudioUrl } from '../providers/resolveIntroAudioUrl'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
@@ -1183,9 +1183,9 @@ onUnmounted(() => {
                   <template v-else-if="item.type === 'consolidation'">CONSOLIDATE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
-                <div class="item-known">{{ item.knownText }}</div>
+                <div class="item-known" :dir="dirFor(item.knownText)">{{ item.knownText }}</div>
                 <div class="item-arrow">→</div>
-                <div class="item-target">{{ item.targetText }}</div>
+                <div class="item-target" :dir="dirFor(item.targetText)">{{ item.targetText }}</div>
 
                 <div v-if="item.type === 'spaced_rep'" class="item-fib">
                   {{ item.reviewOf === item.roundNumber - 1 ? '3x' : '1x' }}
@@ -1778,6 +1778,12 @@ onUnmounted(() => {
 .item-type.consolidation { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
 
 .item-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+  text-align: left;
+
   font-size: 0.8125rem;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -1792,7 +1798,16 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .item-target {
+  unicode-bidi: isolate;
+  /* This is a flex:1 block with no text-align, so its initial `start`
+     would flip to the right under dir="rtl". Pin it: the fix is where the
+     `!` sits, not where the column sits. */
+  text-align: left;
   flex: 1;
   font-size: 0.875rem;
   font-weight: 500;

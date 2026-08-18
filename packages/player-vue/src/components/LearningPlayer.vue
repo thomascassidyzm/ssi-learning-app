@@ -10,6 +10,7 @@ import {
   ENVELOPE_EXTRACTOR_CONSTANTS,
   type ProgressStore,
   type SessionStore,
+  dirFor,
 } from '@ssi/core'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import type { CourseInfo } from '../composables/useEntitlement'
@@ -15552,8 +15553,8 @@ defineExpose({
     <Transition name="tooltip-fade">
       <div v-if="hoveredNode" class="node-hover-tooltip">
         <div class="tooltip-header">
-          <span class="tooltip-target">{{ hoveredNode.targetText }}</span>
-          <span class="tooltip-known">{{ hoveredNode.knownText }}</span>
+          <span class="tooltip-target" :dir="dirFor(hoveredNode.targetText)">{{ hoveredNode.targetText }}</span>
+          <span class="tooltip-known" :dir="dirFor(hoveredNode.knownText)">{{ hoveredNode.knownText }}</span>
         </div>
         <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
           <div
@@ -15562,8 +15563,8 @@ defineExpose({
             class="tooltip-phrase"
             @click.stop="playHoverPhrase(phrase)"
           >
-            <span class="phrase-target">{{ phrase.target }}</span>
-            <span class="phrase-known">{{ phrase.known }}</span>
+            <span class="phrase-target" :dir="dirFor(phrase.target)">{{ phrase.target }}</span>
+            <span class="phrase-known" :dir="dirFor(phrase.known)">{{ phrase.known }}</span>
             <span class="phrase-play">▶</span>
           </div>
         </div>
@@ -17644,13 +17645,23 @@ defineExpose({
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .tooltip-target {
+  unicode-bidi: isolate;
   font-size: 14px;
   font-weight: 600;
   color: var(--belt-color, #fff);
 }
 
 .tooltip-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -17679,11 +17690,18 @@ defineExpose({
 }
 
 .phrase-target {
+  /* Isolate the target run from the English gloss beside it. */
+  unicode-bidi: isolate;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.8);
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.7;

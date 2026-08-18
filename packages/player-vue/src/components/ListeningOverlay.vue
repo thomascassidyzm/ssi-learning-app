@@ -11,7 +11,7 @@ import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
-import { PodStateStore } from '@ssi/core'
+import { PodStateStore, dirFor } from '@ssi/core'
 // A-86: this overlay walks Supabase for audio ids in four places of its own.
 // Every one of them is stamped with the per-clip versioned ref at the walk, so
 // the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
@@ -2267,8 +2267,8 @@ watch(
                 class="phrase-pair fusion-strip"
                 :class="{ active: si === activeStripIndex }"
               >
-                <div class="phrase-target">{{ strip.target }}</div>
-                <div v-if="showGloss && strip.known" class="phrase-known interleaved">{{ strip.known }}</div>
+                <div class="phrase-target" :dir="dirFor(strip.target)">{{ strip.target }}</div>
+                <div v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
               </div>
             </template>
             <!-- Current dialogue turn: interleave target and gloss sentence
@@ -2278,12 +2278,12 @@ watch(
             <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div class="phrase-target">{{ pair.target }}</div>
-                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+                <div v-if="showGloss && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
               <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
           </template>
         </TeleprompterScroll>
@@ -2322,7 +2322,7 @@ watch(
                 <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
               </div>
               <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </div>
           </template>
         </div>
@@ -2652,7 +2652,12 @@ watch(
   background: var(--bg-card-hover);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .phrase-target {
+  unicode-bidi: isolate;
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);
@@ -2674,6 +2679,11 @@ watch(
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 1rem;
   color: var(--text-secondary);
   margin-top: 0.5rem;

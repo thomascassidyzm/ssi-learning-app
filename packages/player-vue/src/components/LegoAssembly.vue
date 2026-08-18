@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { dirFor } from '@ssi/core'
 
 export interface LegoBlock {
   id: string
@@ -357,12 +358,12 @@ const carriageGroups = computed(() => {
   return comps.map(c => [c])
 })
 
-// RTL detection — Arabic, Hebrew, and related scripts
-const RTL_RE = /[\u0600-\u06FF\u0590-\u05FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
-const isRTL = computed(() => {
-  const text = props.blocks[0]?.targetText || ''
-  return RTL_RE.test(text)
-})
+// RTL detection — delegated to @ssi/core's dirFor so every surface that paints
+// target text agrees on one rule. The local regex this replaces read only
+// blocks[0], so a sentence whose first tile is a Latin loanword or a numeral
+// laid its tiles out left-to-right; direction is a property of the WHOLE
+// sentence, so join the tiles before deciding.
+const assemblyDir = computed(() => dirFor(props.blocks.map(b => b.targetText || '').join(' ')))
 
 // CJK presence per-text \u2014 Roman-tuned tile sizing reads cramped for
 // character-based scripts. Drives an `is-cjk` class on .lego-block /
@@ -555,7 +556,7 @@ const sentenceScale = computed(() => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :dir="assemblyDir" :style="{ '--sentence-scale': sentenceScale }">
 
     <!-- ═══════════════════════════════════════════
          INTRO GLOSS GROUPS — intro/debut word tiles, identical to the
@@ -587,7 +588,7 @@ const sentenceScale = computed(() => {
              gloss line would push that run's tile DOWN by one line relative
              to glossed neighbours. Reserving the space keeps every tile on
              the same baseline. -->
-        <span class="block-known gloss-group-known">{{ group.known }}</span>
+        <span class="block-known gloss-group-known" :dir="dirFor(group.known)">{{ group.known }}</span>
       </div>
     </template>
 
@@ -788,7 +789,7 @@ const sentenceScale = computed(() => {
                   class="block-known-comp"
                 >{{ comp.known || '' }}</span>
               </div>
-              <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+              <span v-else-if="block.knownText" class="block-known" :dir="dirFor(block.knownText)">{{ block.knownText }}</span>
             </template>
           </template>
         </div>
@@ -863,6 +864,20 @@ const sentenceScale = computed(() => {
   opacity: 1;
   transform: scale(1);
   transition-duration: 0.6s;
+}
+
+/* Bidi isolation for target-text runs.
+   Each tile is its own visual box, so its text must resolve as its own bidi
+   run: without `isolate`, a neutral character at a tile boundary (`!` `.` `,`
+   — bidi class ON) resolves against the neighbouring tile's text instead of
+   its own, which is how Arabic `!` ended up on the wrong side. The tiles'
+   ORDER is set by `dir` on .lego-assembly; this governs the inside of a tile,
+   so a Latin loanword inside an Arabic sentence still reads left-to-right. */
+.lego-block .block-text,
+.tile-target .comp,
+.tile-grid .comp,
+.carriage-cell .comp {
+  unicode-bidi: isolate;
 }
 
 /* Target row: the actual tile */
@@ -1197,6 +1212,11 @@ const sentenceScale = computed(() => {
 
 /* Known text under each practice block (A-LEGO) */
 .block-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-family: var(--font-body, system-ui);
   font-size: 1.1rem;
   font-weight: 400;
