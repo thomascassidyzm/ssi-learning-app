@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { dirFor } from '@ssi/core'
 import {
   extractPitchContour,
   compareProsody,
@@ -714,7 +715,7 @@ onUnmounted(() => {
         <div v-if="currentPhrase" class="phrase-role-badge" :class="'role--' + (currentPhrase.phraseRole || 'use')">
           {{ currentPhrase.phraseRole === 'build' ? 'Fragment' : 'Sentence' }}
         </div>
-        <div class="phrase-target-text">{{ currentPhrase?.targetText || '' }}</div>
+        <div class="phrase-target-text" :dir="dirFor(currentPhrase?.targetText || '')">{{ currentPhrase?.targetText || '' }}</div>
         <div v-if="currentPhrase?.knownText" class="phrase-known-text">{{ currentPhrase.knownText }}</div>
       </div>
 
@@ -1008,7 +1009,12 @@ onUnmounted(() => {
   color: #fbbf24;
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .phrase-target-text {
+  unicode-bidi: isolate;
   font-size: clamp(1.5rem, 4vmin, 2rem);
   font-weight: 600;
   color: var(--text-primary);

@@ -11,7 +11,7 @@ import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
-import { PodStateStore } from '@ssi/core'
+import { PodStateStore, dirFor } from '@ssi/core'
 // A-86: this overlay walks Supabase for audio ids in four places of its own.
 // Every one of them is stamped with the per-clip versioned ref at the walk, so
 // the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
@@ -2267,7 +2267,7 @@ watch(
                 class="phrase-pair fusion-strip"
                 :class="{ active: si === activeStripIndex }"
               >
-                <div class="phrase-target">{{ strip.target }}</div>
+                <div class="phrase-target" :dir="dirFor(strip.target)">{{ strip.target }}</div>
                 <div v-if="showGloss && strip.known" class="phrase-known interleaved">{{ strip.known }}</div>
               </div>
             </template>
@@ -2652,7 +2652,12 @@ watch(
   background: var(--bg-card-hover);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .phrase-target {
+  unicode-bidi: isolate;
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);

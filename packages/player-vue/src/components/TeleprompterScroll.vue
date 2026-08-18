@@ -20,6 +20,7 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { dirFor } from '@ssi/core'
 
 export interface TeleprompterLine {
   id: string | number
@@ -156,7 +157,7 @@ const handleRowClick = (displayIndex: number) => {
           <div v-if="row.line.speakerName" class="phrase-speaker" :style="{ color: row.line.speakerColor }">
             <span class="phrase-speaker-dot" :style="{ background: row.line.speakerColor }"></span>{{ row.line.speakerName }}
           </div>
-          <div class="phrase-target">{{ row.line.target }}</div>
+          <div class="phrase-target" :dir="dirFor(row.line.target)">{{ row.line.target }}</div>
           <div v-if="row.isCurrent && showGloss && row.line.known" class="phrase-known">{{ row.line.known }}</div>
         </slot>
       </div>
@@ -242,7 +243,12 @@ const handleRowClick = (displayIndex: number) => {
   background: var(--bg-card-hover);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .phrase-target {
+  unicode-bidi: isolate;
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);
