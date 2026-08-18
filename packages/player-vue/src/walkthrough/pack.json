@@ -1,10 +1,26 @@
 {
-  "version": "9fc10ff18176",
+  "version": "cc28a5d39d2d",
   "generatedAt": "2026-08-18",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
+      "topic": "Other languages",
+      "keywords": [
+        "course",
+        "courses",
+        "language",
+        "languages",
+        "switch",
+        "change",
+        "another",
+        "second",
+        "new",
+        "library",
+        "search",
+        "spanish",
+        "welsh"
+      ],
       "personas": [
         "learner"
       ],
@@ -403,6 +419,23 @@
     {
       "id": "save-your-progress",
       "title": "Save your progress",
+      "topic": "Saving your progress",
+      "keywords": [
+        "sign in",
+        "signin",
+        "login",
+        "log in",
+        "account",
+        "email",
+        "save",
+        "saved",
+        "saving",
+        "lost",
+        "device",
+        "phone",
+        "backup",
+        "guest"
+      ],
       "personas": [
         "learner"
       ],
@@ -561,6 +594,22 @@
     {
       "id": "where-you-are-in-this-course",
       "title": "Where you are in this course",
+      "topic": "Where you are",
+      "keywords": [
+        "belt",
+        "belts",
+        "progress",
+        "position",
+        "how far",
+        "colour",
+        "colours",
+        "dots",
+        "bar",
+        "track",
+        "level",
+        "grade",
+        "score"
+      ],
       "personas": [
         "learner"
       ],
@@ -577,7 +626,7 @@
         },
         {
           "anchor": "library-belt-strip",
-          "say": "Those eight coloured dots are belts — an indication of how far through the course you are. The steps get bigger as you go: white to yellow comes much sooner than brown to black.",
+          "say": "Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on.",
           "advance": {
             "on": "next"
           }

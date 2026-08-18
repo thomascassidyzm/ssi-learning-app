@@ -1,23 +1,49 @@
 {
   "id": "choose-something-else-to-learn",
   "title": "Choose something else to learn",
-  "personas": ["learner"],
-  "place": { "route": "library" },
+  "topic": "Other languages",
+  "keywords": [
+    "course",
+    "courses",
+    "language",
+    "languages",
+    "switch",
+    "change",
+    "another",
+    "second",
+    "new",
+    "library",
+    "search",
+    "spanish",
+    "welsh"
+  ],
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library"
+  },
   "steps": [
     {
       "anchor": "library-course-search",
       "say": "Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "library-course-grid",
       "say": "Tap any one of these and you are straight into it — no setting up, no starting over.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "library-course-grid",
       "say": "Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
     }
   ]

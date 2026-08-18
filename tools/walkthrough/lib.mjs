@@ -36,6 +36,19 @@ export function validateWalkSchema(walk) {
   for (const p of walk.personas ?? []) {
     if (!PERSONAS.includes(p)) at(`unknown persona "${p}"`)
   }
+  // topic + keywords (A-159 hub) — the chip label and the search vocabulary.
+  // Optional so every pre-hub walk stays valid; when present they must be
+  // usable, because a blank chip or a stray keyword is a lying door.
+  if (walk.topic !== undefined && (typeof walk.topic !== 'string' || !walk.topic.trim())) {
+    at('topic must be a non-empty string when present')
+  }
+  if (walk.keywords !== undefined) {
+    if (!Array.isArray(walk.keywords)) at('keywords must be an array of strings')
+    else for (const k of walk.keywords) {
+      if (typeof k !== 'string' || !k.trim()) at('keywords entries must be non-empty strings')
+      else if (k !== k.toLowerCase()) at(`keyword "${k}" must be lower-case (search normalises to lower-case)`)
+    }
+  }
   if (!walk.place || typeof walk.place.route !== 'string') at('place.route is required')
   if (walk.place?.kinds && !Array.isArray(walk.place.kinds)) at('place.kinds must be an array')
   if (!Array.isArray(walk.steps) || !walk.steps.length) at('steps[] must be non-empty')

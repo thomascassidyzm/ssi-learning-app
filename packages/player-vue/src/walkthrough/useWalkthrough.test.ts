@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   useWalkthrough, walksFor, walkById, startWalk, stopWalk,
-  isDestructiveAnchor, effectiveAdvance, type WalkStep,
+  isDestructiveAnchor, effectiveAdvance, searchWalks, walkTopic, type WalkStep,
 } from './useWalkthrough'
 import pack from './pack.json'
 
@@ -180,5 +180,50 @@ describe('runtime destructive-verb mirror (stale-pack defence)', () => {
         if (s.advance.on === 'click') expect(isDestructiveAnchor(s.anchor), `${walk.id}:${s.anchor}`).toBe(false)
       }
     }
+  })
+})
+
+// ── The Library hub's search (A-159) ──────────────────────────────────────
+// The hub is the single door into "how does this work", so its search must
+// obey exactly one rule beyond finding things: it can never surface a walk the
+// learner is not already offered. It searches walksFor()'s output, so that is
+// structural rather than a promise — these tests hold it structural.
+describe('searchWalks', () => {
+  it('an empty query returns exactly what the chips show', () => {
+    expect(searchWalks('learner', 'library', 'guest', '   ').map((x) => x.id))
+      .toEqual(walksFor('learner', 'library', 'guest').map((x) => x.id))
+  })
+
+  it('finds a walk by a word the learner would actually type', () => {
+    expect(searchWalks('learner', 'library', 'signed-in', 'belts').map((x) => x.id))
+      .toContain('where-you-are-in-this-course')
+    expect(searchWalks('learner', 'library', 'signed-in', 'another language').map((x) => x.id))
+      .toContain('choose-something-else-to-learn')
+  })
+
+  it('ranks a label hit above a walk that only mentions the word in passing', () => {
+    const ids = searchWalks('learner', 'library', 'guest', 'progress').map((x) => x.id)
+    expect(ids[0]).toBe('save-your-progress')
+  })
+
+  it('NEVER surfaces a walk this persona × place × kind is not offered', () => {
+    // The guest-only sign-in walk must not be findable once signed in...
+    expect(searchWalks('learner', 'library', 'signed-in', 'sign in').map((x) => x.id))
+      .not.toContain('save-your-progress')
+    // ...and no dashboard walk is reachable from a learner's search at all.
+    expect(searchWalks('learner', 'library', 'guest', 'class').map((x) => x.id))
+      .not.toContain('run-class-session')
+  })
+
+  it('returns nothing for a word the pack cannot talk about', () => {
+    expect(searchWalks('learner', 'library', 'guest', 'photosynthesis')).toEqual([])
+  })
+})
+
+describe('walkTopic', () => {
+  it('prefers the chip label and falls back to the title', () => {
+    expect(walkTopic(walkById('save-your-progress')!)).toBe('Saving your progress')
+    expect(walkTopic({ id: 'x', title: 'Only a title', personas: [], place: { route: 'library' }, steps: [] }))
+      .toBe('Only a title')
   })
 })
