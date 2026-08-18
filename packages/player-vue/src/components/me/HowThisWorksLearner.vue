@@ -12,14 +12,22 @@
  *
  * Prose lives in the content module, never inline here.
  */
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { HOW_THIS_WORKS_LEARNER as section } from '@/explainer/learnerExplainers'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 
 const props = withDefaults(defineProps<{
   /** Auth uid where the mount knows it; 'anon' keeps the state per-device. */
   viewerId?: string
-}>(), { viewerId: 'anon' })
+  /**
+   * Override for the link + kicker label. The Library panel (A-159) is itself
+   * called "How this works", so this section sits inside it as "Using the app"
+   * rather than repeating its parent's name. Prose is never overridden.
+   */
+  linkLabel?: string
+}>(), { viewerId: 'anon', linkLabel: '' })
+
+const label = computed(() => props.linkLabel || section.linkLabel)
 
 const open = ref(false)
 const throbbing = ref(shouldThrob(props.viewerId, section.id))
@@ -37,11 +45,11 @@ function toggle(): void {
   <section class="lx">
     <button type="button" class="lx-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
       <span v-if="throbbing && !open" class="lx-dot" aria-hidden="true"></span>
-      {{ open ? 'Close' : section.linkLabel }}
+      {{ open ? 'Close' : label }}
     </button>
     <transition name="lx-fade">
       <div v-if="open" class="lx-card">
-        <span class="lx-kicker">{{ section.linkLabel }}</span>
+        <span class="lx-kicker">{{ label }}</span>
         <p class="lx-intro">{{ section.intro }}</p>
         <div v-for="block in section.blocks" :key="block.heading" class="lx-block">
           <h3 class="lx-heading">{{ block.heading }}</h3>

@@ -5,6 +5,7 @@ import { BELTS, getSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed } 
 import { getLanguageName, getLanguageEndonym, forSpeakersLabel } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
+import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
@@ -42,6 +43,10 @@ const isPremiumCourse = (course) => course.pricing_tier === 'premium'
 const auth = inject('auth')
 const isGuest = computed(() => auth?.isGuest?.value ?? true)
 const { open: openAuth } = useAuthModal()
+
+// Per-viewer seen-state for the How-this-works section: the auth uid where we
+// have one, 'anon' otherwise (localStorage is per-device either way).
+const explainerViewerId = computed(() => auth?.userId?.value ?? 'anon')
 
 // Org lane (2026-08-06, same fix as SettingsScreen): an organisation leader
 // carries educational_role = 'govt_admin' too, so hasSchoolRole alone offered
@@ -418,7 +423,7 @@ onMounted(() => {
 
     <div class="browse-content">
       <!-- ── Guest auth banner ── -->
-      <div v-if="isGuest" class="guest-auth-banner" @click="emit('close'); openAuth()">
+      <div v-if="isGuest" class="guest-auth-banner" data-walk="library-save-progress" @click="emit('close'); openAuth()">
         <div class="guest-auth-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -490,9 +495,9 @@ onMounted(() => {
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
         <h3 class="section-label">Your Progress</h3>
-        <div class="progress-card" @click="showBeltBrowser = !showBeltBrowser">
+        <div class="progress-card" data-walk="library-progress-card" @click="showBeltBrowser = !showBeltBrowser">
           <!-- Belt strip: 8 colored dots -->
-          <div class="belt-strip">
+          <div class="belt-strip" data-walk="library-belt-strip">
             <div
               v-for="(belt, i) in BELTS"
               :key="belt.name"
@@ -513,7 +518,7 @@ onMounted(() => {
 
           <!-- Position track — where you are in the journey (belt zones + playhead),
                not a countdown. "Look how far you've come." -->
-          <div class="belt-track" role="img" :aria-label="`${coursePercent}% of the way through the course`">
+          <div class="belt-track" data-walk="library-position-track" role="img" :aria-label="`${coursePercent}% of the way through the course`">
             <div
               v-for="seg in beltSegments"
               :key="seg.name"
@@ -535,7 +540,7 @@ onMounted(() => {
           </div>
 
           <!-- Chevron -->
-          <div class="card-action">
+          <div class="card-action" data-walk="library-belt-browser">
             <span class="card-action-label">View Belts</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"/>
@@ -554,6 +559,12 @@ onMounted(() => {
         </div>
       </Transition>
 
+
+      <!-- ── How this works (A-159) — practical walkthroughs first, the
+           methodology behind them. Closed by default; nothing opens uninvited. -->
+      <section class="section how-this-works-section">
+        <HowThisWorksLibrary :viewer-id="explainerViewerId" :is-guest="isGuest" />
+      </section>
 
       <!-- ── Section 3: Activity ── -->
       <section class="section">
@@ -606,6 +617,7 @@ onMounted(() => {
           v-model="courseSearchQuery"
           type="text"
           class="course-search-input"
+          data-walk="library-course-search"
           placeholder="Search any language..."
           autocomplete="off"
         />
@@ -621,7 +633,7 @@ onMounted(() => {
         </div>
 
         <!-- Course grid -->
-        <div v-else class="course-grid">
+        <div v-else class="course-grid" data-walk="library-course-grid">
           <template v-for="group in courseGroups" :key="group.key">
             <!-- Single course -->
             <template v-if="group.courses.length === 1">

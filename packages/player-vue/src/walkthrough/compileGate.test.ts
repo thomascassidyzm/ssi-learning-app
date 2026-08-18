@@ -28,7 +28,7 @@ const walk = (over: Record<string, unknown> = {}) => ({
 })
 
 const RUNTIME_SRC = [
-  "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']",
+  "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites', 'library']",
   `export const DESTRUCTIVE_ANCHOR_PATTERNS = [${DESTRUCTIVE_ANCHOR_PATTERNS.map((re: RegExp) => re.toString()).join(', ')}]`,
 ].join('\n')
 const EVAL_SRC = "const walkId = rule.cta.target.startsWith('walk:') ? rule.cta.target.slice(5) : undefined"
@@ -67,6 +67,15 @@ describe('gateAnchors', () => {
   it('FAILS a member-persona walk whose anchor is admin-only (v-if="!member")', () => {
     const { failures } = gateAnchors(
       [walk({ personas: ['leader'] })],
+      vue('<button v-if="!member" data-walk="verb-invite-person">Go</button>'),
+    )
+    expect(failures.some((f: string) => f.includes('PERSONA'))).toBe(true)
+  })
+  // A-159: the learner persona is the furthest thing from an admin, so gate 2
+  // must police it exactly like the other member personas.
+  it('FAILS a learner walk whose anchor is admin-only (v-if="!member")', () => {
+    const { failures } = gateAnchors(
+      [walk({ personas: ['learner'] })],
       vue('<button v-if="!member" data-walk="verb-invite-person">Go</button>'),
     )
     expect(failures.some((f: string) => f.includes('PERSONA'))).toBe(true)

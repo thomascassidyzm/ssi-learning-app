@@ -20,9 +20,13 @@ import pack from './pack.json'
 
 // Semantic places a walk can live — the compiler gate checks every walk's
 // place.route against this list (lockstep, like the explainer's KNOWN_TARGETS).
-export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']
+export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites', 'library']
 
-export type WalkPersona = 'admin' | 'leader' | 'school_admin' | 'teacher'
+// 'learner' (A-159, 2026-08-18) — the engine's first non-dashboard persona.
+// A learner is emphatically not an admin: it is a MEMBER persona in the
+// compiler (tools/walkthrough/lib.mjs), so a learner walk may never anchor to
+// an element that only exists behind an admin-only guard.
+export type WalkPersona = 'admin' | 'leader' | 'school_admin' | 'teacher' | 'learner'
 
 export interface WalkStep {
   anchor: string

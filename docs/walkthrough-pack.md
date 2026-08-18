@@ -1,6 +1,15 @@
 # Walkthrough pack — compiled render
 
-**Version `1072cbc63382` · generated 2026-08-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `9fc10ff18176` · generated 2026-08-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## choose-something-else-to-learn — Choose something else to learn
+
+Personas: learner · place: library
+
+1. [`library-course-search` · next] Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go.
+2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
+3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
+   - terminal: That's the Library. Close it and press play to carry on with the one you are in.
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -89,6 +98,14 @@ Personas: teacher · place: class-detail
 3. [`class-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
    - terminal: When you're ready, tap Play as class for real — this tour never starts a session for you.
 
+## save-your-progress — Save your progress
+
+Personas: learner · place: library (guest)
+
+1. [`library-save-progress` · next] Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.
+2. [`library-save-progress` · next] Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.
+   - terminal: Everything you have already done comes with you — signing in adds your account to it, it never starts you again.
+
 ## set-your-password — Set or change your password
 
 Personas: leader · place: node-home (org/group/school)
@@ -117,3 +134,13 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 3. [`ways-in-remint` · next] **Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.
 4. [`ways-in-revoke` · next] **Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.
    - terminal: The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone.
+
+## where-you-are-in-this-course — Where you are in this course
+
+Personas: learner · place: library
+
+1. [`library-progress-card` · next] This card is your whole position in the course in one glance. Nothing here is a score, and nothing here is counting anything against you.
+2. [`library-belt-strip` · next] Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on.
+3. [`library-position-track` · next] The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.
+4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
+   - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.

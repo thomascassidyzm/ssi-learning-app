@@ -8,12 +8,13 @@
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
 
-export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher']
+export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher', 'learner']
 export const ADVANCE_KINDS = ['next', 'click', 'visible']
 
 // Member personas — anyone who is NOT ssi_admin. A walk offered to any of
 // these must never anchor to an element behind the admin-only marker.
-export const MEMBER_PERSONAS = ['leader', 'school_admin', 'teacher']
+// 'learner' (A-159) is the furthest of all from admin, so it belongs here.
+export const MEMBER_PERSONAS = ['leader', 'school_admin', 'teacher', 'learner']
 
 // Gate 6 — the destructive-verb denylist (founder ruling: click-through only
 // on reversible verbs; a click-advance step touching a destructive or

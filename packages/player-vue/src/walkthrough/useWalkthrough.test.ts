@@ -52,6 +52,34 @@ describe('walksFor (offer filtering)', () => {
     expect(walksFor('admin', 'node-home', 'org').map((x) => x.id)).toContain('invite-first-person')
   })
 
+  // A-159 — the learner persona at the Library. The sign-in walk is offered
+  // only where the guest banner is actually rendered, which rides place.kinds
+  // rather than a hardcoded id in the panel.
+  it('offers the learner the Library walks, and the sign-in one to guests only', () => {
+    const guest = walksFor('learner', 'library', 'guest').map((x) => x.id)
+    expect(guest).toContain('where-you-are-in-this-course')
+    expect(guest).toContain('choose-something-else-to-learn')
+    expect(guest).toContain('save-your-progress')
+    const signedIn = walksFor('learner', 'library', 'signed-in').map((x) => x.id)
+    expect(signedIn).toContain('where-you-are-in-this-course')
+    expect(signedIn).not.toContain('save-your-progress')
+    // No dashboard walk ever reaches a learner, and no learner walk leaks onto
+    // a dashboard place.
+    expect(walksFor('learner', 'node-home')).toEqual([])
+    expect(walksFor('teacher', 'library')).toEqual([])
+  })
+
+  // The learner content laws (learnerExplainers.ts header) apply to walk prose
+  // exactly as they do to the profile sections.
+  it('no learner walk mentions streaks, points or a score', () => {
+    const learnerWalks = pack.walks.filter((x) => x.personas.includes('learner'))
+    expect(learnerWalks.length).toBeGreaterThan(0)
+    const words = learnerWalks.flatMap((x) => x.steps.map((s) => s.say)).join(' ').toLowerCase()
+    for (const banned of ['streak', 'points', 'xp', 'leaderboard', 'lego', 'seed']) {
+      expect(words, banned).not.toContain(banned)
+    }
+  })
+
   it('the org walk never says teacher, class or school', () => {
     const walk = pack.walks.find((x) => x.id === 'invite-first-person')!
     const words = walk.steps.map((s) => s.say).join(' ').toLowerCase()

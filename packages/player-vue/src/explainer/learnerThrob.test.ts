@@ -24,6 +24,16 @@ describe('learnerThrob', () => {
     expect(shouldThrob(VIEWER, 'why-this-works')).toBe(false)
   })
 
+  // A-159 — the Library's own section keeps its own state: opening the profile
+  // sections must not silently disarm the Library's dot, or vice versa.
+  it('the Library section throbs independently of the profile ones', () => {
+    markSeen(VIEWER, 'how-this-works')
+    markSeen(VIEWER, 'why-this-works')
+    expect(shouldThrob(VIEWER, 'library-how-this-works')).toBe(true)
+    markSeen(VIEWER, 'library-how-this-works')
+    expect(shouldThrob(VIEWER, 'library-how-this-works')).toBe(false)
+  })
+
   it('seen state is per viewer', () => {
     markSeen(VIEWER, 'how-this-works')
     expect(shouldThrob('user-2', 'how-this-works')).toBe(true)
