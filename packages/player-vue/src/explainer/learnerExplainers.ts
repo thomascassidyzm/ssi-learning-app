@@ -136,7 +136,7 @@ export const WHY_THIS_WORKS: ExplainerSection = {
     {
       heading: 'Where all this comes from',
       body: [
-        'None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently a group of us worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.',
+        'None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently Aran worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.',
         'Which means you do not have to take a view on the method, or work out how to study, or build a plan. You just press play.',
       ],
     },
