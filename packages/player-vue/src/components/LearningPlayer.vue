@@ -15554,7 +15554,7 @@ defineExpose({
       <div v-if="hoveredNode" class="node-hover-tooltip">
         <div class="tooltip-header">
           <span class="tooltip-target" :dir="dirFor(hoveredNode.targetText)">{{ hoveredNode.targetText }}</span>
-          <span class="tooltip-known">{{ hoveredNode.knownText }}</span>
+          <span class="tooltip-known" :dir="dirFor(hoveredNode.knownText)">{{ hoveredNode.knownText }}</span>
         </div>
         <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
           <div
@@ -15564,7 +15564,7 @@ defineExpose({
             @click.stop="playHoverPhrase(phrase)"
           >
             <span class="phrase-target" :dir="dirFor(phrase.target)">{{ phrase.target }}</span>
-            <span class="phrase-known">{{ phrase.known }}</span>
+            <span class="phrase-known" :dir="dirFor(phrase.known)">{{ phrase.known }}</span>
             <span class="phrase-play">▶</span>
           </div>
         </div>
@@ -17657,6 +17657,11 @@ defineExpose({
 }
 
 .tooltip-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -17692,6 +17697,11 @@ defineExpose({
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.7;

@@ -1183,7 +1183,7 @@ onUnmounted(() => {
                   <template v-else-if="item.type === 'consolidation'">CONSOLIDATE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
-                <div class="item-known">{{ item.knownText }}</div>
+                <div class="item-known" :dir="dirFor(item.knownText)">{{ item.knownText }}</div>
                 <div class="item-arrow">→</div>
                 <div class="item-target" :dir="dirFor(item.targetText)">{{ item.targetText }}</div>
 
@@ -1778,6 +1778,12 @@ onUnmounted(() => {
 .item-type.consolidation { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
 
 .item-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+  text-align: left;
+
   font-size: 0.8125rem;
   color: var(--text-secondary);
   white-space: nowrap;

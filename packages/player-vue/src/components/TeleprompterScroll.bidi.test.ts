@@ -63,11 +63,21 @@ describe('TeleprompterScroll — bidi direction on target text', () => {
     expect(dirs).toEqual(['rtl', 'ltr'])
   })
 
-  it('does not put the English known gloss into rtl', () => {
+  it('keeps an English known gloss ltr beside rtl target text', () => {
     const wrapper = mountLines([{ target: ARA_EXCLAMATION, known: 'speak Arabic now!' }])
     const known = wrapper.find('.phrase-known')
     expect(known.exists()).toBe(true)
-    // The known side is English and must stay LTR: no dir is bound on it at all.
-    expect(known.attributes('dir')).toBeUndefined()
+    expect(known.attributes('dir')).toBe('ltr')
+  })
+
+  it('gives an RTL KNOWN side its own direction — eng_for_ara, not just ara_*', () => {
+    // eng_for_ara has 668 seeds with Arabic on the KNOWN side and English as the
+    // target, so a target-only fix would leave that whole course mis-rendered.
+    // Detection reads the string, so the two sides resolve independently.
+    const wrapper = mountLines([
+      { target: 'I want to speak English with you now.', known: 'أريد أن أتكلم الإنجليزية معك الآن.' },
+    ])
+    expect(wrapper.find('.phrase-target').attributes('dir')).toBe('ltr')
+    expect(wrapper.find('.phrase-known').attributes('dir')).toBe('rtl')
   })
 })

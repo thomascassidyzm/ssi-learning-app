@@ -158,7 +158,7 @@ const handleRowClick = (displayIndex: number) => {
             <span class="phrase-speaker-dot" :style="{ background: row.line.speakerColor }"></span>{{ row.line.speakerName }}
           </div>
           <div class="phrase-target" :dir="dirFor(row.line.target)">{{ row.line.target }}</div>
-          <div v-if="row.isCurrent && showGloss && row.line.known" class="phrase-known">{{ row.line.known }}</div>
+          <div v-if="row.isCurrent && showGloss && row.line.known" class="phrase-known" :dir="dirFor(row.line.known)">{{ row.line.known }}</div>
         </slot>
       </div>
     </div>
@@ -268,6 +268,11 @@ const handleRowClick = (displayIndex: number) => {
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 1rem;
   color: var(--text-secondary);
   margin-top: 0.5rem;

@@ -716,7 +716,7 @@ onUnmounted(() => {
           {{ currentPhrase.phraseRole === 'build' ? 'Fragment' : 'Sentence' }}
         </div>
         <div class="phrase-target-text" :dir="dirFor(currentPhrase?.targetText || '')">{{ currentPhrase?.targetText || '' }}</div>
-        <div v-if="currentPhrase?.knownText" class="phrase-known-text">{{ currentPhrase.knownText }}</div>
+        <div v-if="currentPhrase?.knownText" class="phrase-known-text" :dir="dirFor(currentPhrase.knownText)">{{ currentPhrase.knownText }}</div>
       </div>
 
       <!-- Phase indicator -->

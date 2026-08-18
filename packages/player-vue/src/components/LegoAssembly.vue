@@ -588,7 +588,7 @@ const sentenceScale = computed(() => {
              gloss line would push that run's tile DOWN by one line relative
              to glossed neighbours. Reserving the space keeps every tile on
              the same baseline. -->
-        <span class="block-known gloss-group-known">{{ group.known }}</span>
+        <span class="block-known gloss-group-known" :dir="dirFor(group.known)">{{ group.known }}</span>
       </div>
     </template>
 
@@ -789,7 +789,7 @@ const sentenceScale = computed(() => {
                   class="block-known-comp"
                 >{{ comp.known || '' }}</span>
               </div>
-              <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+              <span v-else-if="block.knownText" class="block-known" :dir="dirFor(block.knownText)">{{ block.knownText }}</span>
             </template>
           </template>
         </div>
@@ -1212,6 +1212,11 @@ const sentenceScale = computed(() => {
 
 /* Known text under each practice block (A-LEGO) */
 .block-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-family: var(--font-body, system-ui);
   font-size: 1.1rem;
   font-weight: 400;
