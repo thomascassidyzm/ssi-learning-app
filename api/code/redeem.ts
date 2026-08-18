@@ -16,6 +16,7 @@ import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
+import { getClientIp, hashIp, isIpOverLimit, logAttempt } from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -155,6 +156,29 @@ export default async function handler(
     return
   }
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  // Per-IP enumeration throttle (SEC-AUDIT-2026-08-18 Finding 2), the same
+  // control the two siblings already carry (api/code/validate.ts,
+  // api/auth/possession-redeem.ts) against the same table and the same
+  // window/limit. A bearer token is not a cost: sign-up is open self-service
+  // OTP, so an unthrottled redeem is a sweepable oracle over the ~13.8M
+  // ABC-123 keyspace — and a hit here does not merely report the code, it
+  // REDEEMS it (platform_role, educational_role, a govt_admins row).
+  const ipHash = hashIp(getClientIp(req))
+  try {
+    if (await isIpOverLimit(supabase, ipHash)) {
+      await logAttempt(supabase, 'CodeRedeem', { ipHash, authUserId: userId, outcome: 'rate_limited_ip' })
+      res.status(429).json({ success: false, error: 'Too many attempts. Please try again later.' })
+      return
+    }
+    // Record this attempt so the window accumulates (the count above excludes
+    // the current request) and every redemption attempt has an audit row.
+    await logAttempt(supabase, 'CodeRedeem', { ipHash, authUserId: userId, outcome: 'redeem_attempt' })
+  } catch (error) {
+    console.error('[CodeRedeem] Throttle check failed:', error)
+    res.status(500).json({ error: 'Internal server error' })
+    return
+  }
 
   try {
     if (codeKind === 'invite') {

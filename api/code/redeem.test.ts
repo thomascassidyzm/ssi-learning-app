@@ -34,6 +34,13 @@ function makeChainable(table: string) {
     upsert: (obj: unknown, opts: unknown) => { calls.push(['upsert', obj, opts]); recordWrite(table, 'upsert', obj); return builder },
     delete: () => { calls.push(['delete']); recordWrite(table, 'delete', undefined); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    // neq/gte are the shared per-IP throttle's count chain
+    // (api/_utils/codeAttemptThrottle.ts): gte is its terminal link, so it
+    // resolves. With no possession_mint_attempts responder the count comes
+    // back undefined → 0 → under the limit, which is what every test here
+    // wants (they are not throttle tests; that is redeem.throttle.test.ts).
+    neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
+    gte(col: string, val: unknown) { calls.push(['gte', col, val]); return Promise.resolve(this.resolve()) },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
