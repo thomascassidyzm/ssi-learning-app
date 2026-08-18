@@ -1,0 +1,140 @@
+# APML Interface: In-app browser overlay
+# SSI Learning App
+# Version: 1.0.0
+# Last updated: 2026-08-18 (created — owner ruling of 2026-08-18 that
+#               saysomethingin.com links should open inside the app)
+# Source: packages/player-vue/src/composables/useInAppBrowser.ts
+#         packages/player-vue/src/components/InAppBrowser.vue
+#         packages/player-vue/src/App.vue (global mount)
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "In-app browser"
+  purpose: |
+    Open saysomethingin.com pages in a full-screen sheet OVER the app, so a
+    learner following a link does not leave the installed PWA and does not
+    lose their place in a session.
+  origin: |
+    Owner ruling, 2026-08-18, after playing the dev build:
+      "we can possibly send people to our website, which is saysomethingin.com,
+       and that should probably open within the app, rather than go outside of
+       things. Probably should be a browser that opens within the app."
+  principle: |
+    This app is a PWA — there is no Capacitor, Cordova or native shell, so
+    there is no system in-app-browser to call. "A browser inside the app" is
+    therefore a Vue overlay wrapping an iframe, and it is bounded by what the
+    remote host permits.
+
+    The learner is NEVER shown a silent blank sheet. That is the single
+    failure mode this design exists to prevent.
+
+## ============================================================================
+## THE FRAMING CONSTRAINT
+## ============================================================================
+
+CONSTRAINT:
+  problem: |
+    A page can forbid being iframed with X-Frame-Options or a frame-ancestors
+    CSP. The browser gives JavaScript NO way to read those headers
+    cross-origin, and no reliable way to observe the refusal — a blocked
+    iframe still fires `load` in Chromium.
+  decision: "Host allowlist, not a runtime probe."
+  rationale: |
+    Frameability is a fixed property of a host, not of a tap. A probe would
+    cost a server round-trip on every link to learn something already known.
+    The allowlist is deterministic, free at runtime, and honest about the
+    limit of its knowledge.
+  verified_headers:
+    # Checked live 2026-08-18. If these change, change the allowlist.
+    - host: "www.saysomethingin.com"       result: "200, no XFO, no frame-ancestors — FRAMES"
+    - host: "saysomethingin.com"           result: "same site — FRAMES"
+    - host: "en.saysomethingin.com"        result: "X-Frame-Options: SAMEORIGIN — REFUSES"
+    - host: "en.forum.saysomethingin.com"  result: "X-Frame-Options: SAMEORIGIN — REFUSES"
+  https_only: |
+    Only https URLs are framed. An http page inside an https app is blocked as
+    mixed content, and a non-http(s) scheme is not ours to frame at all.
+
+## ============================================================================
+## BEHAVIOUR
+## ============================================================================
+
+FLOW:
+  entry: "openInApp(url, title?) — the only call site API."
+
+  frameable_host:
+    - "Overlay opens; page renders in the iframe; app state is untouched."
+    - "Returns 'in-app'."
+
+  known_refusing_host:
+    - "No overlay at all — hands straight off to a real browser tab."
+    - "Returns 'external'."
+    - rationale: |
+        Showing a card that says 'this opens in your browser' BEFORE doing the
+        thing the learner already asked for is a tax, not a courtesy. This path
+        is no worse than the target=_blank behaviour it replaces.
+
+  frameable_host_that_fails_to_load:
+    - "After FRAME_LOAD_TIMEOUT_MS (8000) with no `load`, the sheet shows an
+       honest card: 'This one opens in your browser.' plus a tap-through."
+    - "The tap-through closes the sheet and opens a real browser tab."
+    - rationale: "This is the unexpected case; a white sheet is what we refuse."
+
+  exits:
+    - "Close button in the overlay header."
+    - "Escape key — a guaranteed exit that does not depend on the page loading."
+
+## ============================================================================
+## CHROME AND THEME
+## ============================================================================
+
+CHROME:
+  safe_areas: |
+    The sheet is fixed, edge-anchored chrome, so per CLAUDE.md the header
+    grows by env(safe-area-inset-top) AND pads its content down by the same
+    amount — with border-box sizing the inset must be EXTRA height, not eaten
+    height, or the close button lands under the iOS status bar. Horizontal
+    padding uses max(base, env(safe-area-inset-left/right)). The body pads by
+    env(safe-area-inset-bottom) to clear the home indicator.
+  theme: |
+    Mist only — warm-grey canvas, white elevated header, one belt-coloured
+    accent on the fallback action. No dark mode, no theme switcher.
+  header_shows: "The given title, with the host beneath it."
+
+## ============================================================================
+## CALL SITES
+## ============================================================================
+
+CALL_SITES:
+  converted:
+    - "components/SettingsScreen.vue — forum link (refuses framing → external)"
+    - "components/SettingsScreen.vue — classic Welsh listening (refuses → external)"
+    - "containers/SchoolsContainer.vue — 'Back to saysomethingin.com' (frames)"
+    - "views/TryLinkGateway.vue — 'Visit SaySomethingin' (frames)"
+  note: |
+    Converted anchors keep their href plus target=_blank/rel=noopener as a
+    no-JS fallback; the @click.prevent handler is what routes them.
+
+  deliberately_untouched:
+    - what: "mailto: links (RedeemCode.vue, SignInModal.vue, Onboarding.vue)"
+      why:  "Must keep handing off to the learner's mail client."
+    - what: "Paddle checkout/portal window.open (composables/useSubscription.ts)"
+      why:  "A payment flow. Framing a payment provider is a bad idea and
+             Paddle's own overlay already owns that surface."
+    - what: "Learner-story URLs in Onboarding.vue"
+      why:  "Present only as source comments, not as live links."
+
+## ============================================================================
+## TESTS
+## ============================================================================
+
+TESTS:
+  file: "packages/player-vue/src/composables/useInAppBrowser.test.ts"
+  covers:
+    - "Allowlist: frames / refuses / unknown host / non-https / unparseable"
+    - "openInApp returns 'in-app' vs 'external' and never opens an empty sheet"
+    - "Overlay renders nothing until opened; close button and Escape both exit"
+    - "Load-timeout raises the fallback; a timely load does not"
+    - "Fallback tap-through opens the real browser and closes the sheet"
