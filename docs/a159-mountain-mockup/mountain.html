@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The climb — proposal mockup</title>
+<style>
+  /* Real Mist tokens, lifted from packages/player-vue/src/styles/design-tokens.css */
+  :root {
+    --bg-primary: #e8e3dd;
+    --bg-elevated: #ffffff;
+    --bg-card: #ffffff;
+    --text-primary: #2C2622;
+    --text-secondary: #4A4440;
+    --text-muted: #8A8078;
+    --border-subtle: rgba(0, 0, 0, 0.10);
+    --card-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --space-2: 8px; --space-3: 12px; --space-5: 20px;
+    --text-sm: 13px; --text-base: 15px;
+    --mountain-opacity: 0.18;
+    /* ONE belt-coloured accent — green belt shown here */
+    --accent-belt: #4ade80;
+    --accent-belt-dark: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .phone {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-left, 0px))
+             max(28px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .crumb { font-size: 12px; color: var(--text-muted); letter-spacing: .02em; }
+
+  .panel {
+    position: relative; overflow: hidden;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: var(--space-5);
+    display: flex; flex-direction: column; gap: var(--space-3);
+  }
+  .title {
+    margin: 0; font-size: var(--text-sm); font-weight: 600;
+    color: var(--text-secondary); letter-spacing: .01em;
+  }
+
+  /* ---- the climb ------------------------------------------------- */
+  .climb {
+    position: relative; margin: 2px -20px 0;
+    /* the ink dissolves into the white card rather than sitting in a box */
+    -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 14%, #000 88%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 14%, #000 88%, rgba(0,0,0,0) 100%);
+  }
+  .climb svg { display: block; width: 100%; height: auto; }
+  .climb-ink { color: rgba(44, 37, 32, 1); }
+
+  .hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .hero-number {
+    font-size: 44px; font-weight: 600; line-height: 1;
+    color: var(--text-primary); font-variant-numeric: tabular-nums;
+  }
+  .hero-label { font-size: var(--text-base); color: var(--text-secondary); }
+  .behind { margin: 0; font-size: var(--text-sm); line-height: 1.55; color: var(--text-secondary); }
+  .intro { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--text-primary); }
+  .quiet { margin: 0; font-size: var(--text-sm); line-height: 1.55; color: var(--text-muted); }
+
+  /* ---- pace (Fast / Easy) ---------------------------------------- */
+  .paces { display: flex; gap: var(--space-2); }
+  .pace {
+    flex: 1; text-align: left; font: inherit; cursor: pointer;
+    padding: var(--space-3); border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle); background: transparent;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .pace-on { border-color: var(--accent-belt-dark); box-shadow: inset 0 0 0 1px var(--accent-belt-dark); }
+  .pace-name { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
+  .pace-blurb { font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+
+  /* ---- route (cadence) chosen ------------------------------------ */
+  .chosen { display: flex; flex-direction: column; gap: 2px; }
+  .kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .chosen-name { margin: 2px 0 0; font-size: var(--text-base); font-weight: 600; }
+  .chosen-shape { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
+
+  .rule { height: 1px; background: var(--border-subtle); margin: 4px 0 0; border: 0; }
+
+  /* ---- explainer block ------------------------------------------- */
+  .block-head { margin: 0; font-size: var(--text-base); font-weight: 600; }
+  .block-body { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--text-secondary); }
+  .points { margin: 4px 0 0; padding-left: 18px; }
+  .points li { font-size: var(--text-sm); line-height: 1.6; color: var(--text-secondary); margin-bottom: 6px; }
+  .new { background: rgba(74, 222, 128, 0.16); border-radius: 3px; padding: 0 2px; }
+  .note { font-size: 11px; color: var(--text-muted); margin: 0; }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="crumb">Me · How you want to do it</div>
+
+  <!-- ============ PANEL 1: the climb ============ -->
+  <section class="panel">
+    <h2 class="title">How you want to do it</h2>
+
+    <div class="hero">
+      <span class="hero-number">11</span>
+      <span class="hero-label">hours in</span>
+    </div>
+    <p class="behind">That is 11 of the thirty already behind you, and nothing can take them back.</p>
+
+    <!-- The climb: the same sumi-e ridgeline the player already carries,
+         with the trail drawn on it. Ground covered is inked in the belt
+         colour; the ground ahead is a faint dotted line. No remainder is
+         counted, no percentage is spoken. -->
+    <div class="climb" role="img"
+         aria-label="A mountain with a trail on it. Eleven hours of the thirty are behind you; the summit is where it starts being fun.">
+      <svg viewBox="0 0 390 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="ink-edge" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="turbulence" baseFrequency="0.04" numOctaves="4" seed="3" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+          </filter>
+        </defs>
+
+        <g class="climb-ink">
+          <!-- distant misty peak -->
+          <g opacity="0.10" filter="url(#ink-edge)">
+            <path d="M0 200 L0 96 C22 90 40 76 58 58 C68 48 76 34 86 26 C92 21 97 22 102 30
+                     C112 46 124 68 140 82 C158 97 182 104 210 106 C238 108 262 102 282 90
+                     C298 80 310 62 324 50 C332 43 340 44 348 54 C360 70 374 84 390 92 L390 200Z"
+                  fill="currentColor"/>
+          </g>
+          <!-- birds -->
+          <g opacity="0.10" filter="url(#ink-edge)">
+            <path d="M96 34 C99 30 102 29 105 31 C108 29 111 30 114 34" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+            <path d="M120 22 C122 19 124 18 126 19 C128 18 130 19 132 22" stroke="currentColor" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+          </g>
+          <!-- far range -->
+          <g opacity="0.18" filter="url(#ink-edge)">
+            <path d="M0 200 L0 118 C18 114 34 104 50 90 C62 79 72 68 84 62 C92 58 98 62 104 72
+                     C114 88 128 102 148 110 C172 119 202 121 230 116 C254 112 274 102 292 92
+                     C306 84 318 82 330 88 C346 96 366 106 390 110 L390 200Z"
+                  fill="currentColor"/>
+          </g>
+          <!-- mid hills -->
+          <g opacity="0.28" filter="url(#ink-edge)">
+            <path d="M0 200 L0 146 C26 140 50 132 74 128 C96 125 114 130 136 137
+                     C158 144 180 145 202 140 C224 135 244 126 266 122 C288 118 308 124 328 132
+                     C350 140 370 144 390 142 L390 200Z" fill="currentColor"/>
+          </g>
+          <!-- near foreground -->
+          <g opacity="0.42" filter="url(#ink-edge)">
+            <path d="M0 200 L0 178 C30 172 60 166 92 163 C124 160 154 164 186 168
+                     C218 172 250 172 282 168 C314 164 350 164 390 172 L390 200Z" fill="currentColor"/>
+            <!-- old pine, foreground left -->
+            <g transform="translate(36,176) scale(0.58)">
+              <path d="M3 22 C2 16 -2 10 -3 4 C-4 -2 0 -8 -2 -14" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+              <ellipse cx="-13" cy="-12" rx="13" ry="7" fill="currentColor" opacity="0.7"/>
+              <ellipse cx="5" cy="-19" rx="15" ry="8" fill="currentColor" opacity="0.8"/>
+              <ellipse cx="-7" cy="-24" rx="11" ry="6" fill="currentColor" opacity="0.6"/>
+            </g>
+          </g>
+
+          <!-- torii at the head of the trail: where you started -->
+          <g opacity="0.30" transform="translate(24,166) scale(0.40)" filter="url(#ink-edge)">
+            <path d="M-13 2 C-14 1 -14.5 0 -13.5 -1 L-12 -1 C-11 0 -11.5 1 -10.5 2 L-10 30 C-10 31 -10.5 32 -11.5 32 L-12.5 32 C-13.5 32 -14 31 -13.5 30 Z" fill="currentColor"/>
+            <path d="M10 2 C10.5 1 11 0 12 -1 L13 -1 C14 0 14.5 1 14 2 L13 30 C13 31 12.5 32 11.5 32 L10.5 32 C10 32 9.5 31 10 30 Z" fill="currentColor"/>
+            <path d="M-22 -2 C-20 -5 -16 -6 -12 -4 C-4 -1 4 -1 12 -4 C16 -6 20 -5 22 -2 C21 0 18 2 12 1 C4 0 -4 0 -12 1 C-18 2 -21 0 -22 -2Z" fill="currentColor"/>
+            <path d="M-16 8 C-8 6 0 6 8 6 C12 6 16 7 16 9 C16 10.5 12 11 8 11 C0 11 -8 11 -16 10.5 C-17 10 -17 8.5 -16 8Z" fill="currentColor"/>
+          </g>
+        </g>
+
+        <!-- THE TRAIL: one path. Ground ahead, faint. -->
+        <path d="M26 172 C64 167 92 162 118 150 C146 141 168 128 196 116
+                 C224 104 252 92 282 78 C310 65 330 52 348 40"
+              stroke="rgba(44,38,34,0.22)" stroke-width="2" fill="none"
+              stroke-linecap="round" stroke-dasharray="1 6"/>
+
+        <!-- ground covered, inked in the belt colour -->
+        <path d="M26 172 C64 167 92 162 118 150 C140 140 156 132 172 124"
+              stroke="var(--accent-belt-dark)" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <circle cx="172" cy="124" r="4.5" fill="var(--accent-belt-dark)"/>
+        <circle cx="172" cy="124" r="8.5" fill="none" stroke="var(--accent-belt-dark)" stroke-opacity="0.28" stroke-width="1.5"/>
+
+        <!-- the summit mark: quiet, small, never a headline -->
+        <circle cx="348" cy="40" r="2.6" fill="rgba(44,38,34,0.34)"/>
+        <text x="342" y="30" text-anchor="end" font-size="9.5"
+              fill="rgba(44,38,34,0.42)"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif">thirty hours</text>
+      </svg>
+    </div>
+
+    <p class="intro">
+      Thirty hours is the stretch that matters. How you climb it is completely up to you — same
+      mountain, different routes up.
+    </p>
+
+    <div class="chosen">
+      <span class="kicker">Your route</span>
+      <p class="chosen-name">An hour a day</p>
+      <p class="chosen-shape">1 hour a day, 30 days</p>
+    </div>
+
+    <hr class="rule">
+
+    <!-- Fast / Easy: the GAIT, not a second route. Both walk this same path. -->
+    <span class="kicker">Your pace today</span>
+    <div class="paces">
+      <button type="button" class="pace pace-on" aria-pressed="true">
+        <span class="pace-name">Fast</span>
+        <span class="pace-blurb">The standard pace.</span>
+      </button>
+      <button type="button" class="pace" aria-pressed="false">
+        <span class="pace-name">Easy</span>
+        <span class="pace-blurb">About double the thinking time, and more repetition.</span>
+      </button>
+    </div>
+    <p class="quiet">
+      Same path either way, and the same ground under you. Easy just leaves more room between the
+      steps. Swap whenever the day changes.
+    </p>
+
+    <p class="quiet">It tends to start being genuinely fun somewhere around the thirty-hour mark.</p>
+  </section>
+
+  <!-- ============ PANEL 2: the words, as they would read ============ -->
+  <div class="crumb">Library · How this works · Using the app</div>
+  <section class="panel">
+    <h3 class="block-head">The different ways to use it</h3>
+    <p class="block-body">
+      Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces,
+      and you pick between them on the player screen before you start. Offline lives behind the
+      sliders button at the bottom of the player, and Listening lives in Settings.
+    </p>
+    <p class="block-body">
+      <span class="new">Easy and Fast are the same climb walked at two different paces. They cover
+      the same ground and they arrive at the same place — Easy simply leaves you more room between
+      the steps. Most people use both, depending on the day.</span>
+    </p>
+    <ul class="points">
+      <li>Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.</li>
+      <li>Fast is the standard pace. Easy gives you about double the thinking time and more repetition, for when you want longer to get the words out.</li>
+      <li>Offline downloads a chunk of the course onto your phone, so it plays with no signal at all.</li>
+    </ul>
+    <p class="note">Highlighted sentence is the only new prose. Everything else is unchanged.</p>
+  </section>
+
+</div>
+</body>
+</html>

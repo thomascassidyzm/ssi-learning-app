@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explainer visual directions — A-159 mockups</title>
+<!--
+  THROWAWAY MOCKUP. Nothing here is wired into the app. Palette and spacing are
+  the real Mist tokens copied out of packages/player-vue/src/styles/design-tokens.css
+  so the screenshots read as the shipped surface, not as a design exercise.
+
+  Section accents are the ones already shipping: How-this-works = --schools-red,
+  Why-this-works = --info. No new colours invented, no dark mode, one accent per
+  section, Schindler's-List restraint.
+
+  ?only=current|a|b|c  narrows to one column for phone-width screenshots.
+-->
+<style>
+  :root{
+    /* Mist tokens, verbatim */
+    --bg-primary:#e8e3dd; --bg-elevated:#ffffff; --bg-card-hover:#faf9f8; --bg-input:#e8e4df;
+    --text-primary:#2C2622; --text-secondary:#4A4440; --text-muted:#8A8078;
+    --border-subtle:rgba(0,0,0,0.10); --border-medium:rgba(0,0,0,0.14);
+    --shadow-sm:0 1px 3px rgba(44,38,34,0.10), 0 4px 12px rgba(44,38,34,0.07);
+    --radius-lg:12px; --radius-xl:16px; --radius-full:9999px;
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px;
+    --schools-red:#DB1E17; --info:#60a5fa;
+    --font-body:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono','Fira Code',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg-primary); color:var(--text-primary);
+    font-family:var(--font-body); -webkit-font-smoothing:antialiased;
+    padding:var(--space-5) max(var(--space-4),env(safe-area-inset-right,0px))
+            calc(var(--space-6) + env(safe-area-inset-bottom,0px))
+            max(var(--space-4),env(safe-area-inset-left,0px));
+    padding-top:calc(var(--space-5) + env(safe-area-inset-top,0px));
+  }
+  .rail{display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap}
+  .col{width:358px; max-width:100%; display:flex; flex-direction:column; gap:var(--space-4)}
+  .col-label{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-muted); margin:0 0 -4px 2px;
+  }
+  .col-label b{color:var(--text-primary); font-weight:600; letter-spacing:.14em}
+
+  /* the shipped card shell */
+  .card{
+    background:var(--bg-elevated); border-radius:var(--radius-xl); padding:var(--space-5);
+    display:flex; flex-direction:column; gap:var(--space-4); box-shadow:var(--shadow-sm);
+  }
+  .kicker{font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--schools-red)}
+  .kicker.blue{color:var(--info)}
+  h3.h{margin:0; font-size:14px; font-weight:600; color:var(--text-primary)}
+  p.para{margin:0; font-size:14px; color:var(--text-secondary); line-height:1.6}
+  ul.points{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:14px; color:var(--text-secondary); line-height:1.6}
+  .block{display:flex; flex-direction:column; gap:var(--space-2)}
+
+  /* ---------- A. diagram-led ---------- */
+  .cycle{display:flex; flex-direction:column; gap:10px}
+  .step{display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start}
+  .step .glyph{width:44px; height:44px}
+  .step .cap b{display:block; font-size:14px; font-weight:600; color:var(--text-primary); line-height:1.35}
+  .step .cap span{display:block; font-size:13px; color:var(--text-secondary); line-height:1.5; margin-top:2px}
+  .loopback{
+    display:flex; align-items:center; gap:8px; margin-left:6px;
+    font-size:12px; color:var(--text-muted);
+  }
+  .modes{display:flex; flex-direction:column; gap:10px}
+  .mode{
+    display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:start;
+    padding:12px; border-radius:var(--radius-lg); background:var(--bg-card-hover);
+    border:1px solid var(--border-subtle);
+  }
+  .mode.is-default{border-color:rgba(219,30,23,.35); background:#fff}
+  .mode b{display:block; font-size:14px; color:var(--text-primary)}
+  .mode span{display:block; font-size:13px; color:var(--text-secondary); line-height:1.5; margin-top:2px}
+  .mode em{font-style:normal; font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--schools-red)}
+  .paces{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .pace{padding:12px; border-radius:var(--radius-lg); border:1px solid var(--border-subtle); background:var(--bg-card-hover)}
+  .pace b{display:block; font-size:14px; color:var(--text-primary)}
+  .pace span{display:block; font-size:12.5px; color:var(--text-secondary); line-height:1.5; margin-top:3px}
+  .barrow{display:flex; align-items:center; gap:6px; margin-top:8px}
+  .barrow i{height:6px; border-radius:var(--radius-full); background:var(--schools-red); opacity:.85; display:block}
+  .barrow s{text-decoration:none; font-size:11px; color:var(--text-muted); font-family:var(--font-mono)}
+  .noteline{font-size:12.5px; color:var(--text-muted); line-height:1.55; margin:0}
+
+  /* two-column contrast for the no-streaks block */
+  .versus{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .vcell{padding:14px; border-radius:var(--radius-lg); border:1px solid var(--border-subtle); background:var(--bg-card-hover)}
+  .vcell.ours{background:#fff; border-color:rgba(96,165,250,.45)}
+  .vcell h4{margin:0 0 6px; font-size:12.5px; font-weight:600; color:var(--text-primary)}
+  .vcell p{margin:0; font-size:12.5px; color:var(--text-secondary); line-height:1.5}
+  .vcell .mark{display:block; margin-bottom:8px}
+
+  /* ---------- B. icon-and-one-line ---------- */
+  .rows{display:flex; flex-direction:column}
+  .row{
+    display:grid; grid-template-columns:26px 1fr; gap:12px; align-items:start;
+    padding:13px 0; border-top:1px solid var(--border-subtle);
+  }
+  .row:first-child{border-top:0; padding-top:2px}
+  .row b{display:block; font-size:14px; font-weight:600; color:var(--text-primary); line-height:1.4}
+  .row span{display:block; font-size:13px; color:var(--text-secondary); line-height:1.5; margin-top:3px}
+  .row .n{
+    width:26px; height:26px; border-radius:var(--radius-full); display:grid; place-items:center;
+    font-family:var(--font-mono); font-size:11px; color:var(--schools-red);
+    background:rgba(219,30,23,.08);
+  }
+  .row .n.blue{color:var(--info); background:rgba(96,165,250,.14)}
+
+  /* ---------- C. progressive disclosure ---------- */
+  details.fold{border-top:1px solid var(--border-subtle); padding:12px 0}
+  details.fold:first-of-type{border-top:0; padding-top:2px}
+  details.fold summary{
+    list-style:none; cursor:pointer; display:grid; grid-template-columns:1fr 18px; gap:10px; align-items:start;
+  }
+  details.fold summary::-webkit-details-marker{display:none}
+  details.fold summary b{font-size:14.5px; font-weight:600; color:var(--text-primary); line-height:1.45; display:block}
+  details.fold summary .chev{
+    width:18px; height:18px; margin-top:3px; color:var(--text-muted); transition:transform .18s ease;
+  }
+  details.fold[open] summary .chev{transform:rotate(90deg)}
+  details.fold .inner{display:flex; flex-direction:column; gap:var(--space-2); padding-top:10px}
+  @media (prefers-reduced-motion: reduce){
+    details.fold summary .chev{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="rail">
+
+<!-- ================= CURRENT ================= -->
+<div class="col" data-col="current">
+  <p class="col-label"><b>Current</b> — as it ships today</p>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+    <div class="block">
+      <h3 class="h">What pressing play does</h3>
+      <p class="para">You hear a short phrase in English. Then there is a gap. The gap is yours — say your version out loud, out into the room, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different voices, so you can hear how it really sounds.</p>
+      <p class="para">Then the next one arrives on its own. There is nothing to tap in between.</p>
+    </div>
+    <div class="block">
+      <h3 class="h">The different ways to use it</h3>
+      <p class="para">Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces, and you pick between them on the player screen before you start. Offline lives behind the sliders button at the bottom of the player, and Listening lives in Settings.</p>
+      <ul class="points">
+        <li>Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.</li>
+        <li>Fast is the standard pace. Easy gives you about double the thinking time and more repetition, for when you want longer to get the words out.</li>
+        <li>Offline downloads a chunk of the course onto your phone, so it plays with no signal at all.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="kicker blue">Why this works</span>
+    <div class="block">
+      <h3 class="h">Why there are no streaks and no points</h3>
+      <p class="para">We do not count days in a row, and we never will. A streak is a lovely thing right up until it ends, and then it quietly becomes a reason to stay away — which is backwards, because the day you turn up again is the most valuable day there is. So the app simply has no way of knowing anything about the time you spend away from it.</p>
+      <p class="para">There are no points, no score and no leaderboard either. A points total only ever measures the app having an opinion about you. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.</p>
+      <p class="para">Plenty of apps do this differently and plenty of people love them for it. We would just rather build the one that is glad to see you whenever you turn up.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= A. DIAGRAM-LED ================= -->
+<div class="col" data-col="a">
+  <p class="col-label"><b>A</b> — diagram-led</p>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+
+    <div class="block">
+      <h3 class="h">What pressing play does</h3>
+
+      <div class="cycle">
+        <div class="step">
+          <svg class="glyph" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+            <circle cx="22" cy="22" r="21" stroke="#DB1E17" stroke-opacity=".22"/>
+            <path d="M16 18v8M16 22h4l5-4v12l-5-4h-4" stroke="#DB1E17" stroke-width="1.6" stroke-linejoin="round" fill="rgba(219,30,23,.10)"/>
+            <path d="M29 18.5a5 5 0 0 1 0 7" stroke="#DB1E17" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <div class="cap"><b>You hear it in English</b><span>A short phrase, spoken to you.</span></div>
+        </div>
+
+        <div class="step">
+          <svg class="glyph" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+            <circle cx="22" cy="22" r="21" stroke="#DB1E17" stroke-opacity=".22"/>
+            <rect x="13" y="15" width="18" height="14" rx="7" fill="rgba(219,30,23,.10)" stroke="#DB1E17" stroke-width="1.6" stroke-dasharray="3 3"/>
+            <path d="M18 22h.01M22 22h.01M26 22h.01" stroke="#DB1E17" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <div class="cap"><b>The gap is yours</b><span>Say your version out loud, into the room. Wrong or halfway both count.</span></div>
+        </div>
+
+        <div class="step">
+          <svg class="glyph" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+            <circle cx="22" cy="22" r="21" stroke="#DB1E17" stroke-opacity=".22"/>
+            <path d="M14 19.5v5M18 16v12M22 18v8" stroke="#DB1E17" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M27 17.5v9M31 20v4" stroke="#DB1E17" stroke-width="1.8" stroke-linecap="round" stroke-opacity=".45"/>
+          </svg>
+          <div class="cap"><b>Then it is said properly, twice</b><span>Two different voices, so you hear how it really sounds.</span></div>
+        </div>
+
+        <div class="loopback">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <path d="M4 7a5 5 0 1 1-.6 4" stroke="#8A8078" stroke-width="1.4" stroke-linecap="round"/>
+            <path d="M2 4v3.4h3.4" stroke="#8A8078" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>The next one arrives on its own. Nothing to tap in between.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+    <div class="block">
+      <h3 class="h">The different ways to use it</h3>
+
+      <div class="modes">
+        <div class="mode is-default">
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+            <rect x=".5" y=".5" width="33" height="33" rx="10" stroke="#DB1E17" stroke-opacity=".28"/>
+            <path d="M17 10a3 3 0 0 1 3 3v4a3 3 0 1 1-6 0v-4a3 3 0 0 1 3-3Z" fill="rgba(219,30,23,.12)" stroke="#DB1E17" stroke-width="1.4"/>
+            <path d="M11.5 16.5a5.5 5.5 0 0 0 11 0M17 22v3" stroke="#DB1E17" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <div><b>Speaking <em>&nbsp;· default</em></b><span>The main one. You get it without choosing anything.</span></div>
+        </div>
+
+        <div class="mode">
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+            <rect x=".5" y=".5" width="33" height="33" rx="10" stroke="#000" stroke-opacity=".10"/>
+            <path d="M11 19v-3a6 6 0 0 1 12 0v3" stroke="#4A4440" stroke-width="1.4" stroke-linecap="round"/>
+            <rect x="9" y="18" width="4" height="6" rx="2" fill="rgba(74,68,64,.14)" stroke="#4A4440" stroke-width="1.3"/>
+            <rect x="21" y="18" width="4" height="6" rx="2" fill="rgba(74,68,64,.14)" stroke="#4A4440" stroke-width="1.3"/>
+          </svg>
+          <div><b>Listening <em>&nbsp;· in Settings</em></b><span>Audio only, no speaking — for walking the dog, driving, the washing-up.</span></div>
+        </div>
+
+        <div class="mode">
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+            <rect x=".5" y=".5" width="33" height="33" rx="10" stroke="#000" stroke-opacity=".10"/>
+            <path d="M17 9v11m0 0-4-4m4 4 4-4" stroke="#4A4440" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 23h14" stroke="#4A4440" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <div><b>Offline <em>&nbsp;· sliders button</em></b><span>Puts a chunk of the course on your phone. Plays with no signal at all.</span></div>
+        </div>
+      </div>
+
+      <p class="noteline" style="margin-top:6px">And two paces, picked on the player screen before you start.</p>
+
+      <div class="paces">
+        <div class="pace">
+          <b>Fast</b>
+          <span>The standard pace.</span>
+          <div class="barrow"><i style="width:34px"></i><s>gap</s></div>
+        </div>
+        <div class="pace">
+          <b>Easy</b>
+          <span>About double the thinking time, and more repetition.</span>
+          <div class="barrow"><i style="width:68px"></i><s>gap</s></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="kicker blue">Why this works</span>
+    <div class="block">
+      <h3 class="h">Why there are no streaks and no points</h3>
+
+      <div class="versus">
+        <div class="vcell">
+          <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <path d="M11 2s4 4 4 8a4 4 0 0 1-8 0c0-1.6.8-3 .8-3" stroke="#8A8078" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M3 17.5 19 4.5" stroke="#8A8078" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <h4>A streak</h4>
+          <p>Lovely right up until it ends. Then it becomes a reason to stay away.</p>
+        </div>
+        <div class="vcell ours">
+          <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <path d="M4 12.5 9 17l9-11" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h4>Here</h4>
+          <p>The app has no way of knowing anything about time you spend away.</p>
+        </div>
+      </div>
+
+      <div class="versus" style="margin-top:10px">
+        <div class="vcell">
+          <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <rect x="3" y="13" width="4" height="6" rx="1" stroke="#8A8078" stroke-width="1.3"/>
+            <rect x="9" y="9" width="4" height="10" rx="1" stroke="#8A8078" stroke-width="1.3"/>
+            <rect x="15" y="5" width="4" height="14" rx="1" stroke="#8A8078" stroke-width="1.3"/>
+          </svg>
+          <h4>A points total</h4>
+          <p>Only ever measures the app having an opinion about you.</p>
+        </div>
+        <div class="vcell ours">
+          <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <path d="M4 5h14v9H9l-4 3.5V14H4V5Z" stroke="#60a5fa" stroke-width="1.4" stroke-linejoin="round" fill="rgba(96,165,250,.10)"/>
+          </svg>
+          <h4>What you can say</h4>
+          <p>Check it yourself, in any conversation you fancy.</p>
+        </div>
+      </div>
+
+      <p class="noteline" style="margin-top:12px">Plenty of apps do this differently and plenty of people love them for it. We would just rather build the one that is glad to see you whenever you turn up.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= B. ICON AND ONE LINE ================= -->
+<div class="col" data-col="b">
+  <p class="col-label"><b>B</b> — icon and one line</p>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+    <div class="block">
+      <h3 class="h">What pressing play does</h3>
+      <div class="rows">
+        <div class="row"><span class="n">1</span><div><b>You hear a short phrase in English.</b></div></div>
+        <div class="row"><span class="n">2</span><div><b>Then a gap — say your version out loud.</b><span>Wrong or halfway still counts.</span></div></div>
+        <div class="row"><span class="n">3</span><div><b>Then you hear it said properly, twice.</b><span>Two voices, so you hear how it really sounds.</span></div></div>
+        <div class="row"><span class="n">↻</span><div><b>The next one arrives on its own.</b><span>There is nothing to tap in between.</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+    <div class="block">
+      <h3 class="h">The different ways to use it</h3>
+      <div class="rows">
+        <div class="row"><span class="n">◉</span><div><b>Speaking is the main one, and the default.</b><span>Nothing to switch on.</span></div></div>
+        <div class="row"><span class="n">♪</span><div><b>Listening is audio only, no speaking.</b><span>For walking the dog, driving, the washing-up. In Settings.</span></div></div>
+        <div class="row"><span class="n">↓</span><div><b>Offline puts a chunk of the course on your phone.</b><span>Plays with no signal at all. Behind the sliders button.</span></div></div>
+        <div class="row"><span class="n">»</span><div><b>Fast is the standard pace.</b><span>Picked on the player screen before you start.</span></div></div>
+        <div class="row"><span class="n">·</span><div><b>Easy gives you about double the thinking time.</b><span>And more repetition, for when you want longer to get the words out.</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="kicker blue">Why this works</span>
+    <div class="block">
+      <h3 class="h">Why there are no streaks and no points</h3>
+      <div class="rows">
+        <div class="row"><span class="n blue">✕</span><div><b>We do not count days in a row, and we never will.</b><span>A streak is lovely right up until it ends — and then it becomes a reason to stay away.</span></div></div>
+        <div class="row"><span class="n blue">✕</span><div><b>No points, no score, no leaderboard.</b><span>A points total only ever measures the app having an opinion about you.</span></div></div>
+        <div class="row"><span class="n blue">✓</span><div><b>The thing worth measuring is what you can actually say.</b><span>You can check that yourself in any conversation you fancy.</span></div></div>
+        <div class="row"><span class="n blue">♥</span><div><b>We would rather build the one that is glad to see you.</b><span>Whenever you turn up.</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= C. PROGRESSIVE DISCLOSURE ================= -->
+<div class="col" data-col="c">
+  <p class="col-label"><b>C</b> — folded prose <span style="text-transform:none;letter-spacing:0">(2nd fold shown open)</span></p>
+
+  <div class="card">
+    <span class="kicker">Using the app</span>
+
+    <details class="fold">
+      <summary>
+        <b>Pressing play: you hear it, you say it, then you hear it done properly.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">You hear a short phrase in English. Then there is a gap. The gap is yours — say your version out loud, out into the room, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different voices, so you can hear how it really sounds.</p>
+        <p class="para">Then the next one arrives on its own. There is nothing to tap in between.</p>
+      </div>
+    </details>
+
+    <details class="fold" open>
+      <summary>
+        <b>Three ways to use it, and two paces.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces, and you pick between them on the player screen before you start. Offline lives behind the sliders button at the bottom of the player, and Listening lives in Settings.</p>
+        <ul class="points">
+          <li>Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.</li>
+          <li>Fast is the standard pace. Easy gives you about double the thinking time and more repetition, for when you want longer to get the words out.</li>
+          <li>Offline downloads a chunk of the course onto your phone, so it plays with no signal at all.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="fold">
+      <summary>
+        <b>A go is any gap you opened your mouth in.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">A go is one of those gaps where you opened your mouth and had a crack at it. That is all it takes to count.</p>
+        <p class="para">Getting it wrong is still a go, and it still does the work. The reaching is the bit that builds the language — whether it arrives is almost beside the point.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <span class="kicker blue">Why this works</span>
+
+    <details class="fold">
+      <summary>
+        <b>The gap before the answer is where everything happens.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">That gap before the answer is where everything happens. Every time you reach for something and it does not quite come, you are laying down the path that makes it come next time.</p>
+        <p class="para">Recognising a phrase on a page feels easier and does much less. So we ask you to produce it first, out loud, every time — and that is why there is no vocabulary list to revise and nothing to memorise.</p>
+      </div>
+    </details>
+
+    <details class="fold">
+      <summary>
+        <b>No streaks and no points, on purpose.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">We do not count days in a row, and we never will. A streak is a lovely thing right up until it ends, and then it quietly becomes a reason to stay away — which is backwards, because the day you turn up again is the most valuable day there is. So the app simply has no way of knowing anything about the time you spend away from it.</p>
+        <p class="para">There are no points, no score and no leaderboard either. A points total only ever measures the app having an opinion about you. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.</p>
+        <p class="para">Plenty of apps do this differently and plenty of people love them for it. We would just rather build the one that is glad to see you whenever you turn up.</p>
+      </div>
+    </details>
+
+    <details class="fold">
+      <summary>
+        <b>None of it is a hunch — this has been action research since 2009.</b>
+        <svg class="chev" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.5 4 11.5 9l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="inner">
+        <p class="para">None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently a group of us worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.</p>
+        <p class="para">Which means you do not have to take a view on the method, or work out how to study, or build a plan. You just press play.</p>
+      </div>
+    </details>
+  </div>
+</div>
+
+</div>
+
+<script>
+  var only = new URLSearchParams(location.search).get('only')
+  if (only) {
+    document.querySelectorAll('.col').forEach(function (c) {
+      if (c.dataset.col !== only) c.remove()
+    })
+    document.querySelector('.col-label').remove()
+    document.body.style.padding = '0'
+    document.querySelector('.rail').style.gap = '0'
+    document.querySelectorAll('.col').forEach(function (c) {
+      c.style.width = '100%'
+      c.style.padding = '16px'
+      c.style.gap = '16px'
+    })
+    document.querySelector('.rail').style.display = 'block'
+  }
+  if (new URLSearchParams(location.search).get('collapsed') === '1') {
+    document.querySelectorAll('details.fold[open]').forEach(function (d) { d.removeAttribute('open') })
+  }
+</script>
+</body>
+</html>
