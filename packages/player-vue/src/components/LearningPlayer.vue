@@ -17896,7 +17896,15 @@ defineExpose({
 /* Uniform bold (Tom 2026-06-07): the whole known phrase reads at one bold
    weight — the old salient-substring emphasis + context fade is gone. */
 .hero-known {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  /* The known line is deliberately mono — but JetBrains Mono has no Greek, no
+     Cyrillic, no Devanagari and none of the Yoruba dot-belows, so for a course
+     whose known side is one of those it would fall to the OS per-character.
+     Reading the token rather than naming the family is what lets the
+     language-scoped rule reach it: --font-known-line is redefined inside a
+     coverage-language subtree (styles/design-tokens.css), and an inherited
+     custom property gets past this scoped rule's specificity in a way a
+     font-family declaration never could. */
+  font-family: var(--font-known-line);
   font-size: var(--known-text-size);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);

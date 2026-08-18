@@ -87,6 +87,11 @@
    * JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live break and are left to the
    * system `monospace` tail rather than paying for a fifth webfont. */
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  /* The player's known-language line, which is mono by design. Its own token
+   * because a hardcoded font-family in a scoped component style outranks the
+   * :lang() rule below — an inherited custom property does not, so this is how
+   * the coverage switch reaches it. */
+  --font-known-line: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 
   /* Font weights */
   --font-light: 300;
@@ -358,6 +363,7 @@
 :lang(se), :lang(sme), :lang(uk), :lang(ukr), :lang(yo), :lang(yor), :lang(zh),
 :lang(zho) {
   --font-body: var(--font-coverage);
+  --font-known-line: var(--font-coverage);
   font-family: var(--font-coverage);
 }
 
