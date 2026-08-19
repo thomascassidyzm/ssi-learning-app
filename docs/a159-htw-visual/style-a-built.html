@@ -65,18 +65,18 @@
   <p class="lead">The whole player screen, captured mid-turn, scaled down and annotated with the four things the prose already names.</p>
   <div class="card">
     <img src="player-annotated.png" alt="The player screen scaled and annotated with four callouts">
-    <p class="cap">Shown here at roughly twice the width it would have inside the explainer card.</p>
+    <p class="cap">The whole composite is 760 wide. The phone itself is 320 of that; the rest is gutter for the labels.</p>
   </div>
   <div class="card">
     <img src="player-full.png" alt="The raw player screenshot">
-    <p class="cap">The raw capture it was made from.</p>
+    <p class="cap">The raw capture it was made from — dev deploy, so it carries a DEV badge, a reset button, a Save Progress nudge and a devtools fab that no learner ever sees. Those four are hidden in the annotated version above, because the fab sat on top of the Library button one of the callouts points at.</p>
   </div>
 
   <div class="verdict">
     <h3 style="margin-top:0">My call: ship the pill, park the foldout</h3>
     <p><strong>The pill earns its place</strong> because it is the same object twice — the picture teaches the screen and the screen teaches the picture. It costs four lines of the panel and no scrolling.</p>
-    <p><strong>The foldout does not, at that size.</strong> The explainer card is 302 points wide. The phone in it would come out around 120 points across, which makes the pill inside it about 25 points — a smudge. It would read as decoration rather than instruction, and the callout text would be smaller than the prose it is explaining.</p>
-    <p>It is genuinely good material though. If you want it, it wants its own full-width surface — a tappable "show me the screen" that opens the annotated shot big — rather than a figure squeezed inline. One word and I will build that instead.</p>
+    <p><strong>The foldout is legible — but only at its own size.</strong> The phone renders at 320 across and reads fine there. The trouble is the labels: they live in gutters either side, so the whole composite needs 760, and the explainer card is 302. Drop it in as a figure and the phone squeezes to about 127 — a smudge, with callout text smaller than the prose explaining it.</p>
+    <p>So the question is not whether it works. It is where the labels go. Two ways to have it: give it a full-width surface of its own, a tappable "show me the screen" that opens it big; or redraw the callouts on top of the phone instead of beside it, which fits but crowds the screen it is explaining. I would take the first. One word either way and I will build it.</p>
   </div>
 
   <h2>3 · The three rewrites, in full</h2>
