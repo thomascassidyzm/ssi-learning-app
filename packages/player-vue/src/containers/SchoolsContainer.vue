@@ -341,6 +341,35 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
 
+// Second half of useAdminGate's guest hand-off: a signed-out visitor who
+// opened an /admin (or /methodology) deep link is sent here with the intended
+// destination in `next`, because this is the surface that carries the inline
+// email sign-in. Once the role resolves to ssi_admin, replay it — so the deep
+// link survives the sign-in rather than being silently swallowed by a bounce
+// to the player (owner, 2026-08-19: the admin links "redirecting" on his
+// phone was exactly this, a browser with no session and nothing on screen
+// saying so).
+//
+// Watch, not a one-shot: the role lands asynchronously after the OTP verify,
+// long after this container mounts. Only ssi_admin is replayed, and only onto
+// an admin path — a signed-in non-admin stays on the schools surface they can
+// actually use, and the prefix check keeps `next` from being an open redirect
+// (no protocol-relative '//evil.example', no arbitrary in-app route).
+function adminNextTarget(): string | null {
+  const next = route.query.next
+  if (typeof next !== 'string') return null
+  if (!/^\/(admin|methodology)(\/|\?|$)/.test(next)) return null
+  return next
+}
+watch(
+  () => isAuthenticated.value && isRoleInitialized.value && isSsiAdmin.value,
+  (readyForAdmin) => {
+    const target = adminNextTarget()
+    if (readyForAdmin && target) router.replace(target)
+  },
+  { immediate: true },
+)
+
 // WHERE-YOU-ARE rail on the FLAT views (founder ruling 2026-07-31: the rail
 // is orientation, not navigation — it never disappears). Routes opt in via
 // meta.railFrame; useSchoolsRail resolves the tree per role (school node for

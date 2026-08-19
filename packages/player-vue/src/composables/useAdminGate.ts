@@ -63,16 +63,44 @@ interface InjectedAuth {
   refreshRole?: () => Promise<void>
 }
 
+/**
+ * Where a denied visitor goes.
+ *
+ * A signed-in non-admin is a learner who tapped an admin link: the player at
+ * '/' is the right home for them, and asking them to sign in again would be
+ * nonsense — they already are.
+ *
+ * A GUEST is a different person entirely: almost always the operator opening
+ * an /admin deep link in a browser that has no session — a phone tapping a
+ * link out of a chat app, an in-app webview with its own empty storage, a
+ * fresh browser. Dropping them into the player looked exactly like a broken
+ * link (owner, 2026-08-19: "I can't see those links, they're redirecting"),
+ * because nothing on that screen says "you are signed out" or offers a way
+ * in. So send them to the one surface that already carries an inline email
+ * sign-in — /schools — and hand it the destination as `next`, which
+ * SchoolsContainer replays once the role resolves to ssi_admin. The deep link
+ * survives the sign-in instead of being silently eaten.
+ *
+ * Not a security decision: the server re-verifies every admin request
+ * regardless (see the doctrine block above). This is purely about a guest
+ * being able to SEE where the door is.
+ */
+export function deniedDestination(status: string, fullPath: string) {
+  if (status !== 'guest') return '/'
+  return { path: '/schools', query: { next: fullPath } }
+}
+
 export function useAdminGate() {
   const router = useRouter()
   const route = useRoute()
   const { isCheckingAccess, isDenied } = useAdminAccessState()
+  const { status } = useResolvedSession()
   const auth = inject<InjectedAuth | null>('auth', null)
 
   watch(
     isDenied,
     (deny) => {
-      if (deny) router.replace('/')
+      if (deny) router.replace(deniedDestination(status.value, route.fullPath))
     },
     { immediate: true },
   )

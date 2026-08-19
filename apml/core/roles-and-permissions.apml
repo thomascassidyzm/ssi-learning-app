@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.6.0"
-  date: "2026-08-06"
+  version: "1.7.0"
+  date: "2026-08-19"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -1163,6 +1163,64 @@ version_history:
       - "WIDENED: an org/group leader above the class in the hierarchy can now do all of it — previously only the school's own admin_user_id could"
       - "RLS lockstep: 20260806b_co_teacher_manage_ruling.sql narrows user_tags_update's class-membership disjunct to non-teacher rows, so the browser cannot route around the endpoint. Canary-applied live, 8/8 green"
       - "ClassDetail.vue hides the management verbs from a co-teacher and offers Leave instead of Remove"
+
+principle AdminDeepLinkSurvivesSignIn:
+  statement: "A signed-OUT visitor opening an /admin or /methodology deep link is offered a sign-in that returns them to it — never silently dropped into the player"
+
+  the_bug: |
+    Found live 2026-08-19 (Tom, on his phone, of the seeded VAD board and two
+    learner pages): "I can't see those links, they're redirecting". The server
+    returned 200 for every one of those URLs; the bounce was entirely
+    client-side, and entirely correct-by-the-old-rules — the browser simply had
+    no session. useAdminGate resolved the visitor as a guest, denied, and
+    router.replace('/')-ed them into the immersive player, which says nothing
+    about being signed out and offers no way in. An operator tapping an admin
+    link out of a chat app (an in-app webview carries its OWN empty storage, so
+    every tap is a fresh signed-out browser) therefore cannot tell a permissions
+    problem from a dead link from a broken deploy.
+
+  the_rule: |
+    Denial destination now depends on WHO is being denied:
+      - signed-in non-admin -> '/' (unchanged). They are a learner who tapped an
+        admin link; the player is their home and re-asking them to sign in is
+        nonsense.
+      - GUEST (a resolved session that found nobody) -> /schools?next=<fullPath>.
+        /schools is the surface already carrying the inline email-OTP sign-in.
+        SchoolsContainer replays `next` once the role resolves to ssi_admin, so
+        the deep link survives the sign-in instead of being swallowed.
+      - unresolved/pending -> '/' — never offer sign-in on a guess.
+
+  not_a_security_change: |
+    Server-side enforcement is untouched and remains THE enforcement (founder
+    ruling 2026-07-19: "security lives on the server, per request; a browser
+    timer is UX, not enforcement"). verifyAdmin / resolveVisibleScope /
+    resolveGroupTreeCaller re-verify every admin request regardless of any
+    client state. This changes only where a denied browser is SENT — i.e.
+    whether a guest can see where the door is.
+
+  open_redirect_guard: |
+    `next` is replayed only when it matches ^/(admin|methodology)(/|?|$) — so it
+    can never be protocol-relative ('//evil.example') or an arbitrary in-app
+    route, and only ever for an ssi_admin.
+
+  implemented_by: |
+    deniedDestination() + useAdminGate's deny watcher
+    (composables/useAdminGate.ts); the `next` replay watcher in
+    containers/SchoolsContainer.vue.
+
+  pinned_by: |
+    useAdminGate.test.ts — the three deniedDestination cases (guest /
+    signed-in non-admin / pending) plus a mounted-gate test asserting a guest
+    on /admin/test?board=vad lands on /schools carrying next.
+
+  v1.7.0:
+    date: "2026-08-19"
+    author: "Claude"
+    changes:
+      - "Added AdminDeepLinkSurvivesSignIn — a signed-out visitor on an /admin or /methodology deep link now goes to the inline sign-in at /schools carrying ?next=<path>, replayed on ssi_admin resolution, instead of being silently dropped into the player"
+      - "Denial destination is now role-aware: guest -> sign-in with next; signed-in non-admin -> '/' (unchanged); unresolved -> '/' (never guess)"
+      - "next is prefix-guarded to /admin|/methodology so it can never be an open redirect"
+      - "No server-side change: verifyAdmin / resolveVisibleScope / resolveGroupTreeCaller remain the enforcement"
 
   v1.5.0:
     date: "2026-08-06"
