@@ -1,0 +1,26 @@
+{
+  "id": "what-your-numbers-mean",
+  "title": "What your numbers mean",
+  "topic": "Your numbers",
+  "keywords": ["numbers", "stats", "activity", "time", "total time", "minutes", "hours", "phrases", "spoken", "counting", "count", "tally"],
+  "personas": ["learner"],
+  "place": { "route": "library" },
+  "steps": [
+    {
+      "anchor": "library-activity-stats",
+      "say": "These three are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "library-stat-total-time",
+      "say": "Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "library-stat-phrases",
+      "say": "Phrases is how many you have said out loud. It counts the sessions this device still remembers, so treat it as a recent tally rather than a lifetime one.",
+      "advance": { "on": "next" },
+      "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+    }
+  ]
+}

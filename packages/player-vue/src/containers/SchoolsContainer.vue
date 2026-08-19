@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openInApp } from '../composables/useInAppBrowser'
 import { ref, inject, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
@@ -421,7 +422,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <div v-else-if="showLogin || showNoAccess" class="schools-login-page">
       <!-- Brand pane -->
       <aside class="schools-login-pane schools-login-pane--brand">
-        <header class="brand-logo">
+        <header class="brand-logo brand-text">
           <span class="logo-mark">S</span>
           <span class="logo-text">
             SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>
@@ -443,7 +444,13 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         <footer class="brand-footer">
           <span>v3 · Spring 2026</span>
           <span class="brand-footer-sep">·</span>
-          <a href="https://www.saysomethingin.com" class="brand-footer-link">
+          <a
+            href="https://www.saysomethingin.com"
+            target="_blank"
+            rel="noopener"
+            class="brand-footer-link"
+            @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')"
+          >
             ← Back to saysomethingin.com
           </a>
         </footer>

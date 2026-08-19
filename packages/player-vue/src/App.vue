@@ -40,6 +40,9 @@ const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOv
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
+// In-app browser — renders nothing until a link asks to open a page inside the
+// app rather than throwing the learner out to a browser tab.
+const InAppBrowser = defineAsyncComponent(() => import('./components/InAppBrowser.vue'))
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -759,6 +762,7 @@ onMounted(async () => {
     <TesterFeedback />
     <WalkOverlay />
     <CheckoutOverlay />
+    <InAppBrowser />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>

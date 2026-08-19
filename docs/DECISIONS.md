@@ -1266,3 +1266,47 @@ while the same request against production still hands out the presigned URL, and
 request for a preview-seed clip is still served.
 **Search width:** visible-options (four alternatives, two of them the brief's own).
 **Decided by:** agent.
+
+## 2026-08-18 — A-159: the Library explains itself, on the existing walkthrough protocol
+**Move:** Extended the walkthrough engine with a `learner` persona (a MEMBER persona — gate 2
+polices it like any other non-admin) and a `library` place, wrote three hand-authored walks
+anchored to real elements in `BrowseScreen.vue`, and mounted a new
+`components/me/HowThisWorksLibrary.vue` beneath *Your Progress* in the Library: the same quiet
+link and soft-pulsing dot as every other How-this-works surface, closed by default, opening on
+the practical walks with the two existing methodology sections collapsed beneath.
+**Better:** twelve blocks of finished, reviewed learner prose currently live only on `/me`, a
+page nothing links to — so in practice they are unreachable. This makes them reachable at the
+one surface a learner actually opens, and puts *do* in front of *why*: what to actually tap,
+shown on the real page over the learner's own data, with the methodology behind it for the
+curious. Belts get their first explanation anywhere in the app.
+**Simpler:** it adds no mechanism. The engine, the compiler, the drift gates, the globally
+mounted `WalkOverlay`, the throb-state module and the prose all already existed; this wires
+them to a surface they had never been mounted on, and it *deletes* an orphaned surface rather
+than adding one. The two prose components are reused as-is, with a one-prop label override
+instead of a duplicate.
+**Cheaper (total):** zero runtime tokens (compile-time-only artifacts, a few KB of JSON in the
+bundle already shipped), zero new endpoints, zero new queries. Maintenance is negative: a
+renamed button in the Library now FAILS THE BUILD rather than quietly making the explanation
+lie.
+**Searched & rejected:**
+- **A video or an animated tour** — rejected by the founder instruction itself: the protocol is
+  walks that show what actually happens, on the real page.
+- **A second, learner-specific engine** — rejected: the existing engine's persona × place
+  filtering already models "who sees which walk where", and a second engine would double the
+  drift surface that is the whole point of the first.
+- **Rewriting the prose for the Library** — rejected: the prose is founder-reviewed and passes
+  the content laws. The gap was reachability and ordering, not the writing.
+- **Making the Library a route** — rejected: `?screen=library` already addresses it, and the
+  close-and-you-are-back-in-the-lesson feel is the right one.
+- **Walks that reach through into the player** — parked, not rejected: the Library is an overlay
+  drawn over the player, so a player anchor may be covered or unmounted. First slice stays
+  inside the overlay and says "close this and press play" where the doing lives elsewhere.
+  Founder call whether to extend.
+**Verified:** `@ssi/core` build clean; player-vue typecheck clean; 2246 tests pass; lint 0 errors
+on every changed file (the 4 repo-wide errors are in other agents' untracked `e2e/_*.mjs`
+scratch files, invisible to CI); `node tools/walkthrough/compile.mjs --check` green at 15 walks
+/ 53 steps.
+**Search width:** visible-options (five alternatives, one parked).
+**Decided by:** agent, on the founder's 2026-08-18 instruction. Supersedes the 2026-07-27
+"learner level is deliberately nothing" ruling in `docs/self-explaining-dashboard.md`; the bar
+that ruling set — optional, quiet, never in the way — still governs.

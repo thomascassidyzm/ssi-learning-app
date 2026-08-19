@@ -96,6 +96,7 @@ export const setLocale = async (langCode: string): Promise<void> => {
     // localStorage might be unavailable
   }
   currentLocale.value = langCode
+  syncDocumentLang()
 
   // Use cached messages if we've already loaded this locale.
   const cached = loadedLocales[langCode]
@@ -171,6 +172,26 @@ const ISO3_TO_BCP47: Record<string, string> = {
   tel: 'te', msa: 'ms', yue: 'yue', fas: 'fa', kur: 'ku', amh: 'am',
   hau: 'ha', yor: 'yo', zul: 'zu', kat: 'ka', hye: 'hy', bre: 'br',
   cor: 'kw', sin: 'si',
+}
+
+/**
+ * Publish the interface language on `<html lang>`.
+ *
+ * `index.html` ships `lang="en"` and nothing ever moved it, so a Hindi or
+ * Yoruba interface still claimed to be English. Two things read this:
+ *   - the glyph-coverage CSS (styles/design-tokens.css) — DM Sans cannot spell
+ *     Devanagari or the Yoruba dot-belows, and `:lang()` is how those UI
+ *     strings reach Noto Sans as a whole run rather than character by
+ *     character;
+ *   - screen readers and hyphenation, which were being told the wrong thing.
+ *
+ * BCP 47 where we have the 2-letter code, otherwise the app's own 639-3 code;
+ * the CSS matches both forms.
+ */
+export const syncDocumentLang = (): void => {
+  if (typeof document === 'undefined') return
+  const code = currentLocale.value
+  document.documentElement.lang = ISO3_TO_BCP47[code] || code
 }
 
 /**
@@ -526,6 +547,11 @@ export const getLanguageFlag = (langCode: string): string => {
   if (cc) return countryCodeToFlag(cc)
   return '🌐'
 }
+
+// Boot: publish the saved locale on <html lang> straight away. setLocale() keeps
+// it in step from here on; this runs at the foot of the module because it reads
+// the ISO3_TO_BCP47 table defined above it.
+syncDocumentLang()
 
 /**
  * Composable for use in Vue components

@@ -167,7 +167,7 @@ const handleAuthSuccess = () => closeAuth()
 
     <div v-else-if="showLogin" class="teach-login">
       <FrostCard variant="panel" class="login-card">
-        <div class="login-header">
+        <div class="login-header brand-text">
           <span class="login-logo">SaySomethingin</span>
           <span class="login-logo-accent">Teach</span>
         </div>

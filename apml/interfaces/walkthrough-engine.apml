@@ -1,5 +1,9 @@
 # Walkthrough Engine — compiled in-app walkthroughs for the schools/admin surface
-# Last updated: 2026-08-08 (move-a-teacher-between-classes joins the class-detail set;
+#                      and, since A-159, for the LEARNER in the Library
+# Last updated: 2026-08-18 (A-159: the 'learner' persona and the 'library' place — the
+#               engine's first non-dashboard surface, three walks mounted on the
+#               Library's own How-this-works section;
+#               2026-08-08 move-a-teacher-between-classes joins the class-detail set;
 #               2026-08-06 co-teaching coverage: share-a-class, invite-a-supply-teacher,
 #               hand-over-the-lead; card genre extracted to WalkCard.vue, shared with the
 #               org onboarding gate — one teaching voice, two mounts; the password and
@@ -27,7 +31,7 @@ architecture:
     tools/walkthrough/compile.mjs: CLI — `--check` validates, default writes pack
     gates:
       - anchor existence: every step anchor must exist as data-walk="<id>" in packages/player-vue/src/**/*.vue (missing = FAIL; orphan = warning)
-      - persona visibility: a walk offered to member personas (leader/school_admin/teacher) must not anchor to an element behind v-if="!member" (FAIL)
+      - persona visibility: a walk offered to member personas (leader/school_admin/teacher/learner) must not anchor to an element behind v-if="!member" (FAIL). 'learner' (A-159) is the furthest of all from admin and is policed identically.
       - place validity: place.route must be in useWalkthrough.ts KNOWN_PLACES (lockstep, FAIL)
       - offer lockstep: every walk:<id> CTA in tools/explainer/rules.json must name a pack walk; evaluateRules.ts must handle the 'walk:' prefix (FAIL)
       - safety denylist: click-advance steps must never anchor destructive/minting verbs (delete/purge/entitlement/rotate/revoke/submit/grant/expire/play/toggle) (FAIL)
@@ -55,6 +59,22 @@ offering_surfaces:  # invitations, not missions — NOTHING auto-plays, ever
   noticing_invitations: rules.json CTA target 'walk:<id>' renders as a button (NoticingInvitations.vue) that starts the walk in place
   how_this_works: HowThisWorks.vue card lists matching node-home walks as Show-me links
   walk_offer_mounts: NodeInsightsView (node-insights), ClassDetail (class-detail, teacher only), AdminInvites (admin-invites)
+  library_how_this_works: >  # A-159, 2026-08-18 — the learner's offering surface
+    components/me/HowThisWorksLibrary.vue, mounted in BrowseScreen.vue beneath
+    Your Progress and before Activity, CLOSED by default. Same protocol as the
+    admin/org one: a quiet "How this works" link carrying a soft-pulsing dot
+    until first opened (explainer/learnerThrob.ts, section id
+    'library-how-this-works', independent of the two profile sections),
+    prefers-reduced-motion respected, nothing opens uninvited.
+    ORDER IS THE POINT: practical first — the panel opens on the walks
+    (walksFor('learner','library',kind)) — with the two existing methodology
+    sections (HowThisWorksLearner, WhyThisWorks) collapsed beneath as the
+    why-this-works layer. Prose is reused unchanged; HOW_THIS_WORKS_LEARNER
+    takes the label "Using the app" here so it does not repeat its parent's
+    name (the linkLabel prop; ProfileView is untouched).
+    kind = 'guest' | 'signed-in' from the auth state, so the sign-in walk is
+    offered only where the guest banner is actually rendered — a fact about
+    the pack, never a hardcoded id in the panel.
 
 genre_reuse:  # 2026-08-06
   rule: >
@@ -99,3 +119,22 @@ walks_v1 (11):
   - move-a-teacher-between-classes: class-detail — teacher — the class↔teacher relationship read the OTHER way round ("which classes does this person take?"), via Other classes → the tick list. Teaches that a move is one untick plus one tick, and that belonging to several classes is just several ticks — the two things Tom went looking for on 2026-08-08 and could not find (2026-08-08)
   - set-your-password: node-home (org/group/school) — leader — anchored to YourAccount.vue; the link you came in on will not last, and this is the way back (founder ruling 2026-08-06)
   - install-the-app: node-home (org/group/school) — leader — anchored to YourAccount.vue; context-aware by device (installPlatform), and NOT one-time — the row waits however long the leader takes to change their mind
+
+learner_walks (3, A-159 2026-08-18):  # place: library — every anchor inside the Library overlay
+  - where-you-are-in-this-course: library — learner — the progress card, the belt strip, the position track, the belt browser. Carries the app's ONLY statement of what a belt is: a POSITION in the course, not a grade and nothing to pass.
+  - choose-something-else-to-learn: library — learner — the search box and the course grid, and that each course keeps its own place so switching costs you nothing
+  - save-your-progress: library (kind guest) — learner — the guest sign-in banner: email plus a code, and everything already done comes with you
+  anchoring_ruling: >
+    First-slice taste-safe default: every learner walk anchors to an element
+    INSIDE the Library overlay. The Library is drawn over the player, so an
+    anchor in the player behind it may be covered or unmounted. Where the
+    doing genuinely lives in the player, the walk says so in its terminal line
+    ("close this and press play") rather than pointing at what cannot be seen.
+    Whether walks should reach through into the player is a founder call, not
+    an engine limitation.
+  content_laws: >
+    Learner walk prose obeys the learnerExplainers.ts header laws exactly as
+    the profile sections do: no streaks, no days-since, no guilt, no points,
+    no score, no leaderboard, and no internal terminology ever learner-facing.
+    Unit-tested in useWalkthrough.test.ts. The thirty-hour promise stays in
+    WHY_THIS_WORKS and appears in no walk.
