@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { canFrame } from '../composables/useInAppBrowser'
 import {
   HOW_THIS_WORKS_LEARNER,
   WHY_THIS_WORKS,
@@ -16,7 +17,13 @@ function learnerFacingStrings(section: ExplainerSection): string[] {
   return [
     section.linkLabel,
     section.intro,
-    ...section.blocks.flatMap((b) => [b.heading, ...b.body, ...(b.points ?? [])]),
+    ...section.blocks.flatMap((b) => [
+      b.heading,
+      ...b.body,
+      ...(b.points ?? []),
+      // Link labels are learner-facing copy too, so they face the same laws.
+      ...(b.links ?? []).map((l) => l.label),
+    ]),
   ]
 }
 
@@ -141,5 +148,53 @@ describe('learner explainer copy — How this works covers using the app', () =>
   it('defines a go as having a crack at it, not as getting it right', () => {
     const go = HOW_THIS_WORKS_LEARNER.blocks.find((b) => /a go/i.test(b.heading))
     expect(go!.body.join(' ')).toMatch(/getting it wrong is still a go/i)
+  })
+})
+
+/**
+ * The proof rows in "Where all this comes from". That block asserts evidence,
+ * so every row has to actually go somewhere — and go there *inside* the app,
+ * because a standalone-PWA learner sent to Safari mid-session loses their place.
+ *
+ * canFrame() is imported rather than the host list being repeated here: if a
+ * host ever drops off the in-app browser's allowlist, this test fails and the
+ * rows get revisited, instead of two copies of the list drifting apart.
+ */
+describe('explainer proof links', () => {
+  const ALL_LINKS = SECTIONS.flatMap((s) => s.blocks.flatMap((b) => b.links ?? []))
+
+  it('ships the named proof rows on "Where all this comes from"', () => {
+    const block = WHY_THIS_WORKS.blocks.find((b) => /where all this comes from/i.test(b.heading))
+    expect(block).toBeDefined()
+    expect(block!.links?.length).toBeGreaterThanOrEqual(4)
+    // The Croatian row leads: the paragraph above it already names Croatian,
+    // so the first link reads as the receipt for the sentence just read.
+    expect(block!.links![0].url).toContain('intensive-croatia')
+  })
+
+  it('gives every row a real, non-empty destination and label', () => {
+    expect(ALL_LINKS.length).toBeGreaterThan(0)
+    for (const link of ALL_LINKS) {
+      expect(link.url.trim()).not.toBe('')
+      expect(link.label.trim()).not.toBe('')
+      expect(link.title.trim()).not.toBe('')
+    }
+  })
+
+  it('only links to https pages the in-app browser will actually frame', () => {
+    for (const link of ALL_LINKS) {
+      expect(link.url.startsWith('https://')).toBe(true)
+      expect(canFrame(link.url), `${link.label} -> ${link.url}`).toBe(true)
+    }
+  })
+
+  it('never names a broadcaster it would have to keep in sync', () => {
+    const labels = ALL_LINKS.map((l) => l.label).join(' ')
+    expect(labels).not.toMatch(/RTÉ|RTE|BBC|S4C|Liveline|Raidió/i)
+  })
+
+  it('points every row at a distinct page', () => {
+    const urls = ALL_LINKS.map((l) => l.url)
+    expect(new Set(urls).size).toBe(urls.length)
   })
 })

@@ -1,7 +1,9 @@
 # APML Interface: In-app browser overlay
 # SSI Learning App
 # Version: 1.0.0
-# Last updated: 2026-08-18 (created — owner ruling of 2026-08-18 that
+# Last updated: 2026-08-19 (A-178: the Why-this-works proof rows now open
+#   named saysomethingin.com intensive pages through this overlay)
+# Created: 2026-08-18 (owner ruling of 2026-08-18 that
 #               saysomethingin.com links should open inside the app)
 # Source: packages/player-vue/src/composables/useInAppBrowser.ts
 #         packages/player-vue/src/components/InAppBrowser.vue
@@ -113,6 +115,11 @@ CALL_SITES:
     - "components/SettingsScreen.vue — classic Welsh listening (refuses → external)"
     - "containers/SchoolsContainer.vue — 'Back to saysomethingin.com' (frames)"
     - "views/TryLinkGateway.vue — 'Visit SaySomethingin' (frames)"
+    - "components/me/WhyThisWorks.vue — the five proof rows on the
+       'Where all this comes from' block (all frame). These are buttons, not
+       converted anchors: the rows are data in explainer/learnerExplainers.ts
+       (ExplainerBlock.links), so openInApp is the only path and there is no
+       href to fall back to."
   note: |
     Converted anchors keep their href plus target=_blank/rel=noopener as a
     no-JS fallback; the @click.prevent handler is what routes them.

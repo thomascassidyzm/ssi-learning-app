@@ -17,12 +17,31 @@
  *   quiet confidence.
  */
 
+/**
+ * A proof row: a plain text link out to a page on saysomethingin.com that
+ * shows the thing actually happening to somebody.
+ *
+ * The label describes the RUN, never a fact off the page — so editing the page
+ * can never make the label a lie, and nothing here has to be kept in sync.
+ * Every url must be https and on a host the in-app browser will frame, so the
+ * learner is never thrown out to Safari mid-session; the test asserts both
+ * against canFrame() rather than repeating the allowlist.
+ */
+export interface ExplainerLink {
+  label: string
+  url: string
+  /** Shown in the in-app browser's header. */
+  title: string
+}
+
 export interface ExplainerBlock {
   heading: string
   /** Paragraphs, rendered as plain text. */
   body: string[]
   /** Optional short list, rendered beneath the paragraphs. */
   points?: string[]
+  /** Optional link rows, rendered beneath everything else. */
+  links?: ExplainerLink[]
 }
 
 export interface ExplainerSection {
@@ -138,6 +157,34 @@ export const WHY_THIS_WORKS: ExplainerSection = {
       body: [
         'None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently Aran worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.',
         'Which means you do not have to take a view on the method, or work out how to study, or build a plan. You just press play.',
+        'If you want to watch it happening to somebody, it is all on our website.',
+      ],
+      links: [
+        {
+          label: 'An hour a day of Croatian, filmed all seventy-five days',
+          url: 'https://www.saysomethingin.com/intensive-croatia',
+          title: "Aran's 75 days of Croatian",
+        },
+        {
+          label: 'Ten days of Irish, ending in a live radio interview',
+          url: 'https://www.saysomethingin.com/intensive-ireland',
+          title: 'Ten days of Irish',
+        },
+        {
+          label: 'Ten days of Japanese',
+          url: 'https://www.saysomethingin.com/intensive-japanuary',
+          title: 'Ten days of Japanese',
+        },
+        {
+          label: 'Thirty days of Welsh from a standing start',
+          url: 'https://www.saysomethingin.com/intensive-welsh-tom',
+          title: "Tom's 30 days of Welsh",
+        },
+        {
+          label: 'The folk we have taught on telly',
+          url: 'https://www.saysomethingin.com/celebrity-coaching',
+          title: 'On telly',
+        },
       ],
     },
   ],
