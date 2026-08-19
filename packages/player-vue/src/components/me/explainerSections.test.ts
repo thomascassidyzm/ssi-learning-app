@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import HowThisWorksLearner from './HowThisWorksLearner.vue'
 import WhyThisWorks from './WhyThisWorks.vue'
+import ExplainerFigure from './ExplainerFigure.vue'
 import { LEARNER_EXPLAINER_SEEN_KEY } from '@/explainer/learnerThrob'
+import {
+  HOW_THIS_WORKS_LEARNER,
+  WHY_THIS_WORKS,
+  type ExplainerFigureName,
+} from '@/explainer/learnerExplainers'
 
 describe('learner explainer sections — the pulse-until-viewed mechanic', () => {
   beforeEach(() => window.localStorage.clear())
@@ -86,6 +92,53 @@ describe('learner explainer sections — the pulse-until-viewed mechanic', () =>
     // A text alternative in the learner's own words, never internal phase names.
     expect(fig.find('.cpf-caption').text()).toMatch(/your turn to say it out loud/i)
     expect(fig.text()).not.toMatch(/PROMPT|VOICE_1|SPEAK/)
+  })
+
+  /**
+   * The rest of the drawings (A-159 Parts 2 and 3). Every figure the prose
+   * module names must actually draw something: a name with no component behind
+   * it fails the typecheck, and a component that renders nothing fails here.
+   */
+  it('draws every figure the prose names, in the block that names it', async () => {
+    const how = mount(HowThisWorksLearner)
+    const why = mount(WhyThisWorks)
+    await how.find('.lx-toggle').trigger('click')
+    await why.find('.wx-toggle').trigger('click')
+
+    for (const [section, wrapper, blockSel, headingSel] of [
+      [HOW_THIS_WORKS_LEARNER, how, '.lx-block', '.lx-heading'],
+      [WHY_THIS_WORKS, why, '.wx-block', '.wx-heading'],
+    ] as const) {
+      const drawn = section.blocks.filter((b) => b.figure)
+      const blocks = wrapper.findAll(blockSel)
+      expect(blocks.filter((b) => b.find('figure').exists())).toHaveLength(drawn.length)
+
+      for (const block of drawn) {
+        const rendered = blocks.find((b) => b.find(headingSel).text() === block.heading)!
+        expect(rendered.find('figure svg').exists(), block.heading).toBe(true)
+      }
+    }
+  })
+
+  it('gives every drawing a described role and no animation', () => {
+    const NAMES: ExplainerFigureName[] = [
+      'cycle-pill', 'three-gaps', 'spacing-returns',
+      'listening-stretch', 'worn-path', 'climbing-band',
+    ]
+    for (const name of NAMES) {
+      const fig = mount(ExplainerFigure, { props: { name } })
+      const html = fig.html()
+      // The pill is a div stack captioned in prose; the drawn figures are SVGs
+      // that describe themselves. Either way there is a text alternative.
+      const svg = fig.find('svg[role="img"]')
+      if (svg.exists()) {
+        expect(svg.attributes('aria-label')!.length, name).toBeGreaterThan(20)
+      } else {
+        expect(fig.text().trim().length, name).toBeGreaterThan(20)
+      }
+      // Part 1's breathing dot is the only moving thing in the explainer.
+      expect(html, name).not.toContain('animate')
+    }
   })
 
   /**

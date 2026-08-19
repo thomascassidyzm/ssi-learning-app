@@ -19,6 +19,7 @@ import { ref } from 'vue'
 import { WHY_THIS_WORKS as section } from '@/explainer/learnerExplainers'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 import { openInApp } from '@/composables/useInAppBrowser'
+import ExplainerFigure from './ExplainerFigure.vue'
 
 const props = withDefaults(defineProps<{
   /** Auth uid where the mount knows it; 'anon' keeps the state per-device. */
@@ -50,6 +51,7 @@ function toggle(): void {
         <div v-for="block in section.blocks" :key="block.heading" class="wx-block">
           <h3 class="wx-heading">{{ block.heading }}</h3>
           <p v-for="(para, i) in block.body" :key="i" class="wx-para">{{ para }}</p>
+          <ExplainerFigure v-if="block.figure" :name="block.figure" />
           <ul v-if="block.points" class="wx-points">
             <li v-for="(point, i) in block.points" :key="i">{{ point }}</li>
           </ul>

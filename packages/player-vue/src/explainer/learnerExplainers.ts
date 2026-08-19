@@ -34,6 +34,31 @@ export interface ExplainerLink {
   title: string
 }
 
+/**
+ * The illustrations, named here and drawn by components — so prose stays in
+ * this module and pixels stay in components. Every name in this union must have
+ * a component behind it in ExplainerFigure.vue, which holds the map as a
+ * Record over exactly this type, so a name no component draws will not compile.
+ *
+ * · cycle-pill — the still portrait of the player's own phase pill.
+ * · three-gaps — three gaps side by side, one arriving, one half arriving, one
+ *   coming out wrong, all three carrying the same tick.
+ * · spacing-returns — new things arriving along a session line, each coming
+ *   back below at visibly widening intervals. Deliberately no days and no grid.
+ * · listening-stretch — the speaking rhythm of beats and gaps giving way to one
+ *   unbroken stroke. The absence of gaps is the argument.
+ * · worn-path — a route worn in by footfalls beside the same route merely read.
+ * · climbing-band — one climbing band whose two halves, speaking and deep
+ *   listening, swap width at the corner. The same climb as the mountain.
+ */
+export type ExplainerFigureName =
+  | 'cycle-pill'
+  | 'three-gaps'
+  | 'spacing-returns'
+  | 'listening-stretch'
+  | 'worn-path'
+  | 'climbing-band'
+
 export interface ExplainerBlock {
   heading: string
   /** Paragraphs, rendered as plain text. */
@@ -42,12 +67,8 @@ export interface ExplainerBlock {
   points?: string[]
   /** Optional link rows, rendered beneath everything else. */
   links?: ExplainerLink[]
-  /**
-   * Optional illustration, named here and drawn by the rendering component —
-   * so prose stays in this module and pixels stay in components. 'cycle-pill'
-   * is the still portrait of the player's own phase pill.
-   */
-  figure?: 'cycle-pill'
+  /** Optional illustration for this block. */
+  figure?: ExplainerFigureName
 }
 
 export interface ExplainerSection {
@@ -86,16 +107,20 @@ export const HOW_THIS_WORKS_LEARNER: ExplainerSection = {
     {
       heading: 'What a go is',
       body: [
-        'A go is one of those gaps where you opened your mouth and had a crack at it. That is all it takes to count.',
+        'A go is one of those gaps where you opened your mouth and had a crack at it.',
         'Getting it wrong is still a go, and it still does the work. The reaching is the bit that builds the language — whether it arrives is almost beside the point.',
       ],
+      // Three ticked gaps now say "that is all it takes to count", so the
+      // sentence that said it has gone. Founder ruling 2026-08-19.
+      figure: 'three-gaps',
     },
     {
       heading: 'What a session feels like',
       body: [
-        'New things arrive one at a time, and things you met earlier come back round on their own, spaced out so you meet them again just as they start to slip. You never have to keep track of any of that.',
+        'New things arrive one at a time, and things you met earlier come back on their own, just as they start to slip. You never have to keep track of any of that.',
         'Ten minutes is a real session. An hour is a proper one. Stop whenever you like and it picks up exactly where you left off.',
       ],
+      figure: 'spacing-returns',
     },
     {
       heading: 'The different ways to use it',
@@ -104,16 +129,17 @@ export const HOW_THIS_WORKS_LEARNER: ExplainerSection = {
       ],
       points: [
         'Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.',
-        'Fast is the standard pace. Easy gives you about double the thinking time and more repetition, for when you want longer to get the words out.',
+        'Fast is the standard pace. Easy gives you about double the thinking time and says each phrase twice over.',
         'Offline downloads a chunk of the course onto your phone, so it plays with no signal at all.',
       ],
     },
     {
       heading: 'What the listening stretches ask of you',
       body: [
-        'Every so often the speaking gives way to a stretch of listening. It starts on its own, introduced by a quiet now just listen for a while, and then it simply plays.',
-        'Nothing is asked of you here. Let it come at you without effort but with attention, the way you would listen to birdsong. The words are on screen if you want them, and the next speaking round arrives by itself afterwards.',
+        'Every so often the speaking gives way to a stretch of listening, introduced by a quiet now just listen for a while.',
+        'Let it come at you without effort but with attention, the way you would listen to birdsong. The words are on screen if you want them.',
       ],
+      figure: 'listening-stretch',
     },
     {
       heading: 'Changing course',
@@ -134,8 +160,11 @@ export const WHY_THIS_WORKS: ExplainerSection = {
       heading: 'Say it before you hear it',
       body: [
         'That gap before the answer is where everything happens. Every time you reach for something and it does not quite come, you are laying down the path that makes it come next time.',
-        'Recognising a phrase on a page feels easier and does much less. So we ask you to produce it first, out loud, every time — and that is why there is no vocabulary list to revise and nothing to memorise.',
+        'So we ask you to produce it first, out loud, every time.',
       ],
+      // The drawing carries "recognising feels easier and does less" and
+      // "nothing to revise, nothing to memorise", so the prose stops saying so.
+      figure: 'worn-path',
     },
     {
       heading: 'What happens at around thirty hours',
@@ -149,18 +178,26 @@ export const WHY_THIS_WORKS: ExplainerSection = {
       ],
     },
     {
-      heading: 'Thirty hours, spent however suits you',
+      // The pace block. It names Easy and Fast, because the settings and the
+      // spread are the same argument, and it leads with the recommendation
+      // rather than the menu. The two setting names are fixed — founder ruling
+      // 2026-08-19, "we're not going to change the wording on it" — so they are
+      // never renamed, subtitled or held at arm's length here.
+      heading: 'The best way to spend thirty hours',
       body: [
-        'Thirty is the number that matters. How you spread them is entirely yours. An hour a day for a month works. Six hours a day for five days works too, if you have a real burn on and the time to feed it.',
-        'Five minutes a day sounds like the gentle option, and it is actually the hardest road of the lot — the most decisions to make, and the least evidence per sitting that any of it is working. If you can give it bigger stretches, give it bigger stretches.',
+        'If we had to tell you one thing about how to spend the thirty hours, it is this. Start with a big stretch, then settle into a rhythm. A whole day of it, then an hour a day, then another whole day when you can.',
+        'That is not because rushing teaches you more. It does not. Thirty hours spread thin gives your brain far more time to settle in between, and Easy hands you about double the thinking time and says each phrase twice over. Taken steadily, that really is the better learning, and we would not pretend otherwise.',
+        'It is that five minutes a day for a year is a much harder thing to actually do than it sounds, and for most of that year you would not feel much happening. A burst at the start changes that. You get a first conversation out of it, and the faith that this works on you, months before the gentle road would hand you either.',
+        'And there is one plain advantage to going fast. You get there sooner, and you can start using the language sooner.',
       ],
     },
     {
       heading: 'Speaking first, deep listening later',
       body: [
         'For the first thirty hours or so it is mostly speaking, with listening folded in around it. After that the balance tips, and longer listening deep dives on harder material become the thing that carries you forward.',
-        'That second part is what we are most confident about. Bulk listening is the real difference-maker — but only once you have enough of your own language to hang it on, which is what the speaking builds.',
+        'That second part is what we are most confident about — but it only works once you have enough of your own language to hang it on, which is what the speaking builds.',
       ],
+      figure: 'climbing-band',
     },
     {
       heading: 'Why there are no streaks and no points',

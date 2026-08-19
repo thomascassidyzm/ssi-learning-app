@@ -176,6 +176,12 @@ implementation:
     - "components/me/SettingsDirection.vue"
     - "components/me/CyclePillFigure.vue"
     - "components/me/PlayerScreenFigure.vue"
+    - "components/me/ExplainerFigure.vue — figure NAME to drawing, the only map"
+    - "components/me/ThreeGapsFigure.vue"
+    - "components/me/SpacingReturnsFigure.vue"
+    - "components/me/ListeningStretchFigure.vue"
+    - "components/me/WornPathFigure.vue"
+    - "components/me/ClimbingBandFigure.vue"
   content: "explainer/learnerExplainers.ts"
   throb: "explainer/learnerThrob.ts — learner-side sibling of howThisWorksThrob.ts, which is untouched"
 
@@ -237,6 +243,50 @@ ruling ShowMeTheScreen:
     Fixed full-screen, safe-area-padded header per CLAUDE.md, one close, Escape
     closes, body scroll locked while open. No new overlay abstraction.
   verified_live: "e2e/explainer/player-screen-figure-verify.mjs — all green against a real build"
+
+ruling TheRestOfTheDrawings:
+  date: "2026-08-19"
+  founder_words: "the graphics are good. The ones where you've talked about what a go is and what listening is and what speaking is and all that sort of stuff. I think it's all very valuable. Looks excellent."
+  decision: |
+    Five more figures ship, restyled to the Style A conventions Part 1 set —
+    Mist tokens, white card, one ink weight, no new colours, no animation, live
+    SVG plus real text rather than baked images. The style fork A-179 is closed
+    by this: Parts 2 and 3 match Part 1 rather than proposing an alternative.
+  figures:
+    three-gaps: "What a go is — three gaps, one arriving, one half arriving, one wrong, all three carrying the SAME tick. The sameness is the argument, so the sentence 'that is all it takes to count' is gone."
+    spacing-returns: "What a session feels like — arrivals along a line, each returning below at widening intervals. NO calendar, NO grid, NO days: a spacing picture with days on it is a streak picture in disguise. No 'you are here' marker either."
+    listening-stretch: "The listening stretches — beats and gaps giving way to one unbroken stroke. The ABSENCE of gaps is the proof that nothing is asked."
+    worn-path: "Say it before you hear it — a route worn in by footfalls beside the same route merely read. Reaching and recognising differ in kind, not in degree."
+    climbing-band: "Speaking first, deep listening later — one climbing band whose halves swap width at a corner. It has no switch in it: proportions change, nothing stops. The thirty-hour number stays OFF the drawing and in the body text."
+  undrawn_on_purpose: |
+    "Changing course" gets NO illustration. It is a directory row, and the real
+    Library glyph the learner hunts for at the bottom left is the whole point —
+    a drawing of a glyph teaches the learner to look for the drawing.
+  one_map: |
+    ExplainerBlock.figure is typed ExplainerFigureName; ExplainerFigure.vue
+    holds a Record over exactly that union. A name with no component behind it
+    fails the typecheck, so a figure nothing draws cannot ship silently.
+  drawings_buy_shorter_prose: |
+    Every illustrated block was TRIMMED. If the words stay the same length the
+    drawing is a net cost — the point of a picture is that the prose can stop
+    arguing what the picture states.
+  no_second_moving_thing: "Part 1's breathing dot stays the only animation; a second would make it a style rather than an accent."
+
+ruling TheBestWayToSpendThirtyHours:
+  date: "2026-08-19"
+  founder_words: "Easy has more time to think, more repetitions - literally doubled up each phrase … but EASY is an illusion. In terms of cognitive load, it's way harder to do it on the fast settings. But in terms of adherence is much easier to do a few short bursts at the start. We're not going to change the wording on it."
+  replaces: "the Why-this-works block formerly headed 'Thirty hours, spent however suits you'"
+  decision: |
+    The block leads with the recommendation rather than the menu: start with a
+    big stretch, then settle into a rhythm. It names Easy and Fast, because the
+    settings and the spread are one argument, not two.
+  the_illusion_stated_both_ways: |
+    Taken steadily, Easy really is the better learning — said plainly, not
+    hedged. AND five minutes a day for a year is far harder to actually keep up
+    than it sounds. Both halves ship, or the block is a lie or a scolding.
+  fast_is_sold_as_sooner_never_as_better: "'You get there sooner, and you can start using the language sooner' — never that rushing teaches more."
+  setting_names_are_fixed: "Easy and Fast are never renamed, subtitled or held in quotation marks anywhere in learner copy."
+  ten_hours_softened: "The founder's '10 hour day' ships as 'a whole day of it' — a stated ten hours reads as a dare rather than an invitation. One word to flip it back."
 
 ruling HonestAboutWhatWeKnow:
   date: "2026-08-19"

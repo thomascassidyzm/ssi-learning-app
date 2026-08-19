@@ -94,24 +94,43 @@ describe('learner explainer copy — the hard laws', () => {
   })
 
   it('carries the honest thirty-hour framing: tough first, then a lot easier', () => {
-    const block = WHY_THIS_WORKS.blocks.find((b) => /thirty hours/i.test(b.heading))!
+    const block = WHY_THIS_WORKS.blocks.find((b) => /what happens at around thirty hours/i.test(b.heading))!
     const text = block.body.join(' ')
     expect(text).toMatch(/first thirty hours are tough/i)
     expect(text).toMatch(/really does get a lot easier/i)
   })
 
-  it('illustrates what pressing play does with the player’s own pill', () => {
-    const play = HOW_THIS_WORKS_LEARNER.blocks.find((b) => /pressing play/i.test(b.heading))!
-    expect(play.figure).toBe('cycle-pill')
-    // Exactly one figure across both sections — it is an illustration, not a motif.
-    const figures = SECTIONS.flatMap((s) => s.blocks).filter((b) => b.figure)
-    expect(figures).toHaveLength(1)
+  /**
+   * The drawings. A block earns one only where the picture argues something the
+   * sentence has to work at — so the illustrated blocks are a fixed, named set,
+   * and a figure quietly appearing on a seventh block fails here.
+   */
+  it('illustrates exactly the blocks whose claim a picture can state outright', () => {
+    const illustrated = SECTIONS.flatMap((s) => s.blocks)
+      .filter((b) => b.figure)
+      .map((b) => [b.heading, b.figure])
+    expect(illustrated).toEqual([
+      ['What pressing play does', 'cycle-pill'],
+      ['What a go is', 'three-gaps'],
+      ['What a session feels like', 'spacing-returns'],
+      ['What the listening stretches ask of you', 'listening-stretch'],
+      ['Say it before you hear it', 'worn-path'],
+      ['Speaking first, deep listening later', 'climbing-band'],
+    ])
+    // Each drawing argues its own block: no name is reused as a motif.
+    expect(new Set(illustrated.map(([, f]) => f)).size).toBe(illustrated.length)
+  })
+
+  it('leaves the directory block undrawn — the real Library glyph is the point', () => {
+    const changing = HOW_THIS_WORKS_LEARNER.blocks.find((b) => /changing course/i.test(b.heading))!
+    expect(changing.figure).toBeUndefined()
   })
 
   it('shows the player screen itself once, at the top of How this works', () => {
     expect(HOW_THIS_WORKS_LEARNER.figure).toBe('player-screen')
     // The things it names are spread across four blocks, so it belongs to the
-    // section, not to one of them — and Why this works never carries a picture.
+    // section rather than to any one of them. Why this works has no section
+    // figure of its own; its pictures all belong to single blocks.
     expect(WHY_THIS_WORKS.figure).toBeUndefined()
   })
 
@@ -151,18 +170,46 @@ describe('learner explainer copy — where the thirty-hour promise lives', () =>
   })
 
   it('makes the three checkable claims the founder specified', () => {
-    const block = WHY_THIS_WORKS.blocks.find((b) => /thirty hours/i.test(b.heading))
+    const block = WHY_THIS_WORKS.blocks.find((b) => /what happens at around thirty hours/i.test(b.heading))
     expect(block?.points).toHaveLength(3)
     expect(block!.points!.join(' ')).toMatch(/conversations/i)
     expect(block!.points!.join(' ')).toMatch(/listening/i)
     expect(block!.points!.join(' ')).toMatch(/impossible before/i)
   })
 
-  it('names the cadence choice, including that tiny-daily is the hardest road', () => {
-    const text = learnerFacingStrings(WHY_THIS_WORKS).join(' ')
-    expect(text).toMatch(/an hour a day for a month/i)
-    expect(text).toMatch(/six hours a day for five days/i)
-    expect(text).toMatch(/five minutes a day/i)
+  /**
+   * The pace block, founder rulings 2026-08-19. It leads with the
+   * recommendation rather than the menu, it says out loud that the gentle road
+   * is the better learning, and it says out loud that it is the harder one to
+   * actually keep up — the illusion, in his words. Fast's honest advantage is
+   * that you arrive sooner, never that it teaches you more.
+   */
+  it('recommends a shape for the thirty hours rather than listing options', () => {
+    const pace = WHY_THIS_WORKS.blocks.find((b) => /best way to spend/i.test(b.heading))!
+    const text = pace.body.join(' ')
+    expect(text).toMatch(/start with a big stretch, then settle into a rhythm/i)
+    expect(text).toMatch(/an hour a day/i)
+    expect(text).toMatch(/five minutes a day for a year/i)
+    // The gentle road is better learning AND the harder ask. Both halves, or
+    // the block is either a lie or a scolding.
+    expect(text).toMatch(/that really is the better learning/i)
+    expect(text).toMatch(/much harder thing to actually do than it sounds/i)
+    // Going fast is never sold as better learning, only as sooner.
+    expect(text).toMatch(/not because rushing teaches you more/i)
+    expect(text).toMatch(/you get there sooner/i)
+  })
+
+  it('names both paces by their own names, unchanged and unqualified', () => {
+    // Founder ruling: the wording on the settings does not change, so the copy
+    // never renames, subtitles or quotes them.
+    const text = learnerFacingStrings(WHY_THIS_WORKS).concat(
+      learnerFacingStrings(HOW_THIS_WORKS_LEARNER),
+    ).join(' ')
+    expect(text).toMatch(/\bEasy\b/)
+    expect(text).toMatch(/\bFast\b/)
+    expect(text).not.toMatch(/["'“”]Easy["'“”]/)
+    // The one place Easy's mechanics are stated, they are stated the same way.
+    expect(text).toMatch(/double the thinking time and says each phrase twice over/i)
   })
 
   it('carries the mode phasing: speaking first, deep listening later', () => {
