@@ -65,7 +65,7 @@ functions in the script block and are bound to **nothing** in the template.
 | 9 | Enter a code / redeem | Settings → Codes; `/redeem/:code` | signed-in only | `entitlement_grants`, invite redemptions |
 | 10 | Interface language (22 locales) | Settings | none | `ssi-locale` is device-local, unlogged |
 | 11 | Learning speed | Settings | testers only | `learner_speed` is device-local, unlogged |
-| 12 | `/methodology` explainer pages | typed URL only | self-labelled "Internal methodology" | no learner path to it at all |
+| 12 | `/methodology` explainer pages | not reachable by a learner | the router guard treats `/methodology` exactly like `/admin` and requires an admin role | not a learner feature |
 | 13 | View Script, QA mode, debug overlay, verbose logging, listening audit | Settings | admin only | not learner features |
 
 ## The surfacing machinery already exists — pointed at staff
@@ -105,3 +105,12 @@ dead — no timing windows, no `cycle_prosody`, no `learner_lego_metrics` rows a
 all, because `getUserMedia` was never called across a full session. The re-arm
 now runs on every boot path. Any mic-derived adoption figure covering the period
 before that fix understates real consent, and should be read as a floor.
+
+## Two things deliberately ruled out of scope
+
+- **Missions** (`missions/`, `MissionCard.vue`) are mounted only in
+  `SchoolsContainer` and `views/schools/DashboardView.vue` — a staff onboarding
+  device, not a learner feature.
+- **`/methodology`** looked like a learner explainer but the router guard at
+  `router/index.ts:905` requires an admin role for it, exactly as for `/admin`.
+  It is an internal surface and is scored as such.
