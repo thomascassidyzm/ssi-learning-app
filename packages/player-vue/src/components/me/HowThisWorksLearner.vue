@@ -10,10 +10,12 @@
  * Red pulse — the existing pulse flavour. Its sibling WhyThisWorks carries the
  * blue one and keeps its own independent seen-state.
  *
- * Prose lives in the content module, never inline here.
+ * Prose lives in the content module, never inline here — and where Popty has
+ * a published version of it, that is what renders instead. The repo-authored
+ * strings stay as the silent fallback.
  */
 import { ref, computed } from 'vue'
-import { HOW_THIS_WORKS_LEARNER as section } from '@/explainer/learnerExplainers'
+import { usePublishedExplainers } from '@/explainer/usePublishedExplainers'
 import ExplainerFigure from './ExplainerFigure.vue'
 import PlayerScreenFigure from './PlayerScreenFigure.vue'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
@@ -29,15 +31,19 @@ const props = withDefaults(defineProps<{
   linkLabel?: string
 }>(), { viewerId: 'anon', linkLabel: '' })
 
-const label = computed(() => props.linkLabel || section.linkLabel)
+// The published copy from Popty where it has landed, the repo-authored prose
+// until then and whenever the fetch cannot be had. Never null, never partial.
+const { howThisWorks: section } = usePublishedExplainers()
+
+const label = computed(() => props.linkLabel || section.value.linkLabel)
 
 const open = ref(false)
-const throbbing = ref(shouldThrob(props.viewerId, section.id))
+const throbbing = ref(shouldThrob(props.viewerId, section.value.id))
 
 function toggle(): void {
   open.value = !open.value
   if (open.value) {
-    markSeen(props.viewerId, section.id)
+    markSeen(props.viewerId, section.value.id)
     throbbing.value = false
   }
 }

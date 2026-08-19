@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import HowThisWorksLearner from './HowThisWorksLearner.vue'
 import WhyThisWorks from './WhyThisWorks.vue'
@@ -9,6 +9,21 @@ import {
   WHY_THIS_WORKS,
   type ExplainerFigureName,
 } from '@/explainer/learnerExplainers'
+
+// These sections read their prose from Popty where one has been published.
+// Nothing here is about that, so keep the suite off the network entirely and
+// let both components sit on their hardcoded fallback.
+vi.mock('@/explainer/usePublishedExplainers', async () => {
+  const real = await import('@/explainer/learnerExplainers')
+  const { computed } = await import('vue')
+  return {
+    loadPublishedExplainers: () => {},
+    usePublishedExplainers: () => ({
+      howThisWorks: computed(() => real.HOW_THIS_WORKS_LEARNER),
+      whyThisWorks: computed(() => real.WHY_THIS_WORKS),
+    }),
+  }
+})
 
 describe('learner explainer sections — the pulse-until-viewed mechanic', () => {
   beforeEach(() => window.localStorage.clear())

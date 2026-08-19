@@ -105,6 +105,7 @@ describe('buildSectionsFromMarkdown — the whole document round-trips to the sh
 
 describe('applyParsedSection — the hardcoded copy is always the floor', () => {
   const base = HOW_THIS_WORKS_LEARNER
+  const SHIPPED_LINKS = WHY_THIS_WORKS.blocks.find((b) => b.heading === 'Where all this comes from')!.links!
 
   it('returns the hardcoded section untouched when there is nothing parsed', () => {
     expect(applyParsedSection(base, undefined)).toBe(base)
@@ -141,8 +142,8 @@ describe('applyParsedSection — the hardcoded copy is always the floor', () => 
 
     const proof = why.blocks.find((b) => b.heading === 'Where all this comes from')!
     expect(proof.links![2].label).toBe('Ten days of Japanese, start to finish')
-    expect(proof.links!.map((l) => l.url)).toEqual(WHY_THIS_WORKS.blocks.at(-1)!.links!.map((l) => l.url))
-    expect(proof.links!.map((l) => l.title)).toEqual(WHY_THIS_WORKS.blocks.at(-1)!.links!.map((l) => l.title))
+    expect(proof.links!.map((l) => l.url)).toEqual(SHIPPED_LINKS.map((l) => l.url))
+    expect(proof.links!.map((l) => l.title)).toEqual(SHIPPED_LINKS.map((l) => l.title))
   })
 
   it('drops link edits wholesale rather than mismatching them against the code rows', () => {
@@ -152,6 +153,6 @@ describe('applyParsedSection — the hardcoded copy is always the floor', () => 
     )
     const why = applyParsedSection(WHY_THIS_WORKS, parseHtwCopy(edited)['why-this-works'])
     const proof = why.blocks.find((b) => b.heading === 'Where all this comes from')!
-    expect(proof.links).toEqual(WHY_THIS_WORKS.blocks.at(-1)!.links)
+    expect(proof.links).toEqual(SHIPPED_LINKS)
   })
 })
