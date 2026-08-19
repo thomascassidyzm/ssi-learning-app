@@ -87,4 +87,40 @@ describe('learner explainer sections — the pulse-until-viewed mechanic', () =>
     expect(fig.find('.cpf-caption').text()).toMatch(/your turn to say it out loud/i)
     expect(fig.text()).not.toMatch(/PROMPT|VOICE_1|SPEAK/)
   })
+
+  /**
+   * The player screen (A-176). Small and tappable in the card; the labelled
+   * version gets a full-width surface of its own, because the labels are what
+   * will not fit beside a 302-wide card.
+   */
+  it('offers the screen as a thumbnail, with nothing open until it is tapped', async () => {
+    const how = mount(HowThisWorksLearner, { attachTo: document.body })
+    await how.find('.lx-toggle').trigger('click')
+    expect(how.findAll('.psf-thumb')).toHaveLength(1)
+    expect(how.find('.psf-thumb').text()).toMatch(/show me the screen/i)
+    expect(document.querySelector('.psf-sheet')).toBeNull()
+    how.unmount()
+  })
+
+  it('tapping it opens the labelled version, and it closes again', async () => {
+    const how = mount(HowThisWorksLearner, { attachTo: document.body })
+    await how.find('.lx-toggle').trigger('click')
+    await how.find('.psf-thumb').trigger('click')
+
+    const sheet = document.querySelector('.psf-sheet')!
+    expect(sheet).not.toBeNull()
+    expect(sheet.getAttribute('aria-modal')).toBe('true')
+    // Four things named, each with a pin on the picture and a line beneath it.
+    expect(sheet.querySelectorAll('.psf-pin')).toHaveLength(4)
+    expect(sheet.querySelectorAll('.psf-legend-row')).toHaveLength(4)
+    expect(sheet.textContent).toMatch(/the only button that matters/i)
+    expect(sheet.textContent).toMatch(/offline downloads live here/i)
+
+    await (sheet.querySelector('.psf-close') as HTMLElement).click()
+    await how.vm.$nextTick()
+    expect(document.querySelector('.psf-sheet')).toBeNull()
+    // The scroll lock is handed back on close.
+    expect(document.body.style.overflow).toBe('')
+    how.unmount()
+  })
 })

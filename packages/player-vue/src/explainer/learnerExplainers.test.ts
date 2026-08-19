@@ -108,6 +108,13 @@ describe('learner explainer copy — the hard laws', () => {
     expect(figures).toHaveLength(1)
   })
 
+  it('shows the player screen itself once, at the top of How this works', () => {
+    expect(HOW_THIS_WORKS_LEARNER.figure).toBe('player-screen')
+    // The things it names are spread across four blocks, so it belongs to the
+    // section, not to one of them — and Why this works never carries a picture.
+    expect(WHY_THIS_WORKS.figure).toBeUndefined()
+  })
+
   it('keeps every internal term behind the language wall', () => {
     const jargon = [
       /\bLEGOs?\b/,

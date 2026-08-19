@@ -56,6 +56,14 @@ export interface ExplainerSection {
   linkLabel: string
   /** One line at the top of the panel, before the blocks. */
   intro: string
+  /**
+   * Optional illustration for the section as a whole, drawn under the intro.
+   * 'player-screen' is the small tappable shot of the player, which opens
+   * full-screen with its four things named — it belongs to the whole section
+   * rather than any one block, because the things it names are spread across
+   * four of them.
+   */
+  figure?: 'player-screen'
   blocks: ExplainerBlock[]
 }
 
@@ -63,6 +71,7 @@ export const HOW_THIS_WORKS_LEARNER: ExplainerSection = {
   id: 'how-this-works',
   linkLabel: 'How this works',
   intro: 'The whole thing is one button. You press play and it takes it from there.',
+  figure: 'player-screen',
   blocks: [
     {
       heading: 'What pressing play does',

@@ -15,6 +15,7 @@
 import { ref, computed } from 'vue'
 import { HOW_THIS_WORKS_LEARNER as section } from '@/explainer/learnerExplainers'
 import CyclePillFigure from './CyclePillFigure.vue'
+import PlayerScreenFigure from './PlayerScreenFigure.vue'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 
 const props = withDefaults(defineProps<{
@@ -52,6 +53,7 @@ function toggle(): void {
       <div v-if="open" class="lx-card">
         <span class="lx-kicker">{{ label }}</span>
         <p class="lx-intro">{{ section.intro }}</p>
+        <PlayerScreenFigure v-if="section.figure === 'player-screen'" />
         <div v-for="block in section.blocks" :key="block.heading" class="lx-block">
           <h3 class="lx-heading">{{ block.heading }}</h3>
           <p v-for="(para, i) in block.body" :key="i" class="lx-para">{{ para }}</p>

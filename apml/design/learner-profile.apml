@@ -5,7 +5,7 @@ metadata:
   title: "Learner Profile / Mirror / Portrait"
   version: "1.1.0"
   date: "2026-08-03"
-  last_updated: "2026-08-19 — A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
+  last_updated: "2026-08-19 — A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
   author: "SSi Team"
   status: "preview — shipped to dev on the unlinked /me route"
   source: "founder design session 2026-08-03"
@@ -175,6 +175,7 @@ implementation:
     - "components/me/CourseSwitchRow.vue"
     - "components/me/SettingsDirection.vue"
     - "components/me/CyclePillFigure.vue"
+    - "components/me/PlayerScreenFigure.vue"
   content: "explainer/learnerExplainers.ts"
   throb: "explainer/learnerThrob.ts — learner-side sibling of howThisWorksThrob.ts, which is untouched"
 
@@ -203,6 +204,39 @@ ruling DiagramLedExplainer:
     and safer trade than refactoring load-bearing playback chrome.
   inert_by_construction: "divs not buttons, no handlers, pill aria-hidden behind one sentence of alt text in learner words; nothing animates"
   labels: "learner language only — 'you hear it', 'your turn', 'then twice, properly'; never PROMPT / SPEAK / VOICE_1"
+
+ruling ShowMeTheScreen:
+  date: "2026-08-19"
+  founder_decision: "ship option 1 — the screenshot stays crisp and small inline, tappable, and opens the labelled version at full width"
+  problem: |
+    The annotated foldout is legible; the LABELS are what will not fit. Beside
+    the phone they need gutters, so the composite wants 760 across, and the
+    explainer card is 302 — dropped in as a figure the phone squeezes to about
+    127, a smudge with callout text smaller than the prose explaining it.
+  decision: |
+    The card carries a small honest thumbnail with a "Show me the screen"
+    affordance. Tapping it opens a full-screen sheet where the shot is big and
+    its four things are named. The figure belongs to the SECTION rather than to
+    a block, because what it names is spread across four blocks — so
+    ExplainerSection gains an optional `figure` field, drawn under the intro.
+  component: "components/me/PlayerScreenFigure.vue"
+  labels_are_live_text: |
+    The callouts are HTML pins plus a legend, NOT pixels baked into a wide
+    picture. A 760-wide annotated composite halves itself on a 390-wide phone,
+    which is the very smudge this ruling avoids, and a phone is where learners
+    read this. As text they stay readable at any width, are read out by a screen
+    reader, and a copy change never needs the shot taken again. Pins touch the
+    EDGE of what they name — dead centre buries the icon being pointed at.
+  the_shot: |
+    Production, guest, phone viewport, 2x, captured mid-turn so the gap segment
+    is part-filled — the same moment CyclePillFigure draws. Nothing dev-only is
+    in it: the DEV badge, the dev reset, the guest Save Progress nudge and the
+    debug fab are all hidden before the shutter, because no learner ever sees
+    them. Re-shoot with e2e/explainer/shoot-player-screen.mjs.
+  sheet_reuses_the_in_app_browser_idiom: |
+    Fixed full-screen, safe-area-padded header per CLAUDE.md, one close, Escape
+    closes, body scroll locked while open. No new overlay abstraction.
+  verified_live: "e2e/explainer/player-screen-figure-verify.mjs — all green against a real build"
 
 ruling HonestAboutWhatWeKnow:
   date: "2026-08-19"
