@@ -10,24 +10,40 @@
  * Red pulse — the existing pulse flavour. Its sibling WhyThisWorks carries the
  * blue one and keeps its own independent seen-state.
  *
- * Prose lives in the content module, never inline here.
+ * Prose lives in the content module, never inline here — and where Popty has
+ * a published version of it, that is what renders instead. The repo-authored
+ * strings stay as the silent fallback.
  */
-import { ref } from 'vue'
-import { HOW_THIS_WORKS_LEARNER as section } from '@/explainer/learnerExplainers'
+import { ref, computed } from 'vue'
+import { usePublishedExplainers } from '@/explainer/usePublishedExplainers'
+import ExplainerFigure from './ExplainerFigure.vue'
+import PlayerScreenFigure from './PlayerScreenFigure.vue'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 
 const props = withDefaults(defineProps<{
   /** Auth uid where the mount knows it; 'anon' keeps the state per-device. */
   viewerId?: string
-}>(), { viewerId: 'anon' })
+  /**
+   * Override for the link + kicker label. The Library panel (A-159) is itself
+   * called "How this works", so this section sits inside it as "Using the app"
+   * rather than repeating its parent's name. Prose is never overridden.
+   */
+  linkLabel?: string
+}>(), { viewerId: 'anon', linkLabel: '' })
+
+// The published copy from Popty where it has landed, the repo-authored prose
+// until then and whenever the fetch cannot be had. Never null, never partial.
+const { howThisWorks: section } = usePublishedExplainers()
+
+const label = computed(() => props.linkLabel || section.value.linkLabel)
 
 const open = ref(false)
-const throbbing = ref(shouldThrob(props.viewerId, section.id))
+const throbbing = ref(shouldThrob(props.viewerId, section.value.id))
 
 function toggle(): void {
   open.value = !open.value
   if (open.value) {
-    markSeen(props.viewerId, section.id)
+    markSeen(props.viewerId, section.value.id)
     throbbing.value = false
   }
 }
@@ -37,15 +53,17 @@ function toggle(): void {
   <section class="lx">
     <button type="button" class="lx-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
       <span v-if="throbbing && !open" class="lx-dot" aria-hidden="true"></span>
-      {{ open ? 'Close' : section.linkLabel }}
+      {{ open ? 'Close' : label }}
     </button>
     <transition name="lx-fade">
       <div v-if="open" class="lx-card">
-        <span class="lx-kicker">{{ section.linkLabel }}</span>
+        <span class="lx-kicker">{{ label }}</span>
         <p class="lx-intro">{{ section.intro }}</p>
+        <PlayerScreenFigure v-if="section.figure === 'player-screen'" />
         <div v-for="block in section.blocks" :key="block.heading" class="lx-block">
           <h3 class="lx-heading">{{ block.heading }}</h3>
           <p v-for="(para, i) in block.body" :key="i" class="lx-para">{{ para }}</p>
+          <ExplainerFigure v-if="block.figure" :name="block.figure" />
           <ul v-if="block.points" class="lx-points">
             <li v-for="(point, i) in block.points" :key="i">{{ point }}</li>
           </ul>

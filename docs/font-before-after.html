@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The app font — before and after</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-left))
+             max(3rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right));
+    background: #17181a;
+    color: #e9e7e4;
+    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; line-height: 1.2; margin: .2rem 0 .5rem; }
+  .ask {
+    background: #24262a; border: 1px solid #35383d; border-radius: 12px;
+    padding: .8rem .9rem; margin: 0 0 1.4rem; font-size: 1.02rem;
+  }
+  .ask strong { color: #ffd479; }
+  h2 { font-size: 1.05rem; margin: 2.2rem 0 .35rem; color: #9dc0ff; }
+  p { color: #a9adb3; font-size: .95rem; margin: .35rem 0 .9rem; }
+
+  /* ── the flipper ─────────────────────────────────────────────── */
+  .flip { position: relative; }
+  .stage {
+    position: relative; width: 100%; aspect-ratio: 1170 / 2532;
+    border-radius: 14px; overflow: hidden; border: 1px solid #35383d;
+    background: #e8e3dd;
+  }
+  .stage img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: block; object-fit: cover;
+  }
+  .stage img.after { opacity: 0; }
+  .flip.show-after .stage img.after { opacity: 1; }
+  /* The screenshot is taller than a phone, so the control rides the bottom of the
+     screen the whole way down it: scroll to whatever you want to look at, then flip
+     it under your thumb without losing your place. */
+  .switch {
+    position: sticky; bottom: max(.6rem, env(safe-area-inset-bottom));
+    display: flex; gap: .5rem; margin: .7rem 0 .3rem; z-index: 3;
+  }
+  .switch button {
+    flex: 1; appearance: none; border: 1px solid #3d4149; background: #24262a;
+    color: #cfd3d8; font: inherit; font-weight: 600; font-size: 1rem;
+    padding: .75rem .5rem; border-radius: 11px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .switch button[aria-pressed="true"] { background: #e9e7e4; color: #17181a; border-color: #e9e7e4; }
+  .switch button { box-shadow: 0 6px 18px rgba(0,0,0,.55); }
+  .hint { font-size: .84rem; color: #7f858d; margin: .1rem 0 0; text-align: center; }
+
+  .tall { width: 100%; display: block; border-radius: 12px; border: 1px solid #35383d; background: #e8e3dd; }
+  hr { border: 0; border-top: 1px solid #2c2e33; margin: 2.4rem 0 0; }
+  .foot { color: #7f858d; font-size: .85rem; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>The app font — before and after</h1>
+  <div class="ask">
+    One question, and it's yours alone: <strong>does the “after” look worse to your eye?</strong>
+    Everything else about this change is settled — this is the taste call.
+  </div>
+
+  <h2>1. The app itself</h2>
+  <p>The same screen, same phone, same moment. Tap the buttons (or tap the picture) to flip between
+     them in place — the difference, if there is one, will show up as a flicker.</p>
+
+  <div class="flip" id="flip">
+    <div class="stage" id="stage">
+      <img class="before" src="font-app-before-home.png" alt="The app home screen with the old font">
+      <img class="after"  src="font-app-after-home.png"  alt="The app home screen with the new font">
+    </div>
+    <div class="switch">
+      <button type="button" data-set="before" aria-pressed="true">Before</button>
+      <button type="button" data-set="after" aria-pressed="false">After</button>
+    </div>
+    <p class="hint">The buttons stay with you as you scroll — you can also just tap the picture</p>
+  </div>
+
+  <h2>2. What the change was actually for</h2>
+  <p>These are the letters that were breaking. On the left of each pair is what learners were
+     getting; underneath it is what they get now. The Chinese one is on a course that is live and
+     public today.</p>
+  <img class="tall" loading="lazy" src="font-fix-1-yoruba-pinyin.png"
+       alt="Before and after pairs for Yoruba, Welsh, Mandarin pinyin and Sicilian accented letters">
+
+  <h2>3. Greek and Cyrillic</h2>
+  <p>Same again, for the two alphabets that were missing wholesale.</p>
+  <img class="tall" loading="lazy" src="font-fix-2-greek-cyrillic.png"
+       alt="Before and after pairs for Greek and Cyrillic text">
+
+  <hr>
+  <p class="foot">Seven languages were affected. Nothing here is a live change to what learners
+     see until you've said the look is fine.</p>
+</div>
+
+<script>
+  var flip  = document.getElementById('flip');
+  var stage = document.getElementById('stage');
+  var btns  = flip.querySelectorAll('.switch button');
+
+  function set(which) {
+    flip.classList.toggle('show-after', which === 'after');
+    btns.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.set === which));
+    });
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { set(b.dataset.set); });
+  });
+  stage.addEventListener('click', function () {
+    set(flip.classList.contains('show-after') ? 'before' : 'after');
+  });
+</script>
+</body>
+</html>

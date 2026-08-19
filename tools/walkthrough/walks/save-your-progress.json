@@ -1,0 +1,47 @@
+{
+  "id": "save-your-progress",
+  "title": "Save your progress",
+  "topic": "Saving your progress",
+  "keywords": [
+    "sign in",
+    "signin",
+    "login",
+    "log in",
+    "account",
+    "email",
+    "save",
+    "saved",
+    "saving",
+    "lost",
+    "device",
+    "phone",
+    "backup",
+    "guest"
+  ],
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library",
+    "kinds": [
+      "guest"
+    ]
+  },
+  "steps": [
+    {
+      "anchor": "library-save-progress",
+      "say": "Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "library-save-progress",
+      "say": "Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+    }
+  ]
+}

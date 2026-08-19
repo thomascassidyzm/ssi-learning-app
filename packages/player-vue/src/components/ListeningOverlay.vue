@@ -515,6 +515,16 @@ const showSpeedRow = computed(() => true)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
+/**
+ * The two languages on screen, as ISO 639-3, so each run of text can declare
+ * itself for glyph coverage — DM Sans cannot spell Greek, Cyrillic,
+ * Devanagari, the Yoruba dot-belows or the pinyin tone vowels, and an
+ * undeclared run gets substituted per-character (styles/design-tokens.css).
+ * The course code is the only language signal this overlay is given.
+ */
+const courseTargetLang = computed(() => props.courseCode?.split('_')[0] || '')
+const courseKnownLang = computed(() => props.courseCode?.split('_for_')[1] || '')
+
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
 const selectedScene = ref(null)
@@ -2267,8 +2277,8 @@ watch(
                 class="phrase-pair fusion-strip"
                 :class="{ active: si === activeStripIndex }"
               >
-                <div class="phrase-target" :dir="dirFor(strip.target)">{{ strip.target }}</div>
-                <div v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
+                <div :lang="courseTargetLang" class="phrase-target" :dir="dirFor(strip.target)">{{ strip.target }}</div>
+                <div :lang="courseKnownLang" v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
               </div>
             </template>
             <!-- Current dialogue turn: interleave target and gloss sentence
@@ -2277,13 +2287,13 @@ watch(
                  keep the plain paragraph. Gloss honours the eye toggle. -->
             <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
-                <div class="phrase-target">{{ pair.target }}</div>
-                <div v-if="showGloss && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
+                <div :lang="courseTargetLang" class="phrase-target">{{ pair.target }}</div>
+                <div :lang="courseKnownLang" v-if="showGloss && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
-              <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
+              <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
+              <div :lang="courseKnownLang" v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
           </template>
         </TeleprompterScroll>
@@ -2321,8 +2331,8 @@ watch(
                 <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
                 <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
               </div>
-              <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
+              <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
+              <div :lang="courseKnownLang" v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </div>
           </template>
         </div>

@@ -1,0 +1,57 @@
+{
+  "id": "where-you-are-in-this-course",
+  "title": "Where you are in this course",
+  "topic": "Where you are",
+  "keywords": [
+    "belt",
+    "belts",
+    "progress",
+    "position",
+    "how far",
+    "colour",
+    "colours",
+    "dots",
+    "bar",
+    "track",
+    "level",
+    "grade",
+    "score"
+  ],
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library"
+  },
+  "steps": [
+    {
+      "anchor": "library-progress-card",
+      "say": "This card is your whole position in the course in one glance. Nothing here is a score, and nothing here is counting anything against you.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "library-belt-strip",
+      "say": "Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "library-position-track",
+      "say": "The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "library-belt-browser",
+      "say": "Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+    }
+  ]
+}

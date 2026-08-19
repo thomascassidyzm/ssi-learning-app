@@ -40,6 +40,13 @@ const props = withDefaults(defineProps<{
   /** Show the known-language gloss under the current row (default fallback
    *  content only — a `#line` slot override controls its own gloss). */
   showGloss?: boolean
+  /** ISO 639-3 of the target / known text, declared on the rows so the
+   *  glyph-coverage CSS can give a Greek, Cyrillic, Devanagari or Yoruba run
+   *  the font that can actually spell it (styles/design-tokens.css). One
+   *  language per teleprompter instance, so these are component-level props
+   *  rather than per-line fields. */
+  targetLang?: string
+  knownLang?: string
   /** Vertical breathing room (vh) above/below the list so the first/last
    *  row can still reach the anchor position. */
   padBlockVh?: number
@@ -157,8 +164,8 @@ const handleRowClick = (displayIndex: number) => {
           <div v-if="row.line.speakerName" class="phrase-speaker" :style="{ color: row.line.speakerColor }">
             <span class="phrase-speaker-dot" :style="{ background: row.line.speakerColor }"></span>{{ row.line.speakerName }}
           </div>
-          <div class="phrase-target" :dir="dirFor(row.line.target)">{{ row.line.target }}</div>
-          <div v-if="row.isCurrent && showGloss && row.line.known" class="phrase-known" :dir="dirFor(row.line.known)">{{ row.line.known }}</div>
+          <div :lang="targetLang" class="phrase-target" :dir="dirFor(row.line.target)">{{ row.line.target }}</div>
+          <div :lang="knownLang" v-if="row.isCurrent && showGloss && row.line.known" class="phrase-known" :dir="dirFor(row.line.known)">{{ row.line.known }}</div>
         </slot>
       </div>
     </div>

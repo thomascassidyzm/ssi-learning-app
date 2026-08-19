@@ -38,6 +38,11 @@ const props = defineProps<{
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
   components?: ComponentBreakdown[]
   targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
+  /** Known-language code. Tiles and their glosses are two different languages
+   *  on one screen, and either side can be one DM Sans cannot spell (cym_for_yor
+   *  reads Welsh tiles over Yoruba glosses), so each side declares its own
+   *  `lang` and the glyph-coverage CSS decides its font independently. */
+  knownLang?: string
   /** Cycle type — drives the known-text visibility rule (intro/debut only).
    *  Tile typography is uniform across cycle types (Tom 2026-06-07). */
   cycleType?: string
@@ -556,7 +561,7 @@ const sentenceScale = computed(() => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :dir="assemblyDir" :style="{ '--sentence-scale': sentenceScale }">
+  <div :lang="targetLang" class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :dir="assemblyDir" :style="{ '--sentence-scale': sentenceScale }">
 
     <!-- ═══════════════════════════════════════════
          INTRO GLOSS GROUPS — intro/debut word tiles, identical to the
@@ -588,7 +593,7 @@ const sentenceScale = computed(() => {
              gloss line would push that run's tile DOWN by one line relative
              to glossed neighbours. Reserving the space keeps every tile on
              the same baseline. -->
-        <span class="block-known gloss-group-known" :dir="dirFor(group.known)">{{ group.known }}</span>
+        <span :lang="knownLang" class="block-known gloss-group-known" :dir="dirFor(group.known)">{{ group.known }}</span>
       </div>
     </template>
 
@@ -616,7 +621,7 @@ const sentenceScale = computed(() => {
           >
             <span v-for="(comp, ci) in group" :key="ci" class="comp">{{ softHyphenate(comp.target) }}</span>
           </div>
-          <div v-if="isIntroOrDebut && group.some(c => c.known)" class="carriage-known-row">
+          <div v-if="isIntroOrDebut && group.some(c => c.known)" class="carriage-known-row" :lang="knownLang">
             <span
               v-for="(comp, ci) in group"
               :key="ci"
@@ -682,6 +687,7 @@ const sentenceScale = computed(() => {
             v-for="(comp, i) in mLegoComponents"
             :key="'k' + i"
             class="tile-known-comp"
+            :lang="knownLang"
             :style="{ gridColumn: i + 1, gridRow: 2 }"
           >{{ comp.known || '' }}</span>
         </template>
@@ -692,7 +698,7 @@ const sentenceScale = computed(() => {
         <div class="tile-target" :class="{ 'is-cjk': hasCjk(blocks[0]?.targetText) }">
           <span class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
         </div>
-        <div v-if="isIntroOrDebut && knownText" class="tile-known">{{ knownText }}</div>
+        <div v-if="isIntroOrDebut && knownText" class="tile-known" :lang="knownLang">{{ knownText }}</div>
       </template>
     </div>
 
@@ -741,7 +747,7 @@ const sentenceScale = computed(() => {
                 >{{ softHyphenate(comp.target) }}</span>
               </div>
             </div>
-            <div v-if="isIntroOrDebut && practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track">
+            <div v-if="isIntroOrDebut && practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track" :lang="knownLang">
               <div
                 v-for="(wagon, wi) in practiceCarriageWagons(block)!"
                 :key="wi"
@@ -782,14 +788,14 @@ const sentenceScale = computed(() => {
               <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
             </div>
             <template v-if="isIntroOrDebut">
-              <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
+              <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row" :lang="knownLang">
                 <span
                   v-for="(comp, ci) in alignedBlockComponents(block)!"
                   :key="ci"
                   class="block-known-comp"
                 >{{ comp.known || '' }}</span>
               </div>
-              <span v-else-if="block.knownText" class="block-known" :dir="dirFor(block.knownText)">{{ block.knownText }}</span>
+              <span :lang="knownLang" v-else-if="block.knownText" class="block-known" :dir="dirFor(block.knownText)">{{ block.knownText }}</span>
             </template>
           </template>
         </div>

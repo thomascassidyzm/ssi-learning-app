@@ -13,24 +13,31 @@
  *
  * This section is the ONLY place the thirty-hour promise appears. Founder
  * ruling 2026-08-03: we are not a claims-focused company — it sits inside the
- * methodology, never as a headline. Prose lives in the content module.
+ * methodology, never as a headline. Prose lives in the content module, or in
+ * Popty's published version of it where there is one.
  */
 import { ref } from 'vue'
-import { WHY_THIS_WORKS as section } from '@/explainer/learnerExplainers'
+import { usePublishedExplainers } from '@/explainer/usePublishedExplainers'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
+import { openInApp } from '@/composables/useInAppBrowser'
+import ExplainerFigure from './ExplainerFigure.vue'
 
 const props = withDefaults(defineProps<{
   /** Auth uid where the mount knows it; 'anon' keeps the state per-device. */
   viewerId?: string
 }>(), { viewerId: 'anon' })
 
+// The published copy from Popty where it has landed, the repo-authored prose
+// until then and whenever the fetch cannot be had. Never null, never partial.
+const { whyThisWorks: section } = usePublishedExplainers()
+
 const open = ref(false)
-const throbbing = ref(shouldThrob(props.viewerId, section.id))
+const throbbing = ref(shouldThrob(props.viewerId, section.value.id))
 
 function toggle(): void {
   open.value = !open.value
   if (open.value) {
-    markSeen(props.viewerId, section.id)
+    markSeen(props.viewerId, section.value.id)
     throbbing.value = false
   }
 }
@@ -49,9 +56,19 @@ function toggle(): void {
         <div v-for="block in section.blocks" :key="block.heading" class="wx-block">
           <h3 class="wx-heading">{{ block.heading }}</h3>
           <p v-for="(para, i) in block.body" :key="i" class="wx-para">{{ para }}</p>
+          <ExplainerFigure v-if="block.figure" :name="block.figure" />
           <ul v-if="block.points" class="wx-points">
             <li v-for="(point, i) in block.points" :key="i">{{ point }}</li>
           </ul>
+          <div v-if="block.links" class="wx-links">
+            <button
+              v-for="link in block.links"
+              :key="link.url"
+              type="button"
+              class="wx-link"
+              @click="openInApp(link.url, link.title)"
+            >{{ link.label }}</button>
+          </div>
         </div>
       </div>
     </transition>
@@ -111,6 +128,18 @@ function toggle(): void {
   display: flex; flex-direction: column; gap: 4px;
   font-size: var(--text-sm, 13px); color: var(--ink-secondary, #6B635C); line-height: 1.6;
 }
+/* Proof rows: the same restrained text-link idiom as the section's own toggle,
+   left-aligned and stacked. Deliberately not buttons, cards or thumbnails —
+   this block is prose with receipts, not a gallery. */
+.wx-links { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 2px; }
+.wx-link {
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; font-size: var(--text-sm, 13px); line-height: 1.6;
+  color: var(--ink-secondary, #6B635C);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(44, 38, 34, 0.25);
+}
+.wx-link:hover { color: var(--ink-primary, #2C2622); }
 .wx-fade-enter-active, .wx-fade-leave-active { transition: opacity 0.15s ease; }
 .wx-fade-enter-from, .wx-fade-leave-to { opacity: 0; }
 </style>

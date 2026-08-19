@@ -16,6 +16,7 @@ import { paddleConfig } from '../lib/paddle'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
+import { openInApp } from '../composables/useInAppBrowser'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
@@ -2311,13 +2312,16 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Community — external links (forum, classic Welsh listening
-           exercises on the legacy .com webapp). Open in a new tab, same
-           idiom as Legal below. -->
+      <!-- Community — links out to the forum and the classic Welsh listening
+           exercises on the legacy .com webapp. Routed through openInApp so the
+           learner stays in the PWA where the host permits framing; both of
+           these hosts send X-Frame-Options: SAMEORIGIN today, so both still
+           hand off to a real browser tab — the point is that the decision now
+           lives in ONE place and follows the headers, not the call site. -->
       <section class="section">
         <h3 class="section-title">{{ t('settings.community') }}</h3>
         <div class="card">
-          <a href="https://en.forum.saysomethingin.com/" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://en.forum.saysomethingin.com/" target="_blank" rel="noopener" class="setting-row clickable legal-link" @click.prevent="openInApp('https://en.forum.saysomethingin.com/', t('settings.forum'))">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.forum') }}</span>
             </div>
@@ -2327,7 +2331,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="https://en.saysomethingin.com/welsh/level1/intro" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://en.saysomethingin.com/welsh/level1/intro" target="_blank" rel="noopener" class="setting-row clickable legal-link" @click.prevent="openInApp('https://en.saysomethingin.com/welsh/level1/intro', t('settings.classicWelshListening'))">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.classicWelshListening') }}</span>
               <span class="setting-desc">{{ t('settings.classicWelshListeningDesc') }}</span>

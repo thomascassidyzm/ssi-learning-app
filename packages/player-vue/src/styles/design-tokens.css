@@ -70,9 +70,28 @@
   /* ================================================================
    * TYPOGRAPHY
    * ================================================================ */
-  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* DM Sans is the brand face and stays the default everywhere. It carries 360
+   * codepoints, which is every letter of most of the estate — but not the
+   * Yoruba dot-belows (ẹ ọ ṣ Ṣ), the n-grave (ǹ), the Mandarin pinyin tone
+   * vowels (ǎ ǐ ǒ ǔ ǚ ǜ), Greek or Cyrillic. For THOSE languages only, the
+   * `:lang()` block at the foot of this file swaps the whole run of text to
+   * --font-coverage. See styles/coverageLanguages.ts for the measured list and
+   * the rule for changing it. */
+  --font-brand: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: var(--font-brand);
+  /* The exception font, never the default: applied per-language, to the whole
+   * string, so a word is never split across two typefaces. */
+  --font-coverage: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Noto Sans JP', 'DM Sans', sans-serif;
+  /* Mono is code, IDs and QA textareas only — it never renders course text, so
+   * JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live break and are left to the
+   * system `monospace` tail rather than paying for a fifth webfont. */
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  /* The player's known-language line, which is mono by design. Its own token
+   * because a hardcoded font-family in a scoped component style outranks the
+   * :lang() rule below — an inherited custom property does not, so this is how
+   * the coverage switch reaches it. */
+  --font-known-line: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 
   /* Font weights */
   --font-light: 300;
@@ -305,4 +324,52 @@
 .belt-black {
   background: linear-gradient(135deg, var(--belt-black), var(--belt-black-dark));
   color: white;
+}
+
+/* ================================================================
+ * GLYPH COVERAGE — the language-scoped exception to DM Sans
+ * ================================================================
+ * DM Sans is the brand face and the default everywhere, including all UI
+ * chrome. It cannot spell Greek, Cyrillic, Devanagari, the Yoruba dot-belows,
+ * the pinyin tone vowels or the dot-below Latin of Sicilian/Romagnol — and a
+ * missing letter doesn't throw, it silently drops to an OS font for that ONE
+ * character, so a word renders in two typefaces.
+ *
+ * So: text in a language DM Sans cannot spell flips WHOLLY to Noto Sans. The
+ * trigger is the language, never the character — which is what keeps a run of
+ * text typographically consistent.
+ *
+ * Two rules, and the order between them is load-bearing.
+ *
+ * 1. Every element that declares its own language re-decides its font from
+ *    scratch. Without this, an English string nested inside a Greek subtree
+ *    (a brand word, a course's known-language line) would inherit Noto.
+ * 2. …except the languages on the measured list, which take the coverage font.
+ *
+ * Redefining --font-body inside the subtree as well as font-family is
+ * deliberate: descendants that set `font-family: var(--font-body)` of their
+ * own accord follow the switch too, without knowing anything about languages.
+ *
+ * The list is measured — see styles/coverageLanguages.ts, which is held to
+ * this selector by styles/fontGlyphCoverage.test.ts. Do not edit one alone. */
+[lang] {
+  --font-body: var(--font-brand);
+  font-family: var(--font-body);
+}
+
+:lang(ben), :lang(bg), :lang(bn), :lang(bul), :lang(cmn), :lang(el), :lang(ell),
+:lang(hi), :lang(hin), :lang(mar), :lang(mk), :lang(mkd), :lang(mr), :lang(ne),
+:lang(nep), :lang(pa), :lang(pan), :lang(rgn), :lang(ru), :lang(rus), :lang(scn),
+:lang(se), :lang(sme), :lang(uk), :lang(ukr), :lang(yo), :lang(yor), :lang(zh),
+:lang(zho) {
+  --font-body: var(--font-coverage);
+  --font-known-line: var(--font-coverage);
+  font-family: var(--font-coverage);
+}
+
+/* The wordmark is brand, not language: it reads "SaySomethingin" in all 22
+ * interface locales (verified 2026-08-18 — the string is identical in every
+ * locales/*.json), so it holds DM Sans even inside a Greek or Yoruba subtree. */
+.brand-text, .brand-text * {
+  font-family: var(--font-brand);
 }

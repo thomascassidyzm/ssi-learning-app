@@ -825,6 +825,22 @@ const courseTargetLang = computed(() => {
   return props.course.target_lang || courseCode.value?.split('_')[0] || ''
 })
 
+/**
+ * The known side, beside the target side above — both are needed as `lang`
+ * attributes on the text they describe, because DM Sans cannot spell Greek,
+ * Cyrillic, Devanagari, the Yoruba dot-belows or the pinyin tone vowels, and
+ * an undeclared run gets substituted per-character so a word renders in two
+ * typefaces (styles/design-tokens.css). Either side of a course can be such a
+ * language: cym_for_yor reads Welsh tiles over Yoruba glosses.
+ *
+ * Note this is NOT the `targetLang` computed further down — that one is a
+ * heuristic for picking a reward word and only answers zho/ita/spa/cym.
+ */
+const courseKnownLang = computed(() => {
+  if (!props.course) return courseCode.value?.split('_for_')[1] || ''
+  return props.course.known_lang || courseCode.value?.split('_for_')[1] || ''
+})
+
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
   const baseName = getLanguageName(courseTargetLang.value)
@@ -15327,6 +15343,7 @@ defineExpose({
       :phase="currentPhase"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+      :known-lang="props.course?.known_lang || courseCode?.split('_for_')[1]"
       :cycle-type="simplePlayer.currentCycle.value?.type"
       :show-romanization="showRomanization"
     />
@@ -15341,6 +15358,8 @@ defineExpose({
       v-if="playingPodLapAudio && currentPodTurn"
       :sentences="podScrollSentences"
       :active-index="currentPodTurn.activeIndex"
+      :target-lang="courseTargetLang"
+      :known-lang="courseKnownLang"
     />
 
     <!-- ?podview=1 instant preview nav — jump to a different pod sentence
@@ -15447,7 +15466,7 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">{{ displayedKnownText }}</p>
+              <p v-else class="hero-known" :lang="courseKnownLang">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
@@ -15553,8 +15572,8 @@ defineExpose({
     <Transition name="tooltip-fade">
       <div v-if="hoveredNode" class="node-hover-tooltip">
         <div class="tooltip-header">
-          <span class="tooltip-target" :dir="dirFor(hoveredNode.targetText)">{{ hoveredNode.targetText }}</span>
-          <span class="tooltip-known" :dir="dirFor(hoveredNode.knownText)">{{ hoveredNode.knownText }}</span>
+          <span :lang="courseTargetLang" class="tooltip-target" :dir="dirFor(hoveredNode.targetText)">{{ hoveredNode.targetText }}</span>
+          <span :lang="courseKnownLang" class="tooltip-known" :dir="dirFor(hoveredNode.knownText)">{{ hoveredNode.knownText }}</span>
         </div>
         <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
           <div
@@ -15563,8 +15582,8 @@ defineExpose({
             class="tooltip-phrase"
             @click.stop="playHoverPhrase(phrase)"
           >
-            <span class="phrase-target" :dir="dirFor(phrase.target)">{{ phrase.target }}</span>
-            <span class="phrase-known" :dir="dirFor(phrase.known)">{{ phrase.known }}</span>
+            <span :lang="courseTargetLang" class="phrase-target" :dir="dirFor(phrase.target)">{{ phrase.target }}</span>
+            <span :lang="courseKnownLang" class="phrase-known" :dir="dirFor(phrase.known)">{{ phrase.known }}</span>
             <span class="phrase-play">▶</span>
           </div>
         </div>
@@ -15889,6 +15908,7 @@ defineExpose({
         :belt-color="currentBelt.color"
         :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
         :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+        :known-lang="props.course?.known_lang || courseCode?.split('_for_')[1]"
         @close="handleClosePronunciation"
       />
     </Transition>
@@ -15947,7 +15967,7 @@ defineExpose({
           :class="`bonus-${reward.bonusLevel}`"
           :style="{ '--x-offset': `${reward.xOffset}px` }"
         >
-          <span class="ink-word">{{ reward.word }}</span>
+          <span class="ink-word" :lang="targetLang">{{ reward.word }}</span>
           <!-- Points hidden - belt progression system is used instead -->
           <!-- <span class="ink-points">+{{ reward.points }}</span> -->
         </div>
@@ -18026,7 +18046,15 @@ defineExpose({
 /* Uniform bold (Tom 2026-06-07): the whole known phrase reads at one bold
    weight — the old salient-substring emphasis + context fade is gone. */
 .hero-known {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  /* The known line is deliberately mono — but JetBrains Mono has no Greek, no
+     Cyrillic, no Devanagari and none of the Yoruba dot-belows, so for a course
+     whose known side is one of those it would fall to the OS per-character.
+     Reading the token rather than naming the family is what lets the
+     language-scoped rule reach it: --font-known-line is redefined inside a
+     coverage-language subtree (styles/design-tokens.css), and an inherited
+     custom property gets past this scoped rule's specificity in a way a
+     font-family declaration never could. */
+  font-family: var(--font-known-line);
   font-size: var(--known-text-size);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
