@@ -57,7 +57,10 @@ for (const [name, toggleSel, cardSel, blockSel, headingSel] of [
     if (!(await block.locator('figure').count())) continue
     const heading = (await block.locator(headingSel).innerText()).trim()
     const slug = heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    await block.scrollIntoViewIfNeeded()
+    // Centred, not merely in view: the player's fixed bottom nav sits over
+    // anything parked at the foot of the viewport, and would shoot across it.
+    await block.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    await p.waitForTimeout(250)
     await block.screenshot({ path: `${OUT}${name}-${slug}.png` })
     console.log(`  drew ${heading}`)
   }
