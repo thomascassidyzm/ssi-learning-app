@@ -157,14 +157,18 @@
 .cpf-labels {
   display: flex;
   width: 100%;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.3;
   color: var(--ink-tertiary, #8A8078);
   text-align: center;
 }
+/* Each label stays on one line: a 20%-wide cell will wrap "you hear it" onto a
+   lonely "it" otherwise. Overflow is centred, so a long label leans equally
+   into both neighbours' whitespace rather than colliding with one. */
 .cpf-label {
   min-width: 0;
   padding: 0 2px;
+  white-space: nowrap;
 }
 .cpf-label--prompt { flex: 0 0 20%; }
 .cpf-label--pause { flex: 0 0 40%; }

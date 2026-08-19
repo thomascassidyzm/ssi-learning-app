@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Style A, built — the real player pill as the diagram</title>
+<style>
+  :root { --bg:#e8e3dd; --surface:#fff; --ink:#2C2622; --ink2:#6B635C; --ink3:#8A8078; --red:#c23a3a; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.55; -webkit-text-size-adjust: 100%;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 22px; line-height: 1.25; margin: 0 0 6px; }
+  .sub { color: var(--ink2); font-size: 14px; margin: 0 0 28px; }
+  h2 {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--red); margin: 40px 0 10px; font-weight: 700;
+  }
+  h3 { font-size: 15px; margin: 22px 0 6px; }
+  p { font-size: 14px; color: var(--ink2); margin: 0 0 12px; }
+  p.lead { color: var(--ink); }
+  .card { background: var(--surface); border-radius: 16px; padding: 16px; margin: 0 0 18px; }
+  img { display: block; width: 100%; height: auto; border-radius: 10px; }
+  .cap { font-size: 12px; color: var(--ink3); margin: 8px 0 0; }
+  blockquote {
+    margin: 0 0 14px; padding: 12px 14px; background: var(--surface);
+    border-left: 3px solid var(--red); border-radius: 0 10px 10px 0;
+    font-size: 14px; color: var(--ink);
+  }
+  blockquote p { color: var(--ink); margin: 0 0 8px; }
+  blockquote p:last-child { margin: 0; }
+  .verdict { background: var(--surface); border-radius: 16px; padding: 16px; margin: 14px 0 0; }
+  .verdict strong { color: var(--red); }
+  ul { font-size: 14px; color: var(--ink2); padding-left: 20px; margin: 0 0 12px; }
+  li { margin-bottom: 5px; }
+  .rule { border: 0; border-top: 1px solid rgba(44,38,34,0.12); margin: 36px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Style A, built</h1>
+  <p class="sub">The explainer is now diagram-led, and the diagram is the player's own pill. Two illustrations to choose between, and the three rewritten passages in full.</p>
+
+  <h2>1 · The pill figure, in the shipping app</h2>
+  <p class="lead">This is a screenshot of the built app, not a drawing of it. Same shape you meet on the player screen — headphones, then the wide middle stretch with the red filling across it, then the two voices.</p>
+  <div class="card">
+    <img src="figure-block.png" alt="The What pressing play does block with the pill figure beneath it">
+    <p class="cap">The block it illustrates, at phone width.</p>
+  </div>
+  <div class="card">
+    <img src="figure-only.png" alt="The pill figure on its own">
+    <p class="cap">The figure on its own, with its labels and its line of description.</p>
+  </div>
+  <div class="card">
+    <img src="explainer-card.png" alt="The whole How this works panel">
+    <p class="cap">Where it sits in the whole panel.</p>
+  </div>
+
+  <h2>2 · The foldout — the thing you were unsure about</h2>
+  <p class="lead">The whole player screen, captured mid-turn, scaled down and annotated with the four things the prose already names.</p>
+  <div class="card">
+    <img src="player-annotated.png" alt="The player screen scaled and annotated with four callouts">
+    <p class="cap">Shown here at roughly twice the width it would have inside the explainer card.</p>
+  </div>
+  <div class="card">
+    <img src="player-full.png" alt="The raw player screenshot">
+    <p class="cap">The raw capture it was made from.</p>
+  </div>
+
+  <div class="verdict">
+    <h3 style="margin-top:0">My call: ship the pill, park the foldout</h3>
+    <p><strong>The pill earns its place</strong> because it is the same object twice — the picture teaches the screen and the screen teaches the picture. It costs four lines of the panel and no scrolling.</p>
+    <p><strong>The foldout does not, at that size.</strong> The explainer card is 302 points wide. The phone in it would come out around 120 points across, which makes the pill inside it about 25 points — a smudge. It would read as decoration rather than instruction, and the callout text would be smaller than the prose it is explaining.</p>
+    <p>It is genuinely good material though. If you want it, it wants its own full-width surface — a tappable "show me the screen" that opens the annotated shot big — rather than a figure squeezed inline. One word and I will build that instead.</p>
+  </div>
+
+  <h2>3 · The three rewrites, in full</h2>
+
+  <h3>No snippiness, and no misleading</h3>
+  <p>Both rulings land in the same block. The argument against streaks is gone, the comparison to other apps is gone, and the false claim is gone.</p>
+  <p class="cap">Was: "A streak is a lovely thing right up until it ends, and then it quietly becomes a reason to stay away — which is backwards… So the app simply has no way of knowing anything about the time you spend away from it." · "A points total only ever measures the app having an opinion about you." · "Plenty of apps do this differently and plenty of people love them for it. We would just rather build the one that is glad to see you whenever you turn up."</p>
+  <blockquote>
+    <p><strong>Why there are no streaks and no points</strong></p>
+    <p>We do not count days in a row, and we never will. The app does know when you were last here — every session is stamped with its time, which is how it picks up exactly where you left off. We simply never turn that into something you have to keep up, because pressure is the opposite of what makes this work, and we would like this to be fun.</p>
+    <p>There are no points, no score and no leaderboard either. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.</p>
+    <p>Turn up when it suits you. This is glad to see you whenever you do.</p>
+  </blockquote>
+  <div class="card">
+    <img src="copy-streaks.png" alt="The rewritten streaks block in the app">
+    <p class="cap">As it now reads in the app.</p>
+  </div>
+
+  <h3>The honest thirty hours</h3>
+  <p class="cap">Was: "Somewhere around thirty hours in the app, it turns a corner. Not finished and not fluent, but fun, easy and playful in a way the first stretch honestly is not."</p>
+  <blockquote>
+    <p><strong>What happens at around thirty hours</strong></p>
+    <p>The first thirty hours are tough. We would rather say so than pretend otherwise. After them it really does get a lot easier — not finished and not fluent, but fun and playful in a way that first stretch honestly is not. Three things you will be able to check for yourself:</p>
+    <p>· You will be getting into conversations.<br>· You will be moving towards more listening work.<br>· You will be noticing how much surfaces easily that was genuinely impossible before.</p>
+  </blockquote>
+  <div class="card">
+    <img src="copy-thirty.png" alt="The rewritten thirty-hour block in the app">
+    <p class="cap">As it now reads in the app.</p>
+  </div>
+
+  <hr class="rule">
+  <p class="cap">Built on branch a159-library-htw. The pill figure is wired in and shipping; the foldout is a candidate only and is not in the app.</p>
+
+</div>
+</body>
+</html>
