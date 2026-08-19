@@ -102,6 +102,42 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     })
   }
 
+  /**
+   * Bump the phrases-spoken counter — cycles where the VAD actually heard the
+   * learner speak. Deliberately its OWN rpc rather than a fifth argument on
+   * bump_speaking_opportunities: adding a parameter there means DROP + CREATE
+   * (a new parameter is a new signature), and if anything re-asserts the 4-arg
+   * signature afterwards Postgres holds both overloads and every existing
+   * 4-named-arg call becomes ambiguous — an outage of the opportunities and
+   * play-seconds writes. This function touches neither. It only ever fires on
+   * a flush where speech was actually detected, so for a learner with
+   * adaptation consent off (the default) it is zero additional writes.
+   *
+   * See supabase/migrations/20260819_phrases_spoken_ledger.sql.
+   */
+  const bumpPhrasesSpoken = (phrasesDelta: number) => {
+    if (phrasesDelta <= 0) return
+    const supabase = getSupabase()
+    const learnerId = getLearnerId()
+    const courseId = getCourseId()
+    if (!supabase || !learnerId || !courseId || isGuestLearner(learnerId)) return
+    return supabase.rpc('bump_phrases_spoken', {
+      p_learner_id: learnerId,
+      p_course_code: courseId,
+      p_phrases_delta: phrasesDelta,
+    }).then(({ error }: { error: any }) => {
+      if (error) {
+        console.error('[useLearningSession] bump_phrases_spoken FAILED:', {
+          message: error.message,
+          code: error.code,
+          learnerId,
+          courseId,
+          phrasesDelta,
+        })
+      }
+    })
+  }
+
   // State
   const sessionId = ref<string | null>(null)
   const isLoading = ref(false)
@@ -125,6 +161,19 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   // delta: markPlayStop (pause / stop), visibility-hidden, beforeunload,
   // session end.
   let pendingOppsDelta = 0
+
+  // Same delta/watermark treatment for phrases spoken (cycles where the VAD
+  // heard the learner). This is the whole point of moving the counter here:
+  // it used to live in localStorage, was banked only when endSession() ran,
+  // and so a session ended by closing the tab lost its count entirely. Riding
+  // this accumulator means it flushes on visibility-hidden and beforeunload
+  // too, which is exactly the failure mode that was losing the number.
+  let pendingPhrasesDelta = 0
+
+  /** Call when a cycle completes with speech detected. */
+  const bumpPhraseSpoken = () => {
+    pendingPhrasesDelta++
+  }
 
   /** Call when playback starts or resumes */
   const markPlayStart = () => {
@@ -158,13 +207,23 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
    * exactly what was sent, never double-counts.
    */
   const flushTelemetryDelta = () => {
+    // Phrases ride the same boundaries but their own rpc — see
+    // bumpPhrasesSpoken for why they are not a fifth argument. Drained first
+    // and unconditionally, so a flush carrying only phrases (possible when
+    // the seconds/opps deltas are both zero) is not swallowed by the
+    // early-return below.
+    const phrasesDelta = pendingPhrasesDelta
+    pendingPhrasesDelta = 0
+    const phrasesWrite = phrasesDelta > 0 ? bumpPhrasesSpoken(phrasesDelta) : undefined
+
     const totalSeconds = getPlaySeconds()
     const secondsDelta = totalSeconds - lastPersistedPlaySeconds
     const oppsDelta = pendingOppsDelta
-    if (oppsDelta <= 0 && secondsDelta <= 0) return
+    if (oppsDelta <= 0 && secondsDelta <= 0) return phrasesWrite
     lastPersistedPlaySeconds = totalSeconds
     pendingOppsDelta = 0
-    return bumpOpportunities(oppsDelta, secondsDelta)
+    const oppsWrite = bumpOpportunities(oppsDelta, secondsDelta)
+    return phrasesWrite ? Promise.all([oppsWrite, phrasesWrite]).then(() => undefined) : oppsWrite
   }
 
   // TripleHelixEngine for ROUND-based learning
@@ -688,6 +747,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     getNextItem,
     recordCycleComplete,
     bumpOpportunity,
+    // Cycles where the VAD heard the learner. Flushed by flushTelemetryDelta
+    // on the same boundaries as everything else, so tab-close keeps it.
+    bumpPhraseSpoken,
     // Persist accumulated play-seconds WITHOUT ending the play segment — used to
     // bring the stats modal current on open (markPlayStop would stop the timer).
     flushTelemetryDelta,
