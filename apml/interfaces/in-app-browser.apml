@@ -132,6 +132,14 @@ CALL_SITES:
              Paddle's own overlay already owns that surface."
     - what: "Learner-story URLs in Onboarding.vue"
       why:  "Present only as source comments, not as live links."
+    - what: "The RTÉ Raidió na Gaeltachta clip receipting the Irish proof row
+             (rte.ie/radio/rnag/clips/22557598)"
+      why:  "Verified live 2026-08-19: rte.ie sends X-Frame-Options SAMEORIGIN,
+             so it cannot be framed, and linking it would throw a standalone-PWA
+             learner out to Safari mid-session. The broadcast is named in the
+             row's copy instead and the URL kept as a source comment in
+             explainer/learnerExplainers.ts — the row itself goes to our own
+             /intensive-ireland page, which carries the interview."
 
 ## ============================================================================
 ## TESTS

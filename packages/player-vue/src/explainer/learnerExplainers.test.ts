@@ -188,9 +188,19 @@ describe('explainer proof links', () => {
     }
   })
 
-  it('never names a broadcaster it would have to keep in sync', () => {
+  // Owner ruling 2026-08-19, lifting the earlier prohibition: he found the
+  // broadcast — Iris Aniar, RTÉ Raidió na Gaeltachta, 4 Nov 2025 — so the
+  // station is receipted and may be named. A broadcast that has happened is
+  // a fixed fact, so naming it cannot fall out of sync.
+  it('names the broadcaster on the Irish row, now that it is receipted', () => {
+    const irish = ALL_LINKS.find((l) => /intensive-ireland/.test(l.url))
+    expect(irish).toBeDefined()
+    expect(irish!.label).toMatch(/RTÉ Raidió na Gaeltachta/)
+  })
+
+  it('still names no broadcaster we have not actually verified', () => {
     const labels = ALL_LINKS.map((l) => l.label).join(' ')
-    expect(labels).not.toMatch(/RTÉ|RTE|BBC|S4C|Liveline|Raidió/i)
+    expect(labels).not.toMatch(/BBC|S4C|Liveline/i)
   })
 
   it('points every row at a distinct page', () => {

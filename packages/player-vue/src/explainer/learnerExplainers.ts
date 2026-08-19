@@ -166,7 +166,15 @@ export const WHY_THIS_WORKS: ExplainerSection = {
           title: "Aran's 75 days of Croatian",
         },
         {
-          label: 'Ten days of Irish, ending in a live radio interview',
+          // The broadcast is the receipt for this row: Iris Aniar, RTÉ Raidió
+          // na Gaeltachta, Tue 4 Nov 2025 — Aran Jones, John Geraint, Tom
+          // Cassidy and Kai Saraceno, after ten days learning Irish in An
+          // Cheathrú Rua. The clip is at
+          // https://www.rte.ie/radio/rnag/clips/22557598/ and is recorded here
+          // as a source, not linked: rte.ie sends X-Frame-Options SAMEORIGIN,
+          // so a link would throw the learner out of the app to Safari. The
+          // row goes to our own page, which carries the interview.
+          label: 'Ten days of Irish, ending in a live interview on RTÉ Raidió na Gaeltachta',
           url: 'https://www.saysomethingin.com/intensive-ireland',
           title: 'Ten days of Irish',
         },

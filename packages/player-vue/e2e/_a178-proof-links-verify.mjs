@@ -9,10 +9,14 @@
  *
  * What it proves, in a real browser:
  *  · the panel opens and the five named rows render;
- *  · tapping a row opens the in-app overlay instead of navigating away;
- *  · the overlay's iframe carries the right saysomethingin.com URL;
- *  · the framed page actually paints — not a silent white sheet, which is the
+ *  · EVERY row opens the in-app overlay instead of navigating away;
+ *  · each overlay frames the saysomethingin.com page that row promises;
+ *  · each framed page actually paints — not a silent white sheet, which is the
  *    one failure mode the overlay exists to prevent.
+ *
+ * Not covered, deliberately: the RTÉ Raidió na Gaeltachta clip that receipts
+ * the Irish row. rte.ie sends X-Frame-Options SAMEORIGIN, so it is named in the
+ * copy and recorded as a source comment rather than linked.
  *
  * Run: start `pnpm --filter player-vue dev`, then `node e2e/_a178-proof-links-verify.mjs`.
  *
@@ -82,42 +86,48 @@ check('five proof rows render', labels.length === 5, `${labels.length}: ${labels
 check('Croatian row leads', /croatian/i.test(labels[0] || ''), labels[0])
 
 const urlBefore = page.url()
-await page.click('.wx-link >> nth=0')
 
-// The overlay is the thing under test: it must appear, and the app must not
-// have navigated away underneath it.
-await page.waitForSelector('iframe', { timeout: 15000 })
-check('tapping a row did not navigate the app away', page.url() === urlBefore, page.url())
+// Every row is a claim that a page exists and shows something. Prove each one
+// in turn: tap it, assert the overlay opened over the app rather than
+// navigating away, and assert the remote page actually painted.
+const EXPECTED = [
+  'intensive-croatia',
+  'intensive-ireland',
+  'intensive-japanuary',
+  'intensive-welsh-tom',
+  'celebrity-coaching',
+]
 
-const frameUrl = await page.$eval('iframe', (el) => el.getAttribute('src'))
-check(
-  'overlay frames the Croatian page',
-  /saysomethingin\.com\/intensive-croatia$/.test(frameUrl || ''),
-  frameUrl,
-)
+for (let i = 0; i < EXPECTED.length; i++) {
+  const slug = EXPECTED[i]
+  await page.click(`.wx-link >> nth=${i}`)
+  await page.waitForSelector('iframe', { timeout: 15000 })
 
-// A blocked/blank frame is the failure this design exists to prevent, so assert
-// the remote page really painted rather than trusting that `load` fired.
-let painted = false
-let frameText = ''
-try {
-  // The site is a client-rendered SPA, so `load` firing is not the same thing
-  // as the page having content. Poll the frame's own text until it fills.
+  check(`${slug}: overlay opened without navigating the app away`, page.url() === urlBefore)
+
+  const frameUrl = await page.$eval('iframe', (el) => el.getAttribute('src'))
+  check(`${slug}: overlay frames the right page`, (frameUrl || '').endsWith(`/${slug}`), frameUrl)
+
+  // The site is client-rendered, so `load` firing is not the same thing as the
+  // page having content — a check that trusted `load` would pass on a blank
+  // frame, which is the one failure mode the overlay exists to prevent.
+  let frameText = ''
   const deadline = Date.now() + 45000
   while (Date.now() < deadline) {
-    const frame = page.frames().find((f) => /intensive-croatia/.test(f.url()))
+    const frame = page.frames().find((f) => f.url().includes(slug))
     if (frame) {
       frameText = (await frame.evaluate(() => document.body.innerText || '').catch(() => '')).trim()
       if (frameText.length > 200) break
     }
     await page.waitForTimeout(1000)
   }
-  painted = frameText.length > 200
-} catch (e) {
-  frameText = `error: ${e.message.split('\n')[0]}`
+  check(`${slug}: page actually painted`, frameText.length > 200, `${frameText.length} chars`)
+  if (frameText) out(`      ${frameText.slice(0, 120).replace(/\n+/g, ' / ')}`)
+
+  if (i === 0) await page.screenshot({ path: 'e2e/_a178-proof-links.png' })
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(500)
 }
-check('framed page actually painted content', painted, `${frameText.length} chars`)
-out(`      frame text: ${frameText.slice(0, 160).replace(/\n/g, ' / ')}`)
 
 await page.screenshot({ path: 'e2e/_a178-proof-links.png' })
 out('screenshot: packages/player-vue/e2e/_a178-proof-links.png')
