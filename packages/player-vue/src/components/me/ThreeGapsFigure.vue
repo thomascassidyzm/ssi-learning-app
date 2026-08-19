@@ -12,6 +12,9 @@
  *
  * Static SVG, no animation. Ink comes from currentColor at varying opacity, so
  * every stroke is the one Mist ink weight rather than a new colour.
+ *
+ * The viewBox carries five units of bleed each side: "it comes out wrong" is
+ * the widest label in the set and sat a whisker off the right edge at 390px.
  */
 </script>
 
@@ -19,7 +22,7 @@
   <figure class="xf">
     <svg
       class="xf-svg"
-      viewBox="0 0 330 104"
+      viewBox="-5 0 340 104"
       fill="none"
       role="img"
       aria-label="Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick."
