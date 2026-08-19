@@ -5,7 +5,7 @@ metadata:
   title: "Learner Profile / Mirror / Portrait"
   version: "1.1.0"
   date: "2026-08-03"
-  last_updated: "2026-08-19 — A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
+  last_updated: "2026-08-19 — the explainer prose now reads live from Popty's published document, with the repo-authored copy as its silent fallback; A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
   author: "SSi Team"
   status: "preview — shipped to dev on the unlinked /me route"
   source: "founder design session 2026-08-03"
@@ -183,7 +183,48 @@ implementation:
     - "components/me/WornPathFigure.vue"
     - "components/me/ClimbingBandFigure.vue"
   content: "explainer/learnerExplainers.ts"
+  published_copy: "explainer/parseHtwCopy.ts + explainer/usePublishedExplainers.ts"
   throb: "explainer/learnerThrob.ts — learner-side sibling of howThisWorksThrob.ts, which is untouched"
+
+# =============================================================================
+# THE PUBLISHED COPY — the words are editable, the structure is not
+# =============================================================================
+
+ruling CopyReadsLiveFromPopty:
+  date: "2026-08-19"
+  decision: |
+    The two explainer sections read their WORDS from the document published in
+    Popty at GET /api/copy-published?doc=htw, so an editor changes the learner-
+    facing prose without a deploy. learnerExplainers.ts is unchanged and stays
+    in the app as the FALLBACK, not as dead weight.
+  join_key: |
+    Headings. The document says so in its own front matter — "The headings and
+    the ###/## structure markers are how we map your edits back into the app" —
+    so parseHtwCopy matches a document block to a code block by heading, after
+    stripping the document's "Part 2a — " navigation prefixes. A heading the
+    code does not carry is simply not a block: that is how "### The player
+    screen" and everything under "## Where a learner meets this" stay out,
+    without a skip-list.
+  code_owns:
+    - "figure names — the ExplainerFigureName union maps to components; a name from a document would not compile"
+    - "link urls and titles — the in-app-browser framing constraint lives here, which is why rte.ie is a recorded source and not a link"
+    - "which blocks exist, and in what order"
+  document_owns:
+    - "section link label and intro line"
+    - "every body paragraph and every bullet"
+    - "the learner-visible label on each proof link, matched positionally to the code's rows"
+  never_learner_facing: "the front matter, the ⚠ SETTLED notes, the '*A drawing sits here…*' descriptions, and the sections the app does not model"
+  fallback_law: |
+    One background fetch per page load with a 2.5s timeout. The hardcoded prose
+    renders on the first frame and STAYS unless a complete, parseable document
+    arrives. Fetch failure, timeout, 404 — the ordinary state until somebody
+    publishes — a server error, a non-JSON body, an empty document or a parse
+    throw all land silently on it. Merging is per field: a block the document
+    lost keeps its shipped words rather than emptying. There is no loading
+    state, no error state and no spinner, because there is nothing a learner
+    could do about any of it.
+  base_url: "VITE_POPTY_BASE_URL, defaulting to https://popty.app"
+  enforced_in: "explainer/parseHtwCopy.test.ts — every shipped string round-trips out of the frozen original; explainer/usePublishedExplainers.test.ts — the failure modes"
 
 # =============================================================================
 # THE EXPLAINER FIGURE — A-176, founder ruling 2026-08-19
