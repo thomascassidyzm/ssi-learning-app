@@ -114,3 +114,17 @@ before that fix understates real consent, and should be read as a floor.
 - **`/methodology`** looked like a learner explainer but the router guard at
   `router/index.ts:905` requires an admin role for it, exactly as for `/admin`.
   It is an internal surface and is scored as such.
+
+## Correction to the adoption-numbers file
+
+`adoption-numbers.md` records the walkthrough/How-this-works surface as having no
+learner route, on the basis of `components/admin/HowThisWorks.vue` and the
+admin-guarded `/methodology`. That is half right. There is a **second**,
+learner-facing surface it missed: `components/me/HowThisWorksLibrary.vue`, mounted
+in `BrowseScreen.vue` — the Library — which `PlayerContainer.vue` renders for every
+learner. It carries the six learner walks, the topic chips and the search popup.
+
+So the correct reading is not "learners have no How-this-works surface". It is:
+learners have one, it works, and **we cannot tell whether anyone opens it**, because
+its seen-state lives in `localStorage` under `ssi-htw-seen` and nothing is logged.
+The published summary states it that way.
