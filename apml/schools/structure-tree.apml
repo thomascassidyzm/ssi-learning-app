@@ -94,8 +94,22 @@ demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
   engine: api/_utils/demoNodeRefresh.ts (refreshDemoNodeActivity)
   semantics:
     - REPLACE not top-up: deletes the subtree's synthetic student telemetry
-      (sessions, seed_progress, lego_progress, class_sessions) then
-      regenerates — idempotent, refreshes never stack
+      (sessions, seed_progress, lego_progress, class_sessions,
+      learner_speaking_opportunities) then regenerates — idempotent,
+      refreshes never stack
+    - learner_speaking_opportunities is the per (learner, course, day) rollup
+      EVERY "Last 7 days" panel reads (useAdminUserDetail.ts reads it, not the
+      legacy `sessions` table). Added 2026-08-19 after a refreshed learner's
+      page still read zero. DERIVED by summing the session rows this verb just
+      generated — never drawn separately, so rollup and session list cannot
+      disagree. Count returned as speakingRowsWritten + audited as
+      speaking_rows_written.
+    - does NOT write the VAD-fed tables (learner_lego_metrics,
+      player_events cycle_prosody): their payloads come from @ssi/core
+      (makeLatencySeries / extractEnvelopeMetadata) and no api/*.ts pulls the
+      core package in at runtime. Seeded by scripts/demo-data/topup-ime-vad.cjs,
+      kept recent by scripts/demo-data/topup-vad-recency.cjs. The VAD board is
+      all-time (no window chip) so it does not depend on this verb.
     - ~8 weeks of practice sessions, power-law weighted toward recent days
       and today; fast/steady/idle personas (20/50/30) per learner
     - per (learner, CLASS) pair, not per learner (2026-07-20): a dual-course

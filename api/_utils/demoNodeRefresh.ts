@@ -25,6 +25,19 @@
  *   4. only STUDENT learners (class-tag role student) are touched — demo
  *      staff accounts are real logins (Tom demos as them) and their own
  *      practice history is never rewritten.
+ *
+ * WHAT IT REGENERATES: sessions, seed_progress, lego_progress, class_sessions,
+ * and — since 2026-08-19 — learner_speaking_opportunities, the per-(learner,
+ * course, day) rollup that every "Last 7 days" panel actually reads. It does
+ * NOT write the two VAD-fed tables (learner_lego_metrics and
+ * player_events(cycle_prosody)); those are seeded by
+ * scripts/demo-data/topup-ime-vad.cjs and refreshed for recency by
+ * scripts/demo-data/topup-vad-recency.cjs, because their payloads come from
+ * @ssi/core (makeLatencySeries, extractEnvelopeMetadata) and no api/*.ts
+ * endpoint pulls the core package in at runtime — see the same reasoning in
+ * api/school/class-progress.ts. The VAD board (insight/boards/VadBoard.vue) is
+ * all-time and carries no window chip, so it does not depend on this verb for
+ * freshness; the learner pages do, which is why the rollup lives here.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -38,6 +51,8 @@ export interface NodeRefreshResult {
   classes: number
   learnersTouched: number
   sessionsWritten: number
+  /** learner_speaking_opportunities rollup rows — what every "Last 7 days" panel reads. */
+  speakingRowsWritten: number
   classSessionsWritten: number
   seedRowsWritten: number
   legoRowsWritten: number
@@ -121,7 +136,7 @@ export async function refreshDemoNodeActivity(
   const activityThrough = new Date(now).toISOString()
   const emptyResult: NodeRefreshResult = {
     groupId, schools: schoolIds.length, classes: 0, learnersTouched: 0,
-    sessionsWritten: 0, classSessionsWritten: 0, seedRowsWritten: 0, legoRowsWritten: 0,
+    sessionsWritten: 0, speakingRowsWritten: 0, classSessionsWritten: 0, seedRowsWritten: 0, legoRowsWritten: 0,
     activityThrough, noop: true,
   }
   if (!schoolIds.length) return emptyResult
@@ -234,8 +249,10 @@ export async function refreshDemoNodeActivity(
   // `sessions` also carries the class-identity rows (keyed by class learner
   // id) — cleared here too so a re-run never stacks the class's own arc.
   const sessionDeleteIds = [...learnerIds, ...classLearnerIds]
-  for (const table of ['sessions', 'seed_progress', 'lego_progress'] as const) {
-    const ids = table === 'sessions' ? sessionDeleteIds : learnerIds
+  for (const table of ['sessions', 'seed_progress', 'lego_progress', 'learner_speaking_opportunities'] as const) {
+    // `sessions` and its per-(learner, course, day) rollup both carry the
+    // class-identity rows, so both clear the wider id set.
+    const ids = table === 'sessions' || table === 'learner_speaking_opportunities' ? sessionDeleteIds : learnerIds
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100)
       const { error } = await supabase.from(table).delete().in('learner_id', chunk)
@@ -416,10 +433,47 @@ export async function refreshDemoNodeActivity(
     }
   }
 
+  // ---- REPLACE step 3: the per-(learner, course, day) speaking-opportunity
+  // rollup, derived from the session rows above rather than drawn separately.
+  //
+  // WHY THIS EXISTS (founder report, 2026-08-19: "in the display for the Kavya
+  // Chandra student I can see nothing in the last 7 days"): every "Last 7 days"
+  // panel on a learner page reads learner_speaking_opportunities, NOT
+  // `sessions` — useAdminUserDetail.ts documents the legacy `sessions` table as
+  // stale and reads the rollup instead, and AdminUserDetail.vue's
+  // last7dPracticeSeconds is computed off that. So before this, the verb could
+  // write three thousand fresh sessions and every learner page still read zero.
+  //
+  // Derived, never re-drawn: opportunities/play_seconds are summed straight off
+  // the same session rows, so the rollup and the session list can never
+  // disagree about what a learner did on a given day.
+  const rollupByKey = new Map<string, { learner_id: string; course_code: string; day: string; opportunities: number; play_seconds: number }>()
+  for (const row of sessionRowsAll) {
+    const learnerId = row.learner_id as string
+    const courseCode = row.course_id as string | null
+    const startedAt = row.started_at as string
+    if (!courseCode || !startedAt) continue
+    const day = startedAt.slice(0, 10)
+    const key = `${learnerId}|${courseCode}|${day}`
+    const acc = rollupByKey.get(key) ?? { learner_id: learnerId, course_code: courseCode, day, opportunities: 0, play_seconds: 0 }
+    acc.opportunities += (row.items_practiced as number) || 0
+    acc.play_seconds += (row.duration_seconds as number) || 0
+    rollupByKey.set(key, acc)
+  }
+  const speakingRows: Record<string, unknown>[] = [...rollupByKey.values()].map(r => ({
+    learner_id: r.learner_id,
+    course_code: r.course_code,
+    day: r.day,
+    opportunities: r.opportunities,
+    play_seconds: r.play_seconds,
+    phrases_spoken: r.opportunities,
+  }))
+
   await insertChunked(supabase, 'sessions', sessionRowsAll)
   await insertChunked(supabase, 'seed_progress', seedRowsAll)
   await insertChunked(supabase, 'lego_progress', legoRowsAll, 300)
   await insertChunked(supabase, 'class_sessions', classSessionRows)
+  await insertChunked(supabase, 'learner_speaking_opportunities', speakingRows, 300)
   for (const u of enrollmentPatches) {
     const { error } = await supabase
       .from('course_enrollments')
@@ -440,6 +494,7 @@ export async function refreshDemoNodeActivity(
       payload: {
         actor_user_id: actorId, group_id: groupId, group_name: group.name,
         learners_touched: learnerIds.length, sessions_written: sessionRowsAll.length,
+        speaking_rows_written: speakingRows.length,
         class_sessions_written: classSessionRows.length,
       },
     })
@@ -453,6 +508,7 @@ export async function refreshDemoNodeActivity(
     classes: classes.length,
     learnersTouched: learnerIds.length,
     sessionsWritten: sessionRowsAll.length,
+    speakingRowsWritten: speakingRows.length,
     classSessionsWritten: classSessionRows.length,
     seedRowsWritten: seedRowsAll.length,
     legoRowsWritten: legoRowsAll.length,
