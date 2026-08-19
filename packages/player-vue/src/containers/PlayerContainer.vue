@@ -389,6 +389,48 @@ const totalLearningMinutesEstimated = computed(() =>
 )
 const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
+// "Phrases learnt" — DISTINCT LEGOs introduced, summed across EVERY course the
+// learner is enrolled in (owner ruling 2026-08-19). Server-computed, because it
+// needs each enrollment's cursor measured against that course's course_legos;
+// the client only knows about the one course it currently has loaded.
+// Replaces the old "Words" tile, which printed the seed number parsed out of a
+// single course's resume cursor — a position readout wearing a count's label.
+// null = not loaded / unknown (guest, offline, error); the tile renders 0 only
+// when the server actually says 0.
+const legosLearnt = ref(null)
+async function loadLegosLearnt() {
+  const sb = supabaseClient
+  if (!sb?.value) return
+  try {
+    const { data: { session } } = await sb.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return // guest — no enrollments to sum
+    const res = await fetch('/api/me/legos-learnt', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.legosLearnt === 'number') legosLearnt.value = data.legosLearnt
+  } catch {
+    /* non-fatal — the tile falls back to the local single-course count */
+  }
+}
+// Until the server answers, show the one number we can honestly derive locally:
+// the LEGOs introduced in the current course up to the cursor is not knowable
+// client-side either, so fall back to 0 rather than to a seed position.
+const phrasesLearnt = computed(() => legosLearnt.value ?? 0)
+
+// ── Spoken-phrases tile visibility ──
+// A category with no live data source is HIDDEN, not shown as 0 (owner ruling
+// 2026-08-19): a 0 asserts "you have spoken nothing", when the truth is "we
+// weren't listening". phrasesSpoken only ever increments while the adaptation
+// (VAD/mic) engine is running, and that requires this consent — off by default.
+// Mirrors ADAPTATION_CONSENT_KEY in LearningPlayer.vue.
+const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
+const adaptationConsented = ref(false)
+function loadAdaptationConsent() {
+  adaptationConsented.value = localStorage.getItem(ADAPTATION_CONSENT_KEY) === 'true'
+}
+const showPhrasesSpokenTile = computed(() => adaptationConsented.value)
+
 // Admin detection (mirrors SettingsScreen logic)
 const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
 const ADMIN_EMAILS = ['tom@tomcassidy.co.uk']
@@ -482,7 +524,9 @@ const loadModeVisibility = () => {
 
 onMounted(() => {
   loadModeVisibility()
+  loadAdaptationConsent()
   void loadEngagedMinutes()
+  void loadLegosLearnt()
 
   // Pre-warm async modal chunks. Fired on idle so the player's first
   // paint isn't competing for bandwidth, but kicks in well before a
@@ -504,6 +548,9 @@ onMounted(() => {
   window.addEventListener('ssi-setting-changed', (e) => {
     const { key } = e.detail || {}
     if (key?.startsWith('show') && key.endsWith('Mode')) loadModeVisibility()
+    // Toggling the adaptation (mic) consent appears/disappears the spoken-
+    // phrases tile in the Library without needing a reload.
+    if (key === 'adaptationConsent') loadAdaptationConsent()
   })
 
   const urlParams = new URLSearchParams(window.location.search)
@@ -600,6 +647,8 @@ onMounted(() => {
             :total-learning-minutes="totalLearningMinutes"
             :total-learning-minutes-estimated="totalLearningMinutesEstimated"
             :total-phrases-spoken="totalPhrasesSpoken"
+            :show-phrases-spoken="showPhrasesSpokenTile"
+            :phrases-learnt="phrasesLearnt"
             @open-belts="null"
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
             @close="closeLibrary"
