@@ -65,14 +65,30 @@ export class SessionStore implements ISessionStore {
     return this.mapToSessionRecord(data);
   }
 
+  /**
+   * Close a session row.
+   *
+   * `playSeconds` is REQUIRED and is the only accepted source of
+   * duration_seconds. Time counts as in-app time when the app is PLAYING —
+   * including listening — and does not count when it is not (owner ruling,
+   * 2026-08-19). The caller measures that directly by accumulating segments
+   * between playback start and stop; this method must never re-derive it.
+   *
+   * This used to compute `ended_at - started_at` instead, which is wall-clock
+   * and counts every minute the tab sat idle. It also OVERWROTE the correct
+   * play-seconds value that checkpointSession had already written. That is
+   * what produced sessions claiming 128 hours with items_practiced = 0 — a
+   * timer that was never closed, not a learner who studied for five days.
+   * There is deliberately no wall-clock fallback: the parameter is required
+   * so the old behaviour cannot creep back in as a default.
+   */
   async endSession(
     sessionId: string,
-    metrics: SessionMetrics
+    metrics: SessionMetrics,
+    playSeconds: number
   ): Promise<SessionRecord> {
     const endedAt = metrics.ended_at ?? new Date();
-    const durationSeconds = Math.floor(
-      (endedAt.getTime() - metrics.started_at.getTime()) / 1000
-    );
+    const durationSeconds = Math.max(0, Math.floor(playSeconds));
 
     const { data, error } = await this.client
       .schema(this.schema)

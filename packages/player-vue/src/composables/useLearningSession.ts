@@ -594,6 +594,12 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
 
     try {
       const endTime = new Date()
+      // Close the in-flight play segment BEFORE writing, so the row records
+      // the trailing playback rather than dropping it. This used to run after
+      // the write, which didn't matter while endSession derived duration from
+      // wall-clock — now that duration IS the play total, the ordering is the
+      // difference between banking the last segment and losing it.
+      markPlayStop()
       await sessionStore.endSession(sessionId.value, {
         session_id: sessionId.value,
         started_at: sessionStartTime.value,
@@ -603,10 +609,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         final_rolling_average: 0, // TODO: Wire up metrics
         metrics: [], // TODO: Wire up response metrics
         spikes: [], // TODO: Wire up spike events
-      })
+      }, getPlaySeconds())
 
       // Update enrollment with accumulated practice minutes (actual play time)
-      markPlayStop()
       const progressStore = getProgressStore()
       const learnerId = getLearnerId()
       const courseId = getCourseId()
