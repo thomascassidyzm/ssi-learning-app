@@ -267,14 +267,26 @@ const handleStartAtSeed = (seedNumber) => {
 }
 
 // Library overlay
-const toggleLibrary = () => {
-  if (!showLibrary.value) {
+const toggleLibrary = async () => {
+  const opening = !showLibrary.value
+  if (opening) {
     showSettings.value = false // Close settings if open
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
     }
   }
   showLibrary.value = !showLibrary.value
+
+  // Opening the Library is a READ of the activity tiles, so land the in-flight
+  // telemetry deltas first and only then refetch — otherwise "Phrases spoken"
+  // shows the last-flushed snapshot and looks stuck one session behind.
+  // Same ordering as handleBeltPillTap does for the progress modal.
+  if (opening && adaptationConsented.value) {
+    try {
+      await learningPlayerRef.value?.flushTelemetryDelta?.()
+    } catch { /* flush is best-effort */ }
+    void loadPhrasesSpoken()
+  }
 }
 
 const closeLibrary = () => {
@@ -387,7 +399,39 @@ const totalLearningMinutes = computed(() =>
 const totalLearningMinutesEstimated = computed(() =>
   serverEngagedMinutes.value != null && serverEngagedMinutesEstimated.value
 )
-const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
+// "Phrases spoken" — cycles where the VAD actually heard the learner, summed
+// LIFETIME across EVERY course (owner ruling 2026-08-19, Activity-tiles
+// diagnosis rec 3). Server-computed by /api/me/phrases-spoken off
+// learner_speaking_opportunities.phrases_spoken.
+//
+// The local belt-progress value it replaces could not carry this: it read
+// localStorage `ssi-session-history-<courseCode>`, filtered to the last 30
+// days, for one course only, and was banked only when endSession() ran — so a
+// session ended by closing the tab lost its count. The server ledger rides the
+// existing delta/watermark flush, which already fires on visibilitychange and
+// beforeunload.
+//
+// null = not loaded / unknown (guest, offline, error). The local value is the
+// fallback until the server answers — it is a floor, never larger than the truth.
+const serverPhrasesSpoken = ref(null)
+async function loadPhrasesSpoken() {
+  const sb = supabaseClient
+  if (!sb?.value) return
+  try {
+    const { data: { session } } = await sb.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return // guest — nothing banked server-side
+    const res = await fetch('/api/me/phrases-spoken', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.phrasesSpoken === 'number') serverPhrasesSpoken.value = data.phrasesSpoken
+  } catch {
+    /* non-fatal — fall back to the local 30-day, single-course count */
+  }
+}
+const totalPhrasesSpoken = computed(() =>
+  serverPhrasesSpoken.value ?? beltProgress.value?.totalPhrasesSpoken.value ?? 0
+)
 
 // "Phrases learnt" — DISTINCT LEGOs introduced, summed across EVERY course the
 // learner is enrolled in (owner ruling 2026-08-19). Server-computed, because it
@@ -527,6 +571,9 @@ onMounted(() => {
   loadAdaptationConsent()
   void loadEngagedMinutes()
   void loadLegosLearnt()
+  // Only fetched when the mic/adaptation consent is on — the tile is hidden
+  // otherwise, so for the default learner this is zero extra requests.
+  if (adaptationConsented.value) void loadPhrasesSpoken()
 
   // Pre-warm async modal chunks. Fired on idle so the player's first
   // paint isn't competing for bandwidth, but kicks in well before a
@@ -550,7 +597,12 @@ onMounted(() => {
     if (key?.startsWith('show') && key.endsWith('Mode')) loadModeVisibility()
     // Toggling the adaptation (mic) consent appears/disappears the spoken-
     // phrases tile in the Library without needing a reload.
-    if (key === 'adaptationConsent') loadAdaptationConsent()
+    if (key === 'adaptationConsent') {
+      loadAdaptationConsent()
+      // Turning the mic on reveals the tile — fetch the lifetime number now
+      // rather than showing the local 30-day fallback until the next reload.
+      if (adaptationConsented.value) void loadPhrasesSpoken()
+    }
   })
 
   const urlParams = new URLSearchParams(window.location.search)

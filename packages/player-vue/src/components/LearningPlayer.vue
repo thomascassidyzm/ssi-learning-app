@@ -3975,6 +3975,12 @@ const calculateCyclePoints = () => {
   // Check timing results if available
   if (lastTimingResult.value?.speech_detected) {
     phrasesSpokenCount.value++
+    // Server-side home for the lifetime count (owner ruling 2026-08-19). The
+    // local counter above still drives this session's summary screen; this
+    // one rides the delta/watermark flush into
+    // learner_speaking_opportunities.phrases_spoken, which survives tab-close
+    // and is neither 30-day-windowed nor per-course.
+    learningSession.bumpPhraseSpoken()
     points += 1 // Bonus for detected speech
 
     const latency = lastTimingResult.value.response_latency_ms
@@ -15073,6 +15079,11 @@ defineExpose({
   toggleOffline,
   offlineActive,
   sessionSeconds,
+  // Persist the in-flight telemetry deltas without stopping playback, so a
+  // surface that is about to READ them (the Library's activity tiles) can
+  // await the write first — the same trick handleBeltPillTap uses for the
+  // progress modal.
+  flushTelemetryDelta: learningSession.flushTelemetryDelta,
 })
 </script>
 
