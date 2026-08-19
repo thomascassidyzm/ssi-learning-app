@@ -61,4 +61,30 @@ describe('learner explainer sections — the pulse-until-viewed mechanic', () =>
     await how.find('.lx-toggle').trigger('click')
     expect(how.find('.lx-card').html()).not.toContain('v-html')
   })
+
+  /**
+   * The still portrait of the player's phase pill (A-176). It illustrates one
+   * block and must stay inert — the live pill is interactive, this one is a
+   * picture.
+   */
+  it('draws the pill figure once, in the block that names it', async () => {
+    const how = mount(HowThisWorksLearner)
+    await how.find('.lx-toggle').trigger('click')
+    expect(how.findAll('.cpf')).toHaveLength(1)
+
+    const block = how.findAll('.lx-block').find((b) => b.find('.cpf').exists())!
+    expect(block.find('.lx-heading').text()).toMatch(/pressing play/i)
+  })
+
+  it('the figure is a picture, not a control: four segments, no buttons', async () => {
+    const how = mount(HowThisWorksLearner)
+    await how.find('.lx-toggle').trigger('click')
+    const fig = how.find('.cpf')
+    expect(fig.findAll('.cpf-seg')).toHaveLength(4)
+    expect(fig.findAll('button')).toHaveLength(0)
+    expect(fig.find('.cpf-pill').attributes('aria-hidden')).toBe('true')
+    // A text alternative in the learner's own words, never internal phase names.
+    expect(fig.find('.cpf-caption').text()).toMatch(/your turn to say it out loud/i)
+    expect(fig.text()).not.toMatch(/PROMPT|VOICE_1|SPEAK/)
+  })
 })

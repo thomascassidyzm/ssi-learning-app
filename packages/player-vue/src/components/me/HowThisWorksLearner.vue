@@ -14,6 +14,7 @@
  */
 import { ref, computed } from 'vue'
 import { HOW_THIS_WORKS_LEARNER as section } from '@/explainer/learnerExplainers'
+import CyclePillFigure from './CyclePillFigure.vue'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 
 const props = withDefaults(defineProps<{
@@ -54,6 +55,7 @@ function toggle(): void {
         <div v-for="block in section.blocks" :key="block.heading" class="lx-block">
           <h3 class="lx-heading">{{ block.heading }}</h3>
           <p v-for="(para, i) in block.body" :key="i" class="lx-para">{{ para }}</p>
+          <CyclePillFigure v-if="block.figure === 'cycle-pill'" />
           <ul v-if="block.points" class="lx-points">
             <li v-for="(point, i) in block.points" :key="i">{{ point }}</li>
           </ul>

@@ -67,6 +67,47 @@ describe('learner explainer copy — the hard laws', () => {
     expect(ALL_TEXT).not.toMatch(/\bday streak\b/i)
   })
 
+  /**
+   * Founder rulings 2026-08-19, all three on the same message.
+   */
+  it('states our own choice about streaks without an opinion about anyone else', () => {
+    const streakBlock = WHY_THIS_WORKS.blocks.find((b) => /streaks/i.test(b.heading))!
+    const text = streakBlock.body.join(' ')
+    // No comparison: the reader cannot tell we have a view on other apps.
+    for (const re of [/other apps/i, /\bapps\b/i, /plenty of people/i, /differently/i]) {
+      expect(text, `comparison leaked: ${re}`).not.toMatch(re)
+    }
+    // No argument against the thing we do not do, either.
+    expect(text).not.toMatch(/backwards/i)
+    expect(text).not.toMatch(/reason to stay away/i)
+    // Our reason, in the founder's own framing.
+    expect(text).toMatch(/pressure is the opposite of what makes this work/i)
+  })
+
+  it('never claims we cannot tell when you were last here', () => {
+    // The app timestamps every session, so the old "no way of knowing" line was
+    // simply untrue. Honest version: we know, we just do not push you with it.
+    expect(ALL_TEXT).not.toMatch(/no way of knowing/i)
+    expect(ALL_TEXT).not.toMatch(/cannot (?:tell|know|see) (?:how long|when)/i)
+    const streakBlock = WHY_THIS_WORKS.blocks.find((b) => /streaks/i.test(b.heading))!
+    expect(streakBlock.body.join(' ')).toMatch(/does know when you were last here/i)
+  })
+
+  it('carries the honest thirty-hour framing: tough first, then a lot easier', () => {
+    const block = WHY_THIS_WORKS.blocks.find((b) => /thirty hours/i.test(b.heading))!
+    const text = block.body.join(' ')
+    expect(text).toMatch(/first thirty hours are tough/i)
+    expect(text).toMatch(/really does get a lot easier/i)
+  })
+
+  it('illustrates what pressing play does with the player’s own pill', () => {
+    const play = HOW_THIS_WORKS_LEARNER.blocks.find((b) => /pressing play/i.test(b.heading))!
+    expect(play.figure).toBe('cycle-pill')
+    // Exactly one figure across both sections — it is an illustration, not a motif.
+    const figures = SECTIONS.flatMap((s) => s.blocks).filter((b) => b.figure)
+    expect(figures).toHaveLength(1)
+  })
+
   it('keeps every internal term behind the language wall', () => {
     const jargon = [
       /\bLEGOs?\b/,

@@ -42,6 +42,12 @@ export interface ExplainerBlock {
   points?: string[]
   /** Optional link rows, rendered beneath everything else. */
   links?: ExplainerLink[]
+  /**
+   * Optional illustration, named here and drawn by the rendering component —
+   * so prose stays in this module and pixels stay in components. 'cycle-pill'
+   * is the still portrait of the player's own phase pill.
+   */
+  figure?: 'cycle-pill'
 }
 
 export interface ExplainerSection {
@@ -64,6 +70,9 @@ export const HOW_THIS_WORKS_LEARNER: ExplainerSection = {
         'You hear a short phrase in English. Then there is a gap. The gap is yours — say your version out loud, out into the room, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different voices, so you can hear how it really sounds.',
         'Then the next one arrives on its own. There is nothing to tap in between.',
       ],
+      // The pill on the player screen is the same shape as the picture here,
+      // so the two teach each other. Founder ruling 2026-08-19.
+      figure: 'cycle-pill',
     },
     {
       heading: 'What a go is',
@@ -122,7 +131,7 @@ export const WHY_THIS_WORKS: ExplainerSection = {
     {
       heading: 'What happens at around thirty hours',
       body: [
-        'Somewhere around thirty hours in the app, it turns a corner. Not finished and not fluent, but fun, easy and playful in a way the first stretch honestly is not. Three things you will be able to check for yourself:',
+        'The first thirty hours are tough. We would rather say so than pretend otherwise. After them it really does get a lot easier — not finished and not fluent, but fun and playful in a way that first stretch honestly is not. Three things you will be able to check for yourself:',
       ],
       points: [
         'You will be getting into conversations.',
@@ -147,9 +156,9 @@ export const WHY_THIS_WORKS: ExplainerSection = {
     {
       heading: 'Why there are no streaks and no points',
       body: [
-        'We do not count days in a row, and we never will. A streak is a lovely thing right up until it ends, and then it quietly becomes a reason to stay away — which is backwards, because the day you turn up again is the most valuable day there is. So the app simply has no way of knowing anything about the time you spend away from it.',
-        'There are no points, no score and no leaderboard either. A points total only ever measures the app having an opinion about you. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.',
-        'Plenty of apps do this differently and plenty of people love them for it. We would just rather build the one that is glad to see you whenever you turn up.',
+        'We do not count days in a row, and we never will. The app does know when you were last here — every session is stamped with its time, which is how it picks up exactly where you left off. We simply never turn that into something you have to keep up, because pressure is the opposite of what makes this work, and we would like this to be fun.',
+        'There are no points, no score and no leaderboard either. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.',
+        'Turn up when it suits you. This is glad to see you whenever you do.',
       ],
     },
     {
