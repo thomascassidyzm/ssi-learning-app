@@ -248,7 +248,12 @@ export interface IProgressStore {
 export interface ISessionStore {
   // Session management
   startSession(learnerId: string, courseId: string): Promise<SessionRecord>;
-  endSession(sessionId: string, metrics: SessionMetrics): Promise<SessionRecord>;
+  /**
+   * `playSeconds` is required — duration_seconds is accumulated playback time
+   * (owner ruling 2026-08-19), never `ended_at - started_at`. See
+   * SessionStore.endSession for why there is no wall-clock fallback.
+   */
+  endSession(sessionId: string, metrics: SessionMetrics, playSeconds: number): Promise<SessionRecord>;
   checkpointSession(sessionId: string, itemsPracticed: number, durationSeconds: number): Promise<void>;
   // Per-cycle / per-play-segment counter — bypasses the session row entirely
   // so it works even when the session lifecycle has problems.
