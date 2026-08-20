@@ -65,6 +65,17 @@ export class VoiceActivityDetector {
   // consumes it into EnvelopeMetadata (5 numbers) and discards it immediately.
   private continuousEnergyTimeline: TimedEnergySample[] = [];
 
+  // Playback-rejection state (continuous mode only, 2026-08-20).
+  // See ContinuousVADConfig for why the gate has to be relative.
+  private calibrationSamples: number[] = [];
+  private calibrationClosed = false;
+  /** max(absolute threshold, measured floor + margin); null until calibrated */
+  private adaptiveThresholdDb: number | null = null;
+  /** Start of an above-floor burst not yet sustained long enough to count.
+   *  Re-armable: a burst that dies before min_speech_duration_ms is discarded,
+   *  so a transient can no longer own the whole cycle's measurement. */
+  private candidateSpeechStart: number | null = null;
+
   constructor(config: Partial<VADConfig> = {}) {
     this.config = { ...DEFAULT_VAD_CONFIG, ...config };
   }
@@ -372,6 +383,10 @@ export class VoiceActivityDetector {
     this.lastSpeechEndAbsolute = null;
     this.confirmedSpeechEnd = null;
     this.continuousEnergyTimeline = [];
+    this.calibrationSamples = [];
+    this.calibrationClosed = false;
+    this.adaptiveThresholdDb = null;
+    this.candidateSpeechStart = null;
     if (this.speechEndDebounceTimer) {
       clearTimeout(this.speechEndDebounceTimer);
       this.speechEndDebounceTimer = null;
@@ -449,14 +464,21 @@ export class VoiceActivityDetector {
       this.speechEndDebounceTimer = null;
     }
 
-    // Finalize speech end if still speaking
-    if (this.lastSpeechStartTime !== null && this.confirmedSpeechEnd === null) {
-      this.confirmedSpeechEnd = endTime - this.continuousStartTime;
-    }
-
     // Get phase timestamps (relative to prompt start)
     const promptEndMs = this.phaseTimestamps.get('PROMPT_END') ?? 0;
     const voice1StartMs = this.phaseTimestamps.get('VOICE_1') ?? 0;
+
+    // Finalize speech end if still speaking. Clamped to shortly after VOICE_1:
+    // past that the app's own target audio is the likelier source of whatever
+    // is still above the floor, and an unclamped end here is precisely what
+    // produced the whole-cycle ~17.5s "utterances" in the live corpus.
+    if (this.lastSpeechStartTime !== null && this.confirmedSpeechEnd === null) {
+      const cycleEndMs = endTime - this.continuousStartTime;
+      const hasVoice1 = this.phaseTimestamps.has('VOICE_1');
+      this.confirmedSpeechEnd = hasVoice1
+        ? Math.min(cycleEndMs, voice1StartMs + this.continuousConfig.post_voice1_grace_ms)
+        : cycleEndMs;
+    }
 
     // Calculate speech timestamps (relative to prompt start)
     const speechStartMs = this.firstSpeechStartAbsolute !== null
@@ -515,6 +537,64 @@ export class VoiceActivityDetector {
   }
 
   /**
+   * The energy a sample must exceed to count as speech, right now.
+   *
+   * Until the calibration slice closes this is the configured absolute
+   * threshold; afterwards it is the larger of that and (measured floor +
+   * margin). The measured floor is the MEDIAN of the calibration slice, not a
+   * mean or a max: playback runs continuously through the prompt so the median
+   * lands on it, while a learner's burst is short relative to the slice and
+   * therefore cannot drag the floor up over their own speech.
+   */
+  private currentSpeechThresholdDb(): number {
+    const absolute = this.continuousConfig.energy_threshold_db;
+    if (this.adaptiveThresholdDb === null) return absolute;
+    return Math.max(absolute, this.adaptiveThresholdDb);
+  }
+
+  /**
+   * Accumulate the calibration slice and close it once the window elapses (or
+   * PROMPT_END arrives first, for a very short prompt). Returns true while
+   * calibration is still open, during which no onset may be established.
+   */
+  private updateCalibration(relativeNow: number, energy: number): boolean {
+    if (!this.continuousConfig.adaptive_floor_enabled) return false;
+    if (this.calibrationClosed) return false;
+
+    const promptEnd = this.phaseTimestamps.get('PROMPT_END');
+    const windowElapsed = relativeNow >= this.continuousConfig.calibration_window_ms;
+    const promptEnded = promptEnd !== undefined && relativeNow >= promptEnd;
+
+    if (!windowElapsed && !promptEnded) {
+      this.calibrationSamples.push(energy);
+      return true;
+    }
+
+    this.calibrationClosed = true;
+    if (this.calibrationSamples.length >= this.continuousConfig.calibration_min_samples) {
+      const sorted = [...this.calibrationSamples].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      this.adaptiveThresholdDb = median + this.continuousConfig.adaptive_margin_db;
+    }
+    // Too few samples → adaptiveThresholdDb stays null and the absolute
+    // threshold governs, rather than a floor built on two frames of noise.
+    return false;
+  }
+
+  /**
+   * Whether a NEW utterance may still begin. The learner is invited to speak
+   * between PROMPT_END and VOICE_1; once the app starts playing target audio
+   * an onset is far likelier to be that audio than a response, and the
+   * response-latency measurement it would produce is meaningless anyway.
+   * Speech already in progress is unaffected — which is what keeps
+   * `still_speaking_at_voice1` measurable.
+   */
+  private onsetWindowOpen(relativeNow: number): boolean {
+    const voice1 = this.phaseTimestamps.get('VOICE_1');
+    return voice1 === undefined || relativeNow < voice1;
+  }
+
+  /**
    * Internal analysis loop for continuous monitoring.
    * Similar to analyzeLoop but tracks first speech start and debounces speech end.
    */
@@ -523,6 +603,7 @@ export class VoiceActivityDetector {
 
     const energy = this.getCurrentEnergy();
     const now = performance.now();
+    const relativeNow = now - this.continuousStartTime;
 
     // Record energy sample
     this.energySamples.push(energy);
@@ -533,8 +614,14 @@ export class VoiceActivityDetector {
       this.peakEnergy = energy;
     }
 
-    // Check against threshold
-    const isAboveThreshold = energy > this.config.energy_threshold_db;
+    const calibrating = this.updateCalibration(relativeNow, energy);
+
+    // Check against threshold. Continuous mode reads continuousConfig — the
+    // loop used to read this.config for the threshold and min_frames while
+    // reading continuousConfig only for the debounce, so a per-call config
+    // passed to startContinuousMonitoring silently did nothing to the gate.
+    const isAboveThreshold =
+      !calibrating && energy > this.currentSpeechThresholdDb();
 
     if (isAboveThreshold) {
       this.consecutiveAboveThreshold++;
@@ -546,20 +633,52 @@ export class VoiceActivityDetector {
       }
 
       // Confirm speech after min_frames_above consecutive frames
-      if (this.consecutiveAboveThreshold >= this.config.min_frames_above) {
+      if (this.consecutiveAboveThreshold >= this.continuousConfig.min_frames_above) {
         if (this.lastSpeechStartTime === null) {
           // Speech just started
           this.lastSpeechStartTime = now;
-
-          // Track first speech start for timing analysis
-          if (this.firstSpeechStartAbsolute === null) {
-            this.firstSpeechStartAbsolute = now;
-          }
         }
         this.speechFrameCount++;
+
+        // Track first speech start for timing analysis. Two gates the old
+        // code had neither of: the burst must be inside the onset window,
+        // and it must SUSTAIN for min_speech_duration_ms before it counts.
+        // min_speech_duration_ms was declared and defaulted since the class
+        // was written but never actually read anywhere — so a single ~48ms
+        // transient (three rAF frames) established the onset for the whole
+        // cycle, permanently, with no way to re-arm.
+        if (this.firstSpeechStartAbsolute === null) {
+          if (this.candidateSpeechStart === null) {
+            if (this.onsetWindowOpen(relativeNow)) {
+              this.candidateSpeechStart = this.lastSpeechStartTime;
+            }
+          } else if (
+            now - this.candidateSpeechStart >=
+            this.continuousConfig.min_speech_duration_ms
+          ) {
+            // Credit the START of the burst, not the moment it qualified,
+            // so response latency is not inflated by the sustain test.
+            this.firstSpeechStartAbsolute = this.candidateSpeechStart;
+
+            // Any end recorded by an earlier unsustained burst predates the
+            // real utterance and would otherwise survive to the result as a
+            // speech_end BEFORE speech_start.
+            this.lastSpeechEndAbsolute = null;
+            this.confirmedSpeechEnd = null;
+            if (this.speechEndDebounceTimer) {
+              clearTimeout(this.speechEndDebounceTimer);
+              this.speechEndDebounceTimer = null;
+            }
+          }
+        }
       }
     } else {
-      // Below threshold
+      // Below the floor: an unsustained candidate is discarded, so the next
+      // burst gets a fresh chance to own the measurement.
+      if (this.firstSpeechStartAbsolute === null) {
+        this.candidateSpeechStart = null;
+      }
+
       if (this.lastSpeechStartTime !== null) {
         // Speech might be ending - record tentative end time
         this.lastSpeechEndAbsolute = now;
