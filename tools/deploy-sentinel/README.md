@@ -67,11 +67,16 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
 Cron line (every 3 min; the script is a fast no-op when nothing is happening):
 
 ```
-*/3 * * * *  /bin/bash /home/tomcassidy/ssi-learning-app/tools/deploy-sentinel/run.sh >> /dev/null 2>&1
+*/3 * * * *   /bin/sh -c 'S=/home/tomcassidy/ssi-learning-app/tools/deploy-sentinel; if [ -r "$S/run.sh" ]; then /bin/bash "$S/run.sh"; else /usr/bin/node "$S/sentinel.mjs"; fi' >> /dev/null 2>&1
 ```
 
 Cron calls **`run.sh`, not `sentinel.mjs` directly** — the wrapper updates the
 sentinel's own code before each tick. Do not point cron back at `sentinel.mjs`.
+
+The `else` branch is the **bootstrap fail-safe**: `run.sh` is itself pulled from
+`dev`, so if a HEAD ever lands without it, cron would have nothing to call and
+the wrapper could not heal the very problem it exists for. Then the sentinel runs
+directly — stale, but running. Same invariant as inside the script, one level up.
 
 **Where it runs:** the dedicated checkout at `/home/tomcassidy/ssi-learning-app`
 (note: NOT the shared multi-worker tree under `~/SSi/`, whose branch changes
