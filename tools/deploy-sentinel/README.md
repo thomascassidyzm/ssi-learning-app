@@ -28,8 +28,23 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    2 consecutive failing ticks.
 4. **Live play-through** — a real headless-browser session
    (`packages/player-vue/e2e/deploy-sentinel-play-probe.mjs`) loads production,
-   starts the player, and verifies zero JS errors + the client's telemetry POST
-   returns 2xx. Runs once per window (~25 min after deploy-live) and again as
+   clicks the real transport control (`.center-btn`), waits for the session
+   clock to actually advance — i.e. proves playback *started* — and verifies
+   zero JS errors + the client's telemetry POST returns 2xx.
+
+   It reports a three-way `verdict`, and the distinction matters:
+   `healthy` (playback ran, loop intact) · `broken` (genuinely failing for
+   learners — **the only verdict that alerts**) · `inconclusive` (the probe
+   could not drive the UI, which says nothing about learners and is logged,
+   never alarmed). Before 2026-08-20 the probe had no such split and, worse,
+   could never start playback at all: every selector it tried missed the real
+   control, it clicked a `<p class="hero-known">` paragraph and swallowed the
+   failure with `.catch(() => {})`. Its "passes" came from a page-load
+   telemetry flush landing inside the 35-second wait, so the result was a race,
+   not a test — and at 02:51 on 2026-08-20 the race lost and it paged Tom with
+   "learners likely can't play" while production was entirely healthy.
+
+   Runs once per window (~25 min after deploy-live) and again as
    the confirm/refute step whenever the volume check says crater — volume alone
    false-alarmed twice (2026-08-01 quiet Friday midnight; 2026-08-06 school
    learners finishing before lunch), because with a handful of concurrent users
