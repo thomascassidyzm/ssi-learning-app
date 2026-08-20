@@ -1,8 +1,83 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.7.1 (demo VAD coverage ~50%)
-# Last updated: 2026-08-06
+# Version: 0.7.3 (VAD rejects the app's own playback)
+# Last updated: 2026-08-20
+#
+# 2026-08-20 (VAD playback rejection — the capture gate is now RELATIVE):
+# - Diagnosis: docs/vad-telemetry/playback-rejection-diagnosis.md. The timing
+#   window opens at PROMPT START, so the mic detects across the whole cycle
+#   while the app plays prompt/voice1/voice2 through the same speaker. The gate
+#   was a bare absolute threshold (energy_threshold_db, -45) that playback
+#   trivially cleared: measured live, 1193/1433 real rows (83.3%) had speech
+#   "starting" at a median 32.5ms and 1128 (78.7%) had "utterances" longer than
+#   10s — median 14.4 SECONDS. Only 207 (14.4%) were plausibly real.
+# - Root cause is that -45 is not on an acoustic scale: getCurrentEnergy()
+#   re-logs bytes getByteFrequencyData already log-mapped over
+#   [minDecibels, maxDecibels], so -45 means "near digital silence across the
+#   spectrum". No value of that threshold could work; the requested
+#   echoCancellation flags are a red herring for the same reason.
+# - Fix, continuous mode only (legacy analyzeLoop untouched):
+#   (a) ADAPTIVE FLOOR — the first calibration_window_ms (400) of the cycle is
+#       a calibration slice in which no onset may be established; its MEDIAN
+#       energy + adaptive_margin_db (9) becomes the gate. Median because
+#       playback is continuous through the prompt while a learner's burst is
+#       short, so a real early start cannot raise the floor over itself.
+#       Under calibration_min_samples (6) it falls back to the absolute
+#       threshold rather than trusting a floor built on noise.
+#   (b) SUSTAINED, RE-ARMABLE ONSET — min_speech_duration_ms (100) was declared
+#       and defaulted since the class was written but NEVER READ, so ~48ms of
+#       transient owned the whole cycle's measurement with no way to re-arm. A
+#       burst is now a candidate promoted only on sustain, crediting the
+#       burst's START so latency is not inflated; an unsustained burst is
+#       discarded.
+#   (c) ONSET WINDOW CLOSES AT VOICE_1 — no NEW utterance once target audio
+#       plays. In-progress speech is unaffected, so still_speaking_at_voice1
+#       stays measurable.
+#   (d) END CLAMPED to min(cycle end, voice1 + post_voice1_grace_ms 1500),
+#       which is what produced the whole-cycle spans.
+#   (e) The loop now reads continuousConfig for threshold and min_frames. It
+#       read this.config for those and continuousConfig only for the debounce,
+#       so a per-call config passed to startContinuousMonitoring was SILENTLY
+#       IGNORED for the gate. Independent defect, confirmed and fixed.
+# - PRESERVED DELIBERATELY: started_during_prompt stays an HONEST signal. A
+#   learner speaking over the prompt adds to playback and clears the margin, so
+#   genuine early starts are still recorded with a correct latency. The bug was
+#   playback mistaken for a learner, not early starts being recorded. Pinned.
+# - CORPUS NARROWING, stated: on a device with this failure mode expect up to
+#   ~85% FEWER cycle_prosody rows, because those cycles now have
+#   speech_detected=false and the emission is guarded on it. Smaller and true
+#   beats large and false, but it also WORSENS the known missing-silence bias
+#   (a learner who says nothing emits no row), which makes logging silent
+#   cycles more urgent than it was.
+# - Escape hatches, both per-call config and now actually effective given (e):
+#   adaptive_margin_db can come down; adaptive_floor_enabled:false restores the
+#   previous behaviour exactly.
+# - Acceptance tests: VoiceActivityDetector.playbackRejection.test.ts (8),
+#   synthetic energy timelines over a full cycle on a virtual clock, including
+#   a starved-calibration differential control so they cannot pass vacuously.
+#   NOT verified live — headless box, no microphone. See the diagnosis doc's
+#   one-minute phone check.
+#
+# 2026-08-20 (zero-point fix — cycle_prosody carries promptEndMs/voice1StartMs):
+# - `response_latency_ms` is measured from PROMPT AUDIO START (the VAD's
+#   continuousStartTime, set at phase === 'prompt'), so it silently contains
+#   the known-language prompt duration — which differs per phrase. Within one
+#   LEGO the prompt is constant, so a per-phrase slope is clean; ACROSS phrases
+#   a rolling average, deviation-from-mean or z-score for one learner measures
+#   prompt length as much as difficulty. Those second-order quantities are the
+#   ones the adaptation consumer cares about.
+# - `SpeechTimingResult` already carried `prompt_end_ms` and `voice1_start_ms`;
+#   they were simply never copied into the payload. They now are, as
+#   `promptEndMs` / `voice1StartMs` (~10 bytes/row). Invitation-to-speak
+#   latency = speechStartMs - promptEndMs, derived on the READ side: raw marks
+#   are recomputable forever, a stored derived field bakes in a definition.
+# - `responseLatencyMs` is deliberately UNCHANGED in meaning, so rows written
+#   before and after this change stay comparable on that key. Additive only.
+# - Pinned by packages/player-vue/src/playback/cycleProsodyPayload.test.ts.
+# - Rows written before 2026-08-20 are permanently confounded across phrases;
+#   the prompt duration is only recoverable for them via a three-way join
+#   through audio_play → course_audio.duration_ms, while those rows survive.
 #
 # 2026-08-06 (founder ruling — demo VAD coverage):
 # - The schools demo generator (scripts/demo-data/generate-demo-suite.cjs) now
@@ -88,7 +163,9 @@
 #   phrase-matched CEFR variance bands) recompute over historical rows.
 #   Additive output only: extraction constants and all existing derived
 #   numbers unchanged, extractor version stays 1. The event also carries
-#   speech_start/end, overlap flags, and peak/average energy dB. WP-7b note:
+#   speech_start/end, prompt_end/voice1_start marks (added 2026-08-20 — see
+#   the zero-point note at the head of this file), overlap flags, and
+#   peak/average energy dB. WP-7b note:
 #   when the dashboard-repo envelope job runs, it should store the MODEL-side
 #   contour too, or contour-vs-contour similarity has no model operand.
 # Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6

@@ -308,8 +308,15 @@ describe('VoiceActivityDetector', () => {
       const { raf, step } = stepRafMock();
       vi.stubGlobal('requestAnimationFrame', raf);
 
-      // Loud enough to cross the -45dB threshold for a sustained stretch.
-      mockAnalyser.getByteFrequencyData.mockImplementation((arr: Uint8Array) => arr.fill(200));
+      // Quiet through the calibration slice, then loud for a sustained
+      // stretch. Constant loudness from t=0 would now be classified as the
+      // app's own playback (2026-08-20 gating fix) and correctly rejected —
+      // which is the whole point of that fix, not a regression. This test is
+      // about envelope attachment, so it feeds a shape that is actually
+      // speech-like: silence first, then the utterance.
+      mockAnalyser.getByteFrequencyData.mockImplementation((arr: Uint8Array) =>
+        arr.fill(t >= 200 ? 200 : 0)
+      );
 
       const vad = new VoiceActivityDetector();
       await vad.initialize();

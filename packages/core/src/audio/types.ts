@@ -76,6 +76,46 @@ export interface ContinuousVADConfig extends VADConfig {
   min_speech_duration_ms: number;
   /** Debounce time (ms) before speech_end is confirmed (default: 200) */
   speech_end_debounce_ms: number;
+
+  // ==========================================
+  // Playback rejection (2026-08-20)
+  // ==========================================
+  // The window opens at PROMPT START, so the mic is live while the app plays
+  // prompt/voice1/voice2 audio through the same device's speaker. A bare
+  // absolute threshold cannot tell that apart from a learner: on the live
+  // corpus 83% of real rows had speech "starting" ~32ms in and "ending" 17.5s
+  // later, i.e. spanning the whole cycle — the app hearing itself.
+  //
+  // The absolute threshold cannot be tuned out of this, because
+  // `energy_threshold_db` is not on an acoustic scale: getCurrentEnergy()
+  // re-logs bytes that getByteFrequencyData already log-mapped over
+  // [minDecibels, maxDecibels]. So -45 there means "near digital silence
+  // across the whole spectrum", which ordinary room tone clears. The fix must
+  // be RELATIVE — a margin above a floor measured on this device, at this
+  // volume, in this room — which is scale-independent by construction.
+
+  /** Measure the playback+ambient floor from the head of the prompt and
+   *  require the learner to clear it by a margin (default: true). */
+  adaptive_floor_enabled: boolean;
+  /** Length of the calibration slice at the head of the prompt, in ms
+   *  (default: 400). Ends early if PROMPT_END arrives first. No onset can be
+   *  established inside it — 400ms after prompt-audio start is far below any
+   *  human response, so nothing real is lost. */
+  calibration_window_ms: number;
+  /** Minimum samples needed before the measured floor is trusted; below this
+   *  (rAF throttled, tab backgrounded) it falls back to the absolute
+   *  threshold rather than to a floor built on noise (default: 6). */
+  calibration_min_samples: number;
+  /** How far above the measured floor the learner must be, in dB
+   *  (default: 9). Speech ADDS to playback, so a real utterance over the
+   *  prompt still clears it — which is what keeps `started_during_prompt` an
+   *  honest signal rather than a suppressed one. */
+  adaptive_margin_db: number;
+  /** How far past VOICE_1 a still-running utterance may be attributed to the
+   *  learner, in ms (default: 1500). Beyond that the app's own target audio
+   *  is the likelier source, and an unclamped end is what produced the
+   *  whole-cycle 17.5s spans. */
+  post_voice1_grace_ms: number;
 }
 
 /**
@@ -153,6 +193,11 @@ export const DEFAULT_CONTINUOUS_VAD_CONFIG: ContinuousVADConfig = {
   smoothing: 0.8,
   min_speech_duration_ms: 100,
   speech_end_debounce_ms: 200,
+  adaptive_floor_enabled: true,
+  calibration_window_ms: 400,
+  calibration_min_samples: 6,
+  adaptive_margin_db: 9,
+  post_voice1_grace_ms: 1500,
 };
 
 /**
