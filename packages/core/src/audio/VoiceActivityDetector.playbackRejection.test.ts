@@ -224,3 +224,200 @@ describe('VAD playback rejection', () => {
     expect(result.response_latency_ms!).toBeLessThan(1000);
   });
 });
+
+/**
+ * Early speech is DATA, not noise (Tom, 2026-08-20).
+ *
+ * "We do want the latency measure to start timing from the beginning of the
+ * prompt, not the end of it, we want to capture the fact that confident
+ * speakers often start speaking before the whole prompt has finished."
+ *
+ * So the gate has two jobs at once, and a change that wins either by losing
+ * the other is not a fix: reject the app's own playback, AND keep a learner
+ * who speaks over the prompt — with an HONEST latency, measured from prompt
+ * -audio start, flagged started_during_prompt.
+ *
+ * The zero point does not move. `response_latency_ms` stays measured from
+ * prompt start; `prompt_end_ms` is stored so the read side can compute a
+ * signed offset, negative for a genuine early speaker.
+ */
+describe('VAD early speech is kept, and kept honest', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'],
+    });
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(performance.now()), 16)
+    );
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /** The most confident speaker there is: answers 200ms in, already knew it. */
+  const veryEarlySpeaker: EnergyScript = (t) => {
+    if (t >= 200 && t < 2600) return SPEECH_OVER_PLAYBACK;
+    if (t < PROMPT_END) return PLAYBACK;
+    if (t >= VOICE_1) return PLAYBACK;
+    return AMBIENT;
+  };
+
+  it('credits an onset INSIDE the calibration window to when it really began', () => {
+    // The calibration slice (0-400ms) cannot judge its own samples as they
+    // arrive — there is no floor yet. Before the back-date, this learner was
+    // credited at the moment the slice happened to close (measured: 432ms for
+    // a 200ms onset) and that inflated latency was reported as truth.
+    const result = runCycle(veryEarlySpeaker);
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(true);
+    // Within a couple of 16ms frames of the true 200ms onset, and well clear
+    // of the 400ms calibration boundary that used to swallow it.
+    expect(result.response_latency_ms!).toBeGreaterThan(150);
+    expect(result.response_latency_ms!).toBeLessThan(300);
+  });
+
+  it('signed offset from prompt end is negative for that early speaker', () => {
+    // The read side computes speech_start - prompt_end. Tom's ruling keeps the
+    // zero point at prompt START, so this negative value is the thing that
+    // carries "they beat the prompt", and it has to be derivable here.
+    const result = runCycle(veryEarlySpeaker);
+
+    expect(result.prompt_end_ms).toBeGreaterThan(0);
+    expect(result.speech_start_ms! - result.prompt_end_ms).toBeLessThan(0);
+    // ...and the zero point really is prompt start, not prompt end.
+    expect(result.response_latency_ms).toBe(result.speech_start_ms);
+  });
+
+  /** Learner talking from 150ms: ~64% of the 400ms slice is their own voice. */
+  const contaminatingSpeaker: EnergyScript = (t) => {
+    if (t >= 150 && t < 2600) return SPEECH_OVER_PLAYBACK;
+    if (t < PROMPT_END) return PLAYBACK;
+    if (t >= VOICE_1) return PLAYBACK;
+    return AMBIENT;
+  };
+
+  it('survives the learner contaminating the floor with their own voice', () => {
+    const result = runCycle(contaminatingSpeaker);
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(true);
+    expect(result.response_latency_ms!).toBeLessThan(300);
+  });
+
+  it('DIFFERENTIAL: the median floor loses that learner entirely', () => {
+    // Control for the test above — it is the lower-quartile floor doing the
+    // work, not the scripts being easy. Speech is ADDITIVE, so contamination
+    // is one-directional; with >50% of the slice covered the median lands on
+    // the learner's own voice, the floor rises above them, and the whole
+    // utterance is discarded. If this ever starts passing, the script no
+    // longer reproduces the failure and the test above proves nothing.
+    const result = runCycle(contaminatingSpeaker, { calibration_percentile: 0.5 });
+
+    expect(result.speech_detected).toBe(false);
+  });
+
+  /** Prompt audio with a quiet head and a louder body — floor measured on the
+   *  head, so the body clears the margin on its own. No learner present. */
+  const rampingPrompt: EnergyScript = (t) => {
+    if (t < 400) return -30;
+    if (t < PROMPT_END) return -12;
+    if (t >= VOICE_1) return -12;
+    return AMBIENT;
+  };
+
+  it('rejects prompt bleed that clears the margin but dies with the prompt', () => {
+    // The energy margin alone does NOT cover this: measured, it recorded a
+    // learner "responding" at ~430ms with nobody in the room. What separates
+    // them is the boundary, because bleed IS the prompt audio — it stops when
+    // the prompt stops.
+    const result = runCycle(rampingPrompt);
+
+    expect(result.speech_detected).toBe(false);
+    expect(result.speech_start_ms).toBeNull();
+    expect(result.started_during_prompt).toBe(false);
+    // An end with no start must not reach the read side either.
+    expect(result.speech_end_ms).toBeNull();
+  });
+
+  it('DIFFERENTIAL: without the boundary test that bleed is recorded as a learner', () => {
+    // Control for the test above. guard=0 disables the boundary test, leaving
+    // the energy margin alone — and the margin passes this bleed.
+    const result = runCycle(rampingPrompt, { prompt_boundary_guard_ms: 0 });
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(true);
+    expect(result.response_latency_ms!).toBeLessThan(600);
+  });
+
+  /** The same ramping prompt, with a real answer at 3000ms behind it. */
+  const rampingPromptThenLearner: EnergyScript = (t) => {
+    if (t < 400) return -30;
+    if (t < PROMPT_END) return -12;
+    if (t >= 3000 && t < 4500) return SPEECH;
+    if (t >= VOICE_1) return -12;
+    return AMBIENT;
+  };
+
+  it('re-arms after rejecting bleed, so the real answer keeps its own latency', () => {
+    const result = runCycle(rampingPromptThenLearner);
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(false);
+    expect(result.response_latency_ms!).toBeGreaterThan(2900);
+    expect(result.response_latency_ms!).toBeLessThan(3200);
+  });
+
+  it('DIFFERENTIAL: without the boundary test the bleed steals that latency', () => {
+    const result = runCycle(rampingPromptThenLearner, { prompt_boundary_guard_ms: 0 });
+
+    // ~430ms reported for an answer actually given at 3000ms.
+    expect(result.response_latency_ms!).toBeLessThan(600);
+  });
+
+  it('keeps a SHORT early answer that finishes before the prompt does', () => {
+    // The case a naive "must continue past prompt end" rule would destroy: a
+    // one-word answer over the prompt, done at 1400ms with 600ms of prompt
+    // still to play. Falling back to the floor WHILE the prompt is still
+    // audibly playing proves it is not the prompt, so it is kept — the
+    // boundary test cuts only the runs that die WITH the prompt.
+    const result = runCycle((t) => {
+      if (t >= 900 && t < 1400) return SPEECH_OVER_PLAYBACK;
+      if (t < PROMPT_END) return PLAYBACK;
+      if (t >= VOICE_1) return PLAYBACK;
+      return AMBIENT;
+    });
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(true);
+    expect(result.response_latency_ms!).toBeGreaterThan(850);
+    expect(result.response_latency_ms!).toBeLessThan(1050);
+    // It must keep its END too — the verdict lands after the run is over, so
+    // confirming the onset must not wipe the end that run already recorded.
+    expect(result.speech_end_ms).not.toBeNull();
+    expect(result.speech_end_ms!).toBeGreaterThan(1350);
+    expect(result.speech_end_ms!).toBeLessThan(1500);
+    expect(result.learner_duration_ms!).toBeGreaterThan(400);
+  });
+
+  it('a transient over the prompt is still discarded, and still re-arms', () => {
+    // Holding prompt-window candidates open must not resurrect the transient
+    // bug: a ~48ms click at 1000ms is not an early answer.
+    const result = runCycle((t) => {
+      if (t >= 1000 && t < 1048) return SPEECH_OVER_PLAYBACK;
+      if (t < PROMPT_END) return PLAYBACK;
+      if (t >= 3000 && t < 4500) return SPEECH;
+      if (t >= VOICE_1) return PLAYBACK;
+      return AMBIENT;
+    });
+
+    expect(result.speech_detected).toBe(true);
+    expect(result.started_during_prompt).toBe(false);
+    expect(result.response_latency_ms!).toBeGreaterThan(2900);
+    expect(result.response_latency_ms!).toBeLessThan(3200);
+  });
+});
