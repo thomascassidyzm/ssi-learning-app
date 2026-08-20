@@ -57,6 +57,37 @@ describe('cycle_prosody payload', () => {
     )
   })
 
+  it('persists the speech-start mark — the third leg of the offset', () => {
+    // speechStartMs - promptEndMs is the whole point of storing promptEndMs.
+    // Pinning two of the three marks leaves the subtraction uncomputable.
+    expect(payload).toMatch(/speechStartMs:\s*cycleTiming\.speech_start_ms/)
+  })
+
+  it('persists the early-start flag', () => {
+    // Tom's ruling 2026-08-20: a learner who starts speaking before the
+    // prompt audio finishes is the competence signal the telemetry exists
+    // for. The flag that identifies those rows has to reach storage.
+    expect(payload).toMatch(
+      /startedDuringPrompt:\s*cycleTiming\.started_during_prompt/
+    )
+  })
+
+  it('writes the three marks RAW — a negative offset must survive', () => {
+    // For a genuine early speaker speechStartMs < promptEndMs, so the offset
+    // is NEGATIVE and that sign is the evidence. Any clamp, floor or abs on
+    // the write path destroys it silently and unrecoverably — the raw marks
+    // are the only copy. Each mark must be a bare read of cycleTiming, with
+    // nothing wrapped around it.
+    for (const key of ['speechStartMs', 'promptEndMs', 'voice1StartMs']) {
+      const line = payload
+        .split('\n')
+        .find((l) => l.trimStart().startsWith(`${key}:`))
+      expect(line, `${key} not found in payload`).toBeTruthy()
+      expect(line).not.toMatch(/Math\.(max|min|abs|round|floor|ceil)/)
+      expect(line).not.toMatch(/\?\?|\|\||\?\s*[^.]/) // no fallback, no ternary
+    }
+  })
+
   it('stores raw marks only — no derived invitation-to-speak field', () => {
     // Deliberate: raw marks are recomputable forever, a derived field bakes
     // a definition into every historical row. Derivation lives on the read
