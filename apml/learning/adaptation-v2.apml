@@ -1,8 +1,28 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.7.1 (demo VAD coverage ~50%)
-# Last updated: 2026-08-06
+# Version: 0.7.2 (cycle_prosody persists the prompt-end mark)
+# Last updated: 2026-08-20
+#
+# 2026-08-20 (zero-point fix — cycle_prosody carries promptEndMs/voice1StartMs):
+# - `response_latency_ms` is measured from PROMPT AUDIO START (the VAD's
+#   continuousStartTime, set at phase === 'prompt'), so it silently contains
+#   the known-language prompt duration — which differs per phrase. Within one
+#   LEGO the prompt is constant, so a per-phrase slope is clean; ACROSS phrases
+#   a rolling average, deviation-from-mean or z-score for one learner measures
+#   prompt length as much as difficulty. Those second-order quantities are the
+#   ones the adaptation consumer cares about.
+# - `SpeechTimingResult` already carried `prompt_end_ms` and `voice1_start_ms`;
+#   they were simply never copied into the payload. They now are, as
+#   `promptEndMs` / `voice1StartMs` (~10 bytes/row). Invitation-to-speak
+#   latency = speechStartMs - promptEndMs, derived on the READ side: raw marks
+#   are recomputable forever, a stored derived field bakes in a definition.
+# - `responseLatencyMs` is deliberately UNCHANGED in meaning, so rows written
+#   before and after this change stay comparable on that key. Additive only.
+# - Pinned by packages/player-vue/src/playback/cycleProsodyPayload.test.ts.
+# - Rows written before 2026-08-20 are permanently confounded across phrases;
+#   the prompt duration is only recoverable for them via a three-way join
+#   through audio_play → course_audio.duration_ms, while those rows survive.
 #
 # 2026-08-06 (founder ruling — demo VAD coverage):
 # - The schools demo generator (scripts/demo-data/generate-demo-suite.cjs) now
@@ -88,7 +108,9 @@
 #   phrase-matched CEFR variance bands) recompute over historical rows.
 #   Additive output only: extraction constants and all existing derived
 #   numbers unchanged, extractor version stays 1. The event also carries
-#   speech_start/end, overlap flags, and peak/average energy dB. WP-7b note:
+#   speech_start/end, prompt_end/voice1_start marks (added 2026-08-20 — see
+#   the zero-point note at the head of this file), overlap flags, and
+#   peak/average energy dB. WP-7b note:
 #   when the dashboard-repo envelope job runs, it should store the MODEL-side
 #   contour too, or contour-vs-contour similarity has no model operand.
 # Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6
