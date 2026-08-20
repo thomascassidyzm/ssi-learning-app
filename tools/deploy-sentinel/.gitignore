@@ -1,2 +1,5 @@
 state.json
 sentinel.log
+install.log
+.installed-lock
+.install.lock/
