@@ -287,8 +287,25 @@ export async function resolveVadScope(
     }
   }
 
-  if (target.classId) {
-    const classId = target.classId
+  // A node surface's `:id` is a group id, a school id OR a class id (the class
+  // node home lives in the same URL family). Rather than make every caller
+  // guess which it is holding, ?groupId= accepts all three: it is resolved
+  // group → school → class, the SAME precedence api/groups/[id]/home.ts
+  // applies, so the two endpoints can never disagree about what one id means.
+  // The three lookups go out together — serially they were three round trips
+  // to a database an ocean away, for a question with one answer.
+  const [asGroup, asSchool, asClassProbe] = target.groupId
+    ? await Promise.all([
+        svc.from('groups').select('id, name').eq('id', target.groupId).maybeSingle(),
+        svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', target.groupId).maybeSingle(),
+        svc.from('classes').select('id').eq('id', target.groupId).maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }, { data: null }]
+
+  const classId = target.classId
+    ?? (!asGroup.data && !asSchool.data && asClassProbe.data ? target.groupId! : null)
+
+  if (classId) {
     const { data: cls } = await svc
       .from('classes')
       .select('id, class_name, course_code, school_id, group_id')
@@ -323,27 +340,18 @@ export async function resolveVadScope(
   const groupId = target.groupId
   if (!groupId) return { denied: true, status: 404, error: 'No scope requested' }
 
-  // A node id, or a school id bridged to its node (same precedence as
-  // api/groups/[id]/home.ts, so /org/:id and this endpoint agree on what :id
-  // means and a leader never sees one resolve and the other 404).
+  // A node id, or a school id bridged to its node (rows already in hand from
+  // the one opening wave above).
   let nodeId: string | null = null
   let label = ''
-  const { data: asGroup } = await svc.from('groups').select('id, name').eq('id', groupId).maybeSingle()
-  if (asGroup) {
+  if (asGroup.data) {
     nodeId = groupId
-    label = (asGroup as { name?: string }).name || 'Group'
-  } else {
-    const { data: asSchool } = await svc
-      .from('schools')
-      .select('id, school_name, group_id, node_group_id, is_demo, is_test')
-      .eq('id', groupId)
-      .maybeSingle()
-    if (asSchool) {
-      const s = asSchool as { school_name?: string; node_group_id?: string | null; is_demo?: boolean; is_test?: boolean }
-      nodeId = s.node_group_id
-        || (await ensureSchoolNode(svc, asSchool as never, { is_demo: !!s.is_demo, is_test: !!s.is_test }))
-      label = s.school_name || 'School'
-    }
+    label = (asGroup.data as { name?: string }).name || 'Group'
+  } else if (asSchool.data) {
+    const s = asSchool.data as { school_name?: string; node_group_id?: string | null; is_demo?: boolean; is_test?: boolean }
+    nodeId = s.node_group_id
+      || (await ensureSchoolNode(svc, asSchool.data as never, { is_demo: !!s.is_demo, is_test: !!s.is_test }))
+    label = s.school_name || 'School'
   }
   if (!nodeId) return { denied: true, status: 404, error: 'Not found' }
 

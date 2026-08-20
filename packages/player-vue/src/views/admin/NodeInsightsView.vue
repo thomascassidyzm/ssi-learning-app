@@ -23,6 +23,9 @@ import WalkOffer from '@/components/admin/WalkOffer.vue'
 import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
 import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import VadPanel from '@/insight/VadPanel.vue'
+import { fetchVadScope, type VadScopePayload } from '@/insight/data/vadScope'
+import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
 
 const route = useRoute()
 const router = useRouter()
@@ -117,6 +120,58 @@ const subtitle = computed(() =>
     ? 'How this class is moving, compared with the average you choose.'
     : 'How everyone below this is moving, compared with the average you choose.')
 
+// ─── VOICE & PAUSE, scoped to this node ────────────────────────────────────
+// Founder ruling 2026-08-20, verbatim: "the VAD data should follow the same
+// hierarchy of visibility that all data follows — students < teachers < school
+// leaders < group leaders — as long as the hierarchy is legitimate, the data
+// should be viewable." Until now every VAD surface was admin-gated, so a group
+// leader looking at their own programme had no route to any of it.
+//
+// It lands HERE rather than on a new page because insights is already the lens
+// on this node, and this is an insight about this node. The authz is entirely
+// server-side (GET /api/org/vad → api/_utils/vadVisibility.ts); this component
+// asks for the node it is already showing and renders whatever comes back. A
+// caller outside the scope gets a 403 the panel states plainly — it does not
+// hide the section, because a silent disappearance reads as "no data".
+//
+// The node's :id may be a group, a school or a class; the endpoint resolves all
+// three with the same precedence as the node-home endpoint, so nothing is
+// guessed client-side.
+const vad = ref<VadScopePayload | null>(null)
+const vadLoading = ref(true)
+const vadError = ref<string | null>(null)
+
+watch(nodeId, async (id) => {
+  vad.value = null
+  vadError.value = null
+  if (!id) { vadLoading.value = false; return }
+  vadLoading.value = true
+  try {
+    vad.value = await fetchVadScope({ groupId: id }, await getAuthToken())
+  } catch (e: unknown) {
+    vadError.value = e instanceof Error ? e.message : 'Could not read the voice & pause data.'
+  } finally {
+    vadLoading.value = false
+  }
+}, { immediate: true })
+
+const vadSummary = computed<VadSummary | null>(() => {
+  const v = vad.value
+  if (!v) return null
+  return summariseVad(v.scope.learnerIds, v.names, v.metricsByLearner, v.prosodyByLearner, v.prosodyAvailable)
+})
+const vadScopeLabel = computed(() => vad.value?.scope.label || title.value)
+// Class rows only make sense above a class; a class scope IS one class.
+const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.value?.scope.classes ?? []))
+
+// The per-learner page is admin-only (the member surface has no equivalent —
+// its teacher-relevant content lives flat on the class node home, founder
+// ruling 2026-07-19). So a leader's rows are not clickable rather than
+// clickable into a 403.
+function openVadLearner(learnerId: string) {
+  if (!member.value) void router.push(`/admin/users/${learnerId}`)
+}
+
 // Overview = this node's home — the same URL family the lens was opened from.
 // Member mount (/org/:id/insights — a leader inside the /schools
 // shell) goes back to the member node home; admin mounts keep their family.
@@ -175,6 +230,33 @@ const homeLink = computed(() => {
           :get-token="getAuthToken"
           @state="state = $event"
         />
+
+        <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
+             this node by the server. Uptake first, denominators everywhere:
+             a learner with no mic data is absent here, never a zero. -->
+        <section class="vad-section">
+          <header class="vad-section-head">
+            <span class="schools-kicker">Attention · voice</span>
+            <h2 class="vad-section-title arsenal">Voice &amp; pause</h2>
+            <p class="vad-section-sub">
+              What the microphone is actually giving us below this point — how many
+              learners have mic-derived data at all, and for those who do, how the
+              adaptive pause is settling and how they sound.
+            </p>
+          </header>
+          <VadPanel
+            :summary="vadSummary"
+            :scope-label="vadScopeLabel"
+            :is-loading="vadLoading"
+            :error="vadError"
+            :classes="vadClasses"
+            :names="vad?.names"
+            :metrics-by-learner="vad?.metricsByLearner"
+            :prosody-by-learner="vad?.prosodyByLearner"
+            :truncated="vad?.truncated"
+            @open-learner="openVadLearner"
+          />
+        </section>
       </div>
     </div>
   </div>
@@ -213,6 +295,18 @@ const homeLink = computed(() => {
   align-items: flex-end;
   gap: 8px;
 }
+/* ---- Voice & pause section ---------------------------------------------- */
+.vad-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.vad-section-head { display: flex; flex-direction: column; gap: 4px; }
+.vad-section-title {
+  font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 26px); font-weight: 400;
+  line-height: 1.1; letter-spacing: -0.01em; color: var(--ink-primary, #2C2622); margin: 4px 0 0;
+}
+.vad-section-sub {
+  font-size: 14px; line-height: 1.55; color: var(--ink-secondary, #5b534c);
+  max-width: 60ch; margin: 0;
+}
+
 .verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .verb-btn {
   display: inline-flex; align-items: center; padding: 10px 16px; font: inherit; font-size: var(--text-sm);
