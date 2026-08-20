@@ -67,12 +67,51 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
 Cron line (every 3 min; the script is a fast no-op when nothing is happening):
 
 ```
-*/3 * * * *  /usr/bin/node /home/tomcassidy/ssi-learning-app/tools/deploy-sentinel/sentinel.mjs >> /dev/null 2>&1
+*/3 * * * *  /bin/bash /home/tomcassidy/ssi-learning-app/tools/deploy-sentinel/run.sh >> /dev/null 2>&1
 ```
 
+Cron calls **`run.sh`, not `sentinel.mjs` directly** — the wrapper updates the
+sentinel's own code before each tick. Do not point cron back at `sentinel.mjs`.
+
+**Where it runs:** the dedicated checkout at `/home/tomcassidy/ssi-learning-app`
+(note: NOT the shared multi-worker tree under `~/SSi/`, whose branch changes
+under you — a watchman must not run from a tree that thrashes). That checkout is
+**machine-owned**: `run.sh` hard-syncs its tracked files every 3 minutes, so
+nothing should ever be authored there. Untracked files are never touched.
+
+**Which branch it tracks: `origin/dev`, detached HEAD.** This decides only which
+version of the *sentinel's own code* runs; it has no bearing on what the sentinel
+*watches*, which is production over HTTP plus `git ls-remote origin main` (a
+remote lookup). `dev` is this repo's default branch and auto-merge target, so
+sentinel tooling lands there first — tracking `main` would, as of 2026-08-20,
+have reverted the play-probe fix and restored the broken alarm. Detached HEAD
+means no local branch pointer moves, so the clone's own branches and its git
+worktrees are unaffected.
+
+**Self-update, and why it cannot brick the watchman:** each tick `run.sh` fetches
+and hard-syncs to `origin/dev`, then runs the sentinel. Every update step is
+allowed to fail — a network blip, a git lock, an unresolvable ref — and the
+sentinel still runs on whatever code is on disk, with the failure logged to
+`sentinel.log` (`run.sh: SYNC FAILED …`). A sentinel on slightly-stale code beats
+a sentinel that did not run.
+
+**`node_modules`:** the play probe needs `@playwright/test` from this checkout.
+`run.sh` hashes `pnpm-lock.yaml` and does nothing while it is unchanged; when it
+changes it starts `pnpm install --frozen-lockfile` in the **background** (pnpm is
+off PATH here — corepack's shim at `/usr/lib/node_modules/corepack/shims/pnpm` is
+used by absolute path) and the tick proceeds with the existing modules rather
+than blocking on a multi-minute install. Both the mismatch and the install result
+are logged loudly; `install.log`, `.installed-lock` and `.install.lock` sit next
+to the script and are gitignored.
+
+Why any of this: until 2026-08-20 that checkout sat on `main`, 123 commits
+behind, and never pulled — a watchman guarding production with a weeks-old copy
+of itself, honest only for as long as someone's hand-patch survived.
+
 State: `state.json` next to the script (last seen main SHA, open window, alerted
-flags). Log: `sentinel.log`. Both gitignored. First-ever run adopts the current
-main SHA without opening a window.
+flags). Log: `sentinel.log`, trimmed by `run.sh` past 20k lines. Both gitignored,
+so syncing the checkout cannot clobber the sentinel's memory. First-ever run
+adopts the current main SHA without opening a window.
 
 ## Manual test
 
