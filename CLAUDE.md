@@ -823,6 +823,11 @@ pnpm --filter @ssi/web dev
 | `packages/player-vue/src/views/schools/SetupView.vue` | Admin school setup |
 | `packages/player-vue/src/composables/schools/` | Schools data layer (16 composables) |
 | `packages/player-vue/src/router/index.ts` | All route definitions incl. /schools |
+| `packages/player-vue/src/explainer/learnerExplainers.ts` | Static learner-facing copy for the "How this works" (HTW) explainer system — content laws in the file header (no streaks/XP, no jargon) |
+| `packages/player-vue/src/components/me/HowThisWorksLearner.vue`, `WhyThisWorks.vue` + figure components (`CyclePillFigure.vue`, `ClimbingBandFigure.vue`, `ThreeGapsFigure.vue`, `WornPathFigure.vue`, `SpacingReturnsFigure.vue`, `ListeningStretchFigure.vue`, `PlayerScreenFigure.vue`, `ExplainerFigure.vue`) | HTW explainer sections + their SVG-figure illustrations, mounted from `views/me/ProfileView.vue` (Library → "How this works") |
+| `packages/player-vue/e2e/explainer/` | HTW screenshot/verification scripts (`deployed-walk.mjs`, `player-screen-figure-verify.mjs`, `shoot-parts-2-3.mjs`, `shoot-player-screen.mjs`) |
+| `docs/a159-htw-visual/` | HTW visual-design working docs (`live-on-dev.md`, `pace-settings-copy.md`, `style-a-built.html`) |
+| `docs/htw-copy-for-aran.md` | Full learner-facing HTW copy exported for external editing — **only on unmerged branch `a159-library-htw`, not yet on `dev`** |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
 | `apml/playback/lazy-loading.apml` | Lazy loading architecture spec |
 | `apml/playback/player-conductor.apml` | PlayerConductor transition-ownership spec |
@@ -831,6 +836,8 @@ pnpm --filter @ssi/web dev
 | `apml/interfaces/learning-player.apml` | Player UI spec |
 | `new_vision/LEARNING_APP_DATA_FLOW.md` (in Dashboard) | Database-first architecture |
 | `new_vision/LEGO_SESSION_SPECIFICATION.md` (in Dashboard) | Session structure spec |
+| `docs/a159-unused-features/` | Investigative doc trail — adoption-measurement scripts + findings on which learner-facing features go unused — **only on unmerged branch `a159-library-htw`** |
+| `docs/vad-telemetry/` | Investigative doc trail — VAD (voice-activity-detection) latency probes; `playback-rejection-diagnosis.md` is on `dev`, further probes added on `a159-library-htw` |
 
 ---
 
