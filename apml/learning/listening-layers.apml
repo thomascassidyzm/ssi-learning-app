@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-16 (LISTENING IS NEVER SLOWED — belt ramp removed from listening entirely; it stays on the speaking side only)
+# Last updated: 2026-08-22 (PODS ARE 1-BASED — the served pod slug is resolved per course, not hardcoded)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -372,6 +372,44 @@
 # simplePlayer.isPlaying, which is paused for the whole lap. The learner sees the
 # target sentence and its translation, and hears the four-slot pattern; the
 # atom_map data that fed the tiles is loaded by the scheduler but rendered nowhere.
+#
+# UPDATE (2026-08-22, Tom's ruling): PODS ARE 1-BASED. Pod slugs were a
+# constant — every course served `<course>:pod-0`, hardcoded at five call
+# sites. From today, new courses are authored 1-based: `hrv_for_eng` is the
+# first, serving `<course>:pod-1`. The ~68 courses already recorded against
+# `pod-0` keep serving `pod-0` unchanged; no fleet-wide rename was done.
+#
+# So "which pod does this course serve?" becomes a lookup, and there is
+# exactly one of it: packages/player-vue/src/composables/servedPod.ts.
+# It queries listening_pods for the course restricted to pod_type=core and
+# slug in (pod-1, pod-0), prefers pod-1, falls back to pod-0, and is memoised
+# per course per session so the five readers share ONE round-trip. Readers:
+# useListeningPods, listeningMetaCache, usePodLapScheduler,
+# generateLearningScript (Phase 6/7 pod pre-fetch), usePodStage0 — the last of
+# which needs the bare SLUG rather than the pod id, because sentence ids embed
+# it (`hrv_for_eng:pod-1:SC01-S001`).
+#
+# THE GATE THE RESOLVER MUST NEVER WIDEN: unreleased Layer-2 content is held
+# back by PARKING a pod on a non-serving slug — `pod-0-unrecorded` (37 courses
+# on 2026-08-22), `pod-0-gated-2026-08-06` (2). Learner paths then read "no
+# pods yet" because the served id matches no sentences. NOTE the parked slug is
+# usually a WORKING COPY alongside a live pod-0, not instead of one: both Welsh
+# courses carry a `pod-0-gated-2026-08-06` AND a real 231-sentence pod-0, and
+# they serve it. Parking withholds a copy; it does not withdraw the course. The resolver therefore considers ONLY
+# `pod-1` and `pod-0` and never falls through to "whatever core pod exists";
+# doing so would publish 39 unrecorded pods at once.
+#
+# FAILURE POSTURE: every unknown resolves to `pod-0` — no rows, no pod-1, a
+# query error, a timeout. Today's behaviour is the floor, so a transient
+# failure degrades to what shipped yesterday and never to "no pods".
+#
+# OFFLINE: the deliberate-download snapshot (listeningMetaCache) persists the
+# slug it was built from (CachedListeningMeta.podSlug), and the resolver reads
+# it back when offline — so a learner who downloaded Croatian at `pod-1` keeps
+# reading the pod they actually have, with no network round-trip. A cached
+# slug is still gated to the two serving slugs, so a parked pod cannot enter
+# that way either. clearCachedListeningPodRows drops podSlug with the rows:
+# a snapshot describing no pod must not keep asserting one.
 #
 # UPDATE (2026-07-24, Tom — supersedes the 2026-07-23 whole-scene-per-lap
 # ruling): Layer-2 pod INTAKE is by COHORT, where a cohort is one EXCHANGE and

@@ -261,13 +261,15 @@ export interface BundlePodSentence {
 }
 
 /**
- * One listening pod — the Layer-2 unit. Today (2026-05) every course
- * has exactly one pod (`pod-0`); the array shape future-proofs the
- * downloader and runtime for multiple pods per course without further
- * wire-format changes.
+ * One listening pod — the Layer-2 unit. Every course has exactly one SERVED
+ * pod, whose slug is `pod-1` for courses authored since Tom's 2026-08-22
+ * 1-based ruling (hrv first) and `pod-0` for the ~68 older ones; the app
+ * resolves which, per course, in player-vue `composables/servedPod.ts`. The
+ * array shape future-proofs the downloader and runtime for multiple pods per
+ * course without further wire-format changes.
  */
 export interface BundlePod {
-  /** `listening_pods.id` — composite key like `${courseCode}:pod-0`. */
+  /** `listening_pods.id` — composite key like `${courseCode}:pod-1`. */
   podId: string
   /** `listening_pods.pod_order` — 0-based authoring index, drives download priority. */
   podOrder: number

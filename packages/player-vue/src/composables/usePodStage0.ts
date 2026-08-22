@@ -18,6 +18,7 @@ import { inject, ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ResolvedAtom, SentenceClips } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
+import { resolveServedPod } from './servedPod'
 
 interface AtomMapEntry {
   lego_key: string
@@ -91,13 +92,17 @@ export function usePodStage0(courseCode: Ref<string>) {
     isLoading.value = true
     error.value = null
     try {
+      // Sentence ids EMBED the slug (`hrv_for_eng:pod-1:SC01-S001`), so this
+      // prefix probe needs the bare resolved slug, not the pod id. Pods went
+      // 1-based on 2026-08-22 — see servedPod.
+      const { slug: podSlug } = await resolveServedPod(supabase, course)
       const [sentRes, legoRes, audioRes] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
           .select(
             'id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map',
           )
-          .like('id', `${course}:pod-0:%`)
+          .like('id', `${course}:${podSlug}:%`)
           .order('global_order', { ascending: true }),
         supabase
           .from('pod_legos')

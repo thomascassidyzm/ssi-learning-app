@@ -53,6 +53,7 @@ import {
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
+import { resolveServedPod } from './servedPod'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import {
   type ListeningSlot,
@@ -497,12 +498,16 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // silent fallback to a stale, unbounded-age snapshot serves the wrong
       // vintage of pod audio/text (2026-07-21 forum report). See
       // retryListeningRead's doc comment.
+      // Which pod this course serves — `pod-1` for courses authored since the
+      // 2026-08-22 flip, `pod-0` for the ~68 older ones. Memoised per course,
+      // so this is one round-trip shared with every other pod reader.
+      const { podId } = await resolveServedPod(supabase, courseCode)
       const [podsResult, bookendsResult, enrollmentResult] = await retryListeningRead(
         () => Promise.all([
           supabase
             .from('listening_pod_sentences')
             .select('id, global_order, scene_number, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
-            .eq('pod_id', `${courseCode}:pod-0`)
+            .eq('pod_id', podId)
             .order('global_order', { ascending: true }),
           supabase
             .from('course_audio')

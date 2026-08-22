@@ -2,9 +2,12 @@
  * useListeningPods — fetch the Layer 2 listening pods for a course and
  * present them as a Spotify-style list of scenes the learner can play.
  *
- * One pod per course (`${courseCode}:pod-0`) split into scenes (each
- * scene is a complete dialogue beat). The Pods tab in ListeningOverlay
- * shows the scenes, tap a scene to teleprompter through its sentences.
+ * One pod per course, split into scenes (each scene is a complete dialogue
+ * beat). WHICH pod is resolved per course by servedPod — pods went 1-based on
+ * 2026-08-22, so hrv serves `pod-1` while ~68 older courses serve `pod-0`.
+ *
+ * The Pods tab in ListeningOverlay shows the scenes, tap a scene to
+ * teleprompter through its sentences.
  *
  * NEVER expose internal terms ("pod", "scene_number") to the user —
  * scenes get user-friendly titles ("Scene 1", "Scene 2" or the scene's
@@ -15,6 +18,7 @@ import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows } from './listeningMetaCache'
+import { resolveServedPod } from './servedPod'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs, bareAudioId } from '../providers/revisedAudioRefs'
 import { isOfflineish } from '../config/networkGate'
@@ -157,9 +161,10 @@ export function useListeningPods(
     // Live fetch. Throws on any query error (offline, RLS, transient) so the
     // caller can fall back to the offline cache.
     const loadFromNetwork = async (): Promise<{ rows: any[]; textById: Map<string, string> }> => {
-      // Pod id convention: `${courseCode}:pod-0`. Fetch every sentence in
-      // global order, group by scene_number client-side.
-      const podId = `${course}:pod-0`
+      // Pod id convention: `${courseCode}:${slug}`, slug resolved per course
+      // (servedPod). Fetch every sentence in global order, group by
+      // scene_number client-side.
+      const { podId } = await resolveServedPod(supabase, course)
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
         .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids')
