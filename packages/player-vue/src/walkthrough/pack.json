@@ -1,6 +1,6 @@
 {
-  "version": "3db4d711bed8",
-  "generatedAt": "2026-08-18",
+  "version": "13e56e8b59fb",
+  "generatedAt": "2026-08-19",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -716,7 +716,7 @@
         "minutes",
         "hours",
         "phrases",
-        "spoken",
+        "phrases learnt",
         "counting",
         "count",
         "tally"
@@ -730,7 +730,7 @@
       "steps": [
         {
           "anchor": "library-activity-stats",
-          "say": "These three are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.",
+          "say": "These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.",
           "advance": {
             "on": "next"
           }
@@ -743,8 +743,8 @@
           }
         },
         {
-          "anchor": "library-stat-phrases",
-          "say": "Phrases is how many you have said out loud. It counts the sessions this device still remembers, so treat it as a recent tally rather than a lifetime one.",
+          "anchor": "library-stat-phrases-learnt",
+          "say": "Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.",
           "advance": {
             "on": "next"
           },

@@ -1318,7 +1318,73 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-18 (glyph coverage is now LANGUAGE-scoped: DM Sans stays the default and the brand, and only the 15 languages it cannot spell flip — whole runs, never single letters — to Noto Sans; see typography.glyph_coverage)
+## LIBRARY ACTIVITY TILES — where each number comes from (2026-08-19)
+## ============================================================================
+
+LIBRARY_ACTIVITY_TILES:
+  source: "packages/player-vue/src/components/BrowseScreen.vue (the stat-card row);
+           fed by packages/player-vue/src/containers/PlayerContainer.vue."
+  ruling: "Owner, 2026-08-19 (Activity-tiles diagnosis). Every tile must measure what
+           its label says, across the learner's WHOLE history and ALL their courses —
+           and a category with NO LIVE DATA SOURCE is HIDDEN, never shown as 0,
+           because a 0 asserts 'you have done none' when the truth is 'we were not
+           measuring'."
+
+  tiles:
+    total_time:
+      label: "Total Time"
+      signal: "GET /api/me/engaged-time (admin_practice_minutes RPC — sums
+               sessions.duration_seconds across ALL the learner's courses)."
+      fallback: "beltProgress.totalLearningMinutes (local estimate) until the server
+                 answers. A '~' prefix marks a position-derived server estimate."
+
+    phrases_learnt:
+      label: "Phrases learnt"
+      signal: "GET /api/me/legos-learnt — DISTINCT LEGOs introduced, counted per
+               enrollment cursor against that course's course_legos (is_new = true is
+               what makes it distinct) and summed over EVERY course."
+      replaced: "The old 'Words' tile, which printed the seed number parsed out of a
+                 SINGLE course's resume cursor (S0280L01 → 280) — a position readout
+                 wearing a count's label."
+
+    phrases_spoken:
+      label: "Phrases spoken"
+      visibility: "HIDDEN unless the mic/adaptation consent is on
+                   (localStorage 'ssi-adaptation-consent'). The counter only ever
+                   increments while the VAD is running, so with consent off the tile
+                   could only ever show a 0 that lies."
+      signal: "GET /api/me/phrases-spoken — sums
+               learner_speaking_opportunities.phrases_spoken over EVERY row the
+               learner owns. LIFETIME and ALL-COURSES: no day window, no course filter."
+      write_path: |
+        LearningPlayer.calculateCyclePoints increments on
+        lastTimingResult.speech_detected and calls
+        useLearningSession.bumpPhraseSpoken(), which accumulates a local delta.
+        useLearningSession.flushTelemetryDelta() drains it through the
+        bump_phrases_spoken RPC on the SAME boundaries as the opportunities /
+        play-seconds deltas — markPlayStop, visibilitychange-hidden, beforeunload,
+        session end. Riding beforeunload is the point: the previous home
+        (localStorage 'ssi-session-history-<courseCode>', 30-day window, one course,
+        banked only when endSession() ran) lost the count whenever a session ended by
+        closing the tab.
+      rpc: "bump_phrases_spoken(p_learner_id, p_course_code, p_phrases_delta) —
+            deliberately SEPARATE from bump_speaking_opportunities rather than a fifth
+            argument on it: a new parameter is a new signature, so it would mean
+            DROP + CREATE, and any later re-assertion of the 4-arg signature would
+            leave Postgres holding both overloads and make every existing
+            4-named-arg call ambiguous. SECURITY INVOKER with the same explicit
+            auth.uid() ownership guard; own-row RLS applies on top; guests are skipped
+            client-side. Migration:
+            supabase/migrations/20260819_phrases_spoken_ledger.sql (canaried by
+            supabase/secfix-toolkit/canary_phrases_spoken_ledger.cjs)."
+      freshness: "Opening the Library awaits LearningPlayer.flushTelemetryDelta()
+                  before refetching, so the tile shows the CURRENT total rather than
+                  the last-flushed snapshot — the same ordering handleBeltPillTap uses
+                  for the progress modal."
+
+## ============================================================================
+## GENERATED: 2026-01-18 — Last updated: 2026-08-19 (Library activity tiles: Phrases spoken now has a server-side home — lifetime, all-courses, tab-close-safe; see LIBRARY_ACTIVITY_TILES)
+## Previously: 2026-08-18 (glyph coverage is now LANGUAGE-scoped: DM Sans stays the default and the brand, and only the 15 languages it cannot spell flip — whole runs, never single letters — to Noto Sans; see typography.glyph_coverage)
 ## Previously: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)
 ## APML v2.1.0
 ## ============================================================================

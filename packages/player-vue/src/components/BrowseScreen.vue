@@ -119,6 +119,23 @@ const props = defineProps({
   totalPhrasesSpoken: {
     type: Number,
     default: 0
+  },
+  // A category with no live data source is HIDDEN, not shown as 0 (owner
+  // ruling 2026-08-19). False whenever the mic/VAD adaptation consent is off,
+  // which is the default — in that state phrasesSpoken can only ever be 0, and
+  // a 0 would assert "you have spoken nothing" when the truth is "we weren't
+  // listening". Default false so nothing renders the tile by accident.
+  showPhrasesSpoken: {
+    type: Boolean,
+    default: false
+  },
+  // DISTINCT LEGOs introduced, summed across ALL the learner's courses — the
+  // "Phrases learnt" tile. Server-computed by /api/me/legos-learnt. This
+  // replaces the old "Words" tile, which showed `completedSeeds` (the seed
+  // number out of one course's cursor) under a count's label.
+  phrasesLearnt: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -569,7 +586,14 @@ onMounted(() => {
       <!-- ── Section 3: Activity ── -->
       <section class="section">
         <h3 class="section-label">Activity</h3>
-        <div class="stats-grid" data-walk="library-activity-stats">
+        <!-- Column count follows the tile count: the spoken-phrases tile is
+             absent whenever the mic isn't listening, and a fixed 3-column grid
+             would leave a hole where it used to be. -->
+        <div
+          class="stats-grid"
+          data-walk="library-activity-stats"
+          :style="{ gridTemplateColumns: `repeat(${showPhrasesSpoken ? 3 : 2}, 1fr)` }"
+        >
           <div class="stat-card" data-walk="library-stat-total-time">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -584,18 +608,18 @@ onMounted(() => {
             <div class="stat-label">Total Time</div>
           </div>
 
-          <div class="stat-card">
+          <div class="stat-card" data-walk="library-stat-phrases-learnt">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
               </svg>
             </div>
-            <div class="stat-value">{{ completedSeeds }}</div>
-            <div class="stat-label">Words</div>
+            <div class="stat-value">{{ phrasesLearnt }}</div>
+            <div class="stat-label">Phrases learnt</div>
           </div>
 
-          <div class="stat-card" data-walk="library-stat-phrases">
+          <div v-if="showPhrasesSpoken" class="stat-card" data-walk="library-stat-phrases">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -603,7 +627,7 @@ onMounted(() => {
               </svg>
             </div>
             <div class="stat-value">{{ totalPhrasesSpoken }}</div>
-            <div class="stat-label">Phrases</div>
+            <div class="stat-label">Phrases spoken</div>
           </div>
         </div>
       </section>

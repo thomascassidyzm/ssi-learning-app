@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `3db4d711bed8` · generated 2026-08-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `13e56e8b59fb` · generated 2026-08-19 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -158,9 +158,9 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 
 Personas: learner · place: library
 
-1. [`library-activity-stats` · next] These three are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.
+1. [`library-activity-stats` · next] These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.
 2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
-3. [`library-stat-phrases` · next] Phrases is how many you have said out loud. It counts the sessions this device still remembers, so treat it as a recent tally rather than a lifetime one.
+3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
    - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
 
 ## where-you-are-in-this-course — Where you are in this course
