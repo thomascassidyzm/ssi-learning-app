@@ -1,0 +1,4 @@
+# Regenerable measurement artefacts — the scripts are the record, not these.
+_cache-*
+_out-*
+_md-*

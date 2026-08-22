@@ -29,6 +29,8 @@ let DB: Record<string, any[]>
 /** Per-table write failure injection, keyed 'table:op'. */
 let failWrites: Record<string, string>
 let nextId = 0
+/** Per-table insert-id counters, so ids don't shift when other tables are written. */
+let tableIds: Record<string, number> = {}
 
 function makeChainable(table: string) {
   const filters: Array<(r: any) => boolean> = []
@@ -45,7 +47,15 @@ function makeChainable(table: string) {
     if (fail) return { data: null, error: { message: fail } }
     if (op === 'insert') {
       const list = Array.isArray(payload) ? payload : [payload]
-      const made = list.map((r) => ({ id: `${table}-${++nextId}`, removed_at: null, ...r }))
+      const made = list.map((r) => ({
+        // PER-TABLE counter: a shared one made generated ids depend on how
+        // many OTHER tables the handler wrote first (the mint-attempt audit
+        // row shifted every class id by one).
+        id: `${table}-${(tableIds[table] = (tableIds[table] ?? 0) + 1)}`,
+        removed_at: null,
+        created_at: new Date().toISOString(), // mirrors the DB default
+        ...r,
+      }))
       DB[table] = [...(DB[table] ?? []), ...made]
       returning = made
       return { data: made, error: null }
@@ -65,6 +75,8 @@ function makeChainable(table: string) {
     insert: (v: any) => { op = 'insert'; payload = v; return builder },
     update: (v: any) => { op = 'update'; payload = v; return builder },
     eq: (col: string, val: unknown) => { filters.push((r) => r[col] === val); return builder },
+    neq: (col: string, val: unknown) => { filters.push((r) => r[col] !== val); return builder },
+    gte: (col: string, val: unknown) => { filters.push((r) => String(r[col] ?? '') >= String(val)); return builder },
     in: (col: string, vals: unknown[]) => { filters.push((r) => vals.includes(r[col])); return builder },
     is: (col: string) => { filters.push((r) => r[col] == null); return builder },
     order: () => builder,
@@ -145,6 +157,7 @@ let handler: typeof import('./classes').default
 beforeEach(async () => {
   vi.resetModules()
   nextId = 0
+  tableIds = {}
   failWrites = {}
   handler = (await import('./classes')).default
   authResult = { valid: true, userId: 'teacher-1' }
@@ -154,8 +167,22 @@ beforeEach(async () => {
     classes: [],
     user_tags: [],
     subscriptions: [],
+    possession_mint_attempts: [],
   }
 })
+
+/** A windowed mint-attempt row for this teacher, as the throttle counts them. */
+function mintAttempt(over: Partial<Record<string, any>> = {}) {
+  return {
+    id: `pma-${++nextId}`,
+    invite_code_id: null,
+    ip_hash: 'deadbeefdeadbeef',
+    auth_user_id: 'teacher-1',
+    outcome: 'class_mint_attempt',
+    created_at: new Date().toISOString(),
+    ...over,
+  }
+}
 
 describe('GET /api/teacher/classes', () => {
   it('lists the classes the teacher LEADS', async () => {
@@ -324,6 +351,88 @@ describe('POST /api/teacher/classes', () => {
     await handler(makeReq('POST', body), res)
     expect(res.statusCode).toBe(403)
     expect(DB.user_tags).toHaveLength(0)
+  })
+
+  // ── Join-code mint throttle (SEC22-01) ───────────────────────────────────
+  // Every classes insert fires tr_classes_join_code → generate_join_code().
+  // The 10-class CAP bounds live classes, not minting: archive-and-recreate
+  // in a loop mints without bound, which is what this throttle closes.
+
+  it('creates normally under the mint limit, and audits the attempt', async () => {
+    DB.possession_mint_attempts = Array.from({ length: 5 }, () => mintAttempt())
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+
+    expect(res.statusCode).toBe(201)
+    expect(DB.classes).toHaveLength(1)
+    const logged = DB.possession_mint_attempts.filter((r) => r.outcome === 'class_mint_attempt')
+    expect(logged).toHaveLength(6) // the 5 seeded + this request's own row
+  })
+
+  it('429s once the per-user mint window is full — and mints NO class', async () => {
+    const { MINT_PER_USER_LIMIT } = await import('../_utils/mintRateLimit')
+    DB.possession_mint_attempts = Array.from({ length: MINT_PER_USER_LIMIT }, () => mintAttempt())
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+
+    expect(res.statusCode).toBe(429)
+    expect(DB.classes).toHaveLength(0)
+    expect(DB.user_tags).toHaveLength(0)
+    expect(
+      DB.possession_mint_attempts.some((r) => r.outcome === 'rate_limited_mint_user'),
+    ).toBe(true)
+  })
+
+  // A limiter counts ACTIONS, not its own REFUSALS: counting the 429 rows
+  // would make a block self-perpetuating (a retrying client keeps its own
+  // window permanently full and it never drains).
+  it('a window full of REFUSAL rows does not block a real create', async () => {
+    const { MINT_PER_USER_LIMIT } = await import('../_utils/mintRateLimit')
+    DB.possession_mint_attempts = Array.from({ length: MINT_PER_USER_LIMIT * 2 }, () =>
+      mintAttempt({ outcome: 'rate_limited_mint_user' }),
+    )
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+
+    expect(res.statusCode).toBe(201)
+    expect(DB.classes).toHaveLength(1)
+  })
+
+  // Another teacher's mints must not spend this teacher's per-user budget.
+  it('another user\'s mints do not count against this teacher', async () => {
+    const { MINT_PER_USER_LIMIT } = await import('../_utils/mintRateLimit')
+    DB.possession_mint_attempts = Array.from({ length: MINT_PER_USER_LIMIT }, () =>
+      mintAttempt({ auth_user_id: 'someone-else', ip_hash: 'otherhashotherha' }),
+    )
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+    expect(res.statusCode).toBe(201)
+  })
+
+  // Redemption rows (api/code/validate.ts, api/auth/possession-redeem.ts)
+  // share this table. They carry an invite_code_id, a different outcome
+  // vocabulary and an un-namespaced ip_hash — none of which this counter
+  // keys on, so redemptions can never throttle minting.
+  it('redemption attempts do not throttle minting', async () => {
+    DB.possession_mint_attempts = Array.from({ length: 200 }, (_, i) => mintAttempt({
+      invite_code_id: `invite-${i}`,
+      auth_user_id: null,
+      ip_hash: 'plainiphashplain',
+      outcome: 'validate_attempt',
+    }))
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('a refusal BEFORE the throttle is never counted as a mint', async () => {
+    // Cap reached → 409. The limiter runs last, so nothing is logged and the
+    // teacher's window is untouched.
+    DB.classes = Array.from({ length: 10 }, (_, i) => cls({ id: `mine-${i}` }))
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+    expect(res.statusCode).toBe(409)
+    expect(DB.possession_mint_attempts).toHaveLength(0)
   })
 
   it('405s on an unsupported method', async () => {
