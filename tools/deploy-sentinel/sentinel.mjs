@@ -178,10 +178,12 @@ function playProbe() {
       encoding: 'utf8', timeout: 150000,
     })
     const verdict = JSON.parse(out.trim().split('\n').pop())
-    return { ran: true, ok: verdict.ok === true, detail: JSON.stringify(verdict).slice(0, 300) }
+    return { ran: true, ok: verdict.ok === true, inconclusive: verdict.verdict === 'inconclusive', detail: JSON.stringify(verdict).slice(0, 300) }
   } catch (e) {
-    const out = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
-    return { ran: true, ok: false, detail: out.slice(0, 300) }
+    const line = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
+    let inconclusive = false
+    try { inconclusive = JSON.parse(line).verdict === 'inconclusive' } catch { /* not JSON — treat as a real failure */ }
+    return { ran: true, ok: false, inconclusive, detail: line.slice(0, 300) }
   }
 }
 
@@ -346,9 +348,15 @@ async function tick() {
     const probe = playProbe()
     win.playProbe = { at: iso(now()), ...probe }
     log(`scheduled play probe: ${JSON.stringify(win.playProbe)}`)
-    if (probe.ran && !probe.ok) {
+    // Only a 'broken' verdict means learners are affected. 'inconclusive' means
+    // the probe could not drive the UI (start control moved, headless quirk) —
+    // that is a fact about the PROBE, and alarming on it cries wolf. It is
+    // logged and carried into the window summary instead. (2026-08-20 triage.)
+    if (probe.ran && !probe.ok && !probe.inconclusive) {
       await alertOnce('probe:live-play',
         `DEPLOY FALLOUT after ${short}: a real browser play-through of saysomethingin.app FAILED — ${probe.detail}. Learners likely can't play.`)
+    } else if (probe.ran && probe.inconclusive) {
+      log(`play probe INCONCLUSIVE (not alarmed — says nothing about learners): ${probe.detail}`)
     }
   }
 
@@ -369,7 +377,7 @@ async function tick() {
         log(`crater verdict REFUTED by live play probe: ${probe.detail}`)
       } else {
         await alertOnce('telemetry',
-          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
+          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran && probe.inconclusive ? ` A live browser play-through could not start playback, so it neither confirms nor refutes this (${probe.detail}).` : probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
       }
     }
   }
@@ -385,7 +393,7 @@ async function tick() {
             ? `telemetry: this hour is naturally quiet in prior weeks (${tele.baseline?.join('/')}) — volume not judged`
             : `telemetry: ${tele.window} events vs quietest-recent-week ${tele.baselineRef} — healthy`
       const probeLine = `probes: ${probes.filter((p) => p.ok).length}/${probes.length} green` +
-        (win.playProbe?.ran ? `; live play-through ${win.playProbe.ok ? 'passed' : 'FAILED'}` : '') +
+        (win.playProbe?.ran ? `; live play-through ${win.playProbe.ok ? 'passed' : win.playProbe.inconclusive ? 'inconclusive (probe could not start playback)' : 'FAILED'}` : '') +
         (win.craterRefuted ? '; low volume was double-checked by a live play-through — app healthy' : '')
       const deployLine = win.deployLiveAt
         ? `deploy ${short} live at ${iso(win.deployLiveAt)}`

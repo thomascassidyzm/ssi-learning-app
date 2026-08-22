@@ -1951,6 +1951,17 @@ simplePlayer.onCycleCompleted((cycle) => {
       durationDeltaMs: cycleTiming.duration_delta_ms,
       speechStartMs: cycleTiming.speech_start_ms,
       speechEndMs: cycleTiming.speech_end_ms,
+      // The zero point for every *_ms mark above is PROMPT AUDIO START, so
+      // responseLatencyMs silently contains the known-language prompt
+      // duration — which differs per phrase. Persisting the prompt-end and
+      // voice1-start marks makes the invitation-to-speak latency
+      // (speechStartMs - promptEndMs) recoverable on the read side, which is
+      // what any cross-phrase rolling average or z-score actually needs.
+      // Raw marks only: no derived field, so the definition stays on the
+      // read side and is recomputable forever. responseLatencyMs is
+      // deliberately unchanged so old and new rows stay comparable.
+      promptEndMs: cycleTiming.prompt_end_ms,
+      voice1StartMs: cycleTiming.voice1_start_ms,
       startedDuringPrompt: cycleTiming.started_during_prompt,
       stillSpeakingAtVoice1: cycleTiming.still_speaking_at_voice1,
       peakEnergyDb: cycleTiming.peak_energy_db,
