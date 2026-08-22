@@ -267,14 +267,26 @@ const handleStartAtSeed = (seedNumber) => {
 }
 
 // Library overlay
-const toggleLibrary = () => {
-  if (!showLibrary.value) {
+const toggleLibrary = async () => {
+  const opening = !showLibrary.value
+  if (opening) {
     showSettings.value = false // Close settings if open
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
     }
   }
   showLibrary.value = !showLibrary.value
+
+  // Opening the Library is a READ of the activity tiles, so land the in-flight
+  // telemetry deltas first and only then refetch — otherwise "Phrases spoken"
+  // shows the last-flushed snapshot and looks stuck one session behind.
+  // Same ordering as handleBeltPillTap does for the progress modal.
+  if (opening && adaptationConsented.value) {
+    try {
+      await learningPlayerRef.value?.flushTelemetryDelta?.()
+    } catch { /* flush is best-effort */ }
+    void loadPhrasesSpoken()
+  }
 }
 
 const closeLibrary = () => {
@@ -387,7 +399,81 @@ const totalLearningMinutes = computed(() =>
 const totalLearningMinutesEstimated = computed(() =>
   serverEngagedMinutes.value != null && serverEngagedMinutesEstimated.value
 )
-const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
+// "Phrases spoken" — cycles where the VAD actually heard the learner, summed
+// LIFETIME across EVERY course (owner ruling 2026-08-19, Activity-tiles
+// diagnosis rec 3). Server-computed by /api/me/phrases-spoken off
+// learner_speaking_opportunities.phrases_spoken.
+//
+// The local belt-progress value it replaces could not carry this: it read
+// localStorage `ssi-session-history-<courseCode>`, filtered to the last 30
+// days, for one course only, and was banked only when endSession() ran — so a
+// session ended by closing the tab lost its count. The server ledger rides the
+// existing delta/watermark flush, which already fires on visibilitychange and
+// beforeunload.
+//
+// null = not loaded / unknown (guest, offline, error). The local value is the
+// fallback until the server answers — it is a floor, never larger than the truth.
+const serverPhrasesSpoken = ref(null)
+async function loadPhrasesSpoken() {
+  const sb = supabaseClient
+  if (!sb?.value) return
+  try {
+    const { data: { session } } = await sb.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return // guest — nothing banked server-side
+    const res = await fetch('/api/me/phrases-spoken', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.phrasesSpoken === 'number') serverPhrasesSpoken.value = data.phrasesSpoken
+  } catch {
+    /* non-fatal — fall back to the local 30-day, single-course count */
+  }
+}
+const totalPhrasesSpoken = computed(() =>
+  serverPhrasesSpoken.value ?? beltProgress.value?.totalPhrasesSpoken.value ?? 0
+)
+
+// "Phrases learnt" — DISTINCT LEGOs introduced, summed across EVERY course the
+// learner is enrolled in (owner ruling 2026-08-19). Server-computed, because it
+// needs each enrollment's cursor measured against that course's course_legos;
+// the client only knows about the one course it currently has loaded.
+// Replaces the old "Words" tile, which printed the seed number parsed out of a
+// single course's resume cursor — a position readout wearing a count's label.
+// null = not loaded / unknown (guest, offline, error); the tile renders 0 only
+// when the server actually says 0.
+const legosLearnt = ref(null)
+async function loadLegosLearnt() {
+  const sb = supabaseClient
+  if (!sb?.value) return
+  try {
+    const { data: { session } } = await sb.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return // guest — no enrollments to sum
+    const res = await fetch('/api/me/legos-learnt', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.legosLearnt === 'number') legosLearnt.value = data.legosLearnt
+  } catch {
+    /* non-fatal — the tile falls back to the local single-course count */
+  }
+}
+// Until the server answers, show the one number we can honestly derive locally:
+// the LEGOs introduced in the current course up to the cursor is not knowable
+// client-side either, so fall back to 0 rather than to a seed position.
+const phrasesLearnt = computed(() => legosLearnt.value ?? 0)
+
+// ── Spoken-phrases tile visibility ──
+// A category with no live data source is HIDDEN, not shown as 0 (owner ruling
+// 2026-08-19): a 0 asserts "you have spoken nothing", when the truth is "we
+// weren't listening". phrasesSpoken only ever increments while the adaptation
+// (VAD/mic) engine is running, and that requires this consent — off by default.
+// Mirrors ADAPTATION_CONSENT_KEY in LearningPlayer.vue.
+const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
+const adaptationConsented = ref(false)
+function loadAdaptationConsent() {
+  adaptationConsented.value = localStorage.getItem(ADAPTATION_CONSENT_KEY) === 'true'
+}
+const showPhrasesSpokenTile = computed(() => adaptationConsented.value)
 
 // Admin detection (mirrors SettingsScreen logic)
 const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
@@ -482,7 +568,12 @@ const loadModeVisibility = () => {
 
 onMounted(() => {
   loadModeVisibility()
+  loadAdaptationConsent()
   void loadEngagedMinutes()
+  void loadLegosLearnt()
+  // Only fetched when the mic/adaptation consent is on — the tile is hidden
+  // otherwise, so for the default learner this is zero extra requests.
+  if (adaptationConsented.value) void loadPhrasesSpoken()
 
   // Pre-warm async modal chunks. Fired on idle so the player's first
   // paint isn't competing for bandwidth, but kicks in well before a
@@ -504,6 +595,14 @@ onMounted(() => {
   window.addEventListener('ssi-setting-changed', (e) => {
     const { key } = e.detail || {}
     if (key?.startsWith('show') && key.endsWith('Mode')) loadModeVisibility()
+    // Toggling the adaptation (mic) consent appears/disappears the spoken-
+    // phrases tile in the Library without needing a reload.
+    if (key === 'adaptationConsent') {
+      loadAdaptationConsent()
+      // Turning the mic on reveals the tile — fetch the lifetime number now
+      // rather than showing the local 30-day fallback until the next reload.
+      if (adaptationConsented.value) void loadPhrasesSpoken()
+    }
   })
 
   const urlParams = new URLSearchParams(window.location.search)
@@ -600,6 +699,8 @@ onMounted(() => {
             :total-learning-minutes="totalLearningMinutes"
             :total-learning-minutes-estimated="totalLearningMinutesEstimated"
             :total-phrases-spoken="totalPhrasesSpoken"
+            :show-phrases-spoken="showPhrasesSpokenTile"
+            :phrases-learnt="phrasesLearnt"
             @open-belts="null"
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
             @close="closeLibrary"
