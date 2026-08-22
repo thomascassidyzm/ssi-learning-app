@@ -1310,3 +1310,62 @@ scratch files, invisible to CI); `node tools/walkthrough/compile.mjs --check` gr
 **Decided by:** agent, on the founder's 2026-08-18 instruction. Supersedes the 2026-07-27
 "learner level is deliberately nothing" ruling in `docs/self-explaining-dashboard.md`; the bar
 that ruling set — optional, quiet, never in the way — still governs.
+
+## 2026-08-22 — pods are 1-based; the served pod slug is resolved per course
+**Move:** Tom ruled today that listening pods are 1-BASED from here on. `hrv_for_eng` is the
+first course on the new convention and serves `hrv_for_eng:pod-1`; the ~68 courses already
+recorded against `pod-0` keep serving `pod-0`, with no behaviour change whatsoever. Since the
+slug is no longer a constant, the five sites that hardcoded `:pod-0` (`useListeningPods`,
+`listeningMetaCache`, `usePodLapScheduler`, `generateLearningScript`'s Phase 6/7 pod pre-fetch,
+and `usePodStage0`'s sentence-id prefix probe) now all call ONE resolver,
+`packages/player-vue/src/composables/servedPod.ts`. It reads `listening_pods` for the course
+restricted to `pod_type=core` and `slug in (pod-1, pod-0)`, prefers `pod-1`, falls back to
+`pod-0`, and memoises one in-flight promise per course per session. **No fleet-wide rename of
+the existing 68 `pod-0` courses was done here** — that is a possible later pass, and it is a
+database move, not an app one.
+**Better:** the app can serve both conventions at once, which is the only thing that lets the
+new convention start without a big-bang rename of 68 courses' pods and every sentence id under
+them. The release gate gets stronger, not weaker: parking a pod off the serving slugs
+(`pod-0-unrecorded`, 37 courses; `pod-0-gated-2026-08-06`, 2) is now an explicit, tested
+property of one module rather than an emergent consequence of five hardcoded strings. Note a
+parked slug is usually a working COPY beside a live `pod-0` rather than instead of one — both
+Welsh courses hold a `pod-0-gated-2026-08-06` and a real 231-sentence `pod-0`, and they keep
+serving it; the resolver's tests use synthetic course codes precisely so live parking state
+cannot drift under them.
+**Simpler:** deletes five copies of the pod-id convention and replaces them with one import.
+"Which pod does this course serve?" now has an answer with an address; before, it had five.
+**Cheaper (total):** one memoised query per course per session, shared by all five readers —
+not five extra round-trips. Offline it costs ZERO round-trips: the download snapshot persists
+the slug it was built from and the resolver reads it back. Every failure mode (error, timeout,
+rejection, missing course) resolves to `pod-0`, so a bad day costs exactly today's behaviour.
+**Searched & rejected:**
+- **Rename all 68 courses' pods to `pod-1` in the database and keep the hardcoded string** —
+  rejected here, not on merit: it is the genuinely simpler END state, but it is a database move
+  owned by another worker, it rewrites every `listening_pod_sentences.id` under those pods, and
+  every learner mid-download would be stranded on ids that no longer exist. Parked as a later
+  pass; the resolver is compatible with it (once every course is `pod-1`, the `pod-0` arm just
+  stops firing) and can be deleted afterwards.
+- **A per-course allow-list / config constant in the app** — rejected: needs a code deploy per
+  course and drifts from the database the moment a pod is recorded or parked. The database
+  already holds the answer.
+- **Resolve to "whatever core pod this course has"** — rejected, and this is the sharp edge: it
+  would publish all 39 parked, unrecorded pods at once. The resolver considers ONLY `pod-1` and
+  `pod-0` by design, and a test holds that line.
+- **Fall back to "no pods" on a query error** — rejected: a transient failure would silently
+  remove Layer 2 from a working course. Falling back to `pod-0` degrades to yesterday's
+  behaviour instead.
+- **A localStorage mirror of the resolved slug for the offline lane** — rejected in favour of
+  persisting it inside the existing IndexedDB snapshot, so the slug travels with the rows it
+  describes and `clearCachedListeningPodRows` can drop both together. One store, not two.
+**Verified:** anon (browser role) CAN `SELECT listening_pods` — probed live against the dev
+project, 110 rows visible, no RLS or grant obstacle, so no sentence-id-prefix workaround was
+needed. `@ssi/core` build clean; player-vue typecheck clean; 2328 tests pass (11 new resolver
+tests + 2 new end-to-end tests through `usePodLapScheduler`); lint 0 new errors; `typecheck:api`
+and `test:api` clean.
+**Not done / known gap:** `api/courses/[code]/bundle.ts` selects EVERY pod for a course, parked
+ones included, for the offline download bundle. That is pre-existing behaviour (37 courses have
+been bundling `pod-0-unrecorded` audio all along) and unchanged here, but for hrv it now means
+the bundle carries `pod-1`, `pod-0` and `pod-0-unrecorded`. Flagged, not fixed — it is a
+download-size question, not a correctness one, and it belongs with the DB owner.
+**Search width:** visible-options (five alternatives, one parked as the eventual end state).
+**Decided by:** agent, on Tom's 2026-08-22 1-based ruling.

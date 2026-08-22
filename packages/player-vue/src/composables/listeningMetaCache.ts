@@ -19,6 +19,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveServedPod } from './servedPod'
 import {
   getRevisedAudioRefs,
   stampRowAudioRefs,
@@ -115,10 +116,17 @@ export interface CachedListeningMeta {
    *  content lane alone would leave a downloaded snapshot pointing at the
    *  pre-repair ref forever. Absent → pre-stamp entry, refreshed once. */
   audioStamp?: string
-  /** listening_pod_sentences rows for `${course}:pod-0`, in global_order.
-   *  Empty array = the course genuinely has no pod (a valid, downloaded
-   *  state) — entry ABSENT means "never downloaded". */
+  /** listening_pod_sentences rows for the pod this course SERVES (see
+   *  servedPod), in global_order. Empty array = the course genuinely has no
+   *  pod (a valid, downloaded state) — entry ABSENT means "never downloaded". */
   podRows: CachedPodRow[]
+  /** The serving slug `podRows` was fetched from — `pod-1` or `pod-0`. Pods
+   *  went 1-based on 2026-08-22, so the slug is no longer a constant and the
+   *  snapshot has to remember its own. Read back by servedPod's offline lane,
+   *  which is how a learner who downloaded Croatian at `pod-1` resolves it
+   *  offline with no round-trip. Absent on entries written before the flip →
+   *  those are `pod-0` snapshots by definition. */
+  podSlug?: string
   /** course_audio id → text for the split-clip ids referenced by podRows —
    *  the overlay's per-sentence display-text oracle (splitRowUnits). */
   clipTexts: Record<string, string>
@@ -165,21 +173,25 @@ const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> 
  *
  * Called when a LIVE read reports the course has no pod sentences at all.
  * That is how unreleased Layer 2 content is held back: every learner-facing
- * pod path queries the exact id `<course>:pod-0`, so a pod parked on any other
- * slug reads as "no pods yet" (the Welsh pods were gated this way on
- * 2026-08-06 — Aran and Catrin have not recorded them). Without this, a
+ * pod path queries the exact id of the pod the course SERVES, and servedPod
+ * will only ever serve `pod-1` or `pod-0` — so a pod parked on any other slug
+ * (`pod-0-unrecorded`, `pod-0-gated-2026-08-06`) reads as "no pods yet" (the
+ * Welsh pods were gated this way on 2026-08-06 — Aran and Catrin have not
+ * recorded them). Without this, a
  * learner who downloaded the pod for offline use would keep replaying the
  * withdrawn snapshot forever, because the offline lane never re-checks.
  *
  * Deliberately keyed on "server says zero", not on a course allow-list: it
  * needs no maintenance, and it reverses itself the moment the recordings land
- * and the pod returns to its `pod-0` slug.
+ * and the pod returns to a serving slug.
  */
 export const clearCachedListeningPodRows = async (courseCode: string): Promise<void> => {
   try {
     const existing = await getCachedListeningMeta(courseCode)
     if (!existing || existing.podRows.length === 0) return
-    await setCachedListeningMeta({ ...existing, podRows: [], clipTexts: {} })
+    // Drop podSlug with the rows: the snapshot no longer describes any pod,
+    // so it must not keep asserting one to servedPod's offline lane.
+    await setCachedListeningMeta({ ...existing, podRows: [], clipTexts: {}, podSlug: undefined })
     console.log('[ListeningMeta] dropped', existing.podRows.length,
       'stale offline pod rows for', courseCode, '— course reports no pods live')
   } catch (err) {
@@ -266,7 +278,7 @@ const fetchAndCacheListeningMetaOnce = async (
   courseCode: string,
 ): Promise<CachedListeningMeta | null> => {
   try {
-    const podId = `${courseCode}:pod-0`
+    const { podId, slug: podSlug } = await resolveServedPod(client, courseCode)
     const [podsResult, bookendsResult, stampResult] = await Promise.all([
       client
         .from('listening_pod_sentences')
@@ -375,6 +387,7 @@ const fetchAndCacheListeningMetaOnce = async (
       contentStamp,
       audioStamp,
       podRows,
+      podSlug,
       clipTexts,
       bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
       fineKnowns,

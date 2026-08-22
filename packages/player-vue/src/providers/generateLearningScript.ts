@@ -27,6 +27,7 @@ import {
 } from '../composables/useAlgorithmConfig'
 import type { ReviewPullFilter, UseWordCap, UseWordCapTier } from '../composables/useAlgorithmConfig'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import { resolveServedPod } from '../composables/servedPod'
 import { repeatPhraseCycles } from './repeatPhraseCycles'
 import { authoredGlossSegments } from '../utils/authoredGlossSegments'
 
@@ -508,16 +509,23 @@ export async function generateLearningScript(
           .eq('course_code', courseCode)
           .in('role', ['bookend_listen_intro', 'bookend_listen_outro'])
       : Promise.resolve({ data: [], error: null }),
-    // Pre-fetch Pod 0 sentences (Layer 2 listening — round-end lap after
-    // activation). Pod ID convention: "${course_code}:${slug}". Sentences
-    // ordered by global_order; entry into the lap is 1 sentence/round.
-    // Returns empty if course has no pod-0 — Phase 7 silently skips.
+    // Pre-fetch this course's pod sentences (Layer 2 listening — round-end lap
+    // after activation). Pod ID convention: "${course_code}:${slug}", and
+    // WHICH slug is resolved per course by servedPod — pods went 1-based on
+    // 2026-08-22, so hrv serves `pod-1` and the ~68 older courses `pod-0`.
+    // Resolution is chained rather than awaited above so the other seven
+    // queries here still fire immediately; it is memoised per course, so the
+    // pod readers share one round-trip. Sentences ordered by global_order;
+    // entry into the lap is 1 sentence/round. Returns empty if the course has
+    // no served pod — Phase 7 silently skips.
     listeningConfig.enabled
-      ? supabase
-          .from('listening_pod_sentences')
-          .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
-          .eq('pod_id', `${courseCode}:pod-0`)
-          .order('global_order', { ascending: true })
+      ? resolveServedPod(supabase, courseCode).then(({ podId }) =>
+          supabase
+            .from('listening_pod_sentences')
+            .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
+            .eq('pod_id', podId)
+            .order('global_order', { ascending: true }),
+        )
       : Promise.resolve({ data: [], error: null }),
     // Course-wide LEGO catalogue (just seed_number + lego_index). Used to
     // assign every LEGO an absolute ordinal position in the course — drives
@@ -721,7 +729,7 @@ export async function generateLearningScript(
   }
 
   // Compute lap items for a given main-course round. Returns false when pods
-  // not activated, course has none, or pod-0 has been fully introduced and
+  // not activated, course has none, or the served pod has been fully introduced and
   // no sentence is in any stage (shouldn't happen since stage 7 is eternal).
   // Caller is responsible for gating on l2FiresAt(round).
   function emitPodLap(mainRoundNumber: number, cycleCounter: { v: number }): boolean {

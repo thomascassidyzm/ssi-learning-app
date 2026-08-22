@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
+import { resetServedPodCache } from './servedPod'
 import {
   DEFAULT_FAST_BELT_CEILINGS,
   DEFAULT_FAST_LISTENING_RAMP,
@@ -40,16 +41,26 @@ interface MockState {
   enrollmentUpdates: Array<Record<string, any>>
   /** learner_pod_state rows for the two-doors exposure counter (optional). */
   podState?: Array<{ sentence_id: string; exposures: number }>
+  /** listening_pods rows. Absent = the pre-2026-08-22 world: no pod-1, so the
+   *  resolver answers `pod-0` and behaviour is bit-identical to before. */
+  pods?: Array<{ slug: string }>
+  /** pod_id the scheduler actually queried — the flip's proof. */
+  queriedPodId?: string
 }
 
 function makeMockSupabase(state: MockState) {
   const builder = (table: string) => {
     let mode: 'select' | 'update' = 'select'
     let updatePayload: any = null
+    const filters: Record<string, any> = {}
     const chain: any = {
       select: () => chain,
-      eq: () => chain,
-      in: () => chain,
+      eq: (col?: string, val?: any) => {
+        if (col) filters[col] = val
+        if (table === 'listening_pod_sentences' && col === 'pod_id') state.queriedPodId = val
+        return chain
+      },
+      in: (col?: string, val?: any) => { if (col) filters[col] = val; return chain },
       order: () => chain,
       maybeSingle: () => {
         if (table === 'course_enrollments') {
@@ -70,6 +81,11 @@ function makeMockSupabase(state: MockState) {
         }
         if (table === 'listening_pod_sentences') {
           return Promise.resolve({ data: state.podSentences, error: null }).then(cb)
+        }
+        if (table === 'listening_pods') {
+          const allowed = filters.slug as string[] | undefined
+          const rows = (state.pods ?? []).filter((p) => !allowed || allowed.includes(p.slug))
+          return Promise.resolve({ data: rows, error: null }).then(cb)
         }
         if (table === 'course_audio') {
           return Promise.resolve({ data: state.bookends, error: null }).then(cb)
@@ -696,5 +712,43 @@ describe('usePodLapScheduler — reactive args', () => {
     await s.initialize()
     expect(s.isInitialized.value).toBe(true)
     expect(s.nextLap()!.podRound).toBe(1)
+  })
+})
+
+// ── Which pod does the scheduler actually ask for? ───────────────────────────
+// Pods went 1-based on Tom's 2026-08-22 ruling. The scheduler no longer knows
+// the slug — it asks servedPod — so these two tests are the end-to-end proof
+// that the resolved slug reaches the wire, in both directions.
+describe('usePodLapScheduler — served pod resolution', () => {
+  beforeEach(() => { resetServedPodCache() })
+
+  it('queries the pod-1 id for a course that has one (hrv, the first 1-based course)', async () => {
+    const state: MockState = {
+      podSentences: [podSentence(1)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+      pods: [{ slug: 'pod-1' }, { slug: 'pod-0' }],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'hrv_for_eng', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(state.queriedPodId).toBe('hrv_for_eng:pod-1')
+  })
+
+  it('queries the pod-0 id for the ~68 courses that only have pod-0 — no behaviour change', async () => {
+    const state: MockState = {
+      podSentences: [podSentence(1)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+      pods: [{ slug: 'pod-0' }, { slug: 'pod-0-unrecorded' }],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'spa_for_eng_v2', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(state.queriedPodId).toBe('spa_for_eng_v2:pod-0')
   })
 })
