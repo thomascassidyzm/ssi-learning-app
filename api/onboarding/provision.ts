@@ -52,6 +52,7 @@ import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/orgPlatform'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
+import { enforceMintRateLimit, CLASS_MINT_OUTCOME, SCHOOL_MINT_OUTCOME } from '../_utils/mintRateLimit'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -348,19 +349,33 @@ export default async function handler(
         if (tErr || !created) throw new Error(`teacher create failed: ${tErr?.message}`)
         teacherId = created.id
         // A first class gives them a share link straight away. Non-fatal.
-        const { data: firstClass, error: clsErr } = await supabase
-          .from('classes')
-          .insert({
-            teacher_user_id: auth.userId,
-            class_name: 'My class',
-            course_code,
-            school_id: null,
-            is_active: true,
-          })
-          .select('id')
-          .single()
-        if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
-        else if (firstClass) {
+        // Mint throttle (SEC22-01): this insert fires tr_classes_join_code.
+        // It can only ever run once per account (it is inside `if
+        // (!teacherId)`), so the per-user limit will never fire here — the
+        // per-IP limit is the point, bounding an attacker who cycles fresh
+        // accounts from one network to farm join codes. Refused = skip the
+        // convenience class, exactly as a failed insert does: onboarding
+        // itself must never fail over it.
+        const classMintLimit = await enforceMintRateLimit(supabase, req, auth.userId, CLASS_MINT_OUTCOME)
+        let firstClass: { id: string } | null = null
+        if (!classMintLimit.ok) {
+          console.warn('[onboarding/provision] first class skipped (mint rate limited)')
+        } else {
+          const { data: cls, error: clsErr } = await supabase
+            .from('classes')
+            .insert({
+              teacher_user_id: auth.userId,
+              class_name: 'My class',
+              course_code,
+              school_id: null,
+              is_active: true,
+            })
+            .select('id')
+            .single()
+          if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
+          else firstClass = cls
+        }
+        if (firstClass) {
           // Dual-write the teacher↔class RELATIONSHIP alongside the lead
           // pointer. Pointer-only writes are how 47 of 62 live classes ended
           // up needing a backfill; without this the backfill just rots again.
@@ -442,6 +457,19 @@ export default async function handler(
 
       let schoolId = existingSchool?.id
       if (!schoolId) {
+        // Mint throttle (SEC22-01): this insert fires tr_schools_join_code and
+        // mints BOTH role-granting codes (teacher_join_code +
+        // admin_join_code), so it is the higher-value faucet of the two. Only
+        // reachable once per account (guarded by `if (!schoolId)`), so the
+        // per-user limit never fires on a real signup — the per-IP limit is
+        // the backstop against cycling fresh accounts from one network.
+        // Checked here, after the existing-school lookup, so an idempotent
+        // re-provision that mints nothing is never counted.
+        const schoolMintLimit = await enforceMintRateLimit(supabase, req, auth.userId, SCHOOL_MINT_OUTCOME)
+        if (!schoolMintLimit.ok) {
+          res.status(schoolMintLimit.status).json({ error: schoolMintLimit.error })
+          return
+        }
         const { data: school, error: sErr } = await supabase
           .from('schools')
           .insert({ admin_user_id: auth.userId, school_name: 'My school' })
