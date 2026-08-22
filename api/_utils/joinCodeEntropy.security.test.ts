@@ -1,35 +1,36 @@
 /**
- * SEC22-01 — the join-code minter's entropy asymmetry, and who may watch it.
+ * SEC22-01 — the join-code minter's entropy, and who may reach it. CLOSED.
  *
- * Audit 2026-08-22 (branch security/audit-2026-08-22). Escalates ADMIN-ENT-02
- * from the 2026-08-11 audit, which found that the code-entropy hardening pass
- * migrated the APPLICATION minter to `crypto.randomInt` and missed the DATABASE
- * one. This suite adds the half that makes it exploitable rather than merely
- * untidy: `public.generate_join_code()` is granted EXECUTE to `anon`, so the
- * output stream of the weak PRNG is directly samplable by an unauthenticated
- * caller — verified live against production on 2026-08-22 (eight anonymous
- * calls, eight HTTP 200s, eight well-formed codes).
+ * Found by the 2026-08-22 audit (branch security/audit-2026-08-22), which
+ * escalated ADMIN-ENT-02 from 2026-08-11: the code-entropy hardening pass had
+ * migrated the APPLICATION minter to `crypto.randomInt` and missed the
+ * DATABASE one. `public.generate_join_code()` minted from `random()` — a
+ * non-cryptographic PRNG whose output is a deterministic function of internal
+ * state — and EXECUTE was granted to `anon`, so the stream was directly
+ * samplable by an unauthenticated caller. Verified live against production on
+ * 2026-08-22: eight anonymous calls, eight HTTP 200s, eight well-formed codes.
  *
- * WHY THE GRANT IS THE FINDING. `random()` is PostgreSQL's non-cryptographic
- * PRNG, seeded per backend session, not `pgcrypto`'s `gen_random_bytes`. Its
- * output is a deterministic function of internal state, so observed outputs
- * carry information about neighbouring outputs. The application minter's own
- * docstring already states the threat model correctly — these codes "gate
- * elevated educational_role grants (teacher/school_admin/govt_admin)… so their
- * minting must not be predictable from observed samples". The DB minter mints
- * the same class of credential under the same threat model with a PRNG that is
- * predictable from observed samples, and hands anyone the sampling port.
+ * FIXED 2026-08-22 by supabase/migrations/20260822_join_code_csprng_and_grant_lockdown.sql
+ * (canary supabase/secfix-toolkit/canary_join_code_csprng.cjs, 15/15 green,
+ * applied live). The minter now draws from pgcrypto's `gen_random_bytes` with
+ * rejection sampling, and EXECUTE is service_role only. The same eight-call
+ * anonymous probe now returns eight 401s carrying
+ * `permission denied for function generate_join_code`.
  *
- * The DB minter is live, not vestigial: two triggers call it
- * (`set_class_join_code`, `set_school_join_code`), so it is what actually
- * stamps `classes.join_code` and `schools.join_code`.
+ * The characterization tests that recorded the vulnerable behaviour have been
+ * flipped to the assertions their paired `it.todo()`s named, per the test
+ * convention in docs/security-audit-2026-08-11/README.md. They are now
+ * regression guards: if either half comes back, these go red.
  *
- * TEST CONVENTION (inherited from docs/security-audit-2026-08-11/README.md):
- * a real vulnerability is recorded as a CHARACTERIZATION test that asserts
- * today's insecure behaviour and therefore PASSES today, with a paired
- * `it.todo()` naming the secure behaviour. When someone fixes the finding these
- * go red on purpose — that redness is the signal the finding is closed, and the
- * fixer should flip them to the assertions in the `it.todo` names.
+ * WHY THE TRIGGER FUNCTIONS ARE SECURITY DEFINER (guarded below). `authenticated`
+ * holds INSERT on public.classes — a signed-in teacher creates a class straight
+ * from the browser — so the BEFORE-INSERT trigger `set_class_join_code` used to
+ * reach the minter as the teacher. Revoking EXECUTE from `authenticated` would
+ * have killed that legitimate path outright. Marking the two trigger functions
+ * SECURITY DEFINER moves the mint inside the owner's rights instead. Neither
+ * trigger function touches a table — each only assigns a generated string onto
+ * NEW — so the definer surface is nil. Flip one back to INVOKER and real class
+ * creation breaks; that is what the guard here protects.
  *
  * Nothing here touches a database or a network. Every assertion reads
  * supabase/schema.sql, which is the committed dump of the live schema.
@@ -55,34 +56,48 @@ function functionBody(name: string): string {
 }
 
 describe('SEC22-01: generate_join_code() entropy and exposure', () => {
-  // ── The characterization: today's behaviour, asserted so a fix turns it red ──
+  // ── The fix, locked as regression guards ──
 
-  // SECURITY FINDING SEC22-01 (a): the DB minter uses a non-cryptographic PRNG.
-  it('CHARACTERIZATION: generate_join_code() mints from random(), not a CSPRNG', () => {
+  // SEC22-01 (a), closed: the DB minter draws from a CSPRNG.
+  it('SECURE: generate_join_code() draws from gen_random_bytes()/pgcrypto so codes are not predictable from observed samples', () => {
     const body = functionBody('generate_join_code')
 
-    expect(body).toContain('random()')
-    // Not any of the cryptographic sources that would make this safe.
-    expect(body).not.toContain('gen_random_bytes')
-    expect(body).not.toContain('gen_random_uuid')
+    // pgcrypto lives in the `extensions` schema on this database, so the call
+    // is schema-qualified rather than search_path-dependent.
+    expect(body).toContain('extensions.gen_random_bytes(1)')
+    // The weak PRNG is gone. `random()` as a whole call, not the substring —
+    // `gen_random_bytes` legitimately contains the word.
+    expect(body).not.toMatch(/(?<!gen_)random\(\)/)
   })
 
-  it.todo(
-    'SECURE: generate_join_code() draws from gen_random_bytes()/pgcrypto so codes are not predictable from observed samples',
-  )
+  // The bytes→character mapping must be uniform. A bare `byte % 24` would make
+  // the first 16 consonants ~1.5x likelier than the last 8, quietly shrinking
+  // the effective keyspace — a CSPRNG sampled with bias is not a fix.
+  it('SECURE: the byte→character mapping is rejection-sampled, so no modulo bias', () => {
+    const body = functionBody('generate_join_code')
 
-  // SECURITY FINDING SEC22-01 (b): and anyone may sample that PRNG's stream.
-  // This is the half that is new in this audit. Verified live 2026-08-22:
-  // POST /rest/v1/rpc/generate_join_code with only the anon key returned
-  // 200 "LUB-157", "MXY-755", "DPH-844", "VSM-001", … on production.
-  it('CHARACTERIZATION: EXECUTE on the minter is granted to anon and authenticated', () => {
-    expect(schema).toContain('GRANT ALL ON FUNCTION public.generate_join_code() TO anon;')
-    expect(schema).toContain('GRANT ALL ON FUNCTION public.generate_join_code() TO authenticated;')
+    expect(body).toContain('EXIT WHEN b < 240') // 24 * 10, the unbiased cut for %24
+    expect(body).toContain('EXIT WHEN b < 250') // 25 * 10, the unbiased cut for %10
   })
 
-  it.todo(
-    'SECURE: EXECUTE on generate_join_code() is service_role only — a browser never needs to mint a join code',
-  )
+  // SEC22-01 (b), closed: the RPC sampling port. Verified live 2026-08-22 —
+  // the audit's own eight-call anon probe went from eight 200s carrying
+  // "LUB-157", "MXY-755", … to eight 401 "permission denied for function
+  // generate_join_code".
+  it('SECURE: EXECUTE on generate_join_code() is service_role only — a browser never needs to mint a join code', () => {
+    expect(schema).toContain('REVOKE ALL ON FUNCTION public.generate_join_code() FROM PUBLIC;')
+    expect(schema).toContain('GRANT ALL ON FUNCTION public.generate_join_code() TO service_role;')
+    expect(schema).not.toContain('GRANT ALL ON FUNCTION public.generate_join_code() TO anon;')
+    expect(schema).not.toContain('GRANT ALL ON FUNCTION public.generate_join_code() TO authenticated;')
+  })
+
+  // The half that keeps the revoke from being a regression: see the file
+  // docstring. `authenticated` inserts classes from the browser, so the
+  // triggers must reach the minter as the owner, not as the teacher.
+  it('the class/school triggers reach the minter as SECURITY DEFINER, so signed-in creation still mints', () => {
+    expect(functionBody('set_class_join_code')).toContain('SECURITY DEFINER')
+    expect(functionBody('set_school_join_code')).toContain('SECURITY DEFINER')
+  })
 
   // ── The controls that DO hold, locked as ordinary passing tests ──
 
@@ -106,8 +121,9 @@ describe('SEC22-01: generate_join_code() entropy and exposure', () => {
   })
 
   // The blast radius, pinned: this is not a dormant helper. Two triggers stamp
-  // real credentials with it, which is why (a) and (b) are a finding at all.
-  it('the weak minter is live — class and school join codes are stamped by it', () => {
+  // real credentials with it, which is why (a) and (b) were a finding at all —
+  // and why the fix had to keep those two callers working.
+  it('the minter is live — class and school join codes are stamped by it', () => {
     expect(functionBody('set_class_join_code')).toContain('generate_join_code()')
     expect(functionBody('set_school_join_code')).toContain('generate_join_code()')
   })
