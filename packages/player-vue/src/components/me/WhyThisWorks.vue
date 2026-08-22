@@ -13,10 +13,11 @@
  *
  * This section is the ONLY place the thirty-hour promise appears. Founder
  * ruling 2026-08-03: we are not a claims-focused company — it sits inside the
- * methodology, never as a headline. Prose lives in the content module.
+ * methodology, never as a headline. Prose lives in the content module, or in
+ * Popty's published version of it where there is one.
  */
 import { ref } from 'vue'
-import { WHY_THIS_WORKS as section } from '@/explainer/learnerExplainers'
+import { usePublishedExplainers } from '@/explainer/usePublishedExplainers'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 import { openInApp } from '@/composables/useInAppBrowser'
 import ExplainerFigure from './ExplainerFigure.vue'
@@ -26,13 +27,17 @@ const props = withDefaults(defineProps<{
   viewerId?: string
 }>(), { viewerId: 'anon' })
 
+// The published copy from Popty where it has landed, the repo-authored prose
+// until then and whenever the fetch cannot be had. Never null, never partial.
+const { whyThisWorks: section } = usePublishedExplainers()
+
 const open = ref(false)
-const throbbing = ref(shouldThrob(props.viewerId, section.id))
+const throbbing = ref(shouldThrob(props.viewerId, section.value.id))
 
 function toggle(): void {
   open.value = !open.value
   if (open.value) {
-    markSeen(props.viewerId, section.id)
+    markSeen(props.viewerId, section.value.id)
     throbbing.value = false
   }
 }

@@ -24,6 +24,52 @@ export interface GroupTreeCaller {
   ownGroupId: string | null
 }
 
+/**
+ * The leader half of the resolution, with NO response writing: which group is
+ * this auth uid the leader of? A govt_admin's governed group, else a
+ * school_admin's own school NODE, else null.
+ *
+ * Factored out of resolveGroupTreeCaller so callers that must NOT 403 a
+ * non-leader can reuse the identical rule — api/_utils/vadVisibility.ts
+ * resolves a teacher or a student as a legitimate caller with no leader group,
+ * and re-deriving "who is a leader" there is exactly how two surfaces drift
+ * apart. One copy, here.
+ */
+export async function leaderGroupIdFor(
+  supabase: SupabaseClient,
+  authUid: string,
+): Promise<string | null> {
+  const { data: govtAdmin } = await supabase
+    .from('govt_admins')
+    .select('group_id')
+    .eq('user_id', authUid)
+    .maybeSingle()
+  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+  if (ownGroupId) return ownGroupId
+
+  // School leader: scope root = their own school's node. Gated on the
+  // educational_role, NOT on mere school membership — a teacher also carries
+  // a SCHOOL: tag but stays on the teacher surfaces (no node-surface access).
+  const { data: learner } = await supabase
+    .from('learners')
+    .select('educational_role')
+    .eq('user_id', authUid)
+    .maybeSingle()
+  if ((learner as any)?.educational_role !== 'school_admin') return null
+
+  const schoolId = await schoolIdForAdmin(supabase, authUid)
+  if (!schoolId) return null
+  const { data: school } = await supabase
+    .from('schools')
+    .select('id, school_name, group_id, node_group_id, is_demo, is_test')
+    .eq('id', schoolId)
+    .maybeSingle()
+  if (!school) return null
+  return (school as any).node_group_id
+    || (await ensureSchoolNode(supabase, school as any, { is_demo: (school as any).is_demo, is_test: (school as any).is_test }))
+    || null
+}
+
 /** Writes the 401/403 response itself and returns null on rejection. */
 export async function resolveGroupTreeCaller(
   req: VercelRequest,
@@ -40,40 +86,10 @@ export async function resolveGroupTreeCaller(
     res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return null
   }
-  const { data: govtAdmin } = await supabase
-    .from('govt_admins')
-    .select('group_id')
-    .eq('user_id', authResult.userId)
-    .maybeSingle()
-  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+
+  const ownGroupId = await leaderGroupIdFor(supabase, authResult.userId)
   if (ownGroupId) {
     return { userId: authResult.userId, isAdmin: false, ownGroupId }
-  }
-
-  // School leader: scope root = their own school's node. Gated on the
-  // educational_role, NOT on mere school membership — a teacher also carries
-  // a SCHOOL: tag but stays on the teacher surfaces (no node-surface access).
-  const { data: learner } = await supabase
-    .from('learners')
-    .select('educational_role')
-    .eq('user_id', authResult.userId)
-    .maybeSingle()
-  if ((learner as any)?.educational_role === 'school_admin') {
-    const schoolId = await schoolIdForAdmin(supabase, authResult.userId)
-    if (schoolId) {
-      const { data: school } = await supabase
-        .from('schools')
-        .select('id, school_name, group_id, node_group_id, is_demo, is_test')
-        .eq('id', schoolId)
-        .maybeSingle()
-      if (school) {
-        const nodeId = (school as any).node_group_id
-          || (await ensureSchoolNode(supabase, school as any, { is_demo: (school as any).is_demo, is_test: (school as any).is_test }))
-        if (nodeId) {
-          return { userId: authResult.userId, isAdmin: false, ownGroupId: nodeId }
-        }
-      }
-    }
   }
 
   res.status(403).json({ error: 'You do not govern any group' })

@@ -38,7 +38,7 @@
             @click="select(s.id)">
           <span class="aud__order">{{ s.globalOrder }}</span>
           <span class="aud__texts">
-            <span class="aud__target">{{ s.targetText }}</span>
+            <span class="aud__target" :dir="dirFor(s.targetText)">{{ s.targetText }}</span>
             <span class="aud__known">{{ s.knownText }}</span>
           </span>
           <span class="aud__atoms">{{ s.resolvedCount }}/{{ s.atomCount }}</span>
@@ -47,7 +47,7 @@
 
       <div class="aud__stages" v-if="selected">
         <div class="aud__selhead">
-          <strong>{{ selected.targetText }}</strong><em>{{ selected.knownText }}</em>
+          <strong :dir="dirFor(selected.targetText)">{{ selected.targetText }}</strong><em>{{ selected.knownText }}</em>
           <button class="aud__journey" :class="{ 'is-active': playingKey === '*journey*' }" @click="playJourney">
             {{ isPlaying && playingKey === '*journey*' ? '■ stop' : '▶ play whole journey (0→9)' }}
           </button>
@@ -82,6 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed, inject, watch, onBeforeUnmount } from 'vue'
+import { dirFor } from '@ssi/core'
 import type { Ref } from 'vue'
 import { usePodStage0 } from '../composables/usePodStage0'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
@@ -260,7 +261,7 @@ onBeforeUnmount(stop)
 .aud__row:hover { background: #faf7f2; } .aud__row.is-sel { background: #eef3f8; } .aud__row.is-partial { opacity: .62; }
 .aud__order { color: #b3aaa0; font-size: 12px; width: 26px; font-variant-numeric: tabular-nums; }
 .aud__texts { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.aud__target { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aud__target { unicode-bidi: isolate; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aud__known { color: #8c857b; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aud__atoms { font-size: 11px; color: #34a06a; font-variant-numeric: tabular-nums; }
 .aud__stages { border: 1px solid #e4ded6; border-radius: 10px; background: #fff; padding: 14px 16px; }
