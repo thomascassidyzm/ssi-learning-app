@@ -79,7 +79,7 @@ with four numbered labels pointing at four things on the screen:
 
 ### Part 1 — What pressing play does
 
-You hear a short phrase in English. Then there is a gap. The gap is yours — say your version out loud, out into the room, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different voices, so you can hear how it really sounds.
+You hear a short phrase in your known language. Then there is a gap. The gap is yours — say your version out loud, out loud, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different model voices, so you can hear how it really sounds.
 
 Then the next one arrives on its own. There is nothing to tap in between.
 
@@ -87,7 +87,7 @@ Then the next one arrives on its own. There is nothing to tap in between.
 
 ### Part 2a — What a go is
 
-A go is one of those gaps where you opened your mouth and had a crack at it.
+A 'go' is one of those gaps where you opened your mouth and had a crack at it.
 
 Getting it wrong is still a go, and it still does the work. The reaching is the bit that builds the language — whether it arrives is almost beside the point.
 
@@ -97,7 +97,7 @@ Getting it wrong is still a go, and it still does the work. The reaching is the 
 
 New things arrive one at a time, and things you met earlier come back on their own, just as they start to slip. You never have to keep track of any of that.
 
-Ten minutes is a real session. An hour is a proper one. Stop whenever you like and it picks up exactly where you left off.
+You can play as long as you like. Stop at any time and the app picks up exactly where you left off.
 
 *A drawing sits here: new things arriving along a session line, each one coming back below at widening intervals — captioned "new" / "new" / "and it comes back, further apart each time."*
 
