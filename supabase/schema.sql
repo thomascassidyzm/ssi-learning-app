@@ -83,6 +83,28 @@ COMMENT ON TYPE public.lego_type IS 'LEGO classification: A (Atomic - single uni
 
 
 --
+-- Name: _cfg_canonical_json(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._cfg_canonical_json(v jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case jsonb_typeof(v)
+    when 'object' then coalesce((
+      select '{' || string_agg(to_jsonb(e.k)::text || ':' || public._cfg_canonical_json(e.val), ',' order by e.k collate "C") || '}'
+      from jsonb_each(v) as e(k, val)
+    ), '{}')
+    when 'array' then coalesce((
+      select '[' || string_agg(public._cfg_canonical_json(e.val), ',' order by e.ord) || ']'
+      from jsonb_array_elements(v) with ordinality as e(val, ord)
+    ), '[]')
+    when 'number' then trim_scale((v #>> '{}')::numeric)::text
+    else v::text
+  end
+$$;
+
+
+--
 -- Name: _seed_to_belt(numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1858,6 +1880,151 @@ COMMENT ON FUNCTION public.analytics_trial_conversion() IS 'Five-stage trial→p
 
 
 --
+-- Name: audio_bare_voice_id(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_bare_voice_id(p_voice_id text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT CASE
+    WHEN p_voice_id IS NULL THEN NULL
+    ELSE regexp_replace(p_voice_id, '^(xai|azure|elevenlabs|google)_', '')
+  END;
+$$;
+
+
+--
+-- Name: audio_canon_lang(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_canon_lang(l text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+  RETURN canonical_language(l);
+EXCEPTION WHEN check_violation THEN
+  -- 'auto' and friends: a placeholder, not a language. Its own identity.
+  -- Narrow on purpose — see audio_canon_voice above for why WHEN OTHERS is a bug.
+  RETURN lower(btrim(coalesce(l, '')));
+END
+$$;
+
+
+--
+-- Name: FUNCTION audio_canon_lang(l text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.audio_canon_lang(l text) IS 'Canonical clip language key: canonical_language(), falling back to the literal value for placeholders like ''auto'' instead of raising.';
+
+
+--
+-- Name: audio_canon_text(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_canon_text(t text) RETURNS text
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+  SELECT normalize_text(regexp_replace(lower(trim(coalesce(t, ''))), '\s+', ' ', 'g'))
+$$;
+
+
+--
+-- Name: FUNCTION audio_canon_text(t text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.audio_canon_text(t text) IS 'Canonical clip text key: normalize_text() over whitespace-collapsed text, folding both historical text_normalized conventions.';
+
+
+--
+-- Name: audio_canon_voice(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_canon_voice(v text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+  RETURN canonical_voice_id(v);
+EXCEPTION WHEN check_violation THEN
+  -- Legacy placeholder ('legacy_import', 'human', …) or an id with no inferable
+  -- provider — canonical_voice_id raises check_violation for exactly those.
+  -- Keep it verbatim as its own identity rather than guessing.
+  --
+  -- ONLY check_violation is caught. A WHEN OTHERS here swallowed a transient
+  -- error during the first backfill attempt and returned the raw value for a
+  -- code that maps perfectly well, so the same input produced two different
+  -- keys in one query. A canonicalisation function that is not deterministic
+  -- is worse than none.
+  RETURN lower(btrim(coalesce(v, '')));
+END
+$$;
+
+
+--
+-- Name: FUNCTION audio_canon_voice(v text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.audio_canon_voice(v text) IS 'Canonical clip voice key: canonical_voice_id(), falling back to the literal value for legacy placeholders instead of raising.';
+
+
+--
+-- Name: audio_configured_voice(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_configured_voice(p_course_code text, p_role text) RETURNS text
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT CASE
+    WHEN v->>'provider' IS NOT NULL AND v->>'voiceId' IS NOT NULL
+      THEN (v->>'provider') || '_' || (v->>'voiceId')
+    ELSE v->>'voiceId'
+  END
+  FROM (
+    SELECT c.voice_config->'voices'->(CASE WHEN p_role = 'source' THEN 'known' ELSE p_role END) AS v
+    FROM courses c WHERE c.course_code = p_course_code
+  ) s;
+$$;
+
+
+--
+-- Name: audio_id_for_text(text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_id_for_text(p_course text, p_text text, p_role text) RETURNS uuid
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT a.id FROM course_audio a
+   WHERE a.course_code = p_course
+     AND a.role = p_role
+     AND a.s3_key IS NOT NULL
+     AND a.text_normalized = normalize_text(p_text)
+   ORDER BY (a.origin = 'human') DESC, a.created_at DESC, a.id::text DESC
+   LIMIT 1;
+$$;
+
+
+--
+-- Name: audio_id_for_text_same_voice(text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_id_for_text_same_voice(p_course text, p_text text, p_role text, p_like uuid) RETURNS uuid
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT a.id
+    FROM course_audio a
+    JOIN course_audio prev ON prev.id = p_like
+   WHERE a.course_code = p_course
+     AND a.role        = p_role
+     AND a.s3_key IS NOT NULL
+     AND (a.text_normalized = normalize_text(p_text)
+          OR normalize_text(a.text) = normalize_text(p_text))
+     AND audio_canon_voice(a.voice_id) = audio_canon_voice(prev.voice_id)
+     AND a.language IS NOT DISTINCT FROM prev.language
+   ORDER BY (a.origin = 'human') DESC, a.created_at DESC, a.id::text DESC
+   LIMIT 1;
+$$;
+
+
+--
 -- Name: audio_normalize_text(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1868,6 +2035,19 @@ BEGIN
   NEW.text_normalized := normalize_text(NEW.text);
   RETURN NEW;
 END;
+$$;
+
+
+--
+-- Name: audio_voice_matches(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_voice_matches(p_wanted text, p_candidate text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT p_wanted IS NOT NULL
+     AND p_candidate IS NOT NULL
+     AND audio_bare_voice_id(p_wanted) = audio_bare_voice_id(p_candidate);
 $$;
 
 
@@ -2072,6 +2252,47 @@ COMMENT ON FUNCTION public.bump_course_version() IS 'Increments courses.version 
 
 
 --
+-- Name: bump_phrases_spoken(uuid, text, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint DEFAULT 0) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF p_phrases_delta <= 0 THEN
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM learners
+    WHERE id = p_learner_id
+      AND user_id = auth.uid()::text
+  ) THEN
+    RAISE EXCEPTION 'unauthorized: learner_id does not belong to caller'
+      USING ERRCODE = '42501';
+  END IF;
+
+  INSERT INTO learner_speaking_opportunities AS lso
+    (learner_id, course_code, day, phrases_spoken)
+  VALUES
+    (p_learner_id, p_course_code, (now() AT TIME ZONE 'UTC')::date, p_phrases_delta)
+  ON CONFLICT (learner_id, course_code, day) DO UPDATE
+    SET
+      phrases_spoken = lso.phrases_spoken + p_phrases_delta,
+      updated_at     = now();
+END;
+$$;
+
+
+--
+-- Name: FUNCTION bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint) IS 'Add a phrases-spoken delta to the (learner, course, UTC today) row of learner_speaking_opportunities, creating it if absent. Deliberately separate from bump_speaking_opportunities so that function''s signature never has to change. Delta-based and idempotent-by-construction: the client holds a watermark and only ever sends what it has not already sent.';
+
+
+--
 -- Name: bump_speaking_opportunities(uuid, text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2166,29 +2387,90 @@ CREATE FUNCTION public.can_view_learner_data(p_learner_id uuid) RETURNS boolean
            JOIN public.user_tags ut
              ON ut.user_id = l.user_id AND ut.removed_at IS NULL
            WHERE l.id = p_learner_id
-             AND (
-               EXISTS (SELECT 1 FROM public.schools s
-                       WHERE ut.tag_value = 'SCHOOL:' || s.id::text
-                         AND s.admin_user_id = (auth.uid())::text)
-               OR EXISTS (SELECT 1 FROM public.classes c
-                          LEFT JOIN public.schools s2 ON s2.id = c.school_id
-                          WHERE ut.tag_value = 'CLASS:' || c.id::text
-                            AND (c.teacher_user_id = (auth.uid())::text
-                                 OR s2.admin_user_id = (auth.uid())::text))
-             )
+             AND ut.tag_value IN (SELECT public.my_readable_tag_values())
          )
       OR EXISTS (
            SELECT 1 FROM public.classes c
-           LEFT JOIN public.schools s3 ON s3.id = c.school_id
            WHERE c.class_learner_id = p_learner_id
              AND (
                c.teacher_user_id = (auth.uid())::text
-               OR s3.admin_user_id = (auth.uid())::text
+               OR public.is_school_admin_of(c.school_id)
                OR EXISTS (SELECT 1 FROM public.class_teachers ct
                           WHERE ct.class_id = c.id AND ct.teacher_user_id = (auth.uid())::text)
              )
          )
 $$;
+
+
+--
+-- Name: canonical_language(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.canonical_language(code text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE primary_subtag text; hit text;
+BEGIN
+  code := lower(btrim(coalesce(code, '')));
+  IF code IN ('', 'auto', 'unknown', 'multi', 'und') THEN
+    RAISE EXCEPTION 'clip identity: language % is a placeholder, not a language — resolve it from the course code and role', coalesce(code,'<null>')
+      USING ERRCODE = 'check_violation';
+  END IF;
+  primary_subtag := split_part(regexp_replace(code, '_', '-', 'g'), '-', 1);
+  SELECT canonical INTO hit FROM language_canonical WHERE raw = primary_subtag;
+  IF hit IS NULL THEN
+    RAISE EXCEPTION 'clip identity: language % is not in language_canonical — regenerate it with tools/generate-language-canonical-sql.cjs', code
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN hit;
+END $$;
+
+
+--
+-- Name: FUNCTION canonical_language(code text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.canonical_language(code text) IS 'Region-free three-letter database_code. Mirror of canonicalLanguage() in services/shared/clip-identity.cjs.';
+
+
+--
+-- Name: canonical_voice_id(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.canonical_voice_id(v text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $_$
+DECLARE part text; out_parts text[] := '{}';
+BEGIN
+  v := btrim(coalesce(v, ''));
+  IF v = '' OR lower(v) IN ('legacy_import','legacy','human','human_recording','unknown','default','auto') THEN
+    RAISE EXCEPTION 'clip identity: voice_id % is a placeholder, not a voice', coalesce(v,'<null>')
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v ~* '^comp:' THEN
+    FOREACH part IN ARRAY string_to_array(substr(v, 6), '+') LOOP
+      IF btrim(part) <> '' THEN
+        out_parts := out_parts || canonical_voice_id(btrim(part));
+      END IF;
+    END LOOP;
+    IF array_length(out_parts, 1) IS NULL THEN
+      RAISE EXCEPTION 'clip identity: composite voice_id % has no parts', v USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN 'comp:' || array_to_string(out_parts, '+');
+  END IF;
+  IF v ~ '^(azure|xai|elevenlabs|google|narakeet|human)_.' THEN RETURN v; END IF;
+  IF v ~ '^[a-z]{2,3}-[A-Za-z]{2,4}-[A-Za-z]+Neural$' THEN RETURN 'azure_' || v; END IF;
+  IF lower(v) IN ('eve','leo','ara','sal','rex','gfzdpspr5fdp','bedd6226') THEN RETURN 'xai_' || v; END IF;
+  RAISE EXCEPTION 'clip identity: voice_id % has no provider prefix and no inferable provider — the writer must supply one', v
+    USING ERRCODE = 'check_violation';
+END $_$;
+
+
+--
+-- Name: FUNCTION canonical_voice_id(v text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.canonical_voice_id(v text) IS '<provider>_<provider voice id>; composites keep the comp: namespace. Mirror of canonicalVoiceId() in services/shared/clip-identity.cjs.';
 
 
 --
@@ -2304,6 +2586,175 @@ CREATE FUNCTION public.compute_group_path() RETURNS trigger
 
 
 --
+-- Name: course_ambiguous_slots(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.course_ambiguous_slots(p_course text, p_limit integer DEFAULT 200) RETURNS TABLE(role text, text_normalized text, voices text[], clips bigint)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT
+    ca.role,
+    ca.text_normalized,
+    array_agg(DISTINCT coalesce(try_canonical_voice_id(ca.voice_id), ca.voice_id)) AS voices,
+    count(*) AS clips
+  FROM course_audio ca
+  WHERE ca.course_code = p_course
+  GROUP BY 1, 2
+  HAVING count(DISTINCT coalesce(try_canonical_voice_id(ca.voice_id), ca.voice_id)) > 1
+  ORDER BY count(*) DESC
+  LIMIT p_limit;
+$$;
+
+
+--
+-- Name: FUNCTION course_ambiguous_slots(p_course text, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.course_ambiguous_slots(p_course text, p_limit integer) IS 'VOICELAB job 4: texts carrying more than one canonical voice at the same role. Read-only, capped by p_limit.';
+
+
+--
+-- Name: course_audio_canonical_identity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.course_audio_canonical_identity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' OR NEW.language IS DISTINCT FROM OLD.language THEN
+    NEW.language := canonical_language(NEW.language);
+  END IF;
+  IF TG_OP = 'INSERT' OR NEW.voice_id IS DISTINCT FROM OLD.voice_id THEN
+    NEW.voice_id := canonical_voice_id(NEW.voice_id);
+  END IF;
+  RETURN NEW;
+END $$;
+
+
+--
+-- Name: FUNCTION course_audio_canonical_identity(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.course_audio_canonical_identity() IS 'Canonicalises the two identity columns on write. See services/shared/clip-identity.cjs.';
+
+
+--
+-- Name: course_audio_link_canonical_clip(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.course_audio_link_canonical_clip() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  k_text  text;
+  k_lang  text;
+  k_voice text;
+  c       audio_clips%ROWTYPE;
+  incoming_rank int;
+  canon_rank    int;
+BEGIN
+  -- A placeholder is not a clip. `pending/%` rows are stubs written before the
+  -- render exists; they must never become canon and must never borrow bytes.
+  IF NEW.s3_key IS NULL OR NEW.s3_key = '' OR NEW.s3_key LIKE 'pending/%' THEN
+    NEW.clip_id := NULL;
+    RETURN NEW;
+  END IF;
+
+  k_text  := audio_canon_text(NEW.text_normalized);
+  k_lang  := audio_canon_lang(NEW.language);
+  k_voice := audio_canon_voice(NEW.voice_id);
+
+  SELECT * INTO c FROM audio_clips
+   WHERE text_key = k_text AND language = k_lang AND role = NEW.role AND voice_id = k_voice;
+
+  IF NOT FOUND THEN
+    -- First course to hold this line: its clip becomes the estate's canon.
+    INSERT INTO audio_clips (
+      text_key, language, role, voice_id, text, s3_key, duration_ms, file_size_bytes,
+      word_boundaries, origin, veracity_checked_at, veracity_pass, veracity_reason,
+      veracity_cer, veracity_attempts, veracity_checker, audio_revision, source_audio_id)
+    VALUES (
+      k_text, k_lang, NEW.role, k_voice, NEW.text, NEW.s3_key, NEW.duration_ms,
+      NEW.file_size_bytes, NEW.word_boundaries, NEW.origin, NEW.veracity_checked_at,
+      NEW.veracity_pass, NEW.veracity_reason, NEW.veracity_cer, NEW.veracity_attempts,
+      NEW.veracity_checker, COALESCE(NEW.audio_revision, 1), NEW.id)
+    ON CONFLICT ON CONSTRAINT audio_clips_identity DO NOTHING
+    RETURNING * INTO c;
+
+    -- Lost a race with a concurrent insert of the same line: re-read the winner.
+    IF NOT FOUND THEN
+      SELECT * INTO c FROM audio_clips
+       WHERE text_key = k_text AND language = k_lang AND role = NEW.role AND voice_id = k_voice;
+    END IF;
+
+    NEW.clip_id := c.id;
+    RETURN NEW;
+  END IF;
+
+  -- Canon exists. Is the arriving clip strictly better? Same ladder the backfill
+  -- uses: human beats TTS, veracity-passed beats unchecked beats failed.
+  incoming_rank := (CASE WHEN NEW.origin = 'human' THEN 0 ELSE 10 END)
+                 + (CASE WHEN NEW.veracity_pass IS TRUE THEN 0
+                         WHEN NEW.veracity_pass IS NULL THEN 1 ELSE 2 END);
+  canon_rank    := (CASE WHEN c.origin = 'human' THEN 0 ELSE 10 END)
+                 + (CASE WHEN c.veracity_pass IS TRUE THEN 0
+                         WHEN c.veracity_pass IS NULL THEN 1 ELSE 2 END);
+
+  IF incoming_rank < canon_rank AND NEW.s3_key IS DISTINCT FROM c.s3_key THEN
+    -- PROMOTION. This upgrades the line for every course at once — that is what
+    -- one-line-one-take means, and it is also an estate-wide audible change made
+    -- by a single insert, so the superseded key is logged and reversible.
+    INSERT INTO audio_clip_promotions (
+      clip_id, old_s3_key, new_s3_key, old_origin, new_origin,
+      old_revision, new_revision, reason, source_audio_id)
+    VALUES (c.id, c.s3_key, NEW.s3_key, c.origin, NEW.origin,
+            c.audio_revision, c.audio_revision + 1, 'better_clip_arrived', NEW.id);
+
+    UPDATE audio_clips SET
+      s3_key = NEW.s3_key, duration_ms = NEW.duration_ms,
+      file_size_bytes = NEW.file_size_bytes, word_boundaries = NEW.word_boundaries,
+      origin = NEW.origin, text = NEW.text,
+      veracity_checked_at = NEW.veracity_checked_at, veracity_pass = NEW.veracity_pass,
+      veracity_reason = NEW.veracity_reason, veracity_cer = NEW.veracity_cer,
+      veracity_attempts = NEW.veracity_attempts, veracity_checker = NEW.veracity_checker,
+      audio_revision = audio_revision + 1, source_audio_id = NEW.id, updated_at = now()
+    WHERE id = c.id
+    RETURNING * INTO c;
+
+  ELSIF NEW.s3_key IS DISTINCT FROM c.s3_key THEN
+    -- A duplicate render arrived for a line the estate already has. The row is
+    -- pointed at the canonical bytes and the fresh object is left on S3
+    -- untouched (deletion is a separate approved pass). Logged so the count of
+    -- renders that SHOULD NOT have happened is measurable rather than invisible.
+    INSERT INTO audio_clip_promotions (
+      clip_id, old_s3_key, new_s3_key, old_origin, new_origin,
+      old_revision, new_revision, reason, source_audio_id)
+    VALUES (c.id, NEW.s3_key, c.s3_key, NEW.origin, c.origin,
+            c.audio_revision, c.audio_revision, 'duplicate_render_deduped', NEW.id);
+  END IF;
+
+  -- Share the canonical bytes. This is the line that makes duplication
+  -- unrepresentable rather than merely discouraged.
+  NEW.clip_id         := c.id;
+  NEW.s3_key          := c.s3_key;
+  NEW.duration_ms     := c.duration_ms;
+  NEW.file_size_bytes := c.file_size_bytes;
+  NEW.word_boundaries := c.word_boundaries;
+  NEW.origin          := c.origin;
+
+  RETURN NEW;
+END
+$$;
+
+
+--
+-- Name: FUNCTION course_audio_link_canonical_clip(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.course_audio_link_canonical_clip() IS 'BEFORE INSERT backstop for canonical audio identity: links every new course_audio row to the one canonical clip for (text, language, role, voice) and gives it that clip''s bytes. INSERT only — UPDATE keeps its existing per-course semantics.';
+
+
+--
 -- Name: course_navigation_friction(text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2347,6 +2798,44 @@ BEGIN
             + COUNT(*) FILTER (WHERE dir = 'replay')) DESC;
 END;
 $$;
+
+
+--
+-- Name: course_voice_census(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.course_voice_census(p_course text) RETURNS TABLE(role text, voice_id text, voice_canonical boolean, language text, clips bigint, first_clip timestamp with time zone, last_clip timestamp with time zone, veracity_passed bigint, veracity_failed bigint, veracity_unchecked bigint, median_duration_ms integer)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT
+    ca.role,
+    -- COALESCE, deliberately: try_canonical_* returns NULL for a value it does not
+    -- recognise, and grouping every unrecognised voice into one NULL bucket would hide
+    -- exactly the rows worth looking at — the four June clone ids on the German target
+    -- side collapse into a single blank row without this. Fall back to the raw value and
+    -- say which happened.
+    coalesce(try_canonical_voice_id(ca.voice_id), ca.voice_id) AS voice_id,
+    try_canonical_voice_id(ca.voice_id) IS NOT NULL            AS voice_canonical,
+    coalesce(try_canonical_language(ca.language), ca.language)  AS language,
+    count(*)                              AS clips,
+    min(ca.created_at)                    AS first_clip,
+    max(ca.created_at)                    AS last_clip,
+    count(*) FILTER (WHERE ca.veracity_pass IS TRUE)  AS veracity_passed,
+    count(*) FILTER (WHERE ca.veracity_pass IS FALSE) AS veracity_failed,
+    count(*) FILTER (WHERE ca.veracity_pass IS NULL)  AS veracity_unchecked,
+    (percentile_cont(0.5) WITHIN GROUP (ORDER BY ca.duration_ms))::int AS median_duration_ms
+  FROM course_audio ca
+  WHERE ca.course_code = p_course
+  GROUP BY 1, 2, 3, 4
+  ORDER BY 1, 5 DESC;
+$$;
+
+
+--
+-- Name: FUNCTION course_voice_census(p_course text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.course_voice_census(p_course text) IS 'VOICELAB job 4: distinct canonical voices per course side, with clip counts and veracity coverage. Read-only.';
 
 
 --
@@ -2403,6 +2892,277 @@ BEGIN
   WHERE voice_id = OLD.voice_id;
   RETURN OLD;
 END;
+$$;
+
+
+--
+-- Name: enforce_verified_emails_provenance(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_verified_emails_provenance() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'auth', 'pg_temp'
+    AS $$
+DECLARE
+  old_arr text[] := CASE WHEN TG_OP = 'UPDATE'
+                         THEN coalesce(OLD.verified_emails, ARRAY[]::text[])
+                         ELSE ARRAY[]::text[] END;
+  new_arr text[] := coalesce(NEW.verified_emails, ARRAY[]::text[]);
+  attested text[];
+  candidate text;
+BEGIN
+  -- Only browser sessions are policed. PostgREST issues SET LOCAL ROLE per
+  -- request, so the `role` GUC is 'authenticated' for anon-key callers,
+  -- 'service_role' for server endpoints, and unset/'none' for migrations and
+  -- backfills. NOTE: current_user is useless here — this function is SECURITY
+  -- DEFINER (it must read auth.users), so inside it current_user is always the
+  -- owner. Verified live 2026-08-11: under SET LOCAL ROLE authenticated a
+  -- DEFINER function sees current_user=postgres, role GUC=authenticated.
+  IF coalesce(current_setting('role', true), 'none') <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT coalesce(array_agg(DISTINCT lower(e)), ARRAY[]::text[])
+    INTO attested
+    FROM (
+      SELECT u.email AS e
+        FROM auth.users u
+       WHERE u.id::text = NEW.user_id AND u.email IS NOT NULL
+      UNION
+      SELECT i.identity_data->>'email'
+        FROM auth.identities i
+       WHERE i.user_id::text = NEW.user_id
+         AND i.identity_data->>'email' IS NOT NULL
+    ) s;
+
+  FOREACH candidate IN ARRAY new_arr LOOP
+    IF NOT (lower(candidate) = ANY(attested))
+       AND NOT (candidate = ANY(old_arr)) THEN
+      RAISE EXCEPTION
+        'verified_emails: % is not attested for this account - add it through /api/email/verify (OTP)', candidate
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION enforce_verified_emails_provenance(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.enforce_verified_emails_provenance() IS 'AUTH-CORE-02 guard: a browser session may only place an address in learners.verified_emails that auth.users/auth.identities already attests for that account, or that was already there (OTP-added via service role). Service-role and owner writes pass through.';
+
+
+--
+-- Name: estate_map(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.estate_map() RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+WITH voice_rows AS (
+  -- One row per (course, voice, origin). The unit of "voices of record": the voice
+  -- ids actually carrying clips, read from course_audio and never from
+  -- listening_pods.speakers — the stored cast and the real clip voices are known to
+  -- diverge badly (16 of 119 spa pod clips on the stored cast; 0 of 110 on cym_n).
+  SELECT
+    ca.course_code,
+    ca.voice_id,
+    ca.origin,
+    count(*) AS clips
+  FROM public.course_audio ca
+  GROUP BY 1, 2, 3
+),
+veracity AS (
+  -- Two separate scans on purpose: each arm matches one of the existing partial
+  -- indexes (WHERE veracity_pass IS TRUE / IS FALSE). A single `IS NOT NULL`
+  -- predicate matches neither and falls back to a full scan of course_audio.
+  SELECT course_code, count(*) AS veracity_passed, 0::bigint AS veracity_failed
+  FROM public.course_audio WHERE veracity_pass IS TRUE GROUP BY 1
+  UNION ALL
+  SELECT course_code, 0::bigint, count(*)
+  FROM public.course_audio WHERE veracity_pass IS FALSE GROUP BY 1
+),
+veracity_agg AS (
+  SELECT course_code, sum(veracity_passed) AS veracity_passed,
+         sum(veracity_failed) AS veracity_failed
+  FROM veracity GROUP BY 1
+),
+audio AS (
+  SELECT
+    course_code,
+    sum(clips)                                 AS clips,
+    sum(clips) FILTER (WHERE origin = 'tts')   AS tts_clips,
+    sum(clips) FILTER (WHERE origin = 'human') AS human_clips,
+    jsonb_agg(
+      jsonb_build_object('voice_id', voice_id, 'origin', origin, 'clips', clips)
+      ORDER BY clips DESC
+    )                                          AS voices_of_record
+  FROM voice_rows
+  GROUP BY 1
+),
+-- Linked-but-dead clips: the 834-byte stubs on the Welsh English track from the bad
+-- write of 2026-06-15 are linked rows pointing at bytes that will not play. There
+-- are 26 such rows in the whole estate, so the cheap question is "which ids are
+-- dead", asked once against a partial index — never "how big is this clip", asked
+-- once per pod sentence against a 1.9GB heap.
+dead_stubs AS (
+  SELECT id FROM public.course_audio WHERE file_size_bytes < 2000
+),
+pod0 AS (
+  -- pod-0 as the LEARNER sees it. player-vue reads the exact id `<course>:pod-0`
+  -- (useListeningPods.ts), so sibling slugs (pod-0-unrecorded, pod-0-gated-*) are
+  -- invisible to learners and are counted separately as staging pods, not as pod 0.
+  SELECT
+    p.course_code,
+    p.id                                                            AS pod_id,
+    count(s.id)                                                     AS slots,
+    count(s.target_audio_id)                                        AS target_linked,
+    count(s.known_audio_id)                                         AS known_linked,
+    count(*) FILTER (WHERE s.target_text_draft)                     AS draft_lines,
+    count(*) FILTER (WHERE s.known_audio_id
+                       IN (SELECT id FROM dead_stubs))              AS known_dead_stubs,
+    count(*) FILTER (WHERE s.target_audio_id
+                       IN (SELECT id FROM dead_stubs))              AS target_dead_stubs
+  FROM public.listening_pods p
+  LEFT JOIN public.listening_pod_sentences s ON s.pod_id = p.id
+  WHERE p.slug = 'pod-0'
+  GROUP BY 1, 2
+),
+staging_pods AS (
+  SELECT course_code, count(*) AS staging_pods
+  FROM public.listening_pods
+  WHERE slug <> 'pod-0'
+  GROUP BY 1
+),
+pass_requests AS (
+  SELECT course_code, count(*) AS pending_audio_passes, min(created_at) AS oldest_pending
+  FROM public.audio_pass_requests
+  WHERE status = 'pending'
+  GROUP BY 1
+),
+-- ---------------------------------------------------------------------------
+-- PODS PER LANGUAGE — the unit Tom's 2026-08-13 ruling puts pods in.
+-- Both sides of every pod-0 line, keyed by the language that side is IN: target
+-- text by the course's target_lang, known text by its known_lang. Case-folded and
+-- trimmed, which is the same identity two courses' copies of a line share.
+-- ---------------------------------------------------------------------------
+pod_lines AS (
+  SELECT c.target_lang AS lang, 'target'::text AS side,
+         lower(btrim(s.target_text)) AS line, p.course_code
+  FROM public.listening_pods p
+  JOIN public.listening_pod_sentences s ON s.pod_id = p.id
+  JOIN public.courses c ON c.course_code = p.course_code
+  WHERE p.slug = 'pod-0' AND btrim(s.target_text) <> ''
+  UNION ALL
+  SELECT c.known_lang, 'known',
+         lower(btrim(s.known_text)), p.course_code
+  FROM public.listening_pods p
+  JOIN public.listening_pod_sentences s ON s.pod_id = p.id
+  JOIN public.courses c ON c.course_code = p.course_code
+  WHERE p.slug = 'pod-0' AND btrim(s.known_text) <> ''
+),
+pod_lang_side AS (
+  SELECT lang, side,
+         count(DISTINCT course_code) AS courses,
+         count(*)                    AS slots_per_course_counting,
+         count(DISTINCT line)        AS distinct_lines
+  FROM pod_lines
+  GROUP BY 1, 2
+),
+pod_lang AS (
+  SELECT
+    lang,
+    max(courses)                                                  AS courses,
+    sum(slots_per_course_counting)                                AS slots_per_course_counting,
+    sum(distinct_lines)                                           AS distinct_lines_per_language,
+    jsonb_object_agg(side, jsonb_build_object(
+      'slots_per_course_counting', slots_per_course_counting,
+      'distinct_lines',            distinct_lines
+    ))                                                            AS by_side
+  FROM pod_lang_side
+  GROUP BY 1
+),
+courses_json AS (
+  SELECT jsonb_agg(row ORDER BY row->>'course_code') AS courses
+  FROM (
+    SELECT jsonb_build_object(
+      'course_code',       c.course_code,
+      'display_name',      c.display_name,
+      'known_lang',        c.known_lang,
+      'target_lang',       c.target_lang,
+      -- Tom, 2026-08-13: "Live + Beta = released in the DB status." The raw values sit
+      -- next to the derived boolean so nobody has to trust the arithmetic.
+      'released',          (c.new_app_status IN ('live', 'beta')),
+      'new_app_status',    c.new_app_status,
+      'legacy_app_status', c.legacy_app_status,
+      'build_status',      c.status,
+      'seed_count',        c.seed_count,
+      'audio', jsonb_build_object(
+        'clips',            coalesce(a.clips, 0),
+        'tts_clips',        coalesce(a.tts_clips, 0),
+        'human_clips',      coalesce(a.human_clips, 0),
+        -- NOT a quality signal, and NOT a coverage target. See the `veracity_checked`
+        -- and `render_qa_policy` entries in the endpoint's semantics block: the
+        -- standing QA model is graduated sampling, so a low figure here is the
+        -- policy working, not a backlog.
+        'veracity_checked', coalesce(v.veracity_passed, 0) + coalesce(v.veracity_failed, 0),
+        'veracity_failed',  coalesce(v.veracity_failed, 0),
+        'voice_mode', CASE
+          WHEN coalesce(a.clips, 0) = 0       THEN 'unknown'
+          WHEN coalesce(a.human_clips, 0) = 0 THEN 'tts'
+          WHEN coalesce(a.tts_clips, 0) = 0   THEN 'human'
+          ELSE 'mixed'
+        END
+      ),
+      'voices_of_record',  coalesce(a.voices_of_record, '[]'::jsonb),
+      -- Per-course pod state: still the right unit for "can a learner play THIS
+      -- course's pod 0", and the WRONG unit for costing a render. See pods_by_language.
+      'pod_0', CASE WHEN p.pod_id IS NULL THEN jsonb_build_object('exists', false)
+        ELSE jsonb_build_object(
+          'exists',            true,
+          'pod_id',            p.pod_id,
+          'slots',             p.slots,
+          'target_linked',     p.target_linked,
+          'target_empty',      p.slots - p.target_linked,
+          'target_dead_stubs', p.target_dead_stubs,
+          'known_linked',      p.known_linked,
+          'known_empty',       p.slots - p.known_linked,
+          'known_dead_stubs',  p.known_dead_stubs,
+          'draft_lines',       p.draft_lines
+        ) END,
+      'staging_pods',          coalesce(sp.staging_pods, 0),
+      'pending_audio_passes',  coalesce(pr.pending_audio_passes, 0),
+      'oldest_pending_audio_pass', pr.oldest_pending
+    ) AS row
+    FROM public.courses c
+    LEFT JOIN audio         a  ON a.course_code  = c.course_code
+    LEFT JOIN veracity_agg  v  ON v.course_code  = c.course_code
+    LEFT JOIN pod0          p  ON p.course_code  = c.course_code
+    LEFT JOIN staging_pods  sp ON sp.course_code = c.course_code
+    LEFT JOIN pass_requests pr ON pr.course_code = c.course_code
+  ) q
+),
+pods_json AS (
+  SELECT jsonb_agg(jsonb_build_object(
+    'lang',                      lang,
+    'courses_with_pod_0',        courses,
+    'slots_per_course_counting', slots_per_course_counting,
+    'distinct_lines',            distinct_lines_per_language,
+    'collapse_factor',           round(
+      slots_per_course_counting::numeric
+      / nullif(distinct_lines_per_language, 0), 2),
+    'by_side',                   by_side
+  ) ORDER BY slots_per_course_counting DESC) AS pods_by_language
+  FROM pod_lang
+)
+SELECT jsonb_build_object(
+  'courses',          coalesce((SELECT courses FROM courses_json), '[]'::jsonb),
+  'pods_by_language', coalesce((SELECT pods_by_language FROM pods_json), '[]'::jsonb)
+);
 $$;
 
 
@@ -2499,28 +3259,45 @@ COMMENT ON FUNCTION public.find_or_create_text(p_content text, p_language text) 
 
 CREATE FUNCTION public.generate_join_code() RETURNS text
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   letters TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ';  -- No I, O (confusable)
   numbers TEXT := '0123456789';
   result TEXT := '';
   i INTEGER;
+  b INTEGER;
 BEGIN
   -- 3 letters
   FOR i IN 1..3 LOOP
-    result := result || substr(letters, floor(random() * 24 + 1)::int, 1);
+    LOOP
+      b := get_byte(extensions.gen_random_bytes(1), 0);
+      EXIT WHEN b < 240;  -- 240 = 24 * 10, the largest unbiased cut for %24
+    END LOOP;
+    result := result || substr(letters, (b % 24) + 1, 1);
   END LOOP;
 
   result := result || '-';
 
   -- 3 numbers
   FOR i IN 1..3 LOOP
-    result := result || substr(numbers, floor(random() * 10 + 1)::int, 1);
+    LOOP
+      b := get_byte(extensions.gen_random_bytes(1), 0);
+      EXIT WHEN b < 250;  -- 250 = 25 * 10, the largest unbiased cut for %10
+    END LOOP;
+    result := result || substr(numbers, (b % 10) + 1, 1);
   END LOOP;
 
   RETURN result;
 END;
 $$;
+
+
+--
+-- Name: FUNCTION generate_join_code(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.generate_join_code() IS 'Mints an XXX-NNN join code from pgcrypto gen_random_bytes with rejection sampling (SEC22-01, 2026-08-22). EXECUTE is service_role only; the class/school triggers reach it as SECURITY DEFINER.';
 
 
 --
@@ -2873,6 +3650,8 @@ WITH
     SELECT
       l.seed_number, l.lego_index, l.lego_id, l.type,
       l.known_text, l.target_text, l.target_text_roman, l.components,
+      -- NEW: the human's per-target-word segmentation of the known gloss.
+      l.known_gloss_segments,
       l.is_new,
       l.known_audio_id, l.target1_audio_id, l.target2_audio_id, l.presentation_audio_id,
       l.target1_duration_ms, l.target2_duration_ms
@@ -2887,7 +3666,6 @@ WITH
       p.decomposition,
       p.display_tiling,
       p.known_audio_id, p.target1_audio_id, p.target2_audio_id,
-      -- NEW: the component "as in" narration + its introduce flag.
       p.presentation_audio_id, p.introduce,
       p.target1_duration_ms, p.target2_duration_ms
     FROM course_practice_phrases p
@@ -3539,9 +4317,18 @@ CREATE FUNCTION public.is_school_admin_of(p_school_id uuid) RETURNS boolean
     SET search_path TO 'public', 'pg_temp'
     AS $$
   SELECT EXISTS (
+    -- The founding admin: the school's own pointer column.
     SELECT 1 FROM public.schools s
     WHERE s.id = p_school_id
       AND s.admin_user_id = (auth.uid())::text
+  ) OR EXISTS (
+    -- Every subsequent admin: the service-role-written school admin tag.
+    SELECT 1 FROM public.user_tags ut
+    WHERE ut.user_id = (auth.uid())::text
+      AND ut.tag_type = 'school'
+      AND ut.role_in_context = 'admin'
+      AND ut.removed_at IS NULL
+      AND ut.tag_value = 'SCHOOL:' || (p_school_id)::text
   );
 $$;
 
@@ -3685,175 +4472,280 @@ $$;
 CREATE FUNCTION public.link_all_audio_ids(p_course_code text) RETURNS jsonb
     LANGUAGE plpgsql
     AS $$
-  DECLARE
-    v_course RECORD;
-    v_linked_legos_known INT := 0;
-    v_linked_legos_t1 INT := 0;
-    v_linked_legos_t2 INT := 0;
-    v_linked_phrases_known INT := 0;
-    v_linked_phrases_t1 INT := 0;
-    v_linked_phrases_t2 INT := 0;
-    v_linked_seeds_known INT := 0;
-    v_linked_seeds_t1 INT := 0;
-    v_linked_seeds_t2 INT := 0;
-  BEGIN
-    SELECT * INTO v_course FROM courses WHERE course_code = p_course_code;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Course not found: %', p_course_code;
-    END IF;
+DECLARE
+  v_course RECORD;
+  v_vk text; v_v1 text; v_v2 text;
+  v_linked_legos_known INT := 0;
+  v_linked_legos_t1 INT := 0;
+  v_linked_legos_t2 INT := 0;
+  v_linked_phrases_known INT := 0;
+  v_linked_phrases_t1 INT := 0;
+  v_linked_phrases_t2 INT := 0;
+  v_linked_seeds_known INT := 0;
+  v_linked_seeds_t1 INT := 0;
+  v_linked_seeds_t2 INT := 0;
+  v_refused INT := 0;
+BEGIN
+  SELECT * INTO v_course FROM courses WHERE course_code = p_course_code;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Course not found: %', p_course_code;
+  END IF;
 
-    UPDATE course_legos cl SET known_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  v_vk := audio_configured_voice(p_course_code, 'known');
+  v_v1 := audio_configured_voice(p_course_code, 'target1');
+  v_v2 := audio_configured_voice(p_course_code, 'target2');
+
+  -- REFUSAL LEDGER FIRST, while the slots are still NULL. Every NULL slot whose
+  -- text matches a clip that is NOT in the configured voice is a refusal: we
+  -- could have filled it the old way and we are deliberately not going to.
+  WITH refusals AS (
+    SELECT 'course_legos' AS tbl, l.lego_id::text AS slot, 'known' AS role, v_vk AS wanted, ca.voice_id AS cand, ca.id AS aid
+      FROM course_legos l JOIN course_audio ca
+        ON ca.course_code = l.course_code AND ca.text_normalized = normalize_text(l.known_text)
+       AND ca.role IN ('known','source')
+     WHERE l.course_code = p_course_code AND l.known_audio_id IS NULL
+       AND NOT audio_voice_matches(v_vk, ca.voice_id)
+    UNION ALL
+    SELECT 'course_legos', l.lego_id::text, 'target1', v_v1, ca.voice_id, ca.id
+      FROM course_legos l JOIN course_audio ca
+        ON ca.course_code = l.course_code AND ca.text_normalized = normalize_text(l.target_text) AND ca.role = 'target1'
+     WHERE l.course_code = p_course_code AND l.target1_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v1, ca.voice_id)
+    UNION ALL
+    SELECT 'course_legos', l.lego_id::text, 'target2', v_v2, ca.voice_id, ca.id
+      FROM course_legos l JOIN course_audio ca
+        ON ca.course_code = l.course_code AND ca.text_normalized = normalize_text(l.target_text) AND ca.role = 'target2'
+     WHERE l.course_code = p_course_code AND l.target2_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v2, ca.voice_id)
+    UNION ALL
+    SELECT 'course_practice_phrases', p.id::text, 'known', v_vk, ca.voice_id, ca.id
+      FROM course_practice_phrases p JOIN course_audio ca
+        ON ca.course_code = p.course_code AND ca.text_normalized = normalize_text(p.known_text)
+       AND ca.role IN ('known','source')
+     WHERE p.course_code = p_course_code AND p.known_audio_id IS NULL
+       AND NOT audio_voice_matches(v_vk, ca.voice_id)
+    UNION ALL
+    SELECT 'course_practice_phrases', p.id::text, 'target1', v_v1, ca.voice_id, ca.id
+      FROM course_practice_phrases p JOIN course_audio ca
+        ON ca.course_code = p.course_code AND ca.text_normalized = normalize_text(p.target_text) AND ca.role = 'target1'
+     WHERE p.course_code = p_course_code AND p.target1_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v1, ca.voice_id)
+    UNION ALL
+    SELECT 'course_practice_phrases', p.id::text, 'target2', v_v2, ca.voice_id, ca.id
+      FROM course_practice_phrases p JOIN course_audio ca
+        ON ca.course_code = p.course_code AND ca.text_normalized = normalize_text(p.target_text) AND ca.role = 'target2'
+     WHERE p.course_code = p_course_code AND p.target2_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v2, ca.voice_id)
+    UNION ALL
+    SELECT 'course_seeds', s.id::text, 'known', v_vk, ca.voice_id, ca.id
+      FROM course_seeds s JOIN course_audio ca
+        ON ca.course_code = s.course_code AND ca.text_normalized = normalize_text(s.known_text)
+       AND ca.role IN ('known','source')
+     WHERE s.course_code = p_course_code AND s.known_audio_id IS NULL
+       AND NOT audio_voice_matches(v_vk, ca.voice_id)
+    UNION ALL
+    SELECT 'course_seeds', s.id::text, 'target1', v_v1, ca.voice_id, ca.id
+      FROM course_seeds s JOIN course_audio ca
+        ON ca.course_code = s.course_code AND ca.text_normalized = normalize_text(s.target_text) AND ca.role = 'target1'
+     WHERE s.course_code = p_course_code AND s.target1_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v1, ca.voice_id)
+    UNION ALL
+    SELECT 'course_seeds', s.id::text, 'target2', v_v2, ca.voice_id, ca.id
+      FROM course_seeds s JOIN course_audio ca
+        ON ca.course_code = s.course_code AND ca.text_normalized = normalize_text(s.target_text) AND ca.role = 'target2'
+     WHERE s.course_code = p_course_code AND s.target2_audio_id IS NULL
+       AND NOT audio_voice_matches(v_v2, ca.voice_id)
+  ), deduped AS (
+    SELECT DISTINCT ON (tbl, slot, role) * FROM refusals ORDER BY tbl, slot, role
+  )
+  INSERT INTO relink_refusals (
+    course_code, content_table, slot_id, role, reason,
+    wanted_voice, candidate_voice, candidate_audio_id, refused_by)
+  SELECT p_course_code, tbl, slot, role,
+         CASE WHEN wanted IS NULL THEN 'no-configured-voice' ELSE 'voice-mismatch' END,
+         wanted, cand, aid, 'link_all_audio_ids'
+  FROM deduped;
+  GET DIAGNOSTICS v_refused = ROW_COUNT;
+
+  UPDATE course_legos cl SET known_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cl.course_code
+      AND ca.text_normalized = normalize_text(cl.known_text)
+      AND ca.role IN ('known', 'source')
+      AND audio_voice_matches(v_vk, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cl.course_code = p_course_code AND cl.known_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cl.course_code
         AND ca.text_normalized = normalize_text(cl.known_text)
         AND ca.role IN ('known', 'source')
-      LIMIT 1
-    )
-    WHERE cl.course_code = p_course_code AND cl.known_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cl.course_code
-          AND ca.text_normalized = normalize_text(cl.known_text)
-          AND ca.role IN ('known', 'source')
-      );
-    GET DIAGNOSTICS v_linked_legos_known = ROW_COUNT;
+        AND audio_voice_matches(v_vk, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_legos_known = ROW_COUNT;
 
-    UPDATE course_legos cl SET target1_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_legos cl SET target1_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cl.course_code
+      AND ca.text_normalized = normalize_text(cl.target_text)
+      AND ca.role = 'target1'
+      AND audio_voice_matches(v_v1, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cl.course_code = p_course_code AND cl.target1_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cl.course_code
         AND ca.text_normalized = normalize_text(cl.target_text)
         AND ca.role = 'target1'
-      LIMIT 1
-    )
-    WHERE cl.course_code = p_course_code AND cl.target1_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cl.course_code
-          AND ca.text_normalized = normalize_text(cl.target_text)
-          AND ca.role = 'target1'
-      );
-    GET DIAGNOSTICS v_linked_legos_t1 = ROW_COUNT;
+        AND audio_voice_matches(v_v1, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_legos_t1 = ROW_COUNT;
 
-    UPDATE course_legos cl SET target2_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_legos cl SET target2_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cl.course_code
+      AND ca.text_normalized = normalize_text(cl.target_text)
+      AND ca.role = 'target2'
+      AND audio_voice_matches(v_v2, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cl.course_code = p_course_code AND cl.target2_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cl.course_code
         AND ca.text_normalized = normalize_text(cl.target_text)
         AND ca.role = 'target2'
-      LIMIT 1
-    )
-    WHERE cl.course_code = p_course_code AND cl.target2_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cl.course_code
-          AND ca.text_normalized = normalize_text(cl.target_text)
-          AND ca.role = 'target2'
-      );
-    GET DIAGNOSTICS v_linked_legos_t2 = ROW_COUNT;
+        AND audio_voice_matches(v_v2, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_legos_t2 = ROW_COUNT;
 
-    UPDATE course_practice_phrases cpp SET known_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_practice_phrases cpp SET known_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cpp.course_code
+      AND ca.text_normalized = normalize_text(cpp.known_text)
+      AND ca.role IN ('known', 'source')
+      AND audio_voice_matches(v_vk, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cpp.course_code = p_course_code AND cpp.known_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cpp.course_code
         AND ca.text_normalized = normalize_text(cpp.known_text)
         AND ca.role IN ('known', 'source')
-      LIMIT 1
-    )
-    WHERE cpp.course_code = p_course_code AND cpp.known_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cpp.course_code
-          AND ca.text_normalized = normalize_text(cpp.known_text)
-          AND ca.role IN ('known', 'source')
-      );
-    GET DIAGNOSTICS v_linked_phrases_known = ROW_COUNT;
+        AND audio_voice_matches(v_vk, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_phrases_known = ROW_COUNT;
 
-    UPDATE course_practice_phrases cpp SET target1_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_practice_phrases cpp SET target1_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cpp.course_code
+      AND ca.text_normalized = normalize_text(cpp.target_text)
+      AND ca.role = 'target1'
+      AND audio_voice_matches(v_v1, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cpp.course_code = p_course_code AND cpp.target1_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cpp.course_code
         AND ca.text_normalized = normalize_text(cpp.target_text)
         AND ca.role = 'target1'
-      LIMIT 1
-    )
-    WHERE cpp.course_code = p_course_code AND cpp.target1_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cpp.course_code
-          AND ca.text_normalized = normalize_text(cpp.target_text)
-          AND ca.role = 'target1'
-      );
-    GET DIAGNOSTICS v_linked_phrases_t1 = ROW_COUNT;
+        AND audio_voice_matches(v_v1, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_phrases_t1 = ROW_COUNT;
 
-    UPDATE course_practice_phrases cpp SET target2_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_practice_phrases cpp SET target2_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cpp.course_code
+      AND ca.text_normalized = normalize_text(cpp.target_text)
+      AND ca.role = 'target2'
+      AND audio_voice_matches(v_v2, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cpp.course_code = p_course_code AND cpp.target2_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cpp.course_code
         AND ca.text_normalized = normalize_text(cpp.target_text)
         AND ca.role = 'target2'
-      LIMIT 1
-    )
-    WHERE cpp.course_code = p_course_code AND cpp.target2_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cpp.course_code
-          AND ca.text_normalized = normalize_text(cpp.target_text)
-          AND ca.role = 'target2'
-      );
-    GET DIAGNOSTICS v_linked_phrases_t2 = ROW_COUNT;
+        AND audio_voice_matches(v_v2, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_phrases_t2 = ROW_COUNT;
 
-    UPDATE course_seeds cs SET known_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_seeds cs SET known_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cs.course_code
+      AND ca.text_normalized = normalize_text(cs.known_text)
+      AND ca.role IN ('known', 'source')
+      AND audio_voice_matches(v_vk, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cs.course_code = p_course_code AND cs.known_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cs.course_code
         AND ca.text_normalized = normalize_text(cs.known_text)
         AND ca.role IN ('known', 'source')
-      LIMIT 1
-    )
-    WHERE cs.course_code = p_course_code AND cs.known_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cs.course_code
-          AND ca.text_normalized = normalize_text(cs.known_text)
-          AND ca.role IN ('known', 'source')
-      );
-    GET DIAGNOSTICS v_linked_seeds_known = ROW_COUNT;
+        AND audio_voice_matches(v_vk, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_seeds_known = ROW_COUNT;
 
-    UPDATE course_seeds cs SET target1_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_seeds cs SET target1_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cs.course_code
+      AND ca.text_normalized = normalize_text(cs.target_text)
+      AND ca.role = 'target1'
+      AND audio_voice_matches(v_v1, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cs.course_code = p_course_code AND cs.target1_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cs.course_code
         AND ca.text_normalized = normalize_text(cs.target_text)
         AND ca.role = 'target1'
-      LIMIT 1
-    )
-    WHERE cs.course_code = p_course_code AND cs.target1_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cs.course_code
-          AND ca.text_normalized = normalize_text(cs.target_text)
-          AND ca.role = 'target1'
-      );
-    GET DIAGNOSTICS v_linked_seeds_t1 = ROW_COUNT;
+        AND audio_voice_matches(v_v1, ca.voice_id)
+    );
+  GET DIAGNOSTICS v_linked_seeds_t1 = ROW_COUNT;
 
-    UPDATE course_seeds cs SET target2_audio_id = (
-      SELECT ca.id FROM course_audio ca
+  UPDATE course_seeds cs SET target2_audio_id = (
+    SELECT ca.id FROM course_audio ca
+    WHERE ca.course_code = cs.course_code
+      AND ca.text_normalized = normalize_text(cs.target_text)
+      AND ca.role = 'target2'
+      AND audio_voice_matches(v_v2, ca.voice_id)
+    LIMIT 1
+  )
+  WHERE cs.course_code = p_course_code AND cs.target2_audio_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM course_audio ca
       WHERE ca.course_code = cs.course_code
         AND ca.text_normalized = normalize_text(cs.target_text)
         AND ca.role = 'target2'
-      LIMIT 1
-    )
-    WHERE cs.course_code = p_course_code AND cs.target2_audio_id IS NULL
-      AND EXISTS (
-        SELECT 1 FROM course_audio ca
-        WHERE ca.course_code = cs.course_code
-          AND ca.text_normalized = normalize_text(cs.target_text)
-          AND ca.role = 'target2'
-      );
-    GET DIAGNOSTICS v_linked_seeds_t2 = ROW_COUNT;
-
-    RETURN jsonb_build_object(
-      'course_code', p_course_code,
-      'legos', jsonb_build_object('known', v_linked_legos_known, 'target1', v_linked_legos_t1, 'target2', v_linked_legos_t2),
-      'phrases', jsonb_build_object('known', v_linked_phrases_known, 'target1', v_linked_phrases_t1, 'target2', v_linked_phrases_t2),
-      'seeds', jsonb_build_object('known', v_linked_seeds_known, 'target1', v_linked_seeds_t1, 'target2', v_linked_seeds_t2)
+        AND audio_voice_matches(v_v2, ca.voice_id)
     );
-  END;
-  $$;
+  GET DIAGNOSTICS v_linked_seeds_t2 = ROW_COUNT;
+
+  IF v_refused > 0 THEN
+    RAISE WARNING 'link_all_audio_ids REFUSED % slot(s) in % on the voice-match rule — left as they were, need regeneration in the configured voice',
+      v_refused, p_course_code;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'course_code', p_course_code,
+    'legos', jsonb_build_object('known', v_linked_legos_known, 'target1', v_linked_legos_t1, 'target2', v_linked_legos_t2),
+    'phrases', jsonb_build_object('known', v_linked_phrases_known, 'target1', v_linked_phrases_t1, 'target2', v_linked_phrases_t2),
+    'seeds', jsonb_build_object('known', v_linked_seeds_known, 'target1', v_linked_seeds_t1, 'target2', v_linked_seeds_t2),
+    'refused', v_refused,
+    'refused_note', CASE WHEN v_refused > 0
+      THEN 'slots left as they were because no clip in the configured voice existed — see relink_refusals'
+      ELSE NULL END
+  );
+END;
+$$;
 
 
 --
@@ -3863,50 +4755,172 @@ CREATE FUNCTION public.link_all_audio_ids(p_course_code text) RETURNS jsonb
 CREATE FUNCTION public.link_audio_to_content() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  v_wanted text;
+  v_n      int;
 BEGIN
+  v_wanted := audio_configured_voice(NEW.course_code, NEW.role);
+
+  -- VOICE GATE. No configured voice, or a clip in the wrong voice: link nothing
+  -- and say so, once per content table whose text this clip matched.
+  IF NOT audio_voice_matches(v_wanted, NEW.voice_id) THEN
+    INSERT INTO relink_refusals (
+      course_code, content_table, slot_id, role, reason,
+      wanted_voice, candidate_voice, candidate_audio_id, refused_by)
+    SELECT NEW.course_code, t.tbl, t.slot, NEW.role,
+           CASE WHEN v_wanted IS NULL THEN 'no-configured-voice' ELSE 'voice-mismatch' END,
+           v_wanted, NEW.voice_id, NEW.id, 'audio_autolink trigger'
+    FROM (
+      SELECT 'course_legos' AS tbl, l.lego_id::text AS slot FROM course_legos l
+        WHERE l.course_code = NEW.course_code
+          AND normalize_text(CASE WHEN NEW.role = 'known' THEN l.known_text ELSE l.target_text END) = NEW.text_normalized
+          AND (CASE NEW.role
+                 WHEN 'known' THEN l.known_audio_id IS NULL
+                 WHEN 'target1' THEN l.target1_audio_id IS NULL
+                 WHEN 'target2' THEN l.target2_audio_id IS NULL
+                 WHEN 'presentation' THEN l.presentation_audio_id IS NULL
+                 ELSE false END)
+      UNION ALL
+      SELECT 'course_practice_phrases', p.id::text FROM course_practice_phrases p
+        WHERE p.course_code = NEW.course_code
+          AND normalize_text(CASE WHEN NEW.role = 'known' THEN p.known_text ELSE p.target_text END) = NEW.text_normalized
+          AND (CASE NEW.role
+                 WHEN 'known' THEN p.known_audio_id IS NULL
+                 WHEN 'target1' THEN p.target1_audio_id IS NULL
+                 WHEN 'target2' THEN p.target2_audio_id IS NULL
+                 WHEN 'presentation' THEN p.presentation_audio_id IS NULL
+                 ELSE false END)
+      UNION ALL
+      SELECT 'course_seeds', s.id::text FROM course_seeds s
+        WHERE s.course_code = NEW.course_code
+          AND normalize_text(CASE WHEN NEW.role = 'known' THEN s.known_text ELSE s.target_text END) = NEW.text_normalized
+          AND (CASE NEW.role
+                 WHEN 'known' THEN s.known_audio_id IS NULL
+                 WHEN 'target1' THEN s.target1_audio_id IS NULL
+                 WHEN 'target2' THEN s.target2_audio_id IS NULL
+                 ELSE false END)
+    ) t
+    LIMIT 500;   -- a bulk import must not write a million refusal rows
+
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    IF v_n > 0 THEN
+      RAISE WARNING 'audio_autolink REFUSED % slot(s) for clip % in %: voice % is not the configured % for role %',
+        v_n, NEW.id, NEW.course_code, NEW.voice_id, COALESCE(v_wanted, '(none configured)'), NEW.role;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Voice is correct — original behaviour, unchanged.
   IF NEW.role = 'known' THEN
     UPDATE course_legos SET known_audio_id = NEW.id
-      WHERE course_code = NEW.course_code
-        AND known_audio_id IS NULL
-        AND lower(trim(known_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND known_audio_id IS NULL
+        AND normalize_text(known_text) = NEW.text_normalized;
     UPDATE course_practice_phrases SET known_audio_id = NEW.id
-      WHERE course_code = NEW.course_code
-        AND known_audio_id IS NULL
-        AND lower(trim(known_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND known_audio_id IS NULL
+        AND normalize_text(known_text) = NEW.text_normalized;
+    UPDATE course_seeds SET known_audio_id = NEW.id
+      WHERE course_code = NEW.course_code AND known_audio_id IS NULL
+        AND normalize_text(known_text) = NEW.text_normalized;
 
   ELSIF NEW.role = 'target1' THEN
     UPDATE course_legos
       SET target1_audio_id = NEW.id, target1_duration_ms = NEW.duration_ms
-      WHERE course_code = NEW.course_code
-        AND target1_audio_id IS NULL
-        AND lower(trim(target_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND target1_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
     UPDATE course_practice_phrases
       SET target1_audio_id = NEW.id, target1_duration_ms = NEW.duration_ms
-      WHERE course_code = NEW.course_code
-        AND target1_audio_id IS NULL
-        AND lower(trim(target_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND target1_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
+    UPDATE course_seeds SET target1_audio_id = NEW.id
+      WHERE course_code = NEW.course_code AND target1_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
 
   ELSIF NEW.role = 'target2' THEN
     UPDATE course_legos
       SET target2_audio_id = NEW.id, target2_duration_ms = NEW.duration_ms
-      WHERE course_code = NEW.course_code
-        AND target2_audio_id IS NULL
-        AND lower(trim(target_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND target2_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
     UPDATE course_practice_phrases
       SET target2_audio_id = NEW.id, target2_duration_ms = NEW.duration_ms
-      WHERE course_code = NEW.course_code
-        AND target2_audio_id IS NULL
-        AND lower(trim(target_text)) = NEW.text_normalized;
+      WHERE course_code = NEW.course_code AND target2_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
+    UPDATE course_seeds SET target2_audio_id = NEW.id
+      WHERE course_code = NEW.course_code AND target2_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
 
   ELSIF NEW.role = 'presentation' THEN
-    UPDATE course_legos SET presentation_audio_id = NEW.id
-      WHERE course_code = NEW.course_code
-        AND presentation_audio_id IS NULL
-        AND lower(trim(target_text)) = NEW.text_normalized;
+    -- course_legos.presentation_audio_id is a TEXT column, hence the cast;
+    -- course_practice_phrases' is uuid.
+    UPDATE course_legos SET presentation_audio_id = NEW.id::text
+      WHERE course_code = NEW.course_code AND presentation_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
+    UPDATE course_practice_phrases SET presentation_audio_id = NEW.id
+      WHERE course_code = NEW.course_code AND presentation_audio_id IS NULL
+        AND normalize_text(target_text) = NEW.text_normalized;
   END IF;
 
   RETURN NEW;
 END;
+$$;
+
+
+--
+-- Name: my_manageable_tag_values(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.my_manageable_tag_values() RETURNS SETOF text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  WITH my_schools AS (
+    -- the founding admin: the school's own pointer column
+    SELECT s.id
+      FROM public.schools s
+     WHERE s.admin_user_id = (auth.uid())::text
+    UNION
+    -- every subsequent admin: the service-role-written school admin tag
+    SELECT s.id
+      FROM public.schools s
+      JOIN public.user_tags ut ON ut.tag_value = 'SCHOOL:' || s.id::text
+     WHERE ut.user_id = (auth.uid())::text
+       AND ut.tag_type = 'school'
+       AND ut.role_in_context = 'admin'
+       AND ut.removed_at IS NULL
+  )
+  -- 2. schools I administer
+  SELECT 'SCHOOL:' || id::text FROM my_schools
+  UNION
+  -- 3. classes I am the lead teacher of
+  SELECT 'CLASS:' || c.id::text
+    FROM public.classes c
+   WHERE c.teacher_user_id = (auth.uid())::text
+  UNION
+  -- 4. classes inside schools I administer
+  SELECT 'CLASS:' || c.id::text
+    FROM public.classes c
+   WHERE c.school_id IN (SELECT id FROM my_schools);
+$$;
+
+
+--
+-- Name: my_readable_tag_values(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.my_readable_tag_values() RETURNS SETOF text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  -- 1. classes I hold a 'teacher' tag on (co-teaching read parity, A-74)
+  SELECT ut.tag_value
+    FROM public.user_tags ut
+    JOIN public.classes c ON ut.tag_value = 'CLASS:' || c.id::text
+   WHERE ut.user_id = (auth.uid())::text
+     AND ut.tag_type = 'class'
+     AND ut.role_in_context = 'teacher'
+     AND ut.removed_at IS NULL
+  UNION
+  -- 2-4: everything I administer or lead, where teacher rows are mine to write
+  SELECT * FROM public.my_manageable_tag_values();
 $$;
 
 
@@ -3928,20 +4942,176 @@ $$;
 --
 
 CREATE FUNCTION public.null_lego_audio_on_text_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_prev            course_audio%ROWTYPE;
+  v_found           boolean;
+  v_sub             uuid;
+  v_new_text        text;
+  v_cur             uuid;
+  v_raw             text;
+  v_col             text;
+  v_role            text;
+  v_roles           text[] := ARRAY['known','target1','target2','presentation'];
+  v_reason          text;
+  v_known_changed   boolean;
+  v_target_changed  boolean;
 BEGIN
-  IF NEW.known_text IS DISTINCT FROM OLD.known_text THEN
-    NEW.known_audio_id := NULL;
-    NEW.presentation_audio_id := NULL;
-  END IF;
-  IF NEW.target_text IS DISTINCT FROM OLD.target_text THEN
-    NEW.target1_audio_id := NULL;
-    NEW.target2_audio_id := NULL;
-  END IF;
+  -- Did the words actually change, or only the punctuation and whitespace?
+  -- IS DISTINCT FROM, not =, because course_legos.known_text is NULLABLE (521
+  -- rows are NULL today) and normalize_text(NULL) is NULL.
+  v_known_changed  := normalize_text(NEW.known_text)  IS DISTINCT FROM normalize_text(OLD.known_text);
+  v_target_changed := normalize_text(NEW.target_text) IS DISTINCT FROM normalize_text(OLD.target_text);
+
+  FOREACH v_role IN ARRAY v_roles LOOP
+    v_raw := NULL;
+    v_cur := NULL;
+
+    IF v_role = 'known' THEN
+      CONTINUE WHEN NEW.known_text IS NOT DISTINCT FROM OLD.known_text;
+      v_col := 'known_audio_id'; v_new_text := NEW.known_text; v_cur := OLD.known_audio_id;
+      -- The writer set this link EXPLICITLY in the same UPDATE as the text.
+      -- Respect it: they know something we do not. Without this the function
+      -- reads OLD, resolves a substitute from OLD's voice, and overwrites the
+      -- value the writer just supplied — so `SET known_text=…, known_audio_id=NULL`
+      -- silently RESURRECTS a link the writer deliberately cleared. That is the
+      -- exact shape of an audio-first text repair (render the new clip, then
+      -- swap text and link together), so it is not hypothetical.
+      CONTINUE WHEN NEW.known_audio_id IS DISTINCT FROM OLD.known_audio_id;
+
+    ELSIF v_role = 'presentation' THEN
+      -- Invalidation scope preserved verbatim from 20260806: a presentation clip
+      -- can embed BOTH sides, so either side moving puts it in question.
+      CONTINUE WHEN NEW.known_text  IS NOT DISTINCT FROM OLD.known_text
+                AND NEW.target_text IS NOT DISTINCT FROM OLD.target_text;
+      v_col := 'presentation_audio_id'; v_new_text := NEW.target_text;
+      v_raw := OLD.presentation_audio_id;
+      -- Writer-set link in the same UPDATE: respect it (see the known branch).
+      CONTINUE WHEN NEW.presentation_audio_id IS DISTINCT FROM OLD.presentation_audio_id;
+      CONTINUE WHEN v_raw IS NULL;
+
+      -- The cosmetic-keep rule, expressed against the ROW's text rather than the
+      -- clip's. It has to be: a presentation clip speaks a composed introduction
+      -- that quotes the lego, never the lego's own text (0 of 72,062 match), so
+      -- the clip-text test below can never be the thing that saves it. Without
+      -- this, a trailing-space edit destroys a good presentation clip forever —
+      -- which is what happens today.
+      CONTINUE WHEN NOT v_known_changed AND NOT v_target_changed;
+
+      -- text column, no FK: a value that is not uuid-shaped must be recorded and
+      -- dropped, never allowed to raise. Raising would block the edit.
+      IF v_raw ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        v_cur := v_raw::uuid;
+      ELSE
+        NEW.presentation_audio_id := NULL;
+        INSERT INTO content_audio_link_drops (
+          table_name, row_id, course_code, seed_number, column_name, role,
+          old_audio_id, new_audio_id, old_text, new_text, old_voice_id,
+          old_link_raw, reason
+        ) VALUES (
+          'course_legos', NEW.id, NEW.course_code, NEW.seed_number, v_col, v_role,
+          NULL, NULL, NULL, v_new_text, NULL, v_raw, 'nulled-unparseable-link'
+        );
+        CONTINUE;
+      END IF;
+
+    ELSE
+      CONTINUE WHEN NEW.target_text IS NOT DISTINCT FROM OLD.target_text;
+      v_col := v_role || '_audio_id'; v_new_text := NEW.target_text;
+      v_cur := CASE v_role WHEN 'target1' THEN OLD.target1_audio_id
+                           ELSE OLD.target2_audio_id END;
+      -- Writer-set link in the same UPDATE: respect it (see the known branch).
+      CONTINUE WHEN CASE v_role WHEN 'target1' THEN NEW.target1_audio_id
+                                ELSE NEW.target2_audio_id END
+                    IS DISTINCT FROM v_cur;
+    END IF;
+
+    -- Nothing linked: nothing can be stale. link_audio_to_content (AFTER INSERT
+    -- ON course_audio) already fills NULL known/target slots when matching audio
+    -- lands. (It cannot fill a presentation slot — see the header, finding 3.)
+    CONTINUE WHEN v_cur IS NULL;
+
+    -- v_prev is reused across loop iterations, so it MUST be cleared: a SELECT
+    -- INTO that finds nothing leaves the previous iteration's row in place, and
+    -- the report row would then name another role's clip.
+    v_prev := NULL;
+    SELECT * INTO v_prev FROM course_audio WHERE id = v_cur;
+    v_found := FOUND;
+
+    -- The clip still speaks the new text (whitespace / casing / trailing
+    -- punctuation only): keep it. normalize_text(v_prev.text) — the clip's REAL
+    -- text re-normalised now — is tested as well as the stored text_normalized,
+    -- because tens of thousands of course_audio rows hold a stored value the
+    -- current normaliser would not produce. Testing the stored column alone would
+    -- call a clip that speaks the exact right words "stale" and drop a good link.
+    CONTINUE WHEN v_found AND (v_prev.text_normalized = normalize_text(v_new_text)
+                            OR normalize_text(v_prev.text) = normalize_text(v_new_text));
+
+    IF v_found AND v_role = 'presentation' THEN
+      -- Rule 2 is DELIBERATELY SKIPPED for presentation, on a measurement rather
+      -- than a preference. A presentation clip never speaks a bare lego
+      -- target_text — 0 of 72,062 estate-wide — so this lookup provably cannot
+      -- return a row. And it is not free: audio_id_for_text_same_voice costs
+      -- 263ms warm and up to 4.6s cold on a large course, because the
+      -- `OR normalize_text(a.text) = …` disjunct defeats the index. Paying that
+      -- on every genuinely-edited lego that has a presentation link, for a result
+      -- that is always NULL, is a straight tax on every content pass.
+      -- An earlier draft called it "one lookup" and kept it for uniformity; the
+      -- measurement is the better argument. If a future generator ever mints
+      -- presentation clips whose text IS the target text, delete this branch and
+      -- uniformity returns with it.
+      v_sub := NULL;
+    ELSIF v_found THEN
+      v_sub := audio_id_for_text_same_voice(NEW.course_code, v_new_text, v_role, v_cur);
+    ELSE
+      -- The link points at a course_audio row that no longer exists: there is no
+      -- voice to preserve, so there is no substitute we are willing to pick.
+      v_sub := NULL;
+    END IF;
+
+    IF v_sub IS NOT NULL AND v_sub <> v_cur THEN
+      v_reason := 'relinked-same-voice';
+    ELSIF v_sub IS NOT NULL THEN
+      CONTINUE;  -- resolved back to the same clip; nothing happened
+    ELSIF NOT v_found THEN
+      v_reason := 'nulled-dangling-link';
+    ELSIF v_role = 'presentation' THEN
+      -- Distinct from the reason below on purpose: we did not look for a
+      -- same-voice substitute and fail to find one, we declined to look. A
+      -- reader counting 'nulled-no-same-voice-clip-for-new-text' rows should not
+      -- have presentation drops silently folded into that number.
+      v_reason := 'nulled-presentation-not-text-addressable';
+    ELSE
+      v_reason := 'nulled-no-same-voice-clip-for-new-text';
+    END IF;
+
+    IF v_col = 'known_audio_id'          THEN NEW.known_audio_id        := v_sub;
+    ELSIF v_col = 'target1_audio_id'     THEN NEW.target1_audio_id      := v_sub;
+    ELSIF v_col = 'target2_audio_id'     THEN NEW.target2_audio_id      := v_sub;
+    ELSE                                      NEW.presentation_audio_id := v_sub::text;
+    END IF;
+
+    INSERT INTO content_audio_link_drops (
+      table_name, row_id, course_code, seed_number, column_name, role,
+      old_audio_id, new_audio_id, old_text, new_text, old_voice_id, reason
+    ) VALUES (
+      'course_legos', NEW.id, NEW.course_code, NEW.seed_number, v_col, v_role,
+      v_cur, v_sub, v_prev.text, v_new_text, v_prev.voice_id, v_reason
+    );
+  END LOOP;
+
   RETURN NEW;
 END;
-$$;
+$_$;
+
+
+--
+-- Name: FUNCTION null_lego_audio_on_text_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.null_lego_audio_on_text_change() IS 'MISNAMED, and deliberately not renamed (a rename would silently break every pg_trigger match on the name). It does NOT simply null. On a known_text/target_text edit it: keeps the link if the clip still speaks the new words; else re-points to a clip we already own for the new text IN THE SAME VOICE AND LANGUAGE (audio_id_for_text_same_voice); else NULLs it. Covers all four link columns including presentation_audio_id, whose cosmetic-keep test is against the row text because a presentation clip never speaks it. Every move and every drop is recorded in content_audio_link_drops. Between 2026-08-06 and 2026-08-17 this function RE-RESOLVED via audio_id_for_text(), which constrains neither voice nor language and could therefore swap the voice a learner hears with no NULL and no alarm — and which, for presentation, always resolved to NULL and severed the slot permanently and unrecorded.';
 
 
 --
@@ -3949,16 +5119,186 @@ $$;
 --
 
 CREATE FUNCTION public.null_phrase_audio_on_text_change() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
+DECLARE
+  v_prev      course_audio%ROWTYPE;
+  v_found     boolean;
+  v_sub       uuid;
+  v_new_text  text;
+  v_cur       uuid;
+  v_col       text;
+  v_role      text;
+  v_roles     text[] := ARRAY['known','target1','target2'];
+  v_reason    text;
 BEGIN
-  IF NEW.known_text IS DISTINCT FROM OLD.known_text THEN
-    NEW.known_audio_id := NULL;
-  END IF;
-  IF NEW.target_text IS DISTINCT FROM OLD.target_text THEN
-    NEW.target1_audio_id := NULL;
-    NEW.target2_audio_id := NULL;
-  END IF;
+  FOREACH v_role IN ARRAY v_roles LOOP
+    IF v_role = 'known' THEN
+      CONTINUE WHEN NEW.known_text IS NOT DISTINCT FROM OLD.known_text;
+      v_col := 'known_audio_id'; v_new_text := NEW.known_text; v_cur := OLD.known_audio_id;
+    ELSE
+      CONTINUE WHEN NEW.target_text IS NOT DISTINCT FROM OLD.target_text;
+      v_col := v_role || '_audio_id'; v_new_text := NEW.target_text;
+      v_cur := CASE v_role WHEN 'target1' THEN OLD.target1_audio_id
+                           ELSE OLD.target2_audio_id END;
+    END IF;
+
+    -- Nothing linked: nothing can be stale. link_audio_to_content (AFTER INSERT
+    -- ON course_audio) already fills NULL phrase slots when matching audio lands.
+    CONTINUE WHEN v_cur IS NULL;
+
+    -- v_prev is reused across loop iterations, so it MUST be cleared: a SELECT
+    -- INTO that finds nothing leaves the previous iteration's row in place, and
+    -- the report row would then name another role's clip.
+    v_prev := NULL;
+    SELECT * INTO v_prev FROM course_audio WHERE id = v_cur;
+    v_found := FOUND;
+
+    -- The clip still speaks the new text (whitespace / casing / trailing
+    -- punctuation only): keep it. normalize_text(v_prev.text) — the clip's REAL
+    -- text re-normalised now — is tested as well as the stored text_normalized,
+    -- because tens of thousands of course_audio rows hold a stored value the
+    -- current normaliser would not produce. Testing the stored column alone would
+    -- call a clip that speaks the exact right words "stale" and drop a good link.
+    CONTINUE WHEN v_found AND (v_prev.text_normalized = normalize_text(v_new_text)
+                            OR normalize_text(v_prev.text) = normalize_text(v_new_text));
+
+    IF v_found THEN
+      v_sub := audio_id_for_text_same_voice(NEW.course_code, v_new_text, v_role, v_cur);
+    ELSE
+      -- The link points at a course_audio row that no longer exists: there is no
+      -- voice to preserve, so there is no substitute we are willing to pick.
+      v_sub := NULL;
+    END IF;
+
+    IF v_sub IS NOT NULL AND v_sub <> v_cur THEN
+      v_reason := 'relinked-same-voice';
+    ELSIF v_sub IS NOT NULL THEN
+      CONTINUE;  -- resolved back to the same clip; nothing happened
+    ELSIF NOT v_found THEN
+      v_reason := 'nulled-dangling-link';
+    ELSE
+      v_reason := 'nulled-no-same-voice-clip-for-new-text';
+    END IF;
+
+    IF v_col = 'known_audio_id'      THEN NEW.known_audio_id   := v_sub;
+    ELSIF v_col = 'target1_audio_id' THEN NEW.target1_audio_id := v_sub;
+    ELSE                                  NEW.target2_audio_id := v_sub;
+    END IF;
+
+    INSERT INTO content_audio_link_drops (
+      table_name, row_id, course_code, seed_number, column_name, role,
+      old_audio_id, new_audio_id, old_text, new_text, old_voice_id, reason
+    ) VALUES (
+      'course_practice_phrases', NEW.id, NEW.course_code, NEW.seed_number, v_col, v_role,
+      v_cur, v_sub, v_prev.text, v_new_text, v_prev.voice_id, v_reason
+    );
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION null_phrase_audio_on_text_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.null_phrase_audio_on_text_change() IS 'MISNAMED, and deliberately not renamed (a rename would silently break every pg_trigger match on the name). It does NOT simply null. On a known_text/target_text edit it: keeps the link if the clip still speaks the new words; else re-points to a clip we already own for the new text IN THE SAME VOICE AND LANGUAGE (audio_id_for_text_same_voice); else NULLs it. Every move and every drop is recorded in content_audio_link_drops. Between 2026-08-06 and 2026-08-17 this function RE-RESOLVED via audio_id_for_text(), which constrains neither voice nor language and could therefore swap the voice a learner hears with no NULL and no alarm.';
+
+
+--
+-- Name: null_seed_audio_on_text_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.null_seed_audio_on_text_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_prev      course_audio%ROWTYPE;
+  v_found     boolean;
+  v_sub       uuid;
+  v_new_text  text;
+  v_cur       uuid;
+  v_col       text;
+  v_role      text;
+  v_roles     text[] := ARRAY['known','target1','target2'];
+  v_reason    text;
+BEGIN
+  FOREACH v_role IN ARRAY v_roles LOOP
+    IF v_role = 'known' THEN
+      -- The known side moves only when known_text moves.
+      CONTINUE WHEN NEW.known_text IS NOT DISTINCT FROM OLD.known_text;
+      v_col := 'known_audio_id'; v_new_text := NEW.known_text; v_cur := OLD.known_audio_id;
+    ELSE
+      CONTINUE WHEN NEW.target_text IS NOT DISTINCT FROM OLD.target_text;
+      v_col := v_role || '_audio_id'; v_new_text := NEW.target_text;
+      v_cur := CASE v_role WHEN 'target1' THEN OLD.target1_audio_id
+                           ELSE OLD.target2_audio_id END;
+    END IF;
+
+    -- Nothing linked: nothing can be stale. Leave it for link_audio_to_content.
+    CONTINUE WHEN v_cur IS NULL;
+
+    -- v_prev is reused across loop iterations, so it MUST be cleared before the
+    -- lookup: a SELECT INTO that finds nothing leaves the previous iteration's
+    -- row in place, and the report row would then name another role's clip.
+    v_prev := NULL;
+    SELECT * INTO v_prev FROM course_audio WHERE id = v_cur;
+    v_found := FOUND;
+
+    -- The clip still speaks the new text (whitespace / casing / trailing
+    -- punctuation only): keep it. This is the case the 2026-08-06 migration
+    -- existed to stop breaking, and it stays unbroken here.
+    --
+    -- normalize_text(v_prev.text) — the clip's REAL text, re-normalised now —
+    -- not v_prev.text_normalized. On the 41,900 rows whose stored column predates
+    -- the normaliser's redefinition the stored value still carries the trailing
+    -- '?', so testing it would call a clip that speaks the exact right words
+    -- "stale" and drop a good link. The stored column is kept as a fast first
+    -- disjunct; it is never the sole authority.
+    CONTINUE WHEN v_found AND (v_prev.text_normalized = normalize_text(v_new_text)
+                            OR normalize_text(v_prev.text) = normalize_text(v_new_text));
+
+    IF v_found THEN
+      v_sub := audio_id_for_text_same_voice(NEW.course_code, v_new_text, v_role, v_cur);
+    ELSE
+      -- The link points at a course_audio row that no longer exists. There is no
+      -- voice to preserve, so there is no substitute we are willing to pick.
+      --
+      -- All three of course_seeds' audio FKs are ON DELETE SET NULL, so today
+      -- this branch is unreachable — the canary confirms it cannot be provoked.
+      -- It is kept because that is a property of three constraints that a future
+      -- migration could change, and the cost of keeping it is one NULL check.
+      v_sub := NULL;
+    END IF;
+
+    IF v_sub IS NOT NULL AND v_sub <> v_cur THEN
+      v_reason := 'relinked-same-voice';
+    ELSIF v_sub IS NOT NULL THEN
+      CONTINUE;  -- resolved back to the same clip; nothing happened
+    ELSIF NOT v_found THEN
+      v_reason := 'nulled-dangling-link';
+    ELSE
+      v_reason := 'nulled-no-same-voice-clip-for-new-text';
+    END IF;
+
+    IF v_col = 'known_audio_id'   THEN NEW.known_audio_id   := v_sub;
+    ELSIF v_col = 'target1_audio_id' THEN NEW.target1_audio_id := v_sub;
+    ELSE                                 NEW.target2_audio_id := v_sub;
+    END IF;
+
+    INSERT INTO content_audio_link_drops (
+      table_name, row_id, course_code, seed_number, column_name, role,
+      old_audio_id, new_audio_id, old_text, new_text, old_voice_id, reason
+    ) VALUES (
+      'course_seeds', NEW.id, NEW.course_code, NEW.seed_number, v_col, v_role,
+      v_cur, v_sub, v_prev.text, v_new_text, v_prev.voice_id, v_reason
+    );
+  END LOOP;
+
   RETURN NEW;
 END;
 $$;
@@ -4115,6 +5455,31 @@ $$;
 
 
 --
+-- Name: refuse_component_introduction(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refuse_component_introduction() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Only a NEW non-null binding is refused. NULL (unlinking) always passes,
+  -- and an UPDATE that leaves an existing value untouched passes too, so
+  -- ordinary edits to historic rows are unaffected.
+  IF NEW.phrase_role = 'component'
+     AND NEW.presentation_audio_id IS NOT NULL
+     AND (TG_OP = 'INSERT' OR NEW.presentation_audio_id IS DISTINCT FROM OLD.presentation_audio_id)
+  THEN
+    RAISE EXCEPTION
+      'Components are never introduced (Tom, 2026-08-06): refusing to bind presentation audio % to component row %',
+      NEW.presentation_audio_id, NEW.id
+      USING HINT = 'Only LEGOs get introductions. A component is a tiling part of its M-LEGO, visualised inside it, never narrated alone. It stays allowed vocabulary either way.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: relink_user_tags(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4257,7 +5622,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_class_join_code() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   new_code TEXT;
@@ -4287,7 +5653,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_school_join_code() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   new_code TEXT;
@@ -4484,6 +5851,54 @@ $$;
 
 
 --
+-- Name: sync_my_verified_emails(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_my_verified_emails() RETURNS text[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'auth', 'pg_temp'
+    AS $$
+DECLARE
+  my_email text;
+  result text[];
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'sync_my_verified_emails: permission denied (not authenticated)';
+  END IF;
+
+  SELECT lower(u.email) INTO my_email
+    FROM auth.users u
+   WHERE u.id = auth.uid() AND u.email IS NOT NULL;
+
+  -- Link-auth (straight-in) accounts carry a placeholder that never receives
+  -- mail -- see packages/player-vue/src/utils/placeholderEmail.ts. It must never
+  -- land in verified_emails.
+  IF my_email IS NULL OR my_email LIKE '%@invite.saysomethingin.app' THEN
+    RETURN coalesce(public.get_my_verified_emails(), ARRAY[]::text[]);
+  END IF;
+
+  UPDATE public.learners
+     SET verified_emails = coalesce(verified_emails, ARRAY[]::text[]) || my_email
+   WHERE user_id = auth.uid()::text
+     AND NOT (my_email = ANY(coalesce(verified_emails, ARRAY[]::text[])))
+  RETURNING verified_emails INTO result;
+
+  IF result IS NULL THEN
+    result := coalesce(public.get_my_verified_emails(), ARRAY[]::text[]);
+  END IF;
+  RETURN result;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION sync_my_verified_emails(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sync_my_verified_emails() IS 'Appends the session''s own auth.users address to its learner row''s verified_emails. Replaces useAuth.ts ensureLearnerExists() direct UPDATE, which was revoked 2026-08-11 (AUTH-CORE-02).';
+
+
+--
 -- Name: test_learner_ids(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4551,6 +5966,29 @@ BEGIN NEW.updated_at := now(); RETURN NEW; END $$;
 
 
 --
+-- Name: touch_course_audio_stamp(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touch_course_audio_stamp() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.course_code IS NOT NULL AND NEW.course_code <> '' THEN
+    -- Debounce: now() is constant within a transaction, so a bulk repair of
+    -- 95 clips updates the courses row once, not 95 times.
+    UPDATE courses SET audio_stamp = now()
+    WHERE course_code = NEW.course_code AND audio_stamp IS DISTINCT FROM now();
+  END IF;
+  RETURN NULL; -- AFTER trigger, return value ignored
+EXCEPTION WHEN OTHERS THEN
+  -- Freshness stamping must NEVER break an audio write. A missed stamp costs
+  -- one stale session; a failed swap costs the make-before-break guarantee.
+  RETURN NULL;
+END $$;
+
+
+--
 -- Name: touch_course_content_stamp(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4584,6 +6022,20 @@ END $$;
 
 
 --
+-- Name: touch_language_recording_policy(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touch_language_recording_policy() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: touch_listening_pods_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4595,6 +6047,26 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: try_canonical_language(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.try_canonical_language(code text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN RETURN canonical_language(code); EXCEPTION WHEN OTHERS THEN RETURN NULL; END $$;
+
+
+--
+-- Name: try_canonical_voice_id(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.try_canonical_voice_id(v text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+BEGIN RETURN canonical_voice_id(v); EXCEPTION WHEN OTHERS THEN RETURN NULL; END $$;
 
 
 --
@@ -4693,6 +6165,220 @@ $$;
 
 
 --
+-- Name: _audit_s3_touch; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._audit_s3_touch (
+    audio_id uuid
+);
+
+
+--
+-- Name: _canon_alive; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._canon_alive (
+    s3_key text NOT NULL
+);
+
+
+--
+-- Name: _canon_lang_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._canon_lang_map (
+    raw text,
+    canon text
+);
+
+
+--
+-- Name: _canon_reselect; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._canon_reselect (
+    clip_id uuid,
+    text_key text,
+    language text,
+    role text,
+    voice_id text,
+    old_s3_key text,
+    old_origin text,
+    old_revision integer,
+    new_source_audio_id uuid,
+    new_s3_key text,
+    new_duration_ms integer,
+    new_file_size integer,
+    new_word_boundaries jsonb,
+    new_origin text,
+    new_text text,
+    veracity_checked_at timestamp with time zone,
+    veracity_pass boolean,
+    veracity_reason text,
+    veracity_cer real,
+    veracity_attempts smallint,
+    veracity_checker text
+);
+
+
+--
+-- Name: _canon_stage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._canon_stage (
+    audio_id uuid,
+    text_key text,
+    language text,
+    role text,
+    voice_id text
+);
+
+
+--
+-- Name: _canon_voice_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._canon_voice_map (
+    raw text,
+    canon text
+);
+
+
+--
+-- Name: _converge_probe; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._converge_probe (
+    audio_id uuid,
+    course_code text,
+    old_s3_key text,
+    canon_s3_key text,
+    canon_duration_ms integer,
+    canon_file_size integer,
+    canon_word_boundaries jsonb
+);
+
+
+--
+-- Name: _converge_set; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._converge_set (
+    audio_id uuid,
+    course_code text,
+    old_s3_key text,
+    canon_s3_key text,
+    canon_duration_ms integer,
+    canon_file_size integer,
+    canon_word_boundaries jsonb,
+    batch_no integer
+);
+
+
+--
+-- Name: _divergence_partition; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._divergence_partition (
+    audio_id uuid,
+    course_code text,
+    role text,
+    language text,
+    origin text,
+    serving_now text,
+    canon_s3_key text,
+    clip_id uuid,
+    sig_human_origin boolean,
+    sig_provenance boolean,
+    sig_flagged boolean,
+    sig_repair_decision boolean,
+    sig_revision_targeted boolean,
+    amb_bulk_reuse boolean,
+    amb_audited_update boolean,
+    bucket text
+);
+
+
+--
+-- Name: _fix_broken; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._fix_broken (
+    audio_id uuid,
+    course_code text,
+    old_s3_key text,
+    prefix text,
+    clip_id uuid,
+    text_key text,
+    language text,
+    role text,
+    voice_id text
+);
+
+
+--
+-- Name: _fix_lang_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._fix_lang_map (
+    raw text,
+    canon text
+);
+
+
+--
+-- Name: _fix_plan; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._fix_plan (
+    audio_id uuid,
+    course_code text,
+    prefix text,
+    old_s3_key text,
+    clip_id uuid,
+    text_key text,
+    language text,
+    role text,
+    voice_id text,
+    canon_s3_key text,
+    serving_s3_key text,
+    serving_audio_id uuid,
+    serving_course text,
+    action text
+);
+
+
+--
+-- Name: _fix_serving; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._fix_serving (
+    text_key text,
+    language text,
+    role text,
+    voice_id text,
+    serving_audio_id uuid,
+    serving_s3_key text,
+    serving_course text,
+    origin text,
+    veracity_pass boolean,
+    duration_ms integer,
+    file_size_bytes integer,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: _fix_voice_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public._fix_voice_map (
+    raw text,
+    canon text
+);
+
+
+--
 -- Name: admin_impersonation_audit; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4774,6 +6460,55 @@ COMMENT ON COLUMN public.algorithm_config.config IS 'JSONB config object with al
 
 
 --
+-- Name: algorithm_config_pointers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.algorithm_config_pointers (
+    key text NOT NULL,
+    channel text NOT NULL,
+    config_hash text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text,
+    CONSTRAINT algorithm_config_pointers_channel_check CHECK ((channel = ANY (ARRAY['published'::text, 'draft'::text])))
+);
+
+
+--
+-- Name: TABLE algorithm_config_pointers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.algorithm_config_pointers IS 'Which immutable version each key is currently serving (channel=published) or drafting (channel=draft). Rollback repoints this row; it never writes a new version. The FK to algorithm_config_versions is what makes a pointer unable to name a config that does not exist.';
+
+
+--
+-- Name: algorithm_config_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.algorithm_config_versions (
+    config_hash text NOT NULL,
+    key text NOT NULL,
+    config jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text,
+    note text
+);
+
+
+--
+-- Name: TABLE algorithm_config_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.algorithm_config_versions IS 'Immutable, content-addressed history of algorithm_config values. One row per (key, config object); config_hash = sha256 of canonical JSON of {config, key} — see api/lib/config-hash.js. Never updated, never deleted: saving the same object twice is a no-op (ON CONFLICT DO NOTHING), which is why the same config re-saved does not grow the table.';
+
+
+--
+-- Name: COLUMN algorithm_config_versions.note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.algorithm_config_versions.note IS 'Optional human note for why this value exists ("VOICELAB experiment 0", "rolled forward from draft").';
+
+
+--
 -- Name: apml_documents; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4835,6 +6570,206 @@ CREATE TABLE public.app_config (
 
 
 --
+-- Name: audio_clip_flags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_clip_flags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    audio_id uuid NOT NULL,
+    course_code text NOT NULL,
+    audio_revision integer DEFAULT 1 NOT NULL,
+    source text NOT NULL,
+    detector text,
+    severity text DEFAULT 'suspect'::text NOT NULL,
+    reason text NOT NULL,
+    metrics jsonb,
+    detector_precision real,
+    raised_by text DEFAULT 'unknown'::text NOT NULL,
+    raised_at timestamp with time zone DEFAULT now() NOT NULL,
+    resolution text,
+    resolved_by text,
+    resolved_at timestamp with time zone,
+    resolution_reason text,
+    CONSTRAINT audio_clip_flags_resolution_check CHECK ((resolution = ANY (ARRAY['cleared_by_human'::text, 'replaced'::text]))),
+    CONSTRAINT audio_clip_flags_resolution_complete CHECK ((((resolution IS NULL) AND (resolved_by IS NULL) AND (resolved_at IS NULL)) OR ((resolution IS NOT NULL) AND (resolved_by IS NOT NULL) AND (resolved_at IS NOT NULL)))),
+    CONSTRAINT audio_clip_flags_severity_check CHECK ((severity = ANY (ARRAY['suspect'::text, 'bad'::text]))),
+    CONSTRAINT audio_clip_flags_source_check CHECK ((source = ANY (ARRAY['detector'::text, 'veracity'::text, 'human'::text])))
+);
+
+
+--
+-- Name: TABLE audio_clip_flags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_clip_flags IS 'Suspicion about a clip, from a machine or a human. Cleared only by a recorded human action or by a repair that replaced the bytes — there is no automated exit, by design (2026-08-05).';
+
+
+--
+-- Name: COLUMN audio_clip_flags.detector_precision; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.audio_clip_flags.detector_precision IS 'Measured precision of the raising detector, where known. A check with no measured miss rate against human-labelled ground truth may only ORDER THE QUEUE FOR HUMAN EARS; it may never pass audio on its own authority.';
+
+
+--
+-- Name: audio_clip_promotions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_clip_promotions (
+    id bigint NOT NULL,
+    clip_id uuid NOT NULL,
+    old_s3_key text NOT NULL,
+    new_s3_key text NOT NULL,
+    old_origin text,
+    new_origin text,
+    old_revision integer,
+    new_revision integer,
+    reason text NOT NULL,
+    source_audio_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE audio_clip_promotions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_clip_promotions IS 'Every in-place upgrade of a canonical clip, with the superseded s3_key. Reversal evidence for an estate-wide audible change.';
+
+
+--
+-- Name: audio_clip_promotions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.audio_clip_promotions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: audio_clip_promotions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.audio_clip_promotions_id_seq OWNED BY public.audio_clip_promotions.id;
+
+
+--
+-- Name: audio_clip_signoffs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_clip_signoffs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    audio_id uuid NOT NULL,
+    course_code text NOT NULL,
+    audio_revision integer NOT NULL,
+    signed_off_by text NOT NULL,
+    signed_off_at timestamp with time zone DEFAULT now() NOT NULL,
+    context text DEFAULT 'playthrough'::text NOT NULL,
+    notes text,
+    CONSTRAINT audio_clip_signoffs_context_check CHECK ((context = ANY (ARRAY['playthrough'::text, 'repair_panel'::text, 'spot_check'::text])))
+);
+
+
+--
+-- Name: TABLE audio_clip_signoffs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_clip_signoffs IS 'A human pass on one clip at one revision. Machines may flag audio; only humans may pass it.';
+
+
+--
+-- Name: audio_clips; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_clips (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    text_key text NOT NULL,
+    language text NOT NULL,
+    role text NOT NULL,
+    voice_id text NOT NULL,
+    text text NOT NULL,
+    s3_key text NOT NULL,
+    duration_ms integer,
+    file_size_bytes integer,
+    word_boundaries jsonb,
+    origin text NOT NULL,
+    veracity_checked_at timestamp with time zone,
+    veracity_pass boolean,
+    veracity_reason text,
+    veracity_cer real,
+    veracity_attempts smallint,
+    veracity_checker text,
+    audio_revision integer DEFAULT 1 NOT NULL,
+    source_audio_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT audio_clips_origin_check CHECK ((origin = ANY (ARRAY['tts'::text, 'human'::text]))),
+    CONSTRAINT audio_clips_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text, 'pod_fine_known'::text, 'pod_take_g'::text])))
+);
+
+
+--
+-- Name: TABLE audio_clips; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_clips IS 'Canonical audio clips. Identity is (text_key, language, role, voice_id) and NOTHING ELSE. There is deliberately no course_code column: course membership is expressed by course_audio rows pointing here, so one line rendered once is the only representable state. Tom''s ruling 2026-08-14; audit docs/english-pod-audio-duplication-audit-2026-08-14.md.';
+
+
+--
+-- Name: COLUMN audio_clips.source_audio_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.audio_clips.source_audio_id IS 'course_audio row this canon was selected from. Not an FK on purpose — canon outlives any one course.';
+
+
+--
+-- Name: audio_convergence_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_convergence_log (
+    id bigint NOT NULL,
+    audio_id uuid NOT NULL,
+    course_code text NOT NULL,
+    old_s3_key text NOT NULL,
+    new_s3_key text NOT NULL,
+    old_duration_ms integer,
+    new_duration_ms integer,
+    bucket text NOT NULL,
+    pass text NOT NULL,
+    converged_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE audio_convergence_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_convergence_log IS 'Every course_audio row repointed onto its canonical clip, with the superseded s3_key. Bucket (b) only, per Tom''s ruling 2026-08-14: human-corrected (a) is promoted not converged, unknown (c) is never touched.';
+
+
+--
+-- Name: audio_convergence_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.audio_convergence_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: audio_convergence_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.audio_convergence_log_id_seq OWNED BY public.audio_convergence_log.id;
+
+
+--
 -- Name: audio_flags; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4887,6 +6822,45 @@ CREATE TABLE public.audio_pass_requests (
     fulfilled_at timestamp with time zone,
     fulfilled_by text
 );
+
+
+--
+-- Name: audio_repair_candidates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_repair_candidates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    audio_id uuid NOT NULL,
+    course_code text NOT NULL,
+    source text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    s3_key text NOT NULL,
+    text text NOT NULL,
+    voice_id text NOT NULL,
+    duration_ms integer,
+    file_size_bytes integer,
+    veracity_checked boolean,
+    veracity_pass boolean,
+    veracity_reason text,
+    veracity_cer real,
+    mean_db real,
+    peak_db real,
+    proposed_by text DEFAULT 'unknown'::text NOT NULL,
+    proposed_at timestamp with time zone DEFAULT now() NOT NULL,
+    decided_by text,
+    decided_at timestamp with time zone,
+    decision_reason text,
+    notes jsonb,
+    CONSTRAINT audio_repair_candidates_source_check CHECK ((source = ANY (ARRAY['tts'::text, 'upload'::text]))),
+    CONSTRAINT audio_repair_candidates_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text, 'superseded'::text])))
+);
+
+
+--
+-- Name: TABLE audio_repair_candidates; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.audio_repair_candidates IS 'Verified replacement clips awaiting a HUMAN accept. Machines may flag audio; only humans may pass it. A pending candidate is referenced by nothing on the learner path.';
 
 
 --
@@ -5556,6 +7530,69 @@ COMMENT ON VIEW public.class_teachers IS 'Active teacher↔class relationships (
 
 
 --
+-- Name: content_audio_link_drops; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.content_audio_link_drops (
+    id bigint NOT NULL,
+    dropped_at timestamp with time zone DEFAULT now() NOT NULL,
+    table_name text NOT NULL,
+    row_id text NOT NULL,
+    course_code text NOT NULL,
+    seed_number integer,
+    column_name text NOT NULL,
+    role text NOT NULL,
+    old_audio_id uuid,
+    new_audio_id uuid,
+    old_text text,
+    new_text text,
+    old_voice_id text,
+    reason text NOT NULL,
+    old_link_raw text
+);
+
+
+--
+-- Name: TABLE content_audio_link_drops; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.content_audio_link_drops IS 'Append-only record of every audio link a text edit dropped or moved. Written by null_seed_audio_on_text_change. No FK to course_audio on purpose: the row must outlive the clip.';
+
+
+--
+-- Name: COLUMN content_audio_link_drops.row_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_audio_link_drops.row_id IS 'Primary key of the edited content row, as text. uuid for course_seeds; a deterministic text key like ''eng_for_sin:S0007L01U01'' for course_practice_phrases and course_legos. Read it together with table_name — it is not unique across tables on its own.';
+
+
+--
+-- Name: COLUMN content_audio_link_drops.old_link_raw; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_audio_link_drops.old_link_raw IS 'The raw, uncast value of the link column when it was not uuid-shaped and therefore could not be recorded in old_audio_id. Only course_legos.presentation_audio_id can produce this (text column, no FK). NULL in every ordinary drop.';
+
+
+--
+-- Name: content_audio_link_drops_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.content_audio_link_drops_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: content_audio_link_drops_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.content_audio_link_drops_id_seq OWNED BY public.content_audio_link_drops.id;
+
+
+--
 -- Name: content_audit_log; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5677,10 +7714,19 @@ CREATE TABLE public.course_audio (
     text_stripped text GENERATED ALWAYS AS (lower(TRIM(BOTH FROM regexp_replace(text_normalized, '[。？！、，.!?,;:()（）「」『』\[\]…—–¿¡\-]+'::text, ''::text, 'g'::text)))) STORED,
     word_boundaries jsonb,
     sequence integer,
+    veracity_checked_at timestamp with time zone,
+    veracity_pass boolean,
+    veracity_reason text,
+    veracity_cer real,
+    veracity_attempts smallint,
+    veracity_checker text,
+    audio_revision integer DEFAULT 1 NOT NULL,
+    clip_id uuid,
+    rerecord_wanted jsonb,
     CONSTRAINT course_audio_origin_check CHECK ((origin = ANY (ARRAY['tts'::text, 'human'::text]))),
     CONSTRAINT course_audio_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text, 'pod_fine_known'::text, 'pod_take_g'::text])))
 )
-WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
+WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02', autovacuum_vacuum_insert_scale_factor='0.02', autovacuum_vacuum_insert_threshold='20000');
 
 
 --
@@ -5709,6 +7755,69 @@ COMMENT ON COLUMN public.course_audio.s3_key IS 'Path in ssi-audio-stage bucket'
 --
 
 COMMENT ON COLUMN public.course_audio.lego_id IS 'For presentation audio: the LEGO this introduces (e.g., S0001L01). NULL for other roles.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_checked_at IS 'When a veracity check was ATTEMPTED on this clip at render time. NULL means no check ever ran — never read a NULL here as a pass.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_pass; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_pass IS 'TRUE = checked and passed. FALSE = checked and failed (should be impossible on the gated path). NULL with veracity_checked_at set = the gate ran but could not check; see veracity_reason.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_reason IS 'Verdict code from services/audio-veracity.cjs: ok | non_speech_decode | cer_above_threshold | cer_above_unvalidated_language_threshold | unchecked_no_whisper | unchecked_disabled | unchecked_decode_error | unchecked_no_text.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_cer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_cer IS 'Character error rate of the unprimed whisper round-trip, when one was measured.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_attempts IS 'How many render attempts it took to pass. >1 means the first render was defective and was never published.';
+
+
+--
+-- Name: COLUMN course_audio.veracity_checker; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.veracity_checker IS 'Which code path recorded the verdict (phase8-generate, phase8-regenerate-role, phase8-generate-components, repair-silent-clips). course_audio otherwise records no writer, which the 2026-08-05 gate audit had to reconstruct from timestamp clusters.';
+
+
+--
+-- Name: COLUMN course_audio.audio_revision; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.audio_revision IS 'Bumped on every accepted in-place byte replacement. Travels in the learner-side URL as /api/audio/<id>?v=<rev> so the immutable cache header cannot serve superseded bytes. The id never changes.';
+
+
+--
+-- Name: COLUMN course_audio.clip_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.clip_id IS 'The canonical clip this course_audio row is a membership of. course_audio is becoming a thin join (course_code, clip_id, lego_id, sequence); the payload columns beside this one are a make-before-break mirror kept alive until every reader is repointed.';
+
+
+--
+-- Name: COLUMN course_audio.rerecord_wanted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.rerecord_wanted IS 'Non-destructive "this take needs redoing" flag, any content type. Routed to a recordist queue by voice_gender. NULL = nothing wanted. Never mutates the existing clip (Tom 2026-08-14).';
 
 
 --
@@ -5781,6 +7890,54 @@ CREATE VIEW public.course_audio_inventory WITH (security_invoker='on') AS
 --
 
 COMMENT ON VIEW public.course_audio_inventory IS 'Quick summary of audio per course/role';
+
+
+--
+-- Name: course_audio_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.course_audio_revisions (
+    id bigint NOT NULL,
+    audio_id uuid NOT NULL,
+    course_code text NOT NULL,
+    revision integer NOT NULL,
+    previous_revision integer NOT NULL,
+    previous_s3_key text NOT NULL,
+    new_s3_key text NOT NULL,
+    previous_duration_ms integer,
+    new_duration_ms integer,
+    candidate_id uuid,
+    source text,
+    accepted_by text NOT NULL,
+    reason text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE course_audio_revisions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.course_audio_revisions IS 'Supersession log for in-place audio replacement. previous_s3_key is retained, never deleted — the old object stays in the bucket and this row is how it is found again.';
+
+
+--
+-- Name: course_audio_revisions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.course_audio_revisions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: course_audio_revisions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.course_audio_revisions_id_seq OWNED BY public.course_audio_revisions.id;
 
 
 --
@@ -5997,6 +8154,7 @@ CREATE TABLE public.course_legos (
     target2_duration_ms integer,
     target_text_roman text,
     target_lego_id text,
+    known_gloss_segments jsonb,
     CONSTRAINT course_legos_lego_index_check CHECK (((lego_index > 0) AND (lego_index < 100))),
     CONSTRAINT course_legos_seed_number_check CHECK ((seed_number > 0))
 );
@@ -6094,6 +8252,13 @@ COMMENT ON COLUMN public.course_legos.target2_duration_ms IS 'Duration of target
 
 
 --
+-- Name: COLUMN course_legos.known_gloss_segments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_legos.known_gloss_segments IS 'Literal known-language gloss chunks aligned under target words, in target order. [{span,known}], spans sum to the target word count. Presentational only. NULL = derive from components.';
+
+
+--
 -- Name: course_practice_phrases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6134,6 +8299,7 @@ CREATE TABLE public.course_practice_phrases (
     decomposition_course_version integer,
     display_tiling jsonb,
     display_tiling_version integer,
+    known_gloss_segments jsonb,
     CONSTRAINT course_practice_phrases_difficulty_check CHECK ((difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text]))),
     CONSTRAINT course_practice_phrases_lego_index_check CHECK (((lego_index > 0) AND (lego_index < 100))),
     CONSTRAINT course_practice_phrases_lego_position_check CHECK ((lego_position = ANY (ARRAY['start'::text, 'middle'::text, 'end'::text]))),
@@ -6292,6 +8458,13 @@ COMMENT ON COLUMN public.course_practice_phrases.display_tiling_version IS 'Snap
 
 
 --
+-- Name: COLUMN course_practice_phrases.known_gloss_segments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_practice_phrases.known_gloss_segments IS 'Literal known-language gloss chunks aligned under target words, in target order. [{span,known}], spans sum to the target word count. Presentational only — never text, never audio-affecting. NULL = derive from decomposition.';
+
+
+--
 -- Name: target_phrases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6402,6 +8575,503 @@ CREATE VIEW public.course_progress WITH (security_invoker='on') AS
 
 
 --
+-- Name: course_qa_clip_status; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_qa_clip_status AS
+ SELECT a.course_code,
+    a.id AS audio_id,
+    a.role AS audio_role,
+    a.audio_revision,
+    COALESCE(f.open_flags, (0)::bigint) AS open_flags,
+    COALESCE(f.stale_flags, (0)::bigint) AS stale_flags,
+    (s.id IS NOT NULL) AS human_passed,
+    s.signed_off_by,
+    s.signed_off_at,
+        CASE
+            WHEN (COALESCE(f.open_flags, (0)::bigint) > 0) THEN 'flagged'::text
+            WHEN (s.id IS NOT NULL) THEN 'passed'::text
+            ELSE 'unverified'::text
+        END AS status
+   FROM ((public.course_audio a
+     LEFT JOIN LATERAL ( SELECT count(*) FILTER (WHERE (fl.audio_revision >= a.audio_revision)) AS open_flags,
+            count(*) FILTER (WHERE (fl.audio_revision < a.audio_revision)) AS stale_flags
+           FROM public.audio_clip_flags fl
+          WHERE ((fl.audio_id = a.id) AND (fl.resolution IS NULL))) f ON (true))
+     LEFT JOIN public.audio_clip_signoffs s ON (((s.audio_id = a.id) AND (s.audio_revision = a.audio_revision))));
+
+
+--
+-- Name: lego_introductions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lego_introductions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    course_code text NOT NULL,
+    lego_id text NOT NULL,
+    audio_uuid uuid,
+    duration_ms integer,
+    version integer DEFAULT 1 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    presentation_audio_id uuid
+);
+
+
+--
+-- Name: TABLE lego_introductions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.lego_introductions IS 'Introduction audio for new LEGOs';
+
+
+--
+-- Name: course_qa_cycle_clips; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_qa_cycle_clips AS
+ WITH lego_cycles AS (
+         SELECT l.course_code,
+            l.lego_id,
+            l.seed_number,
+            l.lego_index,
+            c.cycle_type,
+            c.cycle_ordinal,
+            c.audio_id,
+            c.audio_role
+           FROM ((public.course_legos l
+             LEFT JOIN public.lego_introductions li ON (((li.course_code = l.course_code) AND (li.lego_id = l.lego_id))))
+             CROSS JOIN LATERAL ( VALUES ('intro'::text,0,COALESCE(li.presentation_audio_id,
+                        CASE
+                            WHEN (l.presentation_audio_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text) THEN (l.presentation_audio_id)::uuid
+                            ELSE NULL::uuid
+                        END),'presentation'::text), ('intro'::text,0,l.target1_audio_id,'target1'::text), ('intro'::text,0,l.target2_audio_id,'target2'::text), ('debut'::text,0,l.known_audio_id,'known'::text), ('debut'::text,0,l.target1_audio_id,'target1'::text), ('debut'::text,0,l.target2_audio_id,'target2'::text)) c(cycle_type, cycle_ordinal, audio_id, audio_role))
+        ), phrase_numbered AS (
+         SELECT p.course_code,
+            p.seed_number,
+            p.lego_index,
+            p."position",
+            p.known_audio_id,
+            p.target1_audio_id,
+            p.target2_audio_id,
+                CASE
+                    WHEN (p.phrase_role = 'use'::text) THEN 'use'::text
+                    ELSE 'build'::text
+                END AS cycle_type,
+            (row_number() OVER (PARTITION BY p.course_code, p.seed_number, p.lego_index,
+                CASE
+                    WHEN (p.phrase_role = 'use'::text) THEN 'use'::text
+                    ELSE 'build'::text
+                END ORDER BY p."position"))::integer AS cycle_ordinal
+           FROM public.course_practice_phrases p
+          WHERE (p.phrase_role = ANY (ARRAY['build'::text, 'practice'::text, 'use'::text]))
+        ), phrase_cycles AS (
+         SELECT pn.course_code,
+            l.lego_id,
+            pn.seed_number,
+            pn.lego_index,
+            pn.cycle_type,
+            pn.cycle_ordinal,
+            c.audio_id,
+            c.audio_role
+           FROM ((phrase_numbered pn
+             JOIN public.course_legos l ON (((l.course_code = pn.course_code) AND (l.seed_number = pn.seed_number) AND (l.lego_index = pn.lego_index))))
+             CROSS JOIN LATERAL ( VALUES (pn.known_audio_id,'known'::text), (pn.target1_audio_id,'target1'::text), (pn.target2_audio_id,'target2'::text)) c(audio_id, audio_role))
+        )
+ SELECT course_code,
+    lego_id,
+    seed_number,
+    lego_index,
+    (((lego_id || '_'::text) || cycle_type) ||
+        CASE
+            WHEN (cycle_type = ANY (ARRAY['build'::text, 'use'::text])) THEN ('_'::text || (cycle_ordinal)::text)
+            ELSE ''::text
+        END) AS cycle_key,
+    cycle_type,
+    cycle_ordinal,
+    audio_id,
+    audio_role
+   FROM ( SELECT lego_cycles.course_code,
+            lego_cycles.lego_id,
+            lego_cycles.seed_number,
+            lego_cycles.lego_index,
+            lego_cycles.cycle_type,
+            lego_cycles.cycle_ordinal,
+            lego_cycles.audio_id,
+            lego_cycles.audio_role
+           FROM lego_cycles
+        UNION ALL
+         SELECT phrase_cycles.course_code,
+            phrase_cycles.lego_id,
+            phrase_cycles.seed_number,
+            phrase_cycles.lego_index,
+            phrase_cycles.cycle_type,
+            phrase_cycles.cycle_ordinal,
+            phrase_cycles.audio_id,
+            phrase_cycles.audio_role
+           FROM phrase_cycles) u
+  WHERE (audio_id IS NOT NULL);
+
+
+--
+-- Name: VIEW course_qa_cycle_clips; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.course_qa_cycle_clips IS 'Every clip every cycle references, under the SAME cycle key the learner-facing API emits (api/courses/[code]/cycles.ts). Clips with no audio row are absent, which is why course_qa_cycle_status counts them separately as a hole rather than as a pass.';
+
+
+--
+-- Name: course_qa_cycle_status; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_qa_cycle_status AS
+ SELECT cc.course_code,
+    cc.lego_id,
+    cc.seed_number,
+    cc.lego_index,
+    cc.cycle_key,
+    cc.cycle_type,
+    cc.cycle_ordinal,
+    count(*) AS clip_count,
+    count(*) FILTER (WHERE (cs.status = 'passed'::text)) AS passed_clips,
+    count(*) FILTER (WHERE (cs.status = 'flagged'::text)) AS flagged_clips,
+    count(*) FILTER (WHERE (cs.status = 'unverified'::text)) AS unverified_clips,
+        CASE
+            WHEN (count(*) FILTER (WHERE (cs.status = 'flagged'::text)) > 0) THEN 'flagged'::text
+            WHEN (count(*) FILTER (WHERE (cs.status <> 'passed'::text)) = 0) THEN 'verified'::text
+            ELSE 'unverified'::text
+        END AS status
+   FROM (public.course_qa_cycle_clips cc
+     JOIN public.course_qa_clip_status cs ON ((cs.audio_id = cc.audio_id)))
+  GROUP BY cc.course_code, cc.lego_id, cc.seed_number, cc.lego_index, cc.cycle_key, cc.cycle_type, cc.cycle_ordinal;
+
+
+--
+-- Name: course_qa_gate; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.course_qa_gate (
+    course_code text NOT NULL,
+    gate_status text DEFAULT 'unpassed'::text NOT NULL,
+    required_rounds integer DEFAULT 20 NOT NULL,
+    passed_by text,
+    passed_at timestamp with time zone,
+    passed_version integer,
+    override_by text,
+    override_reason text,
+    override_at timestamp with time zone,
+    notes text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT course_qa_gate_gate_status_check CHECK ((gate_status = ANY (ARRAY['unpassed'::text, 'in_progress'::text, 'passed'::text]))),
+    CONSTRAINT course_qa_gate_override_complete CHECK ((((override_by IS NULL) AND (override_at IS NULL) AND (override_reason IS NULL)) OR ((override_by IS NOT NULL) AND (override_at IS NOT NULL) AND (override_reason IS NOT NULL) AND (length(btrim(override_reason)) > 0)))),
+    CONSTRAINT course_qa_gate_required_rounds_check CHECK ((required_rounds >= 0))
+);
+
+
+--
+-- Name: TABLE course_qa_gate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.course_qa_gate IS 'The manual approval gate. No course goes to learners without a human play-through of its first `required_rounds` rounds (Tom, 2026-08-05). Existing courses start unpassed and are retrofitted by priority as human time allows.';
+
+
+--
+-- Name: COLUMN course_qa_gate.required_rounds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_qa_gate.required_rounds IS 'X, per Tom: 100 for paid courses, 20 for free. Stored per course, seeded from pricing_tier, never hard-coded to a single number.';
+
+
+--
+-- Name: COLUMN course_qa_gate.override_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_qa_gate.override_reason IS 'An override must say why, in words, and name who. There is no silent override flag.';
+
+
+--
+-- Name: course_round_index; Type: MATERIALIZED VIEW; Schema: public; Owner: -
+--
+
+CREATE MATERIALIZED VIEW public.course_round_index AS
+ SELECT course_code,
+    (row_number() OVER (PARTITION BY course_code ORDER BY seed_number, lego_index))::integer AS round_index,
+    lego_id,
+    seed_number,
+    lego_index
+   FROM public.course_legos
+  WHERE ((is_new = true) AND (lego_id IS NOT NULL))
+  WITH NO DATA;
+
+
+--
+-- Name: MATERIALIZED VIEW course_round_index; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON MATERIALIZED VIEW public.course_round_index IS 'R -> LEGO map for instant-playback. One row per fresh-introduction LEGO per course, ordered by (seed_number, lego_index). Refresh via REFRESH MATERIALIZED VIEW CONCURRENTLY course_round_index after course_legos mutations. Cache-busting key is courses.version.';
+
+
+--
+-- Name: course_round_signoffs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.course_round_signoffs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    course_code text NOT NULL,
+    round_index integer NOT NULL,
+    lego_id text NOT NULL,
+    verdict text NOT NULL,
+    notes text,
+    signed_off_by text NOT NULL,
+    signed_off_at timestamp with time zone DEFAULT now() NOT NULL,
+    content_version integer NOT NULL,
+    audio_fingerprint text NOT NULL,
+    CONSTRAINT course_round_signoffs_verdict_check CHECK ((verdict = ANY (ARRAY['passed'::text, 'flagged'::text])))
+);
+
+
+--
+-- Name: TABLE course_round_signoffs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.course_round_signoffs IS 'A human played this round through in the REAL learning app and recorded a verdict. The unit is the round, which is the LEGO — there is no such thing as a seed position.';
+
+
+--
+-- Name: COLUMN course_round_signoffs.audio_fingerprint; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_round_signoffs.audio_fingerprint IS 'md5 over the (audio_id, audio_revision) pairs of every clip the round references, in cycle order. Accepting a repair bumps a revision, the fingerprint moves, and this sign-off goes stale arithmetically rather than by anyone remembering to invalidate it.';
+
+
+--
+-- Name: courses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.courses (
+    course_code text NOT NULL,
+    display_name text NOT NULL,
+    known_lang text NOT NULL,
+    target_lang text NOT NULL,
+    voice_config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    course_type text DEFAULT 'official'::text NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    creator_email text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    seed_count integer,
+    translation_analysis jsonb,
+    new_app_status text DEFAULT 'not_available'::text NOT NULL,
+    legacy_app_status text DEFAULT 'not_available'::text NOT NULL,
+    new_app_beta_started_at timestamp with time zone,
+    legacy_app_beta_started_at timestamp with time zone,
+    export_ready boolean DEFAULT false NOT NULL,
+    quality_rules jsonb,
+    content_version text DEFAULT '0.0.0'::text,
+    visibility text DEFAULT 'hidden'::text NOT NULL,
+    pricing_tier text DEFAULT 'premium'::text NOT NULL,
+    is_community boolean DEFAULT false NOT NULL,
+    released_at timestamp with time zone,
+    featured_order integer,
+    learner_display_name text,
+    variant_label text,
+    needs_gender_prep boolean,
+    gender_prep_check_notes text,
+    gender_prep_checked_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    content_stamp timestamp with time zone DEFAULT now() NOT NULL,
+    audio_stamp timestamp with time zone DEFAULT now() NOT NULL,
+    record_full_max_seed integer DEFAULT 0 NOT NULL,
+    voice_pool_key text,
+    dialect text DEFAULT 'standard'::text NOT NULL,
+    CONSTRAINT chk_course_code_format CHECK (((course_code ~ '^[a-z]{3}(_[a-z0-9]+)?_for_[a-z]{3}$'::text) OR (course_code = 'eng_template'::text))),
+    CONSTRAINT courses_course_type_check CHECK ((course_type = ANY (ARRAY['official'::text, 'template'::text]))),
+    CONSTRAINT courses_dialect_not_blank CHECK ((btrim(dialect) <> ''::text)),
+    CONSTRAINT courses_legacy_app_status_check CHECK ((legacy_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'released'::text]))),
+    CONSTRAINT courses_new_app_status_check CHECK ((new_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'live'::text]))),
+    CONSTRAINT courses_record_full_max_seed_nonneg CHECK ((record_full_max_seed >= 0)),
+    CONSTRAINT courses_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'beta'::text, 'released'::text]))),
+    CONSTRAINT courses_voice_pool_key_shape CHECK (((voice_pool_key IS NULL) OR (voice_pool_key ~ '^[a-z]{2,3}(_[a-z0-9]{2,4})?$'::text))),
+    CONSTRAINT valid_pricing_tier CHECK ((pricing_tier = ANY (ARRAY['free'::text, 'premium'::text, 'community'::text])))
+);
+
+
+--
+-- Name: TABLE courses; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.courses IS 'Course metadata and voice configuration';
+
+
+--
+-- Name: COLUMN courses.new_app_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.new_app_status IS 'Deployment status for new community app: not_available → draft → beta → live';
+
+
+--
+-- Name: COLUMN courses.legacy_app_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.legacy_app_status IS 'Deployment status for legacy app: not_available → submitted → testing → live (locked until new_app_status is beta or live)';
+
+
+--
+-- Name: COLUMN courses.new_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.new_app_beta_started_at IS 'Timestamp when new_app_status was set to beta (auto-set, auto-cleared)';
+
+
+--
+-- Name: COLUMN courses.legacy_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.legacy_app_beta_started_at IS 'Timestamp when legacy_app_status was set to beta (auto-set, auto-cleared)';
+
+
+--
+-- Name: COLUMN courses.export_ready; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.export_ready IS 'Set by Phase 9 when course passes
+  all export validations (audio complete, shared audio exists, etc.)';
+
+
+--
+-- Name: COLUMN courses.visibility; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.visibility IS 'Course visibility: public (all users), hidden (admin only), beta (visible with beta badge)';
+
+
+--
+-- Name: COLUMN courses.pricing_tier; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.pricing_tier IS 'Pricing tier: free (always free), premium (paid after Yellow Belt), community (always free, community-created)';
+
+
+--
+-- Name: COLUMN courses.is_community; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.is_community IS 'Whether this is a community-created course (always free)';
+
+
+--
+-- Name: COLUMN courses.released_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.released_at IS 'Timestamp when course was made public';
+
+
+--
+-- Name: COLUMN courses.featured_order; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.featured_order IS 'Display order in course selector (lower = first)';
+
+
+--
+-- Name: COLUMN courses.variant_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.variant_label IS 'Short regional variant name (e.g. Northern, Southern, Brazilian). NULL if no variants exist for this language.';
+
+
+--
+-- Name: COLUMN courses.needs_gender_prep; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.needs_gender_prep IS 'Per-course override for gender-prep eligibility. NULL = use hardcoded GENDERED_LANGUAGES fallback. TRUE = course needs gender-prep regardless of language. FALSE = skip even if language is in fallback list.';
+
+
+--
+-- Name: COLUMN courses.gender_prep_check_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.gender_prep_check_notes IS 'Haiku''s reasoning when needs_gender_prep was set automatically (yes/no examples).';
+
+
+--
+-- Name: COLUMN courses.gender_prep_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.gender_prep_checked_at IS 'When the Haiku detector last ran for this course.';
+
+
+--
+-- Name: COLUMN courses.record_full_max_seed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.record_full_max_seed IS 'Record-everything seed cutoff: seeds 1..N are recorded as whole utterances (no LEGO splicing); seeds beyond N use the fast-and-slow covering-subset flow. 0 = off (default).';
+
+
+--
+-- Name: COLUMN courses.voice_pool_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.voice_pool_key IS 'Explicit app_config.pod_voice_pools key for this course''s TARGET voices. NULL = resolve from the course code''s region, then target_lang. Set only where the pool key genuinely exists; the casting path throws on a key with no pool rather than falling back. See tools/pod-sync.cjs poolKeysForCourse().';
+
+
+--
+-- Name: COLUMN courses.dialect; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.dialect IS 'Which dialect of target_lang this course teaches, as a fact of its content (Tom 2026-08-19). Lowercase tag; ''standard'' means the language has one dialect. Matched against language_recording_policy.voices[].dialect to route the human recording queue. NEVER inferred from the course code or from who is cast.';
+
+
+--
+-- Name: course_qa_estate; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_qa_estate AS
+ SELECT c.course_code,
+    c.display_name,
+    c.pricing_tier,
+    c.new_app_status,
+    (c.new_app_status = ANY (ARRAY['live'::text, 'beta'::text])) AS learner_visible,
+    c.version AS content_version,
+    g.gate_status,
+    g.required_rounds,
+    g.passed_by,
+    g.passed_at,
+    g.override_by,
+    g.override_reason,
+    COALESCE(r.total_rounds, (0)::bigint) AS total_rounds,
+    COALESCE(r.signed_off_rounds, (0)::bigint) AS signed_off_rounds,
+    COALESCE(r.flagged_rounds, (0)::bigint) AS flagged_rounds,
+    COALESCE(r.stale_rounds, (0)::bigint) AS stale_rounds,
+    LEAST(COALESCE(r.total_rounds, (0)::bigint), (g.required_rounds)::bigint) AS gate_window_rounds,
+    COALESCE(fl.open_flag_clips, (0)::bigint) AS open_flag_clips
+   FROM ((((public.courses c
+     LEFT JOIN public.course_qa_gate g ON ((g.course_code = c.course_code)))
+     LEFT JOIN LATERAL ( SELECT max(cr.created_at) AS last_repair_at
+           FROM public.course_audio_revisions cr
+          WHERE (cr.course_code = c.course_code)) rep ON (true))
+     LEFT JOIN LATERAL ( SELECT ( SELECT count(*) AS count
+                   FROM public.course_round_index ri
+                  WHERE (ri.course_code = c.course_code)) AS total_rounds,
+            count(*) FILTER (WHERE ((so.verdict = 'passed'::text) AND (so.content_version = c.version) AND ((rep.last_repair_at IS NULL) OR (so.signed_off_at >= rep.last_repair_at)))) AS signed_off_rounds,
+            count(*) FILTER (WHERE (so.verdict = 'flagged'::text)) AS flagged_rounds,
+            count(*) FILTER (WHERE ((so.verdict = 'passed'::text) AND ((so.content_version <> c.version) OR ((rep.last_repair_at IS NOT NULL) AND (so.signed_off_at < rep.last_repair_at))))) AS stale_rounds
+           FROM public.course_round_signoffs so
+          WHERE ((so.course_code = c.course_code) AND (so.round_index <= g.required_rounds))) r ON (true))
+     LEFT JOIN LATERAL ( SELECT count(DISTINCT f.audio_id) AS open_flag_clips
+           FROM (public.audio_clip_flags f
+             JOIN public.course_audio a ON ((a.id = f.audio_id)))
+          WHERE ((f.course_code = c.course_code) AND (f.resolution IS NULL) AND (f.audio_revision >= a.audio_revision))) fl ON (true));
+
+
+--
+-- Name: VIEW course_qa_estate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.course_qa_estate IS 'The whole estate at a glance: which courses reach learners, what X is for each, and how far sign-off has got. Every course starts unpassed — nothing was grandfathered in (Tom, 2026-08-05).';
+
+
+--
 -- Name: course_qa_flags; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6462,25 +9132,91 @@ COMMENT ON COLUMN public.course_qa_flags.details IS 'JSON with additional contex
 
 
 --
--- Name: course_round_index; Type: MATERIALIZED VIEW; Schema: public; Owner: -
+-- Name: course_round_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE MATERIALIZED VIEW public.course_round_index AS
- SELECT course_code,
-    (row_number() OVER (PARTITION BY course_code ORDER BY seed_number, lego_index))::integer AS round_index,
-    lego_id,
-    seed_number,
-    lego_index
-   FROM public.course_legos
-  WHERE ((is_new = true) AND (lego_id IS NOT NULL))
-  WITH NO DATA;
+CREATE TABLE public.course_round_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    course_code text NOT NULL,
+    rounds int4range NOT NULL,
+    assignee text NOT NULL,
+    assigned_by text NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
+    released_at timestamp with time zone,
+    released_reason text,
+    CONSTRAINT course_round_assignments_nonempty CHECK ((NOT isempty(rounds)))
+);
 
 
 --
--- Name: MATERIALIZED VIEW course_round_index; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE course_round_assignments; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON MATERIALIZED VIEW public.course_round_index IS 'R -> LEGO map for instant-playback. One row per fresh-introduction LEGO per course, ordered by (seed_number, lego_index). Refresh via REFRESH MATERIALIZED VIEW CONCURRENTLY course_round_index after course_legos mutations. Cache-busting key is courses.version.';
+COMMENT ON TABLE public.course_round_assignments IS 'Claim-a-range, so play-through work divides between team members. The partial exclusion constraint makes double-assignment impossible rather than merely discouraged.';
+
+
+--
+-- Name: course_qa_round_status; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_qa_round_status AS
+ SELECT ri.course_code,
+    ri.round_index,
+    ri.lego_id,
+    ri.seed_number,
+    COALESCE(r.cycle_count, (0)::bigint) AS cycle_count,
+    COALESCE(r.verified_cycles, (0)::bigint) AS verified_cycles,
+    COALESCE(r.flagged_cycles, (0)::bigint) AS flagged_cycles,
+    COALESCE(r.clip_count, (0)::bigint) AS clip_count,
+    COALESCE(r.flagged_clips, (0)::bigint) AS flagged_clips,
+    r.fingerprint AS audio_fingerprint,
+    so.verdict AS signoff_verdict,
+    so.signed_off_by,
+    so.signed_off_at,
+    so.notes AS signoff_notes,
+    ((so.id IS NOT NULL) AND (so.audio_fingerprint = r.fingerprint) AND (so.content_version = c.version)) AS signoff_current,
+        CASE
+            WHEN (so.id IS NULL) THEN 'not_signed_off'::text
+            WHEN ((so.audio_fingerprint IS DISTINCT FROM r.fingerprint) OR (so.content_version IS DISTINCT FROM c.version)) THEN 'stale'::text
+            WHEN (so.verdict = 'flagged'::text) THEN 'flagged'::text
+            ELSE 'passed'::text
+        END AS status,
+    asg.assignee
+   FROM ((((public.course_round_index ri
+     JOIN public.courses c ON ((c.course_code = ri.course_code)))
+     LEFT JOIN ( SELECT pc.course_code,
+            pc.lego_id,
+            (sum(pc.clip_count))::bigint AS clip_count,
+            (sum(pc.flagged_clips))::bigint AS flagged_clips,
+            count(*) AS cycle_count,
+            count(*) FILTER (WHERE (pc.cyc_status = 'verified'::text)) AS verified_cycles,
+            count(*) FILTER (WHERE (pc.cyc_status = 'flagged'::text)) AS flagged_cycles,
+            md5(string_agg(pc.fp_part, ','::text ORDER BY pc.cycle_type, pc.cycle_ordinal)) AS fingerprint
+           FROM ( SELECT cc.course_code,
+                    cc.lego_id,
+                    cc.cycle_type,
+                    cc.cycle_ordinal,
+                    count(*) AS clip_count,
+                    count(*) FILTER (WHERE (cs.status = 'flagged'::text)) AS flagged_clips,
+                        CASE
+                            WHEN (count(*) FILTER (WHERE (cs.status = 'flagged'::text)) > 0) THEN 'flagged'::text
+                            WHEN (count(*) FILTER (WHERE (cs.status <> 'passed'::text)) = 0) THEN 'verified'::text
+                            ELSE 'unverified'::text
+                        END AS cyc_status,
+                    string_agg((((cc.audio_id)::text || ':'::text) || (cs.audio_revision)::text), ','::text ORDER BY cc.audio_role, cc.audio_id) AS fp_part
+                   FROM (public.course_qa_cycle_clips cc
+                     JOIN public.course_qa_clip_status cs ON (((cs.audio_id = cc.audio_id) AND (cs.course_code = cc.course_code))))
+                  GROUP BY cc.course_code, cc.lego_id, cc.cycle_key, cc.cycle_type, cc.cycle_ordinal) pc
+          GROUP BY pc.course_code, pc.lego_id) r ON (((r.course_code = ri.course_code) AND (r.lego_id = ri.lego_id))))
+     LEFT JOIN public.course_round_signoffs so ON (((so.course_code = ri.course_code) AND (so.round_index = ri.round_index))))
+     LEFT JOIN public.course_round_assignments asg ON (((asg.course_code = ri.course_code) AND (asg.released_at IS NULL) AND (asg.rounds @> ri.round_index))));
+
+
+--
+-- Name: VIEW course_qa_round_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.course_qa_round_status IS 'One row per round (= per LEGO) with the derived cycle rollup, the human play-through verdict, and whether that verdict is still current against the live bytes and content version. The rollup is aggregated once per lego and joined, NOT re-derived per round in a LATERAL, and the clip-status join carries course_code so the planner range-scans this course''s slice of course_audio instead of probing it once per clip — see ops/sql/20260813-qa-gate-round-status-delateralise.sql and ops/sql/20260814-qa-gate-round-status-push-course-code.sql for why either shape alone could not fit the 8s PostgREST statement timeout.';
 
 
 --
@@ -6599,157 +9335,6 @@ CREATE VIEW public.course_voice_breakdown WITH (security_invoker='on') AS
 --
 
 COMMENT ON VIEW public.course_voice_breakdown IS 'Voice usage breakdown per course/role';
-
-
---
--- Name: courses; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.courses (
-    course_code text NOT NULL,
-    display_name text NOT NULL,
-    known_lang text NOT NULL,
-    target_lang text NOT NULL,
-    voice_config jsonb DEFAULT '{}'::jsonb NOT NULL,
-    course_type text DEFAULT 'official'::text NOT NULL,
-    status text DEFAULT 'draft'::text NOT NULL,
-    creator_email text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    seed_count integer,
-    translation_analysis jsonb,
-    new_app_status text DEFAULT 'not_available'::text NOT NULL,
-    legacy_app_status text DEFAULT 'not_available'::text NOT NULL,
-    new_app_beta_started_at timestamp with time zone,
-    legacy_app_beta_started_at timestamp with time zone,
-    export_ready boolean DEFAULT false NOT NULL,
-    quality_rules jsonb,
-    content_version text DEFAULT '0.0.0'::text,
-    visibility text DEFAULT 'hidden'::text NOT NULL,
-    pricing_tier text DEFAULT 'premium'::text NOT NULL,
-    is_community boolean DEFAULT false NOT NULL,
-    released_at timestamp with time zone,
-    featured_order integer,
-    learner_display_name text,
-    variant_label text,
-    needs_gender_prep boolean,
-    gender_prep_check_notes text,
-    gender_prep_checked_at timestamp with time zone,
-    version integer DEFAULT 1 NOT NULL,
-    content_stamp timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_course_code_format CHECK (((course_code ~ '^[a-z]{3}(_[a-z0-9]+)?_for_[a-z]{3}$'::text) OR (course_code = 'eng_template'::text))),
-    CONSTRAINT courses_course_type_check CHECK ((course_type = ANY (ARRAY['official'::text, 'template'::text]))),
-    CONSTRAINT courses_legacy_app_status_check CHECK ((legacy_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'released'::text]))),
-    CONSTRAINT courses_new_app_status_check CHECK ((new_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'live'::text]))),
-    CONSTRAINT courses_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'beta'::text, 'released'::text]))),
-    CONSTRAINT valid_pricing_tier CHECK ((pricing_tier = ANY (ARRAY['free'::text, 'premium'::text, 'community'::text])))
-);
-
-
---
--- Name: TABLE courses; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.courses IS 'Course metadata and voice configuration';
-
-
---
--- Name: COLUMN courses.new_app_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.new_app_status IS 'Deployment status for new community app: not_available → draft → beta → live';
-
-
---
--- Name: COLUMN courses.legacy_app_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.legacy_app_status IS 'Deployment status for legacy app: not_available → submitted → testing → live (locked until new_app_status is beta or live)';
-
-
---
--- Name: COLUMN courses.new_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.new_app_beta_started_at IS 'Timestamp when new_app_status was set to beta (auto-set, auto-cleared)';
-
-
---
--- Name: COLUMN courses.legacy_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.legacy_app_beta_started_at IS 'Timestamp when legacy_app_status was set to beta (auto-set, auto-cleared)';
-
-
---
--- Name: COLUMN courses.export_ready; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.export_ready IS 'Set by Phase 9 when course passes
-  all export validations (audio complete, shared audio exists, etc.)';
-
-
---
--- Name: COLUMN courses.visibility; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.visibility IS 'Course visibility: public (all users), hidden (admin only), beta (visible with beta badge)';
-
-
---
--- Name: COLUMN courses.pricing_tier; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.pricing_tier IS 'Pricing tier: free (always free), premium (paid after Yellow Belt), community (always free, community-created)';
-
-
---
--- Name: COLUMN courses.is_community; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.is_community IS 'Whether this is a community-created course (always free)';
-
-
---
--- Name: COLUMN courses.released_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.released_at IS 'Timestamp when course was made public';
-
-
---
--- Name: COLUMN courses.featured_order; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.featured_order IS 'Display order in course selector (lower = first)';
-
-
---
--- Name: COLUMN courses.variant_label; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.variant_label IS 'Short regional variant name (e.g. Northern, Southern, Brazilian). NULL if no variants exist for this language.';
-
-
---
--- Name: COLUMN courses.needs_gender_prep; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.needs_gender_prep IS 'Per-course override for gender-prep eligibility. NULL = use hardcoded GENDERED_LANGUAGES fallback. TRUE = course needs gender-prep regardless of language. FALSE = skip even if language is in fallback list.';
-
-
---
--- Name: COLUMN courses.gender_prep_check_notes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.gender_prep_check_notes IS 'Haiku''s reasoning when needs_gender_prep was set automatically (yes/no examples).';
-
-
---
--- Name: COLUMN courses.gender_prep_checked_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.gender_prep_checked_at IS 'When the Haiku detector last ran for this course.';
 
 
 --
@@ -7252,7 +9837,7 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
    FROM ((((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
-          WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))) tc ON (true))
+          WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = ANY (ARRAY['teacher'::text, 'admin'::text])) AND (ut.removed_at IS NULL))) tc ON (true))
      LEFT JOIN LATERAL ( SELECT count(*) AS class_count
            FROM public.classes c
           WHERE ((c.school_id = s.id) AND (c.is_active = true))) cc ON (true))
@@ -7291,9 +9876,45 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     g.name_confirmed,
     COALESCE(sum(ss.staff_practice_hours), (0)::numeric) AS staff_practice_hours
    FROM ((public.groups g
-     LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids)) AND (s.is_test = false)))
+     LEFT JOIN public.schools s ON (((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids)) AND (s.is_test = false))))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
   GROUP BY g.id, g.name, g.path, g.name_confirmed;
+
+
+--
+-- Name: htw_copy_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.htw_copy_versions (
+    id bigint NOT NULL,
+    doc_id text DEFAULT 'htw'::text NOT NULL,
+    kind text NOT NULL,
+    content text NOT NULL,
+    saved_by text,
+    saved_at timestamp with time zone DEFAULT now() NOT NULL,
+    published_at timestamp with time zone,
+    published_by text,
+    CONSTRAINT htw_copy_versions_kind_check CHECK ((kind = ANY (ARRAY['original'::text, 'save'::text])))
+);
+
+
+--
+-- Name: htw_copy_versions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.htw_copy_versions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: htw_copy_versions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.htw_copy_versions_id_seq OWNED BY public.htw_copy_versions.id;
 
 
 --
@@ -7421,6 +10042,24 @@ COMMENT ON COLUMN public.language_briefs.is_active IS 'Whether this version is c
 
 
 --
+-- Name: language_canonical; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.language_canonical (
+    raw text NOT NULL,
+    canonical text NOT NULL,
+    CONSTRAINT language_canonical_canonical_check CHECK ((canonical ~ '^[a-z]{3}$'::text))
+);
+
+
+--
+-- Name: TABLE language_canonical; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.language_canonical IS 'Generated by tools/generate-language-canonical-sql.cjs from tools/sync/reference/language_codes.csv. Do not hand-edit; regenerate.';
+
+
+--
 -- Name: language_pair_briefs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7442,6 +10081,27 @@ CREATE TABLE public.language_pair_briefs (
 --
 
 COMMENT ON TABLE public.language_pair_briefs IS 'Stores language pair intelligence briefs for Phase 0';
+
+
+--
+-- Name: language_recording_policy; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.language_recording_policy (
+    language text NOT NULL,
+    human_only boolean DEFAULT false NOT NULL,
+    voices jsonb DEFAULT '{}'::jsonb NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE language_recording_policy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.language_recording_policy IS 'The ONE place the per-language human-voice-only decision lives (Tom 2026-08-14). Read by the recordist surface and by the audio pipeline; never inferred.';
 
 
 --
@@ -7805,7 +10465,8 @@ CREATE TABLE public.learner_speaking_opportunities (
     day date DEFAULT ((now() AT TIME ZONE 'UTC'::text))::date NOT NULL,
     opportunities bigint DEFAULT 0 NOT NULL,
     play_seconds bigint DEFAULT 0 NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    phrases_spoken bigint DEFAULT 0 NOT NULL
 );
 
 
@@ -7814,6 +10475,13 @@ CREATE TABLE public.learner_speaking_opportunities (
 --
 
 COMMENT ON TABLE public.learner_speaking_opportunities IS 'Per-learner per-course per-UTC-day count of speaking opportunities (cycles) and accumulated player play_seconds. Replaces sessions.items_practiced/duration_seconds for user-side contribution stats.';
+
+
+--
+-- Name: COLUMN learner_speaking_opportunities.phrases_spoken; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_speaking_opportunities.phrases_spoken IS 'Cycles in which the VAD actually detected the learner speaking. Only ever non-zero when mic/adaptation consent is on; a row of 0 means "we were not listening", not "they said nothing". Summed lifetime across all courses by /api/me/phrases-spoken.';
 
 
 --
@@ -7891,29 +10559,6 @@ CREATE VIEW public.learner_subscription_status WITH (security_invoker='on') AS
 
 
 --
--- Name: lego_introductions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.lego_introductions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    course_code text NOT NULL,
-    lego_id text NOT NULL,
-    audio_uuid uuid,
-    duration_ms integer,
-    version integer DEFAULT 1 NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    presentation_audio_id uuid
-);
-
-
---
--- Name: TABLE lego_introductions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.lego_introductions IS 'Introduction audio for new LEGOs';
-
-
---
 -- Name: listening_pod_sentences; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7941,7 +10586,12 @@ CREATE TABLE public.listening_pod_sentences (
     sentence_known_audio_ids uuid[],
     atom_map_fine jsonb,
     window_known_map jsonb,
-    takeg_audio_ids uuid[]
+    takeg_audio_ids uuid[],
+    target_text_draft boolean DEFAULT false NOT NULL,
+    rerecord_wanted jsonb,
+    target_text_approved_at timestamp with time zone,
+    target_text_approved_by text,
+    target_text_review jsonb
 );
 
 
@@ -8020,6 +10670,41 @@ COMMENT ON COLUMN public.listening_pod_sentences.window_known_map IS 'DRAFT auth
 --
 
 COMMENT ON COLUMN public.listening_pod_sentences.takeg_audio_ids IS 'Take G gapped per-sentence renders, aligned to the ladder''s GLUED sentence groups (leading interjections glued forward); null element = single-unit group (its unit is the real sentence take). Unit ms spans in atom_map_fine index into these clips.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.target_text_draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.target_text_draft IS 'true = target_text is a machine-written draft awaiting a human proofread. The recording plan carries it through and the record room badges the line DRAFT — AWAITING PROOFREAD. Cleared when a human edits target_text.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.rerecord_wanted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.rerecord_wanted IS 'Per-track re-record request: {"target":"<voiceId>","known":"<voiceId>"}, either key optional. That track is wanted freshly recorded by that voice — it appears in that voice''s recording plan and reads as outstanding while its existing audio stays linked. Cleared per-key on human take registration.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.target_text_approved_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.target_text_approved_at IS 'Non-NULL = this drafted target_text is approved to generate audio (Tom''s A-109 ruling, 2026-08-16). Only consulted when target_text_draft is true; a non-draft line is renderable on its own. Cleared when target_text is edited.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.target_text_approved_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.target_text_approved_by IS 'Who or what approved: a verifier model id ("verifier:claude-opus-5") or a human name. The audit trail for "the verifier must not be the translator".';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.target_text_review; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.target_text_review IS 'The verifier''s verdict in its own words: { verdict, reason, model, checked_at, known_text_at_check, target_text_at_check }. Written for flagged lines too — a flagged line carries its reason and stays unapproved.';
 
 
 --
@@ -8119,7 +10804,7 @@ CREATE TABLE public.onboarding_messages (
 -- Name: TABLE onboarding_messages; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.onboarding_messages IS 'Live-editable source for the onboarding message series. Service-role-only (RLS on, no policies) — every access goes through api/admin/onboarding-messages.ts (admin-gated). The send system (cron, not yet built) reads this table directly; this IS the copy, not a mirror of it.';
+COMMENT ON TABLE public.onboarding_messages IS 'Live-editable source for the onboarding message series. Service-role-only (RLS on, no policies). The /admin/onboarding editor and api/admin/onboarding-messages.ts were retired 2026-08-19 — the copy is now edited at popty.app/copy/onboarding (doc_id ''onboarding'' in htw_copy_versions) and mapped back here by a worker. The send system (cron, not yet built) reads this table directly; this IS the copy, not a mirror of it.';
 
 
 --
@@ -8476,23 +11161,23 @@ CREATE VIEW public.region_summary WITH (security_invoker='on') AS
     primary_language,
     ( SELECT count(*) AS count
            FROM public.schools s
-          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS school_count,
+          WHERE ((s.region_code = r.code) AND (s.is_test = false))) AS school_count,
     ( SELECT count(DISTINCT ut.user_id) AS count
            FROM (public.schools s
              JOIN public.user_tags ut ON (((ut.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (ut.tag_type = 'school'::text) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))))
-          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS teacher_count,
+          WHERE ((s.region_code = r.code) AND (s.is_test = false))) AS teacher_count,
     ( SELECT count(DISTINCT ut2.user_id) AS count
            FROM ((public.schools s
              JOIN public.classes c ON ((c.school_id = s.id)))
              JOIN public.user_tags ut2 ON (((ut2.tag_value = ('CLASS:'::text || (c.id)::text)) AND (ut2.tag_type = 'class'::text) AND (ut2.role_in_context = 'student'::text) AND (ut2.removed_at IS NULL))))
-          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS student_count,
+          WHERE ((s.region_code = r.code) AND (s.is_test = false))) AS student_count,
     ( SELECT COALESCE(((sum(sess.duration_seconds))::numeric / 3600.0), (0)::numeric) AS "coalesce"
            FROM ((((public.schools s
              JOIN public.classes c ON ((c.school_id = s.id)))
              JOIN public.user_tags ut ON (((ut.tag_value = ('CLASS:'::text || (c.id)::text)) AND (ut.tag_type = 'class'::text) AND (ut.role_in_context = 'student'::text) AND (ut.removed_at IS NULL))))
              JOIN public.learners l ON ((l.user_id = ut.user_id)))
              JOIN public.sessions sess ON (((sess.learner_id = l.id) AND (sess.course_id = c.course_code))))
-          WHERE (s.region_code = r.code) AND (s.is_test = false)) AS total_practice_hours
+          WHERE ((s.region_code = r.code) AND (s.is_test = false))) AS total_practice_hours
    FROM public.regions r;
 
 
@@ -8518,6 +11203,51 @@ CREATE TABLE public.release_notes (
     created_by uuid,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: relink_refusals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.relink_refusals (
+    id bigint NOT NULL,
+    course_code text NOT NULL,
+    content_table text NOT NULL,
+    slot_id text,
+    role text NOT NULL,
+    reason text NOT NULL,
+    wanted_voice text,
+    candidate_voice text,
+    candidate_audio_id uuid,
+    refused_by text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE relink_refusals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.relink_refusals IS 'Slots a relink path declined to fill because no clip in the configured voice existed (Kai''s ruling 2026-08-19). The slot was LEFT AS IT WAS and needs regeneration in the configured voice. Never a delete, never a bare unlink.';
+
+
+--
+-- Name: relink_refusals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.relink_refusals_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: relink_refusals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.relink_refusals_id_seq OWNED BY public.relink_refusals.id;
 
 
 --
@@ -8634,6 +11364,35 @@ CREATE VIEW public.seed_cycles WITH (security_invoker='on') AS
 --
 
 COMMENT ON VIEW public.seed_cycles IS 'v13: Seed items with audio from course_audio. Fixed to use courses.course_code.';
+
+
+--
+-- Name: seed_redo_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.seed_redo_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    batch_id uuid NOT NULL,
+    course_code text NOT NULL,
+    seed_number integer NOT NULL,
+    reason text DEFAULT 'redo'::text NOT NULL,
+    notes text,
+    seed_row jsonb DEFAULT '{}'::jsonb NOT NULL,
+    legos jsonb DEFAULT '[]'::jsonb NOT NULL,
+    phrases jsonb DEFAULT '[]'::jsonb NOT NULL,
+    lego_count integer DEFAULT 0 NOT NULL,
+    phrase_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    restored_at timestamp with time zone,
+    restored_by text
+);
+
+
+--
+-- Name: TABLE seed_redo_snapshots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.seed_redo_snapshots IS 'Before-images of a seed''s decomposition, written before /api/build/redo (and /build/rebuild) delete it. Restored by POST /api/build/redo-undo/:courseCode.';
 
 
 --
@@ -9064,8 +11823,27 @@ CREATE TABLE public.voices (
     provider_id text,
     typical_roles text[],
     model text,
-    notes text
+    notes text,
+    gender text,
+    age text,
+    metadata_source text,
+    metadata_checked_at timestamp with time zone,
+    CONSTRAINT voices_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text])))
 );
+
+
+--
+-- Name: COLUMN voices.gender; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.gender IS 'f|m as the PROVIDER states it — never inferred from the display name; NULL means genuinely unknown, not "probably".';
+
+
+--
+-- Name: COLUMN voices.metadata_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.metadata_source IS 'Provenance of gender/age/locale, e.g. "xai:GET /v1/tts/voices/{id}".';
 
 
 --
@@ -9104,10 +11882,31 @@ CREATE VIEW public.weekly_leaderboard WITH (security_invoker='on') AS
 
 
 --
+-- Name: audio_clip_promotions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_promotions ALTER COLUMN id SET DEFAULT nextval('public.audio_clip_promotions_id_seq'::regclass);
+
+
+--
+-- Name: audio_convergence_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_convergence_log ALTER COLUMN id SET DEFAULT nextval('public.audio_convergence_log_id_seq'::regclass);
+
+
+--
 -- Name: audio_flags id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.audio_flags ALTER COLUMN id SET DEFAULT nextval('public.audio_flags_id_seq'::regclass);
+
+
+--
+-- Name: content_audio_link_drops id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_audio_link_drops ALTER COLUMN id SET DEFAULT nextval('public.content_audio_link_drops_id_seq'::regclass);
 
 
 --
@@ -9118,6 +11917,20 @@ ALTER TABLE ONLY public.content_audit_log ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: course_audio_revisions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_revisions ALTER COLUMN id SET DEFAULT nextval('public.course_audio_revisions_id_seq'::regclass);
+
+
+--
+-- Name: htw_copy_versions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.htw_copy_versions ALTER COLUMN id SET DEFAULT nextval('public.htw_copy_versions_id_seq'::regclass);
+
+
+--
 -- Name: player_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -9125,10 +11938,25 @@ ALTER TABLE ONLY public.player_events ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: relink_refusals id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.relink_refusals ALTER COLUMN id SET DEFAULT nextval('public.relink_refusals_id_seq'::regclass);
+
+
+--
 -- Name: sample_flags id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sample_flags ALTER COLUMN id SET DEFAULT nextval('public.sample_flags_id_seq'::regclass);
+
+
+--
+-- Name: _canon_alive _canon_alive_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public._canon_alive
+    ADD CONSTRAINT _canon_alive_pkey PRIMARY KEY (s3_key);
 
 
 --
@@ -9145,6 +11973,22 @@ ALTER TABLE ONLY public.admin_impersonation_audit
 
 ALTER TABLE ONLY public.algorithm_config
     ADD CONSTRAINT algorithm_config_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: algorithm_config_pointers algorithm_config_pointers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.algorithm_config_pointers
+    ADD CONSTRAINT algorithm_config_pointers_pkey PRIMARY KEY (key, channel);
+
+
+--
+-- Name: algorithm_config_versions algorithm_config_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.algorithm_config_versions
+    ADD CONSTRAINT algorithm_config_versions_pkey PRIMARY KEY (config_hash);
 
 
 --
@@ -9172,6 +12016,77 @@ ALTER TABLE ONLY public.app_config
 
 
 --
+-- Name: audio_clip_flags audio_clip_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_flags
+    ADD CONSTRAINT audio_clip_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audio_clip_promotions audio_clip_promotions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_promotions
+    ADD CONSTRAINT audio_clip_promotions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audio_clip_signoffs audio_clip_signoffs_audio_id_audio_revision_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_signoffs
+    ADD CONSTRAINT audio_clip_signoffs_audio_id_audio_revision_key UNIQUE (audio_id, audio_revision);
+
+
+--
+-- Name: audio_clip_signoffs audio_clip_signoffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_signoffs
+    ADD CONSTRAINT audio_clip_signoffs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audio_clips audio_clips_identity; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clips
+    ADD CONSTRAINT audio_clips_identity UNIQUE (text_key, language, role, voice_id);
+
+
+--
+-- Name: audio_clips audio_clips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clips
+    ADD CONSTRAINT audio_clips_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audio_clips audio_clips_serving_prefix; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audio_clips
+    ADD CONSTRAINT audio_clips_serving_prefix CHECK ((s3_key ~~ 'mastered/%'::text)) NOT VALID;
+
+
+--
+-- Name: CONSTRAINT audio_clips_serving_prefix ON audio_clips; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT audio_clips_serving_prefix ON public.audio_clips IS 'Canon must be a learner-serving object. Bars pending/ placeholders and repair-candidates/ proposals — an unaccepted proposal is never canon (Tom, 2026-08-14). Allow-list, not deny-list: a new prefix must be admitted deliberately.';
+
+
+--
+-- Name: audio_convergence_log audio_convergence_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_convergence_log
+    ADD CONSTRAINT audio_convergence_log_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: audio_flags audio_flags_audio_uuid_course_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9193,6 +12108,14 @@ ALTER TABLE ONLY public.audio_flags
 
 ALTER TABLE ONLY public.audio_pass_requests
     ADD CONSTRAINT audio_pass_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audio_repair_candidates audio_repair_candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_repair_candidates
+    ADD CONSTRAINT audio_repair_candidates_pkey PRIMARY KEY (id);
 
 
 --
@@ -9340,6 +12263,14 @@ ALTER TABLE ONLY public.classes
 
 
 --
+-- Name: content_audio_link_drops content_audio_link_drops_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_audio_link_drops
+    ADD CONSTRAINT content_audio_link_drops_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: content_audit_log content_audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9377,6 +12308,22 @@ ALTER TABLE ONLY public.course_audio_envelope
 
 ALTER TABLE ONLY public.course_audio
     ADD CONSTRAINT course_audio_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: course_audio_revisions course_audio_revisions_audio_id_revision_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_revisions
+    ADD CONSTRAINT course_audio_revisions_audio_id_revision_key UNIQUE (audio_id, revision);
+
+
+--
+-- Name: course_audio_revisions course_audio_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_revisions
+    ADD CONSTRAINT course_audio_revisions_pkey PRIMARY KEY (id);
 
 
 --
@@ -9521,6 +12468,46 @@ ALTER TABLE ONLY public.course_practice_phrases
 
 ALTER TABLE ONLY public.course_qa_flags
     ADD CONSTRAINT course_qa_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: course_qa_gate course_qa_gate_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_qa_gate
+    ADD CONSTRAINT course_qa_gate_pkey PRIMARY KEY (course_code);
+
+
+--
+-- Name: course_round_assignments course_round_assignments_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_assignments
+    ADD CONSTRAINT course_round_assignments_no_overlap EXCLUDE USING gist (course_code WITH =, rounds WITH &&) WHERE ((released_at IS NULL));
+
+
+--
+-- Name: course_round_assignments course_round_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_assignments
+    ADD CONSTRAINT course_round_assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: course_round_signoffs course_round_signoffs_course_code_round_index_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_signoffs
+    ADD CONSTRAINT course_round_signoffs_course_code_round_index_key UNIQUE (course_code, round_index);
+
+
+--
+-- Name: course_round_signoffs course_round_signoffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_signoffs
+    ADD CONSTRAINT course_round_signoffs_pkey PRIMARY KEY (id);
 
 
 --
@@ -9748,6 +12735,14 @@ ALTER TABLE ONLY public.groups
 
 
 --
+-- Name: htw_copy_versions htw_copy_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.htw_copy_versions
+    ADD CONSTRAINT htw_copy_versions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: insight_discoveries insight_discoveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9788,6 +12783,14 @@ ALTER TABLE ONLY public.language_briefs
 
 
 --
+-- Name: language_canonical language_canonical_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.language_canonical
+    ADD CONSTRAINT language_canonical_pkey PRIMARY KEY (raw);
+
+
+--
 -- Name: language_pair_briefs language_pair_briefs_known_code_target_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9801,6 +12804,14 @@ ALTER TABLE ONLY public.language_pair_briefs
 
 ALTER TABLE ONLY public.language_pair_briefs
     ADD CONSTRAINT language_pair_briefs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: language_recording_policy language_recording_policy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.language_recording_policy
+    ADD CONSTRAINT language_recording_policy_pkey PRIMARY KEY (language);
 
 
 --
@@ -10148,6 +13159,14 @@ ALTER TABLE ONLY public.release_notes
 
 
 --
+-- Name: relink_refusals relink_refusals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.relink_refusals
+    ADD CONSTRAINT relink_refusals_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: response_metrics response_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10217,6 +13236,14 @@ ALTER TABLE ONLY public.seed_progress
 
 ALTER TABLE ONLY public.seed_progress
     ADD CONSTRAINT seed_progress_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: seed_redo_snapshots seed_redo_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.seed_redo_snapshots
+    ADD CONSTRAINT seed_redo_snapshots_pkey PRIMARY KEY (id);
 
 
 --
@@ -10468,6 +13495,104 @@ ALTER TABLE ONLY public.voices
 
 
 --
+-- Name: _audit_s3_touch_pk; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _audit_s3_touch_pk ON public._audit_s3_touch USING btree (audio_id);
+
+
+--
+-- Name: _canon_lang_map_raw_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _canon_lang_map_raw_idx ON public._canon_lang_map USING btree (raw);
+
+
+--
+-- Name: _canon_reselect_pk; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _canon_reselect_pk ON public._canon_reselect USING btree (clip_id);
+
+
+--
+-- Name: _canon_voice_map_raw_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _canon_voice_map_raw_idx ON public._canon_voice_map USING btree (raw);
+
+
+--
+-- Name: _converge_set_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX _converge_set_batch ON public._converge_set USING btree (batch_no);
+
+
+--
+-- Name: _converge_set_pk; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _converge_set_pk ON public._converge_set USING btree (audio_id);
+
+
+--
+-- Name: _divergence_partition_bucket; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX _divergence_partition_bucket ON public._divergence_partition USING btree (bucket);
+
+
+--
+-- Name: _divergence_partition_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX _divergence_partition_id ON public._divergence_partition USING btree (audio_id);
+
+
+--
+-- Name: _fix_broken_audio_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _fix_broken_audio_id_idx ON public._fix_broken USING btree (audio_id);
+
+
+--
+-- Name: _fix_broken_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX _fix_broken_key ON public._fix_broken USING btree (text_key, language, role, voice_id);
+
+
+--
+-- Name: _fix_lang_map_raw_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _fix_lang_map_raw_idx ON public._fix_lang_map USING btree (raw);
+
+
+--
+-- Name: _fix_plan_audio_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _fix_plan_audio_id_idx ON public._fix_plan USING btree (audio_id);
+
+
+--
+-- Name: _fix_serving_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX _fix_serving_key ON public._fix_serving USING btree (text_key, language, role, voice_id);
+
+
+--
+-- Name: _fix_voice_map_raw_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX _fix_voice_map_raw_idx ON public._fix_voice_map USING btree (raw);
+
+
+--
 -- Name: audio_pass_requests_one_pending_per_course; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10503,6 +13628,20 @@ CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owne
 
 
 --
+-- Name: htw_copy_versions_doc_published_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX htw_copy_versions_doc_published_idx ON public.htw_copy_versions USING btree (doc_id, published_at DESC) WHERE (published_at IS NOT NULL);
+
+
+--
+-- Name: htw_copy_versions_doc_saved_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX htw_copy_versions_doc_saved_idx ON public.htw_copy_versions USING btree (doc_id, saved_at DESC);
+
+
+--
 -- Name: idx_admin_impersonation_audit_admin; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10521,6 +13660,13 @@ CREATE INDEX idx_admin_impersonation_audit_target ON public.admin_impersonation_
 --
 
 CREATE INDEX idx_algorithm_config_updated ON public.algorithm_config USING btree (updated_at DESC);
+
+
+--
+-- Name: idx_algorithm_config_versions_key_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_algorithm_config_versions_key_created ON public.algorithm_config_versions USING btree (key, created_at DESC);
 
 
 --
@@ -10545,6 +13691,76 @@ CREATE INDEX idx_apml_documents_path_active ON public.apml_documents USING btree
 
 
 --
+-- Name: idx_audio_clip_flags_audio; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clip_flags_audio ON public.audio_clip_flags USING btree (audio_id, raised_at DESC);
+
+
+--
+-- Name: idx_audio_clip_flags_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clip_flags_open ON public.audio_clip_flags USING btree (course_code, audio_id) WHERE (resolution IS NULL);
+
+
+--
+-- Name: idx_audio_clip_promotions_clip; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clip_promotions_clip ON public.audio_clip_promotions USING btree (clip_id, created_at DESC);
+
+
+--
+-- Name: idx_audio_clip_signoffs_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clip_signoffs_course ON public.audio_clip_signoffs USING btree (course_code, signed_off_at DESC);
+
+
+--
+-- Name: idx_audio_clips_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clips_lookup ON public.audio_clips USING btree (text_key, language, role, voice_id);
+
+
+--
+-- Name: idx_audio_clips_origin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clips_origin ON public.audio_clips USING btree (origin) WHERE (origin = 'human'::text);
+
+
+--
+-- Name: idx_audio_clips_s3; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clips_s3 ON public.audio_clips USING btree (s3_key);
+
+
+--
+-- Name: idx_audio_clips_voice; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_clips_voice ON public.audio_clips USING btree (voice_id, language);
+
+
+--
+-- Name: idx_audio_convergence_log_audio; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_convergence_log_audio ON public.audio_convergence_log USING btree (audio_id);
+
+
+--
+-- Name: idx_audio_convergence_log_pass; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_convergence_log_pass ON public.audio_convergence_log USING btree (pass, converged_at);
+
+
+--
 -- Name: idx_audio_flags_course; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10556,6 +13772,20 @@ CREATE INDEX idx_audio_flags_course ON public.audio_flags USING btree (course_co
 --
 
 CREATE INDEX idx_audio_flags_uuid ON public.audio_flags USING btree (audio_uuid);
+
+
+--
+-- Name: idx_audio_repair_candidates_audio; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_repair_candidates_audio ON public.audio_repair_candidates USING btree (audio_id, status);
+
+
+--
+-- Name: idx_audio_repair_candidates_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_audio_repair_candidates_course ON public.audio_repair_candidates USING btree (course_code, proposed_at DESC);
 
 
 --
@@ -10692,6 +13922,20 @@ CREATE INDEX idx_classes_teacher ON public.classes USING btree (teacher_user_id)
 
 
 --
+-- Name: idx_content_audio_link_drops_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_content_audio_link_drops_course ON public.content_audio_link_drops USING btree (course_code, dropped_at DESC);
+
+
+--
+-- Name: idx_content_audio_link_drops_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_content_audio_link_drops_row ON public.content_audio_link_drops USING btree (row_id);
+
+
+--
 -- Name: idx_content_audit_log_changed_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10748,6 +13992,13 @@ CREATE INDEX idx_conversations_user ON public.conversations USING btree (user_id
 
 
 --
+-- Name: idx_course_audio_clip; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_clip ON public.course_audio USING btree (clip_id) WHERE (clip_id IS NOT NULL);
+
+
+--
 -- Name: idx_course_audio_course; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10755,10 +14006,38 @@ CREATE INDEX idx_course_audio_course ON public.course_audio USING btree (course_
 
 
 --
+-- Name: idx_course_audio_course_id_revision; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_course_id_revision ON public.course_audio USING btree (course_code, id) INCLUDE (audio_revision);
+
+
+--
 -- Name: idx_course_audio_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_course_audio_created_at ON public.course_audio USING btree (created_at);
+
+
+--
+-- Name: idx_course_audio_dead_stubs; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_dead_stubs ON public.course_audio USING btree (id) WHERE (file_size_bytes < 2000);
+
+
+--
+-- Name: idx_course_audio_envelope_audio; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_envelope_audio ON public.course_audio_envelope USING btree (audio_id);
+
+
+--
+-- Name: idx_course_audio_estate_map; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_estate_map ON public.course_audio USING btree (course_code, voice_id, origin);
 
 
 --
@@ -10773,6 +14052,20 @@ CREATE INDEX idx_course_audio_lego ON public.course_audio USING btree (course_co
 --
 
 CREATE INDEX idx_course_audio_origin ON public.course_audio USING btree (origin);
+
+
+--
+-- Name: idx_course_audio_rerecord_wanted; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_rerecord_wanted ON public.course_audio USING btree (course_code, role) WHERE (rerecord_wanted IS NOT NULL);
+
+
+--
+-- Name: idx_course_audio_revisions_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_revisions_course ON public.course_audio_revisions USING btree (course_code, created_at DESC);
 
 
 --
@@ -10801,6 +14094,27 @@ CREATE INDEX idx_course_audio_text ON public.course_audio USING btree (text_norm
 --
 
 CREATE INDEX idx_course_audio_text_lookup ON public.course_audio USING btree (course_code, text_normalized, role);
+
+
+--
+-- Name: idx_course_audio_veracity_checked; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_veracity_checked ON public.course_audio USING btree (course_code, veracity_checked_at DESC) WHERE (veracity_checked_at IS NOT NULL);
+
+
+--
+-- Name: idx_course_audio_veracity_failed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_veracity_failed ON public.course_audio USING btree (course_code, created_at DESC) WHERE (veracity_pass IS FALSE);
+
+
+--
+-- Name: idx_course_audio_veracity_passed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_audio_veracity_passed ON public.course_audio USING btree (course_code, created_at DESC) WHERE (veracity_pass IS TRUE);
 
 
 --
@@ -10951,6 +14265,13 @@ CREATE INDEX idx_course_practice_phrases_tiling_version ON public.course_practic
 
 
 --
+-- Name: idx_course_round_assignments_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_round_assignments_open ON public.course_round_assignments USING btree (course_code, assignee) WHERE (released_at IS NULL);
+
+
+--
 -- Name: idx_course_round_index_lego; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10962,6 +14283,13 @@ CREATE UNIQUE INDEX idx_course_round_index_lego ON public.course_round_index USI
 --
 
 CREATE UNIQUE INDEX idx_course_round_index_pk ON public.course_round_index USING btree (course_code, round_index);
+
+
+--
+-- Name: idx_course_round_signoffs_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_course_round_signoffs_course ON public.course_round_signoffs USING btree (course_code, round_index);
 
 
 --
@@ -11707,6 +15035,13 @@ CREATE INDEX idx_practice_phrases_known_audio ON public.course_practice_phrases 
 
 
 --
+-- Name: idx_practice_phrases_presentation_audio; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_practice_phrases_presentation_audio ON public.course_practice_phrases USING btree (presentation_audio_id) WHERE (presentation_audio_id IS NOT NULL);
+
+
+--
 -- Name: idx_practice_phrases_qa_unchecked; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11714,10 +15049,10 @@ CREATE INDEX idx_practice_phrases_qa_unchecked ON public.course_practice_phrases
 
 
 --
--- Name: idx_practice_phrases_role; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_practice_phrases_role_covering; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_practice_phrases_role ON public.course_practice_phrases USING btree (course_code, seed_number, lego_index, phrase_role);
+CREATE INDEX idx_practice_phrases_role_covering ON public.course_practice_phrases USING btree (course_code, seed_number, lego_index, phrase_role) INCLUDE ("position", known_audio_id, target1_audio_id, target2_audio_id);
 
 
 --
@@ -11886,6 +15221,27 @@ CREATE INDEX idx_schools_region ON public.schools USING btree (region_code) WHER
 --
 
 CREATE INDEX idx_seed_progress_learner_course ON public.seed_progress USING btree (learner_id, course_id);
+
+
+--
+-- Name: idx_seed_redo_snapshots_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_seed_redo_snapshots_batch ON public.seed_redo_snapshots USING btree (batch_id);
+
+
+--
+-- Name: idx_seed_redo_snapshots_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_seed_redo_snapshots_created ON public.seed_redo_snapshots USING btree (created_at DESC);
+
+
+--
+-- Name: idx_seed_redo_snapshots_seed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_seed_redo_snapshots_seed ON public.seed_redo_snapshots USING btree (course_code, seed_number, created_at DESC);
 
 
 --
@@ -12120,6 +15476,20 @@ CREATE INDEX learners_is_internal_true_idx ON public.learners USING btree (id) W
 
 
 --
+-- Name: listening_pod_sentences_draft_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX listening_pod_sentences_draft_idx ON public.listening_pod_sentences USING btree (pod_id) WHERE target_text_draft;
+
+
+--
+-- Name: listening_pod_sentences_rerecord_wanted_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX listening_pod_sentences_rerecord_wanted_idx ON public.listening_pod_sentences USING btree (pod_id) WHERE (rerecord_wanted IS NOT NULL);
+
+
+--
 -- Name: offline_leases_learner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12190,6 +15560,13 @@ CREATE INDEX release_notes_released_at_idx ON public.release_notes USING btree (
 
 
 --
+-- Name: relink_refusals_course_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX relink_refusals_course_idx ON public.relink_refusals USING btree (course_code, created_at DESC);
+
+
+--
 -- Name: schools_admin_user_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12239,6 +15616,13 @@ CREATE TRIGGER canonical_seeds_audit AFTER DELETE OR UPDATE ON public.canonical_
 
 
 --
+-- Name: course_practice_phrases components_never_introduced; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER components_never_introduced BEFORE INSERT OR UPDATE OF presentation_audio_id, phrase_role ON public.course_practice_phrases FOR EACH ROW EXECUTE FUNCTION public.refuse_component_introduction();
+
+
+--
 -- Name: course_audio course_audio_audit; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12250,6 +15634,13 @@ CREATE TRIGGER course_audio_audit AFTER DELETE OR UPDATE ON public.course_audio 
 --
 
 CREATE TRIGGER course_audio_sync_duration AFTER INSERT OR UPDATE OF duration_ms ON public.course_audio FOR EACH ROW EXECUTE FUNCTION public.sync_audio_duration_to_dependents();
+
+
+--
+-- Name: course_audio course_audio_touch_audio_stamp; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER course_audio_touch_audio_stamp AFTER UPDATE OF audio_revision, s3_key ON public.course_audio FOR EACH ROW WHEN (((old.audio_revision IS DISTINCT FROM new.audio_revision) OR (old.s3_key IS DISTINCT FROM new.s3_key))) EXECUTE FUNCTION public.touch_course_audio_stamp();
 
 
 --
@@ -12365,6 +15756,13 @@ CREATE TRIGGER courses_beta_timestamp_trigger BEFORE UPDATE ON public.courses FO
 
 
 --
+-- Name: learners enforce_verified_emails_provenance; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER enforce_verified_emails_provenance BEFORE INSERT OR UPDATE OF verified_emails ON public.learners FOR EACH ROW EXECUTE FUNCTION public.enforce_verified_emails_provenance();
+
+
+--
 -- Name: groups groups_inherit_parent_test_flags; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12376,6 +15774,13 @@ CREATE TRIGGER groups_inherit_parent_test_flags BEFORE INSERT OR UPDATE OF paren
 --
 
 CREATE TRIGGER language_briefs_updated_at_trigger BEFORE UPDATE ON public.language_briefs FOR EACH ROW EXECUTE FUNCTION public.update_language_briefs_updated_at();
+
+
+--
+-- Name: language_recording_policy language_recording_policy_touch; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER language_recording_policy_touch BEFORE UPDATE ON public.language_recording_policy FOR EACH ROW EXECUTE FUNCTION public.touch_language_recording_policy();
 
 
 --
@@ -12505,6 +15910,13 @@ CREATE TRIGGER trg_compute_group_path BEFORE INSERT OR UPDATE OF name, parent_id
 
 
 --
+-- Name: course_audio trg_course_audio_canonical_identity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_course_audio_canonical_identity BEFORE INSERT OR UPDATE OF language, voice_id ON public.course_audio FOR EACH ROW EXECUTE FUNCTION public.course_audio_canonical_identity();
+
+
+--
 -- Name: course_audio trg_course_audio_normalize; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12522,14 +15934,21 @@ CREATE TRIGGER trg_courses_updated_at BEFORE UPDATE ON public.courses FOR EACH R
 -- Name: course_legos trg_null_lego_audio_on_text_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_null_lego_audio_on_text_change BEFORE UPDATE ON public.course_legos FOR EACH ROW EXECUTE FUNCTION public.null_lego_audio_on_text_change();
+CREATE TRIGGER trg_null_lego_audio_on_text_change BEFORE UPDATE ON public.course_legos FOR EACH ROW WHEN (((old.known_text IS DISTINCT FROM new.known_text) OR (old.target_text IS DISTINCT FROM new.target_text))) EXECUTE FUNCTION public.null_lego_audio_on_text_change();
 
 
 --
 -- Name: course_practice_phrases trg_null_phrase_audio_on_text_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_null_phrase_audio_on_text_change BEFORE UPDATE ON public.course_practice_phrases FOR EACH ROW EXECUTE FUNCTION public.null_phrase_audio_on_text_change();
+CREATE TRIGGER trg_null_phrase_audio_on_text_change BEFORE UPDATE ON public.course_practice_phrases FOR EACH ROW WHEN (((old.known_text IS DISTINCT FROM new.known_text) OR (old.target_text IS DISTINCT FROM new.target_text))) EXECUTE FUNCTION public.null_phrase_audio_on_text_change();
+
+
+--
+-- Name: course_seeds trg_null_seed_audio_on_text_change; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_null_seed_audio_on_text_change BEFORE UPDATE ON public.course_seeds FOR EACH ROW WHEN (((old.known_text IS DISTINCT FROM new.known_text) OR (old.target_text IS DISTINCT FROM new.target_text))) EXECUTE FUNCTION public.null_seed_audio_on_text_change();
 
 
 --
@@ -12638,6 +16057,46 @@ CREATE TRIGGER voices_audit AFTER DELETE OR UPDATE ON public.voices FOR EACH ROW
 
 
 --
+-- Name: algorithm_config_pointers algorithm_config_pointers_config_hash_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.algorithm_config_pointers
+    ADD CONSTRAINT algorithm_config_pointers_config_hash_fkey FOREIGN KEY (config_hash) REFERENCES public.algorithm_config_versions(config_hash);
+
+
+--
+-- Name: audio_clip_flags audio_clip_flags_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_flags
+    ADD CONSTRAINT audio_clip_flags_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audio_clip_promotions audio_clip_promotions_clip_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_promotions
+    ADD CONSTRAINT audio_clip_promotions_clip_id_fkey FOREIGN KEY (clip_id) REFERENCES public.audio_clips(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audio_clip_signoffs audio_clip_signoffs_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_clip_signoffs
+    ADD CONSTRAINT audio_clip_signoffs_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audio_repair_candidates audio_repair_candidates_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_repair_candidates
+    ADD CONSTRAINT audio_repair_candidates_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+
+
+--
 -- Name: build_jobs build_jobs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12686,6 +16145,14 @@ ALTER TABLE ONLY public.classes
 
 
 --
+-- Name: course_audio course_audio_clip_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio
+    ADD CONSTRAINT course_audio_clip_id_fkey FOREIGN KEY (clip_id) REFERENCES public.audio_clips(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: course_audio course_audio_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12699,6 +16166,22 @@ ALTER TABLE ONLY public.course_audio
 
 ALTER TABLE ONLY public.course_audio_envelope
     ADD CONSTRAINT course_audio_envelope_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+
+
+--
+-- Name: course_audio_revisions course_audio_revisions_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_revisions
+    ADD CONSTRAINT course_audio_revisions_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+
+
+--
+-- Name: course_audio_revisions course_audio_revisions_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_revisions
+    ADD CONSTRAINT course_audio_revisions_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.audio_repair_candidates(id) ON DELETE SET NULL;
 
 
 --
@@ -12766,6 +16249,14 @@ ALTER TABLE ONLY public.course_practice_phrases
 
 
 --
+-- Name: course_practice_phrases course_practice_phrases_presentation_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_practice_phrases
+    ADD CONSTRAINT course_practice_phrases_presentation_audio_id_fkey FOREIGN KEY (presentation_audio_id) REFERENCES public.course_audio(id) ON DELETE SET NULL;
+
+
+--
 -- Name: course_practice_phrases course_practice_phrases_target1_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12803,6 +16294,30 @@ ALTER TABLE ONLY public.course_qa_flags
 
 ALTER TABLE ONLY public.course_qa_flags
     ADD CONSTRAINT course_qa_flags_phrase_id_fkey FOREIGN KEY (phrase_id) REFERENCES public.course_practice_phrases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: course_qa_gate course_qa_gate_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_qa_gate
+    ADD CONSTRAINT course_qa_gate_course_code_fkey FOREIGN KEY (course_code) REFERENCES public.courses(course_code) ON DELETE CASCADE;
+
+
+--
+-- Name: course_round_assignments course_round_assignments_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_assignments
+    ADD CONSTRAINT course_round_assignments_course_code_fkey FOREIGN KEY (course_code) REFERENCES public.courses(course_code) ON DELETE CASCADE;
+
+
+--
+-- Name: course_round_signoffs course_round_signoffs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_round_signoffs
+    ADD CONSTRAINT course_round_signoffs_course_code_fkey FOREIGN KEY (course_code) REFERENCES public.courses(course_code) ON DELETE CASCADE;
 
 
 --
@@ -13106,7 +16621,7 @@ ALTER TABLE ONLY public.learners
 --
 
 ALTER TABLE ONLY public.lego_introductions
-    ADD CONSTRAINT lego_introductions_presentation_audio_id_fkey FOREIGN KEY (presentation_audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lego_introductions_presentation_audio_id_fkey FOREIGN KEY (presentation_audio_id) REFERENCES public.course_audio(id) ON DELETE SET NULL;
 
 
 --
@@ -13440,6 +16955,20 @@ CREATE POLICY "Anyone can read algorithm_config" ON public.algorithm_config FOR 
 
 
 --
+-- Name: algorithm_config_pointers Anyone can read algorithm_config_pointers; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone can read algorithm_config_pointers" ON public.algorithm_config_pointers FOR SELECT USING (true);
+
+
+--
+-- Name: algorithm_config_versions Anyone can read algorithm_config_versions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone can read algorithm_config_versions" ON public.algorithm_config_versions FOR SELECT USING (true);
+
+
+--
 -- Name: evolution_levels Anyone can view evolution levels; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13601,9 +17130,7 @@ CREATE POLICY "SSi admins can view all codes" ON public.invite_codes FOR SELECT 
 -- Name: invite_codes School admins can create teacher codes; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "School admins can create teacher codes" ON public.invite_codes FOR INSERT WITH CHECK (((code_type = 'teacher'::text) AND (EXISTS ( SELECT 1
-   FROM public.schools
-  WHERE ((schools.admin_user_id = (auth.jwt() ->> 'sub'::text)) AND (schools.id = invite_codes.grants_school_id))))));
+CREATE POLICY "School admins can create teacher codes" ON public.invite_codes FOR INSERT WITH CHECK (((code_type = 'teacher'::text) AND public.is_school_admin_of(grants_school_id)));
 
 
 --
@@ -13635,10 +17162,31 @@ CREATE POLICY "Service role can manage course_seeds" ON public.course_seeds TO s
 
 
 --
+-- Name: seed_redo_snapshots Service role can manage seed_redo_snapshots; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role can manage seed_redo_snapshots" ON public.seed_redo_snapshots TO service_role USING (true) WITH CHECK (true);
+
+
+--
 -- Name: algorithm_config Service role can write algorithm_config; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Service role can write algorithm_config" ON public.algorithm_config TO service_role USING ((( SELECT auth.role() AS role) = 'service_role'::text));
+
+
+--
+-- Name: algorithm_config_pointers Service role can write algorithm_config_pointers; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role can write algorithm_config_pointers" ON public.algorithm_config_pointers TO service_role USING ((( SELECT auth.role() AS role) = 'service_role'::text));
+
+
+--
+-- Name: algorithm_config_versions Service role can write algorithm_config_versions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role can write algorithm_config_versions" ON public.algorithm_config_versions TO service_role USING ((( SELECT auth.role() AS role) = 'service_role'::text));
 
 
 --
@@ -13884,6 +17432,18 @@ ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.algorithm_config ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: algorithm_config_pointers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.algorithm_config_pointers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: algorithm_config_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.algorithm_config_versions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: course_audio anon_read_course_audio; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13910,6 +17470,18 @@ ALTER TABLE public.apml_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: audio_clip_flags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audio_clip_flags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: audio_clip_signoffs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audio_clip_signoffs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: audio_flags; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13927,6 +17499,12 @@ CREATE POLICY audio_flags_public_read ON public.audio_flags FOR SELECT TO authen
 --
 
 ALTER TABLE public.audio_pass_requests ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: audio_repair_candidates; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audio_repair_candidates ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: course_audio authenticated_read_course_audio; Type: POLICY; Schema: public; Owner: -
@@ -14015,11 +17593,9 @@ ALTER TABLE public.class_sessions ENABLE ROW LEVEL SECURITY;
 -- Name: class_sessions class_sessions_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT TO authenticated USING (((teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
+CREATE POLICY class_sessions_read ON public.class_sessions FOR SELECT USING (((teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
    FROM public.classes c
-  WHERE ((c.id = class_sessions.class_id) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (EXISTS ( SELECT 1
-           FROM public.schools s
-          WHERE ((s.id = c.school_id) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text))))))))));
+  WHERE ((c.id = class_sessions.class_id) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_school_admin_of(c.school_id)))))));
 
 
 --
@@ -14073,6 +17649,12 @@ CREATE POLICY classes_update ON public.classes FOR UPDATE USING (((teacher_user_
 
 
 --
+-- Name: content_audio_link_drops; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.content_audio_link_drops ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: content_audit_log; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14122,6 +17704,12 @@ ALTER TABLE public.course_audio_envelope ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY course_audio_envelope_service_policy ON public.course_audio_envelope TO service_role USING (true) WITH CHECK (true);
 
+
+--
+-- Name: course_audio_revisions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_audio_revisions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: course_audio course_audio_service_policy; Type: POLICY; Schema: public; Owner: -
@@ -14217,6 +17805,24 @@ ALTER TABLE public.course_practice_phrases ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.course_qa_flags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_qa_gate; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_qa_gate ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_round_assignments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_round_assignments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_round_signoffs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_round_signoffs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: course_seed_drafts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14431,6 +18037,12 @@ CREATE POLICY groups_authenticated_read ON public.groups FOR SELECT TO authentic
 
 
 --
+-- Name: htw_copy_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.htw_copy_versions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: insight_discoveries; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14460,6 +18072,19 @@ ALTER TABLE public.language_briefs ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.language_pair_briefs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: language_recording_policy; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.language_recording_policy ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: language_recording_policy language_recording_policy_public_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY language_recording_policy_public_read ON public.language_recording_policy FOR SELECT TO authenticated, anon USING (true);
+
 
 --
 -- Name: learner_emails; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14971,6 +18596,12 @@ CREATE POLICY seed_progress_scoped_select ON public.seed_progress FOR SELECT TO 
 
 
 --
+-- Name: seed_redo_snapshots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.seed_redo_snapshots ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: dashboard_login_codes service_role_all_dashboard_login_codes; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15066,10 +18697,24 @@ CREATE POLICY spike_events_own_update ON public.spike_events FOR UPDATE TO authe
 
 
 --
+-- Name: content_audio_link_drops ssi_admin reads content_audio_link_drops; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "ssi_admin reads content_audio_link_drops" ON public.content_audio_link_drops FOR SELECT USING (public.is_ssi_admin());
+
+
+--
 -- Name: content_audit_log ssi_admin reads content_audit_log; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "ssi_admin reads content_audit_log" ON public.content_audit_log FOR SELECT USING (public.is_ssi_admin());
+
+
+--
+-- Name: seed_redo_snapshots ssi_admin reads seed_redo_snapshots; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "ssi_admin reads seed_redo_snapshots" ON public.seed_redo_snapshots FOR SELECT USING (public.is_ssi_admin());
 
 
 --
@@ -15324,29 +18969,14 @@ CREATE POLICY user_tags_insert ON public.user_tags FOR INSERT TO authenticated W
 -- Name: user_tags user_tags_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_tags_select ON public.user_tags FOR SELECT TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
-   FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
-   FROM (public.classes c
-     LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_class_teacher(c.id)))))));
+CREATE POLICY user_tags_select ON public.user_tags FOR SELECT TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (tag_value IN ( SELECT public.my_readable_tag_values() AS my_readable_tag_values))));
 
 
 --
 -- Name: user_tags user_tags_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_tags_update ON public.user_tags FOR UPDATE TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (EXISTS ( SELECT 1
-   FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
-   FROM (public.classes c
-     LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR (public.is_class_teacher(c.id) AND (user_tags.role_in_context IS DISTINCT FROM 'teacher'::text) AND (user_tags.role_in_context IS DISTINCT FROM 'admin'::text)))))))) WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (EXISTS ( SELECT 1
-   FROM public.schools s
-  WHERE ((user_tags.tag_value = ('SCHOOL:'::text || (s.id)::text)) AND (s.admin_user_id = (( SELECT auth.uid() AS uid))::text)))) OR (EXISTS ( SELECT 1
-   FROM (public.classes c
-     LEFT JOIN public.schools s2 ON ((s2.id = c.school_id)))
-  WHERE ((user_tags.tag_value = ('CLASS:'::text || (c.id)::text)) AND ((c.teacher_user_id = (( SELECT auth.uid() AS uid))::text) OR (s2.admin_user_id = (( SELECT auth.uid() AS uid))::text) OR (public.is_class_teacher(c.id) AND (user_tags.role_in_context IS DISTINCT FROM 'teacher'::text) AND (user_tags.role_in_context IS DISTINCT FROM 'admin'::text))))))));
+CREATE POLICY user_tags_update ON public.user_tags FOR UPDATE TO authenticated USING (((user_id = (( SELECT auth.uid() AS uid))::text) OR public.is_god_user() OR (tag_value IN ( SELECT public.my_manageable_tag_values() AS my_manageable_tag_values)) OR ((tag_value IN ( SELECT public.my_readable_tag_values() AS my_readable_tag_values)) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)))) WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text)) OR (tag_value IN ( SELECT public.my_manageable_tag_values() AS my_manageable_tag_values)) OR ((tag_value IN ( SELECT public.my_readable_tag_values() AS my_readable_tag_values)) AND (role_in_context IS DISTINCT FROM 'teacher'::text) AND (role_in_context IS DISTINCT FROM 'admin'::text))));
 
 
 --
@@ -15363,6 +18993,15 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION _cfg_canonical_json(v jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public._cfg_canonical_json(v jsonb) TO anon;
+GRANT ALL ON FUNCTION public._cfg_canonical_json(v jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public._cfg_canonical_json(v jsonb) TO service_role;
 
 
 --
@@ -15595,12 +19234,84 @@ GRANT ALL ON FUNCTION public.analytics_trial_conversion() TO service_role;
 
 
 --
+-- Name: FUNCTION audio_bare_voice_id(p_voice_id text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_bare_voice_id(p_voice_id text) TO anon;
+GRANT ALL ON FUNCTION public.audio_bare_voice_id(p_voice_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_bare_voice_id(p_voice_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_canon_lang(l text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_canon_lang(l text) TO anon;
+GRANT ALL ON FUNCTION public.audio_canon_lang(l text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_canon_lang(l text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_canon_text(t text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_canon_text(t text) TO anon;
+GRANT ALL ON FUNCTION public.audio_canon_text(t text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_canon_text(t text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_canon_voice(v text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_canon_voice(v text) TO anon;
+GRANT ALL ON FUNCTION public.audio_canon_voice(v text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_canon_voice(v text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_configured_voice(p_course_code text, p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_configured_voice(p_course_code text, p_role text) TO anon;
+GRANT ALL ON FUNCTION public.audio_configured_voice(p_course_code text, p_role text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_configured_voice(p_course_code text, p_role text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_id_for_text(p_course text, p_text text, p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_id_for_text(p_course text, p_text text, p_role text) TO anon;
+GRANT ALL ON FUNCTION public.audio_id_for_text(p_course text, p_text text, p_role text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_id_for_text(p_course text, p_text text, p_role text) TO service_role;
+
+
+--
+-- Name: FUNCTION audio_id_for_text_same_voice(p_course text, p_text text, p_role text, p_like uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_id_for_text_same_voice(p_course text, p_text text, p_role text, p_like uuid) TO anon;
+GRANT ALL ON FUNCTION public.audio_id_for_text_same_voice(p_course text, p_text text, p_role text, p_like uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_id_for_text_same_voice(p_course text, p_text text, p_role text, p_like uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION audio_normalize_text(); Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON FUNCTION public.audio_normalize_text() TO anon;
 GRANT ALL ON FUNCTION public.audio_normalize_text() TO authenticated;
 GRANT ALL ON FUNCTION public.audio_normalize_text() TO service_role;
+
+
+--
+-- Name: FUNCTION audio_voice_matches(p_wanted text, p_candidate text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_voice_matches(p_wanted text, p_candidate text) TO anon;
+GRANT ALL ON FUNCTION public.audio_voice_matches(p_wanted text, p_candidate text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_voice_matches(p_wanted text, p_candidate text) TO service_role;
 
 
 --
@@ -15648,6 +19359,15 @@ GRANT ALL ON FUNCTION public.bump_course_version() TO service_role;
 
 
 --
+-- Name: FUNCTION bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.bump_phrases_spoken(p_learner_id uuid, p_course_code text, p_phrases_delta bigint) TO service_role;
+
+
+--
 -- Name: FUNCTION bump_speaking_opportunities(p_learner_id uuid, p_course_code text, p_opps_delta bigint, p_seconds_delta bigint); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15673,6 +19393,24 @@ REVOKE ALL ON FUNCTION public.can_view_learner_data(p_learner_id uuid) FROM PUBL
 GRANT ALL ON FUNCTION public.can_view_learner_data(p_learner_id uuid) TO anon;
 GRANT ALL ON FUNCTION public.can_view_learner_data(p_learner_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.can_view_learner_data(p_learner_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION canonical_language(code text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.canonical_language(code text) TO anon;
+GRANT ALL ON FUNCTION public.canonical_language(code text) TO authenticated;
+GRANT ALL ON FUNCTION public.canonical_language(code text) TO service_role;
+
+
+--
+-- Name: FUNCTION canonical_voice_id(v text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.canonical_voice_id(v text) TO anon;
+GRANT ALL ON FUNCTION public.canonical_voice_id(v text) TO authenticated;
+GRANT ALL ON FUNCTION public.canonical_voice_id(v text) TO service_role;
 
 
 --
@@ -15720,6 +19458,33 @@ GRANT ALL ON FUNCTION public.compute_group_path() TO service_role;
 
 
 --
+-- Name: FUNCTION course_ambiguous_slots(p_course text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.course_ambiguous_slots(p_course text, p_limit integer) TO anon;
+GRANT ALL ON FUNCTION public.course_ambiguous_slots(p_course text, p_limit integer) TO authenticated;
+GRANT ALL ON FUNCTION public.course_ambiguous_slots(p_course text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION course_audio_canonical_identity(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.course_audio_canonical_identity() TO anon;
+GRANT ALL ON FUNCTION public.course_audio_canonical_identity() TO authenticated;
+GRANT ALL ON FUNCTION public.course_audio_canonical_identity() TO service_role;
+
+
+--
+-- Name: FUNCTION course_audio_link_canonical_clip(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.course_audio_link_canonical_clip() TO anon;
+GRANT ALL ON FUNCTION public.course_audio_link_canonical_clip() TO authenticated;
+GRANT ALL ON FUNCTION public.course_audio_link_canonical_clip() TO service_role;
+
+
+--
 -- Name: FUNCTION course_navigation_friction(p_course_code text, p_days integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15727,6 +19492,15 @@ REVOKE ALL ON FUNCTION public.course_navigation_friction(p_course_code text, p_d
 GRANT ALL ON FUNCTION public.course_navigation_friction(p_course_code text, p_days integer) TO anon;
 GRANT ALL ON FUNCTION public.course_navigation_friction(p_course_code text, p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.course_navigation_friction(p_course_code text, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION course_voice_census(p_course text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.course_voice_census(p_course text) TO anon;
+GRANT ALL ON FUNCTION public.course_voice_census(p_course text) TO authenticated;
+GRANT ALL ON FUNCTION public.course_voice_census(p_course text) TO service_role;
 
 
 --
@@ -15756,6 +19530,24 @@ GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO service_rol
 GRANT ALL ON FUNCTION public.decrement_voice_sample_count() TO anon;
 GRANT ALL ON FUNCTION public.decrement_voice_sample_count() TO authenticated;
 GRANT ALL ON FUNCTION public.decrement_voice_sample_count() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_verified_emails_provenance(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.enforce_verified_emails_provenance() TO anon;
+GRANT ALL ON FUNCTION public.enforce_verified_emails_provenance() TO authenticated;
+GRANT ALL ON FUNCTION public.enforce_verified_emails_provenance() TO service_role;
+
+
+--
+-- Name: FUNCTION estate_map(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.estate_map() TO anon;
+GRANT ALL ON FUNCTION public.estate_map() TO authenticated;
+GRANT ALL ON FUNCTION public.estate_map() TO service_role;
 
 
 --
@@ -15789,8 +19581,7 @@ GRANT ALL ON FUNCTION public.find_or_create_text(p_content text, p_language text
 -- Name: FUNCTION generate_join_code(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.generate_join_code() TO anon;
-GRANT ALL ON FUNCTION public.generate_join_code() TO authenticated;
+REVOKE ALL ON FUNCTION public.generate_join_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.generate_join_code() TO service_role;
 
 
@@ -16164,6 +19955,26 @@ GRANT ALL ON FUNCTION public.link_audio_to_content() TO service_role;
 
 
 --
+-- Name: FUNCTION my_manageable_tag_values(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.my_manageable_tag_values() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.my_manageable_tag_values() TO anon;
+GRANT ALL ON FUNCTION public.my_manageable_tag_values() TO authenticated;
+GRANT ALL ON FUNCTION public.my_manageable_tag_values() TO service_role;
+
+
+--
+-- Name: FUNCTION my_readable_tag_values(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.my_readable_tag_values() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.my_readable_tag_values() TO anon;
+GRANT ALL ON FUNCTION public.my_readable_tag_values() TO authenticated;
+GRANT ALL ON FUNCTION public.my_readable_tag_values() TO service_role;
+
+
+--
 -- Name: FUNCTION normalize_text(input_text text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -16176,6 +19987,7 @@ GRANT ALL ON FUNCTION public.normalize_text(input_text text) TO service_role;
 -- Name: FUNCTION null_lego_audio_on_text_change(); Type: ACL; Schema: public; Owner: -
 --
 
+REVOKE ALL ON FUNCTION public.null_lego_audio_on_text_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.null_lego_audio_on_text_change() TO anon;
 GRANT ALL ON FUNCTION public.null_lego_audio_on_text_change() TO authenticated;
 GRANT ALL ON FUNCTION public.null_lego_audio_on_text_change() TO service_role;
@@ -16185,9 +19997,20 @@ GRANT ALL ON FUNCTION public.null_lego_audio_on_text_change() TO service_role;
 -- Name: FUNCTION null_phrase_audio_on_text_change(); Type: ACL; Schema: public; Owner: -
 --
 
+REVOKE ALL ON FUNCTION public.null_phrase_audio_on_text_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO anon;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO authenticated;
 GRANT ALL ON FUNCTION public.null_phrase_audio_on_text_change() TO service_role;
+
+
+--
+-- Name: FUNCTION null_seed_audio_on_text_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.null_seed_audio_on_text_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.null_seed_audio_on_text_change() TO anon;
+GRANT ALL ON FUNCTION public.null_seed_audio_on_text_change() TO authenticated;
+GRANT ALL ON FUNCTION public.null_seed_audio_on_text_change() TO service_role;
 
 
 --
@@ -16224,6 +20047,15 @@ GRANT ALL ON FUNCTION public.ratchet_highest_completed_round() TO service_role;
 GRANT ALL ON FUNCTION public.record_lego_pairings(_learner_id uuid, _course_code text, _pairs text[], _counts integer[]) TO anon;
 GRANT ALL ON FUNCTION public.record_lego_pairings(_learner_id uuid, _course_code text, _pairs text[], _counts integer[]) TO authenticated;
 GRANT ALL ON FUNCTION public.record_lego_pairings(_learner_id uuid, _course_code text, _pairs text[], _counts integer[]) TO service_role;
+
+
+--
+-- Name: FUNCTION refuse_component_introduction(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.refuse_component_introduction() TO anon;
+GRANT ALL ON FUNCTION public.refuse_component_introduction() TO authenticated;
+GRANT ALL ON FUNCTION public.refuse_component_introduction() TO service_role;
 
 
 --
@@ -16267,8 +20099,7 @@ GRANT ALL ON FUNCTION public.set_beta_timestamp() TO service_role;
 -- Name: FUNCTION set_class_join_code(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.set_class_join_code() TO anon;
-GRANT ALL ON FUNCTION public.set_class_join_code() TO authenticated;
+REVOKE ALL ON FUNCTION public.set_class_join_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_class_join_code() TO service_role;
 
 
@@ -16276,8 +20107,7 @@ GRANT ALL ON FUNCTION public.set_class_join_code() TO service_role;
 -- Name: FUNCTION set_school_join_code(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.set_school_join_code() TO anon;
-GRANT ALL ON FUNCTION public.set_school_join_code() TO authenticated;
+REVOKE ALL ON FUNCTION public.set_school_join_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_school_join_code() TO service_role;
 
 
@@ -16318,6 +20148,16 @@ GRANT ALL ON FUNCTION public.sync_learner_emails_on_learner_insert() TO service_
 
 
 --
+-- Name: FUNCTION sync_my_verified_emails(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sync_my_verified_emails() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sync_my_verified_emails() TO anon;
+GRANT ALL ON FUNCTION public.sync_my_verified_emails() TO authenticated;
+GRANT ALL ON FUNCTION public.sync_my_verified_emails() TO service_role;
+
+
+--
 -- Name: FUNCTION test_learner_ids(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -16346,6 +20186,15 @@ GRANT ALL ON FUNCTION public.touch_canonical_pod_scenarios() TO service_role;
 
 
 --
+-- Name: FUNCTION touch_course_audio_stamp(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.touch_course_audio_stamp() TO anon;
+GRANT ALL ON FUNCTION public.touch_course_audio_stamp() TO authenticated;
+GRANT ALL ON FUNCTION public.touch_course_audio_stamp() TO service_role;
+
+
+--
 -- Name: FUNCTION touch_course_content_stamp(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -16355,12 +20204,39 @@ GRANT ALL ON FUNCTION public.touch_course_content_stamp() TO service_role;
 
 
 --
+-- Name: FUNCTION touch_language_recording_policy(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.touch_language_recording_policy() TO anon;
+GRANT ALL ON FUNCTION public.touch_language_recording_policy() TO authenticated;
+GRANT ALL ON FUNCTION public.touch_language_recording_policy() TO service_role;
+
+
+--
 -- Name: FUNCTION touch_listening_pods_updated_at(); Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON FUNCTION public.touch_listening_pods_updated_at() TO anon;
 GRANT ALL ON FUNCTION public.touch_listening_pods_updated_at() TO authenticated;
 GRANT ALL ON FUNCTION public.touch_listening_pods_updated_at() TO service_role;
+
+
+--
+-- Name: FUNCTION try_canonical_language(code text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.try_canonical_language(code text) TO anon;
+GRANT ALL ON FUNCTION public.try_canonical_language(code text) TO authenticated;
+GRANT ALL ON FUNCTION public.try_canonical_language(code text) TO service_role;
+
+
+--
+-- Name: FUNCTION try_canonical_voice_id(v text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.try_canonical_voice_id(v text) TO anon;
+GRANT ALL ON FUNCTION public.try_canonical_voice_id(v text) TO authenticated;
+GRANT ALL ON FUNCTION public.try_canonical_voice_id(v text) TO service_role;
 
 
 --
@@ -16409,6 +20285,132 @@ GRANT ALL ON FUNCTION public.update_updated_at_column() TO service_role;
 
 
 --
+-- Name: TABLE _audit_s3_touch; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._audit_s3_touch TO anon;
+GRANT ALL ON TABLE public._audit_s3_touch TO authenticated;
+GRANT ALL ON TABLE public._audit_s3_touch TO service_role;
+
+
+--
+-- Name: TABLE _canon_alive; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._canon_alive TO anon;
+GRANT ALL ON TABLE public._canon_alive TO authenticated;
+GRANT ALL ON TABLE public._canon_alive TO service_role;
+
+
+--
+-- Name: TABLE _canon_lang_map; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._canon_lang_map TO anon;
+GRANT ALL ON TABLE public._canon_lang_map TO authenticated;
+GRANT ALL ON TABLE public._canon_lang_map TO service_role;
+
+
+--
+-- Name: TABLE _canon_reselect; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._canon_reselect TO anon;
+GRANT ALL ON TABLE public._canon_reselect TO authenticated;
+GRANT ALL ON TABLE public._canon_reselect TO service_role;
+
+
+--
+-- Name: TABLE _canon_stage; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._canon_stage TO anon;
+GRANT ALL ON TABLE public._canon_stage TO authenticated;
+GRANT ALL ON TABLE public._canon_stage TO service_role;
+
+
+--
+-- Name: TABLE _canon_voice_map; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._canon_voice_map TO anon;
+GRANT ALL ON TABLE public._canon_voice_map TO authenticated;
+GRANT ALL ON TABLE public._canon_voice_map TO service_role;
+
+
+--
+-- Name: TABLE _converge_probe; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._converge_probe TO anon;
+GRANT ALL ON TABLE public._converge_probe TO authenticated;
+GRANT ALL ON TABLE public._converge_probe TO service_role;
+
+
+--
+-- Name: TABLE _converge_set; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._converge_set TO anon;
+GRANT ALL ON TABLE public._converge_set TO authenticated;
+GRANT ALL ON TABLE public._converge_set TO service_role;
+
+
+--
+-- Name: TABLE _divergence_partition; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._divergence_partition TO anon;
+GRANT ALL ON TABLE public._divergence_partition TO authenticated;
+GRANT ALL ON TABLE public._divergence_partition TO service_role;
+
+
+--
+-- Name: TABLE _fix_broken; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._fix_broken TO anon;
+GRANT ALL ON TABLE public._fix_broken TO authenticated;
+GRANT ALL ON TABLE public._fix_broken TO service_role;
+
+
+--
+-- Name: TABLE _fix_lang_map; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._fix_lang_map TO anon;
+GRANT ALL ON TABLE public._fix_lang_map TO authenticated;
+GRANT ALL ON TABLE public._fix_lang_map TO service_role;
+
+
+--
+-- Name: TABLE _fix_plan; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._fix_plan TO anon;
+GRANT ALL ON TABLE public._fix_plan TO authenticated;
+GRANT ALL ON TABLE public._fix_plan TO service_role;
+
+
+--
+-- Name: TABLE _fix_serving; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._fix_serving TO anon;
+GRANT ALL ON TABLE public._fix_serving TO authenticated;
+GRANT ALL ON TABLE public._fix_serving TO service_role;
+
+
+--
+-- Name: TABLE _fix_voice_map; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public._fix_voice_map TO anon;
+GRANT ALL ON TABLE public._fix_voice_map TO authenticated;
+GRANT ALL ON TABLE public._fix_voice_map TO service_role;
+
+
+--
 -- Name: TABLE admin_impersonation_audit; Type: ACL; Schema: public; Owner: -
 --
 
@@ -16425,6 +20427,24 @@ GRANT ALL ON TABLE public.algorithm_config TO service_role;
 
 
 --
+-- Name: TABLE algorithm_config_pointers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.algorithm_config_pointers TO anon;
+GRANT ALL ON TABLE public.algorithm_config_pointers TO authenticated;
+GRANT ALL ON TABLE public.algorithm_config_pointers TO service_role;
+
+
+--
+-- Name: TABLE algorithm_config_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.algorithm_config_versions TO anon;
+GRANT ALL ON TABLE public.algorithm_config_versions TO authenticated;
+GRANT ALL ON TABLE public.algorithm_config_versions TO service_role;
+
+
+--
 -- Name: TABLE apml_documents; Type: ACL; Schema: public; Owner: -
 --
 
@@ -16437,6 +20457,69 @@ GRANT ALL ON TABLE public.apml_documents TO service_role;
 
 GRANT ALL ON TABLE public.app_config TO authenticated;
 GRANT ALL ON TABLE public.app_config TO service_role;
+
+
+--
+-- Name: TABLE audio_clip_flags; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_clip_flags TO anon;
+GRANT ALL ON TABLE public.audio_clip_flags TO authenticated;
+GRANT ALL ON TABLE public.audio_clip_flags TO service_role;
+
+
+--
+-- Name: TABLE audio_clip_promotions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_clip_promotions TO anon;
+GRANT ALL ON TABLE public.audio_clip_promotions TO authenticated;
+GRANT ALL ON TABLE public.audio_clip_promotions TO service_role;
+
+
+--
+-- Name: SEQUENCE audio_clip_promotions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.audio_clip_promotions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.audio_clip_promotions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.audio_clip_promotions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE audio_clip_signoffs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_clip_signoffs TO anon;
+GRANT ALL ON TABLE public.audio_clip_signoffs TO authenticated;
+GRANT ALL ON TABLE public.audio_clip_signoffs TO service_role;
+
+
+--
+-- Name: TABLE audio_clips; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_clips TO anon;
+GRANT ALL ON TABLE public.audio_clips TO authenticated;
+GRANT ALL ON TABLE public.audio_clips TO service_role;
+
+
+--
+-- Name: TABLE audio_convergence_log; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_convergence_log TO anon;
+GRANT ALL ON TABLE public.audio_convergence_log TO authenticated;
+GRANT ALL ON TABLE public.audio_convergence_log TO service_role;
+
+
+--
+-- Name: SEQUENCE audio_convergence_log_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.audio_convergence_log_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.audio_convergence_log_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.audio_convergence_log_id_seq TO service_role;
 
 
 --
@@ -16462,6 +20545,15 @@ GRANT ALL ON SEQUENCE public.audio_flags_id_seq TO service_role;
 --
 
 GRANT ALL ON TABLE public.audio_pass_requests TO service_role;
+
+
+--
+-- Name: TABLE audio_repair_candidates; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_repair_candidates TO anon;
+GRANT ALL ON TABLE public.audio_repair_candidates TO authenticated;
+GRANT ALL ON TABLE public.audio_repair_candidates TO service_role;
 
 
 --
@@ -16532,54 +20624,70 @@ GRANT ALL ON TABLE public.classes TO service_role;
 --
 
 GRANT SELECT,DELETE,MAINTAIN ON TABLE public.learners TO authenticated;
-GRANT INSERT(id) ON TABLE public.learners TO authenticated;
-GRANT INSERT(user_id) ON TABLE public.learners TO authenticated;
-GRANT INSERT(display_name) ON TABLE public.learners TO authenticated;
-GRANT INSERT(preferences) ON TABLE public.learners TO authenticated;
-GRANT INSERT(verified_emails) ON TABLE public.learners TO authenticated;
-GRANT INSERT(needs_verification) ON TABLE public.learners TO authenticated;
-GRANT INSERT(welcome_played_at) ON TABLE public.learners TO authenticated;
-GRANT INSERT(created_at) ON TABLE public.learners TO authenticated;
-GRANT INSERT(updated_at) ON TABLE public.learners TO authenticated;
 GRANT ALL ON TABLE public.learners TO service_role;
+
+
+--
+-- Name: COLUMN learners.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(id) ON TABLE public.learners TO authenticated;
 
 
 --
 -- Name: COLUMN learners.user_id; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(user_id) ON TABLE public.learners TO authenticated;
+GRANT INSERT(user_id),UPDATE(user_id) ON TABLE public.learners TO authenticated;
 
 
 --
 -- Name: COLUMN learners.display_name; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(display_name) ON TABLE public.learners TO authenticated;
+GRANT INSERT(display_name),UPDATE(display_name) ON TABLE public.learners TO authenticated;
+
+
+--
+-- Name: COLUMN learners.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_at) ON TABLE public.learners TO authenticated;
 
 
 --
 -- Name: COLUMN learners.updated_at; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(updated_at) ON TABLE public.learners TO authenticated;
+GRANT INSERT(updated_at),UPDATE(updated_at) ON TABLE public.learners TO authenticated;
 
 
 --
 -- Name: COLUMN learners.preferences; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(preferences) ON TABLE public.learners TO authenticated;
+GRANT INSERT(preferences),UPDATE(preferences) ON TABLE public.learners TO authenticated;
 
 
 --
 -- Name: COLUMN learners.verified_emails; Type: ACL; Schema: public; Owner: -
 --
--- UPDATE(verified_emails) was REVOKEd from authenticated on 2026-08-11
--- (AUTH-CORE-02, supabase/migrations/20260811_lock_learner_identity_columns.sql).
--- The INSERT grant above survives, policed for CONTENT by the
--- enforce_verified_emails_provenance trigger; the browser's back-fill now goes
--- through public.sync_my_verified_emails().
+
+GRANT INSERT(verified_emails) ON TABLE public.learners TO authenticated;
+
+
+--
+-- Name: COLUMN learners.welcome_played_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(welcome_played_at) ON TABLE public.learners TO authenticated;
+
+
+--
+-- Name: COLUMN learners.needs_verification; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(needs_verification) ON TABLE public.learners TO authenticated;
 
 
 --
@@ -16657,6 +20765,24 @@ GRANT ALL ON TABLE public.class_teachers TO service_role;
 
 
 --
+-- Name: TABLE content_audio_link_drops; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.content_audio_link_drops TO anon;
+GRANT ALL ON TABLE public.content_audio_link_drops TO authenticated;
+GRANT ALL ON TABLE public.content_audio_link_drops TO service_role;
+
+
+--
+-- Name: SEQUENCE content_audio_link_drops_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.content_audio_link_drops_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.content_audio_link_drops_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.content_audio_link_drops_id_seq TO service_role;
+
+
+--
 -- Name: TABLE content_audit_log; Type: ACL; Schema: public; Owner: -
 --
 
@@ -16714,6 +20840,24 @@ GRANT ALL ON TABLE public.course_audio_envelope TO service_role;
 GRANT ALL ON TABLE public.course_audio_inventory TO anon;
 GRANT ALL ON TABLE public.course_audio_inventory TO authenticated;
 GRANT ALL ON TABLE public.course_audio_inventory TO service_role;
+
+
+--
+-- Name: TABLE course_audio_revisions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_audio_revisions TO anon;
+GRANT ALL ON TABLE public.course_audio_revisions TO authenticated;
+GRANT ALL ON TABLE public.course_audio_revisions TO service_role;
+
+
+--
+-- Name: SEQUENCE course_audio_revisions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.course_audio_revisions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.course_audio_revisions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.course_audio_revisions_id_seq TO service_role;
 
 
 --
@@ -16820,10 +20964,48 @@ GRANT ALL ON TABLE public.course_progress TO service_role;
 
 
 --
--- Name: TABLE course_qa_flags; Type: ACL; Schema: public; Owner: -
+-- Name: TABLE course_qa_clip_status; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.course_qa_flags TO service_role;
+GRANT ALL ON TABLE public.course_qa_clip_status TO anon;
+GRANT ALL ON TABLE public.course_qa_clip_status TO authenticated;
+GRANT ALL ON TABLE public.course_qa_clip_status TO service_role;
+
+
+--
+-- Name: TABLE lego_introductions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.lego_introductions TO service_role;
+GRANT SELECT ON TABLE public.lego_introductions TO anon;
+GRANT SELECT ON TABLE public.lego_introductions TO authenticated;
+
+
+--
+-- Name: TABLE course_qa_cycle_clips; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_cycle_clips TO anon;
+GRANT ALL ON TABLE public.course_qa_cycle_clips TO authenticated;
+GRANT ALL ON TABLE public.course_qa_cycle_clips TO service_role;
+
+
+--
+-- Name: TABLE course_qa_cycle_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_cycle_status TO anon;
+GRANT ALL ON TABLE public.course_qa_cycle_status TO authenticated;
+GRANT ALL ON TABLE public.course_qa_cycle_status TO service_role;
+
+
+--
+-- Name: TABLE course_qa_gate; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_gate TO anon;
+GRANT ALL ON TABLE public.course_qa_gate TO authenticated;
+GRANT ALL ON TABLE public.course_qa_gate TO service_role;
 
 
 --
@@ -16833,6 +21015,58 @@ GRANT ALL ON TABLE public.course_qa_flags TO service_role;
 GRANT ALL ON TABLE public.course_round_index TO anon;
 GRANT ALL ON TABLE public.course_round_index TO authenticated;
 GRANT ALL ON TABLE public.course_round_index TO service_role;
+
+
+--
+-- Name: TABLE course_round_signoffs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_round_signoffs TO anon;
+GRANT ALL ON TABLE public.course_round_signoffs TO authenticated;
+GRANT ALL ON TABLE public.course_round_signoffs TO service_role;
+
+
+--
+-- Name: TABLE courses; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.courses TO anon;
+GRANT ALL ON TABLE public.courses TO authenticated;
+GRANT ALL ON TABLE public.courses TO service_role;
+
+
+--
+-- Name: TABLE course_qa_estate; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_estate TO anon;
+GRANT ALL ON TABLE public.course_qa_estate TO authenticated;
+GRANT ALL ON TABLE public.course_qa_estate TO service_role;
+
+
+--
+-- Name: TABLE course_qa_flags; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_flags TO service_role;
+
+
+--
+-- Name: TABLE course_round_assignments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_round_assignments TO anon;
+GRANT ALL ON TABLE public.course_round_assignments TO authenticated;
+GRANT ALL ON TABLE public.course_round_assignments TO service_role;
+
+
+--
+-- Name: TABLE course_qa_round_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_qa_round_status TO anon;
+GRANT ALL ON TABLE public.course_qa_round_status TO authenticated;
+GRANT ALL ON TABLE public.course_qa_round_status TO service_role;
 
 
 --
@@ -16867,15 +21101,6 @@ GRANT ALL ON TABLE public.course_stats TO service_role;
 GRANT ALL ON TABLE public.course_voice_breakdown TO anon;
 GRANT ALL ON TABLE public.course_voice_breakdown TO authenticated;
 GRANT ALL ON TABLE public.course_voice_breakdown TO service_role;
-
-
---
--- Name: TABLE courses; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.courses TO anon;
-GRANT ALL ON TABLE public.courses TO authenticated;
-GRANT ALL ON TABLE public.courses TO service_role;
 
 
 --
@@ -17041,6 +21266,24 @@ GRANT ALL ON TABLE public.group_summary TO service_role;
 
 
 --
+-- Name: TABLE htw_copy_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.htw_copy_versions TO anon;
+GRANT ALL ON TABLE public.htw_copy_versions TO authenticated;
+GRANT ALL ON TABLE public.htw_copy_versions TO service_role;
+
+
+--
+-- Name: SEQUENCE htw_copy_versions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO service_role;
+
+
+--
 -- Name: SEQUENCE insight_discoveries_id_seq; Type: ACL; Schema: public; Owner: -
 --
 
@@ -17075,10 +21318,28 @@ GRANT ALL ON TABLE public.language_briefs TO service_role;
 
 
 --
+-- Name: TABLE language_canonical; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.language_canonical TO anon;
+GRANT ALL ON TABLE public.language_canonical TO authenticated;
+GRANT ALL ON TABLE public.language_canonical TO service_role;
+
+
+--
 -- Name: TABLE language_pair_briefs; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON TABLE public.language_pair_briefs TO service_role;
+
+
+--
+-- Name: TABLE language_recording_policy; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.language_recording_policy TO anon;
+GRANT ALL ON TABLE public.language_recording_policy TO authenticated;
+GRANT ALL ON TABLE public.language_recording_policy TO service_role;
 
 
 --
@@ -17198,15 +21459,6 @@ GRANT ALL ON TABLE public.subscriptions TO service_role;
 
 GRANT ALL ON TABLE public.learner_subscription_status TO authenticated;
 GRANT ALL ON TABLE public.learner_subscription_status TO service_role;
-
-
---
--- Name: TABLE lego_introductions; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.lego_introductions TO service_role;
-GRANT SELECT ON TABLE public.lego_introductions TO anon;
-GRANT SELECT ON TABLE public.lego_introductions TO authenticated;
 
 
 --
@@ -17362,6 +21614,24 @@ GRANT ALL ON TABLE public.release_notes TO service_role;
 
 
 --
+-- Name: TABLE relink_refusals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.relink_refusals TO anon;
+GRANT ALL ON TABLE public.relink_refusals TO authenticated;
+GRANT ALL ON TABLE public.relink_refusals TO service_role;
+
+
+--
+-- Name: SEQUENCE relink_refusals_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.relink_refusals_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.relink_refusals_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.relink_refusals_id_seq TO service_role;
+
+
+--
 -- Name: TABLE response_metrics; Type: ACL; Schema: public; Owner: -
 --
 
@@ -17403,6 +21673,15 @@ GRANT ALL ON SEQUENCE public.sample_flags_id_seq TO service_role;
 GRANT ALL ON TABLE public.seed_cycles TO anon;
 GRANT ALL ON TABLE public.seed_cycles TO authenticated;
 GRANT ALL ON TABLE public.seed_cycles TO service_role;
+
+
+--
+-- Name: TABLE seed_redo_snapshots; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.seed_redo_snapshots TO anon;
+GRANT ALL ON TABLE public.seed_redo_snapshots TO authenticated;
+GRANT ALL ON TABLE public.seed_redo_snapshots TO service_role;
 
 
 --
