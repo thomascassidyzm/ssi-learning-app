@@ -1,12 +1,13 @@
 /**
  * The acceptance test for reading the How-This-Works copy live.
  *
- * The document in fixtures/ is the frozen original that was seeded into Popty's
- * store as this doc's starting point, byte for byte. So the bar is exact: feed
- * the parser that document and every learner-facing string the app ships today
- * must come back out of it identically. Anything that does not round-trip is a
- * string an editor cannot actually edit, and the test says so out loud rather
- * than being relaxed.
+ * The document in fixtures/ is kept in step with the shipped copy in
+ * learnerExplainers.ts (most recently the A-192 edits) rather than frozen at
+ * its Popty seed point. So the bar is exact: feed the parser that document
+ * and every learner-facing string the app ships today must come back out of
+ * it identically. Anything that does not round-trip is a string an editor
+ * cannot actually edit, and the test says so out loud rather than being
+ * relaxed.
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -125,7 +126,7 @@ describe('applyParsedSection — the hardcoded copy is always the floor', () => 
   it('takes edited prose but never the figure or the link urls', () => {
     const edited = ORIGINAL
       .replace(
-        'A go is one of those gaps where you opened your mouth and had a crack at it.',
+        "A 'go' is one of those gaps where you opened your mouth and had a crack at it.",
         'A go is any time you had a crack at it.',
       )
       .replace(

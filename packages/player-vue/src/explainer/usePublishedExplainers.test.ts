@@ -51,7 +51,7 @@ describe('usePublishedExplainers', () => {
 
   it('swaps in the published words when they arrive', async () => {
     const edited = ORIGINAL.replace(
-      'A go is one of those gaps where you opened your mouth and had a crack at it.',
+      "A 'go' is one of those gaps where you opened your mouth and had a crack at it.",
       'A go is any time you had a crack at it.',
     )
     vi.stubGlobal('fetch', respond({ id: 'htw', content: edited }))
