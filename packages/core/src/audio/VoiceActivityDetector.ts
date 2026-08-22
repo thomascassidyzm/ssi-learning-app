@@ -65,6 +65,26 @@ export class VoiceActivityDetector {
   // consumes it into EnvelopeMetadata (5 numbers) and discards it immediately.
   private continuousEnergyTimeline: TimedEnergySample[] = [];
 
+  // Playback-rejection state (continuous mode only, 2026-08-20).
+  // See ContinuousVADConfig for why the gate has to be relative.
+  private calibrationSamples: number[] = [];
+  private calibrationClosed = false;
+  /** max(absolute threshold, measured floor + margin); null until calibrated */
+  private adaptiveThresholdDb: number | null = null;
+  /** Start of an above-floor burst not yet sustained long enough to count.
+   *  Re-armable: a burst that dies before min_speech_duration_ms is discarded,
+   *  so a transient can no longer own the whole cycle's measurement. */
+  private candidateSpeechStart: number | null = null;
+  /** Has the pending candidate stayed up for min_speech_duration_ms? Once it
+   *  has, it is held until the prompt-end boundary can judge it, rather than
+   *  being dropped the moment its run ends. */
+  private candidateSustained = false;
+  /** Absolute time the pending candidate's run fell back to the floor; null
+   *  while it is still above. A prompt-window candidate is judged on WHERE
+   *  its run ended relative to PROMPT_END, and PROMPT_END is usually marked
+   *  after the run has already ended, so that moment has to be remembered. */
+  private candidateRunEnd: number | null = null;
+
   constructor(config: Partial<VADConfig> = {}) {
     this.config = { ...DEFAULT_VAD_CONFIG, ...config };
   }
@@ -372,6 +392,12 @@ export class VoiceActivityDetector {
     this.lastSpeechEndAbsolute = null;
     this.confirmedSpeechEnd = null;
     this.continuousEnergyTimeline = [];
+    this.calibrationSamples = [];
+    this.calibrationClosed = false;
+    this.adaptiveThresholdDb = null;
+    this.candidateSpeechStart = null;
+    this.candidateSustained = false;
+    this.candidateRunEnd = null;
     if (this.speechEndDebounceTimer) {
       clearTimeout(this.speechEndDebounceTimer);
       this.speechEndDebounceTimer = null;
@@ -449,23 +475,40 @@ export class VoiceActivityDetector {
       this.speechEndDebounceTimer = null;
     }
 
-    // Finalize speech end if still speaking
-    if (this.lastSpeechStartTime !== null && this.confirmedSpeechEnd === null) {
-      this.confirmedSpeechEnd = endTime - this.continuousStartTime;
-    }
-
     // Get phase timestamps (relative to prompt start)
     const promptEndMs = this.phaseTimestamps.get('PROMPT_END') ?? 0;
     const voice1StartMs = this.phaseTimestamps.get('VOICE_1') ?? 0;
+
+    // Last chance for a candidate still awaiting the prompt-end boundary —
+    // e.g. an utterance that was still running when the cycle ended, or a
+    // cycle where PROMPT_END was never marked at all.
+    this.tryResolveCandidate(endTime - this.continuousStartTime, true);
+
+    // Finalize speech end if still speaking. Clamped to shortly after VOICE_1:
+    // past that the app's own target audio is the likelier source of whatever
+    // is still above the floor, and an unclamped end here is precisely what
+    // produced the whole-cycle ~17.5s "utterances" in the live corpus.
+    if (this.lastSpeechStartTime !== null && this.confirmedSpeechEnd === null) {
+      const cycleEndMs = endTime - this.continuousStartTime;
+      const hasVoice1 = this.phaseTimestamps.has('VOICE_1');
+      this.confirmedSpeechEnd = hasVoice1
+        ? Math.min(cycleEndMs, voice1StartMs + this.continuousConfig.post_voice1_grace_ms)
+        : cycleEndMs;
+    }
 
     // Calculate speech timestamps (relative to prompt start)
     const speechStartMs = this.firstSpeechStartAbsolute !== null
       ? this.firstSpeechStartAbsolute - this.continuousStartTime
       : null;
-    const speechEndMs = this.confirmedSpeechEnd ?? (
-      this.lastSpeechEndAbsolute !== null
-        ? this.lastSpeechEndAbsolute - this.continuousStartTime
-        : null
+    // An end with no start is not a result the read side should have to cope
+    // with. It arises when the only above-floor run was rejected as the app's
+    // own prompt audio: the run's end was recorded before the verdict landed.
+    const speechEndMs = speechStartMs === null ? null : (
+      this.confirmedSpeechEnd ?? (
+        this.lastSpeechEndAbsolute !== null
+          ? this.lastSpeechEndAbsolute - this.continuousStartTime
+          : null
+      )
     );
 
     // Calculate derived metrics
@@ -515,6 +558,233 @@ export class VoiceActivityDetector {
   }
 
   /**
+   * The energy a sample must exceed to count as speech, right now.
+   *
+   * Until the calibration slice closes this is the configured absolute
+   * threshold; afterwards it is the larger of that and (measured floor +
+   * margin). The measured floor is a LOW QUANTILE of the calibration slice
+   * (see `calibration_percentile`), not a mean, median or max: a learner
+   * speaking during the slice adds energy on top of the playback and can only
+   * push samples up, so the estimator has to survive upward contamination —
+   * and the median does not survive enough of it.
+   */
+  private currentSpeechThresholdDb(): number {
+    const absolute = this.continuousConfig.energy_threshold_db;
+    if (this.adaptiveThresholdDb === null) return absolute;
+    return Math.max(absolute, this.adaptiveThresholdDb);
+  }
+
+  /**
+   * Accumulate the calibration slice and close it once the window elapses (or
+   * PROMPT_END arrives first, for a very short prompt). Returns true while
+   * calibration is still open, during which no onset may be CONFIRMED — but
+   * see `backdateOnsetThroughCalibration`, which recovers an onset that was
+   * already under way when the slice closed.
+   */
+  private updateCalibration(relativeNow: number, energy: number): boolean {
+    if (!this.continuousConfig.adaptive_floor_enabled) return false;
+    if (this.calibrationClosed) return false;
+
+    const promptEnd = this.phaseTimestamps.get('PROMPT_END');
+    const windowElapsed = relativeNow >= this.continuousConfig.calibration_window_ms;
+    const promptEnded = promptEnd !== undefined && relativeNow >= promptEnd;
+
+    if (!windowElapsed && !promptEnded) {
+      this.calibrationSamples.push(energy);
+      return true;
+    }
+
+    this.calibrationClosed = true;
+    if (this.calibrationSamples.length >= this.continuousConfig.calibration_min_samples) {
+      const sorted = [...this.calibrationSamples].sort((a, b) => a - b);
+      const q = Math.min(Math.max(this.continuousConfig.calibration_percentile, 0), 1);
+      const idx = Math.min(sorted.length - 1, Math.floor(q * sorted.length));
+      this.adaptiveThresholdDb = sorted[idx] + this.continuousConfig.adaptive_margin_db;
+      this.backdateOnsetThroughCalibration();
+    }
+    // Too few samples → adaptiveThresholdDb stays null and the absolute
+    // threshold governs, rather than a floor built on two frames of noise.
+    return false;
+  }
+
+  /**
+   * Recover the onset of an utterance that was ALREADY IN PROGRESS when the
+   * calibration slice closed.
+   *
+   * The slice cannot judge its own samples as they arrive — there is no floor
+   * yet to judge them against. But the moment the floor exists, the slice can
+   * be re-read: walk backwards from its last sample while the energy is above
+   * the freshly measured floor, and the start of that run is when the learner
+   * actually began. Without this, the most confident speaker there is — the
+   * one who answers 200ms in because they already knew it — was credited at
+   * the moment calibration happened to close, and that inflated latency was
+   * reported as truth (measured: onset 200ms, reported 432ms).
+   *
+   * Only ever called with a measured floor in hand. Under the starved-
+   * calibration fallback there is no floor, the absolute threshold governs,
+   * and back-dating there would hand the whole cycle back to playback — which
+   * is the original bug, so it is deliberately not done.
+   *
+   * The candidate seeded here is not yet an onset: it still has to clear the
+   * sustain test and the prompt-boundary test like any other.
+   */
+  private backdateOnsetThroughCalibration(): void {
+    if (this.firstSpeechStartAbsolute !== null) return;
+    if (this.candidateSpeechStart !== null) return;
+
+    const threshold = this.currentSpeechThresholdDb();
+    const timeline = this.continuousEnergyTimeline;
+    if (timeline.length === 0) return;
+    // The run must reach the end of the slice; an earlier burst that already
+    // died inside it is not what the learner is still saying now.
+    if (timeline[timeline.length - 1].db <= threshold) return;
+
+    let i = timeline.length - 1;
+    while (i > 0 && timeline[i - 1].db > threshold) i--;
+
+    this.candidateSpeechStart = timeline[i].t;
+    this.candidateSustained = false;
+    this.candidateRunEnd = null;
+  }
+
+  /**
+   * Resolve a sustained candidate whose onset lies inside the prompt window,
+   * using the prompt-end boundary rather than level. See
+   * `prompt_boundary_guard_ms` for why level alone cannot do this.
+   *
+   * @param relativeNow  now, relative to prompt start
+   * @param stillAbove   is the run still above the floor at `relativeNow`?
+   * @returns 'learner' to confirm, 'bleed' to discard and re-arm, 'pending'
+   *          to keep waiting for the boundary to arrive.
+   */
+  private resolvePromptWindowCandidate(
+    relativeNow: number,
+    stillAbove: boolean
+  ): 'learner' | 'bleed' | 'pending' {
+    const promptEnd = this.phaseTimestamps.get('PROMPT_END');
+    if (promptEnd === undefined) return 'pending';
+    const guard = this.continuousConfig.prompt_boundary_guard_ms;
+
+    // Escape hatch: a zero (or negative) guard turns the boundary test off
+    // and leaves the energy margin alone in charge, as it was before.
+    if (guard <= 0) return 'learner';
+
+    if (stillAbove) {
+      // Outlived the prompt by the guard → cannot be the prompt.
+      return relativeNow >= promptEnd + guard ? 'learner' : 'pending';
+    }
+    // Fell back to the floor while the prompt was still audibly playing →
+    // cannot be the prompt either. This is the short early answer.
+    if (relativeNow < promptEnd - guard) return 'learner';
+    // Died with the prompt.
+    return 'bleed';
+  }
+
+  /**
+   * Whether a NEW utterance may still begin. The learner is invited to speak
+   * between PROMPT_END and VOICE_1; once the app starts playing target audio
+   * an onset is far likelier to be that audio than a response, and the
+   * response-latency measurement it would produce is meaningless anyway.
+   * Speech already in progress is unaffected — which is what keeps
+   * `still_speaking_at_voice1` measurable.
+   */
+  private onsetWindowOpen(relativeNow: number): boolean {
+    const voice1 = this.phaseTimestamps.get('VOICE_1');
+    return voice1 === undefined || relativeNow < voice1;
+  }
+
+  /** Has the pending candidate stayed up long enough to be an utterance
+   *  rather than a door, a tap or a click? */
+  private candidateIsSustained(now: number): boolean {
+    return (
+      this.candidateSpeechStart !== null &&
+      now - this.candidateSpeechStart >= this.continuousConfig.min_speech_duration_ms
+    );
+  }
+
+  /**
+   * Decide, with whatever is known right now, whether the pending sustained
+   * candidate is the learner, the app's own prompt audio, or still
+   * undecidable. Called every frame while a sustained candidate is pending,
+   * and once more at stop.
+   *
+   * PROMPT_END is marked by the player when the prompt audio actually
+   * finishes, which is normally LONG after the candidate began — so this
+   * cannot be settled when the candidate is created. It is settled here, on
+   * whichever frame the information finally exists.
+   *
+   * @param relativeNow now, relative to prompt start
+   * @param atStop      final call: no more information is coming, so an
+   *                    unmarked PROMPT_END means the boundary test is simply
+   *                    unavailable and the candidate is taken at face value.
+   */
+  private tryResolveCandidate(relativeNow: number, atStop = false): void {
+    if (this.firstSpeechStartAbsolute !== null) return;
+    if (this.candidateSpeechStart === null || !this.candidateSustained) return;
+
+    const promptEnd = this.phaseTimestamps.get('PROMPT_END');
+    if (promptEnd === undefined) {
+      // No boundary to judge against. Wait for one — unless nothing more is
+      // coming, in which case fall back to believing the candidate rather
+      // than silently losing an utterance.
+      if (atStop) this.confirmOnset();
+      return;
+    }
+
+    const candidateRel = this.candidateSpeechStart - this.continuousStartTime;
+    if (candidateRel >= promptEnd) {
+      // Onset after the prompt finished: it has already outlived the prompt,
+      // so there is nothing for the boundary test to add.
+      this.confirmOnset();
+      return;
+    }
+
+    const stillAbove = this.candidateRunEnd === null;
+    const at = stillAbove ? relativeNow : this.candidateRunEnd! - this.continuousStartTime;
+    const verdict = this.resolvePromptWindowCandidate(at, stillAbove);
+
+    if (verdict === 'learner') {
+      this.confirmOnset();
+    } else if (verdict === 'bleed') {
+      this.discardCandidate();
+    }
+  }
+
+  /** Throw the pending candidate away and re-arm for a real response. */
+  private discardCandidate(): void {
+    this.candidateSpeechStart = null;
+    this.candidateSustained = false;
+    this.candidateRunEnd = null;
+  }
+
+  /** Promote the pending candidate to THE onset for this cycle. */
+  private confirmOnset(): void {
+    // Credit the START of the burst, not the moment it qualified, so response
+    // latency is not inflated by the sustain or boundary tests.
+    const onset = this.candidateSpeechStart;
+    this.firstSpeechStartAbsolute = onset;
+
+    // Any end recorded by an EARLIER unsustained burst predates the real
+    // utterance and would otherwise survive to the result as a speech_end
+    // BEFORE speech_start. Only such ends are discarded: confirmation can now
+    // happen after the candidate's own run has already finished (a prompt-
+    // window candidate waits for PROMPT_END to judge it), and that run's end
+    // is the real one — clearing it unconditionally left the short early
+    // answer with a start and no end.
+    const onsetRel = onset !== null ? onset - this.continuousStartTime : 0;
+    if (this.lastSpeechEndAbsolute !== null && this.lastSpeechEndAbsolute <= (onset ?? 0)) {
+      this.lastSpeechEndAbsolute = null;
+    }
+    if (this.confirmedSpeechEnd !== null && this.confirmedSpeechEnd <= onsetRel) {
+      this.confirmedSpeechEnd = null;
+    }
+    if (this.lastSpeechEndAbsolute === null && this.speechEndDebounceTimer) {
+      clearTimeout(this.speechEndDebounceTimer);
+      this.speechEndDebounceTimer = null;
+    }
+  }
+
+  /**
    * Internal analysis loop for continuous monitoring.
    * Similar to analyzeLoop but tracks first speech start and debounces speech end.
    */
@@ -523,6 +793,7 @@ export class VoiceActivityDetector {
 
     const energy = this.getCurrentEnergy();
     const now = performance.now();
+    const relativeNow = now - this.continuousStartTime;
 
     // Record energy sample
     this.energySamples.push(energy);
@@ -533,8 +804,14 @@ export class VoiceActivityDetector {
       this.peakEnergy = energy;
     }
 
-    // Check against threshold
-    const isAboveThreshold = energy > this.config.energy_threshold_db;
+    const calibrating = this.updateCalibration(relativeNow, energy);
+
+    // Check against threshold. Continuous mode reads continuousConfig — the
+    // loop used to read this.config for the threshold and min_frames while
+    // reading continuousConfig only for the debounce, so a per-call config
+    // passed to startContinuousMonitoring silently did nothing to the gate.
+    const isAboveThreshold =
+      !calibrating && energy > this.currentSpeechThresholdDb();
 
     if (isAboveThreshold) {
       this.consecutiveAboveThreshold++;
@@ -546,20 +823,52 @@ export class VoiceActivityDetector {
       }
 
       // Confirm speech after min_frames_above consecutive frames
-      if (this.consecutiveAboveThreshold >= this.config.min_frames_above) {
+      if (this.consecutiveAboveThreshold >= this.continuousConfig.min_frames_above) {
         if (this.lastSpeechStartTime === null) {
           // Speech just started
           this.lastSpeechStartTime = now;
-
-          // Track first speech start for timing analysis
-          if (this.firstSpeechStartAbsolute === null) {
-            this.firstSpeechStartAbsolute = now;
-          }
         }
         this.speechFrameCount++;
+
+        // Track first speech start for timing analysis. Two gates the old
+        // code had neither of: the burst must be inside the onset window,
+        // and it must SUSTAIN for min_speech_duration_ms before it counts.
+        // min_speech_duration_ms was declared and defaulted since the class
+        // was written but never actually read anywhere — so a single ~48ms
+        // transient (three rAF frames) established the onset for the whole
+        // cycle, permanently, with no way to re-arm.
+        if (this.firstSpeechStartAbsolute === null) {
+          if (this.candidateSpeechStart === null) {
+            if (this.onsetWindowOpen(relativeNow)) {
+              this.candidateSpeechStart = this.lastSpeechStartTime;
+              this.candidateSustained = false;
+              this.candidateRunEnd = null;
+            }
+          } else if (this.candidateRunEnd === null && this.candidateIsSustained(now)) {
+            this.candidateSustained = true;
+          }
+          this.tryResolveCandidate(relativeNow);
+        }
       }
     } else {
-      // Below threshold
+      // Below the floor.
+      if (this.firstSpeechStartAbsolute === null && this.candidateSpeechStart !== null) {
+        if (!this.candidateSustained) {
+          // A transient — a door, a tap, a click. Discarded, so the next
+          // burst gets a fresh chance to own the measurement.
+          this.discardCandidate();
+        } else {
+          // Sustained: remember WHERE the run ended and keep holding it. A
+          // prompt-window candidate is judged by that moment against
+          // PROMPT_END, which is usually marked later, so it must not be
+          // thrown away just because it stopped. This is what keeps the short
+          // early answer — a learner who answers over the prompt and finishes
+          // before it does.
+          if (this.candidateRunEnd === null) this.candidateRunEnd = now;
+          this.tryResolveCandidate(relativeNow);
+        }
+      }
+
       if (this.lastSpeechStartTime !== null) {
         // Speech might be ending - record tentative end time
         this.lastSpeechEndAbsolute = now;

@@ -28,8 +28,23 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
    2 consecutive failing ticks.
 4. **Live play-through** — a real headless-browser session
    (`packages/player-vue/e2e/deploy-sentinel-play-probe.mjs`) loads production,
-   starts the player, and verifies zero JS errors + the client's telemetry POST
-   returns 2xx. Runs once per window (~25 min after deploy-live) and again as
+   clicks the real transport control (`.center-btn`), waits for the session
+   clock to actually advance — i.e. proves playback *started* — and verifies
+   zero JS errors + the client's telemetry POST returns 2xx.
+
+   It reports a three-way `verdict`, and the distinction matters:
+   `healthy` (playback ran, loop intact) · `broken` (genuinely failing for
+   learners — **the only verdict that alerts**) · `inconclusive` (the probe
+   could not drive the UI, which says nothing about learners and is logged,
+   never alarmed). Before 2026-08-20 the probe had no such split and, worse,
+   could never start playback at all: every selector it tried missed the real
+   control, it clicked a `<p class="hero-known">` paragraph and swallowed the
+   failure with `.catch(() => {})`. Its "passes" came from a page-load
+   telemetry flush landing inside the 35-second wait, so the result was a race,
+   not a test — and at 02:51 on 2026-08-20 the race lost and it paged Tom with
+   "learners likely can't play" while production was entirely healthy.
+
+   Runs once per window (~25 min after deploy-live) and again as
    the confirm/refute step whenever the volume check says crater — volume alone
    false-alarmed twice (2026-08-01 quiet Friday midnight; 2026-08-06 school
    learners finishing before lunch), because with a handful of concurrent users
@@ -52,12 +67,56 @@ lands on `main`, it opens a ~2h watch window and checks three legs:
 Cron line (every 3 min; the script is a fast no-op when nothing is happening):
 
 ```
-*/3 * * * *  /usr/bin/node /home/tomcassidy/ssi-learning-app/tools/deploy-sentinel/sentinel.mjs >> /dev/null 2>&1
+*/3 * * * *   /bin/sh -c 'S=/home/tomcassidy/ssi-learning-app/tools/deploy-sentinel; if [ -r "$S/run.sh" ]; then /bin/bash "$S/run.sh"; else /usr/bin/node "$S/sentinel.mjs"; fi' >> /dev/null 2>&1
 ```
 
+Cron calls **`run.sh`, not `sentinel.mjs` directly** — the wrapper updates the
+sentinel's own code before each tick. Do not point cron back at `sentinel.mjs`.
+
+The `else` branch is the **bootstrap fail-safe**: `run.sh` is itself pulled from
+`dev`, so if a HEAD ever lands without it, cron would have nothing to call and
+the wrapper could not heal the very problem it exists for. Then the sentinel runs
+directly — stale, but running. Same invariant as inside the script, one level up.
+
+**Where it runs:** the dedicated checkout at `/home/tomcassidy/ssi-learning-app`
+(note: NOT the shared multi-worker tree under `~/SSi/`, whose branch changes
+under you — a watchman must not run from a tree that thrashes). That checkout is
+**machine-owned**: `run.sh` hard-syncs its tracked files every 3 minutes, so
+nothing should ever be authored there. Untracked files are never touched.
+
+**Which branch it tracks: `origin/dev`, detached HEAD.** This decides only which
+version of the *sentinel's own code* runs; it has no bearing on what the sentinel
+*watches*, which is production over HTTP plus `git ls-remote origin main` (a
+remote lookup). `dev` is this repo's default branch and auto-merge target, so
+sentinel tooling lands there first — tracking `main` would, as of 2026-08-20,
+have reverted the play-probe fix and restored the broken alarm. Detached HEAD
+means no local branch pointer moves, so the clone's own branches and its git
+worktrees are unaffected.
+
+**Self-update, and why it cannot brick the watchman:** each tick `run.sh` fetches
+and hard-syncs to `origin/dev`, then runs the sentinel. Every update step is
+allowed to fail — a network blip, a git lock, an unresolvable ref — and the
+sentinel still runs on whatever code is on disk, with the failure logged to
+`sentinel.log` (`run.sh: SYNC FAILED …`). A sentinel on slightly-stale code beats
+a sentinel that did not run.
+
+**`node_modules`:** the play probe needs `@playwright/test` from this checkout.
+`run.sh` hashes `pnpm-lock.yaml` and does nothing while it is unchanged; when it
+changes it starts `pnpm install --frozen-lockfile` in the **background** (pnpm is
+off PATH here — corepack's shim at `/usr/lib/node_modules/corepack/shims/pnpm` is
+used by absolute path) and the tick proceeds with the existing modules rather
+than blocking on a multi-minute install. Both the mismatch and the install result
+are logged loudly; `install.log`, `.installed-lock` and `.install.lock` sit next
+to the script and are gitignored.
+
+Why any of this: until 2026-08-20 that checkout sat on `main`, 123 commits
+behind, and never pulled — a watchman guarding production with a weeks-old copy
+of itself, honest only for as long as someone's hand-patch survived.
+
 State: `state.json` next to the script (last seen main SHA, open window, alerted
-flags). Log: `sentinel.log`. Both gitignored. First-ever run adopts the current
-main SHA without opening a window.
+flags). Log: `sentinel.log`, trimmed by `run.sh` past 20k lines. Both gitignored,
+so syncing the checkout cannot clobber the sentinel's memory. First-ever run
+adopts the current main SHA without opening a window.
 
 ## Manual test
 
