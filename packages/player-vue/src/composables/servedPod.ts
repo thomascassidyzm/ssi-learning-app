@@ -31,6 +31,24 @@
  *    downloaded Croatian keeps reading the pod they actually have — and
  *    resolves it with no network round-trip at all. The snapshot's slug is
  *    still run through rule 1, so a parked slug can never enter this way.
+ *
+ * 5. A HELD pod resolves to "no pods yet" for free, and that is deliberate.
+ *    `listening_pods.visibility` ('live' | 'held', added 2026-08-23 — see
+ *    ssi-dashboard-v7-clean/database/changes/20260823_listening_pod_visibility.sql)
+ *    lets a human hold a pod back while they are still recording it. The gate
+ *    is enforced in RLS, so a held pod's row is simply not there for the
+ *    anon-key query below: `found` comes back without it and rule 2 lands on
+ *    `pod-0`, whose sentence read is likewise empty. Held and absent are
+ *    INDISTINGUISHABLE to this resolver on purpose — that is what makes a hold
+ *    invisible (Tom's ruling: not a greyed tab, not an empty pod, not "coming
+ *    soon") rather than conspicuous. Do NOT add a visibility filter here; the
+ *    anon client cannot see a held row to filter, and pretending otherwise
+ *    would imply this code is the enforcement when RLS is.
+ *
+ *    Readers that BYPASS RLS must filter explicitly with `LIVE_POD_VISIBILITY`.
+ *    Today that is exactly one learner-facing route: api/courses/[code]/bundle.ts,
+ *    which builds its client from SUPABASE_SERVICE_ROLE_KEY and would otherwise
+ *    ship a held pod's sentences into the offline bundle.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -42,6 +60,15 @@ export const SERVING_POD_SLUGS = ['pod-1', 'pod-0'] as const
 
 /** What every unknown resolves to — today's behaviour for all ~68 courses. */
 export const FALLBACK_POD_SLUG = 'pod-0'
+
+/**
+ * The `listening_pods.visibility` value a learner is allowed to reach.
+ *
+ * RLS already enforces this for every anon-key read (rule 5 above). It is
+ * exported for the service-role readers that bypass RLS and must therefore
+ * filter by hand — see api/courses/[code]/bundle.ts.
+ */
+export const LIVE_POD_VISIBILITY = 'live' as const
 
 export interface ServedPod {
   /** Bare slug, e.g. `pod-1`. Needed by id-prefix readers (usePodStage0). */
