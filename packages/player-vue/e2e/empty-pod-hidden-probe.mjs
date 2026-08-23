@@ -4,7 +4,7 @@
 //
 // Three fixtures, because there are three ways a course can end up with no
 // dialogues and a learner must not be able to tell them apart:
-//   cym_s_for_eng  EMPTY  — pod row exists, no sentences behind it → no tab.
+//   glg_for_eng    EMPTY  — pod row exists, no sentences behind it → no tab.
 //   cym_n_for_eng  HELD   — pod row and 231 sentences exist, but the pod is
 //                           visibility='held' (2026-08-23 gate), so RLS hides
 //                           both from the anon key → no tab. Tom's ruling: a
@@ -13,10 +13,23 @@
 //   spa_for_eng    LIVE   — the control. If this loses its tab, the gate has
 //                           over-reached and taken a released course with it.
 //
-// The HELD fixture is only meaningful while cym_n_for_eng:pod-0 is actually
-// held. Releasing it turns that row into a second LIVE case — the probe says
-// so rather than failing silently, because a probe that passes for the wrong
-// reason is worse than no probe.
+// FIXTURES GO STALE, AND THIS ONE DID. Until 2026-08-23 the EMPTY fixture was
+// cym_s_for_eng, described in this header as "empty pod-0". It has since been
+// recorded and released — 231 sentences, tab present — so the probe was
+// asserting nothing about the case it was written for, and nobody noticed
+// because it only ever printed. Repointed to glg_for_eng (one of 26 courses
+// whose serving pod has zero sentences as of 2026-08-23, checked with the ANON
+// key). Re-check the fixtures before trusting a green run.
+//
+// Likewise the HELD fixture is only meaningful while cym_n_for_eng:pod-0 is
+// actually held. Releasing it turns that row into a second LIVE case — the
+// probe says so rather than failing silently, because a probe that passes for
+// the wrong reason is worse than no probe.
+//
+// The LIVE control exists for exactly this reason. On the first run of this
+// version the app never booted (no .env.local in the worktree), every course
+// reported "no tabs on screen", and both no-dialogues fixtures went green on
+// an app that had not loaded. The control was what failed and caught it.
 //
 //   BASE_URL=http://localhost:5199 node e2e/empty-pod-hidden-probe.mjs
 //   BASE_URL=http://localhost:5199 COURSES=cym_n_for_eng node e2e/…   # one course
@@ -29,7 +42,7 @@ mkdirSync(OUT, { recursive: true })
 
 /** course → what a learner must see. `dialogues: false` means NO tab at all. */
 const FIXTURES = {
-  cym_s_for_eng: { why: 'EMPTY — pod row, zero sentences', dialogues: false },
+  glg_for_eng: { why: 'EMPTY — pod row, zero sentences', dialogues: false },
   cym_n_for_eng: { why: 'HELD — visibility=held, sentences hidden by RLS', dialogues: false },
   spa_for_eng: { why: 'LIVE — control, must keep its tab', dialogues: true },
 }
