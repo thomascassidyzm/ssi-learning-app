@@ -10725,8 +10725,10 @@ CREATE TABLE public.listening_pods (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb,
+    visibility text DEFAULT 'live'::text NOT NULL,
     CONSTRAINT listening_pods_difficulty_check CHECK ((difficulty = ANY (ARRAY['beginner'::text, 'beginner-intermediate'::text, 'intermediate'::text, 'advanced'::text]))),
-    CONSTRAINT listening_pods_pod_type_check CHECK ((pod_type = ANY (ARRAY['core'::text, 'choice'::text])))
+    CONSTRAINT listening_pods_pod_type_check CHECK ((pod_type = ANY (ARRAY['core'::text, 'choice'::text]))),
+    CONSTRAINT listening_pods_visibility_check CHECK ((visibility = ANY (ARRAY['live'::text, 'held'::text])))
 );
 
 
@@ -10756,6 +10758,13 @@ COMMENT ON COLUMN public.listening_pods.speakers IS 'Speaker name → { voice_id
 --
 
 COMMENT ON COLUMN public.listening_pods.source_file IS 'Markdown file this pod was last synced from (provenance, for re-sync)';
+
+
+--
+-- Name: COLUMN listening_pods.visibility; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pods.visibility IS 'Learner reachability gate. ''live'' = readable by anon/authenticated through RLS. ''held'' = invisible to learners entirely (no pod row, no sentences) while staying fully visible to service-role admin surfaces. Release is a deliberate human act — never set to ''live'' automatically on completeness. Trail in metadata.held_at / metadata.released_at.';
 
 
 --
@@ -14867,6 +14876,13 @@ CREATE INDEX idx_listening_pods_course_type ON public.listening_pods USING btree
 
 
 --
+-- Name: idx_listening_pods_held; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_listening_pods_held ON public.listening_pods USING btree (id) WHERE (visibility = 'held'::text);
+
+
+--
 -- Name: idx_metrics_learner; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -18293,7 +18309,9 @@ ALTER TABLE public.listening_pod_sentences ENABLE ROW LEVEL SECURITY;
 -- Name: listening_pod_sentences listening_pod_sentences_public_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY listening_pod_sentences_public_read ON public.listening_pod_sentences FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY listening_pod_sentences_public_read ON public.listening_pod_sentences FOR SELECT TO authenticated, anon USING ((EXISTS ( SELECT 1
+   FROM public.listening_pods p
+  WHERE ((p.id = listening_pod_sentences.pod_id) AND (p.visibility = 'live'::text)))));
 
 
 --
@@ -18306,7 +18324,7 @@ ALTER TABLE public.listening_pods ENABLE ROW LEVEL SECURITY;
 -- Name: listening_pods listening_pods_public_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY listening_pods_public_read ON public.listening_pods FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY listening_pods_public_read ON public.listening_pods FOR SELECT TO authenticated, anon USING ((visibility = 'live'::text));
 
 
 --
