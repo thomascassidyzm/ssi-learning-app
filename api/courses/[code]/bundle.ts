@@ -387,6 +387,29 @@ export default async function handler(
         .from('listening_pods')
         .select('id, pod_order, title')
         .eq('course_code', code)
+        // Only pods a learner can actually PLAY belong in a download bundle.
+        // This query used to filter on course_code alone, so every retired and
+        // parked pod came back too: ita_for_eng returns three rows (pod-1 live,
+        // plus pod-0-retired-2026-08-22 and pod-1-retired-2026-08-24, both
+        // held), and the sentence fetch below then pulled every one of their
+        // rows and queued their audio for download. 60 of the estate's 129 core
+        // pods are held.
+        //
+        // Retiring a pod by setting visibility='held' (2026-08-24) did not
+        // reach this consumer, because nothing here reads visibility. The gate
+        // that actually decides what is served is the SLUG — see
+        // `packages/player-vue/src/composables/servedPod.ts`, whose
+        // SERVING_POD_SLUGS is the source of truth: only `pod-1` and `pod-0`
+        // are ever served, and content is held back by parking a pod on a
+        // dated or suffixed slug. Mirroring that rule here keeps the downloader
+        // and the player reading the same pods by construction.
+        //
+        // Duplicated as a literal rather than imported, for the same reason the
+        // version constant below is: this file's dependency graph is traced by
+        // Vercel's serverless bundler, and servedPod.ts pulls in the network
+        // gate and the IndexedDB metadata cache, neither of which can run here.
+        .eq('pod_type', 'core')
+        .in('slug', ['pod-1', 'pod-0'])
         .order('pod_order', { ascending: true, nullsFirst: true }),
       // Bookends live in course_audio (role-based), not on listening_pods.
       // One pair per course today — shared across all that course's pods.
