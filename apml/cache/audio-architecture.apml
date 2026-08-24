@@ -607,10 +607,30 @@ spec audio_caching_architecture:
       offline: >
         No stamp is obtainable offline (the courses query fails) → nothing
         invalidates. A stale cache OFFLINE is correct behaviour; staleness
-        only matters once online. META_VERSION/SCRIPT_VERSION remain as the
-        schema-SHAPE escape hatch (key format changes), no longer the content
-        freshness mechanism. content_version (hand-bumped semver) keeps its
-        heavier role: audio regeneration → full clear incl. SW audio cache.
+        only matters once online. content_version (hand-bumped semver) keeps
+        its heavier role: audio regeneration → full clear incl. SW audio cache.
+      listening_meta_key_2026_08_24: >
+        META_VERSION is DELETED. It was kept as a schema-SHAPE escape hatch and
+        was promptly misused as a content-freshness lever twice: v2 (2026-07-22,
+        which called itself a placeholder) and v3 (2026-08-24, after devices
+        served the pre-repair Pod 1 split arrays — "the new Scene 15 is playing
+        the old Scene 15 clips in the app right now"). Twice wrong means the
+        schema is wrong, not the operator, so the listening snapshot is now
+        keyed on the COURSE CODE alone and judged purely by the contentStamp/
+        audioStamp it already carried. Legacy 'vN:<course>' entries are ADOPTED
+        onto the bare key on first read (vintage intact) rather than orphaned —
+        dropping them would leave a learner offline at the moment of upgrade
+        with no snapshot and no re-download. The stale verdict is now PERSISTED
+        on the entry (`stale.since`) before the background refresh fires: the
+        refresh was in-memory and fire-and-forget, so it only ever healed on a
+        boot with a good network — and a device with a good network never needs
+        the snapshot. A flaky device now remembers and retries every boot, and
+        any reader falling back to a known-stale snapshot logs that it is doing
+        so. It still SERVES: a stale snapshot beats a blank overlay offline.
+        Verified live 2026-08-24: courses.content_stamp equals
+        max(listening_pod_sentences.updated_at) to the microsecond on ita/fra/
+        spa, so a pod repair moves the stamp with no human in the loop.
+        SCRIPT_VERSION (useScriptCache) is untouched — different cache.
       tested: >
         useScriptCache.contentStamp.test.ts (SWR keep-and-mark-stale,
         revalidation-write clears staleness, vintage-preserving write keeps

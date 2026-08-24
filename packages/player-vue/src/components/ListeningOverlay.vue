@@ -690,7 +690,17 @@ const openScene = (scene) => {
       // the anchor's active card, once again as its own dimmed row below
       // (hrv pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14).
       // buildPlayQueue already skips its audio the same way.
-      if (s.fusionContinuation) return
+      //
+      // DRILL ONLY. That fused strip exists in Drill and nowhere else, so in
+      // Immersion the skip deleted the sentence outright — no card, no audio,
+      // no text. Italian Pod 1 Scene 1 showed Sarah's "Buongiorno. Come stai?"
+      // as just "Buongiorno.", and the Neighbour answered a question the
+      // learner never saw asked (founder report, 2026-08-24). The glue itself
+      // is right: glueLeadingInterjection can't tell a one-word interjection
+      // ("Ciao!") from a one-word sentence ("Buongiorno."), and doesn't need
+      // to — a mode that has nowhere to show the fused material must show the
+      // sentence on its own.
+      if (s.fusionContinuation && listenMode.value === 'drill') return
       // A paragraph opens on the first chunk of a turn whose speaker differs
       // from the previous turn's — that's where the breath + chip belong.
       const paragraphStart = idx === 0 && speakerChanged
@@ -751,9 +761,20 @@ const openScene = (scene) => {
 // heavy) warm to the next frame, so the mode highlight paints immediately and
 // the warming happens afterwards. (A 'pre'-flush watcher doing this work was
 // what made the selected pill take seconds to appear / never appear on mobile.)
-watch(listenMode, () => {
+watch(listenMode, (m, prev) => {
   if (!selectedScene.value) return
   const scene = selectedScene.value
+  // Crossing the Drill boundary changes WHICH ROWS the scene has: a glued
+  // continuation sentence is a row of its own everywhere except Drill, where
+  // it plays fused inside its anchor. The list is built once per scene, so
+  // the crossing has to rebuild it — otherwise switching out of Drill leaves
+  // the sentence missing until the scene is reopened. openScene stops
+  // playback and returns to the top of the scene, which is also what a
+  // deliberate mid-scene mode change asks for.
+  if ((m === 'drill') !== (prev === 'drill')) {
+    openScene(scene)
+    return
+  }
   requestAnimationFrame(() => warmScene(scene))
 }, { flush: 'post' })
 
