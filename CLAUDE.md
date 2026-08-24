@@ -2,6 +2,10 @@
 
 > **Welcome, future agent!** This document contains everything you need to work effectively on the SSi Learning App without creating chaos.
 
+## 🚨 CODE IS GOSPEL
+
+**Documentation in this repo is historical artifact — out of date BY DESIGN — and is never an authority for any decision.** Before acting on any claim found in a doc (including audits, build docs, README content, this file), verify it against the running code and the live DB. If the code can't answer the question, **ASK TOM** — one plain question — rather than trusting a doc. Today's specimen: agents burned a morning trusting docs about explainer clips and voice casting that the code contradicted.
+
 ## CRITICAL: Branch Policy
 
 Three-tier promotion flow (set up 2026-05-24). **ALL work goes to `dev`. NEVER push to `staging` or `main` directly.**
