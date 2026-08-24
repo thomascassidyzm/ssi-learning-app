@@ -31,7 +31,17 @@ import {
 // v2 (2026-07-22): devices cached before the 2026-03 ita gloss corrections were
 // still serving stale glosses ("come" → "to come"); manual bump pending
 // structural updated_at-based invalidation.
-const META_VERSION = 'v2'
+// v3 (2026-08-24): the Pod 1 split-array repair (dashboard ab0ee8ac3 + 1053db318)
+// NULLed the positionally-inherited `sentence_audio_ids` on 22 courses and
+// rebuilt only the genuinely multi-sentence turns. Every v2 snapshot still
+// holds the PRE-repair arrays — e.g. ita_for_eng:pod-1 scene 15 cached a
+// 2-clip split for the single sentence "Quanto costa?" — so a device that
+// falls back to the cache (offline, or `isOfflineish` on a stalled
+// connection) plays the old split clips for a turn the DB now serves whole.
+// The live read path is correct and was never stale; this orphans the
+// snapshots that outlived it. Founder report 2026-08-24: "the new Scene 15 is
+// playing the old Scene 15 clips in the app right now".
+const META_VERSION = 'v3'
 const META_DB_NAME = 'ssi-listening-meta'
 const META_STORE = 'meta'
 
