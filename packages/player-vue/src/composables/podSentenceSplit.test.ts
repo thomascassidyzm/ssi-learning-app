@@ -107,6 +107,92 @@ describe('splitRowUnits', () => {
     ])
     expect(splitRowUnits(row, textById)).toHaveLength(2)
   })
+
+  // ── No sentence with text is ever dropped from the screen ──────────────
+  // Founder report, 2026-08-24: Italian Pod 1 Scene 1 rendered Sarah's
+  // "Buongiorno. Come stai?" as just "Buongiorno.", so the neighbour answered
+  // a question the learner never saw asked. The unit count comes from the
+  // CLIPS, so text past the last clip never reaches the screen at all.
+  it('renders the whole turn when the clips do not cover all of the turn text', () => {
+    const row = {
+      target_text: 'Buongiorno. Come stai?',
+      known_text: 'Good morning. How are you?',
+      target_audio_id: 'WHOLE_T',
+      known_audio_id: 'WHOLE_K',
+      sentence_audio_ids: ['t0', 't0b'], // two clips, but between them only the first sentence
+      sentence_known_audio_ids: ['k0', 'k0b'],
+    }
+    const textById = new Map([
+      ['t0', 'Buon'], ['t0b', 'giorno.'],
+      ['k0', 'Good'], ['k0b', 'morning.'],
+    ])
+    const units = splitRowUnits(row, textById)
+    expect(units).toHaveLength(1)
+    expect(units[0].targetText).toBe('Buongiorno. Come stai?') // "Come stai?" survives
+    expect(units[0]).toMatchObject({ isSplit: false, targetAudioId: 'WHOLE_T' })
+  })
+
+  it('compares coverage on words, so punctuation and case drift never costs a split', () => {
+    const row = {
+      target_text: 'Buongiorno, Sarah! Come stai?',
+      sentence_audio_ids: ['t0', 't1'],
+    }
+    // Clip texts differ in punctuation and case only — still full coverage.
+    const textById = new Map([['t0', 'buongiorno Sarah'], ['t1', 'come stai']])
+    expect(splitRowUnits(row, textById)).toHaveLength(2)
+  })
+
+  it('keeps splitting CJK, where the boundary regex finds no sentences at all', () => {
+    // Coverage is measured against the clips, not the regex, so a script the
+    // regex cannot split is unaffected by the guard.
+    const row = {
+      target_text: 'マンチェスター出身です。あなたは？',
+      sentence_audio_ids: ['t0', 't1'],
+    }
+    const textById = new Map([['t0', 'マンチェスター出身です。'], ['t1', 'あなたは？']])
+    expect(splitRowUnits(row, textById)).toHaveLength(2)
+  })
+
+  it('renders the whole turn when the bare (no-textById) caller has more sentences than clips', () => {
+    // The scheduler calls without the text oracle; the regex count is then the
+    // only signal, and it can only ever cost a split, never a sentence.
+    const units = splitRowUnits({
+      target_text: 'Uno. Due. Tre.',
+      target_audio_id: 'WHOLE_T',
+      sentence_audio_ids: ['t0', 't1'],
+    })
+    expect(units).toHaveLength(1)
+    expect(units[0].targetText).toBe('Uno. Due. Tre.')
+  })
+
+  it('treats "…" as hesitation, not a sentence end, for the BARE caller', () => {
+    // hrv Pod 1 SC*-S004, verbatim: three sentences, two of which contain a
+    // mid-sentence hesitation ellipsis. When '…' counted as terminal the regex
+    // saw FIVE sentences against 3 clips, so this exact row fell back to the
+    // whole turn in the main flow while the overlay split it — the two doors
+    // disagreeing on the unit count, which also desyncs the shared podOrdinal.
+    const units = splitRowUnits({
+      target_text: 'Da,… imam zauzet dan danas. Nadam se… da ćeš imati lijep dan. Vidimo se kasnije.',
+      known_text: "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      target_audio_id: 'WHOLE_T',
+      sentence_audio_ids: ['t0', 't1', 't2'],
+    })
+    expect(units).toHaveLength(3)
+    expect(units[0].targetText).toBe('Da,… imam zauzet dan danas.')
+    expect(units[1].knownText).toBe('I hope you have a good day.')
+  })
+
+  it('does not split a turn whose only pauses are hesitations', () => {
+    // hrv Pod 1 SC*-S005: one sentence with two hesitations. Nothing to split,
+    // and nothing that should ever have been split.
+    const units = splitRowUnits({
+      target_text: 'Oprostite,… je li ovo mjesto… zauzeto?',
+      known_text: 'Excuse me, is this seat taken?',
+      target_audio_id: 'WHOLE_T',
+    })
+    expect(units).toHaveLength(1)
+    expect(units[0].isSplit).toBe(false)
+  })
 })
 
 describe('partitionAtomMap', () => {
