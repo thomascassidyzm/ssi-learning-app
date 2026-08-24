@@ -155,6 +155,15 @@ export function useListeningPods(
     const loadFromCache = async (): Promise<{ rows: any[]; textById: Map<string, string> } | null> => {
       const cached = await getCachedListeningMeta(course)
       if (!cached) return null
+      // Serve it anyway — a known-stale snapshot still beats a blank overlay
+      // for an offline learner — but say so, because this is the exact seat
+      // the 2026-08-24 Pod 1 split-array staleness was served from and it was
+      // silent at the time. The stamp lane retries the refresh every boot.
+      if (cached.stale) {
+        console.warn('[useListeningPods] serving a snapshot marked STALE since',
+          new Date(cached.stale.since).toISOString(),
+          `(cached ${cached.contentStamp ?? 'pre-stamp'} → live ${cached.stale.liveContentStamp ?? '?'})`)
+      }
       return { rows: cached.podRows, textById: new Map(Object.entries(cached.clipTexts)) }
     }
 

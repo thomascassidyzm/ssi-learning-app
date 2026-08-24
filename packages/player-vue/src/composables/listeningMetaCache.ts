@@ -27,21 +27,6 @@ import {
   bareAudioId,
 } from '../providers/revisedAudioRefs'
 
-// Bump to invalidate — part of the key, old entries orphan and re-download.
-// v2 (2026-07-22): devices cached before the 2026-03 ita gloss corrections were
-// still serving stale glosses ("come" → "to come"); manual bump pending
-// structural updated_at-based invalidation.
-// v3 (2026-08-24): the Pod 1 split-array repair (dashboard ab0ee8ac3 + 1053db318)
-// NULLed the positionally-inherited `sentence_audio_ids` on 22 courses and
-// rebuilt only the genuinely multi-sentence turns. Every v2 snapshot still
-// holds the PRE-repair arrays — e.g. ita_for_eng:pod-1 scene 15 cached a
-// 2-clip split for the single sentence "Quanto costa?" — so a device that
-// falls back to the cache (offline, or `isOfflineish` on a stalled
-// connection) plays the old split clips for a turn the DB now serves whole.
-// The live read path is correct and was never stale; this orphans the
-// snapshots that outlived it. Founder report 2026-08-24: "the new Scene 15 is
-// playing the old Scene 15 clips in the app right now".
-const META_VERSION = 'v3'
 const META_DB_NAME = 'ssi-listening-meta'
 const META_STORE = 'meta'
 
@@ -68,7 +53,36 @@ const metaDb = (): Promise<IDBPDatabase> => {
   return metaDbPromise
 }
 
-const idbKey = (courseCode: string): string => `${META_VERSION}:${courseCode}`
+/**
+ * The entry key is the course code and NOTHING else.
+ *
+ * It used to carry a hand-maintained `META_VERSION` prefix ('v2', 'v3') that
+ * an author had to remember to bump whenever a content repair landed, which
+ * orphaned every older entry. That constant was forgotten twice — the v2 bump
+ * (2026-07-22) called itself a placeholder "pending structural updated_at-based
+ * invalidation", and it was forgotten again until v3 on 2026-08-24, by which
+ * point devices had been serving the pre-repair Pod 1 split arrays for hours
+ * (founder report: "the new Scene 15 is playing the old Scene 15 clips in the
+ * app right now"). Twice wrong means the schema is wrong, not the operator.
+ *
+ * Freshness is now decided by the vintage stored INSIDE the entry —
+ * `contentStamp` / `audioStamp`, compared against the live `courses` stamps the
+ * app already fetches on every online boot (refreshListeningMetaIfStale). The
+ * stamps are DB-trigger-maintained, so any learner-visible content write moves
+ * them with no human in the loop. Verified live 2026-08-24: for ita/fra/spa,
+ * `courses.content_stamp` equals `max(listening_pod_sentences.updated_at)` to
+ * the microsecond, so a pod repair moves the stamp by itself.
+ *
+ * The key deliberately cannot BE the stamp: offline the app does not know the
+ * live stamp, and an offline learner with a slightly-old snapshot is a working
+ * app while an offline learner with no snapshot is a broken one.
+ */
+const idbKey = (courseCode: string): string => courseCode
+
+/** Legacy hand-versioned keys ('v2:ita_for_eng', 'v3:ita_for_eng') still on
+ *  devices in the wild — v3 shipped to production on 2026-08-24. Matched so
+ *  they can be migrated onto the bare key rather than silently abandoned. */
+const LEGACY_KEY = /^v\d+:(.+)$/
 
 /** Raw listening_pod_sentences row — the UNION of the column sets the
  *  Listening overlay and the pod-lap scheduler select, so one cached copy
@@ -126,6 +140,22 @@ export interface CachedListeningMeta {
    *  content lane alone would leave a downloaded snapshot pointing at the
    *  pre-repair ref forever. Absent → pre-stamp entry, refreshed once. */
   audioStamp?: string
+  /** Set when a live stamp comparison found this entry out of date and the
+   *  background refresh has not landed yet; cleared by a successful fetch.
+   *
+   *  It is PERSISTED on purpose. The refresh used to be in-memory and
+   *  fire-and-forget, which meant it healed only on a boot where the network
+   *  was good — and a device with a good network never needs the snapshot in
+   *  the first place. The device that actually serves stale rows is the one on
+   *  a stalled connection (`isOfflineish`), where the same stall kills the
+   *  refresh, so nothing was ever remembered and nothing ever healed. Writing
+   *  the mark down means the staleness survives the reload and the retry
+   *  happens on every subsequent boot until it succeeds. */
+  stale?: {
+    since: number
+    liveContentStamp?: string
+    liveAudioStamp?: string
+  }
   /** listening_pod_sentences rows for the pod this course SERVES (see
    *  servedPod), in global_order. Empty array = the course genuinely has no
    *  pod (a valid, downloaded state) — entry ABSENT means "never downloaded". */
@@ -150,17 +180,79 @@ export interface CachedListeningMeta {
   legoCatalogue: Array<{ seed_number: number; lego_index: number }>
 }
 
+/**
+ * Adopt a legacy hand-versioned entry ('v3:<course>') onto the bare key.
+ *
+ * Devices in the wild hold v3 entries right now (shipped to production
+ * 2026-08-24) and older v2 ones. Dropping them would leave a learner who is
+ * offline at the moment of upgrade with NO snapshot and no way to re-download
+ * — a regression. So the entry MOVES instead, carrying its own `contentStamp`
+ * with it, and the stamp comparison then decides whether it is fresh. That is
+ * the whole point of keying on vintage rather than on a version prefix: a
+ * migrated entry needs no special handling, it just gets judged.
+ *
+ * Newest-by-`cachedAt` wins if several keys exist. Every legacy key is deleted
+ * either way, so this runs once per device and then costs nothing.
+ */
+const migrateLegacyEntry = async (
+  db: IDBPDatabase,
+  courseCode: string,
+): Promise<CachedListeningMeta | null> => {
+  const keys = (await db.getAllKeys(META_STORE)) as IDBValidKey[]
+  const legacy = keys.filter(
+    (k) => typeof k === 'string' && LEGACY_KEY.exec(k)?.[1] === courseCode,
+  ) as string[]
+  if (legacy.length === 0) return null
+
+  let best: CachedListeningMeta | null = null
+  for (const key of legacy) {
+    const entry = (await db.get(META_STORE, key)) as CachedListeningMeta | undefined
+    if (entry && (!best || (entry.cachedAt ?? 0) > (best.cachedAt ?? 0))) best = entry
+    await db.delete(META_STORE, key)
+  }
+  if (!best) return null
+
+  // `courseCode` on a hand-written test fixture can disagree with its key —
+  // the bare key is authoritative from here on.
+  const adopted: CachedListeningMeta = { ...best, courseCode }
+  await db.put(META_STORE, JSON.parse(JSON.stringify(adopted)), idbKey(courseCode))
+  console.log('[ListeningMeta] migrated legacy versioned entry for', courseCode,
+    `(${legacy.join(', ')} → bare key, vintage ${adopted.contentStamp ?? 'pre-stamp'})`)
+  return adopted
+}
+
 export const getCachedListeningMeta = async (
   courseCode: string,
 ): Promise<CachedListeningMeta | null> => {
   try {
     const db = await metaDb()
     const data = (await db.get(META_STORE, idbKey(courseCode))) as CachedListeningMeta | undefined
-    return data ?? null
+    if (data) {
+      // A bare-key entry wins outright, but any legacy key left beside it is
+      // dead weight — clear it so the scan stays cheap.
+      void migrateLegacyEntryCleanup(db, courseCode)
+      return data
+    }
+    return await migrateLegacyEntry(db, courseCode)
   } catch (err) {
     console.warn('[ListeningMeta] read failed:', (err as any)?.message, err)
     return null
   }
+}
+
+/** Delete legacy keys once a bare-key entry already exists. Never throws. */
+const migrateLegacyEntryCleanup = async (
+  db: IDBPDatabase,
+  courseCode: string,
+): Promise<void> => {
+  try {
+    const keys = (await db.getAllKeys(META_STORE)) as IDBValidKey[]
+    for (const k of keys) {
+      if (typeof k === 'string' && LEGACY_KEY.exec(k)?.[1] === courseCode) {
+        await db.delete(META_STORE, k)
+      }
+    }
+  } catch { /* cache hygiene must never break playback */ }
 }
 
 const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> => {
@@ -440,20 +532,57 @@ export const refreshListeningMetaIfStale = async (
   if (!cached) return false // never downloaded — nothing to keep fresh
 
   const contentMoved = !!liveStamp && cached.contentStamp !== liveStamp
+  const alreadyMarked = !!cached.stale
   // A-86: a clip repair moves audio_stamp and not necessarily content_stamp.
   // Without this arm, a downloaded snapshot keeps pointing at the pre-repair
   // ref forever — the offline half of the stale-clip bug. An entry with no
   // audioStamp predates this field, so it refreshes once and heals itself.
   const audioMoved = !!liveAudioStamp && cached.audioStamp !== liveAudioStamp
-  if (!contentMoved && !audioMoved) return false
+  if (!contentMoved && !audioMoved) {
+    // Stamps agree but a previous mark never cleared — the refresh that set it
+    // must have landed some other way (or the DB moved back). Clear it so the
+    // fallback logging does not cry wolf forever.
+    if (alreadyMarked) await setCachedListeningMeta({ ...cached, stale: undefined })
+    return false
+  }
 
   console.log('[ListeningMeta]',
     contentMoved
       ? `content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp})`
       : `audio stamp moved (${cached.audioStamp ?? 'pre-stamp'} → ${liveAudioStamp})`,
     '— refreshing bundle')
+
+  // Write the mark FIRST, and await it. The refresh below is fire-and-forget
+  // by design (it must never block play), so if the device's connection dies
+  // mid-refresh the only record that this snapshot is out of date would
+  // otherwise die with it — which is exactly what happened to the Pod 1
+  // repair. Persisted, the retry happens on every boot until one succeeds, and
+  // any reader that falls back to this snapshot can say out loud that it is
+  // serving known-stale rows.
+  await setCachedListeningMeta({
+    ...cached,
+    stale: {
+      since: cached.stale?.since ?? Date.now(),
+      liveContentStamp: liveStamp ?? undefined,
+      liveAudioStamp: liveAudioStamp ?? undefined,
+    },
+  })
   void fetchAndCacheListeningMeta(client, courseCode)
   return true
+}
+
+/**
+ * Is the snapshot for this course known to be out of date? True only when a
+ * live stamp comparison already said so and the refresh has not landed —
+ * never a guess. Readers use it to log a stale fallback rather than to refuse
+ * one: a stale snapshot still beats a blank screen for an offline learner.
+ */
+export const isCachedListeningMetaStale = async (courseCode: string): Promise<boolean> => {
+  try {
+    return !!(await getCachedListeningMeta(courseCode))?.stale
+  } catch {
+    return false
+  }
 }
 
 /**
