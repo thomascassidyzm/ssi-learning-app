@@ -32,6 +32,14 @@ interface QueryResult<T> {
 
 let tableResponses: Record<string, QueryResult<unknown>> = {}
 let lastFromCalls: string[] = []
+// Filters applied per table, so a test can assert that a query is SCOPED and
+// not merely that it ran. Added 2026-08-24: the listening_pods query filtered
+// on course_code alone and shipped retired/parked pods into download bundles.
+let lastFilters: Array<{ table: string; op: string; col: string; val: unknown }> = []
+function recordFilter(table: string, op: string, col: string, val: unknown): void {
+  lastFilters.push({ table, op, col, val })
+}
+const filtersFor = (table: string) => lastFilters.filter((f) => f.table === table)
 // Controls verifyAuthToken's internal supabase.auth.getUser() call (used by
 // the entitlement gate) and the cascade-entitlement RPC. Defaults to
 // "no session" so tests that don't care about auth get the anonymous path.
@@ -54,9 +62,9 @@ function makeBuilder(table: string): unknown {
   }
   const builder: any = {
     select: () => builder,
-    eq: () => builder,
+    eq: (col: string, val: unknown) => { recordFilter(table, 'eq', col, val); return builder },
     is: () => builder,
-    in: () => builder,
+    in: (col: string, val: unknown) => { recordFilter(table, 'in', col, val); return builder },
     order: () => builder,
     limit: () => builder,
     range: () => builder,
@@ -298,6 +306,7 @@ describe('GET /api/courses/:code/bundle', () => {
   beforeEach(() => {
     tableResponses = {}
     lastFromCalls = []
+    lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
   })
@@ -378,6 +387,25 @@ describe('GET /api/courses/:code/bundle', () => {
         'listening_pod_sentences',
       ].sort(),
     )
+
+    // The download bundle must only ever carry pods a learner can PLAY, and
+    // that takes all THREE of these filters. `visibility` says whether a pod
+    // may be shown at all (it is RLS-enforced everywhere else, but this route
+    // holds the service-role key and bypasses RLS); `pod_type` + `slug` say
+    // whether it is the pod the player will actually resolve, which is the
+    // question `resolveServedPod` asks. Dropping the first leaks a pod a human
+    // is mid-way through recording; dropping the others ships retired-slug and
+    // `choice` pods nothing can play. Widening any of them reopens one of those.
+    const podFilters = filtersFor('listening_pods')
+    expect(podFilters).toContainEqual({
+      table: 'listening_pods', op: 'eq', col: 'visibility', val: 'live',
+    })
+    expect(podFilters).toContainEqual({
+      table: 'listening_pods', op: 'eq', col: 'pod_type', val: 'core',
+    })
+    expect(podFilters).toContainEqual({
+      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0'],
+    })
 
     // Script artifact identity block (bundle-cutover Phase 1, design §2) —
     // no algorithm_config mock set up here, so it falls back to defaults.
@@ -561,6 +589,7 @@ describe('GET /api/courses/:code/bundle — script artifact identity', () => {
   beforeEach(() => {
     tableResponses = {}
     lastFromCalls = []
+    lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
   })
@@ -798,6 +827,7 @@ describe('GET /api/courses/:code/bundle — entitlement gating', () => {
   beforeEach(() => {
     tableResponses = {}
     lastFromCalls = []
+    lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
   })
