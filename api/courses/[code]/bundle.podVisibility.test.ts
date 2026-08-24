@@ -45,10 +45,18 @@ vi.mock('../../_utils/audioAccess', () => ({
 /**
  * One held pod and one live pod on the same course — the shape that catches a
  * filter applied to the wrong query, or dropped from the sentence read.
+ *
+ * Plus, from 2026-08-24, the two rows that prove visibility is NOT the whole
+ * gate: a pod PARKED on a retired slug that nobody has marked held, and a
+ * live-but-unplayable `choice` pod. Both are visibility='live' and both must
+ * still stay out of a download bundle, because the player resolves the pod it
+ * plays by slug and pod_type (`resolveServedPod`), never by visibility.
  */
 const POD_ROWS = [
-  { id: 'cym:pod-0', course_code: 'cym', pod_order: 1, title: 'Held', visibility: 'held' },
-  { id: 'cym:pod-1', course_code: 'cym', pod_order: 2, title: 'Live', visibility: 'live' },
+  { id: 'cym:pod-0', course_code: 'cym', pod_order: 1, title: 'Held', visibility: 'held', pod_type: 'core', slug: 'pod-0' },
+  { id: 'cym:pod-1', course_code: 'cym', pod_order: 2, title: 'Live', visibility: 'live', pod_type: 'core', slug: 'pod-1' },
+  { id: 'cym:pod-0-retired-2026-08-22', course_code: 'cym', pod_order: 0, title: 'Retired', visibility: 'live', pod_type: 'core', slug: 'pod-0-retired-2026-08-22' },
+  { id: 'cym:music', course_code: 'cym', pod_order: 9, title: 'Music', visibility: 'live', pod_type: 'choice', slug: 'music' },
 ]
 
 const SENTENCE_ROWS = [
@@ -67,6 +75,26 @@ const SENTENCE_ROWS = [
     global_order: 1,
     target_text: 'released sentence',
     known_text: 'released',
+    target_audio_id: null,
+    known_audio_id: null,
+    explainer_audio_id: null,
+    glue_to_next: false,
+  },
+  {
+    pod_id: 'cym:pod-0-retired-2026-08-22',
+    global_order: 1,
+    target_text: 'SECRET-RETIRED-SENTENCE',
+    known_text: 'the set this one replaced',
+    target_audio_id: null,
+    known_audio_id: null,
+    explainer_audio_id: null,
+    glue_to_next: false,
+  },
+  {
+    pod_id: 'cym:music',
+    global_order: 1,
+    target_text: 'SECRET-CHOICE-SENTENCE',
+    known_text: 'a pod nothing resolves',
     target_audio_id: null,
     known_audio_id: null,
     explainer_audio_id: null,
@@ -157,6 +185,33 @@ describe('bundle route — listening pod visibility', () => {
     const podQuery = queries.find((q) => q.table === 'listening_pods')
     expect(podQuery, 'the route must read listening_pods').toBeDefined()
     expect(podQuery!.filters.visibility).toBe('live')
+  })
+
+  it('asks only for the pods the player can actually resolve', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    // Visibility is not the whole gate. The player resolves what it plays by
+    // slug and pod_type, so the downloader has to ask the same question or the
+    // two drift apart — which is how live-but-unplayable `choice` pods ended up
+    // inside every Spanish offline download. Widening either of these reopens
+    // that; dropping the visibility filter above reopens the held-pod leak.
+    const podQuery = queries.find((q) => q.table === 'listening_pods')
+    expect(podQuery!.filters.pod_type).toBe('core')
+    expect(podQuery!.filters.slug).toEqual(['pod-1', 'pod-0'])
+  })
+
+  it('omits a retired-slug pod and a choice pod even when both are live', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const podIds = (res.body.pods as Array<{ podId: string }>).map((p) => p.podId)
+    expect(podIds).not.toContain('cym:pod-0-retired-2026-08-22')
+    expect(podIds).not.toContain('cym:music')
+
+    const blob = JSON.stringify(res.body)
+    expect(blob).not.toContain('SECRET-RETIRED-SENTENCE')
+    expect(blob).not.toContain('SECRET-CHOICE-SENTENCE')
   })
 
   it('never fetches a held pod’s sentences', async () => {
