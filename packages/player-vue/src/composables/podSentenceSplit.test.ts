@@ -107,6 +107,63 @@ describe('splitRowUnits', () => {
     ])
     expect(splitRowUnits(row, textById)).toHaveLength(2)
   })
+
+  // ── No sentence with text is ever dropped from the screen ──────────────
+  // Founder report, 2026-08-24: Italian Pod 1 Scene 1 rendered Sarah's
+  // "Buongiorno. Come stai?" as just "Buongiorno.", so the neighbour answered
+  // a question the learner never saw asked. The unit count comes from the
+  // CLIPS, so text past the last clip never reaches the screen at all.
+  it('renders the whole turn when the clips do not cover all of the turn text', () => {
+    const row = {
+      target_text: 'Buongiorno. Come stai?',
+      known_text: 'Good morning. How are you?',
+      target_audio_id: 'WHOLE_T',
+      known_audio_id: 'WHOLE_K',
+      sentence_audio_ids: ['t0', 't0b'], // two clips, but between them only the first sentence
+      sentence_known_audio_ids: ['k0', 'k0b'],
+    }
+    const textById = new Map([
+      ['t0', 'Buon'], ['t0b', 'giorno.'],
+      ['k0', 'Good'], ['k0b', 'morning.'],
+    ])
+    const units = splitRowUnits(row, textById)
+    expect(units).toHaveLength(1)
+    expect(units[0].targetText).toBe('Buongiorno. Come stai?') // "Come stai?" survives
+    expect(units[0]).toMatchObject({ isSplit: false, targetAudioId: 'WHOLE_T' })
+  })
+
+  it('compares coverage on words, so punctuation and case drift never costs a split', () => {
+    const row = {
+      target_text: 'Buongiorno, Sarah! Come stai?',
+      sentence_audio_ids: ['t0', 't1'],
+    }
+    // Clip texts differ in punctuation and case only — still full coverage.
+    const textById = new Map([['t0', 'buongiorno Sarah'], ['t1', 'come stai']])
+    expect(splitRowUnits(row, textById)).toHaveLength(2)
+  })
+
+  it('keeps splitting CJK, where the boundary regex finds no sentences at all', () => {
+    // Coverage is measured against the clips, not the regex, so a script the
+    // regex cannot split is unaffected by the guard.
+    const row = {
+      target_text: 'マンチェスター出身です。あなたは？',
+      sentence_audio_ids: ['t0', 't1'],
+    }
+    const textById = new Map([['t0', 'マンチェスター出身です。'], ['t1', 'あなたは？']])
+    expect(splitRowUnits(row, textById)).toHaveLength(2)
+  })
+
+  it('renders the whole turn when the bare (no-textById) caller has more sentences than clips', () => {
+    // The scheduler calls without the text oracle; the regex count is then the
+    // only signal, and it can only ever cost a split, never a sentence.
+    const units = splitRowUnits({
+      target_text: 'Uno. Due. Tre.',
+      target_audio_id: 'WHOLE_T',
+      sentence_audio_ids: ['t0', 't1'],
+    })
+    expect(units).toHaveLength(1)
+    expect(units[0].targetText).toBe('Uno. Due. Tre.')
+  })
 })
 
 describe('partitionAtomMap', () => {
