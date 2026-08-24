@@ -22,7 +22,9 @@ import {
   getCachedListeningMeta,
   collectListeningMetaAudioIds,
   refreshListeningMetaIfStale,
+  isCachedListeningMetaStale,
 } from './listeningMetaCache'
+import { openDB } from 'idb'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
 
 // ── Fake supabase: a thenable query builder routed per table ──────────────
@@ -240,6 +242,117 @@ describe('refreshListeningMetaIfStale (structural freshness)', () => {
       expect(fresh!.contentStamp).toBe('stamp-1')
       expect(fresh!.podRows[0].known_text).toBe('Hi. How are you?')
     })
+  })
+})
+
+/**
+ * Self-healing snapshot (2026-08-24): the hand-maintained META_VERSION key
+ * prefix is gone. Freshness is decided by the vintage inside the entry, and
+ * the entry is keyed on the course code alone so it survives a code deploy.
+ * These tests pin the two properties that make that safe — legacy-keyed
+ * entries in the wild are adopted rather than abandoned, and a device that
+ * cannot complete the refresh still REMEMBERS that it is stale.
+ */
+describe('self-healing snapshot (no META_VERSION)', () => {
+  const openMetaDb = () => openDB('ssi-listening-meta', 1, {
+    upgrade(db) { if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta') },
+  })
+
+  it('keys the entry on the bare course code — no version prefix', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const db = await openMetaDb()
+    const keys = await db.getAllKeys('meta')
+    expect(keys).toContain('ita_for_eng')
+    expect(keys.filter((k) => typeof k === 'string' && /^v\d+:/.test(k))).toEqual([])
+  })
+
+  // Devices in the wild hold `v3:<course>` right now — it shipped to
+  // production on 2026-08-24. Dropping it would leave a learner who is
+  // offline at the moment of upgrade with NO snapshot and no re-download.
+  it('adopts a legacy v3-keyed entry onto the bare key, vintage intact', async () => {
+    const db = await openMetaDb()
+    await db.delete('meta', 'hrv_for_eng')
+    await db.put('meta', {
+      courseCode: 'hrv_for_eng', cachedAt: 1000, contentStamp: 'stamp-OLD',
+      podRows: [{ ...POD_ROWS[0], known_text: 'FROM THE V3 SNAPSHOT' }],
+      podSlug: 'pod-1', clipTexts: {}, bookends: [], fineKnowns: {},
+      coreSeeds: [], legoCatalogue: [],
+    } as any, 'v3:hrv_for_eng')
+
+    const adopted = await getCachedListeningMeta('hrv_for_eng')
+    expect(adopted!.podRows[0].known_text).toBe('FROM THE V3 SNAPSHOT')
+    expect(adopted!.contentStamp).toBe('stamp-OLD') // vintage travels with it
+    expect(adopted!.podSlug).toBe('pod-1')          // pod-slug inference intact
+    expect(await db.getAllKeys('meta')).not.toContain('v3:hrv_for_eng')
+    expect(await db.get('meta', 'hrv_for_eng')).toBeTruthy()
+  })
+
+  it('prefers the newest of several legacy keys and deletes them all', async () => {
+    const db = await openMetaDb()
+    await db.delete('meta', 'pol_for_eng')
+    const base = {
+      courseCode: 'pol_for_eng', podRows: [], podSlug: 'pod-1', clipTexts: {},
+      bookends: [], fineKnowns: {}, coreSeeds: [], legoCatalogue: [],
+    }
+    await db.put('meta', { ...base, cachedAt: 100, contentStamp: 'v2-vintage' } as any, 'v2:pol_for_eng')
+    await db.put('meta', { ...base, cachedAt: 900, contentStamp: 'v3-vintage' } as any, 'v3:pol_for_eng')
+
+    expect((await getCachedListeningMeta('pol_for_eng'))!.contentStamp).toBe('v3-vintage')
+    const keys = await db.getAllKeys('meta')
+    expect(keys).not.toContain('v2:pol_for_eng')
+    expect(keys).not.toContain('v3:pol_for_eng')
+  })
+
+  // The whole point of the change: an adopted legacy entry is then judged by
+  // its stamp, so today's Pod 1 repair heals it with nobody bumping anything.
+  it('a migrated legacy entry is then judged stale by its stamp and refreshed', async () => {
+    const db = await openMetaDb()
+    await db.delete('meta', 'ces_for_eng')
+    await db.put('meta', {
+      courseCode: 'ces_for_eng', cachedAt: 1, contentStamp: 'stamp-PRE-REPAIR',
+      podRows: [{ ...POD_ROWS[0], known_text: 'PRE-REPAIR' }],
+      podSlug: 'pod-1', clipTexts: {}, bookends: [], fineKnowns: {},
+      coreSeeds: [], legoCatalogue: [],
+    } as any, 'v3:ces_for_eng')
+
+    expect(await refreshListeningMetaIfStale(happyClient, 'ces_for_eng', 'stamp-1')).toBe(true)
+    await vi.waitFor(async () => {
+      const fresh = await getCachedListeningMeta('ces_for_eng')
+      expect(fresh!.contentStamp).toBe('stamp-1')
+      expect(fresh!.podRows[0].known_text).toBe('Hi. How are you?')
+    })
+  })
+
+  // The failure that let the Pod 1 staleness live: the refresh was in-memory
+  // and fire-and-forget, so a device too flaky to complete it forgot it was
+  // ever stale — and a flaky device is precisely the one that SERVES the
+  // snapshot. The mark is now written down before the refresh is fired.
+  it('persists the stale mark even when the refresh cannot complete', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'slk_for_eng')
+    expect((await getCachedListeningMeta('slk_for_eng'))!.stale).toBeUndefined()
+
+    // Stamp moved, but every refresh query fails (stalled connection).
+    expect(await refreshListeningMetaIfStale(failAll, 'slk_for_eng', 'stamp-MOVED')).toBe(true)
+    const marked = await getCachedListeningMeta('slk_for_eng')
+    expect(marked!.stale).toBeTruthy()
+    expect(marked!.stale!.liveContentStamp).toBe('stamp-MOVED')
+    expect(await isCachedListeningMetaStale('slk_for_eng')).toBe(true)
+    // Still SERVES — an offline learner with an old snapshot beats one with none.
+    expect(marked!.podRows.length).toBeGreaterThan(0)
+    expect(marked!.contentStamp).toBe('stamp-1') // vintage untouched → retries next boot
+  })
+
+  it('clears the stale mark once a refresh lands', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'nld_for_eng')
+    await refreshListeningMetaIfStale(failAll, 'nld_for_eng', 'stamp-MOVED')
+    expect(await isCachedListeningMetaStale('nld_for_eng')).toBe(true)
+
+    await fetchAndCacheListeningMeta(happyClient, 'nld_for_eng')
+    expect(await isCachedListeningMetaStale('nld_for_eng')).toBe(false)
+  })
+
+  it('never reports stale for a course that was never downloaded', async () => {
+    expect(await isCachedListeningMetaStale('never_downloaded_at_all')).toBe(false)
   })
 })
 
