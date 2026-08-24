@@ -536,7 +536,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (podsResult.error || bookendsResult.error) {
         const cached = await getCachedListeningMeta(courseCode)
         if (cached) {
-          console.warn('[podLapScheduler] live metadata fetch failed — using offline cache')
+          console.warn('[podLapScheduler] live metadata fetch failed — using offline cache',
+            cached.stale
+              ? `(snapshot marked STALE since ${new Date(cached.stale.since).toISOString()} — refresh pending)`
+              : '')
           if (podsResult.error) podRowsData = cached.podRows as unknown as RawPodRow[]
           if (bookendsResult.error) bookendData = cached.bookends
         } else {
