@@ -57,11 +57,18 @@ const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 
 // DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
-// the display honest so admins self-correct. `teachers.value.length` is the
+// the display honest so admins self-correct. `joinedTeacherCount` is the
 // ACTUAL joined-teacher count, shown alongside `paidSeats` (the billed count)
 // so a school that's outgrown its paid seats sees it plainly.
+//
+// SOURCE OF TRUTH is the server's `school.teacher_count` (/api/school/subscription,
+// mirroring org.member_count) — it unions the FOUNDING ADMIN in, which the
+// roster-derived client list misses on every school whose admin holds no
+// SCHOOL: user_tag (six live schools as of 2026-08-07, fixed in its own lane).
+// The roster count stays as the fallback for the pre-load window only.
 const { teachers: joinedTeachers, fetchTeachers } = useTeachersData()
-const joinedTeacherCount = computed(() => joinedTeachers.value.length)
+const serverTeacherCount = ref<number | null>(null)
+const joinedTeacherCount = computed(() => serverTeacherCount.value ?? joinedTeachers.value.length)
 
 const PRICE_PER_SEAT_GBP = 15
 // Per-seat annual price. There is ONE annual Paddle price underneath (a school
@@ -140,6 +147,14 @@ const schoolId = computed<string | null>(() => currentUser.value?.school_id ?? n
 
 // ── Seat state (school lane) ───────────────────────────────────────
 const seatCount = ref(1)
+// Set the moment the admin touches the stepper. The server seat-seeding below
+// is a DEFAULT, and a default must never overwrite a deliberate choice: the
+// subscription fetch resolves asynchronously, so without this an admin who
+// stepped 1 → 6 during the load window would have their 6 silently replaced —
+// on a page whose next click is a Paddle checkout. (The Subscribe CTA is
+// blocked until schoolSubLoaded, so a stomp could never reach Paddle unnoticed;
+// this keeps the number on screen honest as well.)
+const seatCountTouched = ref(false)
 const seats = computed(() => Math.max(1, seatCount.value))
 const monthlyTotalGbp = computed(() => seats.value * PRICE_PER_SEAT_GBP)
 const annualTotalGbp = computed(() => seats.value * ANNUAL_PRICE_PER_SEAT_GBP)
@@ -147,6 +162,7 @@ const annualTotalGbp = computed(() => seats.value * ANNUAL_PRICE_PER_SEAT_GBP)
 const schoolTotalGbp = computed(() => (isAnnual.value ? annualTotalGbp.value : monthlyTotalGbp.value))
 const periodSuffix = computed(() => (isAnnual.value ? '/yr' : '/mo'))
 function setSeats(n: number) {
+  seatCountTouched.value = true
   seatCount.value = Math.max(1, Math.floor(n) || 1)
 }
 
@@ -189,10 +205,22 @@ async function loadSubscription() {
     if (!res.ok) return
     const data = await res.json()
     platformStatus.value = data?.school?.platform_status ?? null
+    const countResp = data?.school?.teacher_count
+    if (typeof countResp === 'number' && countResp >= 0) serverTeacherCount.value = countResp
     const seatsResp = data?.school?.teacher_seats
     if (typeof seatsResp === 'number' && seatsResp > 0) {
       paidSeats.value = seatsResp
       if (isSubscribed.value) seatCount.value = seatsResp
+    }
+    // NOT yet subscribed → seed the stepper from the school's ACTUAL staff
+    // count, so a school with three teachers is offered three seats instead of
+    // the hard-coded 1 it used to open at. Strictly a smarter DEFAULT: the
+    // stepper stays fully editable up AND down, nothing is capped, and an
+    // already-made choice (seatCountTouched) is never overwritten. The
+    // already-subscribed path above is untouched — it still seeds from
+    // teacher_seats, what is actually being billed.
+    if (!isSubscribed.value && !seatCountTouched.value && typeof countResp === 'number' && countResp > 1) {
+      seatCount.value = countResp
     }
   } catch {
     // Non-fatal — page just stays in its default (Subscribe) state.
@@ -260,11 +288,15 @@ const orgId = computed<string | null>(
 )
 
 const orgSeatCount = ref(1)
+// Same "a default must not overwrite a deliberate choice" guard as the school
+// lane's seatCountTouched.
+const orgSeatCountTouched = ref(false)
 const orgSeats = computed(() => Math.max(1, orgSeatCount.value))
 const orgMonthlyTotalGbp = computed(() => orgSeats.value * PRICE_PER_SEAT_GBP)
 const orgAnnualTotalGbp = computed(() => orgSeats.value * ANNUAL_PRICE_PER_SEAT_GBP)
 const orgTotalGbp = computed(() => (isAnnual.value ? orgAnnualTotalGbp.value : orgMonthlyTotalGbp.value))
 function setOrgSeats(n: number) {
+  orgSeatCountTouched.value = true
   orgSeatCount.value = Math.max(1, Math.floor(n) || 1)
 }
 
@@ -296,6 +328,16 @@ async function loadOrgSubscription() {
     if (typeof seatsResp === 'number' && seatsResp > 0) {
       orgPaidSeats.value = seatsResp
       if (isOrgSubscribed.value) orgSeatCount.value = seatsResp
+    }
+    // Not yet subscribed → seed from the org's ACTUAL member count (already
+    // fetched above), same smarter-default rule as the school lane.
+    if (
+      !isOrgSubscribed.value &&
+      !orgSeatCountTouched.value &&
+      typeof orgMemberCount.value === 'number' &&
+      orgMemberCount.value > 1
+    ) {
+      orgSeatCount.value = orgMemberCount.value
     }
   } catch {
     // Non-fatal — page just stays in its default (Subscribe) state.
@@ -571,6 +613,15 @@ watch(currentUser, (user) => {
             — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more learner{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
           </span>
         </p>
+        <!-- Not yet subscribed: the same honesty, against what's ABOUT to be
+             billed — the stepper seeded from the real member count. -->
+        <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note">
+          {{ orgMemberCount }} learner{{ orgMemberCount === 1 ? '' : 's' }} joined ·
+          subscribing for {{ orgSeats }} seat{{ orgSeats === 1 ? '' : 's' }}
+          <span v-if="orgSeats < (orgMemberCount ?? 0)" class="seats-over-note">
+            — {{ (orgMemberCount ?? 0) - orgSeats }} learner{{ (orgMemberCount ?? 0) - orgSeats === 1 ? '' : 's' }} without a seat
+          </span>
+        </p>
 
         <p v-if="orgCheckoutError" class="upgrade-error">{{ orgCheckoutError }}</p>
         <p v-if="orgSeatsMessage" class="upgrade-note">{{ orgSeatsMessage }}</p>
@@ -657,6 +708,16 @@ watch(currentUser, (user) => {
           {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
           <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
             — {{ joinedTeacherCount - paidSeats }} more teacher{{ joinedTeacherCount - paidSeats === 1 ? '' : 's' }} joined than paid seats
+          </span>
+        </p>
+        <!-- Not yet subscribed: same honesty, against what's ABOUT to be billed
+             — the stepper is seeded from this joined count, and the admin can
+             still step it anywhere they like. -->
+        <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note">
+          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
+          subscribing for {{ seats }} seat{{ seats === 1 ? '' : 's' }}
+          <span v-if="seats < joinedTeacherCount" class="seats-over-note">
+            — {{ joinedTeacherCount - seats }} teacher{{ joinedTeacherCount - seats === 1 ? '' : 's' }} without a seat
           </span>
         </p>
 

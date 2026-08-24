@@ -129,12 +129,91 @@ describe('SessionStore', () => {
         spikes: [],
       };
 
-      const result = await store.endSession('session-123', metrics);
+      const result = await store.endSession('session-123', metrics, 900);
 
       expect(result.ended_at).not.toBeNull();
       expect(result.duration_seconds).toBe(900);
       expect(result.items_practiced).toBe(50);
       expect(mocks.update).toHaveBeenCalled();
+    });
+
+    it('writes accumulated PLAY seconds, never the wall-clock span', async () => {
+      // The session row spans 15 minutes of wall clock, but only 4 minutes of
+      // it were actually playing. Time counts when the app is playing and not
+      // when it isn't (owner ruling 2026-08-19), so 240 must be what lands.
+      const startTime = new Date('2024-01-15T10:00:00Z');
+      const endTime = new Date('2024-01-15T10:15:00Z');
+      mocks.single.mockResolvedValue({ data: { id: 'session-123' }, error: null });
+
+      const metrics: SessionMetrics = {
+        session_id: 'session-123',
+        started_at: startTime,
+        ended_at: endTime,
+        items_practiced: 12,
+        spikes_detected: 0,
+        final_rolling_average: 0,
+        metrics: [],
+        spikes: [],
+      };
+
+      await store.endSession('session-123', metrics, 240);
+
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({ duration_seconds: 240 })
+      );
+      // 900 is the wall-clock answer this method used to compute. If it ever
+      // reappears, the 128-hour sessions are back.
+      expect(mocks.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ duration_seconds: 900 })
+      );
+    });
+
+    it('a session that never played banks zero, however long the tab sat open', async () => {
+      // This is the exact shape of the leaked rows: items_practiced 0, a
+      // multi-day span, and previously a duration to match.
+      const startTime = new Date('2024-01-15T10:00:00Z');
+      const endTime = new Date('2024-01-20T18:36:00Z'); // 128.6 hours
+      mocks.single.mockResolvedValue({ data: { id: 'session-123' }, error: null });
+
+      await store.endSession(
+        'session-123',
+        {
+          session_id: 'session-123',
+          started_at: startTime,
+          ended_at: endTime,
+          items_practiced: 0,
+          spikes_detected: 0,
+          final_rolling_average: 0,
+          metrics: [],
+          spikes: [],
+        },
+        0
+      );
+
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({ duration_seconds: 0 })
+      );
+    });
+
+    it('never writes a negative duration', async () => {
+      mocks.single.mockResolvedValue({ data: { id: 'session-123' }, error: null });
+      await store.endSession(
+        'session-123',
+        {
+          session_id: 'session-123',
+          started_at: new Date('2024-01-15T10:00:00Z'),
+          ended_at: new Date('2024-01-15T10:15:00Z'),
+          items_practiced: 0,
+          spikes_detected: 0,
+          final_rolling_average: 0,
+          metrics: [],
+          spikes: [],
+        },
+        -5
+      );
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({ duration_seconds: 0 })
+      );
     });
   });
 

@@ -24,7 +24,7 @@ import { computed, type Ref } from 'vue'
 interface MinimalSessionStore {
   startSession: (learnerId: string, courseId: string) => Promise<{ id: string; [key: string]: unknown }>
   checkpointSession: (sessionId: string, itemsPracticed: number, durationSeconds: number) => Promise<void>
-  endSession: (sessionId: string, metrics: { items_practiced: number; started_at: Date; ended_at?: Date | null; [key: string]: unknown }) => Promise<unknown>
+  endSession: (sessionId: string, metrics: { items_practiced: number; started_at: Date; ended_at?: Date | null; [key: string]: unknown }, playSeconds: number) => Promise<unknown>
   saveMetrics: (sessionId: string, metrics: unknown[]) => Promise<void>
 }
 
@@ -70,12 +70,14 @@ export function createClassAwareSessionStore(
       if (!inClass()) return baseStore.value?.checkpointSession(sessionId, itemsPracticed, durationSeconds)
       await call('checkpointSession', [sessionId, itemsPracticed, durationSeconds])
     },
-    async endSession(sessionId, metrics) {
-      if (!inClass()) return baseStore.value!.endSession(sessionId, metrics as any)
-      const startedAt = metrics.started_at instanceof Date ? metrics.started_at : new Date(metrics.started_at)
-      const endedAt = metrics.ended_at instanceof Date ? metrics.ended_at : new Date()
-      const durationSeconds = Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
-      return call('endSession', [sessionId, metrics.items_practiced, durationSeconds])
+    // playSeconds is accumulated PLAYBACK time, passed straight through — a
+    // class session is measured the same way a solo one is (owner ruling
+    // 2026-08-19). This used to compute ended_at - started_at here, so a
+    // class left open on an interactive whiteboard over lunch billed the
+    // whole lunch to the pupils' practice time.
+    async endSession(sessionId, metrics, playSeconds) {
+      if (!inClass()) return baseStore.value!.endSession(sessionId, metrics as any, playSeconds)
+      return call('endSession', [sessionId, metrics.items_practiced, Math.max(0, Math.floor(playSeconds))])
     },
     async saveMetrics(sessionId, metrics) {
       // No-op in class mode — see file header.

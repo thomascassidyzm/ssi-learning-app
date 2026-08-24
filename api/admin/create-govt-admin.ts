@@ -19,6 +19,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { generateCode } from '../_utils/codeGen'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -28,11 +29,6 @@ interface CreateGovtAdminBody {
   email?: string
   group_id?: string
   organization_name?: string
-}
-
-function generateInviteCode(): string {
-  const part = () => Math.random().toString(36).slice(2, 5).toUpperCase()
-  return `${part()}-${part()}`
 }
 
 export default async function handler(
@@ -92,7 +88,32 @@ export default async function handler(
       }
     }
 
-    const code = generateInviteCode()
+    // Shared CSPRNG generator (api/_utils/codeGen.ts), the same one every other
+    // invite mint uses — SEC-AUDIT-2026-08-18 Finding 1 replaced this
+    // endpoint's private Math.random() generator. This is the
+    // highest-privilege invite in the system: redemption writes
+    // educational_role and creates a govt_admins row, so the code must not be
+    // predictable from observed samples. Unique-code retry loop mirrors
+    // api/invite/create.ts.
+    let code: string | null = null
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const candidate = generateCode()
+      const { data: existing } = await supabase
+        .from('invite_codes')
+        .select('id')
+        .eq('code', candidate)
+        .maybeSingle()
+      if (!existing) {
+        code = candidate
+        break
+      }
+    }
+    if (!code) {
+      console.error('[CreateGovtAdmin] Failed to generate unique code after 10 attempts')
+      res.status(500).json({ error: 'Could not generate unique code, please try again' })
+      return
+    }
+
     const { error: codeError } = await supabase.from('invite_codes').insert({
       code,
       code_type: 'govt_admin',

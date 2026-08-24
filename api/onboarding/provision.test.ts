@@ -38,12 +38,17 @@ function recordWrite(table: string, op: string, payload: unknown) {
 function makeChainable(table: string) {
   const calls: any[][] = []
   const builder: any = {
-    select: (cols: string) => { calls.push(['select', cols]); return builder },
+    select: (cols: string, opts?: unknown) => { calls.push(['select', cols, opts]); return builder },
     insert: (obj: unknown) => { calls.push(['insert', obj]); recordWrite(table, 'insert', obj); return builder },
     update: (obj: unknown) => { calls.push(['update', obj]); recordWrite(table, 'update', obj); return builder },
     delete: () => { calls.push(['delete']); recordWrite(table, 'delete', null); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
+    // Used by the join-code mint throttle's windowed counts
+    // (api/_utils/mintRateLimit.ts). Default responder returns no count, so
+    // the throttle counts 0 and every existing expectation is unchanged.
+    neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
+    gte: (col: string, val: unknown) => { calls.push(['gte', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
       if (respond) {
@@ -207,6 +212,128 @@ describe('POST /api/onboarding/provision — operator-capture guard', () => {
     expect(res._json.error).toMatch(/platform admin/)
     expect(writes.groups).toBeUndefined()
     expect(writes.govt_admins).toBeUndefined()
+  })
+})
+
+describe('POST /api/onboarding/provision — school track founding-admin membership', () => {
+  // Regression for the Chepstow class (2026-08-06): this path creates a school
+  // with schools.admin_user_id = the founding admin, but never wrote her the
+  // user_tags SCHOOL: row every staff-keyed number is derived from — so she was
+  // invisible in her own school (76 min of practice, a headline reading 7m, and
+  // no row of her own in the Teachers list).
+  let handler: typeof import('./provision').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    responders.courses = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { course_code: 'cym_for_eng', pricing_tier: 'free', new_app_status: 'live' }, error: null }
+        : undefined
+    responders.learners = (calls) =>
+      calls.some((c) => c[0] === 'select')
+        ? { data: { id: 'learner-a', display_name: 'Angharad', educational_role: null, platform_role: null }, error: null }
+        : undefined
+    handler = (await import('./provision')).default
+  })
+
+  function schoolTagWrites() {
+    return (writes.user_tags || []).filter(
+      (w: any) => w.op === 'insert' && w.payload?.tag_type === 'school',
+    )
+  }
+
+  it('tags the founding admin as admin of the school it just created', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(schoolTagWrites()).toHaveLength(1)
+    expect(schoolTagWrites()[0].payload).toMatchObject({
+      user_id: 'auth-op-1',
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-new',
+      role_in_context: 'admin',
+    })
+  })
+
+  it('re-provisioning an EXISTING school still attempts exactly one tag write (23505 makes it a no-op)', async () => {
+    // The partial unique index user_tags_active_natural_key turns the second
+    // insert into a 23505 the writer swallows — so a re-provision heals a
+    // pre-fix school without ever duplicating the row.
+    responders.schools = () => ({ data: { id: 'school-existing', trial_course_code: null, platform_status: null }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(schoolTagWrites()).toHaveLength(1)
+    expect(schoolTagWrites()[0].payload.tag_value).toBe('SCHOOL:school-existing')
+  })
+
+  it('a failed tag write never fails the signup', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+    responders.user_tags = () => ({ data: null, error: { code: '42501', message: 'permission denied' } })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+  })
+
+  // ── Join-code mint throttle (SEC22-01) ───────────────────────────────────
+  // The schools insert fires tr_schools_join_code and mints BOTH role-granting
+  // codes, so this self-serve path is throttled (api/_utils/mintRateLimit.ts).
+
+  it('audits the mint attempt on the normal signup path', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    const logged = (writes.possession_mint_attempts || []).filter(
+      (w: any) => w.op === 'insert' && w.payload?.outcome === 'school_mint_attempt',
+    )
+    expect(logged).toHaveLength(1)
+    // Never confusable with a REDEMPTION row: no invite_code_id to key on.
+    expect(logged[0].payload.invite_code_id).toBeNull()
+  })
+
+  it('429s over the mint limit and creates NO school', async () => {
+    responders.schools = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { data: { id: 'school-new' }, error: null } : { data: null, error: null }
+    responders.possession_mint_attempts = (calls) =>
+      calls.some((c) => c[0] === 'insert') ? { error: null } : { count: 9999, error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(429)
+    expect((writes.schools || []).some((w: any) => w.op === 'insert')).toBe(false)
+    expect(
+      (writes.possession_mint_attempts || []).some((w: any) =>
+        String(w.payload?.outcome || '').startsWith('rate_limited_mint_'),
+      ),
+    ).toBe(true)
+  })
+
+  // Idempotence: a re-provision reuses the existing school and mints nothing,
+  // so it must not spend any of the caller's budget either.
+  it('an idempotent re-provision mints nothing and is never counted', async () => {
+    responders.schools = () => ({ data: { id: 'school-existing', trial_course_code: null, platform_status: null }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { track: 'school', course_code: 'cym_for_eng' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.possession_mint_attempts).toBeUndefined()
   })
 })
 

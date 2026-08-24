@@ -14,6 +14,22 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateLearningScript } from './validateLearningScript'
+import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
+// The phrase-length cap lives with the mode config it comes from — ONE place,
+// next to resolveScriptShape (Aran's correction, 2026-08-06).
+import {
+  capPhrasesByLength, courseMaxPhraseLength, phraseTextLength,
+  normalizeMaxPhraseLengthFraction, normalizeMaxKnownSyllables,
+  normalizeReviewFilterMaxRound, makeKnownSyllableResolver, filterReviewPool,
+  normalizePhraseRepeatCount, normalizeRepeatedCycleTypes,
+  normalizeUseWordCapTiers, makeUseWordCap, capUsePoolByWords,
+  MIN_BUILD_PHRASES_AFTER_CAP, MIN_USE_PHRASES_AFTER_CAP,
+} from '../composables/useAlgorithmConfig'
+import type { ReviewPullFilter, UseWordCap, UseWordCapTier } from '../composables/useAlgorithmConfig'
+import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
+import { resolveServedPod } from '../composables/servedPod'
+import { repeatPhraseCycles } from './repeatPhraseCycles'
+import { authoredGlossSegments } from '../utils/authoredGlossSegments'
 
 export interface ScriptItem {
   uuid: string
@@ -59,28 +75,16 @@ export interface ScriptItem {
   components?: Array<{ known: string; target: string }>
   /** Native script variant of components */
   componentsNative?: Array<{ known: string; target: string }>
+  /** The intro's AUTHORED word mapping — literal known chunks in the TARGET's
+   *  own word order, each covering `span` consecutive target words. Preferred
+   *  over `components` by the tile assembler; componentisation stays the
+   *  fallback (Tom, 2026-08-13). */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
   listeningSeedNumber?: number
-  /** Skip this cycle when Turbo is active. Set on:
-   *   - 4th–7th BUILD phrases (Turbo keeps the first 3)
-   *   - 2nd CONSOLIDATE/USE phrase (Turbo keeps 1)
-   *   - spaced_rep phrases at alternate fib offsets (skip 5, 13, 34, 89; keep 1, 2, 3, 8, 21, 55)
-   * intro/debut/listening/pod/bookend cycles are never tagged. */
-  turboOmit?: boolean
 }
-
-/**
- * Default Turbo culling rules — mirrored to algorithm_config.turbo_boost.
- * fibKeep: indices into SPACED_REP_OFFSETS that Turbo keeps; default
- *   {0,1,2,4,6,8} = N-1, N-2, N-3, N-8, N-21, N-55 (skip the rest).
- * buildKeep: how many BUILD phrases per LEGO Turbo keeps (rest tagged).
- * useKeep: how many CONSOLIDATE/USE phrases per LEGO Turbo keeps.
- */
-export const DEFAULT_TURBO_FIB_KEEP = [0, 1, 2, 4, 6, 8]
-export const DEFAULT_TURBO_BUILD_KEEP = 3
-export const DEFAULT_TURBO_USE_KEEP = 1
 
 /**
  * Default per-round script shape — mirrored to algorithm_config.script_shape.
@@ -124,14 +128,6 @@ export const SEED_PHASE_START_OFFSET = 144
 /** Is a spaced-rep review at this skip offset in the seed-sentence phase? */
 export function reviewItemIsSeed(offset: number): boolean {
   return offset >= SEED_PHASE_START_OFFSET
-}
-
-/** Subset of turbo_boost config fields used at script-generation time
- *  (cycle tagging). Other fields like playback_speed apply at runtime. */
-export interface TurboCullConfig {
-  fibKeep?: number[]
-  buildKeep?: number
-  useKeep?: number
 }
 
 // Role → runtime playback rate for Layer-2 pod plays (emitPodLap, retained
@@ -192,6 +188,56 @@ export interface LearningScriptResult {
    */
   mainLoopRoundCount: number
   hasRomanizedText: boolean
+  /**
+   * Did the KNOWN-side review/consolidate pull filter actually apply?
+   *
+   * False when the mode sets no filter (Fast), OR when this course's KNOWN
+   * language has no registered syllable counter. The flag exists so the
+   * filter's inertness is VISIBLE to callers rather than being an invisible
+   * no-op, which is exactly how the first syllable attempt failed. Pairs with
+   * the once-per-course console warning from makeKnownSyllableResolver.
+   */
+  syllableCapApplied: boolean
+  /**
+   * Did the sliding USE word cap actually apply (Tom, 2026-08-09)?
+   *
+   * False when the mode carries no ladder (Fast), or when English is on
+   * NEITHER side of this course — the deferred case, where Easy behaves
+   * exactly as it did before. Same visibility discipline as syllableCapApplied:
+   * an inert cap must be readable, not invisible.
+   */
+  useWordCapApplied: boolean
+}
+
+/**
+ * The Easy-mode levers, all off by default — so a caller that passes nothing
+ * (and Fast, which passes them all off explicitly) generates byte-identical
+ * output to the pre-2026-08-07 walk.
+ */
+export interface EasyModeOptions {
+  /**
+   * How many times each eligible practice cycle plays, back to back (Tom,
+   * 2026-08-07). 1 / absent ⇒ once, which is Fast. Easy ships 2, and 2 is also
+   * the hard ceiling — a higher value is clamped, loudly.
+   */
+  phraseRepeatCount?: number
+  /** Which cycle types the repeat applies to. Defaults to build / spaced_rep /
+   *  use — BLD, REVIEW, USE and CONSOLIDATE. */
+  repeatedCycleTypes?: string[]
+  /** False ⇒ BUILD phrases bypass the phrase-length cap entirely ("no
+   *  filtering on BLD phrases" — Tom, 2026-08-07). Default true. */
+  filterBuildPhrases?: boolean
+  /** Max KNOWN-language syllables for a review/consolidate pull. 0 ⇒ off. */
+  reviewMaxKnownSyllables?: number
+  /** Last round on which that filter applies; it lifts from the next round. */
+  reviewSyllableFilterMaxRound?: number
+  /**
+   * Sliding word-count cap on USE phrases, by round (Tom, 2026-08-09). Empty /
+   * absent ⇒ off, which is Fast. Easy ships 8 words to round 20, 10 to round
+   * 100, uncapped after. Counted on the ENGLISH side of the pair and applied
+   * only on courses with English on one side — see ModeConfig.useWordCapTiers.
+   */
+  useWordCapTiers?: UseWordCapTier[]
 }
 
 /**
@@ -285,6 +331,27 @@ async function fetchAllPracticePhrases(
 // cache / resume repair).
 const WALK_SLICE_BUDGET_MS = 40
 
+/**
+ * Prompt identity for the A-64 consecutive-repeat cap: what the learner
+ * actually hears as "the same thing again".
+ *
+ * Default per Tom's brief — normalised known text paired with normalised target
+ * text, the same notion `getPhraseId` uses for within-round de-duplication.
+ * Listening items are the one case that notion cannot see: a pod sentence play
+ * carries no known text and a pod translation carries no target text, so two
+ * plays of the same clip at different speeds ('ps' vs 'ps2x') would otherwise
+ * look like different prompts. For those we fall back to the audio ids, which
+ * is the honest answer — it is the same clip.
+ */
+export function scriptItemIdentity(item: ScriptItem): string {
+  const norm = (text: string | null | undefined): string =>
+    text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
+  const known = norm(item.knownText)
+  const target = norm(item.targetText)
+  if (known || target) return `${known}|${target}`
+  return `audio:${item.knownAudioId ?? ''}|${item.target1Id ?? ''}`
+}
+
 export const yieldToEventLoop = (): Promise<void> => {
   const sched = (globalThis as any).scheduler
   if (sched && typeof sched.yield === 'function') {
@@ -329,7 +396,21 @@ export async function generateLearningScript(
   infinitePlayLookahead: number = 50,
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
-  turboCull: TurboCullConfig = {},
+  /**
+   * Cap on phrase length for the active learning mode, as a fraction of the
+   * longest phrase available for each LEGO. 1.0 (the default) is uncapped and
+   * reproduces the pre-2026-08-06 behaviour exactly; Easy ships 0.5.
+   * See capPhrasesByLength() — the one place the rule lives.
+   */
+  maxPhraseLengthFraction: number = 1,
+  /**
+   * The active mode's Easy levers — doubling, the BUILD-filter switch, and the
+   * known-side review/consolidate pull filter (Tom, 2026-08-07). Everything is
+   * off by default, and Fast passes them all off, so Fast's script is provably
+   * unchanged. Replaces the absolute TARGET-syllable ceiling that briefly
+   * occupied this slot earlier the same night.
+   */
+  easyOptions: EasyModeOptions = {},
   /**
    * Fire a pod-lap every N main rounds from podActivationRound onward.
    * Mirrors PodsConfig.roundInterval — passed in so the generator's
@@ -354,12 +435,18 @@ export async function generateLearningScript(
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
   const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
 
-  // Turbo culling — DB-tweakable via algorithm_config.turbo_boost
-  // (fibKeep, buildKeep, useKeep). Defaults preserved for any consumer
-  // that omits the param.
-  const TURBO_FIB_KEEP = new Set(turboCull.fibKeep ?? DEFAULT_TURBO_FIB_KEEP)
-  const TURBO_BUILD_KEEP = turboCull.buildKeep ?? DEFAULT_TURBO_BUILD_KEEP
-  const TURBO_USE_KEEP = turboCull.useKeep ?? DEFAULT_TURBO_USE_KEEP
+  // Phrase-length cap (mode row). The ceiling is ABSOLUTE and COURSE-WIDE —
+  // a fraction of the longest phrase in the whole course, measured in
+  // characters of target text — computed once below, after the phrase pools
+  // are known. 1.0 = uncapped = historic behaviour; Easy ships 0.5. Ordering
+  // is always shortest-first; the cap only removes the long tail.
+  const PHRASE_LENGTH_FRACTION = normalizeMaxPhraseLengthFraction(maxPhraseLengthFraction)
+  const phraseLengthOf = (p: Phrase): number => phraseTextLength(p.target_text)
+
+  // Resolved BEFORE the query batch below, because both levers decide whether
+  // the courses-table read is issued at all.
+  const MAX_KNOWN_SYLLABLES = normalizeMaxKnownSyllables(easyOptions.reviewMaxKnownSyllables)
+  const USE_WORD_CAP_TIERS = normalizeUseWordCapTiers(easyOptions.useWordCapTiers)
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
@@ -379,6 +466,12 @@ export async function generateLearningScript(
     return vowelClusters ? vowelClusters.length : 1
   }
 
+  /** A phrase's target syllable count: the stored value, else derived. */
+  const phraseSyllables = (phrase: {
+    target_syllable_count?: number
+    target_text?: string | null
+  }): number => phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
+
   // Query tables directly - audio IDs stored on each row, no joins needed.
   // ALL course-content queries are course-wide — no startSeed/endSeed
   // filtering. The script generator always walks the full course. Chunking
@@ -386,10 +479,10 @@ export async function generateLearningScript(
   // bug: any course-wide derivation (graduated seeds, anchor ordinals,
   // cross-LEGO references) needs the whole inventory in scope, not just
   // the current chunk's window.
-  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs, courseRowResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_gloss_segments, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
@@ -416,16 +509,23 @@ export async function generateLearningScript(
           .eq('course_code', courseCode)
           .in('role', ['bookend_listen_intro', 'bookend_listen_outro'])
       : Promise.resolve({ data: [], error: null }),
-    // Pre-fetch Pod 0 sentences (Layer 2 listening — round-end lap after
-    // activation). Pod ID convention: "${course_code}:${slug}". Sentences
-    // ordered by global_order; entry into the lap is 1 sentence/round.
-    // Returns empty if course has no pod-0 — Phase 7 silently skips.
+    // Pre-fetch this course's pod sentences (Layer 2 listening — round-end lap
+    // after activation). Pod ID convention: "${course_code}:${slug}", and
+    // WHICH slug is resolved per course by servedPod — pods went 1-based on
+    // 2026-08-22, so hrv serves `pod-1` and the ~68 older courses `pod-0`.
+    // Resolution is chained rather than awaited above so the other seven
+    // queries here still fire immediately; it is memoised per course, so the
+    // pod readers share one round-trip. Sentences ordered by global_order;
+    // entry into the lap is 1 sentence/round. Returns empty if the course has
+    // no served pod — Phase 7 silently skips.
     listeningConfig.enabled
-      ? supabase
-          .from('listening_pod_sentences')
-          .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
-          .eq('pod_id', `${courseCode}:pod-0`)
-          .order('global_order', { ascending: true })
+      ? resolveServedPod(supabase, courseCode).then(({ podId }) =>
+          supabase
+            .from('listening_pod_sentences')
+            .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
+            .eq('pod_id', podId)
+            .order('global_order', { ascending: true }),
+        )
       : Promise.resolve({ data: [], error: null }),
     // Course-wide LEGO catalogue (just seed_number + lego_index). Used to
     // assign every LEGO an absolute ordinal position in the course — drives
@@ -441,8 +541,81 @@ export async function generateLearningScript(
           .order('seed_number', { ascending: true })
           .order('lego_index', { ascending: true })
           .limit(10000)
-      : Promise.resolve({ data: [], error: null })
+      : Promise.resolve({ data: [], error: null }),
+    // Per-clip versioned audio refs. This walk reads the denormalised
+    // `*_audio_id` columns straight from Supabase, so — unlike the /cycles
+    // routes, which run the same map server-side — nothing here would carry a
+    // revision suffix without this. A bare uuid for a REVISED clip is a
+    // permanent stale-audio bug: both downstream caches key on the ref string.
+    // Fetched in parallel with the content queries, so it costs no latency;
+    // returns an empty map on any error (a missed suffix costs one stale clip,
+    // a thrown error costs the whole script). See ./revisedAudioRefs.
+    fetchRevisedAudioRefs(supabase, courseCode),
+    // The course's LANGUAGES — what the review/consolidate pull filter needs
+    // (known side) and what the USE word cap needs (which side is English).
+    // Smallest possible fetch: two columns, one row, in the existing parallel
+    // batch so it costs no latency. Skipped entirely when neither lever is set
+    // (Fast), so Fast issues exactly the queries it always did. A failed or
+    // missing row leaves both null, which makes both levers inert and warn —
+    // never throws, never guesses.
+    MAX_KNOWN_SYLLABLES < Infinity || USE_WORD_CAP_TIERS.length > 0
+      ? supabase
+          .from('courses')
+          .select('known_lang, target_lang')
+          .eq('course_code', courseCode)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ])
+
+  // KNOWN-side review/consolidate pull filter for this run (Tom, 2026-08-07).
+  // Resolved ONCE: the mode's limit, the round it lifts at, and the one
+  // resolver that knows how to count a phrase in this course's KNOWN language.
+  // `countable` false ⇒ the filter is inert on this course and has already
+  // warned.
+  // A courses-table read error is NOT fatal — the filter going inert costs the
+  // learner nothing (the character cap still applies), while throwing would
+  // cost them the whole script.
+  const REVIEW_FILTER_MAX_ROUND = normalizeReviewFilterMaxRound(easyOptions.reviewSyllableFilterMaxRound)
+  const courseLangs = (courseRowResult?.data as { known_lang?: string; target_lang?: string } | null) || null
+  if (courseRowResult?.error) {
+    console.warn(`[phrase-cap] could not read courses.known_lang/target_lang for ${courseCode} — review pull filter and USE word cap may be inert:`, courseRowResult.error.message)
+  }
+  const knownSyllableResolver = MAX_KNOWN_SYLLABLES < Infinity
+    ? makeKnownSyllableResolver(courseCode, courseLangs?.known_lang)
+    : null
+  const REVIEW_PULL_FILTER: ReviewPullFilter<Phrase> | null = knownSyllableResolver
+    ? {
+        limit: MAX_KNOWN_SYLLABLES,
+        maxRound: REVIEW_FILTER_MAX_ROUND,
+        syllablesOf: (p: Phrase) => knownSyllableResolver.syllablesOf(p),
+      }
+    : null
+  const syllableCapApplied = Boolean(knownSyllableResolver?.countable)
+
+  // SLIDING USE WORD CAP for this run (Tom, 2026-08-09). Null on Fast (no
+  // ladder) and null on a course with English on neither side — the deferred
+  // 47, which keep today's Easy exactly. Every application goes through
+  // useWordCap() below, so the round number is never guessed.
+  const USE_WORD_CAP: UseWordCap | null = makeUseWordCap(
+    courseLangs?.known_lang,
+    courseLangs?.target_lang,
+    USE_WORD_CAP_TIERS,
+  )
+  const useWordCapApplied = USE_WORD_CAP !== null
+  if (USE_WORD_CAP_TIERS.length > 0 && !USE_WORD_CAP) {
+    console.warn(
+      `[phrase-cap] USE word cap is INERT for ${courseCode}: English is on neither side ` +
+      `(known '${courseLangs?.known_lang ?? '(unknown)'}', target '${courseLangs?.target_lang ?? '(unknown)'}'). ` +
+      'Tom, 2026-08-09: the sliding scale was validated on English-involved pairs only; non-English pairs are deferred, not capped.',
+    )
+  }
+  /** Apply the word cap to a USE pool for the round it will be played in. */
+  const useWordCapped = (pool: readonly Phrase[], round: number): readonly Phrase[] =>
+    capUsePoolByWords(pool, round, USE_WORD_CAP)
+
+  // "No filtering on BLD phrases" (Tom, 2026-08-07) — Easy takes its BUILD
+  // pool whole. Default true keeps every other caller on the historic path.
+  const FILTER_BUILD_PHRASES = easyOptions.filterBuildPhrases !== false
 
   // All build loops below tick this — no single main-thread slice of the
   // walk may exceed the budget (post-READY interactivity, founder 2026-07-30).
@@ -453,6 +626,21 @@ export async function generateLearningScript(
   if (seedsResult.error) throw new Error('Failed to query seeds for listening: ' + seedsResult.error.message)
   if (bookendsResult.error) throw new Error('Failed to query listen bookends: ' + bookendsResult.error.message)
   if (podsResult.error) throw new Error('Failed to query pod sentences: ' + podsResult.error.message)
+
+  // Stamp the revision suffix onto every audio-id column BEFORE anything below
+  // reads one. Doing it here — once, on the fetched rows — rather than at the
+  // dozens of places that copy an id onto a ScriptItem is the same trick the
+  // server routes use (`stampRowAudioRefs` in api/_utils/audioAccess.ts), and
+  // for the same reason: the ref is just a string that rides through untouched.
+  // No-op (and no copy) when the course has no revised clips.
+  if (revisedAudioRefs.size > 0) {
+    legosResult.data = stampRowAudioRefs(revisedAudioRefs, legosResult.data || [])
+    phrasesResult.data = stampRowAudioRefs(revisedAudioRefs, phrasesResult.data || [])
+    seedsResult.data = stampRowAudioRefs(revisedAudioRefs, seedsResult.data || [])
+    bookendsResult.data = stampRowAudioRefs(revisedAudioRefs, bookendsResult.data || [])
+    podsResult.data = stampRowAudioRefs(revisedAudioRefs, podsResult.data || [])
+    console.log(`[generateLearningScript] ${revisedAudioRefs.size} revised clip(s) in ${courseCode} — audio refs stamped`)
+  }
 
   // Map bookend role → audio (used in Phase 6 to wrap the listening batch).
   // Both intro and outro must exist for either to be emitted.
@@ -541,7 +729,7 @@ export async function generateLearningScript(
   }
 
   // Compute lap items for a given main-course round. Returns false when pods
-  // not activated, course has none, or pod-0 has been fully introduced and
+  // not activated, course has none, or the served pod has been fully introduced and
   // no sentence is in any stage (shouldn't happen since stage 7 is eternal).
   // Caller is responsible for gating on l2FiresAt(round).
   function emitPodLap(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
@@ -733,11 +921,32 @@ export async function generateLearningScript(
     group.practice = []
   }
 
-  // Sort BUILD phrases by syllable count
+  // Sort BUILD phrases shortest-first and apply the mode's phrase-length cap
+  // — the twin of the USE sort below; both must move together or a round's
+  // BUILD and USE halves disagree about length. capPhrasesByLength falls back
+  // to that LEGO's shortest phrases rather than starve the round. The floor is
+  // the methodology's per-LEGO minimum (4 BUILD / 5 USE), NOT the round's
+  // ceiling: passing the ceiling makes the guard swallow the cap on every LEGO
+  // smaller than it, which is most of them (BUILD pools average 3.2 phrases).
+  // One ceiling for the whole run, from every pool the learner can meet.
+  const PHRASE_LENGTH_LIMIT = PHRASE_LENGTH_FRACTION >= 1
+    ? Infinity
+    : courseMaxPhraseLength<Phrase>(
+        [...phrasesByLego.values()].flatMap((g) => [g.build, g.use]),
+        phraseLengthOf,
+      ) * PHRASE_LENGTH_FRACTION
+
+  // Easy passes filterBuildPhrases:false and so keeps its whole BUILD pool,
+  // shortest-first but uncut — "no filtering on BLD phrases" (Tom,
+  // 2026-08-07). Passing Infinity rather than branching keeps the sort in one
+  // place: capPhrasesByLength with no finite limit IS the plain historic sort.
   for (const [, group] of phrasesByLego.entries()) {
-    group.build.sort((a, b) =>
-      (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-      (b.target_syllable_count || countTargetSyllables(b.target_text))
+    group.build = capPhrasesByLength<Phrase>(
+      group.build,
+      phraseSyllables,
+      phraseLengthOf,
+      FILTER_BUILD_PHRASES ? PHRASE_LENGTH_LIMIT : Infinity,
+      MIN_BUILD_PHRASES_AFTER_CAP,
     )
   }
 
@@ -818,7 +1027,9 @@ export async function generateLearningScript(
       console.debug(`[generateLearningScript] Backfilled ${presLookup.size}/${legosMissingPresentation.length} missing presentation audio IDs`)
       for (const lego of legosMissingPresentation) {
         const legoId = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
-        const audioId = presLookup.get(legoId)
+        // Stamped on the way in: this lookup was built from queries issued
+        // AFTER the bulk stamping pass above, so its ids are still bare.
+        const audioId = applyAudioRef(revisedAudioRefs, presLookup.get(legoId))
         if (audioId) lego.presentation_audio_id = audioId
       }
     } else if (legosMissingPresentation.length > 0) {
@@ -1096,7 +1307,6 @@ export async function generateLearningScript(
         fibPosition: base.fibPosition,
         reviewOf: base.reviewOf,
         playbackSpeed: 1.0,
-        ...(TURBO_FIB_KEEP.has(base.fibPosition) ? {} : { turboOmit: true }),
       })
     }
   }
@@ -1127,6 +1337,10 @@ export async function generateLearningScript(
       const usedPhrasesThisRound = new Set<string>()
       const legoComponents = componentsByLego.get(phraseKey)
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
+      // The authored mapping, when a human has segmented this LEGO and the
+      // segmentation still covers the target text. Preferred by the tile
+      // assembler; componentisation above stays the fallback.
+      const legoGlossSegments = authoredGlossSegments(lego)
 
       // Per-ITEM audio invariant (see the allLegos comment above). The intro
       // plays prompt → target1 → target2 with no pause, so it needs a prompt
@@ -1164,6 +1378,7 @@ export async function generateLearningScript(
           isNew: true,
           ...(legoComponents ? { components: legoComponents } : {}),
           ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+          ...(legoGlossSegments ? { glossSegments: legoGlossSegments } : {}),
         })
       }
 
@@ -1186,6 +1401,7 @@ export async function generateLearningScript(
           isNew: true,
           ...(legoComponents ? { components: legoComponents } : {}),
           ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+          ...(legoGlossSegments ? { glossSegments: legoGlossSegments } : {}),
         })
       }
       // The debut IS the bare LEGO — claim it so no later phase replays it. Some
@@ -1223,16 +1439,25 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
       // Fill remaining BUILD slots with USE phrases (BUILD priority > CONSOLIDATE)
       // CONSOLIDATE can repeat BUILD phrases if needed — filling 7 BUILD is non-negotiable
-      const sortedUsePhrases = [...phrases.use].sort((a, b) =>
-        (a.target_syllable_count || countTargetSyllables(a.target_text)) -
-        (b.target_syllable_count || countTargetSyllables(b.target_text))
-      )
+      // Twin of the BUILD sort above — same shortest-first order, same cap.
+      // 'needed' is only the slots still unfilled, so the starvation guard
+      // measures against what this round actually has to place.
+      // …then the sliding ENGLISH-side word cap for THIS round (Tom,
+      // 2026-08-09): 8 words to round 20, 10 to 100, uncapped after, and off
+      // entirely on a course with English on neither side. Its starvation guard
+      // hands the whole pool back rather than leave the round short.
+      const sortedUsePhrases = useWordCapped(capPhrasesByLength<Phrase>(
+        phrases.use,
+        phraseSyllables,
+        phraseLengthOf,
+        PHRASE_LENGTH_LIMIT,
+        MIN_USE_PHRASES_AFTER_CAP,
+      ), roundNumber)
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1257,14 +1482,24 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
-          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
-      // Initialize LEGO state
+      // Initialize LEGO state.
+      // The review pool gets the SAME cap. It has to: spaced rep walks this
+      // pool round-robin (useIndex % length), so it is the only place a LEGO's
+      // LONGEST phrases ever reach the learner — the debut BUILD/USE fills
+      // above take a shortest-first prefix and would ignore a cap entirely.
+      // Guard against an N-1 review's worth, the largest single draw.
       legoState.set(legoKey, {
         lastRound: roundNumber,
-        usePhrases: [...phrases.use],
+        usePhrases: capPhrasesByLength<Phrase>(
+          phrases.use,
+          phraseSyllables,
+          phraseLengthOf,
+          PHRASE_LENGTH_LIMIT,
+          MIN_USE_PHRASES_AFTER_CAP,
+        ),
         useIndex: 0,
         seedNum, legoIndex: lego.lego_index, lego
       })
@@ -1330,9 +1565,16 @@ export async function generateLearningScript(
 
         if (state.usePhrases.length === 0) continue
 
-        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, state.usePhrases.length)
+        // KNOWN-side pull filter (Tom, 2026-08-07): for the first
+        // REVIEW_FILTER_MAX_ROUND rounds a review draws from the shorter half
+        // of the LEGO's basket, measured in the learner's OWN language. Past
+        // that round the basket opens fully — "it's the LEGO that you are
+        // practicing", so a phrase never met before is no obstacle. Rotation
+        // still walks useIndex round-robin, just over the eligible sub-basket.
+        const reviewPool = useWordCapped(filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER), roundNumber)
+        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
-          const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+          const phrase = reviewPool[state.useIndex % reviewPool.length]
           state.useIndex++
 
           const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1357,7 +1599,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1381,11 +1622,15 @@ export async function generateLearningScript(
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
-          ...(consolidateCount > TURBO_USE_KEEP ? { turboOmit: true } : {}),
         })
       }
+      // CONSOLIDATE draws from the same known-side-filtered pool as review
+      // (Tom named REVIEW and CONSOLIDATE together) — consolidate cycles ARE
+      // use phrases. Debut BUILD/USE selection above is deliberately untouched.
+      // (sortedUsePhrases already carries this round's word cap.)
+      const consolidatePool = filterReviewPool(sortedUsePhrases, roundNumber, REVIEW_PULL_FILTER)
       // First pass: unused USE phrases
-      for (const phrase of sortedUsePhrases) {
+      for (const phrase of consolidatePool) {
         if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         if (usedPhrasesThisRound.has(phraseId)) continue
@@ -1394,7 +1639,7 @@ export async function generateLearningScript(
       }
       // Second pass: reuse USE phrases already used in BUILD (pool was too small)
       if (consolidateCount < USE_CONSOLIDATION_COUNT) {
-        for (const phrase of sortedUsePhrases) {
+        for (const phrase of consolidatePool) {
           if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
           emitConsolidate(phrase)
         }
@@ -1521,7 +1766,11 @@ export async function generateLearningScript(
       for (const legoKey of chosenKeys) {
         const state = legoState.get(legoKey)
         if (!state || state.usePhrases.length === 0) continue
-        const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+        // Same word cap as every other USE draw. On a course whose main loop
+        // ends before round 100 the tail is still inside the ladder, so it
+        // cannot be assumed uncapped.
+        const infUsePool = useWordCapped(state.usePhrases, roundNumber)
+        const phrase = infUsePool[state.useIndex % infUsePool.length]
         state.useIndex++
         if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
@@ -1581,9 +1830,14 @@ export async function generateLearningScript(
 
         if (state.usePhrases.length === 0) continue
 
-        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, state.usePhrases.length)
+        // Same known-side pull filter as the main loop's review. Revival
+        // rounds sit past the main loop, so on any real course this is already
+        // beyond REVIEW_FILTER_MAX_ROUND and the basket is whole; it is here so
+        // a short course's revival rounds obey the same rule as its main ones.
+        const reviewPool = useWordCapped(filterReviewPool(state.usePhrases, roundNumber, REVIEW_PULL_FILTER), roundNumber)
+        const phrasesToUse = Math.min(phraseCount, MAX_SPACED_REP_PHRASES - spacedRepCount, reviewPool.length)
         for (let i = 0; i < phrasesToUse; i++) {
-          const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+          const phrase = reviewPool[state.useIndex % reviewPool.length]
           state.useIndex++
           const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
           if (usedPhrasesThisRound.has(phraseId)) continue
@@ -1607,7 +1861,6 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
-            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1691,6 +1944,59 @@ export async function generateLearningScript(
     return true
   })
 
+  // ── EASY doubling (Tom, 2026-08-07) ──────────────────────────────────────
+  // "in EASY mode, double up every phrase, every BLD, every USE, every REVIEW,
+  // every CONSOLIDATE". BOTH the count and the eligible types are config, read
+  // off the mode row. Runs AFTER the consecutive-duplicate removal above, which
+  // would strip the second copy, and BEFORE the A-64 floor below, which allows
+  // exactly two in a row and so guarantees "doubled" can never become tripled.
+  // A count of 1 (Fast) returns the input array untouched, so Fast's script is
+  // byte-identical to the pre-2026-08-07 walk.
+  const doubledItems = repeatPhraseCycles(playableItems, {
+    count: normalizePhraseRepeatCount(easyOptions.phraseRepeatCount),
+    types: normalizeRepeatedCycleTypes(easyOptions.repeatedCycleTypes),
+  })
+
+  // ── A-64 floor (Tom, 2026-08-06) ─────────────────────────────────────────
+  // "No mode should ever repeat the same prompt more than twice consecutively."
+  //
+  // The consecutive-duplicate pass above is stricter than the law for ordinary
+  // cycles, but it lets intro/debut/pod/bookend types straight through — so a
+  // pod lap whose stage playlist fires the same clip three times, or any future
+  // emitter, can still breach. This pass is the floor that cannot be breached:
+  // it runs downstream of every script-shape value (Easy mode's doubled
+  // n1PhraseCount included) and of the pod stage playlists in algorithm_config.
+  //
+  // Re-interleaving is confined to a single round: rounds are the player's unit
+  // of position, so an item must never migrate across a round boundary. Each
+  // round is seeded with the previous round's tail so the law also holds at the
+  // seam. Totals survive wherever a round holds anything to interleave with.
+  const roundCapped: ScriptItem[] = []
+  let capTail: string[] = []
+  let capDropped = 0
+  let capReordered = 0
+  let currentRound: number | null = null
+  let roundBuffer: ScriptItem[] = []
+  const flushRound = () => {
+    if (roundBuffer.length === 0) return
+    const capped = capConsecutiveRepeats(roundBuffer, scriptItemIdentity, { seed: capTail })
+    capTail = capped.tail
+    capDropped += capped.dropped.length
+    if (capped.reordered) capReordered++
+    roundCapped.push(...capped.items)
+    roundBuffer = []
+  }
+  for (const item of doubledItems) {
+    await yieldTick()
+    if (currentRound !== null && item.roundNumber !== currentRound) flushRound()
+    currentRound = item.roundNumber
+    roundBuffer.push(item)
+  }
+  flushRound()
+  if (capReordered > 0 || capDropped > 0) {
+    console.info(`[generateLearningScript] A-64 cap: re-interleaved ${capReordered} round(s)${capDropped > 0 ? `, dropped ${capDropped} rep(s) with nothing to interleave against` : ''}`)
+  }
+
   if (introsSkippedForAudio > 0 || debutsSkippedForAudio > 0 || droppedByText > 0) {
     console.info(`[generateLearningScript] Suppressed ${introsSkippedForAudio} intros / ${debutsSkippedForAudio} debuts for missing audio (their rounds still play), ${droppedByText} missing-text cycles`)
   }
@@ -1705,7 +2011,7 @@ export async function generateLearningScript(
     try { return !!(import.meta as any)?.env?.DEV } catch { return false }
   })()
   if (isDevBuild) {
-    const validationReport = validateLearningScript(playableItems)
+    const validationReport = validateLearningScript(roundCapped)
     if (!validationReport.valid) {
       console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
     }
@@ -1717,18 +2023,18 @@ export async function generateLearningScript(
   }
 
   // Recount rounds from playable items
-  const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
+  const playableRoundCount = new Set(roundCapped.map(i => i.roundNumber)).size
   // Where the INF-PLAY revival tail begins = count of PLAYABLE main-loop rounds.
   // mainLoopLastRound is the generator's own boundary (set right before the
   // revival loop); counting distinct playable roundNumbers at-or-below it gives
   // the true current course size, with unbuilt/no-audio rounds already filtered
   // out. This is what the player must use to find the tail — never a DB count.
   const mainLoopRoundCount = new Set(
-    playableItems.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
+    roundCapped.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
   ).size
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
+  console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
+  return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized, syllableCapApplied, useWordCapApplied }
 }

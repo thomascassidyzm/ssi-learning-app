@@ -14,11 +14,15 @@ import {
   cachesToClear,
   shouldArmBootWatchdog,
   shouldHealOnBootFailure,
+  shouldServeCachedShell,
   isDeployFatalResourceUrl,
   shouldReloadForPreloadError,
   PRESERVE_CACHE_NAMES,
   HEAL_DEADLINE_MS,
   RELOAD_WEDGE_MS,
+  CACHED_SHELL_FALLBACK_MS,
+  isSwapGuardActive,
+  SWAP_GUARD_MS,
 } from './bootHeal'
 
 describe('nextHealDecision', () => {
@@ -107,13 +111,68 @@ describe('inline watchdog lockstep (index.html hand-mirrors this module)', () =>
   })
 })
 
-describe('shouldHealOnBootFailure — the offline guard (always-play invariant)', () => {
-  it('heals when online (a genuine broken deploy)', () => {
+describe('shouldHealOnBootFailure — the live-network guard (always-play invariant)', () => {
+  it('heals when the network actually answered (a genuine broken deploy)', () => {
     expect(shouldHealOnBootFailure(true)).toBe(true)
   })
 
   it('NEVER heals offline — healing deletes the SW + precache, the only thing that makes offline work', () => {
     expect(shouldHealOnBootFailure(false)).toBe(false)
+  })
+
+  it('NEVER heals on lie-fi — a weak signal claims to be online but never answers', () => {
+    // The 2026-08-16 white screen: navigator.onLine === true, every request
+    // hangs. The guard takes "did the network answer", not "does the browser
+    // claim to be online", precisely so this case cannot nuke the install.
+    const claimsOnline = true
+    const networkAnswered = false
+    expect(shouldHealOnBootFailure(networkAnswered)).toBe(false)
+    expect(claimsOnline).toBe(true)
+  })
+})
+
+describe('shouldServeCachedShell — the weak-signal recovery', () => {
+  it('serves the cached shell when the boot stalled and we hold one', () => {
+    expect(shouldServeCachedShell(false, true, false)).toBe(true)
+  })
+
+  it('does nothing once the app has booted', () => {
+    expect(shouldServeCachedShell(true, true, false)).toBe(false)
+  })
+
+  it('does nothing on a first visit — there is no cached shell to fall back to', () => {
+    expect(shouldServeCachedShell(false, false, false)).toBe(false)
+  })
+
+  it('does not swap twice without a successful boot in between — no loop', () => {
+    expect(shouldServeCachedShell(false, true, true)).toBe(false)
+  })
+
+  it('rescues a SECOND reload on a weak signal, because a boot clears the guard', () => {
+    // The guard is cleared on mount, so the next stalled boot sees false and
+    // is rescued again. Without this, reload two was Tom's permanent white
+    // screen.
+    const guardAfterASuccessfulBoot = false
+    expect(shouldServeCachedShell(false, true, guardAfterASuccessfulBoot)).toBe(true)
+  })
+
+  it('suppresses a re-swap that comes straight back — the loop case', () => {
+    expect(isSwapGuardActive(1_000_000, 1_003_000)).toBe(true)
+  })
+
+  it('expires, so a later reload on the same bad signal is rescued again', () => {
+    expect(isSwapGuardActive(1_000_000, 1_000_000 + SWAP_GUARD_MS + 1)).toBe(false)
+  })
+
+  it('is inactive when nothing was ever swapped', () => {
+    expect(isSwapGuardActive(null, 1_000_000)).toBe(false)
+    expect(isSwapGuardActive(NaN, 1_000_000)).toBe(false)
+  })
+
+  it('gives the network less time than the deploy-broken deadline', () => {
+    expect(CACHED_SHELL_FALLBACK_MS).toBeLessThan(15000)
+    // Inside the "3/4 secs" airplane-mode experience Tom calls good.
+    expect(CACHED_SHELL_FALLBACK_MS).toBeLessThanOrEqual(4000)
   })
 })
 
@@ -133,22 +192,49 @@ describe('isDeployFatalResourceUrl — fast-path scope', () => {
   })
 })
 
-describe('inline watchdog mirrors the offline + same-origin guards', () => {
+describe('inline watchdog mirrors the live-network + same-origin guards', () => {
   const html = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), '../../index.html'),
     'utf8',
   )
 
-  it('fast path bails when offline', () => {
-    expect(html).toContain('if (!navigator.onLine) return;')
+  it('proves a live network by asking for an answer, not by asking navigator.onLine', () => {
+    expect(html).toContain('function networkAnswers()')
+    expect(html).toContain("cache: 'no-store'")
+    // The flag that lied on a weak signal must not gate anything in the
+    // watchdog's CODE any more. It still appears in the comments explaining
+    // why, so strip those before asserting.
+    const code = html.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')
+    expect(code).not.toContain('navigator.onLine')
+  })
+
+  it('fast path heals only when the network answered, and falls back to cache when it did not', () => {
+    expect(html).toContain('if (answered) heal();')
+    expect(html).toContain('else serveCachedShell();')
   })
 
   it('fast path only heals same-origin resources', () => {
     expect(html).toContain("url.indexOf(window.location.origin + '/') !== 0")
   })
 
-  it('slow path requires the network before healing', () => {
-    expect(html).toContain('if (!window.__SSI_BOOTED && navigator.onLine) heal();')
+  it('slow path requires a network answer before healing', () => {
+    expect(html).toContain('if (!window.__SSI_BOOTED && answered) heal();')
+  })
+
+  it('serves the precached shell when the boot stalls, ignoring the revision query', () => {
+    expect(html).toContain("caches.match('/index.html', { ignoreSearch: true })")
+  })
+
+  it('uses the same stall budget as CACHED_SHELL_FALLBACK_MS', () => {
+    expect(html).toContain(`}, ${CACHED_SHELL_FALLBACK_MS});`)
+  })
+
+  it('clears the swap guard once the app mounts, so a second bad reload is rescued too', () => {
+    expect(html).toContain('sessionStorage.removeItem(SWAP_KEY)')
+  })
+
+  it('expires the swap guard on the same window as SWAP_GUARD_MS', () => {
+    expect(html).toContain(`var SWAP_GUARD_MS = ${SWAP_GUARD_MS};`)
   })
 })
 

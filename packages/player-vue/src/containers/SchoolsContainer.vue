@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openInApp } from '../composables/useInAppBrowser'
 import { ref, inject, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
@@ -19,12 +20,14 @@ import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import MissionCard from '@/missions/MissionCard.vue'
 import { activatePendingMission } from '@/missions/useMission'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import { useSchoolsRail } from '@/composables/schools/useSchoolsRail'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
+const loginCodeAudit = useLoginCodeAudit('schools-container')
 
 // Set client immediately during setup (before child components call useSchoolContext)
 if (supabase.value) {
@@ -220,6 +223,15 @@ async function handleVerifyOtp() {
       type: 'email',
     })
     if (error) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(supabase.value, loginEmail.value)) {
+        loginCodeAudit.alreadySignedIn(loginEmail.value)
+        return
+      }
+      loginCodeAudit.failed(loginEmail.value, error.message)
       loginError.value = error.message || 'Invalid code'
       return
     }
@@ -329,6 +341,35 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
 
+// Second half of useAdminGate's guest hand-off: a signed-out visitor who
+// opened an /admin (or /methodology) deep link is sent here with the intended
+// destination in `next`, because this is the surface that carries the inline
+// email sign-in. Once the role resolves to ssi_admin, replay it — so the deep
+// link survives the sign-in rather than being silently swallowed by a bounce
+// to the player (owner, 2026-08-19: the admin links "redirecting" on his
+// phone was exactly this, a browser with no session and nothing on screen
+// saying so).
+//
+// Watch, not a one-shot: the role lands asynchronously after the OTP verify,
+// long after this container mounts. Only ssi_admin is replayed, and only onto
+// an admin path — a signed-in non-admin stays on the schools surface they can
+// actually use, and the prefix check keeps `next` from being an open redirect
+// (no protocol-relative '//evil.example', no arbitrary in-app route).
+function adminNextTarget(): string | null {
+  const next = route.query.next
+  if (typeof next !== 'string') return null
+  if (!/^\/(admin|methodology)(\/|\?|$)/.test(next)) return null
+  return next
+}
+watch(
+  () => isAuthenticated.value && isRoleInitialized.value && isSsiAdmin.value,
+  (readyForAdmin) => {
+    const target = adminNextTarget()
+    if (readyForAdmin && target) router.replace(target)
+  },
+  { immediate: true },
+)
+
 // WHERE-YOU-ARE rail on the FLAT views (founder ruling 2026-07-31: the rail
 // is orientation, not navigation — it never disappears). Routes opt in via
 // meta.railFrame; useSchoolsRail resolves the tree per role (school node for
@@ -410,7 +451,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <div v-else-if="showLogin || showNoAccess" class="schools-login-page">
       <!-- Brand pane -->
       <aside class="schools-login-pane schools-login-pane--brand">
-        <header class="brand-logo">
+        <header class="brand-logo brand-text">
           <span class="logo-mark">S</span>
           <span class="logo-text">
             SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>
@@ -432,7 +473,13 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         <footer class="brand-footer">
           <span>v3 · Spring 2026</span>
           <span class="brand-footer-sep">·</span>
-          <a href="https://www.saysomethingin.com" class="brand-footer-link">
+          <a
+            href="https://www.saysomethingin.com"
+            target="_blank"
+            rel="noopener"
+            class="brand-footer-link"
+            @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')"
+          >
             ← Back to saysomethingin.com
           </a>
         </footer>

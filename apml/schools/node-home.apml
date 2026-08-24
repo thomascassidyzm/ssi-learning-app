@@ -1,5 +1,7 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-07 (school-admin first-run affordances on the member mount;
+# Last updated: 2026-08-07 (state_badge: a trial names its LANGUAGE, not the raw course code,
+#               and a trial school records that language at its first class — B1;
+#               school-admin first-run affordances on the member mount;
 #               creator becomes first manager; the node names its leader;
 #               duplicate-name warning on Add-a-group and on Rename;
 #               password gate + PWA install nudge before an org manager's first add;
@@ -58,6 +60,26 @@ surface:
 grammar:  # the same five parts, every level (THE-VIEW §1)
   map_rail: NodeMapRail.vue           # ancestors root→here, you-are-here lit, siblings toggle, children below
   identity_header: node name + label badge + demo/trial/paid state; class level adds read-only teachers (lead first)
+  state_badge: |
+    NodeHomeView.vue::stateBadge — demo · paid ("Paid — all courses") ·
+    trial · any other platform_status verbatim (underscores spaced).
+
+    A TRIAL badge NAMES THE LANGUAGE, never the raw course code:
+    "Trial — Welsh (South)", off courseShortName(commercial.trialCourseCode)
+    from @ssi/core (packages/core/src/courses/displayName.ts). That helper is
+    the ONE source of truth for course labels — do not add another hardcoded
+    list here (the repo already carries three: lib/teacherCourses.ts,
+    composables/schools/useSchoolCourseCatalogue.ts, insight/data/demo.ts,
+    and that duplication is what produced this bug).
+
+    A trial with NO course recorded reads a bare "Trial". That is now a
+    genuinely transient state — a trial school records its language the
+    moment it creates its first class with a course
+    (api/_utils/schoolPlatformTrial.ts::ensureSchoolTrialCourse, called from
+    POST /api/teacher/create-class-learner). Before that fix, an invite-born
+    school (redeem.ts has no course to pass at redemption) stayed null
+    forever and the badge was a permanent blank — founder report 2026-08-07,
+    the Chepstow school.
   stats_row: learners · teachers · classes · practice hours — SUBTREE totals via groupRollups.computeNodeExtras
   children_list: NodeChildrenList.vue # one row grammar for every lens payload
   verbs: invite someone (role × node) · see insights · quick actions (Structure flyout)

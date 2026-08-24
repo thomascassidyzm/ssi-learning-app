@@ -9,10 +9,12 @@ import Button from '@/components/schools/shared/Button.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
+import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 
 // Supabase + auth from App.vue
 const supabase = inject('supabase', ref(null)) as any
+const loginCodeAudit = useLoginCodeAudit('teach-container')
 const auth = inject<any>('auth', null)
 
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
@@ -125,6 +127,15 @@ async function handleVerifyOtp() {
       type: 'email',
     })
     if (error) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(supabase.value, loginEmail.value)) {
+        loginCodeAudit.alreadySignedIn(loginEmail.value)
+        return
+      }
+      loginCodeAudit.failed(loginEmail.value, error.message)
       loginError.value = error.message || 'Invalid code'
       return
     }
@@ -156,7 +167,7 @@ const handleAuthSuccess = () => closeAuth()
 
     <div v-else-if="showLogin" class="teach-login">
       <FrostCard variant="panel" class="login-card">
-        <div class="login-header">
+        <div class="login-header brand-text">
           <span class="login-logo">SaySomethingin</span>
           <span class="login-logo-accent">Teach</span>
         </div>

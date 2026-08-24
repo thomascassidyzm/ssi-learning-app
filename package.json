@@ -11,6 +11,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:api": "vitest run -c vitest.api.config.ts",
+    "test:security-audit": "vitest run -c vitest.security-audit.config.ts",
     "typecheck:api": "tsc --noEmit -p tsconfig.api.json",
     "test:release-train": "node --test tools/release-train/release-notes.test.mjs",
     "lint": "pnpm -r lint",

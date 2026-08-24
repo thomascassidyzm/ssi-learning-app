@@ -39,7 +39,7 @@ describe('createClassAwareSessionStore — outside class mode', () => {
 
     await store.startSession('learner-1', 'course-1')
     await store.checkpointSession('sess-1', 5, 60)
-    await store.endSession('sess-1', { items_practiced: 5, started_at: new Date() })
+    await store.endSession('sess-1', { items_practiced: 5, started_at: new Date() }, 120)
 
     expect(base.startSession).toHaveBeenCalledWith('learner-1', 'course-1')
     expect(base.checkpointSession).toHaveBeenCalledWith('sess-1', 5, 60)
@@ -81,15 +81,18 @@ describe('createClassAwareSessionStore — in class mode', () => {
     expect(body).toEqual({ classId: 'class-1', method: 'checkpointSession', args: ['sess-9', 12, 300] })
   })
 
-  it('endSession derives durationSeconds from started_at/ended_at and forwards items_practiced', async () => {
+  it('endSession forwards measured PLAY seconds, not the wall-clock span', async () => {
     const base = makeBaseStore()
     const store = createClassAwareSessionStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('tok')))
     const startedAt = new Date('2026-07-20T10:00:00.000Z')
     const endedAt = new Date('2026-07-20T10:05:00.000Z')
-    await store.endSession('sess-9', { items_practiced: 30, started_at: startedAt, ended_at: endedAt })
+    // The class sat open for 5 minutes of wall clock (300s) but only played
+    // for 180s. A class left running on a whiteboard over lunch must not bill
+    // the lunch to the pupils (owner ruling 2026-08-19).
+    await store.endSession('sess-9', { items_practiced: 30, started_at: startedAt, ended_at: endedAt }, 180)
     expect(base.endSession).not.toHaveBeenCalled()
     const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
-    expect(body).toEqual({ classId: 'class-1', method: 'endSession', args: ['sess-9', 30, 300] })
+    expect(body).toEqual({ classId: 'class-1', method: 'endSession', args: ['sess-9', 30, 180] })
   })
 
   it('saveMetrics is a no-op in class mode — never calls fetch or the base store', async () => {

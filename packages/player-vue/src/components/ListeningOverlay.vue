@@ -11,7 +11,13 @@ import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
-import { PodStateStore } from '@ssi/core'
+import { PodStateStore, dirFor } from '@ssi/core'
+// A-86: this overlay walks Supabase for audio ids in four places of its own.
+// Every one of them is stamped with the per-clip versioned ref at the walk, so
+// the URL builder (getAudioUrl) and the IndexedDB cache key both see `.vN`.
+import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
+import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
+import { isOfflineish } from '../config/networkGate'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -251,12 +257,22 @@ const props = defineProps({
   isOffline: {
     type: Boolean,
     default: false
+  },
+  /** The learner's mode — 'easy' or 'fast'. Easy opens every listening
+   *  surface at EASY_LISTENING_SPEED, which since 2026-08-10 is 1.0 — Tom:
+   *  "return the default listening speed settings to 1.0x on EASY". Both modes
+   *  therefore open at 1.0; the speed row is still theirs to change for the
+   *  session, and reinstating an Easy-specific opening pace is one constant. */
+  learningMode: {
+    type: String,
+    default: 'fast'
   }
 })
 
-// Playback speed options
-const SPEED_OPTIONS = [1, 1.2, 1.5, 2]
-const playbackSpeed = ref(1)
+// Playback speed options. 0.8 exists so Easy's default has a button of its
+// own — a default with no matching option would show no active speed.
+const SPEED_OPTIONS = [0.8, 1, 1.2, 1.5, 2]
+const playbackSpeed = ref(props.learningMode === 'easy' ? EASY_LISTENING_SPEED : 1)
 
 // Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s).
 // The chosen speed in Drill is the "normal" rate — fast reps are 2× of it.
@@ -354,7 +370,8 @@ const ensureFineKnowns = async () => {
         .eq('role', 'pod_fine_known')
         .range(from, from + page - 1)
       if (err) throw err
-      for (const r of data || []) fineKnownByNorm.value.set(r.text_normalized, r.id)
+      const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+      for (const r of data || []) fineKnownByNorm.value.set(r.text_normalized, applyAudioRef(revisedRefs, r.id))
       if (!data || data.length < page) break
     }
     fineKnownLoadState = 'ready'
@@ -498,9 +515,30 @@ const showSpeedRow = computed(() => true)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
+/**
+ * The two languages on screen, as ISO 639-3, so each run of text can declare
+ * itself for glyph coverage — DM Sans cannot spell Greek, Cyrillic,
+ * Devanagari, the Yoruba dot-belows or the pinyin tone vowels, and an
+ * undeclared run gets substituted per-character (styles/design-tokens.css).
+ * The course code is the only language signal this overlay is given.
+ */
+const courseTargetLang = computed(() => props.courseCode?.split('_')[0] || '')
+const courseKnownLang = computed(() => props.courseCode?.split('_for_')[1] || '')
+
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
 const selectedScene = ref(null)
+
+// A course whose pod-0 holds no sentences has no Dialogues to offer, so the
+// tab is HIDDEN rather than shown leading to an empty shelf (Tom 2026-08-08:
+// the pod is hidden while it's ungated, never offered-but-empty). General
+// rule, not a per-course carve-out — any course in this state is covered.
+// Deliberately optimistic while loading and on error: a transient read
+// failure must never make a real pod vanish, and the error state has its own
+// message inside the tab.
+const podsAvailable = computed(
+  () => pods.isLoading.value || !!pods.error.value || pods.scenes.value.length > 0,
+)
 
 // Pagination
 const BATCH_SIZE = 50
@@ -734,7 +772,7 @@ const exitScene = () => {
 // Going offline mid-session while sat on 'All' (e.g. the connection drops)
 // bounces back to Dialogues — 'All' never has offline audio to play.
 watch(() => props.isOffline, (offline) => {
-  if (offline && view.value === 'phrases') setView('pods')
+  if (offline && view.value === 'phrases') setView(podsAvailable.value ? 'pods' : 'seeds')
 })
 
 const setView = (v) => {
@@ -761,6 +799,17 @@ const setView = (v) => {
     hasMore.value = false
   }
 }
+
+// Dialogues is the default view, so a course with no pod would open straight
+// onto the empty shelf the hidden tab exists to prevent. As soon as the read
+// settles on "no scenes", fall through to Core — the deepest surface that is
+// always populated. Not immediate: the composable starts its read during
+// setup, so podsAvailable is true on the first tick for every real course and
+// this always fires on the loading→settled transition instead — which keeps
+// setView's own dependencies (stopPlayback, loadSeeds) out of their TDZ.
+watch(podsAvailable, (available) => {
+  if (!available && view.value === 'pods') setView('seeds')
+})
 
 const loadLegoOrdinals = async () => {
   if (!supabase?.value || !props.courseCode) return
@@ -878,7 +927,9 @@ const loadPhrases = async (offset = 0) => {
     if (data && data.length > 0) {
       console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
 
-      const newPhrases = data.map((p, i) => {
+      // A-86: versioned refs applied at the walk (see import note).
+      const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+      const newPhrases = stampRowAudioRefs(revisedRefs, data).map((p, i) => {
         const key = `${p.seed_number}.${p.lego_index}`
         const beltIndex = beltIndexForSeed(p.seed_number)
         return {
@@ -964,7 +1015,9 @@ const loadSeeds = async () => {
     // opens instantly instead of waiting on a doomed fetch.
     const seedsFromCache = async () => (await getCachedListeningMeta(props.courseCode))?.coreSeeds ?? null
     let data = null
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // Cache-first whenever the network is offline OR observed stalling —
+    // not only when the browser admits it. (Tom 2026-08-15.)
+    if (isOfflineish()) {
       data = await seedsFromCache()
     }
     if (!data) {
@@ -982,7 +1035,9 @@ const loadSeeds = async () => {
       }
     }
 
-    const rows = (data || []).map((s) => {
+    // A-86: versioned refs applied at the walk (see import note).
+    const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
+    const rows = stampRowAudioRefs(revisedRefs, data || []).map((s) => {
       const beltIndex = beltIndexForSeed(s.seed_number)
       return {
         id: `seed-${s.seed_number}`,
@@ -1015,7 +1070,7 @@ const loadSeeds = async () => {
     console.error('[ListeningOverlay] loadSeeds error:', err)
     // Offline with nothing downloaded: a clear human state, never an
     // infinite spinner or a raw fetch error (Tom's airplane-mode test).
-    error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+    error.value = isOfflineish()
       ? "Core isn't downloaded yet — connect once and download for offline to bring it along."
       : 'Failed to load seeds'
   } finally {
@@ -1747,8 +1802,12 @@ const fetchAllAudioIds = async () => {
   const { data, error: fetchError } = await query
   if (fetchError) throw fetchError
 
+  // A-86: the offline pack must be downloaded and CACHED under the versioned
+  // ref, or a revised clip lands in IndexedDB under its bare uuid and the
+  // player never finds it.
+  const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
   const ids = new Set()
-  for (const row of data || []) {
+  for (const row of stampRowAudioRefs(revisedRefs, data || [])) {
     if (row.target1_audio_id) ids.add(row.target1_audio_id)
     if (row.target2_audio_id) ids.add(row.target2_audio_id)
   }
@@ -1938,6 +1997,7 @@ watch(
          All       = every USE phrase the learner has met. -->
     <div class="view-tabs" @click.stop>
       <button
+        v-if="podsAvailable"
         class="view-tab"
         :class="{ active: view === 'pods' }"
         @click="setView('pods')"
@@ -1959,7 +2019,7 @@ watch(
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
     <div
-      v-if="view === 'pods' && !selectedScene"
+      v-if="view === 'pods' && !selectedScene && podsAvailable"
       class="scene-list-wrap"
       @click.stop
     >
@@ -2115,7 +2175,7 @@ watch(
       <!-- Immersion vs Drill were visually identical before pressing play — the
            desc lived only in a hover :title, invisible on touch (Gap 6). Surface
            the selected mode's one-liner directly, matching the pattern the mode
-           tray already uses for Turbo/Offline sub-descriptions. -->
+           tray already uses for its Offline sub-description. -->
       <p v-if="modeSurface" class="listen-mode-desc">{{ LISTEN_MODES.find(m => m.key === listenMode)?.desc }}</p>
 
       <!-- Gloss eye: show/hide the known-language line under each phrase. -->
@@ -2217,8 +2277,8 @@ watch(
                 class="phrase-pair fusion-strip"
                 :class="{ active: si === activeStripIndex }"
               >
-                <div class="phrase-target">{{ strip.target }}</div>
-                <div v-if="showGloss && strip.known" class="phrase-known interleaved">{{ strip.known }}</div>
+                <div :lang="courseTargetLang" class="phrase-target" :dir="dirFor(strip.target)">{{ strip.target }}</div>
+                <div :lang="courseKnownLang" v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
               </div>
             </template>
             <!-- Current dialogue turn: interleave target and gloss sentence
@@ -2227,13 +2287,13 @@ watch(
                  keep the plain paragraph. Gloss honours the eye toggle. -->
             <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
-                <div class="phrase-target">{{ pair.target }}</div>
-                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+                <div :lang="courseTargetLang" class="phrase-target">{{ pair.target }}</div>
+                <div :lang="courseKnownLang" v-if="showGloss && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
-              <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
+              <div :lang="courseKnownLang" v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
           </template>
         </TeleprompterScroll>
@@ -2271,8 +2331,8 @@ watch(
                 <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
                 <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
               </div>
-              <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
+              <div :lang="courseKnownLang" v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </div>
           </template>
         </div>
@@ -2447,7 +2507,7 @@ watch(
  * modes never shifts the layout (nothing is shown under Drill). */
 
 /* One-liner under the Immersion/Drill toggle — same treatment as the mode
- * tray's Turbo/Offline sub-descriptions, so the two modes read as distinct
+ * tray's Offline sub-description, so the two modes read as distinct
  * before the learner ever presses play (Gap 6). */
 .listen-mode-desc {
   margin: 4px 0 0;
@@ -2602,7 +2662,12 @@ watch(
   background: var(--bg-card-hover);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .phrase-target {
+  unicode-bidi: isolate;
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);
@@ -2624,6 +2689,11 @@ watch(
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 1rem;
   color: var(--text-secondary);
   margin-top: 0.5rem;

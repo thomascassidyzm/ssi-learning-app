@@ -37,7 +37,6 @@ const ICONS: Record<string, string[]> = {
   users: ['M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   stats: ['M18 20V10', 'M12 20V4', 'M6 20v-6'],
   insights: ['M9 18h6', 'M10 22h4', 'M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z'],
-  onboarding: ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'],
   access: ['M21 2l-9.6 9.6', 'M15.5 7.5l3 3', 'M11 13a4 4 0 1 1-5.66 5.66A4 4 0 0 1 11 13z'],
   methodology: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
 }
@@ -83,16 +82,9 @@ const moreGroups: NavMenuGroup[] = [
     label: 'Provisioning',
     items: [
       {
-        label: 'Onboarding',
-        to: '/admin/onboarding',
-        desc: 'Onboarding message series',
-        iconPaths: ICONS.onboarding,
-        match: (p) => p.startsWith('/admin/onboarding'),
-      },
-      {
         label: 'Invites (audit)',
         to: '/admin/invites',
-        desc: 'Every code ever minted — read-only; make new ones from a node in Structure',
+        desc: 'Every code ever minted — make new ones from Structure: a node, or "+ Add individual"',
         iconPaths: ICONS.access,
         match: (p) => p.startsWith('/admin/invites'),
       },

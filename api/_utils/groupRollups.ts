@@ -30,6 +30,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
+import { SCHOOL_STAFF_ROLES } from './schoolStaff'
 import { descendantIds, type ParentLinked } from './groupSubtree'
 
 export interface NodeRollup {
@@ -178,7 +179,10 @@ export async function computeNodeExtras(
         .from('user_tags')
         .select('tag_value, user_id')
         .eq('tag_type', 'school')
-        .eq('role_in_context', 'teacher')
+        // STAFF = teacher OR admin (SCHOOL_STAFF_ROLES): the school's own
+        // admin counts toward the node's staff rollup, matching the school
+        // dashboard's own Teachers list and school_summary.teacher_count.
+        .in('role_in_context', SCHOOL_STAFF_ROLES)
         .is('removed_at', null)
         .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
       for (const t of data ?? []) {

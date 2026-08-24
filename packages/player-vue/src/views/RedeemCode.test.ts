@@ -315,3 +315,133 @@ describe('RedeemCode.vue — class-course landing (2026-07-15 finding)', () => {
     )
   })
 })
+
+// A double-tap on "verify" fires a second verifyOtp with a token the first
+// call has already consumed. Supabase answers with its ONE generic "Token has
+// expired or is invalid" — the same string it uses for a genuinely wrong code
+// — so the pre-fix screen told a learner who was already signed in that their
+// code was wrong (the 2026-08-10 diagnosis). The success check now runs BEFORE
+// the error.
+describe('RedeemCode.vue — a double-tap after a successful verify (2026-08-10)', () => {
+  beforeEach(() => {
+    routerPush.mockClear()
+    routerReplace.mockClear()
+    sessionStorage.clear()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('does NOT show an error to a learner who is genuinely signed in — it carries on into the redemption', async () => {
+    // The first tap is left in flight so the second one lands while the OTP
+    // form is still on screen: the real double-tap, not a sequential retry.
+    // Both taps are in flight together — the real double-tap. The FIRST one
+    // resolves first (it was sent first) and signs the learner in; the second
+    // then comes back with the consumed-token error.
+    let releaseFirst: (v: any) => void = () => {}
+    let releaseSecond: (v: any) => void = () => {}
+    const firstVerify = new Promise((resolve) => { releaseFirst = resolve })
+    const secondVerify = new Promise((resolve) => { releaseSecond = resolve })
+    const verifyOtp = vi.fn().mockReturnValueOnce(firstVerify).mockReturnValueOnce(secondVerify)
+
+    const supabase = ref({
+      auth: {
+        // Signed in for real, on the address being verified.
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { access_token: 'sess-tok', user: { email: 'tester@example.com' } } },
+        }),
+        setSession: vi.fn().mockResolvedValue({ error: null }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp,
+      },
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })),
+    })
+    const auth = { isAuthenticated: ref(false), user: ref(null), refreshRole: vi.fn().mockResolvedValue(undefined) }
+    const redeemPosts: any[] = []
+    vi.stubGlobal('fetch', mockFetchByUrl({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-2', codeType: 'tester', context: {} },
+      '/api/code/redeem': (body: any) => {
+        redeemPosts.push(body)
+        return { success: true, role: 'tester', redirectTo: '/', label: 'Tester' }
+      },
+    }))
+    const wrapper = mount(RedeemCode, { global: { provide: { supabase, auth } } })
+    await flushAsync()
+
+    await wrapper.find('#redeem-email').setValue('tester@example.com')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushAsync()
+
+    await wrapper.find('#redeem-otp').setValue('123456')
+    await wrapper.find('form').trigger('submit.prevent') // tap 1
+    await wrapper.find('form').trigger('submit.prevent') // tap 2 — same code, in flight together
+    await flushAsync()
+
+    releaseFirst({ error: null })
+    await flushAsync()
+    await flushAsync()
+    releaseSecond({ error: { message: 'Token has expired or is invalid' } })
+    await flushAsync()
+    await flushAsync()
+
+    expect(verifyOtp).toHaveBeenCalledTimes(2)
+    expect(redeemPosts.length).toBeGreaterThan(0)
+    // THE PIN: nothing tells a genuinely signed-in learner their code was wrong.
+    expect((wrapper.vm as any).error).toBe('')
+    expect(wrapper.text()).not.toContain('Invalid code')
+    expect(wrapper.text()).not.toContain('Token has expired or is invalid')
+  })
+
+  it('a genuinely failed code logs ONE login_code_failed carrying email/screen/error type — and never the code itself', async () => {
+    const supabase = ref({
+      auth: {
+        // Nobody is signed in — this really is a bad code.
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        setSession: vi.fn().mockResolvedValue({ error: null }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: { message: 'Token has expired or is invalid' } }),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })),
+    })
+    const auth = { isAuthenticated: ref(false), user: ref(null), refreshRole: vi.fn().mockResolvedValue(undefined) }
+    const logged: any[] = []
+    vi.stubGlobal('fetch', mockFetchByUrl({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-2', codeType: 'tester', context: {} },
+      '/api/player-events': (body: any) => { logged.push(...(body.events || [])); return { ok: true } },
+    }))
+    const wrapper = mount(RedeemCode, { global: { provide: { supabase, auth } } })
+    await flushAsync()
+
+    await wrapper.find('#redeem-email').setValue('tester@example.com')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushAsync()
+
+    await wrapper.find('#redeem-otp').setValue('123456')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushAsync()
+    await flushAsync()
+
+    // The learner is correctly told it did not work...
+    expect((wrapper.vm as any).error).toBe('Token has expired or is invalid')
+    // ...and, unlike before, the attempt leaves a trace to look up.
+    const failures = logged.filter((e) => e.event_type === 'login_code_failed')
+    expect(failures).toHaveLength(1)
+    expect(failures[0].payload).toMatchObject({
+      screen: 'redeem-code',
+      email: 'tester@example.com',
+      error_type: 'expired_or_invalid',
+    })
+    // THE PIN: the submitted code never reaches telemetry.
+    expect(JSON.stringify(logged)).not.toContain('123456')
+  })
+})

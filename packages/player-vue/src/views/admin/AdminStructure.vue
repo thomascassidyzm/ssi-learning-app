@@ -17,6 +17,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
+import IndividualAccessForm from '@/components/admin/invites/IndividualAccessForm.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
 import { structureNodeIsVisible } from '@/components/admin/structureApi'
@@ -200,6 +201,17 @@ async function createOrganisation(confirmDuplicate = false): Promise<void> {
   } finally {
     isCreatingOrg.value = false
   }
+}
+
+// ─── Root "+ Add individual" ───
+// A person is not a node in the tree, so this is a sibling verb rather than a
+// row: same height in the page as "+ Add organisation", because adding one
+// human should cost the same as adding one school. The form itself is the
+// same component the /admin/invites create card uses.
+const showAddIndividual = ref(false)
+
+function onIndividualCreated(): void {
+  setSuccess('Access created — copy the link below and send it on.')
 }
 
 // Editing the name is "change the name" — drop the warning so a fresh name
@@ -458,7 +470,22 @@ onMounted(() => { void refresh() })
       <div class="schools-card structure-panel">
         <div class="panel-head">
           <span class="schools-kicker">Organisations</span>
-          <button type="button" class="btn-ghost-sm" @click="showAddOrg = !showAddOrg">+ Add organisation</button>
+          <div class="head-actions">
+            <button type="button" class="btn-ghost-sm" @click="showAddOrg = !showAddOrg">+ Add organisation</button>
+            <button type="button" class="btn-ghost-sm" @click="showAddIndividual = !showAddIndividual">+ Add individual</button>
+          </div>
+        </div>
+
+        <!-- One person, no organisation, no trial — a deliberate complimentary
+             grant scoped by course and duration. Peer of "+ Add organisation"
+             (founder ask 2026-08-11: adding a human should cost what adding a
+             school costs), not a third level down a menu. -->
+        <div v-if="showAddIndividual" class="individual-panel">
+          <div class="individual-head">
+            <span class="schools-kicker">New individual</span>
+            <button type="button" class="link-btn" @click="showAddIndividual = false">Close</button>
+          </div>
+          <IndividualAccessForm @created="onIndividualCreated" />
         </div>
         <div v-if="showAddOrg" class="structure-inline-form root-inline-form">
           <input
@@ -648,6 +675,14 @@ onMounted(() => { void refresh() })
 .structure-empty strong { display: block; font-family: var(--font-display); font-size: var(--text-lg); color: var(--schools-fg); margin-bottom: 4px; }
 
 .root-inline-form { padding: var(--space-2) var(--space-4) 0; }
+
+.head-actions { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.individual-panel { border-bottom: 1px solid rgba(44, 38, 34, 0.06); background: rgba(255, 255, 255, 0.42); }
+.individual-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-4) var(--space-6) 0;
+}
 
 /* Duplicate-name warning — information, not an error. Warm neutral rather
    than the red error banner: nothing has gone wrong, there is just a choice. */

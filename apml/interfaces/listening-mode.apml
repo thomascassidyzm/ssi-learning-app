@@ -1,9 +1,12 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
-# Version: 1.1.0
-# Last updated: 2026-07-10
+# Version: 1.4.0
+# Last updated: 2026-08-07 (main flow is now ONE listening mode — see the note
+#               under PROGRESSION below; this practice surface is unchanged)
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts
+#         packages/player-vue/src/components/ModeTray.vue (entry point)
+#         packages/player-vue/src/components/SettingsScreen.vue (second route)
 
 ## ============================================================================
 ## OVERVIEW
@@ -14,15 +17,84 @@ SPECIFICATION:
   purpose: |
     A standalone PRACTICE surface where the learner replays the course's
     listening-pod dialogues (Layer 2 content) on demand. Distinct from the
-    MAIN FLOW, where the same pod content is delivered through the staged
-    9-stage acquisition progression (usePodLapScheduler, driven live from
-    algorithm_config.pods).
+    MAIN FLOW, where the same pod content is delivered.
+
+    NOTE (2026-08-07, Tom): the main flow's nine-stage acquisition ladder is
+    RETIRED — every listening phrase there now plays one pattern (target ·
+    known · target · target) at one exposure-ramped speed capped at 1.0. See
+    apml/learning/listening-layers.apml. This PRACTICE surface is deliberately
+    unchanged: it is the learner replaying dialogues on demand, not acquisition.
   principle: |
     Listening MODE is for PRACTICE, not acquisition. The structured staged
     delivery lives ONCE, in the main flow. This surface does NOT re-implement
     a summarised copy of it — a second, drifting engine was the root cause of
     the listening-vs-main-flow mismatch (Tom, 2026-06-12). The two learner
     modes here are deliberately simple and TARGET-ONLY.
+
+## ============================================================================
+## ENTRY POINT
+## ============================================================================
+
+ENTRY_POINT:
+  where: "The mode tray (ModeTray.vue) — 'Listening mode', an on/off row"
+  ruling: |
+    Tom, 2026-08-06, reversing the Settings-only placement that shipped earlier
+    the same day: "I don't actually want the listening mode to disappear from
+    the… It was a misunderstanding between Aran and me. I want it to exist
+    there because it needs to be. The sort of thing that you can move backwards
+    and forwards from quite easily."
+    So the requirement is a ROUND TRIP that costs a tap each way, not merely an
+    entry point. Aran's objection stands on its own terms and is honoured: what
+    is gone for good is the "Mode — pick one" radio group (HISE vs Listening)
+    and its selectExperienceMode handler, which is the popup treatment he found
+    distracting. What replaced it is a plain on/off row with the same shape as
+    Pronunciation guide and Offline — no new UI concept, no mode-picking
+    ceremony. HISE is still simply what the player does when no mode is on.
+  flow: |
+    ModeTray's listening row emits 'toggleListening' and closes the tray →
+    BottomNav re-emits → PlayerContainer.handleToggleListening() →
+    LearningPlayer.handleListeningToggle(), which OPENS the overlay when closed
+    and CLOSES it when open. So the one row is both directions.
+  leaving: |
+    Two ways out, both live:
+      1. the same tray row (toggle off), and
+      2. the transport's back/play button — BottomNav emits exitListeningMode →
+         PlayerContainer.handleExitListeningMode() → LearningPlayer
+         .exitListeningMode(), which closes the overlay AND stops audio.
+    Path 2 is unchanged and remains the primary exit inside the overlay.
+  no_settings_route: |
+    There is NO listening row in Settings, by ruling. Tom, 2026-08-06 22:38Z:
+    "LISTENING MODE MUST GO BACK IN ITS PREVIOUS PLACE IN THE UI, NOT IN
+    SETTINGS." The tray is the previous place — it is where the control lived
+    before d81fedac moved it out (as a 'Mode — pick one' radio item, under the
+    same tray trigger), so restoring it there restores the placement learners
+    already knew. The Settings → Tools row that d81fedac added as its
+    replacement home, its 'openListening' emit on SettingsScreen, and
+    PlayerContainer's @openListening handler are all REMOVED. Do not
+    reintroduce a Settings route as "a second discoverable path": that reading
+    is what this ruling overturned. One control, one place.
+  visibility_gate: |
+    The row is NOT gated on showListeningBtn / localStorage 'ssi-mode-listening'.
+    That flag defaults to false and is written by developer settings and the
+    between-rounds mode tips; gating on it would hide the control from every
+    learner who has never opened developer settings — the exact failure Tom's
+    ruling is about. ModeTray still RECEIVES the prop (BottomNav and
+    PlayerContainer pass it) but does not use it; it stays wired rather than
+    ripped out mid-release-hold.
+  copy_kept_for_reuse: |
+    The tray row uses settings.listeningMode / settings.listeningModeDesc, the
+    same keys as the Settings row — those are translated in all 22 locales,
+    whereas modes.listening / modes.listeningDesc exist only in eng and gle
+    (the earlier claim that they were "translated in every locale" was wrong).
+    The modes.* pair stays in those two locales, unused.
+  in_flow_ruling: |
+    Tom, 2026-08-06, settling the messaging question Aran raised: a listening
+    exercise goes STRAIGHT IN with the audio, introduced by the spoken "now
+    just listen for a while" — no popup, no modal, nothing persistent, because
+    the screen is needed for the displayed text. The pod-start reminder
+    transient is deleted (see learning-player.apml v2.1.25). The preparation
+    guidance survives where it does not interrupt: the learner explainer's
+    "What the listening stretches ask of you", and this settings entry.
 
 ## ============================================================================
 ## TABS
@@ -115,10 +187,16 @@ DIALOGUE_MODES:
       selected and then becomes unavailable, the selection falls back to
       immersion.
     desc: |
-      The REAL 9-stage acquisition progression, read live from
-      algorithm_config.pods (the same config the main-flow scheduler uses),
-      so it matches the main flow by construction and reflects Popty tweaks
-      instantly. For each chunk, plays EVERY stage of the live config in order
+      Walks the nine-stage playlist in algorithm_config.pods, stage by stage.
+
+      HONEST DRIFT (2026-08-07): this used to match the main flow BY
+      CONSTRUCTION, because the main flow read the same stage config. Since
+      Tom's one-mode simplification it no longer does — the main flow ignores
+      the stage playlist entirely (unless listening.listeningUseStagePlaylist
+      is set). So this walk is now a CONTENT-AUTHORING preview of the stage
+      ladder, which is still what the content team wants it for, but it is no
+      longer a preview of what a learner hears. Retiring or repointing it is
+      unclaimed work, deliberately not done as part of the redesign. For each chunk, plays EVERY stage of the live config in order
       (stages 1→N), so the content team hears a line's whole arc in one pass.
       Role → audio + role → rate resolution reuse the scheduler's helpers
       (explainer falls back to translation; ROLE_SPEED from usePodLapScheduler).
@@ -179,3 +257,8 @@ RELATED:
   main_flow_delivery: "packages/player-vue/src/composables/usePodLapScheduler.ts"
   live_config:        "algorithm_config.pods (useAlgorithmConfig.DEFAULT_PODS fallback)"
   scheduling_spec:    "apml/learning/listening-layers.apml"
+  consecutive_repeat_law: |
+    apml/playback/consecutive-repeat-law.apml — A-64 (Tom, 2026-08-06): no
+    mode may play the same prompt more than twice consecutively. Enforced on
+    the composed lap in usePodLapScheduler.nextLap(), downstream of the stage
+    playlists, and held across the lap boundary.

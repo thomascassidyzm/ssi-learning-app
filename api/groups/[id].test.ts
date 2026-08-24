@@ -107,6 +107,14 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
+// A group that IS a school's node carries the school's name too — the sync is
+// unit-tested in _utils/schoolNodeName.test.ts; here we pin the WIRING: that
+// it runs on a real rename, and never on a rename the warning stopped.
+const syncSchoolNameForNode = vi.fn(async () => null)
+vi.mock('../_utils/schoolNodeName', () => ({
+  syncSchoolNameForNode: (...args: any[]) => syncSchoolNameForNode(...(args as [])),
+}))
+
 import handler from './[id]'
 
 function makeReq(method: string, body: unknown, groupId = 'group-1', confirmName?: string): VercelRequest {
@@ -145,6 +153,7 @@ beforeEach(() => {
     hasRealActivity: false,
   }
   deleteGroupCascadeError = null
+  syncSchoolNameForNode.mockClear()
   computeGroupImpact.mockClear()
   deleteGroupCascade.mockClear()
   auditAdminDelete.mockClear()
@@ -158,6 +167,18 @@ describe('PATCH /api/groups/:id', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(updateCalls[0].obj).toMatchObject({ name: 'Wales', type: 'nation', parent_id: null, name_confirmed: true })
+  })
+
+  it('a rename carries onto the school record when the group IS a school node', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    await handler(makeReq('PATCH', { name: 'Chepstow School' }, 'group-1'), makeRes())
+    expect(syncSchoolNameForNode).toHaveBeenCalledWith(expect.anything(), 'group-1', 'Chepstow School')
+  })
+
+  it('a re-parent that changes no name does not touch the school record', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    await handler(makeReq('PATCH', { parent_id: 'group-3' }, 'group-1'), makeRes())
+    expect(syncSchoolNameForNode).not.toHaveBeenCalled()
   })
 
   it('a govt_admin renaming THEIR OWN group succeeds (name-only)', async () => {
@@ -273,6 +294,12 @@ describe('PATCH /api/groups/:id — duplicate-name warning', () => {
     expect(res.statusCode).toBe(200)
     expect(updateCalls[0].obj).toMatchObject({ name: 'Deborah Testing', name_confirmed: true })
     expect(updateCalls[0].obj.confirm_duplicate).toBeUndefined()
+  })
+
+  it('a warned rename does not rename the school behind the warning either', async () => {
+    const req = makeReq('PATCH', { name: 'Deborah Testing' }, 'group-3')
+    await handler(req, makeRes())
+    expect(syncSchoolNameForNode).not.toHaveBeenCalled()
   })
 
   it('never warns about the row being renamed itself (case/punctuation variants of its OWN name)', async () => {

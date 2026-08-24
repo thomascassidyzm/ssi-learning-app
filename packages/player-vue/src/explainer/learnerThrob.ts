@@ -19,8 +19,13 @@ export const LEARNER_EXPLAINER_SEEN_KEY = 'ssi-learner-explainer-seen'
 
 const PRUNE_DAYS = 180
 
-/** The learner-side explainer sections, each with its own seen-state. */
-export type LearnerExplainerId = 'how-this-works' | 'why-this-works'
+/**
+ * The learner-side explainer sections, each with its own seen-state.
+ * 'library-how-this-works' (A-159) is the Library's own section — the one that
+ * leads with the practical walkthroughs; it throbs independently of the two
+ * profile sections, so opening one on the profile leaves the Library's armed.
+ */
+export type LearnerExplainerId = 'how-this-works' | 'why-this-works' | 'library-how-this-works'
 
 interface SeenEntry {
   seenAt: number

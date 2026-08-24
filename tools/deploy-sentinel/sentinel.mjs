@@ -25,6 +25,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -94,11 +95,33 @@ async function fetchText(url, opts = {}, timeoutMs = 20000) {
   } finally { clearTimeout(t) }
 }
 
+// A-94 identity (2026-08-07). This sentinel POSTs cards to the command surface with no identity
+// at all, so identify() hands it Tom by the loopback fallback — the ambient population A-94 exists
+// to empty before enforcement can be switched on. Batch 2 gives it the same identity as the cron
+// fleet in command-surface: the cs_user v2 session cookie from ~/.cs-cron-session, PLUS an Origin.
+//
+// TWO headers, not one. access-gate.csrfVerdict refuses a state-changing request carrying a cookie
+// with no Origin/Sec-Fetch-Site/Referer — that shape is a browser being driven cross-site. A
+// cookie-less fetch is waved through as a non-browser client; a cookie-bearing one is not. Cookie
+// alone would 403 every card this sentinel posts.
+//
+// Inlined rather than importing command-surface's ops/cs-cron-identity.js: this is a different
+// repo and must not grow a path dependency on that one. Fail-soft — no readable session file means
+// no headers and exactly today's behaviour, because a deploy watcher must never go quiet over a
+// missing file.
+const CS_SESSION_FILE = process.env.CS_SESSION_FILE || join(homedir(), '.cs-cron-session')
+function identityHeaders() {
+  let cookie = ''
+  try { cookie = readFileSync(CS_SESSION_FILE, 'utf8').trim() } catch { return {} }
+  if (!cookie.startsWith('v2.')) return {}
+  return { Cookie: `cs_user=${cookie}`, Origin: SURFACE }
+}
+
 function postBoard(path, payload) {
   // Fire the surface post synchronously-ish; failures are logged, never fatal.
   return fetchText(`${SURFACE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...identityHeaders() },
     body: JSON.stringify({ conv_id: CONV_ID, ...payload }),
   }).then((r) => {
     log(`board POST ${path} -> ${r.status} :: ${payload.text}`)
@@ -155,10 +178,12 @@ function playProbe() {
       encoding: 'utf8', timeout: 150000,
     })
     const verdict = JSON.parse(out.trim().split('\n').pop())
-    return { ran: true, ok: verdict.ok === true, detail: JSON.stringify(verdict).slice(0, 300) }
+    return { ran: true, ok: verdict.ok === true, inconclusive: verdict.verdict === 'inconclusive', detail: JSON.stringify(verdict).slice(0, 300) }
   } catch (e) {
-    const out = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
-    return { ran: true, ok: false, detail: out.slice(0, 300) }
+    const line = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
+    let inconclusive = false
+    try { inconclusive = JSON.parse(line).verdict === 'inconclusive' } catch { /* not JSON — treat as a real failure */ }
+    return { ran: true, ok: false, inconclusive, detail: line.slice(0, 300) }
   }
 }
 
@@ -323,9 +348,15 @@ async function tick() {
     const probe = playProbe()
     win.playProbe = { at: iso(now()), ...probe }
     log(`scheduled play probe: ${JSON.stringify(win.playProbe)}`)
-    if (probe.ran && !probe.ok) {
+    // Only a 'broken' verdict means learners are affected. 'inconclusive' means
+    // the probe could not drive the UI (start control moved, headless quirk) —
+    // that is a fact about the PROBE, and alarming on it cries wolf. It is
+    // logged and carried into the window summary instead. (2026-08-20 triage.)
+    if (probe.ran && !probe.ok && !probe.inconclusive) {
       await alertOnce('probe:live-play',
         `DEPLOY FALLOUT after ${short}: a real browser play-through of saysomethingin.app FAILED — ${probe.detail}. Learners likely can't play.`)
+    } else if (probe.ran && probe.inconclusive) {
+      log(`play probe INCONCLUSIVE (not alarmed — says nothing about learners): ${probe.detail}`)
     }
   }
 
@@ -346,7 +377,7 @@ async function tick() {
         log(`crater verdict REFUTED by live play probe: ${probe.detail}`)
       } else {
         await alertOnce('telemetry',
-          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
+          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran && probe.inconclusive ? ` A live browser play-through could not start playback, so it neither confirms nor refutes this (${probe.detail}).` : probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
       }
     }
   }
@@ -362,7 +393,7 @@ async function tick() {
             ? `telemetry: this hour is naturally quiet in prior weeks (${tele.baseline?.join('/')}) — volume not judged`
             : `telemetry: ${tele.window} events vs quietest-recent-week ${tele.baselineRef} — healthy`
       const probeLine = `probes: ${probes.filter((p) => p.ok).length}/${probes.length} green` +
-        (win.playProbe?.ran ? `; live play-through ${win.playProbe.ok ? 'passed' : 'FAILED'}` : '') +
+        (win.playProbe?.ran ? `; live play-through ${win.playProbe.ok ? 'passed' : win.playProbe.inconclusive ? 'inconclusive (probe could not start playback)' : 'FAILED'}` : '') +
         (win.craterRefuted ? '; low volume was double-checked by a live play-through — app healthy' : '')
       const deployLine = win.deployLiveAt
         ? `deploy ${short} live at ${iso(win.deployLiveAt)}`

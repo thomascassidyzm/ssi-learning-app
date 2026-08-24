@@ -6,6 +6,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useUserRole } from '../composables/useUserRole'
 import { useSchoolContext } from '../composables/schools/useSchoolContext'
 import { useAuthModal } from '../composables/useAuthModal'
+import { hasLiveSessionFor, useLoginCodeAudit } from '../auth/loginCode'
 
 // variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
 // §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
@@ -19,6 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth', null)
 const supabase = inject<any>('supabase', ref(null))
+const loginCodeAudit = useLoginCodeAudit('redeem-code')
 // App.vue's own course-switch machinery (used by CourseSelector picks): the
 // ONLY path that both re-resolves activeCourse/courseDataProvider on an SPA
 // navigation (App.vue's own boot-time fetchEnrolledCourses runs once, before
@@ -532,6 +534,19 @@ async function handleVerifyOtp() {
       type: 'email',
     })
     if (verifyError) {
+      // A double-tap re-sends a token Supabase has already consumed, and its
+      // one generic "expired or invalid" covers that case too — so ask whether
+      // the sign-in ALREADY worked before calling it a failure. Same spirit as
+      // Onboarding.vue's per-address otpVerified guard.
+      if (await hasLiveSessionFor(client, email.value)) {
+        loginCodeAudit.alreadySignedIn(email.value)
+        // The redemption may already be under way from the tap that won the
+        // race, or from the isSignedIn watcher above — same condition it uses,
+        // so we drive it only when nothing else has.
+        if (step.value === 'otp') await doRedeem()
+        return
+      }
+      loginCodeAudit.failed(email.value, verifyError.message)
       error.value = verifyError.message || 'Invalid code. Please try again.'
       return
     }

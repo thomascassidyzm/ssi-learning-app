@@ -1,6 +1,7 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-08-04 (component_intro emitted; intro known_id fallback reachable; presentation audio pre-warmed; MVP course boundary)
+# Last Updated: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — one critical-path budget (2500ms), cache fallback on every boot fetch failure incl. 403, and an OBSERVED network-stall signal replacing navigator.onLine. The deliberate/accidental offline distinction is retired. See never_gate_on_network)
+# Prev: 2026-08-09 (cycles endpoint emits spaced review + consolidation — round-shape parity with the JS walk; one claim set, seeded with the debut)
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -49,6 +50,56 @@ spec lazy_loading_architecture:
   ## ==========================================================================
 
   principles:
+    never_gate_on_network: |
+      Tom's ruling, 2026-08-15, verbatim:
+
+        "The heuristic is that the app should always play whatever it has. It
+         should never allow a weak Internet connection to block the learner. …
+         Play what you have. Verify access as and when you can. Never as a gate."
+
+      What this makes true, and what it retires:
+
+      ONE BUDGET. `config/networkGate.ts` owns `CRITICAL_PATH_TIMEOUT_MS = 2500`
+      — the single answer to "how long may a learner be made to wait". Every
+      network call between boot and first audio is bounded by it. Background
+      work (prefetch tiers, revalidation, prewarm) keeps a longer
+      `BACKGROUND_FETCH_TIMEOUT_MS = 9000` leak-guard, because nothing is
+      waiting on it. useInstantPlayback splits these: the coalescer's shared
+      request keeps the long leash while the CALLER detaches at 2500ms via its
+      own signal — so bootstrap serves cache at 2.5s and the request it started
+      keeps running to warm the cache for next time.
+
+      CACHE IS THE FALLBACK FOR EVERY FAILURE, not just for "offline".
+      `fetchCycles` falls to `readAnyCachedCycles` — which deliberately ignores
+      the version stamp and the requested limit — on a timeout, a transport
+      failure, a 5xx, AND a 403 from the entitlement gate. The happy-path
+      reader (`readCachedCycles`) still refuses a stale vintage; the last-resort
+      reader exists because once the network has already failed the choice is
+      not stale-vs-fresh, it is stale-vs-silence. INF PLAY, which caches
+      nothing on the happy path by design (its rounds are randomised per
+      session), now write-throughs every batch and replays it as a last resort
+      for the same reason.
+
+      OBSERVED, NOT PREDICTED. `navigator.onLine` is not a connectivity oracle —
+      it reports TRUE on one bar and behind captive portals. It is trusted in
+      one direction only: when the browser admits it is offline, believe it and
+      skip the doomed fetch. Otherwise we defer to `isNetworkPresumedDown()`,
+      which reports what actually happened: a critical-path call that timed out
+      or failed. Any critical-path success clears it, as does an `online`
+      event; it also ages out after 60s.
+
+      THE DELIBERATE/ACCIDENTAL DISTINCTION IS RETIRED. `offlinePlaybackActive()`
+      now engages on `offlineActive || !isOnline || isNetworkPresumedDown()`.
+      A learner who never touched the offline toggle gets exactly the playback
+      behaviour of one who did. The toggle survives as INTENT — "don't spend my
+      data on background downloads", and the UI copy — never as playback
+      permission. The lease lock still governs (premium design).
+
+      THE ONE HONEST FAILURE. Offline-ish with a genuinely EMPTY cache: there is
+      nothing to play, and bootstrap rejects so the caller can say so plainly
+      ("connect once and download for offline"). That message must never appear
+      for the case where content IS cached.
+
     instant_play: |
       First play must happen in < 2 seconds. The critical path is:
       resolve resume position → fetch round-map (1 tiny query, cached forever
@@ -239,19 +290,95 @@ spec lazy_loading_architecture:
     cycles:
       api: "GET /api/courses/:code/cycles?from=:legoId&limit=N"
       wire_type: |
-        BackendCycle (type: intro | component_intro | debut | build | use |
+        BackendCycle (type: intro | debut | build | spaced_rep | use |
         listening) — distinct from the atomic playback Cycle in types/Cycle.ts;
         the player converts each backend cycle into one or more atomic
         PROMPT/PAUSE/VOICE_1/VOICE_2 cycles. Carries display_tiling (authored
         tiles) when present.
-      per_lego_script_order: |
-        buildLegoCycles emits, for one LEGO:
-          intro -> component_intro(s) -> debut -> BUILDs -> USEs
-        matching TYPE_ORDER in providers/validateLearningScript.ts, so a round
-        assembled by this endpoint validates the same as one from the legacy
-        generateLearningScript path.
-      component_intro: |
-        Added 2026-08-04. The per-piece "as in" narration for one component of
+
+        component_intro is still declared on the client union as a backstop but
+        is NEVER emitted (Tom, 2026-08-06) and is dropped by toPlayerCycle.
+
+        spaced_rep cycles are CROSS-LEGO and carry three extra fields:
+          round_lego_id — the LEGO whose ROUND this cycle plays in
+          fib_position  — index into SPACED_REP_OFFSETS (0 = N-1)
+          review_of     — round number of the LEGO being reviewed
+        `lego_id` stays the LEGO under review, matching the walk's legoKey.
+        useInstantPlayback buckets its cycle buffer on
+        `round_lego_id ?? lego_id`, so a review lands in the round that
+        scheduled it and not back in the round that introduced it.
+      per_lego_round_shape: |
+        buildLegoCycles emits, for one round (one new LEGO):
+          intro -> debut -> BUILD x<=7 -> spaced_rep x<=12 -> USE x<=2
+        matching TYPE_ORDER in providers/validateLearningScript.ts AND the
+        round shape generateLearningScript.ts produces, so a session queue that
+        MIXES the two producers cannot disagree about what a round contains.
+      spaced_review: |
+        Added 2026-08-09. Before it, this endpoint emitted only
+        intro|debut|build|use — ZERO spaced_rep, ZERO consolidation — and with
+        INSTANT_PLAYBACK_ALL=true that is the live default for every course.
+        Rounds built here therefore played with no spaced review at all, while
+        rounds built by the JS walk (script-cache fast path) had a full review
+        block, and the near-edge tier-3 watcher appends endpoint rounds for any
+        roundNumber the queue lacks — so one session mixed both shapes and the
+        learner got reviews on some rounds and none on the next.
+
+        The rules are mirrored from generateLearningScript.ts, which stays the
+        source of truth (parity moves this endpoint, never the walk):
+          offsets   [1, 2, 3, 5, 8, 13, 21, 34, 55, 89] over round_index
+          N-1       contributes 3 review phrases, every later offset 1
+          cap       12 review phrases per round
+          material  USE phrases of EARLIER LEGOs only — never components,
+                    never build fragments; rows missing any of the three clips
+                    are dropped rather than scheduled and skipped
+          cursor    reviewCursor(offsetIndex, poolLength) reconstructs the
+                    walk's per-LEGO round-robin useIndex in closed form
+          tail      consolidation = at most 2 of the ROUND LEGO's own USE
+                    phrases, last in the round. Two passes, as the walk has:
+                    the first takes phrases the round has not used, and if the
+                    basket was too small for that the second allows reuse
+                    rather than leaving the round short.
+        A round with nothing yet due (the opening rounds of a course) emits no
+        reviews — that is correct, not the bug.
+
+        ONE CLAIM SET, SEEDED WITH THE DEBUT (integration, 2026-08-09). The
+        walk's `usedPhrasesThisRound` and the bare-LEGO guard are the same
+        mechanism and are now the same Set here. It is seeded with the debut's
+        own key, so a build or use row whose text simply repeats its own LEGO
+        (fra_for_eng S0009L01 'I speak / je parle') can never sound the LEGO a
+        second time — the doubling fix of 07eeb9c9. Rows are claimed on the
+        text the cycle will actually carry (pickTargets, i.e. the roman form on
+        romanized courses), matching how the debut was claimed.
+
+        The consolidation reuse pass relaxes the once-per-round rule but NOT
+        the bare-LEGO rule: it still skips the debut key. A round one phrase
+        short beats a round that says the LEGO twice.
+
+        Known gaps vs the walk, deliberate:
+          - SEED-PHASE reviews (offsets >=144, the drained t->k->t->t sandwich)
+            are not emitted; they need course_seeds rows and the walk's
+            graduation bookkeeping.
+          - algorithm_config-driven pool shaping (shortest-first syllable sort,
+            phrase-length cap, known-side review pull filter, sliding word cap)
+            is not applied; the endpoint keeps DB position order. This changes
+            WHICH phrase a review pulls, not whether the review exists.
+
+        Cost: +1 query in the existing Promise.all (the whole course_round_index
+        map — reviews reach up to 89 rounds behind the RPC's window, and the map
+        does not depend on the RPC's answer so it adds no latency) and +1
+        sequential query for the earlier LEGOs' USE baskets (~100-150ms, only
+        when the window doesn't already hold them). Review resolution is
+        budgeted to ceil(limit/3)+1 rounds; past that the response paginates
+        rather than serve a review-less round.
+      component_intro_REMOVED: |
+        Emitted 2026-08-04 to 2026-08-06 only. Tom's ruling of 2026-08-06 —
+        "Components do NOT get introduced" — removed it: a component debut
+        hands the learner no producible intention, and the M-LEGO's own intro
+        already names its pieces inline. Kept below as the record of what was
+        built and why it went. Components reach the learner ONLY as visual
+        tiles via lego.components on the intro and debut cards.
+
+        The per-piece "as in" narration for one component of
         an M-LEGO, sourced from course_practice_phrases rows with
         phrase_role='component' (their own presentation_audio_id):
 
@@ -494,8 +621,21 @@ spec lazy_loading_architecture:
 
   files:
     live:
+      - path: "packages/player-vue/src/config/networkGate.ts"
+        purpose: |
+          THE network gate. CRITICAL_PATH_TIMEOUT_MS (2500) /
+          BACKGROUND_FETCH_TIMEOUT_MS (9000); withNetworkTimeout (returns the
+          NETWORK_TIMEOUT sentinel rather than hanging, and never swallows a
+          real rejection); markNetworkStalled/clearNetworkStalled/
+          isNetworkPresumedDown (the observed-stall signal, 60s TTL);
+          isOfflineish (what cache-first branches ask instead of
+          navigator.onLine); wireNetworkRecovery (clear on 'online')
       - path: "packages/player-vue/src/composables/useInstantPlayback.ts"
-        purpose: "Round-map + on-demand cycles bootstrap; prewarmInstantCaches"
+        purpose: |
+          Round-map + on-demand cycles bootstrap; prewarmInstantCaches;
+          readAnyCachedCycles + the INF PLAY write-through cache (the
+          last-resort readers); per-caller critical-path budget on bootstrap /
+          bootstrapInfPlay via makeAbort(CRITICAL_PATH_TIMEOUT_MS)
       - path: "packages/player-vue/src/components/LearningPlayer.vue"
         purpose: |
           INSTANT_PLAYBACK_ALL flag, loadAllData/runAnimationTimeline cold-start,

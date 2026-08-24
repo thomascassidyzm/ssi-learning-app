@@ -23,6 +23,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { ensureSchoolNode } from '../_utils/schoolNode'
+import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
+import { isTestSchoolName } from '../_utils/isTestSchoolName'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -79,6 +81,7 @@ export default async function handler(
       admin_user_id: adminResult.userId,
     }
     if (groupId) schoolRow.group_id = groupId
+    if (isTestSchoolName(schoolName)) schoolRow.is_test = true
 
     const { data: school, error: schoolError } = await supabase
       .from('schools')
@@ -127,6 +130,22 @@ export default async function handler(
       res.status(500).json({ error: 'Failed to create admin join code', detail: adminCodeError.message })
       return
     }
+
+    // Step 4: the recorded admin's own membership row, so schools.admin_user_id
+    // and user_tags never disagree about who is staff here. Without it the
+    // school's admin is invisible to every staff-keyed read (see schoolStaff.ts).
+    // NB this path records the CREATING ssi_admin as admin_user_id — a
+    // placeholder until a real admin claims the seat via school_admin_join. The
+    // tag makes that placeholder visible (they appear as the school's Admin)
+    // rather than leaving admin_user_id and user_tags quietly out of step; if
+    // the placeholder itself is wrong, the fix is admin_user_id, not the tag.
+    // Non-fatal: no compensating delete — an untagged school is recoverable,
+    // a deleted one is not.
+    const tagErr = await ensureSchoolAdminTag(supabase, {
+      userId: adminResult.userId,
+      schoolId: school.id as string,
+    })
+    if (tagErr) console.warn('[CreateSchool] admin membership tag failed (non-fatal):', tagErr)
 
     console.log('[CreateSchool] created', school.id, schoolName, 'by', adminResult.userId)
     res.status(200).json({ school })

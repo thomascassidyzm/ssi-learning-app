@@ -152,6 +152,18 @@ export interface AudioCache {
   ephemeral: EphemeralNamespace
 
   /**
+   * `ready()` — await the in-memory id Sets being populated from IndexedDB.
+   *
+   * `has(id)` and `persistent.has(id)` are SYNCHRONOUS reads of Sets that fill
+   * lazily, off whichever async cache method happens to run first. Until that
+   * walk finishes they answer FALSE FOR EVERYTHING — so an offline gate that
+   * trusts them un-hydrated judges every real clip uncached and skips it,
+   * leaving only the clips with no audio at all. Await this before the first
+   * synchronous membership read of a session.
+   */
+  ready(): Promise<void>
+
+  /**
    * `has(id)` — unified read across both namespaces. Use this in the
    * playback hot path; the namespace boundary is irrelevant at play
    * time, only at write time.

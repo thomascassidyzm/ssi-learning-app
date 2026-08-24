@@ -1183,3 +1183,189 @@ deploy was verified healthy end-to-end).
 **Open question (Tom's words):** when/if teacher seats become enforced, this is fully reversible — add a gate at the seat boundary (redemption or role-add), price the seat tier, done. The neutral code today makes that trivial.
 **Search width:** founder-ruled.
 **Decided by:** founder.
+
+## 2026-08-07 — CI pays once per tree: duplicate, superseded and prose-only runs removed
+**Move:** From the Actions billing investigation. Three changes: (1) `verify.yml` no longer
+triggers on `claude/**` pushes — `auto-merge-claude.yml` runs a step-identical `verify` job
+in-file, and only the in-file job can gate the merge, so the second run gated nothing (452
+CI-minutes in four days); (2) both workflows get a `concurrency` group with `cancel-in-progress`
+(modelled on `zenjin-2026-v1`'s), with `staging`/`main` exempted from cancellation because their
+runs are the promotion's per-SHA evidence; (3) `verify.yml`'s push trigger gains `paths-ignore`
+for `docs/**`, `ops/**`, `**.md` (~168 minutes of prose commits running lint · typecheck · test ·
+build). Nothing that touches code goes unverified: `paths-ignore` skips only when EVERY changed
+file matches, and `pull_request` stays unfiltered. The staging/main evidence runs themselves
+(billing finding 4) were flagged but not ruled on, and are untouched.
+**Better:** identical verification, minus the runs that verified nothing — and the release-train
+candidate report is now sourced from both workflows, so it stops depending on a duplicate run
+existing for its SHA evidence.
+**Simpler:** one gate per tree instead of two racing copies; each workflow states in-file why its
+trigger is shaped the way it is.
+**Cheaper (total):** the three wasted buckets (~620 CI-minutes over four days) stop being billed;
+no new infra, no new action dependency, no runtime cost.
+**Consequence handled:** `candidate-report.mjs` matched verdicts by SHA against `verify.yml` runs
+only, so dropping `claude/**` would have marked claude-branch commits UNTESTED. It now also scans
+`auto-merge-claude.yml`, counting successes ONLY — that workflow's conclusion covers the merge
+step too, so a failure there cannot be attributed to the gate and leaves the commit UNTESTED
+rather than falsely RED. Under-claiming, per the release-notes principle.
+**Searched & rejected:**
+- Keep the `claude/**` verify.yml run as "belt and braces" — rejected: it is byte-identical to a
+  job that already runs on the same SHA and blocks the merge; a duplicate of a blocking gate adds
+  no information, only minutes.
+- Split `verify.yml` so `paths-ignore` applies to `dev` only, leaving `staging`/`main` unfiltered
+  — rejected: `on.push` takes ONE filter set, so this needs either a second workflow duplicating
+  the job or a reusable `workflow_call` wrapper. The wrapper also moves the run out of
+  `verify.yml`'s run list, breaking the candidate report's lookup. Cost of the accepted version:
+  a docs-only PROMOTION to staging/main skips its evidence run and reports UNTESTED — rare, and
+  carries no code risk by construction.
+- `dorny/paths-filter` as a guard job for per-branch path logic — rejected: a third-party action
+  plus a runner job on every push, to save the same minutes a native trigger filter saves free.
+- `cancel-in-progress: true` everywhere including staging/main — rejected: a superseded push
+  would cancel the evidence run for a specific promotion SHA, which is exactly the verdict the
+  Thursday candidate report reads.
+**Verified:** actionlint clean on both files; both parse; the two `verify` jobs proven
+step-identical by parsing and comparing; `node --check` on the report script; release-train tests
+25/25; and live — a push to `claude/actions-cost-fixes` produced exactly ONE workflow run
+(auto-merge, verify + merge both green, merged to dev), with no duplicate `verify.yml` run.
+**Search width:** visible-options.
+**Decided by:** agent.
+
+## 2026-08-11 — INPUT-01: batch-urls gets an unconditional caller check, not `ENTITLEMENT_ENFORCE=strict`
+**Move:** `POST /api/audio/batch-urls` now denies premium past-preview ids to callers it cannot
+identify — a verified Supabase session OR a valid entitlement token — with NO env var in the
+decision. `bulkAudioDownload.ts` sends the Supabase session access_token, falling back to a live
+`ssi-try-token`. The shared `resolveAudioEntitlement` default and the per-clip proxy are untouched.
+**Better:** closes the actual hole — 500 direct-to-S3 presigned URLs per anonymous request was the
+entire paid catalogue, downloadable with no account — and closes it in a way that cannot silently
+un-close. `ENTITLEMENT_ENFORCE` was verified ABSENT from Vercel production; a control that lives in
+a var nobody set is not a control.
+**Simpler:** one condition on one endpoint, reusing `api/_utils/auth.verifyAuthToken` (already the
+estate's caller check) and the existing `gated` flag the resolver already computes. Adds no new
+concept, no new secret, no new table, no config to keep in sync across three environments.
+**Cheaper (total):** at most one `getUser()` per batch request, lazily — a batch of free/preview
+clips costs nothing. Client-side it is a local `getSession()` read, the same pattern already used by
+`setInstantPlaybackAuthProvider`. No infra, no migration, no ops runbook.
+**Searched & rejected:**
+- **Flip `ENTITLEMENT_STRICT`'s default to fail-closed** (the brief's preferred option) — rejected
+  on evidence: the ONLY entitlement-token mint site is `api/try-link/validate.ts`, and no client
+  path attaches a token to any audio request. Strict mode today denies every premium clip past
+  seed 19 to EVERY caller, paying subscribers included. That is a total-outage "fix". The code
+  comments at `audioAccess.ts:405-408` say exactly this, and they are correct.
+- **`vercel env add ENTITLEMENT_ENFORCE=strict production`** — rejected for the same reason, and
+  worse: it takes effect with no deploy and no code review, so the outage arrives instantly and
+  invisibly.
+- **Require a session on the per-clip proxy too** — rejected: the proxy is reached by
+  `<audio src>`, which cannot set an Authorization header. Its fail-open posture is load-bearing.
+  It is also the wrong shape to attack: one serverless hop per clip, versus 500 URLs per POST.
+- **Resolve real entitlement (`resolveEffectiveSubscription`) instead of mere session** — rejected
+  for now: a DB read per request, and it risks locking out school/tutor students if the resolver's
+  coverage is incomplete. A session check is strictly better than today and cannot regress a payer.
+  The full entitlement read belongs with the subscriber token mint, not ahead of it.
+**Verified:** api suite 1201 passed; player-vue 2071 passed, typecheck clean, lint 0 errors; and
+LIVE on the dev alias — anonymous POST for `fra_for_eng` S0100L01 returns `{"urls":{},"denied":[…]}`
+while the same request against production still hands out the presigned URL, and an anonymous
+request for a preview-seed clip is still served.
+**Search width:** visible-options (four alternatives, two of them the brief's own).
+**Decided by:** agent.
+
+## 2026-08-18 — A-159: the Library explains itself, on the existing walkthrough protocol
+**Move:** Extended the walkthrough engine with a `learner` persona (a MEMBER persona — gate 2
+polices it like any other non-admin) and a `library` place, wrote three hand-authored walks
+anchored to real elements in `BrowseScreen.vue`, and mounted a new
+`components/me/HowThisWorksLibrary.vue` beneath *Your Progress* in the Library: the same quiet
+link and soft-pulsing dot as every other How-this-works surface, closed by default, opening on
+the practical walks with the two existing methodology sections collapsed beneath.
+**Better:** twelve blocks of finished, reviewed learner prose currently live only on `/me`, a
+page nothing links to — so in practice they are unreachable. This makes them reachable at the
+one surface a learner actually opens, and puts *do* in front of *why*: what to actually tap,
+shown on the real page over the learner's own data, with the methodology behind it for the
+curious. Belts get their first explanation anywhere in the app.
+**Simpler:** it adds no mechanism. The engine, the compiler, the drift gates, the globally
+mounted `WalkOverlay`, the throb-state module and the prose all already existed; this wires
+them to a surface they had never been mounted on, and it *deletes* an orphaned surface rather
+than adding one. The two prose components are reused as-is, with a one-prop label override
+instead of a duplicate.
+**Cheaper (total):** zero runtime tokens (compile-time-only artifacts, a few KB of JSON in the
+bundle already shipped), zero new endpoints, zero new queries. Maintenance is negative: a
+renamed button in the Library now FAILS THE BUILD rather than quietly making the explanation
+lie.
+**Searched & rejected:**
+- **A video or an animated tour** — rejected by the founder instruction itself: the protocol is
+  walks that show what actually happens, on the real page.
+- **A second, learner-specific engine** — rejected: the existing engine's persona × place
+  filtering already models "who sees which walk where", and a second engine would double the
+  drift surface that is the whole point of the first.
+- **Rewriting the prose for the Library** — rejected: the prose is founder-reviewed and passes
+  the content laws. The gap was reachability and ordering, not the writing.
+- **Making the Library a route** — rejected: `?screen=library` already addresses it, and the
+  close-and-you-are-back-in-the-lesson feel is the right one.
+- **Walks that reach through into the player** — parked, not rejected: the Library is an overlay
+  drawn over the player, so a player anchor may be covered or unmounted. First slice stays
+  inside the overlay and says "close this and press play" where the doing lives elsewhere.
+  Founder call whether to extend.
+**Verified:** `@ssi/core` build clean; player-vue typecheck clean; 2246 tests pass; lint 0 errors
+on every changed file (the 4 repo-wide errors are in other agents' untracked `e2e/_*.mjs`
+scratch files, invisible to CI); `node tools/walkthrough/compile.mjs --check` green at 15 walks
+/ 53 steps.
+**Search width:** visible-options (five alternatives, one parked).
+**Decided by:** agent, on the founder's 2026-08-18 instruction. Supersedes the 2026-07-27
+"learner level is deliberately nothing" ruling in `docs/self-explaining-dashboard.md`; the bar
+that ruling set — optional, quiet, never in the way — still governs.
+
+## 2026-08-22 — pods are 1-based; the served pod slug is resolved per course
+**Move:** Tom ruled today that listening pods are 1-BASED from here on. `hrv_for_eng` is the
+first course on the new convention and serves `hrv_for_eng:pod-1`; the ~68 courses already
+recorded against `pod-0` keep serving `pod-0`, with no behaviour change whatsoever. Since the
+slug is no longer a constant, the five sites that hardcoded `:pod-0` (`useListeningPods`,
+`listeningMetaCache`, `usePodLapScheduler`, `generateLearningScript`'s Phase 6/7 pod pre-fetch,
+and `usePodStage0`'s sentence-id prefix probe) now all call ONE resolver,
+`packages/player-vue/src/composables/servedPod.ts`. It reads `listening_pods` for the course
+restricted to `pod_type=core` and `slug in (pod-1, pod-0)`, prefers `pod-1`, falls back to
+`pod-0`, and memoises one in-flight promise per course per session. **No fleet-wide rename of
+the existing 68 `pod-0` courses was done here** — that is a possible later pass, and it is a
+database move, not an app one.
+**Better:** the app can serve both conventions at once, which is the only thing that lets the
+new convention start without a big-bang rename of 68 courses' pods and every sentence id under
+them. The release gate gets stronger, not weaker: parking a pod off the serving slugs
+(`pod-0-unrecorded`, 37 courses; `pod-0-gated-2026-08-06`, 2) is now an explicit, tested
+property of one module rather than an emergent consequence of five hardcoded strings. Note a
+parked slug is usually a working COPY beside a live `pod-0` rather than instead of one — both
+Welsh courses hold a `pod-0-gated-2026-08-06` and a real 231-sentence `pod-0`, and they keep
+serving it; the resolver's tests use synthetic course codes precisely so live parking state
+cannot drift under them.
+**Simpler:** deletes five copies of the pod-id convention and replaces them with one import.
+"Which pod does this course serve?" now has an answer with an address; before, it had five.
+**Cheaper (total):** one memoised query per course per session, shared by all five readers —
+not five extra round-trips. Offline it costs ZERO round-trips: the download snapshot persists
+the slug it was built from and the resolver reads it back. Every failure mode (error, timeout,
+rejection, missing course) resolves to `pod-0`, so a bad day costs exactly today's behaviour.
+**Searched & rejected:**
+- **Rename all 68 courses' pods to `pod-1` in the database and keep the hardcoded string** —
+  rejected here, not on merit: it is the genuinely simpler END state, but it is a database move
+  owned by another worker, it rewrites every `listening_pod_sentences.id` under those pods, and
+  every learner mid-download would be stranded on ids that no longer exist. Parked as a later
+  pass; the resolver is compatible with it (once every course is `pod-1`, the `pod-0` arm just
+  stops firing) and can be deleted afterwards.
+- **A per-course allow-list / config constant in the app** — rejected: needs a code deploy per
+  course and drifts from the database the moment a pod is recorded or parked. The database
+  already holds the answer.
+- **Resolve to "whatever core pod this course has"** — rejected, and this is the sharp edge: it
+  would publish all 39 parked, unrecorded pods at once. The resolver considers ONLY `pod-1` and
+  `pod-0` by design, and a test holds that line.
+- **Fall back to "no pods" on a query error** — rejected: a transient failure would silently
+  remove Layer 2 from a working course. Falling back to `pod-0` degrades to yesterday's
+  behaviour instead.
+- **A localStorage mirror of the resolved slug for the offline lane** — rejected in favour of
+  persisting it inside the existing IndexedDB snapshot, so the slug travels with the rows it
+  describes and `clearCachedListeningPodRows` can drop both together. One store, not two.
+**Verified:** anon (browser role) CAN `SELECT listening_pods` — probed live against the dev
+project, 110 rows visible, no RLS or grant obstacle, so no sentence-id-prefix workaround was
+needed. `@ssi/core` build clean; player-vue typecheck clean; 2328 tests pass (11 new resolver
+tests + 2 new end-to-end tests through `usePodLapScheduler`); lint 0 new errors; `typecheck:api`
+and `test:api` clean.
+**Not done / known gap:** `api/courses/[code]/bundle.ts` selects EVERY pod for a course, parked
+ones included, for the offline download bundle. That is pre-existing behaviour (37 courses have
+been bundling `pod-0-unrecorded` audio all along) and unchanged here, but for hrv it now means
+the bundle carries `pod-1`, `pod-0` and `pod-0-unrecorded`. Flagged, not fixed — it is a
+download-size question, not a correctness one, and it belongs with the DB owner.
+**Search width:** visible-options (five alternatives, one parked as the eventual end state).
+**Decided by:** agent, on Tom's 2026-08-22 1-based ruling.

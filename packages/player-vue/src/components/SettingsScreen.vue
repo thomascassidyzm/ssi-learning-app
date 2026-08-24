@@ -16,12 +16,13 @@ import { paddleConfig } from '../lib/paddle'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
+import { openInApp } from '../composables/useInAppBrowser'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
 import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -556,10 +557,24 @@ const deleteError = ref(null)
 const deleteConfirmInput = ref('')
 const deleteConfirmMatch = computed(() => deleteConfirmInput.value.trim().toUpperCase() === 'DELETE')
 
-// Check if user is signed in
-const isSignedIn = computed(() => auth?.user?.value != null)
-const userEmail = computed(() => auth?.user?.value?.email || '')
-const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
+// Check if user is signed in.
+//
+// isAuthenticated, not `user != null`: offline (or on a handshake that never
+// completes) there is no live Supabase user object, but useAuth still knows who
+// this learner is from the last-known-identity record. Keying off the raw user
+// showed a signed-in learner the "Sign in to save your progress" nudge in
+// airplane mode — the same bug as the player's Save Progress button
+// (Tom, 2026-08-15). The learner row is the identity; the session is the proof.
+const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
+const userEmail = computed(
+  () => auth?.user?.value?.email || auth?.learner?.value?.verified_emails?.[0] || '',
+)
+const userName = computed(
+  () =>
+    auth?.user?.value?.user_metadata?.display_name ||
+    auth?.learner?.value?.display_name ||
+    '',
+)
 
 // Roles from DB (learners.platform_role) — shared cache with the router
 // guards (useUserRole), kept authoritative by useAuth on sign-in. Was
@@ -1159,22 +1174,20 @@ const handleUpdateToLatest = () => {
     {
       key: 'apply', label: 'Switching to the latest version',
       run: async () => {
-        // Drop the navigation/runtime caches FIRST so the fresh shell is fetched
-        // (NOT the audio cache — keep the downloads). This MUST happen before
-        // SKIP_WAITING: activating the new SW fires `controllerchange`, on which
-        // vite-plugin-pwa reloads the page itself — so anything after the post
-        // here can be skipped by that reload.
+        // Drop the navigation/runtime caches (NOT the audio cache — keep the
+        // downloads) so the reload at the end of runFixFlow fetches the fresh
+        // shell rather than a cached one.
         try {
           const keys = await caches.keys()
           await Promise.all(keys.filter((k) => !/audio/i.test(k)).map((k) => caches.delete(k)))
         } catch { /* Cache API unavailable */ }
-        const reg = await navigator.serviceWorker?.getRegistration?.()
-        if (reg?.waiting) {
-          // Activate the waiting SW. vite-plugin-pwa owns the reload on
-          // controllerchange; runFixFlow's guardedReload below is the fallback
-          // for when there's no waiting SW (or controllerchange never fires).
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        }
+        // Deliberately NO SKIP_WAITING here (2026-08-07). Activating the
+        // waiting worker under a live page deletes, from the precache, every
+        // chunk whose content changed — and if it lands mid-navigation it
+        // kills the NetworkFirst fetch and serves the OLD shell instead. The
+        // reload alone gets the new build (navigations are NetworkFirst); the
+        // waiting worker takes over on its own once no client is open. Same
+        // rule as PwaUpdatePrompt.onUpdate — see the comment there.
       },
     },
   ], 'Still stuck? Fully close the app and open it again.')
@@ -1922,9 +1935,13 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <!-- NO listening-mode row here. Tom's ruling (2026-08-06, 22:38Z):
+               listening mode goes back where learners already knew to find it —
+               the player's mode tray — and Settings is the WRONG home for it.
+               This row was d81fedac's replacement home; it is deliberately gone.
+               The one entry point is the ModeTray on/off row, which is also the
+               way back out, so the round trip lives on one surface. -->
           <template v-if="showViewScript">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="emit('openExplorer')">
               <div class="setting-info">
                 <span class="setting-label">View Script</span>
@@ -1937,11 +1954,11 @@ const confirmReset = async () => {
                 <line x1="16" y1="17" x2="8" y2="17"/>
               </svg>
             </div>
+
+            <div class="divider"></div>
           </template>
 
           <template v-if="hasAdminRole">
-            <div class="divider"></div>
-
             <div class="setting-row clickable" @click="toggleQaMode">
               <div class="setting-info">
                 <span class="setting-label">QA Mode</span>
@@ -1953,10 +1970,13 @@ const confirmReset = async () => {
                 </div>
               </div>
             </div>
+
+            <div class="divider"></div>
           </template>
 
-          <div class="divider"></div>
-
+          <!-- Dividers lead each optional row's own template above, so this
+               always-present row never lands under an orphan rule when both
+               View Script and QA Mode are hidden. -->
           <div class="setting-row clickable" @click="toggleAdaptation">
             <div class="setting-info">
               <span class="setting-label">Personalised pacing</span>
@@ -2292,13 +2312,16 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Community — external links (forum, classic Welsh listening
-           exercises on the legacy .com webapp). Open in a new tab, same
-           idiom as Legal below. -->
+      <!-- Community — links out to the forum and the classic Welsh listening
+           exercises on the legacy .com webapp. Routed through openInApp so the
+           learner stays in the PWA where the host permits framing; both of
+           these hosts send X-Frame-Options: SAMEORIGIN today, so both still
+           hand off to a real browser tab — the point is that the decision now
+           lives in ONE place and follows the headers, not the call site. -->
       <section class="section">
         <h3 class="section-title">{{ t('settings.community') }}</h3>
         <div class="card">
-          <a href="https://en.forum.saysomethingin.com/" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://en.forum.saysomethingin.com/" target="_blank" rel="noopener" class="setting-row clickable legal-link" @click.prevent="openInApp('https://en.forum.saysomethingin.com/', t('settings.forum'))">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.forum') }}</span>
             </div>
@@ -2308,7 +2331,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="https://en.saysomethingin.com/welsh/level1/intro" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://en.saysomethingin.com/welsh/level1/intro" target="_blank" rel="noopener" class="setting-row clickable legal-link" @click.prevent="openInApp('https://en.saysomethingin.com/welsh/level1/intro', t('settings.classicWelshListening'))">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.classicWelshListening') }}</span>
               <span class="setting-desc">{{ t('settings.classicWelshListeningDesc') }}</span>

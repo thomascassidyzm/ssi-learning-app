@@ -1,4 +1,5 @@
 <script setup>
+import { openInApp } from '../composables/useInAppBrowser'
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -91,7 +92,7 @@ onMounted(async () => {
         </div>
         <h2 class="title">Link not valid</h2>
         <p class="message">{{ errorMessage }}</p>
-        <a href="https://www.saysomethingin.com" class="home-link">Visit SaySomethingin</a>
+        <a href="https://www.saysomethingin.com" target="_blank" rel="noopener" class="home-link" @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')">Visit SaySomethingin</a>
       </template>
     </div>
   </div>

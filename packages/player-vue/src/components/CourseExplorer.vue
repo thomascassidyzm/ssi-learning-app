@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useVirtualList } from '@vueuse/core'
-import { CyclePhase } from '@ssi/core'
+import { CyclePhase, dirFor } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
+import { resolveIntroAudioUrl } from '../providers/resolveIntroAudioUrl'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
 import { getLanguageName } from '../composables/useI18n'
 
@@ -335,6 +336,14 @@ const courseName = computed(() => {
   return props.course?.display_name || 'Course'
 })
 const courseCode = computed(() => props.course?.course_code || '')
+/**
+ * ISO 639-3 for each side, so the explorer's phrase list declares its
+ * languages and the glyph-coverage CSS can give a Greek, Cyrillic,
+ * Devanagari or Yoruba run a font that can spell it — DM Sans cannot, and an
+ * undeclared run is substituted per-character (styles/design-tokens.css).
+ */
+const courseTargetLang = computed(() => props.course?.target_lang || courseCode.value.split('_')[0] || '')
+const courseKnownLang = computed(() => props.course?.known_lang || courseCode.value.split('_for_')[1] || '')
 const currentCourseId = ref('')
 
 // Get unique seeds for dropdown
@@ -470,6 +479,12 @@ const loadScript = async (forceRefresh = false) => {
         targetText: item.targetText || '',
         audioRefs: item.audioRefs,
         presentationAudio: item.presentationAudio,
+        // The LEGO's own presentation link, exactly as the player uses it.
+        // generateLearningScript emits an id here (never a resolved
+        // presentationAudio object), so without this passthrough every intro
+        // fell through to the by-lego_id audioMap guess — which is a different
+        // clip whenever a LEGO has been repointed. See getAudioUrlAsync.
+        presentationAudioId: item.presentationAudioId,
         components: item.components,
         reviewOf: item.reviewOf,
         fibonacciPosition: item.fibonacciPosition,
@@ -629,23 +644,10 @@ const lookupAudioLazy = async (text, role, isKnown = false) => {
  * Handles both legacy UUIDs and v13 s3_keys
  */
 const getAudioUrlAsync = async (text, role, item = null) => {
-  // Check presentationAudio from RoundBuilder first (for intro items)
-  if (role === 'intro' && item?.presentationAudio?.url) {
-    return item.presentationAudio.url
-  }
-
-  if (role === 'intro' && item?.legoId) {
-    const introEntry = audioMap.value.get(`intro:${item.legoId}`)
-    if (introEntry?.intro) {
-      const key = introEntry.intro
-      // Check if it's already a full s3_key (contains path/extension)
-      if (key.includes('/') || key.endsWith('.mp3')) {
-        return `${audioBaseUrl}/${key}`
-      }
-      // Legacy: UUID only
-      return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
-    }
-    return null
+  // Intro items: one shared precedence rule — the LEGO's own link beats the
+  // clip that merely carries its lego_id. See resolveIntroAudioUrl.
+  if (role === 'intro') {
+    return resolveIntroAudioUrl(item, { audioMap: audioMap.value, s3BaseUrl: audioBaseUrl })
   }
 
   const audioEntry = audioMap.value.get(text)
@@ -685,22 +687,9 @@ const getAudioUrl = (text, role, item = null) => {
     }
   }
 
-  // Check presentationAudio from RoundBuilder (for intro items)
-  if (role === 'intro' && item?.presentationAudio?.url) {
-    return item.presentationAudio.url
-  }
-
-  // Fallback: intro audio lookup from audioMap
-  if (role === 'intro' && item?.legoId) {
-    const introEntry = audioMap.value.get(`intro:${item.legoId}`)
-    if (introEntry?.intro) {
-      const key = introEntry.intro
-      if (key.includes('/') || key.endsWith('.mp3')) {
-        return `${audioBaseUrl}/${key}`
-      }
-      return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
-    }
-    return null
+  // Intro items: the one shared precedence rule (link beats lego_id match).
+  if (role === 'intro') {
+    return resolveIntroAudioUrl(item, { audioMap: audioMap.value, s3BaseUrl: audioBaseUrl })
   }
 
   // Fallback: text-based lookup from audioMap
@@ -1202,9 +1191,9 @@ onUnmounted(() => {
                   <template v-else-if="item.type === 'consolidation'">CONSOLIDATE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
-                <div class="item-known">{{ item.knownText }}</div>
+                <div :lang="courseKnownLang" class="item-known" :dir="dirFor(item.knownText)">{{ item.knownText }}</div>
                 <div class="item-arrow">→</div>
-                <div class="item-target">{{ item.targetText }}</div>
+                <div :lang="courseTargetLang" class="item-target" :dir="dirFor(item.targetText)">{{ item.targetText }}</div>
 
                 <div v-if="item.type === 'spaced_rep'" class="item-fib">
                   {{ item.reviewOf === item.roundNumber - 1 ? '3x' : '1x' }}
@@ -1797,6 +1786,12 @@ onUnmounted(() => {
 .item-type.consolidation { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
 
 .item-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+  text-align: left;
+
   font-size: 0.8125rem;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -1811,7 +1806,16 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .item-target {
+  unicode-bidi: isolate;
+  /* This is a flex:1 block with no text-align, so its initial `start`
+     would flip to the right under dir="rtl". Pin it: the fix is where the
+     `!` sits, not where the column sits. */
+  text-align: left;
   flex: 1;
   font-size: 0.875rem;
   font-weight: 500;

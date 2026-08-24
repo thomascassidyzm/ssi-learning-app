@@ -111,7 +111,7 @@ const selectSeed = (seedNumber: number) => {
     </div>
 
     <!-- Belt List -->
-    <div v-if="currentView === 'belts'" class="belt-list">
+    <div v-if="currentView === 'belts'" class="belt-list" data-walk="belt-browser-list">
       <button
         v-for="belt in beltData"
         :key="belt.index"

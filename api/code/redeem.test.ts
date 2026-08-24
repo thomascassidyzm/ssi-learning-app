@@ -34,6 +34,13 @@ function makeChainable(table: string) {
     upsert: (obj: unknown, opts: unknown) => { calls.push(['upsert', obj, opts]); recordWrite(table, 'upsert', obj); return builder },
     delete: () => { calls.push(['delete']); recordWrite(table, 'delete', undefined); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    // neq/gte are the shared per-IP throttle's count chain
+    // (api/_utils/codeAttemptThrottle.ts): gte is its terminal link, so it
+    // resolves. With no possession_mint_attempts responder the count comes
+    // back undefined → 0 → under the limit, which is what every test here
+    // wants (they are not throttle tests; that is redeem.throttle.test.ts).
+    neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
+    gte(col: string, val: unknown) { calls.push(['gte', col, val]); return Promise.resolve(this.resolve()) },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
@@ -141,6 +148,22 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     // on their own node home at the TOP-LEVEL member mount — never a /schools
     // URL, and never a bounce through the schools dashboard to get there.
     expect(res._json.redirectTo).toBe('/org/group-existing')
+    // LEADERSHIP IS A MEMBERSHIP, NOT ONLY AUTHZ (2026-08-07). govt_admins is
+    // an authz table; every practice number reads user_tags. This CLAIM path
+    // was the last govt_admins writer that recorded no tag, so a leader who
+    // joined by code had their own practice counted nowhere in their org's
+    // headline — the founding-school-admin bug (Chepstow) one level up.
+    // role 'admin', NOT teacher/student: groupRollups counts a node's teachers
+    // and learners by those exact roles, so this must not inflate either.
+    const leaderTags = (writes.user_tags ?? []).filter(
+      (w: any) => w.payload?.tag_value === 'GROUP:group-existing',
+    )
+    expect(leaderTags).toHaveLength(1)
+    expect(leaderTags[0].payload).toMatchObject({
+      user_id: 'auth-user-1',
+      tag_type: 'group',
+      role_in_context: 'admin',
+    })
   })
 
   it('govt_admin branch: creates the group at redemption when grants_group_id is absent', async () => {

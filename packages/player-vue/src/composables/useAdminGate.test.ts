@@ -4,7 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
-import { useAdminGate } from '@/composables/useAdminGate'
+import { useAdminGate, deniedDestination } from '@/composables/useAdminGate'
 
 // useAdminGate gates every admin surface. Doctrine (founder ruling 2026-07-19):
 // the SERVER enforces role/scope per request, so this gate is a UX shell
@@ -27,6 +27,9 @@ function buildRouter() {
     routes: [
       { path: '/admin/test', component: Host },
       { path: '/', component: { template: '<div class="home">home</div>' } },
+      // The guest-deny destination — registered so a still-mounted gate from an
+      // earlier test can't spam "No match found" into this suite's output.
+      { path: '/schools', component: { template: '<div class="schools">schools</div>' } },
     ],
   })
 }
@@ -138,5 +141,48 @@ describe('useAdminGate', () => {
     await flushPromises()
 
     expect(refreshRole).not.toHaveBeenCalled()
+  })
+
+  // Guest hand-off (owner, 2026-08-19: admin deep links "redirecting" on his
+  // phone). A browser with no session that opens an /admin link used to land
+  // silently in the player — indistinguishable from a dead link. It now goes
+  // to the surface carrying the inline sign-in, with the destination in `next`
+  // for SchoolsContainer to replay once the role resolves.
+  describe('denied destination', () => {
+    it('sends a GUEST to the sign-in surface, carrying the deep link in next', () => {
+      expect(deniedDestination('guest', '/admin/stats?board=vad')).toEqual({
+        path: '/schools',
+        query: { next: '/admin/stats?board=vad' },
+      })
+    })
+
+    it('sends a signed-in non-admin to the player — they are a learner, not a locked-out operator', () => {
+      expect(deniedDestination('authenticated', '/admin/stats?board=vad')).toBe('/')
+    })
+
+    it('treats an unresolved session as not-a-guest — never offers sign-in on a guess', () => {
+      expect(deniedDestination('pending', '/admin/stats')).toBe('/')
+    })
+  })
+
+  it('a guest opening an admin deep link lands on the sign-in surface, not the player', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/admin/test', component: Host },
+        { path: '/', component: { template: '<div class="home">home</div>' } },
+        { path: '/schools', component: { template: '<div class="schools">schools</div>' } },
+      ],
+    })
+    router.push('/admin/test?board=vad')
+    await router.isReady()
+
+    // A real session check that finished and found nobody signed in.
+    useResolvedSession().resolve(false)
+    mount(Host, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/schools')
+    expect(router.currentRoute.value.query.next).toBe('/admin/test?board=vad')
   })
 })

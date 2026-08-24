@@ -40,10 +40,14 @@ Everything below is grounded in file:line citations against `dev` (eed2dabb).
 
 - **SW**: Workbox `generateSW` via vite-plugin-pwa (`packages/player-vue/vite.config.js:48-184`).
   Precache = app shell (`js,css,html,svg,woff2`), with audio/admin/schools/echarts excluded.
-  `registerType: 'prompt'` on staging+prod; dev self-updates (`swSelfUpdate`, vite.config.js:22).
+  `registerType: 'prompt'` in **every** environment; `skipWaiting`/`clientsClaim` false everywhere
+  since 2026-08-07 (dev used to self-update — see §2.1a).
   Tom's hard rule (2026-05-21/22): never auto-interrupt a playing session — **kept, not renegotiated here**.
-- **Navigations**: `NetworkFirst`, 3s timeout, `navigation-cache` (vite.config.js:126-134) — a
-  reload online always gets the fresh shell.
+- **Navigations**: `NetworkFirst`, 3s timeout, `navigation-cache` (vite.config.js) — a
+  reload online always gets the fresh shell. ⚠️ **This was NOT true until 2026-08-07**: Workbox's
+  precache route is registered before any runtimeCaching route and mapped `/` → `index.html` via
+  `directoryIndex`, so navigations were served CacheFirst from the precache. Fixed by
+  `directoryIndex: null` + `cleanURLs: false` — see §2.1a.
 - **Audio**: deliberately **not** SW-cached (vite.config.js:151-165, the iOS 206-range saga).
   Offline audio = IndexedDB `ssi-audio-cache-v2` (`src/cache/AudioCache.ts:23`) — independent of
   the SW. This separation is load-bearing and this design preserves it.
@@ -130,6 +134,51 @@ it (the 7-day rule) — a returning guest starts at round 1.
 Three parts, one principle: **each layer must be recoverable from the layer below it, and the
 bottom layer (index.html + the server) must never be able to wedge.**
 
+### 2.1a Applying an update: never activate a worker under a live page (2026-08-07)
+
+> **Symptom (Tom):** *"the PWA just crashes halfway through updating, and then you close it and
+> open it again and it's finished updating."* Same shape as the 2026-07-30 field report that
+> commit `03f007ae` treated at the wedge end. This is the cause end.
+
+**Mechanism, measured** (`packages/player-vue/e2e/sw-update-probe.mjs` — two real prod-mode
+builds, a server whose contents are swapped mid-run exactly as a Vercel deploy does):
+
+1. The moment a new service worker **activates**, Workbox's precache maintenance deletes every
+   precache entry that isn't in the new manifest — i.e. every chunk whose content changed in that
+   build. Measured on a real pair of builds: **10 of 21 entry chunks 404 instantly** (they're gone
+   from the origin too, since a deploy rotates hashed filenames).
+2. A document that is *still running* at that moment has had a chunk of its own code deleted from
+   under it. It looks fine until the next lazy import — open Settings, change route, next round —
+   which throws. **That is the crash.**
+3. Relaunching loads the new build cleanly, so the update "was finished all along".
+
+Three ways the app used to reach state 2:
+
+| Path | Why it activated under a live page |
+|---|---|
+| Update banner | `updateServiceWorker(true)` posted SKIP_WAITING and left the reload to vite-plugin-pwa's async `controlling` listener. On iOS standalone that `location.reload()` can silently not take (`03f007ae`) — leaving the page alive and gutted |
+| **dev / preview builds** | `skipWaiting: true` + `clientsClaim: true` — the new worker claimed every live page the instant it installed, **with no user action at all**. Verified: probe shows `waiting: null, active: activated` on a live controlled page |
+| Settings → "Get the latest version", `/api/sw-config` `forceUpdate` | both posted SKIP_WAITING from a live page |
+
+**Rule now: the app never activates a waiting worker.** Taking an update is a plain
+`location.reload()`, fired synchronously in the user's tap (a gesture-initiated navigation is the
+one iOS honours). The waiting worker takes over by itself the first time no client is open —
+precisely when nothing can be hurt. `skipWaiting`/`clientsClaim` are false in **every**
+environment.
+
+**The other half of the bug.** For "just reload" to deliver the new build, navigations must reach
+the network — and they didn't. Workbox's precache route is registered *before* any runtimeCaching
+route and retried `/` as `/index.html` via `directoryIndex`, so navigations were served CacheFirst
+from the precached OLD shell and the NetworkFirst route never saw them. Setting
+`directoryIndex: null` lets navigations through to the network while keeping `index.html`
+precached for the offline `precacheFallback`. (This is why the destructive path felt necessary:
+before this, activating a new worker was the *only* way new code ever reached a learner.)
+
+**Residual, and its escape.** If the navigation still doesn't take on a wedged webview, nothing
+has been destroyed — the page keeps every chunk it had — and `RELOAD_WEDGE_MS` after the tap the
+banner returns as **"Update ready — tap to relaunch"**, the same gesture escape the boot watchdog
+uses.
+
 ### 2.1 Update lifecycle: the never-wedge boot (Stage 1)
 
 What already works is kept unchanged: prompt-only SW on staging/prod, NetworkFirst navigations,
@@ -152,15 +201,23 @@ when every module fetch fails):
   in the entry graph → heal immediately, don't wait. Two scope guards (2026-07-31, the
   always-play invariant; pure twins in `utils/bootHeal.ts` — `shouldHealOnBootFailure`,
   `isDeployFatalResourceUrl`):
-  - **Never while offline** (`!navigator.onLine`) — an airplane-mode resource failure is a
+  - **Never without a live network** — a resource failure with no network behind it is a
     missing network, not a broken deploy, and the heal deletes the SW + precache: the only
     thing that makes offline work. Pre-guard, an offline cold start served the precached
     shell, the Google-Fonts stylesheet failed, the watchdog "healed", and the SW-less reload
     landed on the browser "No internet" page with every cache gone.
+
+    **This guard used to read `navigator.onLine`, and that is why it did not hold on a weak
+    signal (2026-08-16 — see §2.1b).** It now requires the network to have actually ANSWERED:
+    a same-origin `fetch` of `/favicon.ico` with `cache: 'no-store'`, raced against a 2s
+    deadline. A claim of being online is not evidence; a response is. Mirrored in
+    `utils/bootHeal.ts` as `shouldHealOnBootFailure(networkAnswered)`.
   - **Same-origin failures only** — the entry graph lives entirely on our origin (it's what
     the SW precaches). Fonts/CDNs being down or ad-blocked must never nuke the install.
-- **Slow path**: timer at 15s. `__SSI_BOOTED` not set → heal — same offline guard: never
-  heal without a network to rebuild from.
+- **Weak-signal path**: timer at 3s (`CACHED_SHELL_FALLBACK_MS`). `__SSI_BOOTED` not set →
+  serve the precached shell instead of continuing to wait (§2.1b). Never heals.
+- **Slow path**: timer at 15s. `__SSI_BOOTED` not set → heal — same live-network guard: never
+  heal without proof of a network to rebuild from.
 - **Heal ladder**, guarded by a `sessionStorage` attempt counter (max 2 auto-heals per session,
   so a genuinely-broken deploy can't reload-loop):
   1. *Attempt 1*: swap the spinner for a human message ("Updating the app…"), then unregister
@@ -190,6 +247,57 @@ first-party, offline-present, and zero-server.
 **Interaction with the update banner**: none. The watchdog never fires on a healthy boot
 (mount happens in ~1-3s), never during play (it disarms at boot), and heals only state the
 Settings "update to latest" flow already deletes deliberately.
+
+### 2.1b Lie-fi: a weak signal must behave like no signal (2026-08-16)
+
+Field report: Tom opened `dev` on a weak cellular signal and got a **permanent white screen**.
+In airplane mode the same install boots from cache in 3-4 seconds, exactly as designed.
+
+**Lie-fi is not offline, and that distinction is the whole bug.** The radio is up, so
+`navigator.onLine` stays `true`, requests are accepted by the stack and then *hang* instead of
+failing. Airplane mode fails fast, which is what every offline path here was built and verified
+against; a hanging network never triggers any of them.
+
+Two mechanisms compounded, both reproduced in `e2e/lie-fi-shell-boot-probe.mjs`:
+
+1. **The chunk trap.** Navigations are NetworkFirst with a 3s timeout, so on a weak signal an
+   11 KB `index.html` can squeak through while the 400 KB of hashed chunks it names cannot —
+   and sub-resource fetches have **no timeout at all**. `dev` redeploys constantly, so that
+   fresh HTML names chunks the old precache has never seen. The shell paints (the warm
+   `#e8e3dd` boot screen) and the app never mounts. Note the diagnostic value of the colour:
+   brown means the document arrived, **white means it did not**.
+2. **The destructive heal.** 15s later the watchdog asked `navigator.onLine`, got `true`,
+   concluded the deploy was broken, and deleted the service worker and the precache — the only
+   two things that could still have rendered the app — then reloaded into a network that
+   cannot serve `index.html`. That is the white screen, and it is *permanent*: there is nothing
+   left to serve a shell from, and every reload repeats it.
+
+**The fix, in two parts:**
+
+- **Healing now requires proof of a live network** (§2.1 fast/slow paths). A network that never
+  answers can no longer be mistaken for a broken deploy, so a bad signal cannot destroy an
+  install. Genuine broken-deploy healing — a same-origin chunk failure on a network that *does*
+  answer — is unchanged.
+- **A stalled boot starts the copy we already hold.** At 3s with no mount, the watchdog reads
+  the precached `index.html` out of Cache Storage (`ignoreSearch: true`, to get past Workbox's
+  revision query) and replaces the document with it. Its chunk hashes are precached by
+  construction, so it mounts immediately. One build behind is not a cost a learner can detect;
+  a white screen is. Fresh code still arrives through the normal SW update cycle on a network
+  that can carry it, and NetworkFirst navigation is untouched — a healthy reload still gets the
+  fresh shell.
+
+The swap guard is "already swapped **without then reaching mount**", not "already swapped this
+session": it exists only to stop a cached shell that also fails from looping, so a successful
+boot clears it. A learner who reloads twice on a weak signal must be rescued twice.
+
+**Why no test caught this.** Every offline probe in `e2e/` establishes its condition with
+`context.setOffline(true)` (or kills the server), which exercises the *failure* path and never
+the *hang* path — so a fully green offline suite was compatible with a permanent white screen on
+a weak signal. `e2e/lie-fi-shell-boot-probe.mjs` closes that gap: it hangs requests **at the
+server**, which is the only faithful harness available, because CDP
+`Network.emulateNetworkConditions` attaches to the page target and leaves the service worker's
+own fetches unthrottled, and Playwright request routing does not intercept SW requests at all.
+Both were tried first and both reported a healthy boot while the real failure was reproducible.
 
 ### 2.2 Install detection + guidance (Stage 3)
 

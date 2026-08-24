@@ -1,35 +1,44 @@
 /**
  * podCohorts.ts — group a pod's flat, ordered sentence list into intake
- * COHORTS: the chunk of dialogue a lap introduces together. Product ruling
- * (Tom 2026-07-24, superseding the 2026-07-23 whole-scene-per-lap ruling):
- * the SCENE stays the wall, but a scene DEBUTS BY EXCHANGE within it. An
- * EXCHANGE is a speaker turn plus its reply — two consecutive turns, where a
- * turn is a maximal run of sentences connected by `glue_to_next` (computed
- * speaker-aware by flattenPodRows; same definition as podTurns.ts's display
- * spans). The first lap of a new scene introduces its opening exchange; each
- * subsequent lap extends the SAME scene by its next exchange until the scene
- * is complete; only then does the next scene begin. An adjacency pair can
- * never straddle a lap: a pair IS two consecutive turns, and turns pair off
- * in order — a scene with an odd turn count leaves its closing turn (e.g. a
- * narrator coda) as its own cohort.
+ * COHORTS: the chunk of dialogue a lap introduces together.
  *
- * Why not whole-scene cohorts (the 2026-07-23 model): measured on
- * ita_for_eng:pod-0, scenes 6+ run 17-36 sentences — a whole-scene debut
- * there is ~110+ plays in one lap, and Tom's staging test found even scene 1
- * (8 sentences) too much for a first exposure.
+ * RULING IN FORCE (Tom, 2026-08-09 — supersedes the 2026-07-24 exchange
+ * model): **ONE new sentence per pod visit.** Two only at the cold start,
+ * where a lone opening line is not yet a conversation ("Bonjour, Sarah!" /
+ * "Bonjour." belong together as the first serving). The next visit moves that
+ * first selection into its second lap and introduces ONE new sentence — not a
+ * pile of new content.
+ *
+ * Why the exchange model had to go: intake is partitioned over the FLATTENED
+ * per-sentence list (flattenPodRows splits a silence-split turn into one unit
+ * per sentence), but the exchange rule — a speaker turn plus its reply — was
+ * sized on authored TURN rows. A turn is a whole paragraph, so once the pods
+ * carried per-sentence clips an "exchange" became 3-8 sentences. Measured live
+ * 2026-08-09 on fra/spa/deu_for_eng:pod-0 (142 turn-rows → 294 sentences): 71
+ * cohorts, mean 4.14 sentences, max 8, and 59 of 71 laps debuting more than
+ * two. That is the regression Tom reported.
+ *
+ * The unit is now the SENTENCE — which is also the unit the ratchet has always
+ * stored (`completed_pod_rounds` = sentences covered), so this is a return to
+ * the legacy pacing, migrates in place, and needs no reset.
+ *
+ * The scene wall and the exchange partition survive as
+ * `buildPodExchangeCohorts` — no longer the intake unit, kept because it is
+ * the tested definition of "a turn plus its reply" and the record of the
+ * 2026-07-24 ruling.
+ *
+ * The cold-start floor (Tom, T-13, 2026-08-07) is unchanged and now does all
+ * the pairing work: a first cohort below two sentences absorbs the ones after
+ * it until it is two, so a learner's first lap is never a single line played
+ * on repeat (A-52), and nothing beyond that is ever merged.
  *
  * Every sentence introduced in the same lap stays at the SAME stage as its
- * cohort-mates forever (stage cohesion: the exchange-cohort moves through the
- * DK sequence as one unit; the shared two-doors drill counter lifts a cohort
- * only as far as its least-drilled member). The partition stays PURE — it
- * depends only on the course content, never on learner state, so every client
- * derives the identical cohorts from the same rows.
- *
- * Rows with a missing scene_number (legacy cached content) never force a
- * scene break: they join the scene run in progress, and an all-null list is
- * partitioned by exchange alone. Rows with no glue/speaker info (legacy
- * cache) each read as their own turn, so they pair off two sentences at a
- * time — small, safe cohorts.
+ * cohort-mates forever (stage cohesion: the cohort moves through the DK
+ * sequence as one unit; the shared two-doors drill counter lifts a cohort
+ * only as far as its least-drilled member). With one-sentence cohorts that
+ * only ever binds the cold-start pair. The partition stays PURE — it depends
+ * only on the course content, never on learner state, so every client derives
+ * the identical cohorts from the same rows.
  *
  * The pod stays ONE organism: laps still replay the full accumulated content
  * with no explicit scene markers — the cohort unit itself is the punctuation.
@@ -55,6 +64,20 @@ export interface PodCohort {
   size: number
 }
 
+/**
+ * COLD-START FLOOR — the "not a lone line" half of the window. A cohort of a
+ * single sentence is not a conversation: measured on live telemetry, a Hebrew
+ * learner's first pod held exactly one sentence, and because every lap
+ * restarts from sentence one, that one clip played 19 times across 7 laps —
+ * indistinguishable from a broken app (A-52, Tom 2026-08-07).
+ *
+ * Two sentences is the smallest thing that is still an EXCHANGE — a turn and
+ * its reply — which is what the cold start is supposed to be. The ceiling
+ * half of the window lives in applyPodColdStartWindow: nothing beyond that
+ * one exchange is ever merged in.
+ */
+export const POD_COLD_START_MIN_SENTENCES = 2
+
 /** Same-scene test: rows with a missing scene_number never force a break. */
 const sameScene = (a: number | null | undefined, b: number | null | undefined): boolean =>
   a == null || b == null || a === b
@@ -65,8 +88,12 @@ const sameScene = (a: number | null | undefined, b: number | null | undefined): 
  * in progress); within each scene, turns (maximal glue_to_next runs) pair off
  * in order into EXCHANGES — each cohort is one exchange, a trailing lone turn
  * standing alone.
+ *
+ * This is the PURE exchange partition, without the cold-start window —
+ * `buildPodCohorts` is this plus `applyPodColdStartWindow`, and is what
+ * callers want.
  */
-export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+export function buildPodExchangeCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
   // Pass 1 — scene runs (the walls). Scene identity of the current run is the
   // last non-null scene_number seen, so a null row bridges rather than resets
   // (…1, null, 1… stays one scene, …1, null, 2… breaks at the 2).
@@ -104,6 +131,69 @@ export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
     }
   }
   return cohorts
+}
+
+/**
+ * THE COLD-START WINDOW (Tom's ruling on T-13, 2026-08-07) — one policy with
+ * two sides, because both failures are real and they bracket the same thing:
+ *
+ *   "the cold start must be ONE FULL EXCHANGE — a lone line ('Good morning,
+ *    Sarah') is not enough, but the WHOLE SCENE arriving at once is too much."
+ *
+ * FLOOR: a first cohort below POD_COLD_START_MIN_SENTENCES is not yet a
+ * conversation. It absorbs the cohorts after it until it is two sentences, or
+ * the pod runs out. The merge may cross a scene wall in that case: the wall
+ * governs the ramp, and a lone line outranks it for one cohort.
+ *
+ * CEILING: nothing else is ever merged. Two sentences IS the intended first
+ * serving. This is what the earlier floor-only rule (min 3) got wrong: it
+ * stacked more content onto any two-sentence opener, and on eus_for_spa that
+ * pulled the entire opening scene into lap one, which is exactly the "whole
+ * scene at once" Tom saw in Aran's session.
+ *
+ * Under the 2026-08-09 one-sentence intake the floor is the everyday path,
+ * not a safety net: every pod's first lap is its opening two sentences
+ * ("Bonjour, Sarah!" / "Bonjour."), and every lap after it adds one.
+ *
+ * The window lives in the partition rather than in the scheduler on purpose:
+ * the partition stays the single PURE source of truth, so the ratchet
+ * (podCohortRoundFor / podRatchetAfterLap), stage cohesion and alive-counting
+ * all follow it with no further change, and every client derives the same
+ * cohorts from the same rows. That purity is also why the window is NOT
+ * conditioned on the learner's easy/fast mode even though the ruling arose on
+ * easy: a mode-dependent partition would have the two modes disagree about
+ * where laps begin while sharing one sentence ratchet, so toggling mode would
+ * shift a learner's cohort boundaries under them. One exchange is the right
+ * first serving in either mode.
+ *
+ * Later cohorts are untouched in every case — this is about the cold start,
+ * not about lap size in general.
+ */
+export function applyPodColdStartWindow(cohorts: readonly PodCohort[]): PodCohort[] {
+  let size = 0
+  let n = 0
+  while (n < cohorts.length && size < POD_COLD_START_MIN_SENTENCES) {
+    size += cohorts[n].size
+    n++
+  }
+  return n > 1 ? [{ start: 0, size }, ...cohorts.slice(n)] : [...cohorts]
+}
+
+/**
+ * One cohort per SENTENCE — the intake unit (Tom, 2026-08-09). Pure position;
+ * scene walls and turn structure are irrelevant to a partition of size one.
+ */
+export function buildPodSentenceCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+  return rows.map((_, i) => ({ start: i, size: 1 }))
+}
+
+/**
+ * The cohort partition callers use: ONE new sentence per lap, with the
+ * cold-start window merging the opening line into a two-sentence first
+ * serving.
+ */
+export function buildPodCohorts(rows: readonly PodCohortRow[]): PodCohort[] {
+  return applyPodColdStartWindow(buildPodSentenceCohorts(rows))
 }
 
 /** 0-based ordinal of the cohort containing sentence index `idx`, or -1. */

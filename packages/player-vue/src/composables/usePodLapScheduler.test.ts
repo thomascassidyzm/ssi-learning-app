@@ -1,6 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
+import { resetServedPodCache } from './servedPod'
+import {
+  DEFAULT_FAST_BELT_CEILINGS,
+  DEFAULT_FAST_LISTENING_RAMP,
+  DEFAULT_LISTENING_PATTERN,
+  LISTENING_SPEED_CEILING,
+} from '../playback/listeningExposureRamp'
+import type { ListeningPlayPolicy } from './useAlgorithmConfig'
+
+/**
+ * The ESCAPE-HATCH policy — replays the retired nine-stage ladder (Tom's
+ * 2026-08-07 simplification kept it reachable by DB config alone, see
+ * ListeningModeConfig.listeningUseStagePlaylist). The stage-shaped invariants
+ * below — the Phase-0 explainer slot, the end-on-target close, the per-role
+ * ps2x speeds — only exist on this path now, so they are tested on it.
+ */
+const STAGE_LADDER_POLICY: ListeningPlayPolicy = {
+  pattern: [...DEFAULT_LISTENING_PATTERN],
+  ramp: [...DEFAULT_FAST_LISTENING_RAMP],
+  beltCeilings: [...DEFAULT_FAST_BELT_CEILINGS],
+  ceiling: LISTENING_SPEED_CEILING,
+  speedSource: 'exposure',
+  useStagePlaylist: true,
+}
 
 // ============================================================================
 // Supabase mock — covers the four query shapes the scheduler issues:
@@ -17,16 +41,26 @@ interface MockState {
   enrollmentUpdates: Array<Record<string, any>>
   /** learner_pod_state rows for the two-doors exposure counter (optional). */
   podState?: Array<{ sentence_id: string; exposures: number }>
+  /** listening_pods rows. Absent = the pre-2026-08-22 world: no pod-1, so the
+   *  resolver answers `pod-0` and behaviour is bit-identical to before. */
+  pods?: Array<{ slug: string }>
+  /** pod_id the scheduler actually queried — the flip's proof. */
+  queriedPodId?: string
 }
 
 function makeMockSupabase(state: MockState) {
   const builder = (table: string) => {
     let mode: 'select' | 'update' = 'select'
     let updatePayload: any = null
+    const filters: Record<string, any> = {}
     const chain: any = {
       select: () => chain,
-      eq: () => chain,
-      in: () => chain,
+      eq: (col?: string, val?: any) => {
+        if (col) filters[col] = val
+        if (table === 'listening_pod_sentences' && col === 'pod_id') state.queriedPodId = val
+        return chain
+      },
+      in: (col?: string, val?: any) => { if (col) filters[col] = val; return chain },
       order: () => chain,
       maybeSingle: () => {
         if (table === 'course_enrollments') {
@@ -47,6 +81,11 @@ function makeMockSupabase(state: MockState) {
         }
         if (table === 'listening_pod_sentences') {
           return Promise.resolve({ data: state.podSentences, error: null }).then(cb)
+        }
+        if (table === 'listening_pods') {
+          const allowed = filters.slug as string[] | undefined
+          const rows = (state.pods ?? []).filter((p) => !allowed || allowed.includes(p.slug))
+          return Promise.resolve({ data: rows, error: null }).then(cb)
         }
         if (table === 'course_audio') {
           return Promise.resolve({ data: state.bookends, error: null }).then(cb)
@@ -97,17 +136,24 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 16, 5, 4)?.stage).toBe(4)
     expect(podStageFor(1, 15, 5, 4)?.stage).toBe(3)
   })
-  it('per-stage durations: Phase 0 (2 rounds) then Phase 1 (3 rounds) then uniform', () => {
-    const d = DEFAULT_STAGE_DURATIONS // {1: 2, 2: 3}
+  it('per-stage durations: Phase 0 (ONE round — Tom 2026-08-10) then Phase 1 (3 rounds) then uniform', () => {
+    const d = DEFAULT_STAGE_DURATIONS // {1: 1, 2: 3}
+    // Stage 1 gets ONE round, not two: Tom cancelled the explainer repeat
+    // on 2026-08-10 ("the visualisation covers the need to explain").
     expect(podStageFor(1, 1, 5, 9, d)).toEqual({ stage: 1, iter: 1 })
-    expect(podStageFor(1, 2, 5, 9, d)).toEqual({ stage: 1, iter: 2 })
-    expect(podStageFor(1, 3, 5, 9, d)).toEqual({ stage: 2, iter: 1 })
-    expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
-    expect(podStageFor(1, 6, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
-    expect(podStageFor(1, 10, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
-    // Transitional total = 2 + 3 + 6×5 = 35 → eternal stage 9 from alive 36.
-    expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(8)
-    expect(podStageFor(1, 36, 5, 9, d)?.stage).toBe(9)
+    expect(podStageFor(1, 2, 5, 9, d)).toEqual({ stage: 2, iter: 1 })
+    expect(podStageFor(1, 4, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
+    expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
+    expect(podStageFor(1, 9, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
+    // Transitional total = 1 + 3 + 6×5 = 34 → eternal stage 9 from alive 35.
+    expect(podStageFor(1, 34, 5, 9, d)?.stage).toBe(8)
+    expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(9)
+  })
+  it('stage 1 is listed at 1, never deleted — an unlisted stage would inherit 5', () => {
+    // The trap the 2026-08-10 change had to avoid: dropping the key makes
+    // stage 1 last DEFAULT_STAGE_DURATION rounds, the opposite of the ruling.
+    expect(DEFAULT_STAGE_DURATIONS[1]).toBe(1)
+    expect(podStageFor(1, 2, 5, 9, { '2': 3 })?.stage).toBe(1) // unlisted ⇒ 5 rounds
   })
   it('string-keyed durations (JSON config shape) work the same', () => {
     expect(podStageFor(1, 3, 5, 9, { '1': 2, '2': 3 })?.stage).toBe(2)
@@ -193,7 +239,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) debuts the opening EXCHANGE at Phase 0 (scene walls, exchange debuts — Tom 2026-07-24)', async () => {
+  it('first lap (ratchet=0 → podRound=1) debuts exactly the opening exchange at Phase 0 (Tom 2026-07-24, cold-start window T-13 2026-08-07)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -204,22 +250,31 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
     // The three fixtures share a scene (no scene_number = one scene) and have
-    // no glue/speaker info, so each is its own turn → the opening exchange is
-    // turns 1+2 (sentences 1-2); sentence 3 waits for the next lap (exchange
-    // ramp within the scene, Tom 2026-07-24). Each sentence plays its full
-    // Stage-1 pattern before the next: ['ps','explainer','ps'] with no
-    // explainer_audio_id falls back to the TRANSLATION → ['ps','trans','ps'].
-    // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
+    // no glue/speaker info, so each is its own turn → exchanges of [2, 1].
+    // The cold-start window serves that opening exchange and nothing more: a
+    // turn plus its reply, never a lone line and never the whole scene. Each
+    // sentence plays its full Stage-1 pattern before the next:
+    // ONE MODE (Tom, 2026-08-07): every sentence, at every age, plays the same
+    // four-slot target·known·target·target pattern. The stage ladder that used
+    // to vary this per stage is retired; `stage` is still stamped (it is the
+    // exposure clock) but no longer changes what you hear. Default policy =
+    // Fast's flat 1.0 ramp.
     expect(lap!.plays.map(p => p.playRole)).toEqual(
-      ['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
+      ['ps', 'trans', 'ps', 'ps', 'ps', 'trans', 'ps', 'ps'])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 1, 2, 2, 2, 2])
     expect(lap!.plays.every(p => p.stage === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
     expect(lap!.outro?.id).toBe('outro-1')
   })
 
-  it('Phase 0 plays the explainer INSTEAD of the translation when explainer audio exists', async () => {
+  it('the EXPLAINER slot no longer plays: one mode, one pattern (Tom 2026-08-07)', async () => {
+    // The Phase-0 explainer was stage 1 of the retired ladder. Tom's
+    // simplification is "that's all that happens" — the single pattern has no
+    // explainer slot, so a sentence WITH explainer audio now hears its plain
+    // translation like every other. The audio and its code path are kept
+    // (buildMainStage still resolves the slot) but nothing references it on the
+    // default path. Flagged to Tom as the one deliberate content loss.
     state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
@@ -228,9 +283,22 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+    expect(lap!.plays.find(p => p.playRole === 'explainer')).toBeUndefined()
+  })
+
+  it('the explainer is still reachable through the stage-ladder escape hatch', async () => {
+    state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      listeningPolicy: STAGE_LADDER_POLICY,
+    })
+    await s.initialize()
+    const lap = s.nextLap()
     expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'explainer', 'ps'])
     expect(lap!.plays.find(p => p.playRole === 'explainer')!.audioId).toBe('exp-1')
-    expect(lap!.plays.find(p => p.playRole === 'trans')).toBeUndefined()
   })
 
   it('Phase 0 retires after 2 rounds: alive=3 lands in Phase 1 with the plain translation pattern', async () => {
@@ -243,21 +311,23 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
-    // podRound=3 → sentence 1 alive=3 → stage 2 ('Phase 1': ['ps','trans','ps']).
+    // podRound=3 → sentence 1 alive=3. Under ONE MODE the age changes nothing
+    // about the pattern — that is the whole point of the simplification. Only
+    // the SPEED is allowed to vary with age, and Fast's ramp is flat.
     const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
-    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
+    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
     expect(s1.find(p => p.playRole === 'explainer')).toBeUndefined()
   })
 
-  it('second lap debuts cohort 2 while cohort 1 replays one stage-step older — stage cohesion within each cohort', async () => {
-    // Two SCENES of two sentences → cohorts [s1+s2], [s3+s4] (each scene is
-    // one two-turn exchange; the wall keeps them apart). Ratchet = 2
-    // sentences covered (cohort 1 completed) → round 2:
-    // cohort 1 alive=2 (still stage 1, Phase-0 lasts 2 rounds), cohort 2
-    // debuts at alive=1.
+  it('the second lap replays the opening pair one step older and debuts exactly ONE new sentence (Tom 2026-08-09)', async () => {
+    // ONE new sentence per visit: cohorts are [s1+s2] (the cold-start pair),
+    // then [s3], [s4], [s5], [s6]. Ratchet = 2 sentences covered (the opening
+    // pair completed) → round 2: the pair replays one step older and sentence
+    // 3 debuts alone. Sentences 4-6 are not in the intake window yet.
     state.podSentences = [
       { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
+      { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
     const s = usePodLapScheduler({
@@ -269,21 +339,23 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap!.podRound).toBe(2)
     const idxs = new Set(lap!.plays.map(p => p.sentenceIdx))
-    expect(idxs).toEqual(new Set([1, 2, 3, 4]))
-    // Cohort-mates always share a stage.
+    expect(idxs).toEqual(new Set([1, 2, 3]))
+    // Cohort-mates always share a stage — here, the cold-start pair.
     const stageOf = (idx: number) => new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))
     expect(stageOf(1)).toEqual(stageOf(2))
-    expect(stageOf(3)).toEqual(stageOf(4))
   })
 
-  it('cohorts age as ONE unit: at round 3 the first cohort reaches stage 2 together, the second stays at stage 1 together', async () => {
+  it('cohorts age as ONE unit: the opening pair reaches stage 2 together, the youngest cohort stays at stage 1', async () => {
     state.podSentences = [
       { ...podSentence(1), scene_number: 1 }, { ...podSentence(2), scene_number: 1 },
       { ...podSentence(3), scene_number: 2 }, { ...podSentence(4), scene_number: 2 },
+      { ...podSentence(5), scene_number: 3 }, { ...podSentence(6), scene_number: 3 },
     ]
-    // 4 sentences covered = cohorts (scenes) 1+2 completed → round 3: cohort 1
-    // alive=3 (stage 2 under Phase-0's 2-round duration), cohort 2 alive=2
-    // (stage 1). No third cohort exists — intake caps, aging continues.
+    // Cohorts: [s1+s2], [s3], [s4], [s5], [s6]. 4 sentences covered = cohorts
+    // 1-3 completed → round 4: the opening PAIR is alive=4 and moves as one;
+    // s3 alive=3, s4 alive=2 — all stage 2 now that Phase 0 is ONE round
+    // (Tom 2026-08-10; s4 was stage 1 under the old 2-round Phase 0). s5
+    // alive=1 is the only one still at stage 1; s6 is not in the window yet.
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 4 }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
@@ -292,12 +364,14 @@ describe('usePodLapScheduler — nextLap composition', () => {
     })
     await s.initialize()
     const lap = s.nextLap()
-    expect(lap!.podRound).toBe(3)
+    expect(lap!.podRound).toBe(4)
     const stages = (idx: number) => [...new Set(lap!.plays.filter(p => p.sentenceIdx === idx).map(p => p.stage))]
     expect(stages(1)).toEqual([2])
     expect(stages(2)).toEqual([2])
-    expect(stages(3)).toEqual([1])
-    expect(stages(4)).toEqual([1])
+    expect(stages(3)).toEqual([2])
+    expect(stages(4)).toEqual([2])
+    expect(stages(5)).toEqual([1])
+    expect(stages(6)).toEqual([])
   })
 
   it('two-doors lift raises a cohort only as far as its LEAST-drilled member (cohesion beats drill-ahead)', async () => {
@@ -356,6 +430,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps', 'trans'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -369,6 +444,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps2x', 'trans'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -383,6 +459,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
       courseCode: 'c',
       learnerId: 'u',
       stagePlaylist: { '1': ['ps', 'trans', 'ps2x'] },
+      listeningPolicy: STAGE_LADDER_POLICY,
     })
     await s.initialize()
     const lap = s.nextLap()
@@ -450,8 +527,8 @@ describe('usePodLapScheduler — nextLapPreviewFallback (?pod=1 preview cheat)',
     expect(s.nextLap()).toBeNull() // confirms the windowed path is genuinely stuck
     const lap = s.nextLapPreviewFallback()
     expect(lap).not.toBeNull()
-    // The whole second cohort previews — an exchange, like a real lap.
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 5, 5, 5])
+    // The next playable cohort previews — one sentence, like a real lap.
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([4, 4, 4, 4])
   })
 
   it('searches outward from the ratchet cursor, reaching the farthest sentence only when nothing closer is playable', async () => {
@@ -519,12 +596,13 @@ describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)
     // "3 target sentences then 3 known sentences" bug (Tom 2026-06-16).
     expect(ids).not.toContain('TURN_TGT')
     expect(ids).not.toContain('TURN_KN')
-    // Each sentence plays fully (ps,trans,ps via the explainer→trans fallback)
-    // before the next — target→known→target PER sentence.
-    expect(ids).toEqual(['t0', 'k0', 't0', 't1', 'k1', 't1'])
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    // Each sentence plays its FULL four-slot pattern before the next —
+    // target→known→target→target PER sentence (Tom 2026-08-07).
+    expect(ids).toEqual(['t0', 'k0', 't0', 't0', 't1', 'k1', 't1', 't1'])
+    expect(lap!.plays.map(p => p.playRole)).toEqual(
+      ['ps', 'trans', 'ps', 'ps', 'ps', 'trans', 'ps', 'ps'])
     // Distinct sentenceIdx → podGapMs treats the two sentences as separate chunks.
-    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 1, 2, 2, 2, 2])
   })
 
   it('a row without a split passes through as one whole-turn unit (back-compat)', async () => {
@@ -538,7 +616,7 @@ describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)
     await s.initialize()
     const lap = s.nextLap()
     // The whole-turn clip plays as a single unit — unchanged behaviour.
-    expect(lap!.plays.map(p => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT'])
+    expect(lap!.plays.map(p => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT', 'TURN_TGT'])
     expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
   })
 })
@@ -583,17 +661,9 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     expect(lap!.podRound).toBe(3)
   })
 
-  it('skipAhead bumps counter by N without playing', async () => {
-    const s = usePodLapScheduler({
-      supabase: makeMockSupabase(state),
-      courseCode: 'c',
-      learnerId: 'real-uuid',
-    })
-    await s.initialize()
-    await s.skipAhead(5)
-    expect(s.completedPodRounds.value).toBe(8)
-    expect(state.enrollmentUpdates).toContainEqual({ completed_pod_rounds: 8 })
-  })
+  // The `skipAhead` ratchet bump was Turbo's alone and went with Turbo
+  // (retired 2026-08-06). The counter now only ever advances by a played
+  // lap — see 'markLapCompleted' above.
 
   it('reset clears the counter and pin', async () => {
     const s = usePodLapScheduler({
@@ -642,5 +712,43 @@ describe('usePodLapScheduler — reactive args', () => {
     await s.initialize()
     expect(s.isInitialized.value).toBe(true)
     expect(s.nextLap()!.podRound).toBe(1)
+  })
+})
+
+// ── Which pod does the scheduler actually ask for? ───────────────────────────
+// Pods went 1-based on Tom's 2026-08-22 ruling. The scheduler no longer knows
+// the slug — it asks servedPod — so these two tests are the end-to-end proof
+// that the resolved slug reaches the wire, in both directions.
+describe('usePodLapScheduler — served pod resolution', () => {
+  beforeEach(() => { resetServedPodCache() })
+
+  it('queries the pod-1 id for a course that has one (hrv, the first 1-based course)', async () => {
+    const state: MockState = {
+      podSentences: [podSentence(1)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+      pods: [{ slug: 'pod-1' }, { slug: 'pod-0' }],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'hrv_for_eng', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(state.queriedPodId).toBe('hrv_for_eng:pod-1')
+  })
+
+  it('queries the pod-0 id for the ~68 courses that only have pod-0 — no behaviour change', async () => {
+    const state: MockState = {
+      podSentences: [podSentence(1)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+      pods: [{ slug: 'pod-0' }, { slug: 'pod-0-unrecorded' }],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'spa_for_eng_v2', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(state.queriedPodId).toBe('spa_for_eng_v2:pod-0')
   })
 })

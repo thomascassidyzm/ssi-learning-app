@@ -10,6 +10,7 @@ import {
   ENVELOPE_EXTRACTOR_CONSTANTS,
   type ProgressStore,
   type SessionStore,
+  dirFor,
 } from '@ssi/core'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import type { CourseInfo } from '../composables/useEntitlement'
@@ -29,7 +30,6 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
-import { usePodListeningReminder } from '../composables/usePodListeningReminder'
 import { podPlayShowsTurnText, podLapPlayedSentenceIndices, podLapDisplayRange } from '@ssi/core/pods'
 import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
@@ -56,7 +56,26 @@ import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFI
 import { computeCentralityFromScript } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
-import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { computeListeningSpeed } from '../providers/toSimpleRounds'
+import { isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
+import {
+  selectCyclesOutForMode,
+  selectionIsInert,
+  makeModeSelectionContext,
+  courseMaxCycleLength,
+  type ModeSelectionConfig,
+} from '../playback/modeCycleSelection'
+import { isTargetRole, type PodPlayRole } from '@ssi/core/pods'
+import {
+  useAlgorithmConfig,
+  resolveListeningPlayPolicy,
+  normalizePhraseRepeatCount,
+  normalizeRepeatedCycleTypes,
+  normalizeReviewFilterMaxRound,
+  makeUseWordCap,
+  type LearningMode,
+} from '../composables/useAlgorithmConfig'
+import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -64,6 +83,7 @@ import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -95,11 +115,16 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
+import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
+import { isNetworkPresumedDown } from '../config/networkGate'
+import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
+import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
+import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -389,11 +414,12 @@ const contribution = useContribution(supabase as any)
 // counter tap or the belt-pill tap.
 const showProgressModal = ref(false)
 
-// Algorithm config - admin-tweakable parameters (Turbo Boost, Normal mode pause, etc.)
+// Algorithm config - admin-tweakable parameters (Easy/Fast mode pause, etc.)
 const {
   loadConfigs: loadAlgorithmConfigs,
-  turboConfig,
-  normalConfig,
+  easyConfig,
+  fastConfig,
+  scriptShapeForMode,
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
@@ -426,7 +452,8 @@ const infPlayLookaheadFloor = (): number => {
 
 /**
  * Wrapper for generateSimpleScript that threads the live algorithm_config
- * triple (listening, scriptShape, turbo cull) into every script-generation
+ * triple (listening, mode script-shape, phrase-length preference) into every
+ * script-generation
  * call. Pass `listeningOverride` only when you need the per-learner pod
  * activation pin merged on top.
  */
@@ -473,7 +500,10 @@ const generateScript = (
   // expansion watcher's call and the handoff's) which would split the key and
   // defeat the dedupe — while the counter only moves when INF-PLAY expansion
   // deliberately bumps it, which is exactly when a fresh walk IS wanted.
-  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
+  // learningMode is part of the key: Easy and Fast produce genuinely
+  // different scripts (doubled reps, longest-first phrases), so a mode change
+  // must not be served a cached walk from the other mode.
+  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${learningMode.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
   if (inFlightScript && inFlightScript.key === dedupeKey) {
     return inFlightScript.promise
   }
@@ -492,7 +522,6 @@ const generateScript = (
 const runGenerateScript = (
   listeningOverride?: ListeningConfigType,
 ) => {
-  const tc = turboConfig.value
   // Pod activation default lives on PodsConfig (admin UI is in L2 section).
   // Merge it into the listening shape the generator consumes. Precedence:
   //   1. listeningOverride.podActivationRound (per-learner pin path)
@@ -516,8 +545,32 @@ const runGenerateScript = (
     courseCode.value,
     infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
-    scriptShapeConfig.value,
-    { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+    // Per-mode script shape: the global script_shape row with the active
+    // mode's overlay on top. Fast carries no overlay ⇒ unchanged.
+    // THE ONE REMAINING MODE INPUT TO THE WALK, and it is inert by default.
+    // `ModeConfig.scriptShape` is the per-mode phrase-COUNT overlay on the
+    // admin Speaking page (how many different BUILD/USE/review phrases a round
+    // holds), and both shipped modes carry `{}` — so today the walk is
+    // genuinely mode-neutral and one cached script serves both. SETTING A
+    // NON-EMPTY OVERLAY WOULD RE-INTRODUCE A MODE-DEPENDENT SCRIPT, and with
+    // it the very bug this file just spent two attempts fixing: the cached
+    // walk would carry one mode's round sizes and a toggle could not change
+    // them. If that knob is ever wanted, round SIZE has to move into the
+    // player's live selection alongside length, filter and repetition.
+    scriptShapeForMode(learningMode.value),
+    // THE WALK IS MODE-NEUTRAL AND GENEROUS (Tom's architecture call,
+    // 2026-08-09). It emits the FULL set — no phrase-length cap, no BUILD
+    // filter, no review syllable filter, no USE word cap, no doubling — and
+    // the player selects from it live, per step, under whichever mode is
+    // active (playback/modeCycleSelection.ts + the getCycleRepeatCount
+    // override). Every one of those levers used to run HERE, where it DROPS
+    // items: a dropped phrase is unrecoverable from the queue, which is
+    // precisely why a mid-session toggle could never change which phrases
+    // played. One script, both modes, cached and never invalidated by a
+    // toggle — that is what "the instructions belong in the player, not in
+    // the cached script data" buys.
+    1,
+    MODE_NEUTRAL_WALK_OPTIONS,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -527,6 +580,42 @@ const runGenerateScript = (
     // INF PLAY is navigable. Main loop ignores this param.
     makeInfPlayRng(),
   )
+}
+
+/**
+ * The active mode's cycle-repeat setting. Read fresh on every call, because
+ * the WALKER asks for it at the end of every cycle — see the
+ * `getCycleRepeatCount` runtime override. Nothing builds with it any more.
+ */
+const currentRepeatConfig = () => ({
+  count: normalizePhraseRepeatCount(activeModeConfig.value.phraseRepeatCount),
+  types: normalizeRepeatedCycleTypes(activeModeConfig.value.repeatedCycleTypes),
+})
+
+/**
+ * What the BUILDERS get instead: no repetition at all.
+ *
+ * Tom's architecture call, 2026-08-09 — "the instructions for WHICH cycles get
+ * selected/played and HOW MANY TIMES belongs in the player logic, not the
+ * cached script data". So the script and the instant-path rounds carry each
+ * phrase EXACTLY ONCE, in both modes, and the walker decides live how often it
+ * sounds. One script, cacheable, shared: a toggle changes what is heard without
+ * touching a byte of what is cached.
+ */
+const MODE_NEUTRAL_REPEATS = { count: 1, types: new Set<string>() }
+
+/**
+ * The same neutrality, in the shape `generateSimpleScript` takes: every Easy
+ * lever OFF, so one walk serves both modes and the player does the selecting.
+ * `maxPhraseLengthFraction` travels as its own argument and is likewise 1.
+ */
+const MODE_NEUTRAL_WALK_OPTIONS = {
+  phraseRepeatCount: 1,
+  repeatedCycleTypes: [] as string[],
+  filterBuildPhrases: false,
+  reviewMaxKnownSyllables: 0,
+  reviewSyllableFilterMaxRound: 0,
+  useWordCapTiers: [] as never[],
 }
 
 // Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
@@ -734,6 +823,22 @@ watch([courseCode, supabase], async ([code, sb]) => {
 const courseTargetLang = computed(() => {
   if (!props.course) return ''
   return props.course.target_lang || courseCode.value?.split('_')[0] || ''
+})
+
+/**
+ * The known side, beside the target side above — both are needed as `lang`
+ * attributes on the text they describe, because DM Sans cannot spell Greek,
+ * Cyrillic, Devanagari, the Yoruba dot-belows or the pinyin tone vowels, and
+ * an undeclared run gets substituted per-character so a word renders in two
+ * typefaces (styles/design-tokens.css). Either side of a course can be such a
+ * language: cym_for_yor reads Welsh tiles over Yoruba glosses.
+ *
+ * Note this is NOT the `targetLang` computed further down — that one is a
+ * heuristic for picking a reward word and only answers zho/ita/spa/cym.
+ */
+const courseKnownLang = computed(() => {
+  if (!props.course) return courseCode.value?.split('_for_')[1] || ''
+  return props.course.known_lang || courseCode.value?.split('_for_')[1] || ''
 })
 
 const courseDisplayName = computed(() => {
@@ -1243,7 +1348,7 @@ const simplePlayer = useSimplePlayer()
 // Brain-view telemetry. Feeds Agent A's pairings store: every cycle that
 // actually plays through bumps `fire_count` for its primary LEGO + any
 // constituent A-LEGOs of an M-LEGO. Drives the v2 brain timelapse:
-// thicker synapses + mastery tier. Skipped cycles (Turbo) never fire
+// thicker synapses + mastery tier. Skipped cycles never fire
 // `cycle_completed`, so we automatically only count what the learner
 // heard.
 // Agent A's composable takes no args — pulls supabase via inject. We pass
@@ -1458,6 +1563,12 @@ const isPlaying = computed(() => simplePlayer.isPlaying.value)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+/** Flips true once the saved-progress read for this learner+course has RESOLVED
+ *  — which is what lets "this learner has never played" be told apart from
+ *  "their progress hasn't loaded yet". Both look like null otherwise, and
+ *  acting on the second would hand an existing learner the new-learner default.
+ *  Consumed only by applyNewLearnerModeDefault() further down. */
+const progressHistoryResolved = ref(false)
 // Cursor LEGO ID from the enrollment row (last_completed_lego_id).
 // Reactive copy of the DB value — the canonical "where is the cursor"
 // signal for the resting-state journey-bar comparison. DON'T derive
@@ -1490,7 +1601,9 @@ watch(
   () => [courseCode.value, learnerId.value],
   async () => {
     if (!progressStore?.value || !learnerId.value || !courseCode.value) return
-    if (isGuestLearner.value) return
+    // A guest has no server-side history by definition — that IS a resolved
+    // "never played", not a pending read, so the mode default may act on it.
+    if (isGuestLearner.value) { progressHistoryResolved.value = true; return }
     try {
       const saved = await loadSavedProgress()
       if (saved) {
@@ -1513,6 +1626,7 @@ watch(
         currentMode.value = 'main'
         infplayRoundIndex.value = 0
       }
+      progressHistoryResolved.value = true
     } catch { /* silent */ }
   },
   { immediate: true }
@@ -1585,6 +1699,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
           map,
           instantPlayback.isLegoComplete,
           currentTargetSpeedConfig(),
+          MODE_NEUTRAL_REPEATS,
         )
         // Diff by roundNumber against the engine's truth. Never
         // slice(totalLoaded): the loaded rounds are a window at the resume
@@ -1836,6 +1951,17 @@ simplePlayer.onCycleCompleted((cycle) => {
       durationDeltaMs: cycleTiming.duration_delta_ms,
       speechStartMs: cycleTiming.speech_start_ms,
       speechEndMs: cycleTiming.speech_end_ms,
+      // The zero point for every *_ms mark above is PROMPT AUDIO START, so
+      // responseLatencyMs silently contains the known-language prompt
+      // duration — which differs per phrase. Persisting the prompt-end and
+      // voice1-start marks makes the invitation-to-speak latency
+      // (speechStartMs - promptEndMs) recoverable on the read side, which is
+      // what any cross-phrase rolling average or z-score actually needs.
+      // Raw marks only: no derived field, so the definition stays on the
+      // read side and is recomputable forever. responseLatencyMs is
+      // deliberately unchanged so old and new rows stay comparable.
+      promptEndMs: cycleTiming.prompt_end_ms,
+      voice1StartMs: cycleTiming.voice1_start_ms,
       startedDuringPrompt: cycleTiming.started_during_prompt,
       stillSpeakingAtVoice1: cycleTiming.still_speaking_at_voice1,
       peakEnergyDb: cycleTiming.peak_energy_db,
@@ -1921,11 +2047,7 @@ simplePlayer.onCycleCompleted((cycle) => {
   sessionPoints.value += multipliedPoints
   triggerRewardAnimation(multipliedPoints, bonusLevel)
 
-  // Track turbo usage
   totalCycles.value++
-  if (turboActive.value) {
-    turboCycles.value++
-  }
 
   // Record to session tracking (for analytics)
   const completedItem = currentPlayableItem.value
@@ -2034,7 +2156,9 @@ simplePlayer.onRoundCompleted((round) => {
       // exactly the cycle-to-cycle belt flip Tom flagged.
       // (playingSeedNumber itself derives from the engine via beltAnchorSeed —
       // M9 — so only the lego-id signal is pushed here.)
-      if (!isInfPlayActive.value) {
+      // Round-shape signal, not the mode: offline belt-held recycle draws the
+      // same random USE phrases, so the same belt-flip would happen. Suppress.
+      if (!isRecycledRoundPlayback.value) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
@@ -2112,14 +2236,31 @@ simplePlayer.onSessionComplete(async () => {
   // offline play stops with a paused summary instead of recycling forever
   // — the "reviewed for a while, then stopped" bug. Tom 2026-05-30.
   if (offlinePlaybackActive()) {
+    // FORWARD FIRST. Unexpected offline keeps progressing the course from the
+    // cache; recycling is what happens when the cache runs out of forward
+    // material, not the first thing we reach for. Tom 2026-08-15.
+    const forward = await appendForwardFromCacheOffline()
+    if (forward > 0) {
+      simplePlayer.resume()
+      return
+    }
     const looped = appendCachedLoopForOffline()
     if (looped > 0) {
       console.log(`[Offline] session_complete reached offline — looped ${looped} cached rounds, resuming`)
       simplePlayer.resume()
       return
     }
-    // Nothing survived the persistent-audio filter (empty cached set) — fall
-    // through to the summary; that's the empty-cache edge, not the recycle.
+    // Nothing survived the persistent-audio filter (empty cached set). Do NOT
+    // fall through to expandScript: offline that is a full Supabase course
+    // walk with no network budget on it, and it can only fail — it just takes
+    // several seconds to find out, with "Warming up the synapses..." on screen
+    // the whole time. That wait is most of the ~5s Tom saw before the app
+    // dropped him on an infinite-play sentence, 2026-08-15. Cutting a network
+    // await that cannot succeed costs nothing and saves all of it.
+    if (wrapInfPlayAtTail()) return
+    sessionEnded.value = true
+    showPausedSummary()
+    return
   }
   // Infinite play / main loop: the course should never end. expandScript()
   // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
@@ -2183,7 +2324,8 @@ watch(
 // AUDIO PREFETCH LADDER (explicit phases)
 // ============================================================================
 //
-// Phase 1 — instant: bootstrap fetches ~15 cycles via /api/courses/:code/cycles
+// Phase 1 — instant: bootstrap fetches one whole round (~25 cycles, incl. its
+//   spaced review) via /api/courses/:code/cycles
 //          (useInstantPlayback.bootstrap), so the first cycle starts in <2s.
 // Phase 2 — background: generateScript() walks the whole course locally
 //          (loadAllData → handoff replaces simplePlayer's queue with the
@@ -2478,6 +2620,25 @@ const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
         ? (cycle.target?.textNative || cycle.target?.text || '')
         : (cycle.target?.text || '')
       if (targetText) {
+        // Strategy 0 (authoritative): the AUTHORED word mapping (Tom,
+        // 2026-08-13). One tile per target word in the target's own order,
+        // each chunk's literal known text centred under the words it covers —
+        // "the literal builds in the known language that 'map' to the correct
+        // order in the target language". This is a re-SOURCING, not a special
+        // case: where nobody has mapped the row, the single whole-LEGO tile
+        // below is unchanged and componentisation still glosses it downstream.
+        const authored = tilesFromGlossSegments(
+          targetText,
+          (cycle as any).glossSegments,
+          ({ text, index, glossGroup, known }) => ({
+            id: `${legoId}_gs${index}`,
+            targetText: text,
+            glossGroup,
+            isSalient: true,
+            ...(known ? { knownText: known } : {}),
+          }),
+        )
+        if (authored) return authored
         return [{
           id: legoId, targetText, isSalient: true,
           ...(cycleKnownText ? { knownText: cycleKnownText } : {}),
@@ -2830,6 +2991,24 @@ function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
   const t = (cycle?.type || '').toLowerCase()
   if (t !== 'intro' && t !== 'debut') return tiles
   if (!tiles || tiles.length === 0) return tiles
+  // The AUTHORED mapping wins wherever one exists (Tom, 2026-08-13). It only
+  // applies when the tiling in hand is one-tile-per-target-word — the columns
+  // the author actually segmented against. A romanised or device-segmented
+  // tiling with a different count is not those columns, so it falls through to
+  // the claim-match below rather than pairing chunks onto the wrong tiles.
+  const authored = (cycle as any)?.glossSegments as GlossSegment[] | undefined
+  if (Array.isArray(authored) && authored.length > 0
+      && authored.reduce((n, s) => n + (s?.span || 0), 0) === tiles.length) {
+    const out = tiles.map((x) => ({ ...x }))
+    let col = 0
+    authored.forEach((seg, gi) => {
+      for (let k = 0; k < seg.span; k++, col++) {
+        out[col].glossGroup = gi
+        if (k === 0 && seg.known) out[col].knownText = seg.known
+      }
+    })
+    return out
+  }
   const norm = (s: string) =>
     (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
   const knownWhole = cycle?.known?.text || ''
@@ -3275,12 +3454,18 @@ watch(currentRoundIndex, async (index) => {
 
   const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
-    // Offline: there's no network to generate new rounds, so loop the
-    // already-cached content instead of expanding. Tom 2026-05-25: offline
-    // must always play SOMETHING — never end because we can't fetch more.
+    // Offline: there's no network to GENERATE new rounds, but the cached
+    // script usually holds plenty the engine hasn't been given yet — the
+    // bootstrap path serves only a few rounds, so this watcher fires almost
+    // immediately on an offline resume. Keep going FORWARD through the course
+    // from the cache first; recycle only once that is exhausted. Tom
+    // 2026-08-15: unexpected offline is "play what you have", not a jump into
+    // infinite play three rounds into a resume.
     if (offlinePlaybackActive()) {
+      const forward = await appendForwardFromCacheOffline()
+      if (forward > 0) return
       const looped = appendCachedLoopForOffline()
-      if (looped > 0) console.log(`[Offline] no network to expand — looped ${looped} cached rounds`)
+      if (looped > 0) console.log(`[Offline] cache has no more forward rounds — looped ${looped} cached rounds`)
       return
     }
     console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
@@ -3499,6 +3684,21 @@ watch(learnerId, (id) => {
   if (id) metaCommentary?.setLearnerId(id)
 })
 
+/**
+ * THE listening play/speed policy (Tom, 2026-08-07) — ONE simplified mode.
+ * Every listening phrase, in BOTH layers, plays target · known · target ·
+ * target, with all four clips at one speed picked by how many times the
+ * learner has met that phrase, never above 1.0.
+ *
+ * Built once here and handed to both schedulers so Layer 1 and Layer 2
+ * provably cannot drift apart. Reactive on the `listening` DB row AND on the
+ * active mode's `listeningSpeedRamp`, so switching Easy↔Fast re-ramps on the
+ * next lap without a reload.
+ */
+const listeningPlayPolicy = computed(() =>
+  resolveListeningPlayPolicy(listeningConfig.value, learningMode.value, activeModeConfig.value),
+)
+
 // ============================================
 // LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
 // Replaces the old script-baked pod emission. Fires between rounds when
@@ -3517,11 +3717,22 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // The 2026-08-07 one-mode redesign: one T·K·T·T pattern at one
+      // exposure-ramped speed, superseding the nine-stage playlist above
+      // (which stays wired only for the DB escape hatch).
+      listeningPolicy: listeningPlayPolicy,
+      targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // The learner's position — what the per-mode belt ceiling is keyed on.
+      // Wrapped in a computed because `beltAnchorSeed` is declared further down
+      // this script block: a bare reference here is a TDZ error, a lazy getter
+      // is not.
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
-      // sentence goes straight to Stage 1. The per-atom breakdown a
-      // sentence used to get from AUDIO reps now comes from the
-      // always-visible LEGO-tile display (podTurnDisplay), driven by the
-      // same atom_map data but rendered visually, never played.
+      // sentence goes straight to Stage 1. Its replacement, the always-visible
+      // LEGO-tile display, was itself replaced on 2026-07-22 by PodTurnDisplay's
+      // karaoke teleprompter, so a pod sentence currently gets NO per-atom
+      // breakdown at all — the atom_map is still loaded and still rendered
+      // nowhere. See apml/learning/listening-layers.apml (2026-07-22 update).
     })
   : null
 
@@ -3583,6 +3794,13 @@ const l1Scheduler = supabase?.value
       courseCode: courseCode,
       learnerId: learnerId,
       config: l1Config,
+      // Belt ramp on target clips (Tom 2026-08-06) — the SAME course speed
+      // config the speaking rounds bake with, so listening can never drift
+      // away from the speaking curve.
+      targetSpeed: computed(() => currentTargetSpeedConfig()),
+      // Same policy object as the pods — one pattern, one ramp, one ceiling.
+      listeningPolicy: listeningPlayPolicy,
+      beltAnchorSeed: computed(() => beltAnchorSeed.value),
     })
   : null
 
@@ -3631,24 +3849,23 @@ const currentPodTurn = computed(() => {
   if (localIdx < 0 || localIdx >= podScrollSentences.value.length) return null
   return { activeIndex: localIdx }
 })
-// Pod listening reminder — a ONE-SHOT transient ("just listen, like
-// birdsong") shown as each pod lap starts, then faded out. Replaces the old
-// persistent hero-hint-label for pods (2026-07-22): that panel could sit on
-// screen for the whole lap and, being z-index 10 above PodTurnDisplay's 3,
-// covered the dialogue tiles on long pods. The audio's own spoken "now just
-// listen for a while" intro already carries the instruction, so the visual
-// only needs to remind, not persist. Keyed off playingPodLapAudio (set true
-// at the top of every playPodLap call) so it fires once per lap.
-const { visible: podReminderVisible } = usePodListeningReminder(playingPodLapAudio)
+// A listening exercise goes STRAIGHT IN with the audio (Tom, 2026-08-06):
+// no popup, no modal, nothing persistent — the spoken "now just listen for a
+// while" bookend introduces the lap and the screen stays free for the
+// displayed text. The one-shot "just listen, like birdsong" transient that
+// used to open every lap (usePodListeningReminder, 2026-07-22) is deleted;
+// only the small ambient headphones mark remains, in the band PodTurnDisplay
+// keeps clear. The preparation guidance itself lives on in Settings → Tools
+// → Listening mode, and in the phase hint outside pod laps.
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
 const userStoppedDuringLap = ref(false)
 // Set true when the learner presses skip *during* a pod lap. Distinct from
 // userStoppedDuringLap: skip means "advance to the next round" (so resume
-// fires), stop means "stay paused". In Turbo mode a skip also bumps the
-// pod ratchet so the same sentences don't resurface; in regular mode the
-// ratchet stays put so the listening work still has to be done.
+// fires), stop means "stay paused". A skip never bumps the pod ratchet —
+// the listening work still has to be done. (Turbo used to bump it; that
+// went with Turbo on 2026-08-06.)
 const podLapSkippedByUser = ref(false)
 // When the learner stops *during* a pod lap, we bookmark the lap here so
 // the next play tap re-fires it (with omitIntro=true so the bookend
@@ -3758,6 +3975,12 @@ const calculateCyclePoints = () => {
   // Check timing results if available
   if (lastTimingResult.value?.speech_detected) {
     phrasesSpokenCount.value++
+    // Server-side home for the lifetime count (owner ruling 2026-08-19). The
+    // local counter above still drives this session's summary screen; this
+    // one rides the delta/watermark flush into
+    // learner_speaking_opportunities.phrases_spoken, which survives tab-close
+    // and is neither 30-day-windowed nor per-course.
+    learningSession.bumpPhraseSpoken()
     points += 1 // Bonus for detected speech
 
     const latency = lastTimingResult.value.response_latency_ms
@@ -3838,19 +4061,16 @@ const triggerRewardAnimation = (points, bonusLevel) => {
 // Session points total
 const sessionPoints = ref(0)
 
-// Turbo cycle tracking for session multiplier
 const totalCycles = ref(0)
-const turboCycles = ref(0)
 
-// Session multiplier based on turbo usage (hidden formula)
-const sessionMultiplier = computed(() => {
-  if (totalCycles.value < 5) return 1.0 // Need minimum cycles before multiplier kicks in
-  const turboPercent = turboCycles.value / totalCycles.value
-  // Tiered multiplier - reward consistent turbo usage
-  if (turboPercent >= 0.75) return 1.5 // 75%+ turbo = 1.5x
-  if (turboPercent >= 0.50) return 1.25 // 50%+ turbo = 1.25x
-  return 1.0
-})
+// Session points multiplier. This used to reward Turbo usage (1.25× at 50%
+// of cycles, 1.5× at 75%). Turbo is retired, and Easy is a gentler mode
+// rather than a harder one, so there is nothing here to reward: the
+// multiplier is a flat 1.0. That is exactly what every non-Turbo learner
+// already got, so no one's points change. Kept as a computed so the points
+// path and its call sites stay untouched and a future mode-based multiplier
+// has an obvious home.
+const sessionMultiplier = computed(() => 1.0)
 
 // ============================================
 // BELT PROGRESSION SYSTEM
@@ -3972,9 +4192,36 @@ const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 // account) by the current round being a revival round (no intro/debut/build).
 // Single source of truth for the belt indicator, the accent colour, the forward-
 // belt-skip null, and the listening cadence. Tom 2026-06-03.
+// OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE (Tom, 2026-08-15).
+// When a signed-in learner resumes with no network we recycle their cached USE
+// phrases — infinite-play SELECTION — but they have NOT entered infinite play,
+// so the UI must go on saying "you are where you were": their own belt colour,
+// their own belt nav, no ∞ on the central pill. This flag is that distinction.
+// Raised at the single point where offline recycling actually engages
+// (appendCachedLoopForOffline), cleared the moment the learner deliberately
+// enters INF PLAY or real main-loop content resumes.
+const offlineRecycleBeltHeld = ref(false)
+
+// Are we POSITIONED in INF PLAY right now — the FORMAL mode? This governs the
+// LOOK and the NAVIGATION: the red accent, the ∞ glyph, the belt-chevron
+// semantics. Detected by the mode flag OR (crucially for GUESTS, who never get
+// the persisted 'infplay' mode — setMode is gated on a real account) by the
+// current round being a revival round. The offline belt-held recycle is
+// explicitly NOT this: same round shape, different place.
 const isInfPlayActive = computed(() =>
   currentMode.value === 'infplay'
-  || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+  || (!offlineRecycleBeltHeld.value
+      && !!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+)
+
+// Are RECYCLED (USE-only, no intro/debut/build) rounds what's playing, by
+// either route? This governs behaviour that follows the ROUND SHAPE rather
+// than the learner's location: suppressing the belt-follows-the-drawn-phrase
+// write, freezing the belt anchor, and the revival pod cadence. Offline
+// belt-held play is round-shaped exactly like INF PLAY even though the learner
+// has not gone anywhere — so it belongs here and not in isInfPlayActive.
+const isRecycledRoundPlayback = computed(() =>
+  isInfPlayActive.value || offlineRecycleBeltHeld.value
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
@@ -3989,7 +4236,7 @@ const isInfPlayActive = computed(() =>
 // belt follows the landed round again.
 const beltFreezeSeed = ref<number | null>(null)
 const beltAnchorSeed = computed<number | null>(() => {
-  if (isInfPlayActive.value) return beltFreezeSeed.value
+  if (isRecycledRoundPlayback.value) return beltFreezeSeed.value
   const legoId = visualLegoIdForRound(simplePlayer.currentRound.value)
   if (!legoId) return null
   return getSeedFromLegoId(legoId)
@@ -4005,7 +4252,17 @@ watch([beltAnchorSeed, beltProgress], ([seed]) => {
     beltProgress.value.setPlayingPosition(seed)
   }
 }, { immediate: true })
-watch(isInfPlayActive, (active) => { if (!active) beltFreezeSeed.value = null })
+watch(isRecycledRoundPlayback, (active) => { if (!active) beltFreezeSeed.value = null })
+// The belt-held recycle lasts exactly as long as recycled rounds are playing.
+// The moment genuine main-loop content lands again — network came back and
+// expandScript produced real rounds, or a belt jump landed on cached main-loop
+// material — the learner is back on the normal axis and the belt follows the
+// round again.
+watch(() => simplePlayer.currentRound.value, (round) => {
+  if (offlineRecycleBeltHeld.value && round && isMainLoopRound(round)) {
+    offlineRecycleBeltHeld.value = false
+  }
+})
 
 const beltCssVars = computed(() => {
   // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
@@ -4156,7 +4413,6 @@ const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 // rotating "positive" icon (strength / power / learning / effort). Instruction →
 // a short, varied "back to the science" caption. Welcome keeps its own
 // "listen to your guide" path. Tom 2026-06-02.
-type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
 const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
 
 // Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
@@ -4186,9 +4442,13 @@ const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructio
 // existing "listen to your guide" message, so only instruction/encouragement
 // flip this. Pods/L1 listening have their own overlays and don't set
 // currentCommentaryType.
+// Defensive by design (2026-08-06): anything that ISN'T the welcome shows the
+// wave, including a clip whose type is missing or unrecognised — an unknown
+// interjection degrades to "guide is speaking", never to the blank card that
+// falling through to the un-started next LEGO produces. Rule lives in
+// playback/interjectionDisplay.ts so it can be unit-tested.
 const showInterjection = computed(() =>
-  playingCommentaryAudio.value &&
-  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
+  shouldShowInterjection(playingCommentaryAudio.value, currentCommentaryType.value)
 )
 
 /**
@@ -4424,7 +4684,46 @@ const podDelay = (ms: number) => ms <= 0
  * audio isn't cached yet, the gap manifests audibly and shows up in
  * audio_play telemetry as a long `elapsedMs`.
  */
-const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
+const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
+  // BELT RAMP on target clips (Tom 2026-08-06: "LIStening exercises are way too
+  // fast initially — they need to follow the belt speed gating"). Applied HERE,
+  // once, because every listening surface that isn't Layer-1 funnels through
+  // this one runtime — Layer-2 pods, Stage-0 sequences and fusion drills alike,
+  // several of which hard-code 1.0. Pods activate at main round 5, so a
+  // white-belt learner really was meeting 1.0× target audio.
+  //
+  // It's a MULTIPLIER on the play's own role rate, never a replacement: a pod's
+  // 0.8 / 1.0 / 1.5 / 2.0 stage progression is a deliberate per-SENTENCE
+  // pedagogy (maturity of that sentence), independent of the learner's belt, so
+  // a 2× stretch rep stays a fast rep relative to wherever the learner is.
+  // Keyed on the LEARNER's current seed because a pod sentence has no seed
+  // number of its own — the one place listening can't mirror the speaking side's
+  // per-item keying. Layer-1 plays already carry their own per-seed ramped rate
+  // (buildSeedPlays) and are skipped here so nothing is ramped twice.
+  const lap: PodLap = (() => {
+    const anchor = beltAnchorSeed.value
+    if (anchor == null) return inputLap
+    const speedCfg = currentTargetSpeedConfig()
+    return {
+      ...inputLap,
+      plays: inputLap.plays.map((p) => {
+        const play = p as PodPlay
+        if (play.isLayer1) return play
+        // 2026-08-07 (Tom): a play whose speed came from the EXPOSURE ramp is
+        // already final — globalSpeed folded in, 1.0 ceiling applied, and the
+        // same rate on all four slots. Re-ramping it here would both
+        // double-apply the course speed and re-split the phrase, because this
+        // pass only touches target roles. Skipped exactly as Layer 1 is.
+        // Everything that ISN'T exposure-ramped goes through
+        // computeListeningSpeed, which since 2026-08-16 applies the course
+        // speed and no belt term — listening is never slowed.
+        if (play.speedIsFinal) return play
+        if (!isTargetRole(play.playRole as PodPlayRole)) return play
+        return { ...play, playbackSpeed: computeListeningSpeed(play.playbackSpeed ?? 1.0, anchor, speedCfg) }
+      }),
+    }
+  })()
+
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
@@ -4665,7 +4964,9 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   // suppresses the pod PREVIEW cheat itself — if both flags are set,
   // ?pod=1 still wins (existing precedence, checked above).
   if (!forcePodPreviewCheat && forceLayer1PreviewCheat && !l1PreviewFired) return false
-  if (isInfPlayActive.value) {
+  // Round-shape signal: recycled rounds have no main-loop cadence to schedule
+  // against by either route, so offline belt-held play takes the same branch.
+  if (isRecycledRoundPlayback.value) {
     const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
     const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
@@ -4769,7 +5070,9 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       roundLegoId: nextRoundFull.legoId,
       roundLegoOrdinal,
       courseLegoCount,
-      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+      // Easy mode is a deliberate learner pace choice, exactly as Turbo was
+      // — the adaptation engine should back off while it's on.
+      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || isEasyMode.value,
       unitCentralityPercentile: legoCentralityPercentile.value ?? undefined,
     })
     const applyingAdaptationV2 = !adaptationV2Config.value.shadow
@@ -5005,17 +5308,9 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           podScheduler.markLapCompleted().catch((err) => {
             console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
           })
-        } else if (podLapSkippedByUser.value && turboActive.value) {
-          // Turbo skip: bump the ratchet so the same sentences don't keep
-          // resurfacing. Regular skip leaves the counter — listening work
-          // still has to be done next session.
-          podScheduler.skipAhead(1).catch((err) => {
-            console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
-          })
-          console.log('[LearningPlayer] Pod lap skipped in Turbo, ratchet advanced')
         } else {
-          // Regular skip, audio error, or user stop — counter stays so the
-          // same lap plays next session ("the listening work has to be done").
+          // Skip, audio error, or user stop — counter stays so the same lap
+          // plays next session ("the listening work has to be done").
           console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
         }
         podLapSkippedByUser.value = false
@@ -5029,14 +5324,19 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           // Offline: loop the cached content rather than ending (mirror of
           // the onSessionComplete + watcher guards — offline never ends at
           // the tail, even when session_complete fired during a pod lap).
-          if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          // Forward from cache first, recycle only when it's exhausted.
+          if (offlinePlaybackActive()
+              && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
             // session_complete fired during this pod lap (the cadence lands a
             // lap near the tail). expandScript() grows the revival tail by a
             // batch in INF PLAY so play continues into genuinely new rounds.
-            const added = await expandScript()
+            // OFFLINE it is a Supabase course walk that can only fail, so we
+            // skip it and go straight to the wrap — same cut as the main
+            // session_complete handler.
+            const added = offlinePlaybackActive() ? 0 : await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
@@ -5073,7 +5373,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
   // played as its comprehensible-input sandwich (target → known → target →
-  // target, all @1×; see buildSeedPlays). No ratchet: the lap is a pure function of
+  // target; target clips belt-ramped, see buildSeedPlays). No ratchet: the lap is a pure function of
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
@@ -5133,11 +5433,15 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       // Resume handling mirrors the pod block: keep the course rolling unless
       // the session ended (offline loop / expand) or the learner stopped.
       if (sessionEnded.value) {
-        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+        // Forward from cache first, recycle only when it's exhausted.
+        if (offlinePlaybackActive()
+            && (await appendForwardFromCacheOffline() > 0 || appendCachedLoopForOffline() > 0)) {
           sessionEnded.value = false
           simplePlayer.resume()
         } else {
-          const added = await expandScript()
+          // Offline, expandScript is a doomed network walk — skip it rather
+          // than spend seconds on it before showing the summary anyway.
+          const added = offlinePlaybackActive() ? 0 : await expandScript()
           if (added > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
@@ -5457,26 +5761,34 @@ const clearSkipPrepDialog = () => {
 // (engine → onPhaseChanged callback → ref → watcher), an extra push hop the
 // derived currentPhase (M2) no longer needs. Starting an animation is a
 // legitimate edge reaction; the phase STATE itself is the computed below.
+// Both the visible countdown and the SimplePlayer's setTimeout go through
+// computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
+// affect both in lockstep. cfg is fastConfig or easyConfig — the live
+// values from the DB, with DEFAULT_FAST/DEFAULT_EASY as fallback.
+//
+// A function rather than watcher-body code because the SPEAK phase can now be
+// ENTERED FROM ITSELF: tapping the strip's mic segment during the gap restarts
+// the engine's pause window, and `watch` on a same-value phase never fires — so
+// the countdown would sit at wherever it had got to while the real gap started
+// again. Both callers run the same computation.
+const startSpeakCountdown = () => {
+  const cycle = simplePlayer.currentCycle.value
+  const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+  // Belt proxy for the pause curve — must match getPauseDuration exactly, so
+  // the ring and the real gap stay in lockstep. See the note there on why
+  // Easy pins it at 1.0 rather than reading the baked belt speed.
+  const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
+  const duration = computePauseDuration(
+    cycle?.target1DurationMs ?? 0,
+    cycle?.target2DurationMs ?? 0,
+    cfg,
+    spd,
+  )
+  startRingAnimation(duration)
+}
+
 watch(() => simplePlayer.phase.value, (phase) => {
-  // Both the visible countdown and the SimplePlayer's setTimeout go through
-  // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
-  // affect both in lockstep. cfg is normalConfig or turboConfig — the live
-  // values from the DB, with DEFAULT_NORMAL/DEFAULT_TURBO as fallback.
-  if (phase === 'pause') {
-    const cycle = simplePlayer.currentCycle.value
-    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    // Effective speed matches getPauseDuration: belt ramp in Normal, native
-    // 1.0× in Turbo (no belt ramp, never faster than 1.0×). Keeps the ring and
-    // the real gap in lockstep.
-    const spd = turboActive.value ? Math.min(turboConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
-    const duration = computePauseDuration(
-      cycle?.target1DurationMs ?? 0,
-      cycle?.target2DurationMs ?? 0,
-      cfg,
-      spd,
-    )
-    startRingAnimation(duration)
-  }
+  if (phase === 'pause') startSpeakCountdown()
 })
 
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
@@ -5843,6 +6155,31 @@ const currentPlayableItem = ref(null)
 // ============================================
 const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
 const isAwakening = computed(() => loadingStage.value !== 'ready')
+
+// PER-CONTROL READINESS (Tom, 2026-08-08: "once it APPEARS ready, then it
+// should actually be ready").
+//
+// `loadingStage === 'ready'` means "the lesson exists": script built, rounds in
+// memory, position known. It has never meant "a tap makes a sound" — the first
+// clip's bytes are warmed off the critical path (see warmFirstKnownAudio). On a
+// fast connection those two moments are a third of a second apart, so one flag
+// looked honest; on Fast 3G they were seven seconds apart and the play button
+// spent that whole window claiming to be ready.
+//
+// So the play affordance gets its OWN signal: true once the first clip is
+// genuinely in hand (or its bounded warm-up has given up, in which case the
+// learner must still be allowed to press). Everything else keeps using
+// isAwakening — the belt badge and the Easy/Fast switch are v-if'd on it and so
+// are honest already (absent rather than fake).
+const isFirstClipReady = ref(false)
+
+// The belt screen renders off the contribution fetch, which is deliberately
+// scheduled AFTER ready so it doesn't compete for bandwidth. Until that fetch
+// settles the belt pill cannot open anything — so it says so (flashes) rather
+// than silently swallowing the tap. Settled-with-no-data keeps today's
+// behaviour: the pill stops flashing and the tap is a no-op, unchanged.
+const contributionSettled = ref(false)
+const isBeltScreenReady = computed(() => contributionSettled.value || !!contribution.data.value)
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
@@ -6050,11 +6387,30 @@ const runSwrRevalidation = async (code: string) => {
 // on the loading screen — it just proceeds to 'ready' and plays cold as
 // before. Only the known phrase is gated (it plays first, with no buffer
 // phase to hide a late arrival); the rest ride the 1-cycle lookahead.
+// Ceiling on the cold boot's first-clip warm-up. Generous on purpose: while it
+// runs the play button is FLASHING, which is the honest signal, so the wait
+// costs the learner nothing but candour. The ceiling exists only so a dead or
+// crawling network can never strand them behind a button that will not light —
+// at which point they press, and the old head-miss streaming path takes over
+// exactly as before. Measured cold on Fast 3G the clip lands in well under a
+// second once it has the link to itself; 2000 ms (the old default) was short
+// enough to expire mid-download and release the whole-course walk on top of it.
+const FIRST_CLIP_WARM_TIMEOUT_MS = 8000
+
 const warmFirstKnownAudio = async (timeoutMs = 2000) => {
   try {
     const url = cachedRounds.value?.[0]?.cycles?.[0]?.known?.audioUrl
     if (!url || typeof url !== 'string' || url.startsWith('blob:')) return
-    const warm = fetch(url, { priority: 'high' }).then(() => {}).catch(() => {})
+    // Drain the body. `fetch()` settles on the RESPONSE HEADERS, so the old
+    // `.then(() => {})` reported "warm" while the 68 KB was still on the wire —
+    // measured cold on Fast 3G it returned in ~300 ms for a clip that took a
+    // further 6 s to arrive. Reading the body to completion is what actually
+    // fills the HTTP cache entry, which is what makes the learner's tap silent-
+    // free. The result is deliberately discarded: the cache is the product.
+    const warm = fetch(url, { priority: 'high' })
+      .then((r) => r.arrayBuffer())
+      .then(() => {})
+      .catch(() => {})
     const timeout = new Promise((r) => setTimeout(r, timeoutMs))
     await Promise.race([warm, timeout])
   } catch {
@@ -6449,6 +6805,10 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
+    // No mode term here on purpose. Listening is never slowed — not by belt,
+    // not by mode (Tom, 2026-08-16) — and the speaking side's Easy is longer
+    // thinking time and more reps, not a slower voice. Nothing in this config
+    // needs to know which mode the learner is on.
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
@@ -6552,13 +6912,18 @@ const showPhaseStrip = computed(() => {
 
 // Click handler for the phase-strip segments. Routes to the SimplePlayer
 // engine which interrupts the current phase and starts the target one fresh.
-// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
-function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only:
+// a tap is a SEEK, it never restarts the cycle and never spends or buys one of
+// the cycle's hearings (SimplePlayer.stopForReposition, phaseStripSeek.test.ts).
+//
+// All four segments, mic included — "once a cycle is playing he should be able
+// to go to ANY part of that same cycle freely" (Tom, 2026-08-09).
+function jumpToCyclePhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2') {
   // A1 (metrics): the phase pill is a self-assessment signal. Capture it BEFORE
   // the jump — fromPhase + toPhase + how long they sat there. Direction is the
   // confidence read (forward = "I've got it / verify"; back = "let me re-hear").
   // Raw elapsed + pauseDuration are stored unnormalised (decide the ratio later).
-  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : Phase.PROMPT
+  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : phase === 'pause' ? Phase.SPEAK : Phase.PROMPT
   const fromPhase = currentPhase.value
   const order: Record<string, number> = { [Phase.PROMPT]: 0, [Phase.SPEAK]: 1, [Phase.VOICE_1]: 2, [Phase.VOICE_2]: 3 }
   const fromIdx = order[fromPhase] ?? 0
@@ -6586,6 +6951,12 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   behaviouralEvidence.onPlayerEvent('phase_skip', phaseSkipPayload, cycle)
 
   simplePlayer.skipToPhase(phase)
+
+  // Re-entering SPEAK from SPEAK restarts the engine's gap but not the phase
+  // WATCHER (same value in, no fire), so the countdown is restarted here.
+  // Harmless on a fresh entry — the watcher's call and this one compute the
+  // same duration from the same cycle.
+  if (phase === 'pause') startSpeakCountdown()
 }
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
@@ -7188,11 +7559,7 @@ const handleCycleEvent = async (event) => {
         }
       }
 
-      // Track turbo usage for session multiplier
       totalCycles.value++
-      if (turboActive.value) {
-        turboCycles.value++
-      }
 
       // Trigger floating reward animation (Ink Spirit)
       const { points, bonusLevel } = calculateCyclePoints()
@@ -7249,10 +7616,15 @@ const handleCycleEvent = async (event) => {
           // produce any more content (no LEGOs in the course at all).
           if (preEngineRoundIndex.value >= cachedRounds.value.length) {
             if (offlinePlaybackActive()) {
-              // Offline can't expandScript (no network). Loop the cached
-              // content instead so playback never ends. Tom 2026-05-25.
-              const looped = appendCachedLoopForOffline()
-              console.warn(`[LearningPlayer] Offline tail reached — looped ${looped} cached rounds`)
+              // Offline can't expandScript (no network), but the cached
+              // script usually has forward rounds the engine lacks — take
+              // those first and keep progressing the course. Recycle only
+              // when there is genuinely nothing new left. Tom 2026-08-15.
+              const forward = await appendForwardFromCacheOffline()
+              if (forward === 0) {
+                const looped = appendCachedLoopForOffline()
+                console.warn(`[LearningPlayer] Offline tail, no forward rounds — looped ${looped} cached rounds`)
+              }
             } else {
               console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
               await expandScript()
@@ -7521,10 +7893,6 @@ const handleResume = async () => {
       if (completed) {
         podScheduler?.markLapCompleted().catch((err) => {
           console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
-        })
-      } else if (podLapSkippedByUser.value && turboActive.value) {
-        podScheduler?.skipAhead(1).catch((err) => {
-          console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
         })
       }
       podLapSkippedByUser.value = false
@@ -8471,8 +8839,7 @@ const handleSkip = async () => {
   // let handleRoundBoundary's resume() advance into the next round.
   // Don't fall through to jumpToRound — simplePlayer is already queued
   // at the next round (advanceRound bumped roundIndex when it was
-  // paused for the lap/commentary). Turbo's ratchet bump for pod laps
-  // lives in handleRoundBoundary so this stays a thin signal.
+  // paused for the lap/commentary).
   if (playingPodLapAudio.value || playingCommentaryAudio.value) {
     console.log('[LearningPlayer] Skip during inter-round audio — cancelling')
     if (playingPodLapAudio.value) podLapSkippedByUser.value = true
@@ -8593,6 +8960,9 @@ const jumpToRound = async (roundIndex) => {
  */
 const enterInfPlay = async () => {
   cancelInFlightLap()
+  // Deliberate ∞ entry outranks the offline belt-held recycle: the learner
+  // asked to go somewhere, so the red ∞ is right and the belt un-holds.
+  offlineRecycleBeltHeld.value = false
   const currentRound = simplePlayer.currentRound.value
 
   // Visual belt anchor for INF PLAY entry: the seed of the course's
@@ -9310,32 +9680,277 @@ const handleSkipToPrevBelt = async () => {
   }
 }
 
-// Mode toggles
-const turboActive = ref(false)
-const turboPopupShownThisSession = ref(false)
+// ============================================
+// LEARNING MODE — the two learner-facing modes (Aran's ruling 2026-08-06,
+// relayed by Tom). Turbo is retired; there is exactly `easy` and `fast`.
+// FAST is the default for everyone and is behaviourally identical to the
+// old "normal" mode, so a learner who never touches the toggle sees no
+// change at all. EASY doubles the thinking time (runtime, next cycle
+// boundary) and doubles the reps and HALVES the longest phrase (script
+// shape, next script build).
+// ============================================
+const learningMode = ref<LearningMode>('fast')
+const isEasyMode = computed(() => learningMode.value === 'easy')
+/** The live ModeConfig for whichever mode is active. */
+const activeModeConfig = computed(() => isEasyMode.value ? easyConfig.value : fastConfig.value)
+
+// ── WHICH CYCLES THIS MODE PLAYS, decided live ────────────────────────────
+//
+// Tom's architecture call, 2026-08-09: "The instructions for WHICH cycles get
+// selected/played and HOW MANY TIMES belongs in the player logic, not the
+// cached script data." The rules themselves are pure and live in
+// playback/modeCycleSelection.ts; this is the live wiring — a memo of the
+// cycles the ACTIVE mode selects out, consulted by the runtime shouldSkipCycle
+// gate on every step and thrown away the instant the mode moves.
+//
+// Whole-queue rather than per-round because the answer is pure and a full pass
+// is a few thousand string lengths — cheap, and it happens only when the mode
+// changes or the queue grows, never per cycle.
+let lastLoggedSelectionMode: LearningMode | null = null
+const modeSelectionMemo = {
+  ids: new Set<string>(),
+  dirty: true,
+  roundCount: -1,
+  /** Called by every writer of the mode — the next step re-decides. */
+  clear() { this.dirty = true },
+}
+
+/**
+ * High-water mark for "the course's longest phrase", the denominator of Easy's
+ * length cap. Held across recomputes because the arrays it is measured from
+ * grow and shrink as windows load — and a cap that moves on its own would drop
+ * a phrase in one round and play it in the next with the learner doing nothing.
+ * Reset on a course change, where the measure genuinely belongs to a new course.
+ */
+let modeSelectionMaxPhraseLength = 0
+
+/** The active mode's selection rules, straight off its ModeConfig row. */
+const currentModeSelectionConfig = (): ModeSelectionConfig => ({
+  maxPhraseLengthFraction: activeModeConfig.value.maxPhraseLengthFraction ?? 1,
+  filterBuildPhrases: activeModeConfig.value.filterBuildPhrases !== false,
+  reviewMaxKnownSyllables: activeModeConfig.value.reviewMaxKnownSyllables ?? 0,
+  reviewSyllableFilterMaxRound: normalizeReviewFilterMaxRound(activeModeConfig.value.reviewSyllableFilterMaxRound),
+  // Resolved against the COURSE's languages — null (inert) when English is on
+  // neither side, exactly as the walk resolved it.
+  useWordCap: makeUseWordCap(
+    props.course?.known_lang,
+    props.course?.target_lang,
+    activeModeConfig.value.useWordCapTiers,
+  ),
+})
+
+/** Recompute the memo when the mode moved, or when the queue grew under it. */
+const refreshModeSelection = () => {
+  // THE ENGINE'S QUEUE, NEVER THE MIRROR. `loadedRounds` (= cachedRounds) is a
+  // text/progress mirror that the instant path deliberately swaps to the
+  // WHOLE-COURSE walk while the engine keeps playing the bootstrap's
+  // backend-built rounds — the handoff sets it and says in as many words that
+  // it "does not touch the live playback queue". The two arrays mint cycle ids
+  // in different namespaces: the walk numbers every cycle from one
+  // script-global counter (`S0009L01_build_147`), the /cycles endpoint numbers
+  // per type per LEGO (`S0009L01_build_2`). So a memo built from the mirror and
+  // matched against the engine's cycles agrees on nothing, and
+  // `modeSelectsCycleOut` returns false for every cycle it is ever asked about.
+  //
+  // That was the bug behind "the toggle doesn't change which phrases play"
+  // (Tom, 2026-08-09): the repeat lever worked, because it reads config rather
+  // than matching ids, while the selection lever was silently inert from the
+  // moment the full-script handoff landed — a few seconds into every session,
+  // on every course, since INSTANT_PLAYBACK_ALL.
+  const rounds = simplePlayer.getEngineRounds() as any[]
+  if (!modeSelectionMemo.dirty && modeSelectionMemo.roundCount === rounds.length) return
+  modeSelectionMemo.dirty = false
+  modeSelectionMemo.roundCount = rounds.length
+  modeSelectionMemo.ids.clear()
+  const cfg = currentModeSelectionConfig()
+  // Fast selects nothing out, so it never pays for the pass — and that is also
+  // the proof that Fast's behaviour is bit-identical to before.
+  if (selectionIsInert(cfg) || rounds.length === 0) return
+  // The cap's denominator is the course's longest phrase. Measured off the
+  // engine queue alone that shrinks to whatever window is loaded, so take the
+  // whole-course mirror into account too and hold the answer as a high-water
+  // mark: the cap may not move under a learner who did nothing.
+  modeSelectionMaxPhraseLength = Math.max(
+    modeSelectionMaxPhraseLength,
+    courseMaxCycleLength(rounds as any),
+    courseMaxCycleLength((loadedRounds.value ?? []) as any),
+  )
+  const ctx = makeModeSelectionContext(
+    rounds as any,
+    courseCode.value,
+    props.course?.known_lang,
+    cfg.reviewMaxKnownSyllables > 0,
+    modeSelectionMaxPhraseLength,
+  )
+  for (const round of rounds) {
+    for (const id of selectCyclesOutForMode(round as any, cfg, ctx)) modeSelectionMemo.ids.add(id)
+  }
+  console.log(`[LearningPlayer] Mode selection (${learningMode.value}): ${modeSelectionMemo.ids.size} cycle(s) selected out across ${rounds.length} round(s)`)
+  // The console line above does NOT survive a production build — vite.config.js
+  // lists console.log/info/debug in `esbuild.pure`, so on dev and prod it is
+  // gone. Telemetry is the only channel that survives, and a live probe (or a
+  // future me) needs SOME observable that the selection actually re-ran under
+  // the new mode. Logged on a MODE CHANGE only, never on the queue simply
+  // growing, so this is a handful of rows per session rather than a stream.
+  if (lastLoggedSelectionMode !== learningMode.value) {
+    lastLoggedSelectionMode = learningMode.value
+    logEvent('learning_mode_selection', {
+      mode: learningMode.value,
+      selectedOut: modeSelectionMemo.ids.size,
+      rounds: rounds.length,
+    })
+  }
+}
+
+/** Does the ACTIVE mode play this cycle? Asked per step by shouldSkipCycle. */
+const modeSelectsCycleOut = (cycle: { id?: string } | null | undefined): boolean => {
+  if (!cycle?.id) return false
+  refreshModeSelection()
+  return modeSelectionMemo.ids.has(cycle.id)
+}
+
+const LEARNING_MODE_KEY = 'ssi-learning-mode'
+
+/**
+ * Restore the learner's mode. Order: their stored learner preference (the
+ * cross-device source of truth) beats localStorage, which beats the 'fast'
+ * default. Anything unrecognised — including a pre-2026-08-06 row that has
+ * no `learning_mode` at all — falls through to fast, so nobody is silently
+ * moved off the behaviour they have today.
+ */
+const restoreLearningMode = () => {
+  const stored = auth?.learner?.value?.preferences?.learning_mode
+  if (stored === 'easy' || stored === 'fast') {
+    learningMode.value = stored
+    return
+  }
+  try {
+    const local = localStorage.getItem(LEARNING_MODE_KEY)
+    if (local === 'easy' || local === 'fast') learningMode.value = local
+  } catch { /* storage blocked — fast default stands */ }
+}
+restoreLearningMode()
+// The learner row lands asynchronously after auth resolves; re-read it then
+// so a signed-in learner's cross-device choice wins over this device's.
+watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
+  if (mode === 'easy' || mode === 'fast') learningMode.value = mode
+})
+
+// Any writer of the mode — the toggle, the cross-device preference landing
+// after auth, the new-learner default — drops the per-round selection memo.
+// The walker asks `shouldSkipCycle` before every step, so the very next step
+// re-decides which cycles this round plays under the mode now active. Nothing
+// is rebuilt and nothing is invalidated: the queue is the same content either
+// way, and the mode is only ever a view of it.
+watch(learningMode, () => { modeSelectionMemo.clear() })
+
+// The mode's TUNING is a DB row, and retuning Easy is meant to be a Supabase
+// edit rather than a deploy. The rows land asynchronously, so a memo computed
+// before they arrive is built from the shipped defaults and — without this —
+// would stand for the rest of the session, silently ignoring the live tuning.
+watch(algorithmConfigLoaded, () => { modeSelectionMemo.clear() })
+
+// A course change replaces both the queue and the phrase population the length
+// cap is measured against. The memo's round-count check cannot see a swap that
+// happens to keep the same length, and the high-water mark belongs to the old
+// course, so both are dropped explicitly.
+watch(courseCode, () => {
+  modeSelectionMaxPhraseLength = 0
+  modeSelectionMemo.clear()
+})
+
+/** Has this learner ever expressed a mode preference — on the learner row
+ *  (cross-device) or on this device? An explicit choice outranks any default,
+ *  forever, so this gates the new-learner default below. */
+const hasChosenLearningMode = (): boolean => {
+  const stored = auth?.learner?.value?.preferences?.learning_mode
+  if (stored === 'easy' || stored === 'fast') return true
+  try {
+    const local = localStorage.getItem(LEARNING_MODE_KEY)
+    return local === 'easy' || local === 'fast'
+  } catch { return false }
+}
+
+/**
+ * NEW-LEARNER DEFAULT (Aran's ruling via Tom, 2026-08-06).
+ *
+ * A learner with NO play history starts on EASY. A learner who is already
+ * playing keeps TODAY'S behaviour — Fast — so nobody's course silently slows
+ * down underneath them mid-flight. That asymmetry is the whole point, and it
+ * is why the module default above cannot simply become 'easy': it has to stay
+ * Fast so every pre-existing learner, and every path that reads the mode
+ * before progress resolves, lands on the unchanged experience.
+ *
+ * Gated on progressHistoryResolved: before the saved-progress read returns,
+ * "no history" and "not loaded yet" are both null, and acting on the second
+ * would put an existing learner on Easy — exactly what the ruling forbids.
+ *
+ * Tom has flagged this default as his to overturn. It is built as ruled.
+ */
+let newLearnerDefaultApplied = false
+
+const applyNewLearnerModeDefault = () => {
+  if (newLearnerDefaultApplied) return
+  if (!progressHistoryResolved.value) return
+  newLearnerDefaultApplied = true
+  const mode = resolveNewLearnerMode({
+    progressResolved: true,
+    hasChosenMode: hasChosenLearningMode(),
+    highestCompletedLegoId: highestCompletedLegoId.value,
+    lastCompletedLegoId: lastCompletedLegoIdRef.value,
+    highestCompletedRoundIndex: highestCompletedRoundIndex.value,
+    completedRounds: completedRounds.value,
+  })
+  if (!mode) return
+  learningMode.value = mode
+  // Persisted to both stores so the learner is never re-defaulted once they DO
+  // have history, and a second device reads the same mode.
+  //
+  // Deliberately NOT routed through setLearningMode(): that logs a manual pace
+  // judgement to behaviouralEvidence ("this is too fast"), and a silent default
+  // is not a judgement — feeding it in would poison the signal with an event
+  // the learner never made. It also keeps this clear of the temporal dead zone,
+  // since setLearningMode is declared further down and this watcher can fire
+  // synchronously during setup for a guest.
+  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked — session default still applies */ }
+  auth?.updatePreferences?.({ learning_mode: mode })
+}
+
+watch(progressHistoryResolved, () => applyNewLearnerModeDefault(), { immediate: true })
 
 // ============================================
 // RUNTIME PAUSE / SPEED OVERRIDES
-// Both Normal and Turbo modes compute pause from the active ModeConfig
-// (algorithm_config table, admin-tweakable). Selection switches on
-// turboActive at runtime — toggling Turbo takes effect on the very next
-// pause / voice phase, no script regen, no round-boundary wait.
+// Both modes compute pause from their own ModeConfig (algorithm_config
+// table, admin-tweakable). Selection switches on `learningMode` at runtime
+// — flipping the toggle takes effect on the very next pause / voice phase,
+// no script regen, no round-boundary wait. The reps/phrase-length half of
+// Easy is script-shape and lands on the next script build instead.
 // Listening/pod cycles keep their explicit zero-pause regardless.
 // ============================================
-const TURBO_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
+const MODE_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
 
 simplePlayer.setRuntimeOverrides({
   getPauseDuration: (cycle) => {
     // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
     if (!cycle.pauseDuration) return cycle.pauseDuration
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
+    if (cycle.type && MODE_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
     // Recompute pause from raw target durations using the active mode's config.
     // Single source of truth — same helper drives the visible countdown.
-    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    // Effective speed = what the voice ACTUALLY plays at. Normal: the baked
-    // belt ramp. Turbo: native 1.0× — drops the belt ramp but never exceeds
-    // 1.0×. Pause is sized off actual play time = raw / speed.
-    const spd = turboActive.value ? Math.min(turboConfig.value.playback_speed, 1.0) : (cycle.playbackSpeed ?? 1)
+    const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+    // 4th arg is the BELT PROXY for the pause curve (computePauseDuration:
+    // beltProgress 0.8→White … 1.0→Green), not a speed knob.
+    //
+    // Fast reads the baked belt speed, so its pause tapers across belts. Easy
+    // deliberately pins 1.0 — i.e. it takes the Green-belt taper at every belt.
+    // That is EXACTLY today's Easy timing and it stays that way: Tom's ruling
+    // (2026-08-07) was that Easy's pauses and repetitions "are already correct
+    // and must NOT be touched"; only the target-voice SPEED override was the
+    // bug, and that has been removed (see the note where the overrides object
+    // ends). Easy's own belt knobs (pause_belt_boot 0.8 / _assembly 0.95) were
+    // tuned against this pinned reading, so switching Easy to the baked speed
+    // here would silently lengthen every early-belt Easy pause. If Easy's pause
+    // curve is ever retuned, revisit this line at the same time.
+    const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle.playbackSpeed ?? 1)
     const base = computePauseDuration(
       cycle.target1DurationMs ?? 0,
       cycle.target2DurationMs ?? 0,
@@ -9353,31 +9968,85 @@ simplePlayer.setRuntimeOverrides({
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
-  getPlaybackSpeedMultiplier: (cycle) => {
-    if (!turboActive.value) return 1.0
-    // Don't double up on listening/pod cycles that already have a
-    // purposeful 2.0× speed — turbo on top would give 2.5×.
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
-    // Turbo plays at native 1.0× regardless of belt — it drops the beginner
-    // belt ramp but NEVER speeds the voice past 1.0×. The multiplier is
-    // relative to the baked belt-ramp speed, so cancel it: baked × (target /
-    // baked) = target, with target = min(turbo speed, 1.0).
-    const target = Math.min(turboConfig.value.playback_speed, 1.0)
-    const baked = cycle.playbackSpeed ?? 1.0
-    return target / baked
+  /**
+   * How many times this cycle sounds under the mode that is active RIGHT NOW.
+   *
+   * Read fresh at the END of every cycle, never snapshotted at round start —
+   * Tom's ruling after reproducing the mid-round flip on 2026-08-09: "the
+   * round walker must read current mode live per-step". Both directions land
+   * on the very next step: flip to Fast and the phrase in flight does not
+   * repeat; flip to Easy and it does, without waiting for the round boundary.
+   *
+   * Same two settings the generators use, off the same algorithm_config rows
+   * (`phraseRepeatCount`, `repeatedCycleTypes`) — so there is one definition
+   * of "Easy doubles the practice", read at build time by the script and at
+   * play time by the walker. Fast's count of 1 makes this a no-op.
+   *
+   * Never repeated: the intro and the bare LEGO debut (not in the type list —
+   * "of course not - the intro LEGO and not the LEGO alone"), and any
+   * single-audio cycle, which is the drained seed-phase sandwich, pods,
+   * listening and bookends — that sandwich is already several hearings of one
+   * sentence, so a repeat would breach the never-more-than-twice rule.
+   */
+  getCycleRepeatCount: (cycle) => {
+    if (cycle?.singleAudio) return 1
+    if (cycle?.type && MODE_BYPASS_TYPES.has(cycle.type)) return 1
+    const { count, types } = currentRepeatConfig()
+    if (count <= 1) return 1
+    return types.has(cycle?.type ?? '') ? count : 1
   },
+  getPostVoice2GapMs: (cycle) => {
+    // Easy holds a beat of silence after voice2 before the next cycle starts,
+    // "to stop the next cycle just coming in and taking over" (Tom,
+    // 2026-08-07) — and, since voice2 is the phase with the target text up,
+    // the text stays visible for that beat too. Fast is untouched (its config
+    // holds 0), and intro/listening/pod/bookend cycles keep their own baked
+    // linger rather than gaining a mode gap on top.
+    if (cycle.type && MODE_BYPASS_TYPES.has(cycle.type)) return 0
+    const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
+    const gap = cfg.post_voice2_gap_ms
+    return typeof gap === 'number' && Number.isFinite(gap) && gap > 0 ? gap : 0
+  },
+  // NO mode speed override — deliberately absent (Tom's ruling, 2026-08-07).
+  //
+  // Easy used to cancel the baked belt ramp here and play the target voice at a
+  // flat 1.0×, which meant a White-belt beginner on EASY heard speech FASTER
+  // than the same beginner on FAST (0.8×) — backwards from what the names
+  // promise. Tom: "Easy should follow the exact speed pattern on-ramps for the
+  // target language as Fast — but just with bigger pauses, more repetitions and
+  // so on as they currently are."
+  //
+  // So both modes now read the ONE baked speed (`cycle.playbackSpeed`, from
+  // `computeCycleSpeed` / `computeListeningSpeed`). Do not reintroduce a mode
+  // multiplier: a second speed curve is exactly the bug this area has already
+  // paid for twice. The only Easy/Fast differences are pause length, repetition
+  // count and phrase-length cap.
   shouldSkipCycle: (cycle) => {
     // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
-    // says to skip this round (mirrors turboOmit exactly, computed live at
-    // the round boundary instead of at script-gen time — see
+    // says to skip this round, computed live at the round boundary — see
     // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
     // no-op unless the engine is enabled AND applying.
     if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
 
-    // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
-    // alternate-fib spaced rep. Tagging happens at script generation;
-    // this just gates on the live Turbo flag.
-    if (turboActive.value && cycle.turboOmit === true) return true
+    // REPETITION BELONGS TO THE WALKER (Tom, 2026-08-09). Nothing bakes `_x2`
+    // copies any more — the builders take MODE_NEUTRAL_REPEATS and the walker
+    // decides live, per step, how many times a cycle sounds
+    // (getCycleRepeatCount above). This drop stays for the scripts ALREADY in
+    // people's caches, which were written while the generators still baked
+    // them: keeping those would compound with the live repeat into four plays,
+    // and they carry the mode that was active when the script was BUILT, which
+    // is exactly the stale snapshot a learner hears as "Fast is still
+    // doubling". Harmless on a neutral script — there is nothing to match.
+    if (isRepeatCopyCycle(cycle)) return true
+
+    // WHICH CYCLES THIS MODE PLAYS — live, per step (Tom's architecture call,
+    // 2026-08-09: "the instructions for WHICH cycles get selected/played …
+    // belongs in the player logic, not the cached script data"). The queue is
+    // the generous, mode-neutral set; Easy and Fast are two selections over it.
+    // Memoised per round because the answer is pure, and the memo is dropped
+    // the instant the mode moves — so a toggle re-decides the round in flight
+    // before its next step, with no rebuild and no reload.
+    if (modeSelectsCycleOut(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
@@ -9392,11 +10061,13 @@ simplePlayer.setRuntimeOverrides({
     // warmedUpAudioUrls set short-circuits to "don't skip" so we
     // don't accidentally drop everything on a fresh enrollment.
     if (currentMode.value === 'infplay' && warmedUpAudioUrls.value.size > 0) {
-      const known = (cycle as any)?.known?.audioUrl
-      const v1 = (cycle as any)?.target?.voice1Url
-      const v2 = (cycle as any)?.target?.voice2Url
-      const cached = (url: string | undefined) => !url || warmedUpAudioUrls.value.has(url)
-      if (!cached(known) || !cached(v1) || !cached(v2)) {
+      // Same fail-closed rule as the offline gate, over the warm-up set rather
+      // than the persistent cache: a BLANK url is silence, not "nothing to
+      // check". requiredClipUrls keeps deliberately-single-audio cycles honest,
+      // so only genuinely missing clips are skipped.
+      const required = requiredClipUrls(cycle as any)
+      const warmed = (url?: string | null) => !!url && warmedUpAudioUrls.value.has(url)
+      if (required.length === 0 || !required.every(warmed)) {
         return true
       }
     }
@@ -9408,10 +10079,11 @@ simplePlayer.setRuntimeOverrides({
     // degrades to "play whatever IS cached" and never freezes. Tom 2026-05-25:
     // never NOT play something because it can't find the exact next clip.
     if (offlinePlaybackActive()) {
-      const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-      const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
-      const c = cycle as any
-      if (!cachedId(c?.known?.audioUrl) || !cachedId(c?.target?.voice1Url) || !cachedId(c?.target?.voice2Url)) {
+      // FAILS CLOSED (playback/offlinePlayable.ts). The old inline gate answered
+      // "cached" for a BLANK url, so an audio-less intro — cycle 0 of the round a
+      // resume lands on — was the one cycle guaranteed to survive the filter, and
+      // played four phases of silence with its text on screen. Tom's first phrase.
+      if (!isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))) {
         return true
       }
     }
@@ -9543,8 +10215,6 @@ const listeningCeilingSeed = computed<number | null>(() => {
 // Session controls" — no separate UI, no separate engine. The paid
 // "download for offline" feature covers the deliberate no-signal case.
 
-// Mode explanation popups
-const showTurboPopup = ref(false)
 
 // Belt skip feedback state (showBeltModal merged into showProgressModal above)
 const isSkippingBelt = ref(false)
@@ -9986,41 +10656,48 @@ const exitAllModes = () => {
   handlePause()
 }
 
-// Show turbo explanation popup (first time in session) or toggle directly
-const handleTurboClick = () => {
-  if (turboActive.value) {
-    // Already on - just toggle off
-    toggleTurbo()
-  } else if (turboPopupShownThisSession.value) {
-    // Popup already shown this session - just toggle on directly
-    toggleTurbo()
-  } else {
-    // First time this session - show explanation popup
-    showTurboPopup.value = true
-  }
+/**
+ * Switch learning mode.
+ *
+ * EVERYTHING LANDS ON THE NEXT STEP. There is no longer a split between what
+ * takes effect now and what waits for a rebuild, because a mode is no longer
+ * anything the script knows about.
+ *
+ * Tom's architecture call, 2026-08-09, after two attempts had put the fix in
+ * the wrong layer: "the instructions for WHICH cycles get selected/played and
+ * HOW MANY TIMES belongs in the player logic, not the cached script data.
+ * Speed and pause-length are already correctly read live by the player (this
+ * part works)." So the mode now works the way speed and pause already did:
+ *   • pause / thinking time and playback speed — runtime overrides, read fresh
+ *     at every phase (unchanged, and the proof the pattern works);
+ *   • HOW MANY TIMES a cycle sounds — `getCycleRepeatCount`, asked at the
+ *     moment a cycle ends, so Easy→Fast drops the second play of the phrase in
+ *     flight and Fast→Easy grants it;
+ *   • WHICH cycles play — `shouldSkipCycle`, which consults the per-round
+ *     selection computed by playback/modeCycleSelection.ts. The memo is
+ *     dropped on every mode change, so the walker re-decides the current round
+ *     before its very next step.
+ *
+ * The script itself is generated mode-neutral and generous: one walk, both
+ * modes, cached and never invalidated by a toggle. That is what makes all
+ * three of the above possible without a query, a rebuild or a reload.
+ */
+const setLearningMode = (mode: LearningMode) => {
+  if (learningMode.value === mode) return
+  learningMode.value = mode
+  modeSelectionMemo.clear()
+  // Signed-out learners only have localStorage; signed-in learners get both
+  // so a fresh device still reads the right mode before auth resolves.
+  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked */ }
+  auth?.updatePreferences?.({ learning_mode: mode })
+  // Manual pace control — a no-mic behavioural signal, exactly as the Turbo
+  // toggle was: easy = "this is too fast", fast = "I'm comfortable".
+  logEvent('learning_mode_toggle', { mode })
+  behaviouralEvidence.onPlayerEvent('learning_mode_toggle', { mode }, null)
 }
 
-// Confirm and enable turbo mode
-const confirmTurbo = () => {
-  showTurboPopup.value = false
-  turboPopupShownThisSession.value = true  // Don't show popup again this session
-  turboActive.value = true
-  logEvent('turbo_toggle', { enabled: true, firstTime: true })
-  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: true }, null)
-}
-
-// Close turbo popup without enabling
-const closeTurboPopup = () => {
-  showTurboPopup.value = false
-  turboPopupShownThisSession.value = true  // They've seen it, don't show again
-}
-
-const toggleTurbo = () => {
-  turboActive.value = !turboActive.value
-  // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
-  // off = backing off. A no-mic behavioural signal.
-  logEvent('turbo_toggle', { enabled: turboActive.value })
-  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: turboActive.value }, null)
+const toggleLearningMode = () => {
+  setLearningMode(isEasyMode.value ? 'fast' : 'easy')
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
@@ -10170,8 +10847,23 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
   return true
 }
 
+// Offline PLAYBACK engages on three signals, and the deliberate toggle is only
+// the first of them:
+//   1. offlineActive — the learner chose it (or a completed download set it).
+//   2. !isOnline     — the browser admits it is offline (airplane mode).
+//   3. isNetworkPresumedDown() — we OBSERVED the critical path stalling.
+//
+// (3) is the weak-signal case, and it is the one Tom's 2026-08-15 ruling was
+// actually about: `navigator.onLine` reports TRUE on a connection so weak that
+// nothing completes, so (2) alone left a learner streaming into a hang with a
+// full cache on the device. The behavioural distinction between deliberate
+// offline and accidental offline is retired here — a learner who forgot to
+// flip the toggle now gets exactly what one who remembered gets.
+//
+// The toggle survives as INTENT (don't spend my data on background downloads,
+// and the UI copy), not as playback permission. The lease lock still governs.
 const offlinePlaybackActive = (): boolean =>
-  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+  (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
@@ -10186,8 +10878,6 @@ const offlinePlaybackActive = (): boolean =>
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
   if (!offlinePlaybackActive()) return new Set()
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const audioCached = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -10199,8 +10889,11 @@ const offlineUnavailableBeltNames = computed<Set<string>>(() => {
     const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
     const round = targetLegoId ? rounds.find((r: any) => r?.legoId === targetLegoId) : null
     const cycles = (round as any)?.cycles || []
+    // Same fail-closed gate the engine uses, so a pill reads available exactly
+    // when landing there would actually produce sound — a blank-url cycle no
+    // longer makes a belt look reachable and then hand the learner silence.
     const hasPlayableCycle = cycles.some((c: any) =>
-      audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (!hasPlayableCycle) names.add(belt.name)
   }
   return names
@@ -10797,6 +11490,75 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
   }, OFFLINE_BG_RETRY_DELAYS_MS[attempt])
 }
 
+/**
+ * UNEXPECTED OFFLINE STEP 1: KEEP GOING FORWARD. Tom's ruling, 2026-08-15.
+ *
+ * There are THREE states and they are not the same thing:
+ *
+ *   1. INFINITE PLAY PROPER — the course is COMPLETED, no more LEGOs exist in
+ *      the DB. That is the ONLY completion trigger.
+ *   2. OFFLINE MODE — a deliberate download-ahead. Progresses the course
+ *      normally and CAN load new LEGOs; that is the entire point of it.
+ *   3. UNEXPECTED OFFLINE — weak signal, airplane mode. PLAY WHAT YOU HAVE:
+ *      keep going FORWARD through the normal script, loading new items from
+ *      the cache — which will almost certainly include some NEW LEGOs, since
+ *      the cache pre-fills ahead of the playhead — until nothing new can be
+ *      loaded, and only THEN recycle.
+ *
+ * Neither offline state is a completion trigger, and neither changes the belt
+ * the learner has reached.
+ *
+ * This is step 3's forward half, and it has to exist because the offline
+ * bootstrap path serves only a few rounds: the pre-tail watcher then fires
+ * almost immediately, and before this it went straight to recycling cached
+ * phrases — which looked to Tom like being dumped into infinite play three
+ * rounds into a resume, with the rest of his downloaded course sitting unread
+ * in IndexedDB.
+ *
+ * The cached script (useScriptCache, no TTL) holds the FULL generated round
+ * list, so forward material is simply the rounds the engine does not have yet.
+ * Rounds with nothing playable are skipped rather than ending the walk — a
+ * single audio-less LEGO mid-course must not cap forward progress — and the
+ * engine's own fail-closed cycle gate still polices what plays within a round.
+ *
+ * Returns the number of rounds appended; 0 means there is genuinely no forward
+ * material left in the cache, which is the ONLY condition that licenses the
+ * recycle below.
+ */
+const appendForwardFromCacheOffline = async (): Promise<number> => {
+  if (!courseCode.value) return 0
+  try {
+    const cachedScript = await getCachedScript(courseCode.value)
+    const scriptRounds = (cachedScript?.rounds || []) as any[]
+    if (scriptRounds.length === 0) return 0
+
+    const playable = (r: any) => ((r?.cycles) || []).some((c: any) =>
+      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
+
+    // Forward = rounds the ENGINE does not already hold. Dedupe on the engine's
+    // own truth (hasRound), never on an index into the mirror — on the resume
+    // path the engine's queue is a WINDOW at the cursor, not the head of the
+    // script array.
+    const forward = scriptRounds.filter((r) => !simplePlayer.hasRound(r?.roundNumber) && playable(r))
+    if (forward.length === 0) return 0
+
+    simplePlayer.appendRounds(forward as any)
+    // Keep the mirror in lockstep with the engine queue, exactly as
+    // expandScript does — the end-of-rounds check reads cachedRounds.length,
+    // and letting it lag is the "looped but then just stopped" bug.
+    const merged = [...((cachedRounds.value || []) as any[])]
+    const seen = new Set(merged.map((r) => r?.roundNumber))
+    for (const r of forward) if (!seen.has(r?.roundNumber)) merged.push(r)
+    merged.sort((a, b) => (a?.roundNumber ?? 0) - (b?.roundNumber ?? 0))
+    cachedRounds.value = merged as any
+    console.warn(`[Offline] forward from cache — appended ${forward.length} rounds; still progressing the course`)
+    return forward.length
+  } catch (err) {
+    console.warn('[Offline] forward-from-cache failed:', err)
+    return 0
+  }
+}
+
 // Offline infinite play. With no network we can't generate new rounds, so
 // loop the already-cached content: take every fully-cached cycle from the
 // loaded rounds, regroup into fresh rounds with continuing round numbers
@@ -10807,32 +11569,124 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
 // INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
 // (BLD phrases only ever play in a LEGO's debut round) nor component/listening
 // cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
-// spaced_rep from the same usePhrases pool). Filtering to these also means the
-// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
-// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+// spaced_rep from the same usePhrases pool). Filtering to these means the
+// recycled rounds carry NO intro/debut/build, so isMainLoopRound is false.
+// That USED to make isInfPlayActive true and paint the belt the red ∞.
+// It no longer does, and must not: Tom's ruling 2026-08-15 is that OFFLINE
+// CHANGES WHAT PLAYS, NEVER WHERE YOU ARE. This function raises
+// offlineRecycleBeltHeld, which suppresses the round-shape inference — the
+// learner keeps their own belt colour and belt nav while these rounds play.
+// The red ∞ is now reserved for DELIBERATE entry (the ∞ activator,
+// enterInfPlay) and for INFINITE PLAY PROPER — the course actually finished,
+// no more LEGOs in the DB, which is the only completion trigger there is.
+// Running out of CACHED material never qualifies: enterInfPlayFromCache no
+// longer promotes to the formal mode either.
 const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
 
+// The offline infinite-play urn, held across appends so one without-replacement
+// pass spans them (see appendCachedLoopForOffline). Rebuilt whenever the
+// measured cache changes; dropped on teardown with the rest of this instance.
+let offlineUrn: ReturnType<typeof createOfflineUrn> | null = null
+let offlineUrnSignature = ''
+
+/**
+ * Offline INFINITE PLAY — Tom's ruling, 2026-08-15.
+ *
+ * Step 1 of the approved algorithm is MEASURE THE CACHE: inventory what is
+ * actually fetchable right now and treat THAT list as the session syllabus,
+ * never assuming coverage. That is what the `cachedId` filter below does, and
+ * it was already right — a cycle only enters the pool if all three of its
+ * clips are genuinely in the persistent cache.
+ *
+ * What changed is step 2. This used to shuffle whole ROUNDS uniformly, so the
+ * learner got chunks of the course in random order and every phrase came round
+ * exactly as often as every other. It now draws PHRASES from a weighted urn,
+ * sampled without replacement (`playback/offlineUrn.ts`): long clips and
+ * recently-introduced clips get more tickets, but every cached phrase keeps a
+ * floor of one, so a full pass covers the whole cached syllabus and the weights
+ * control only how often within it. Spaced repetition falls out of that
+ * structure — no learner model, no per-item state.
+ *
+ * Round CARDINALITY and round SIZES are deliberately preserved: the drawn
+ * phrases are dealt back into the same number of rounds, of the same lengths,
+ * as the cached material had. The urn changes what plays and how often, not
+ * the pacing of the session or anything downstream that counts rounds.
+ */
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
-  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
-  const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+  // ── Step 1: MEASURE THE CACHE. This inventory is the session syllabus, so
+  // the fail-closed gate matters most here: a blank-url cycle counted as
+  // "cached" would seed the urn with a phrase that can only ever be silence.
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
       INF_PLAY_USE_TYPES.has(c?.type)
-      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      && isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
-  for (let i = cachedOnly.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[cachedOnly[i], cachedOnly[j]] = [cachedOnly[j], cachedOnly[i]]
+
+  // ── Steps 2-4: weighted urn over the measured phrases.
+  // Duration = the target voices, which are the clips whose length actually
+  // makes a phrase hard. Position = the source round number, i.e. introduction
+  // order in the course — NOT clock time, per the ruling.
+  const byKey = new Map<string, any>()
+  const roundByKey = new Map<string, any>()
+  const candidates: UrnCandidate[] = []
+  for (const r of cachedOnly) {
+    for (const c of r.cycles) {
+      const key = c?.id ?? `${r.roundNumber}:${c?.known?.text ?? ''}:${c?.target?.text ?? ''}`
+      if (byKey.has(key)) continue
+      byKey.set(key, c)
+      roundByKey.set(key, r)
+      candidates.push({
+        key,
+        durationMs: (c?.target1DurationMs ?? 0) + (c?.target2DurationMs ?? 0),
+        position: r?.roundNumber ?? 0,
+      })
+    }
   }
+  if (candidates.length === 0) return 0
+
+  // The urn PERSISTS across appends, and that is load-bearing. Each append
+  // draws only as many phrases as the cached material has cycles, but a full
+  // urn pass is up to 4x that (one entry per ticket). A fresh urn per append
+  // would therefore only ever hand out the first quarter of each pass, and the
+  // without-replacement coverage guarantee — the whole reason for the urn —
+  // would be silently lost. Rebuild it only when the measured cache actually
+  // changes, which is what the signature detects.
+  const signature = `${candidates.length}:${candidates[0].key}:${candidates[candidates.length - 1].key}`
+  if (!offlineUrn || offlineUrnSignature !== signature) {
+    offlineUrn = createOfflineUrn(candidates)
+    offlineUrnSignature = signature
+    console.log(`[OfflineInfPlay] Measured cache: ${candidates.length} playable phrases; urn rebuilt.`)
+  }
+
+  // Deal into the SAME shape the cached material had — same number of rounds,
+  // same sizes — so nothing downstream that counts or paces rounds shifts.
+  const drawn = offlineUrn.take(cachedOnly.reduce((n, r) => n + r.cycles.length, 0))
+  if (drawn.length === 0) return 0
+
+  let cursor = 0
+  const shaped: any[] = []
+  for (const r of cachedOnly) {
+    const cycles: any[] = []
+    for (let i = 0; i < r.cycles.length && cursor < drawn.length; i++) {
+      cycles.push(byKey.get(drawn[cursor++]))
+    }
+    if (cycles.length === 0) continue
+    // Round metadata follows the first phrase actually in it, so the header
+    // never names a LEGO the round no longer contains.
+    const source = roundByKey.get(drawn[cursor - cycles.length]) ?? r
+    shaped.push({ ...source, cycles })
+  }
+  if (shaped.length === 0) return 0
+
   // Fresh round numbers above every existing one so appendRounds (dedupes by
   // roundNumber) doesn't drop them.
   let num = Math.max(0, ...(rounds.map((r) => r?.roundNumber ?? 0)))
-  const loopRounds = cachedOnly.map((r) => ({ ...r, roundNumber: ++num }))
+  const loopRounds = shaped.map((r) => ({ ...r, roundNumber: ++num }))
   simplePlayer.appendRounds(loopRounds as any)
   // CRITICAL: keep cachedRounds in lockstep with the engine queue, exactly as
   // expandScript does. The round-advance end-check (and currentRound) read
@@ -10840,6 +11694,26 @@ const appendCachedLoopForOffline = (): number => {
   // shows the summary even though the engine has more queued — the "looped
   // but then just stopped" bug.
   cachedRounds.value = [...rounds, ...loopRounds] as any
+  // Tell the learner why the material just started coming round again — once
+  // per session, dismissible, and it never touches playback (#595: play what
+  // you have, never gate). Raised HERE, at the single point where offline
+  // recycling actually engages, so every call site gets it for free and it
+  // rides the same offlinePlaybackActive() signal the playback path rides.
+  markOfflineInfPlayEngaged(offlinePlaybackActive())
+  // BELT HELD (Tom 2026-08-15). These rounds are infinite-play SHAPED, but the
+  // learner has not gone anywhere — so hold their own belt rather than letting
+  // it follow whichever LEGO the urn happens to draw. Anchor to their real
+  // cursor (highest LEGO played, the canonical position), which is what
+  // "stay at the current belt colour and belt nav" means. If the learner is
+  // ALREADY in formal INF PLAY, leave that alone — the red ∞ is correct there.
+  if (currentMode.value !== 'infplay') {
+    const cursorLegoId = highestCompletedLegoId.value ?? lastMainLoopLegoId.value
+    const cursorSeed = cursorLegoId ? getSeedFromLegoId(cursorLegoId) : null
+    // Null anchor → no write → the belt HOLDS its last value, which is still
+    // the right answer for a learner with no recorded cursor yet.
+    if (cursorSeed != null) beltFreezeSeed.value = cursorSeed
+    offlineRecycleBeltHeld.value = true
+  }
   return loopRounds.length
 }
 
@@ -10861,31 +11735,30 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
     return false
   }
   const firstNewIdx = simplePlayer.roundCount.value
+  // FORWARD FIRST, even here. A skip that lands past the loaded content offline
+  // has hit the edge of the CACHE, not the end of the course — the cached
+  // script usually still holds rounds the engine was never given.
+  const forward = await appendForwardFromCacheOffline()
+  if (forward > 0) {
+    simplePlayer.jumpToRound(firstNewIdx)
+    await persistCursorAtCurrentRound()
+    return true
+  }
   const looped = appendCachedLoopForOffline()
   if (looped <= 0) {
     console.warn('[LearningPlayer] Skip past content but no cached cycles to recycle — staying put')
     return false
   }
-  console.log(`[LearningPlayer] Skip past content — INF PLAY from ${looped} recycled cached rounds at index ${firstNewIdx}`)
-  // Flip the mode flag so back-belt-skip exits correctly and the next
-  // session resumes in INF PLAY rather than bouncing back to the start.
-  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-    try {
-      const finalLego = await getCourseFinalLego(courseCode.value)
-      await activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
-      currentMode.value = 'infplay'
-      if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
-    } catch (err) {
-      console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
-    }
-  }
-  // Freeze the belt at the course's final content (top reachable belt) so
-  // the display reads INF PLAY, not the empty belt we tried to skip to.
-  {
-    const fin = courseFinalLegoRef.value?.legoId
-    const finSeed = fin ? getSeedFromLegoId(fin) : null
-    if (finSeed != null) beltFreezeSeed.value = finSeed
-  }
+  // OFFLINE IS NOT A COMPLETION TRIGGER. Tom's ruling, 2026-08-15: infinite
+  // play PROPER means the course is finished — no more LEGOs in the DB — and
+  // that is the ONLY thing that may set the mode. Running out of CACHED
+  // material is a fact about this device's storage on this journey, not about
+  // the learner's progress, so this path no longer writes current_mode,
+  // no longer ratchets the cursor to the course's final LEGO, and no longer
+  // freezes the belt at the top belt. It keeps the belt HELD where the learner
+  // actually is (offlineRecycleBeltHeld, raised by the append above) and just
+  // plays what's cached until the network comes back.
+  console.log(`[LearningPlayer] Skip past cached content — recycling ${looped} cached rounds at index ${firstNewIdx}, belt held`)
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
   simplePlayer.jumpToRound(firstNewIdx)
@@ -11836,7 +12709,12 @@ onMounted(async () => {
   // competing with the boot/switch critical path for the network.
   if (courseCode.value && supabase?.value) {
     const learnerId = (auth as any)?.learnerId?.value || null
-    void playerReadySignal.then(() => contribution.fetch(courseCode.value, learnerId).catch(() => {}))
+    void playerReadySignal.then(() => contribution
+      .fetch(courseCode.value, learnerId)
+      .catch(() => {})
+      // Settled — win or lose. The belt pill stops flashing either way; it must
+      // never pulse forever because a fetch failed.
+      .then(() => { contributionSettled.value = true }))
   }
 
   // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
@@ -11846,6 +12724,14 @@ onMounted(async () => {
   // when offline (the lock decision). Cheap IndexedDB read; awaited so the
   // fast-path below sees the correct offlineLeaseLocked value.
   await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
+  // Hydrate the audio cache's in-memory id Set BEFORE anything consults the
+  // fail-closed offline gate. persistent.has() is a synchronous read of a Set
+  // that fills lazily; unhydrated it answers false for EVERYTHING, so every
+  // cycle with real audio would be judged uncached and skipped at exactly the
+  // moment a session starts. This is a local IndexedDB cursor walk, and it
+  // fails open — a cache that can't hydrate must not block boot.
+  await audioCache.ready().catch(() => {})
 
   // Restore the learner's explicit offline-mode selection BEFORE first play.
   // Once offline mode is chosen and the content downloaded, playback comes
@@ -11974,7 +12860,7 @@ onMounted(async () => {
   // ============================================
   const loadAllData = async () => {
     try {
-      // Load algorithm configs (Turbo Boost settings, etc.) - non-blocking
+      // Load algorithm configs (Easy/Fast mode settings, etc.) - non-blocking
       loadAlgorithmConfigs().catch(err => {
         console.warn('[LearningPlayer] Failed to load algorithm configs, using defaults:', err)
       })
@@ -12426,6 +13312,7 @@ onMounted(async () => {
                 map,
                 instantPlayback.isLegoComplete,
                 currentTargetSpeedConfig(),
+                MODE_NEUTRAL_REPEATS,
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -12528,6 +13415,7 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                   currentTargetSpeedConfig(),
+                  MODE_NEUTRAL_REPEATS,
                 )
                 // Guard: if the learner tapped ∞ while this main-loop
                 // prefetch was in flight, the queue is now the deterministic
@@ -13569,12 +14457,30 @@ onMounted(async () => {
   // warm, the head-miss path streams the first clip. warmAudioMs now reads ~0
   // (confirms it's off the critical path) — the cold-start budget drops by it.
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
-  void warmFirstKnownAudio()
+  const firstClipWarm = warmFirstKnownAudio(FIRST_CLIP_WARM_TIMEOUT_MS)
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   await goLoadingStageReady()
-  // Play is now available — release the ready-gated background work (the
-  // whole-course walk) so it can't have competed with the critical path.
-  resolvePlayerReady?.()
+  // RIGHT OF WAY FOR THE FIRST CLIP (Tom, 2026-08-08: "the whole point for a
+  // learner is speed to usability").
+  //
+  // The ready-gated background work — the whole-course script walk (a dozen
+  // paginated 1000-row queries), the contribution fetch, tier-3 — used to be
+  // released HERE, at the ready flip, on the reading that "the critical path"
+  // ended when the button lit up. Measured cold on Fast 3G, that reading is
+  // wrong: the learner taps the instant it lights up, and the one 68 KB clip
+  // they are waiting to hear then shares the link with the entire course walk.
+  // The clip took ~6 s to arrive when it needs ~0.4 s on its own.
+  //
+  // The critical path ends at the first SOUND, not at the first paint. So the
+  // background work now waits on the same warm-up the play button waits on.
+  // warmFirstKnownAudio is self-bounded (2 s race), so this can delay the
+  // background work by at most that — and on a fast connection by ~0.
+  void firstClipWarm
+    .catch(() => { /* a failed warm-up must never strand the learner */ })
+    .then(() => {
+      isFirstClipReady.value = true
+      resolvePlayerReady?.()
+    })
 
   // A background revalidation completed on a previous open → show the small
   // transient "Your course was updated" notice (invisible maintenance made
@@ -13986,12 +14892,13 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
         freshResult = await eagerScript.scriptPromise.value
       } else {
         console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
-        const tc = turboConfig.value
         freshResult = await generateSimpleScript(
           supabase.value, newCourseCode, 50,
           listeningConfig.value,
-          scriptShapeConfig.value,
-          { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+          scriptShapeForMode(learningMode.value),
+          1, // mode-neutral walk — see runGenerateScript
+          // Twin of the wrapper above — the walk is mode-neutral on both paths.
+          MODE_NEUTRAL_WALK_OPTIONS,
         )
       }
     } finally {
@@ -14008,8 +14915,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // Go ready immediately; warm the first known audio in the BACKGROUND (not
   // awaited — blocking ready on it added ~600ms). Head-miss streams the first
-  // clip if the learner taps before it's warm.
+  // clip if the learner taps before it's warm. The play button stays flashing
+  // until the clip lands, same per-control honesty as the cold boot above.
+  isFirstClipReady.value = false
   void warmFirstKnownAudio()
+    .catch(() => { /* never strand the learner on a failed warm-up */ })
+    .then(() => { isFirstClipReady.value = true })
   await goLoadingStageReady()
   isInitialized.value = true
   maybeShowCourseUpdatedNotice()
@@ -14135,6 +15046,9 @@ defineExpose({
   // the resting overlay instead of mirroring an event edge.
   isAudioPlaying,
   isAwakening,
+  // Per-control readiness: the play affordance waits on the first clip's bytes,
+  // not just on the lesson existing. PlayerContainer ANDs it with isAwakening.
+  isFirstClipReady,
   togglePlayback,
   handlePause,
   handleResume,
@@ -14158,11 +15072,18 @@ defineExpose({
   hasRomanizedText,
   isNativeScript,
   toggleScriptMode,
-  toggleTurbo,
-  turboActive,
+  toggleLearningMode,
+  setLearningMode,
+  learningMode,
+  isEasyMode,
   toggleOffline,
   offlineActive,
   sessionSeconds,
+  // Persist the in-flight telemetry deltas without stopping playback, so a
+  // surface that is about to READ them (the Library's activity tiles) can
+  // await the write first — the same trick handleBeltPillTap uses for the
+  // progress modal.
+  flushTelemetryDelta: learningSession.flushTelemetryDelta,
 })
 </script>
 
@@ -14383,6 +15304,35 @@ defineExpose({
     </div>
   </Transition>
 
+  <!-- Offline infinite-play notice. Tom 2026-08-15: "we need a message to let
+       the learner know". Fires once per session at the moment cached content
+       starts being recycled, and NEVER pauses audio — playback carries on
+       underneath, which is the whole point of "play what you have". Reuses the
+       paywall shell (centred modal, so no safe-area inset needed). -->
+  <Transition name="fade">
+    <div
+      v-if="offlineInfPlayNoticeVisible"
+      class="paywall-overlay"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.')"
+      @click.self="dismissOfflineInfPlayNotice"
+    >
+      <div class="paywall-card">
+        <!-- No heading: Tom's ruling is the message and nothing more. Inventing
+             a title would be the app being cleverer than the copy it was given. -->
+        <p class="paywall-subtitle">
+          {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
+        </p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
+            {{ t('player.offlinePracticeAck', 'Got it') }}<!-- acknowledge, never a gate -->
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
   <!-- Welcome Audio Overlay (with skip button) -->
   <Transition name="fade">
     <div v-if="isPlayingWelcome" class="welcome-overlay">
@@ -14415,6 +15365,7 @@ defineExpose({
       :phase="currentPhase"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+      :known-lang="props.course?.known_lang || courseCode?.split('_for_')[1]"
       :cycle-type="simplePlayer.currentCycle.value?.type"
       :show-romanization="showRomanization"
     />
@@ -14429,7 +15380,8 @@ defineExpose({
       v-if="playingPodLapAudio && currentPodTurn"
       :sentences="podScrollSentences"
       :active-index="currentPodTurn.activeIndex"
-      :reminder-top-inset="podReminderVisible ? 130 : 0"
+      :target-lang="courseTargetLang"
+      :known-lang="courseKnownLang"
     />
 
     <!-- ?podview=1 instant preview nav — jump to a different pod sentence
@@ -14441,28 +15393,15 @@ defineExpose({
       <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewNext" aria-label="Next pod sentence">Next ›</button>
     </div>
 
-    <!-- Pod listening reminder — ONE-SHOT transient, fades in as the pod lap
-         starts, holds ~4s, fades out. Sits in the top safe-area band that
-         PodTurnDisplay always keeps clear (reminderTopInset above widens
-         that band while this is visible), so it never competes with the
-         dialogue tiles at any dialogue length or screen size. The audio's
-         own spoken "now just listen for a while" intro carries the same
-         instruction, so once this fades the small pulsing dot below is the
-         only ongoing cue — never a persistent panel. -->
-    <Transition name="pod-reminder-fade">
-      <div
-        v-if="podReminderVisible && playingPodLapAudio"
-        class="pod-listening-reminder"
-        role="status"
-        aria-live="polite"
-      >
-        {{ passiveListeningHint }}
-      </div>
-    </Transition>
-
-    <!-- Ambient listening-mode cue — small, always-present while a pod lap
-         is playing, replacing the old persistent hint panel once it fades. -->
-    <div v-if="playingPodLapAudio && !podReminderVisible" class="pod-listening-ambient" aria-hidden="true">
+    <!-- Ambient listening cue — a small headphones mark in the top safe-area
+         band PodTurnDisplay always keeps clear. NOT an instruction surface:
+         the exercise goes straight in with the audio's own spoken "now just
+         listen for a while", and the screen stays free for the displayed text
+         (Tom, 2026-08-06, after Aran found the intro popup distracting). The
+         one-shot "just listen, like birdsong" transient that used to open a
+         lap is gone; its guidance lives in Settings → Tools → Listening mode
+         and in the phase hint outside pod laps. -->
+    <div v-if="playingPodLapAudio" class="pod-listening-ambient" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
         <path d="M12 3a7 7 0 0 0-7 7v5a2 2 0 0 0 2 2h1v-6H6v-1a6 6 0 0 1 12 0v1h-2v6h1a2 2 0 0 0 2-2v-5a7 7 0 0 0-7-7z"/>
       </svg>
@@ -14470,12 +15409,12 @@ defineExpose({
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node.
          Hidden for the WHOLE of any listening lap (L2 pod or L1 cup — both
-         run through playPodLap): during a lap the only permitted text
-         surface is PodTurnDisplay's teleprompter, plus the transient
-         pod-listening-reminder and the ambient dot (2026-07-23, product
-         owner report: the empty glass card rendered as a bare white pill on
-         top of the reminder banner, and the birdsong pedagogy line showed as
-         a THIRD stacked surface during the intro bookend). Layer-1 cups are
+         run through playPodLap): during a lap the only permitted surfaces
+         are PodTurnDisplay's teleprompter and the textless ambient mark
+         (2026-07-23, product owner report: the empty glass card rendered as
+         a bare white pill on top of the old reminder banner, and the
+         birdsong pedagogy line showed as a THIRD stacked surface during the
+         intro bookend — that banner is now gone). Layer-1 cups are
          audio-only by product rule, so they lose nothing either. v-show, not
          v-if — the ResizeObserver above binds to this element once at mount
          and must survive the lap. -->
@@ -14483,11 +15422,9 @@ defineExpose({
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
-        <!-- Inline learning hint label. Lap suppression now lives on the
-             hero-text-pane's own v-if (the whole pane is hidden while
-             playingPodLapAudio) — the pod-listening-reminder transient
-             (then the small ambient dot) owns that instruction for the
-             entire lap. -->
+        <!-- Inline learning hint label. Never shows during a pod lap — the
+             whole hero pane is hidden while playingPodLapAudio, and a lap
+             carries no on-screen instruction at all (2026-08-06). -->
         <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
@@ -14551,7 +15488,7 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">{{ displayedKnownText }}</p>
+              <p v-else class="hero-known" :lang="courseKnownLang">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
@@ -14588,18 +15525,23 @@ defineExpose({
             <rect x="17" y="13" width="5" height="8" rx="2"/>
           </svg>
         </button>
-        <div
+        <button
+          type="button"
           class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+          aria-label="Back to your turn to speak"
+          @click="jumpToCyclePhase('pause')"
         >
-          <div class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></div>
+          <!-- span, not div: a button's content model is phrasing content, and
+               the fill is absolutely positioned so display makes no difference. -->
+          <span class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <rect x="9" y="3" width="6" height="12" rx="3"/>
             <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
             <line x1="12" y1="19" x2="12" y2="22"/>
             <line x1="8" y1="22" x2="16" y2="22"/>
           </svg>
-        </div>
+        </button>
         <button
           type="button"
           class="phase-segment phase-segment--voice1"
@@ -14652,8 +15594,8 @@ defineExpose({
     <Transition name="tooltip-fade">
       <div v-if="hoveredNode" class="node-hover-tooltip">
         <div class="tooltip-header">
-          <span class="tooltip-target">{{ hoveredNode.targetText }}</span>
-          <span class="tooltip-known">{{ hoveredNode.knownText }}</span>
+          <span :lang="courseTargetLang" class="tooltip-target" :dir="dirFor(hoveredNode.targetText)">{{ hoveredNode.targetText }}</span>
+          <span :lang="courseKnownLang" class="tooltip-known" :dir="dirFor(hoveredNode.knownText)">{{ hoveredNode.knownText }}</span>
         </div>
         <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
           <div
@@ -14662,8 +15604,8 @@ defineExpose({
             class="tooltip-phrase"
             @click.stop="playHoverPhrase(phrase)"
           >
-            <span class="phrase-target">{{ phrase.target }}</span>
-            <span class="phrase-known">{{ phrase.known }}</span>
+            <span :lang="courseTargetLang" class="phrase-target" :dir="dirFor(phrase.target)">{{ phrase.target }}</span>
+            <span :lang="courseKnownLang" class="phrase-known" :dir="dirFor(phrase.known)">{{ phrase.known }}</span>
             <span class="phrase-play">▶</span>
           </div>
         </div>
@@ -14906,7 +15848,8 @@ defineExpose({
                in all states. -->
           <button
             class="belt-timer-unified"
-            :class="{ 'is-infplay': isInfPlayActive }"
+            :class="{ 'is-infplay': isInfPlayActive, 'is-loading': !isBeltScreenReady }"
+            :disabled="!isBeltScreenReady"
             :title="isInfPlayActive
               ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
               : (!nextBelt
@@ -14963,28 +15906,6 @@ defineExpose({
       </div>
     </header>
 
-    <!-- Turbo Mode Explanation Popup -->
-    <Transition name="fade">
-      <div v-if="showTurboPopup" class="mode-popup-overlay" @click.self="closeTurboPopup">
-        <div class="mode-popup">
-          <div class="mode-popup-icon mode-popup-icon--turbo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
-          </div>
-          <h3 class="mode-popup-title">Turbo Mode</h3>
-          <p class="mode-popup-desc">
-            Turbo mode reduces the pause time between phrases, giving you less thinking time.
-            It also gives you fewer repetitions.
-            It's great for building fluency once you're comfortable with the material.
-          </p>
-          <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeTurboPopup">Cancel</button>
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmTurbo">Enable Turbo</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
 
     <!-- Listening Mode Overlay -->
     <Transition name="listening-overlay">
@@ -14996,6 +15917,7 @@ defineExpose({
         :up-to-seed="listeningCeilingSeed"
         :learner-id="learnerId"
         :is-offline="offlinePlaybackActive()"
+        :learning-mode="learningMode"
         @close="handleCloseListening"
       />
     </Transition>
@@ -15008,6 +15930,7 @@ defineExpose({
         :belt-color="currentBelt.color"
         :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
         :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+        :known-lang="props.course?.known_lang || courseCode?.split('_for_')[1]"
         @close="handleClosePronunciation"
       />
     </Transition>
@@ -15034,7 +15957,7 @@ defineExpose({
           
           <div class="debug-section-title">Timing</div>
           <div class="debug-row"><span class="debug-label">Pause:</span> {{ Math.round(pauseDurationRef) }}ms</div>
-          <div class="debug-row"><span class="debug-label">Turbo:</span> {{ turboActive ? 'ON' : 'OFF' }}</div>
+          <div class="debug-row"><span class="debug-label">Mode:</span> {{ isEasyMode ? 'EASY' : 'FAST' }}</div>
           <div class="debug-row"><span class="debug-label">Adaptation:</span> {{ isAdaptationActive ? 'ON' : 'OFF' }}</div>
           
           <div class="debug-section-title" v-if="lastTimingResult?.speech_detected">Last Response</div>
@@ -15066,7 +15989,7 @@ defineExpose({
           :class="`bonus-${reward.bonusLevel}`"
           :style="{ '--x-offset': `${reward.xOffset}px` }"
         >
-          <span class="ink-word">{{ reward.word }}</span>
+          <span class="ink-word" :lang="targetLang">{{ reward.word }}</span>
           <!-- Points hidden - belt progression system is used instead -->
           <!-- <span class="ink-points">+{{ reward.points }}</span> -->
         </div>
@@ -15721,7 +16644,7 @@ defineExpose({
   /* Touch target: always 44px min for accessibility */
   --btn-touch-target: 44px;
 
-  /* Mode buttons (listening, turbo) */
+  /* Mode buttons (listening, easy/fast) */
   --mode-btn-size: 36px;
   --mode-btn-icon: 16px;
 
@@ -16293,6 +17216,21 @@ defineExpose({
   transform: scale(0.98);
 }
 
+/* The belt screen isn't loadable yet (its contribution fetch is still in
+   flight). Say so with the same pulse the play button uses while it loads —
+   Tom, 2026-08-08: "we should show this by the belt buttons still flashing
+   until they are ready to be used". Same keyframe values as BottomNav's
+   .center-btn.is-disabled so the two controls speak one visual language. */
+.belt-timer-unified.is-loading {
+  animation: belt-pill-pulse 1.8s ease-in-out infinite;
+  cursor: default;
+}
+
+@keyframes belt-pill-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.02); }
+}
+
 .belt-timer-unified .belt-bar-track {
   flex: 1;
   min-width: var(--belt-bar-width);
@@ -16749,13 +17687,23 @@ defineExpose({
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Target text is a bidi run of its own: without isolation a trailing
+   neutral (`!` `.` `,` — bidi class ON) resolves against this LTR page
+   instead of the Arabic run and lands on the wrong side. `dir` is bound
+   per-string in the template; this keeps the run from leaking. */
 .tooltip-target {
+  unicode-bidi: isolate;
   font-size: 14px;
   font-weight: 600;
   color: var(--belt-color, #fff);
 }
 
 .tooltip-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -16784,11 +17732,18 @@ defineExpose({
 }
 
 .phrase-target {
+  /* Isolate the target run from the English gloss beside it. */
+  unicode-bidi: isolate;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.8);
 }
 
 .phrase-known {
+  /* Known text is its own bidi run too: on eng_for_ara / eng_for_urd the
+     KNOWN side is Arabic/Urdu, so it has the same trailing-neutral bug.
+     dirFor returns 'ltr' for English, so English courses are unchanged. */
+  unicode-bidi: isolate;
+
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.7;
@@ -17060,8 +18015,14 @@ defineExpose({
   width: 5px;
   height: 100%;
   border-radius: 3px;
-  background: var(--belt-color, #b08968);
-  opacity: 0.5;
+  /* Belt-tinted but ALWAYS ink-anchored. A bare var(--belt-color) rendered the
+     whole card blank on the Mist white surface (2026-08-06, product owner, 8
+     min into French): white belt IS #ffffff, so five white bars and a white
+     caption sat invisibly on a white card — the "empty box" bug. Blending
+     towards the ink keeps the belt accent while guaranteeing contrast for every
+     belt, white and yellow included. Same idiom as .hero-target under Mist. */
+  background: color-mix(in srgb, var(--belt-color, #b08968) 55%, #2C2622);
+  opacity: 0.55;
   transform: scaleY(0.3);
   transform-origin: center;
   animation: wave-bar 1.5s ease-in-out infinite;
@@ -17072,8 +18033,8 @@ defineExpose({
 .interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
 .interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
 @keyframes wave-bar {
-  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
-  50%      { transform: scaleY(1);   opacity: 0.9; }
+  0%, 100% { transform: scaleY(0.3); opacity: 0.55; }
+  50%      { transform: scaleY(1);   opacity: 1; }
 }
 /* The whole box breathes softly while the guide speaks — "comes alive". */
 .hero-glass.is-interjection {
@@ -17088,7 +18049,9 @@ defineExpose({
   font-size: var(--text-base);
   font-weight: 400;
   letter-spacing: 0.02em;
-  color: var(--belt-color, #b08968);
+  /* Ink-anchored for the same reason as .wbar above — a white-belt learner got
+     white caption text on the white Mist card. */
+  color: color-mix(in srgb, var(--belt-color, #b08968) 35%, #2C2622);
   opacity: 0.9;
   animation: interjection-in 360ms ease-out;
 }
@@ -17105,7 +18068,15 @@ defineExpose({
 /* Uniform bold (Tom 2026-06-07): the whole known phrase reads at one bold
    weight — the old salient-substring emphasis + context fade is gone. */
 .hero-known {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  /* The known line is deliberately mono — but JetBrains Mono has no Greek, no
+     Cyrillic, no Devanagari and none of the Yoruba dot-belows, so for a course
+     whose known side is one of those it would fall to the OS per-character.
+     Reading the token rather than naming the family is what lets the
+     language-scoped rule reach it: --font-known-line is redefined inside a
+     coverage-language subtree (styles/design-tokens.css), and an inherited
+     custom property gets past this scoped rule's specificity in a way a
+     font-family declaration never could. */
+  font-family: var(--font-known-line);
   font-size: var(--known-text-size);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
@@ -17199,47 +18170,16 @@ defineExpose({
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* ============ POD LISTENING REMINDER (transient, once per pod lap) ============ */
+/* ============ AMBIENT LISTENING CUE (whole pod lap) ============ */
 /* Sits BELOW the full header (brand/title row + belt pill) — never inside
    its band, so it can't render behind/over the SaySomethingin wordmark or
    the DEV env badge (real bug, 2026-07-22: a flat 14px safe-area offset put
    it squarely under the title bar). z-index between PodTurnDisplay (3) and
-   the hero glass pane (10) so it never competes with either. */
-.pod-listening-reminder {
-  position: absolute;
-  top: calc(var(--header-total) + 12px);
-  left: max(1rem, env(safe-area-inset-left, 0px));
-  right: max(1rem, env(safe-area-inset-right, 0px));
-  z-index: 6;
-  margin: 0 auto;
-  max-width: 26rem;
-  padding: 0.6rem 1rem;
-  background: rgba(20, 20, 24, 0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 14px;
-  color: rgba(255, 255, 255, 0.92);
-  font-family: var(--font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.35;
-  text-align: center;
-  pointer-events: none;
-}
-
-.pod-reminder-fade-enter-active,
-.pod-reminder-fade-leave-active {
-  transition: opacity 0.4s ease;
-}
-.pod-reminder-fade-enter-from,
-.pod-reminder-fade-leave-to {
-  opacity: 0;
-}
-
-/* Small always-on cue while a pod lap plays, once the transient has faded —
-   tiny enough that it can never obscure the dialogue tiles. Same vertical
-   slot as .pod-listening-reminder above (below the full header) so there's
-   no visual jump when the transient hands off to this dot. */
+   the hero glass pane (10) so it never competes with either.
+   The transient instruction banner that used to share this slot is gone
+   (2026-08-06): a listening exercise goes straight in with the audio. */
+/* The only on-screen mark during a pod lap: tiny enough that it can never
+   obscure the dialogue tiles, and carrying no instruction text. */
 .pod-listening-ambient {
   position: absolute;
   top: calc(var(--header-total) + 14px);
@@ -17445,20 +18385,22 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0.9;
 }
 
-/* Active pause keeps its bg transparent — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * The fill IS the only red; icon stays dark for readability. */
+/* Active pause MUST NOT take the solid red bg the other segments take —
+ * the section bg and the growing fill would both be --ssi-red and the
+ * countdown would be invisible. So the segment's TRACK is the accent at
+ * 15% (the same soft red the hover state uses) and the fill is the only
+ * solid red; the icon stays dark for readability over the sweep.
+ *
+ * Why a track and not `transparent`: with a transparent track the growing
+ * fill is a solid red block starting at the segment's LEFT edge while the
+ * mic icon sits at its centre — so mid-countdown the pill reads as "an
+ * unlabelled red block between the headphones and the mic, with neither
+ * button highlighted", which is exactly how Tom read his 2026-08-09
+ * screenshot. The highlight was on the right segment all along; the SPEAK
+ * segment just didn't look like a segment. The soft track gives it its
+ * full 40% back, so the active phase is always legibly one of the four. */
 .phase-segment--pause.is-active {
-  background: transparent;
-  color: rgba(0, 0, 0, 0.7);
-}
-
-/* Active pause MUST override the red bg — otherwise the section bg and
- * the growing fill are both --ssi-red and the countdown is invisible.
- * Keep the section bg transparent so the fill IS the only red, and dim
- * the icon to dark for readability over the white→red sweep. */
-.phase-segment--pause.is-active {
-  background: transparent;
+  background: var(--accent-soft);
   color: rgba(0, 0, 0, 0.7);
 }
 
@@ -17853,7 +18795,7 @@ button.phase-segment:active:not(.is-active) {
   height: 28px;
 }
 
-.mode-popup-icon--turbo {
+.mode-popup-icon--easy {
   background: var(--gold-soft);
   color: var(--gold);
 }

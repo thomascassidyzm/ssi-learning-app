@@ -10,9 +10,9 @@ import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
-import { assertScope } from './rlsGuard'
+import { assertScope, assertScopeUnion } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
-import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
+import { myTaughtClassIds, teachersByClassId, teachersByClassIdResult, type ClassTeacherRef } from './classTeacherScope'
 
 export type { Belt }
 
@@ -132,6 +132,23 @@ const classStudents = ref<StudentProgress[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+// Per-panel load state for the class-detail page. `error` above means "the
+// class row itself could not be read" — the only genuinely page-wide failure.
+// Everything else on that page has its OWN data source and its own outcome,
+// so one slow view can no longer blank out unrelated panels (production,
+// 2026-08-07: class_student_progress timed out for a non-lead co-teacher and
+// took the teacher list and the student invite code down with it).
+const rosterError = ref<string | null>(null)
+const teachersError = ref<string | null>(null)
+// False until a classes read has actually RESOLVED cleanly. Same rule as
+// teachersLoaded below: an empty state is an assertion about the world, so
+// "No classes yet" may only be rendered once we have OBSERVED emptiness.
+const classesLoaded = ref(false)
+// False until a class_teachers read for the current class has actually
+// RESOLVED. "No teachers yet" may only be rendered when this is true and
+// teachersError is null — never assert an emptiness you did not observe.
+const teachersLoaded = ref(false)
+
 export function useClassesData() {
   const client = getSchoolsClient()
   const { currentUser: selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
@@ -169,6 +186,7 @@ export function useClassesData() {
 
     isLoading.value = true
     error.value = null
+    classesLoaded.value = false
 
     try {
       let query = client.from('classes').select(`
@@ -180,24 +198,27 @@ export function useClassesData() {
       // class MEMBERSHIP (the class_teachers relationship, lead + co-taught —
       // a teacher can legitimately teach at multiple schools); school/govt
       // admins are scoped by school_id.
-      let allowedSchoolIds: string[] = []
+      //
+      // The two are a UNION, never a choice. Someone can be a leader AND teach:
+      // the founding-admin work (2026-08-06) makes a school's founder staff of
+      // their own school, and a leader who covers a class holds a class tag
+      // like anyone else. Branching to whichever role was tested first showed
+      // them one half of their world and hid the other — and when the tested
+      // half was empty it short-circuited, which is how a school admin with no
+      // classes of her own was told her SCHOOL had none.
+      const allowedSchoolIds: string[] = []
       let allowedClassIds: string[] | null = null
 
-      if (isTeacher.value) {
-        // "My classes" = the teacher↔class relationship, not the legacy
-        // ownership column. See classTeacherScope.
+      // The classes I personally teach — for anyone who might teach, which
+      // includes school admins, not only the 'teacher' role.
+      if (isTeacher.value || isSchoolAdmin.value) {
         const myClassIds = await myTaughtClassIds(selectedUser.value.user_id)
-        if (myClassIds.length === 0) {
-          classes.value = []
-          isLoading.value = false
-          return
-        }
-        query = query.in('id', myClassIds)
-        allowedClassIds = myClassIds
-      } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
+        if (myClassIds.length > 0) allowedClassIds = myClassIds
+      }
+
+      if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
-        query = query.eq('school_id', activeSchoolId.value)
-        allowedSchoolIds = [activeSchoolId.value]
+        allowedSchoolIds.push(activeSchoolId.value)
       } else if (isGovtAdmin.value && (selectedUser.value.group_id || selectedUser.value.region_code)) {
         // Govt admin sees all classes in their group subtree's schools
         let schoolIds: string[] = []
@@ -212,43 +233,65 @@ export function useClassesData() {
           const { data: regionSchools } = await client.from('schools').select('id').eq('region_code', selectedUser.value.region_code!)
           schoolIds = (regionSchools || []).map(s => s.id)
         }
-        if (schoolIds.length > 0) {
-          query = query.in('school_id', schoolIds)
-          allowedSchoolIds = schoolIds
-        } else {
-          classes.value = []
-          isLoading.value = false
-          return
-        }
+        allowedSchoolIds.push(...schoolIds)
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // School admin sees all classes in school
-        query = query.eq('school_id', selectedUser.value.school_id)
-        allowedSchoolIds = [selectedUser.value.school_id]
+        allowedSchoolIds.push(selectedUser.value.school_id)
+      }
+
+      // A staff member with neither a school scope nor a class of their own
+      // has, genuinely, nothing to show. Resolve to empty rather than firing
+      // an UNSCOPED select — which under RLS would return whatever the
+      // policies happen to allow.
+      const scoped = allowedSchoolIds.length > 0 || (allowedClassIds?.length ?? 0) > 0
+      if (!scoped && (isTeacher.value || isSchoolAdmin.value || isGovtAdmin.value)) {
+        classes.value = []
+        classesLoaded.value = true
+        isLoading.value = false
+        return
+      }
+
+      // The union, expressed as one query: every class in a school I lead,
+      // PLUS every class I personally teach (which may sit in another school).
+      if (allowedSchoolIds.length > 0 && allowedClassIds) {
+        query = query.or(`school_id.in.(${allowedSchoolIds.join(',')}),id.in.(${allowedClassIds.join(',')})`)
+      } else if (allowedSchoolIds.length > 0) {
+        query = query.in('school_id', allowedSchoolIds)
+      } else if (allowedClassIds) {
+        query = query.in('id', allowedClassIds)
       }
 
       query = query.eq('is_active', true).order('class_name')
 
       const { data, error: fetchError } = await query
 
-      if (fetchError) throw fetchError
+      // Report the DB's OWN reason. PostgREST errors are plain objects, not
+      // Error instances, so the generic catch below flattens them to the
+      // useless "Failed to fetch classes" — the same trap fetchClassDetail
+      // already dodges. This matters: when the leader's Classes tab came back
+      // empty on 2026-08-07 it took a live DB session to learn why, because
+      // the client had nothing to say. A silent RLS filter still yields no
+      // error at all (that is the policy layer, fixed in 20260807c/d), but a
+      // GRANT-layer denial says "permission denied" and must reach the screen.
+      if (fetchError) {
+        error.value = fetchError.message || 'Failed to fetch classes'
+        console.error('Classes fetch error:', fetchError)
+        return
+      }
 
       // Client-side RLS tripwire: returned rows must match the caller's
-      // declared scope (school_id for admins, teacher_user_id for teachers).
-      // In production we silently filter + log [RLS_VIOLATION]; in dev/test
-      // we throw. Catches accidental query changes and RLS regressions.
-      let safeData: typeof data | [] = data || []
-      if (allowedSchoolIds.length > 0) {
-        safeData = assertScope(safeData, 'school_id', allowedSchoolIds, {
-          table: 'classes',
-          caller: 'useClassesData.fetchClasses',
-        })
-      }
-      if (allowedClassIds) {
-        safeData = assertScope(safeData, 'id', allowedClassIds, {
-          table: 'classes',
-          caller: 'useClassesData.fetchClasses (teacher membership)',
-        })
-      }
+      // declared scope. The scope is the same UNION the query asked for —
+      // a row is in scope if it is in a school I lead OR is a class I teach —
+      // so the guard stays live for a leader-who-also-teaches instead of
+      // being switched off. In production we filter + log [RLS_VIOLATION];
+      // in dev/test we throw.
+      const safeData = assertScopeUnion(data || [], [
+        ...(allowedSchoolIds.length > 0 ? [{ key: 'school_id' as const, allowed: allowedSchoolIds }] : []),
+        ...(allowedClassIds ? [{ key: 'id' as const, allowed: allowedClassIds }] : []),
+      ], {
+        table: 'classes',
+        caller: 'useClassesData.fetchClasses',
+      })
 
       // Get student counts per class from class_student_progress view
       const classIds = safeData.map(c => c.id)
@@ -339,6 +382,9 @@ export function useClassesData() {
       } else {
         classes.value = []
       }
+      // Reached only on a clean read: emptiness here was OBSERVED, so the
+      // first-run empty state is now allowed to speak.
+      classesLoaded.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch classes'
       console.error('Classes fetch error:', err)
@@ -369,30 +415,49 @@ export function useClassesData() {
 
         currentClass.value = { ...cls, student_count: classStudentList.length }
       }
+      teachersLoaded.value = true
+      teachersError.value = null
+      rosterError.value = null
       return
     }
 
     isLoading.value = true
     error.value = null
+    rosterError.value = null
+    teachersError.value = null
+    teachersLoaded.value = false
 
     try {
-      // Fetch class info
+      // Fetch class info. This one IS all-or-nothing: without the class row
+      // there is no name, no course and no join code to render.
       const { data: classData, error: classError } = await client
         .from('classes')
         .select('*')
         .eq('id', classId)
         .single()
 
-      if (classError) throw classError
+      if (classError) {
+        // Report the DB's own reason — PostgREST errors are plain objects, so
+        // the generic catch below would flatten them to "Failed to fetch class
+        // detail" and tell the teacher nothing.
+        error.value = classError.message || 'Failed to fetch class detail'
+        console.error('Class detail fetch error:', classError)
+        return
+      }
 
-      // Fetch student progress for this class
+      // Fetch student progress for this class. Its own panel, its own outcome:
+      // this view can time out (57014) under a non-lead co-teacher's RLS plan,
+      // and when it does the roster says so while the rest of the page lives.
       const { data: progressData, error: progressError } = await client
         .from('class_student_progress')
         .select('*')
         .eq('class_id', classId)
         .order('student_name')
 
-      if (progressError) throw progressError
+      if (progressError) {
+        rosterError.value = progressError.message || 'Failed to fetch the roster'
+        console.error('Class roster fetch error:', progressError)
+      }
 
       const students = (progressData || []).map(p => ({
         student_user_id: p.student_user_id,
@@ -419,11 +484,18 @@ export function useClassesData() {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
       sevenDaysAgo.setHours(0, 0, 0, 0)
-      const { data: sessionRows } = await client
-        .from('class_sessions')
-        .select('started_at, cycles_completed')
-        .eq('class_id', classId)
-        .gte('started_at', sevenDaysAgo.toISOString())
+      // Sparkline is decoration — a failure here dims one chart, nothing else.
+      let sessionRows: Array<{ started_at: string | null; cycles_completed: number | null }> | null = null
+      try {
+        const res = await client
+          .from('class_sessions')
+          .select('started_at, cycles_completed')
+          .eq('class_id', classId)
+          .gte('started_at', sevenDaysAgo.toISOString())
+        sessionRows = res.data
+      } catch (err) {
+        console.error('Class sparkline fetch error:', err)
+      }
 
       const days = last7Days()
       const dayIndex = new Map(days.map((d, i) => [d, i]))
@@ -438,8 +510,13 @@ export function useClassesData() {
       const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
-      // Active teacher↔class relationships for this class (lead + co-taught)
-      const detailTeachers = (await teachersByClassId([classId])).get(classId) ?? []
+      // Active teacher↔class relationships for this class (lead + co-taught).
+      // Its own panel, its own outcome — and a FAILED read is reported, never
+      // rendered as "no teachers are linked to this class yet".
+      const teacherRead = await teachersByClassIdResult([classId])
+      const detailTeachers = teacherRead.map.get(classId) ?? []
+      teachersError.value = teacherRead.error
+      teachersLoaded.value = teacherRead.error === null
 
       currentClass.value = {
         id: classData.id,
@@ -959,6 +1036,10 @@ export function useClassesData() {
     classStudents,
     isLoading,
     error,
+    rosterError,
+    teachersError,
+    teachersLoaded,
+    classesLoaded,
 
     // Computed
     totalStudentsInClasses,

@@ -23,7 +23,10 @@ import DiscoveryFeed from './DiscoveryFeed.vue'
           What Claude surfaced — the proactive read of what moved this week, what's
           anomalous, and what's worth your eye. Each finding carries its interpretation
           and a graded, owned action. Drive the data yourself on the
-          <router-link to="/admin/stats" class="inline-link">Stats</router-link> boards.
+          <router-link to="/admin/stats" class="inline-link">Stats</router-link> boards —
+          including
+          <router-link to="/admin/stats?board=vad" class="inline-link">Voice &amp; pause</router-link>,
+          the VAD / prosody read by class and school.
         </p>
       </div>
     </header>

@@ -416,7 +416,7 @@ async function refreshDemo(): Promise<void> {
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(data.noop
       ? 'Nothing to refresh — no demo learners below this node yet.'
-      : `Fresh activity for ${data.learnersTouched} learners — ${data.sessionsWritten} practice sessions.`)
+      : `Fresh activity for ${data.learnersTouched} learners — ${data.sessionsWritten} practice sessions, ${data.speakingRowsWritten ?? 0} daily rollups.`)
     emit('changed')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to refresh demo activity'

@@ -7,7 +7,7 @@
  *
  * Pause duration: see computePauseDuration.ts — single helper driven by the
  * admin-controlled ModeConfig (algorithm_config table). The baked value below
- * uses DEFAULT_NORMAL as a fallback; LearningPlayer's runtime override
+ * uses DEFAULT_FAST as a fallback; LearningPlayer's runtime override
  * recomputes from the live config so admin tweaks affect both the visible
  * countdown and the actual setTimeout in lockstep.
  */
@@ -15,8 +15,9 @@
 import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
 import { computePauseDuration } from '../playback/computePauseDuration'
-import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
+import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
+import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -89,9 +90,10 @@ export function beltSpeed(seedNumber: number): number {
  * instant-playback cutover until 2026-08-04, and every learner on the new
  * path silently played at a flat 1.0×.
  *
- * The value is BAKED onto the cycle as `cycle.playbackSpeed`. Two runtime
- * consumers depend on it being the truth of what the voice plays at:
- *   • Turbo's `getPlaybackSpeedMultiplier` cancels it (target / baked).
+ * The value is BAKED onto the cycle as `cycle.playbackSpeed`, and since
+ * 2026-08-07 it is the WHOLE truth of what the target voice plays at: no mode
+ * may multiply or cancel it (Easy did until then, so beginners on the gentle
+ * mode heard faster speech than beginners on Fast). Its other consumer:
  *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
  *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
  *     and hands a beginner the fully-tapered green-belt pause.
@@ -110,6 +112,66 @@ export function computeCycleSpeed(
   // Native speed courses: apply the single belt-based ramp (new + review alike)
   const speed = Math.round(base * beltSpeed(seedNumber) * 100) / 100
   return Math.max(MIN_SPEED, Math.min(speed, base))
+}
+
+/**
+ * EASY-MODE LISTENING PACE — 1.0×, i.e. no Easy-specific slowing at all.
+ *
+ * Tom, 2026-08-10, testing listening live: "'Easy' seems to have slowed the
+ * conversations in the listening section - I don't think we want to be doing
+ * that"; "I think we can return the default listening speed settings to 1.0x on
+ * EASY, I think we moved them to 0.8x." That superseded his T-13 ruling of
+ * 2026-08-07 (Easy listening at 0.8×), which had shipped as `0.8` here.
+ *
+ * Since 2026-08-16 nothing in `computeListeningSpeed` reads a mode at all —
+ * listening is never slowed for anyone (see that function). The constant
+ * survives as the Dialogues overlay's opening speed, its one remaining
+ * consumer, where it states the same thing: Easy opens at full pace.
+ */
+export const EASY_LISTENING_SPEED = 1.0
+
+/**
+ * Final playback rate for ONE target-language clip in a LISTENING exercise
+ * (Layer-1 cups, Layer-2 pods, Stage-0 sequences, fusion drills).
+ *
+ * LISTENING IS NEVER SLOWED (Tom, 2026-08-16, confirming Aran). The clip plays
+ * at its own role rate × the course speed, and nothing else: no belt ramp, no
+ * mode adjustment, identical on Easy and Fast, identical at white belt and at
+ * black. Exposure to full — and, through the pod role progression, *faster
+ * than* full — speed is the point of the listening layer: it is what makes real
+ * native speech feel like something the learner is already ready for. Slowing
+ * it removes the very thing being trained.
+ *
+ * WHAT THIS REPLACES — the belt ramp added here on 2026-08-06 ("targ lang clips
+ * start at 0.8×, then in yellow belt go to 0.9×…"), which applied `beltSpeed`
+ * as a multiplier on the role rate. That ruling stands for SPEAKING and is
+ * still baked by `computeCycleSpeed`; it should never have reached listening.
+ * Do not reintroduce a belt term here — this function deliberately ignores the
+ * seed it is handed, so belt-independence is structural rather than a comment.
+ *
+ * Known-language clips ('trans') never come through here — they're the meaning
+ * anchor in the learner's own language and slowing them teaches nothing.
+ *
+ * @param roleSpeed   the clip's own role rate (1.0 for L1; ROLE_SPEED[role] for pods)
+ * @param _seedNumber the belt anchor. IGNORED — kept in the signature because
+ *                    every call site has it and its absence is the assertion.
+ */
+export function computeListeningSpeed(
+  roleSpeed: number,
+  _seedNumber: number,
+  config: TargetSpeedConfig
+): number {
+  const base = config.globalSpeed ?? 1.0
+  const round2 = (n: number) => Math.round(n * 100) / 100
+
+  // Legacy courses (voices recorded slow): left byte-for-byte as it was — those
+  // voices are already below native pace and nothing here may touch them.
+  if (!config.nativeSpeed) return round2(roleSpeed * base)
+
+  // Native-speed courses: role rate × course speed. No cap at `base` — `ps2x`
+  // legitimately exceeds it, which is the over-speed exposure we want. The
+  // MIN_SPEED floor stays as the guard against a pathologically slow config.
+  return Math.max(MIN_SPEED, round2(roleSpeed * base))
 }
 
 /** Compute final playback speed for a script item */
@@ -234,15 +296,11 @@ function* toSimpleRoundsGen(
           voice1Url: isBookend ? '' : audioUrl(i.target1Id),
           voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
         },
-        // Expose raw target durations so runtime overrides (Turbo) can
-        // recompute pauseDuration with their own formula instead of just
-        // scaling the baked value.
+        // Expose raw target durations so runtime overrides (the active
+        // learning mode) can recompute pauseDuration with their own formula
+        // instead of just scaling the baked value.
         ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
-        // Turbo skip flag — set on 4th–7th BUILD, 2nd USE, alternate fib
-        // spaced rep. SimplePlayer's shouldSkipCycle override (gated on
-        // turboActive) decides whether to actually skip at play time.
-        ...(i.turboOmit ? { turboOmit: true } : {}),
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its
         // "no audio, skipping" warnings for the phases left empty by design.
         ...((isBookend || isPod || i.type === 'listening' || isSeedSandwich) ? { singleAudio: true } : {}),
@@ -252,7 +310,7 @@ function* toSimpleRoundsGen(
         // cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod || isSeedSandwich)
           ? 0
-          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL, speed),
+          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_FAST, speed),
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),
@@ -289,7 +347,12 @@ function* toSimpleRoundsGen(
   // Sort by roundNumber to maintain learning sequence
   rounds.sort((a, b) => a.roundNumber - b.roundNumber)
 
-  return rounds
+  // A-64 floor (Tom, 2026-08-06): no mode plays the same prompt more than
+  // twice consecutively. generateLearningScript already caps its own output,
+  // but this adapter drops cycles whose audio is missing — which can pull two
+  // previously separated prompts together — so the last word belongs here,
+  // immediately before SimplePlayer receives the rounds.
+  return capRoundCycles(rounds, cyclePromptIdentity).rounds
 }
 
 export function toSimpleRounds(

@@ -2,7 +2,7 @@
  * Pure helpers that turn a rate-policy `RoundPlan` (adaptation v2, workstream
  * C — WP-3, `docs/adaptation/adaptation-v2-build-spec.md` §4.2/§4.4) into
  * concrete play-time actions on SimplePlayer's EXISTING overrides surface —
- * no script regeneration, mirrors the `turboOmit` cull mechanism verbatim
+ * no script regeneration, on the cull mechanism retired Turbo used
  * (`SimplePlayer.shouldSkipCycle` / `appendRounds`).
  *
  * Both functions are pure and side-effect-free — the caller (LearningPlayer's

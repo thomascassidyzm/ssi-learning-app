@@ -75,6 +75,10 @@ export interface UseSimplePlayerReturn {
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
+  reshapeQueue: (transform: (rounds: Round[]) => Round[]) => void
+  /** The rounds the ENGINE is playing — never a caller-held mirror. Anything
+   *  matching a cycle by id must read this; see the implementation's note. */
+  getEngineRounds: () => Round[]
   hasRound: (roundNumber: number) => boolean
   /** Bracket an async interlude (commentary / pod lap / L1 cup) — see
    * PlayerConductor.runInterlude. The conductor never pauses on entry;
@@ -94,7 +98,22 @@ export interface UseSimplePlayerReturn {
   onRoundCompleted: (callback: (round: Round) => void) => void
   onSessionComplete: (callback: () => void) => void
   onAudioFailed: (callback: (event: AudioFailedEvent) => void) => void
+  /** Recover from an outside audio-session interruption (another app took
+   * audio focus). Wired to visibilitychange internally; exposed so a
+   * foreground surface can also nudge it. No-ops unless the engine actually
+   * recorded an interruption AND the conductor is still in `playing` — a
+   * learner-initiated pause is never un-paused. */
+  resumeAfterInterruption: () => void
 }
+
+/**
+ * How long after an interruption detected while the page is VISIBLE we try to
+ * recover. A foreground interruption (a notification sound over the top of an
+ * open app) never produces a visibilitychange, so nothing else would ever
+ * retry; the delay lets the interrupting audio finish and iOS hand the session
+ * back, because a play() issued during the interruption is simply rejected.
+ */
+const FOREGROUND_RECOVERY_DELAY_MS = 1500
 
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
@@ -106,8 +125,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // instead — a fresh conductor is created alongside each new player in
   // initialize() so the two always point at the same live engine.
   let conductor: PlayerConductor | null = null
-  // Runtime overrides survive across initialize() calls so wiring Turbo
-  // before any rounds load still applies once playback starts.
+  // Runtime overrides survive across initialize() calls so overrides wired
+  // before any rounds load still apply once playback starts.
   let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
   const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   const roundsRef = ref<Round[]>([])
@@ -123,6 +142,10 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // Reactive mirror of the latest audio_failed event. Cleared on successful
   // resume/play/jump so UI banners bound to this ref disappear automatically.
   const audioFailed = ref<AudioFailedEvent | null>(null)
+
+  // Pending single recovery attempt for an interruption that landed while the
+  // page was in the foreground. See FOREGROUND_RECOVERY_DELAY_MS.
+  let foregroundRecoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   // Initialize with rounds - creates new player instance
   function initialize(rounds: Round[]): void {
@@ -178,6 +201,18 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       audioFailed.value = event
       audioFailedCallbacks.forEach(cb => cb(event))
     })
+    // Something outside the app paused our audio. If we're backgrounded, the
+    // visibilitychange listener below recovers on return; if we're already in
+    // the foreground nothing else ever fires, so give the interrupting audio a
+    // moment to finish and then try once.
+    player.on('interrupted', () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      if (foregroundRecoveryTimer) clearTimeout(foregroundRecoveryTimer)
+      foregroundRecoveryTimer = setTimeout(() => {
+        foregroundRecoveryTimer = null
+        resumeAfterInterruption()
+      }, FOREGROUND_RECOVERY_DELAY_MS)
+    })
   }
 
   // Computed refs for reactive state
@@ -220,7 +255,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const clearAudioFailed = () => { audioFailed.value = null }
 
   /**
-   * Replace the runtime overrides (Turbo-aware pause / speed callbacks).
+   * Replace the runtime overrides (adaptation v2's pause / cull callbacks).
    * Stored locally so a later initialize() call gets them too. Live player
    * (if any) is updated in place so toggles take effect on the next phase.
    */
@@ -357,6 +392,22 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * The rounds the ENGINE is actually playing, read straight off it.
+   *
+   * The same pull-consistency rule as `syncRoundsFromEngine` above, for callers
+   * that need to reason about the live queue rather than display it. Any
+   * caller-held rounds mirror is a DIFFERENT array: `cachedRounds` in
+   * LearningPlayer, for instance, is deliberately set to the whole-course walk
+   * for text/progress purposes while the engine keeps playing the bootstrap's
+   * backend-built rounds. The two carry different cycle ids, so anything that
+   * matches a cycle BY ID — the Easy/Fast selection memo — must read this, not
+   * the mirror. Reading the engine directly (rather than `roundsRef`) also
+   * side-steps the conductor's request queue: a mutation that has not yet been
+   * snapshotted back is still visible here.
+   */
+  const getEngineRounds = (): Round[] => player?.roundsSnapshot ?? []
+
+  /**
    * Add rounds dynamically (for priority loading). Ordering/dedupe by legoId
    * — the engine owns that logic; see SimplePlayer.addRounds.
    */
@@ -391,6 +442,25 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Reshape the queue in place from a pure transform of the engine's OWN
+   * snapshot (never from a caller-held mirror — M4 pull-consistency). Used by
+   * the Easy/Fast toggle to re-apply the new mode's phrase-repeat rule to
+   * rounds that were built under the old one, with no regeneration.
+   *
+   * The splice keeps the in-flight round verbatim (replaceQueueFromCurrent),
+   * so the change lands from the NEXT round; the current round is handled by
+   * the runtime skip hook. A transform returning the same array is a no-op.
+   */
+  const reshapeQueue = (transform: (rounds: Round[]) => Round[]) => {
+    if (!player || !conductor) return
+    const current = player.roundsSnapshot
+    const next = transform(current)
+    if (next === current || next.length === 0) return
+    conductor.request((e) => e.replaceQueueFromCurrent(next))
+    syncRoundsFromEngine()
+  }
+
+  /**
    * Check if a round exists by roundNumber
    */
   const hasRound = (roundNumber: number): boolean => {
@@ -407,6 +477,28 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     return conductor.runSeek(fn, opts)
   }
 
+  /**
+   * The web equivalent of "the iOS audio-session interruption ended": another
+   * app took audio focus, iOS paused our element, and playback must pick up
+   * again now that we have focus back. The conductor owns the decision — it
+   * refuses unless it is still in `playing` and the engine recorded a real
+   * outside interruption, so a learner-initiated pause survives untouched.
+   */
+  const resumeAfterInterruption = () => conductor?.resumeAfterInterruption()
+
+  // Returning to the foreground is the moment we can actually play again: a
+  // play() issued while the interrupting app still holds the session is
+  // rejected outright. Attached once, for the composable's lifetime — the
+  // conductor/engine pair is looked up lazily, so it keeps working across
+  // initialize() calls.
+  const handleVisibilityChange = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+    resumeAfterInterruption()
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
+
   // Event hooks
   const onPhaseChanged = (callback: (phase: Phase) => void) => { phaseCallbacks.push(callback) }
   const onCycleCompleted = (callback: (cycle: Cycle) => void) => { cycleCallbacks.push(callback) }
@@ -416,6 +508,13 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   // Cleanup on unmount
   onUnmounted(() => {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+    if (foregroundRecoveryTimer) {
+      clearTimeout(foregroundRecoveryTimer)
+      foregroundRecoveryTimer = null
+    }
     player?.dispose()
     phaseCallbacks.length = 0
     cycleCallbacks.length = 0
@@ -458,6 +557,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     addRounds,
     appendRounds,
     replaceQueueFromCurrent,
+    reshapeQueue,
+    getEngineRounds,
     hasRound,
     runInterlude,
     runSeek,
@@ -466,6 +567,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     onRoundCompleted,
     onSessionComplete,
     onAudioFailed,
+    resumeAfterInterruption,
   }
 }
 

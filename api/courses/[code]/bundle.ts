@@ -383,10 +383,60 @@ export default async function handler(
         )
         .eq('course_code', code)
         .order('seed_number', { ascending: true }),
+      // `visibility = 'live'` is NOT optional here. This route builds its
+      // client from SUPABASE_SERVICE_ROLE_KEY, so it bypasses the RLS policies
+      // that hold a pod back from every other learner-facing read (2026-08-23,
+      // database/changes/20260823_listening_pod_visibility.sql in
+      // ssi-dashboard-v7-clean). Without this filter the offline bundle is the
+      // one path that still hands a learner the content of a pod a human is
+      // mid-way through recording. The sentence read below follows only the
+      // pods that survive this filter, so held sentences never load either.
+      //
+      // The literal is deliberate: the client-side twin is
+      // LIVE_POD_VISIBILITY in packages/player-vue/src/composables/servedPod.ts
+      // (rule 5), but importing it would drag that module's IndexedDB cache
+      // into a serverless route to fetch one string. Pinned instead by
+      // bundle.podVisibility.test.ts.
       supabase
         .from('listening_pods')
         .select('id, pod_order, title')
         .eq('course_code', code)
+        .eq('visibility', 'live')
+        // The SECOND gate, and it is not redundant with the first. Visibility
+        // answers "may a learner be shown this pod at all"; the SLUG answers
+        // "is this the pod the player will actually resolve and play". They
+        // disagree in both directions on live data, which is why both are here:
+        //
+        //  - `spa_for_eng:music` and `spa_for_eng:travel-situations` are
+        //    visibility='live' but pod_type='choice'. Nothing plays them: the
+        //    only two readers of pod_type in the estate are this query and
+        //    `resolveServedPod`, and both take 'core'. Under visibility alone
+        //    they were downloaded into every Spanish offline bundle and never
+        //    played.
+        //  - Conversely a retired pod PARKED on a dated slug
+        //    (`pod-0-retired-2026-08-22`, `pod-1-retired-2026-08-24` — 39 rows
+        //    across the estate) is unplayable even when nobody has got round to
+        //    marking it held, because the player resolves by slug. Visibility
+        //    only excluded those because the 2026-08-24 flip happened to set
+        //    them held; the slug gate makes it structural rather than lucky.
+        //
+        // The source of truth for the slug rule is SERVING_POD_SLUGS in
+        // `packages/player-vue/src/composables/servedPod.ts` (rule 1): only
+        // `pod-1` and `pod-0` are ever served, and unreleased content is held
+        // back by parking a pod on a non-serving slug. Mirroring it here makes
+        // the downloader and the player read the same pods by construction.
+        //
+        // Both literals are duplicated rather than imported, for the same
+        // reason LIVE_POD_VISIBILITY above is: this file's dependency graph is
+        // traced by Vercel's serverless bundler, and servedPod.ts pulls in the
+        // network gate and the IndexedDB metadata cache, neither of which can
+        // run in a serverless route.
+        //
+        // Measured on live data 2026-08-24 before this landed: visibility
+        // alone kept 69 pods, the slug gate alone 68, both together 67 across
+        // 67 courses — and no course that can play a pod today loses one.
+        .eq('pod_type', 'core')
+        .in('slug', ['pod-1', 'pod-0'])
         .order('pod_order', { ascending: true, nullsFirst: true }),
       // Bookends live in course_audio (role-based), not on listening_pods.
       // One pair per course today — shared across all that course's pods.

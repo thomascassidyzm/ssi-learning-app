@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
+import { enforceMintRateLimit, CLASS_MINT_OUTCOME } from '../_utils/mintRateLimit'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -229,6 +230,19 @@ export default async function handler(
       res.status(409).json({
         error: 'You have reached the 10-class maximum. Archive a class to create another.',
       })
+      return
+    }
+
+    // Mint throttle (SEC22-01): every `classes` insert fires
+    // tr_classes_join_code and mints a fresh join code. The 10-class cap above
+    // is a cap on LIVE classes, not on minting — archive and recreate in a
+    // loop and it mints without bound. Checked LAST, so none of the refusals
+    // above (bad body, expired trial, cap reached) burn a real teacher's
+    // budget; the limits are set well beyond any real sitting
+    // (api/_utils/mintRateLimit.ts).
+    const mintLimit = await enforceMintRateLimit(supabase, req, authResult.userId, CLASS_MINT_OUTCOME)
+    if (!mintLimit.ok) {
+      res.status(mintLimit.status).json({ error: mintLimit.error })
       return
     }
 

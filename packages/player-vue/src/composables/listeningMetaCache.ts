@@ -19,12 +19,29 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveServedPod } from './servedPod'
+import {
+  getRevisedAudioRefs,
+  stampRowAudioRefs,
+  applyAudioRef,
+  bareAudioId,
+} from '../providers/revisedAudioRefs'
 
 // Bump to invalidate — part of the key, old entries orphan and re-download.
 // v2 (2026-07-22): devices cached before the 2026-03 ita gloss corrections were
 // still serving stale glosses ("come" → "to come"); manual bump pending
 // structural updated_at-based invalidation.
-const META_VERSION = 'v2'
+// v3 (2026-08-24): the Pod 1 split-array repair (dashboard ab0ee8ac3 + 1053db318)
+// NULLed the positionally-inherited `sentence_audio_ids` on 22 courses and
+// rebuilt only the genuinely multi-sentence turns. Every v2 snapshot still
+// holds the PRE-repair arrays — e.g. ita_for_eng:pod-1 scene 15 cached a
+// 2-clip split for the single sentence "Quanto costa?" — so a device that
+// falls back to the cache (offline, or `isOfflineish` on a stalled
+// connection) plays the old split clips for a turn the DB now serves whole.
+// The live read path is correct and was never stale; this orphans the
+// snapshots that outlived it. Founder report 2026-08-24: "the new Scene 15 is
+// playing the old Scene 15 clips in the app right now".
+const META_VERSION = 'v3'
 const META_DB_NAME = 'ssi-listening-meta'
 const META_STORE = 'meta'
 
@@ -104,10 +121,22 @@ export interface CachedListeningMeta {
    *  Absent on entries written before the stamp existed → treated as stale
    *  once (which retroactively heals every pre-stamp device). */
   contentStamp?: string
-  /** listening_pod_sentences rows for `${course}:pod-0`, in global_order.
-   *  Empty array = the course genuinely has no pod (a valid, downloaded
-   *  state) — entry ABSENT means "never downloaded". */
+  /** courses.audio_stamp at fetch time — the AUDIO vintage. A-86: a clip
+   *  repair moves audio_stamp and NOT necessarily content_stamp, so the
+   *  content lane alone would leave a downloaded snapshot pointing at the
+   *  pre-repair ref forever. Absent → pre-stamp entry, refreshed once. */
+  audioStamp?: string
+  /** listening_pod_sentences rows for the pod this course SERVES (see
+   *  servedPod), in global_order. Empty array = the course genuinely has no
+   *  pod (a valid, downloaded state) — entry ABSENT means "never downloaded". */
   podRows: CachedPodRow[]
+  /** The serving slug `podRows` was fetched from — `pod-1` or `pod-0`. Pods
+   *  went 1-based on 2026-08-22, so the slug is no longer a constant and the
+   *  snapshot has to remember its own. Read back by servedPod's offline lane,
+   *  which is how a learner who downloaded Croatian at `pod-1` resolves it
+   *  offline with no round-trip. Absent on entries written before the flip →
+   *  those are `pod-0` snapshots by definition. */
+  podSlug?: string
   /** course_audio id → text for the split-clip ids referenced by podRows —
    *  the overlay's per-sentence display-text oracle (splitRowUnits). */
   clipTexts: Record<string, string>
@@ -145,6 +174,39 @@ const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> 
       `(${meta.podRows.length} pod rows, ${meta.coreSeeds.length} seeds)`)
   } catch (err) {
     console.warn('[ListeningMeta] write failed:', (err as any)?.message, err)
+  }
+}
+
+/**
+ * Drop the cached pod rows for a course, keeping the rest of its entry
+ * (coreSeeds, legoCatalogue, bookends) intact.
+ *
+ * Called when a LIVE read reports the course has no pod sentences at all.
+ * That is how unreleased Layer 2 content is held back: every learner-facing
+ * pod path queries the exact id of the pod the course SERVES, and servedPod
+ * will only ever serve `pod-1` or `pod-0` — so a pod parked on any other slug
+ * (`pod-0-unrecorded`, `pod-0-gated-2026-08-06`) reads as "no pods yet" (the
+ * Welsh pods were gated this way on 2026-08-06 — Aran and Catrin have not
+ * recorded them). Without this, a
+ * learner who downloaded the pod for offline use would keep replaying the
+ * withdrawn snapshot forever, because the offline lane never re-checks.
+ *
+ * Deliberately keyed on "server says zero", not on a course allow-list: it
+ * needs no maintenance, and it reverses itself the moment the recordings land
+ * and the pod returns to a serving slug.
+ */
+export const clearCachedListeningPodRows = async (courseCode: string): Promise<void> => {
+  try {
+    const existing = await getCachedListeningMeta(courseCode)
+    if (!existing || existing.podRows.length === 0) return
+    // Drop podSlug with the rows: the snapshot no longer describes any pod,
+    // so it must not keep asserting one to servedPod's offline lane.
+    await setCachedListeningMeta({ ...existing, podRows: [], clipTexts: {}, podSlug: undefined })
+    console.log('[ListeningMeta] dropped', existing.podRows.length,
+      'stale offline pod rows for', courseCode, '— course reports no pods live')
+  } catch (err) {
+    // Never let cache hygiene break playback.
+    console.warn('[ListeningMeta] pod-row clear failed:', (err as any)?.message, err)
   }
 }
 
@@ -226,7 +288,7 @@ const fetchAndCacheListeningMetaOnce = async (
   courseCode: string,
 ): Promise<CachedListeningMeta | null> => {
   try {
-    const podId = `${courseCode}:pod-0`
+    const { podId, slug: podSlug } = await resolveServedPod(client, courseCode)
     const [podsResult, bookendsResult, stampResult] = await Promise.all([
       client
         .from('listening_pod_sentences')
@@ -240,13 +302,24 @@ const fetchAndCacheListeningMetaOnce = async (
         .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
       client
         .from('courses')
-        .select('content_stamp')
+        .select('content_stamp, audio_stamp')
         .eq('course_code', courseCode)
         .maybeSingle(),
     ])
     if (podsResult.error) throw new Error(`listening_pod_sentences: ${podsResult.error.message}`)
     if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
-    const podRows = (podsResult.data || []) as unknown as CachedPodRow[]
+    // A-86: this snapshot is the OFFLINE source of truth for the listening
+    // lane, so it must be written with per-clip versioned refs (`<uuid>.v<N>`)
+    // already applied. The schedulers stamp what they fetch, but offline the
+    // revised-ref lookup cannot run and would fall back to an empty map — so
+    // an unstamped snapshot means an offline learner plays the pre-repair clip
+    // for as long as the snapshot lives. Stamping here, while online, is the
+    // only place that can be fixed.
+    const revisedRefs = await getRevisedAudioRefs(client, courseCode)
+    const podRows = stampRowAudioRefs(
+      revisedRefs,
+      (podsResult.data || []) as unknown as CachedPodRow[],
+    )
 
     // Split-clip display texts (the overlay's per-sentence oracle) — chunked
     // to keep the PostgREST in() URL short, mirroring useListeningPods.
@@ -255,15 +328,19 @@ const fetchAndCacheListeningMetaOnce = async (
       for (const id of row.sentence_audio_ids || []) if (id) clipIds.add(id)
       for (const id of row.sentence_known_audio_ids || []) if (id) clipIds.add(id)
     }
+    // clipIds now carry `.vN`, but course_audio is keyed by the BARE uuid — so
+    // query bare and key the result by the stamped ref the overlay will look up.
     const clipTexts: Record<string, string> = {}
     const idArr = Array.from(clipIds)
-    for (let i = 0; i < idArr.length; i += 150) {
+    const stampedByBare = new Map(idArr.map((ref) => [bareAudioId(ref), ref]))
+    const bareArr = Array.from(stampedByBare.keys())
+    for (let i = 0; i < bareArr.length; i += 150) {
       const { data: clips, error: clipErr } = await client
         .from('course_audio')
         .select('id, text')
-        .in('id', idArr.slice(i, i + 150))
+        .in('id', bareArr.slice(i, i + 150))
       if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
-      for (const c of clips || []) clipTexts[c.id] = c.text || ''
+      for (const c of clips || []) clipTexts[stampedByBare.get(c.id) ?? c.id] = c.text || ''
     }
 
     // Fine-known clips (fusion-rung glosses) — paged under PostgREST's cap.
@@ -276,7 +353,7 @@ const fetchAndCacheListeningMetaOnce = async (
         .eq('role', 'pod_fine_known')
         .range(from, from + PAGE - 1)
       if (error) throw new Error(`fine-knowns: ${error.message}`)
-      for (const r of data || []) fineKnowns[r.text_normalized] = r.id
+      for (const r of data || []) fineKnowns[r.text_normalized] = applyAudioRef(revisedRefs, r.id)!
       if (!data || data.length < PAGE) break
     }
 
@@ -291,7 +368,7 @@ const fetchAndCacheListeningMetaOnce = async (
         .order('seed_number', { ascending: true })
         .range(from, from + PAGE - 1)
       if (error) throw new Error(`course_seeds: ${error.message}`)
-      for (const r of data || []) coreSeeds.push(r as CachedCoreSeed)
+      for (const r of stampRowAudioRefs(revisedRefs, data || [])) coreSeeds.push(r as CachedCoreSeed)
       if (!data || data.length < PAGE) break
     }
 
@@ -308,16 +385,21 @@ const fetchAndCacheListeningMetaOnce = async (
 
     // Stamp is best-effort: a failed stamp read must not drop the whole
     // bundle — the entry just lands stamp-less and refreshes next online boot.
-    const contentStamp =
-      (stampResult.data as { content_stamp?: string } | null)?.content_stamp ?? undefined
+    const stampRow = stampResult.data as
+      | { content_stamp?: string; audio_stamp?: string }
+      | null
+    const contentStamp = stampRow?.content_stamp ?? undefined
+    const audioStamp = stampRow?.audio_stamp ?? undefined
 
     const meta: CachedListeningMeta = {
       courseCode,
       cachedAt: Date.now(),
       contentStamp,
+      audioStamp,
       podRows,
+      podSlug,
       clipTexts,
-      bookends: (bookendsResult.data || []) as CachedBookend[],
+      bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
       fineKnowns,
       coreSeeds,
       legoCatalogue: (catalogue || []) as Array<{ seed_number: number; lego_index: number }>,
@@ -351,13 +433,25 @@ export const refreshListeningMetaIfStale = async (
   client: SupabaseClient,
   courseCode: string,
   liveStamp: string | null | undefined,
+  liveAudioStamp?: string | null,
 ): Promise<boolean> => {
-  if (!liveStamp) return false
+  if (!liveStamp && !liveAudioStamp) return false
   const cached = await getCachedListeningMeta(courseCode)
   if (!cached) return false // never downloaded — nothing to keep fresh
-  if (cached.contentStamp === liveStamp) return false
-  console.log('[ListeningMeta] content stamp moved',
-    `(${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp}) — refreshing bundle`)
+
+  const contentMoved = !!liveStamp && cached.contentStamp !== liveStamp
+  // A-86: a clip repair moves audio_stamp and not necessarily content_stamp.
+  // Without this arm, a downloaded snapshot keeps pointing at the pre-repair
+  // ref forever — the offline half of the stale-clip bug. An entry with no
+  // audioStamp predates this field, so it refreshes once and heals itself.
+  const audioMoved = !!liveAudioStamp && cached.audioStamp !== liveAudioStamp
+  if (!contentMoved && !audioMoved) return false
+
+  console.log('[ListeningMeta]',
+    contentMoved
+      ? `content stamp moved (${cached.contentStamp ?? 'pre-stamp'} → ${liveStamp})`
+      : `audio stamp moved (${cached.audioStamp ?? 'pre-stamp'} → ${liveAudioStamp})`,
+    '— refreshing bundle')
   void fetchAndCacheListeningMeta(client, courseCode)
   return true
 }

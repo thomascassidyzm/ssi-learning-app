@@ -3,14 +3,31 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useClassesData } from '@/composables/schools/useClassesData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import {
+  applyAssignmentDiff,
+  computeAssignmentDiff,
+  summariseOutcomes,
+  type AssignableClass,
+  type AssignmentOutcome,
+} from '@/composables/schools/assignTeacherClasses'
 
 type TeacherStatus = 'active' | 'invited'
 
 const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser, isSchoolAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
+const {
+  classes,
+  isLoading: classesLoading,
+  error: classesError,
+  fetchClasses,
+  addClassTeacher,
+  removeClassTeacher,
+} = useClassesData()
 
 // Staff-management controls (invite, bulk import, remove) are admin-only —
 // a plain teacher could see and use them even though the endpoints they hit
@@ -18,6 +35,12 @@ const { currentSchool, fetchSchools } = useSchoolData()
 // disabled, matching how isAdminView already hides them for ssi_admin's
 // read-only browse view.
 const canManageStaff = computed(() => isSchoolAdmin.value && !isAdminView)
+// Who may put a teacher ONTO a class from here. Same leaders ClassDetail's
+// canManageTeachers already trusts (govt admin over the group, or the
+// school's admin) — its third arm, "the class's own lead teacher", can't
+// apply on a school-wide staff list, and the server
+// (api/_utils/classTeacherAuth.ts) is the real gate either way.
+const canAssignClasses = computed(() => (isSchoolAdmin.value || isGovtAdmin.value) && !isAdminView)
 const removeError = ref('')
 
 const searchQuery = ref('')
@@ -51,7 +74,10 @@ const teachers = computed(() => {
     students: t.student_count,
     hours7d: t.total_practice_hours,
     ownMinutes: t.own_practice_minutes ?? 0,
-    role: 'Teacher' as 'Teacher' | 'Admin',
+    // The school's admin belongs in this list (she is staff, and her practice
+    // is in the school's headline) but must be shown as the ADMIN she is —
+    // never mislabelled a teacher. See api/_utils/schoolStaff.ts.
+    role: (t.role_in_context === 'admin' ? 'Admin' : 'Teacher') as 'Teacher' | 'Admin',
     status: 'active' as TeacherStatus,
     joined_at: t.joined_at,
   }))
@@ -112,6 +138,79 @@ async function handleRemoveTeacher(userId: string, name: string) {
   } else {
     removeError.value = `Could not remove ${name}: ${result.error}`
     console.error(`[TeachersView] remove-staff failed for ${name}:`, result.error)
+  }
+}
+
+// ── Assign to a class (people-first teacher↔class management) ──────────────
+// The leader is looking at their staff, not at a class: pick a teacher, tick
+// the classes they should take. Ticks start from the truth and confirm
+// applies the diff, so "move Ana from 6B to 7A" is one interaction.
+const assignTarget = ref<{ user_id: string; name: string } | null>(null)
+const assignBusy = ref(false)
+const assignOutcomes = ref<AssignmentOutcome[]>([])
+const assignSummary = ref('')
+
+// Which classes each teacher is on comes from the class list we already
+// load — ClassInfo.teachers is the class_teachers relationship. No new query.
+const assignClasses = computed<AssignableClass[]>(() => {
+  const target = assignTarget.value?.user_id
+  return classes.value
+    .filter(c => c.is_active !== false)
+    .map(c => {
+      const on = c.teachers ?? []
+      return {
+        id: c.id,
+        class_name: c.class_name,
+        isMember: !!target && on.some(t => t.user_id === target),
+        hasActiveTeacher: on.length > 0,
+      }
+    })
+})
+
+const assignLoadError = computed(() =>
+  classesError.value ? `Couldn't load this school's classes, so this list may be incomplete. ${classesError.value}` : ''
+)
+
+function openAssign(teacher: { user_id: string; name: string }) {
+  assignTarget.value = teacher
+  assignOutcomes.value = []
+  assignSummary.value = ''
+  fetchClasses()
+}
+
+function closeAssign() {
+  assignTarget.value = null
+  assignOutcomes.value = []
+  assignSummary.value = ''
+}
+
+async function handleAssignConfirm(tickedClassIds: string[]) {
+  const target = assignTarget.value
+  if (!target || assignBusy.value) return
+  const current = assignClasses.value.filter(c => c.isMember).map(c => c.id)
+  const diff = computeAssignmentDiff(current, tickedClassIds)
+  if (!diff.add.length && !diff.remove.length) return
+
+  assignBusy.value = true
+  assignOutcomes.value = []
+  assignSummary.value = ''
+  const outcomes = await applyAssignmentDiff({
+    teacherUserId: target.user_id,
+    diff,
+    classes: assignClasses.value,
+    addClassTeacher,
+    removeClassTeacher,
+  })
+  assignBusy.value = false
+  assignOutcomes.value = outcomes
+  assignSummary.value = summariseOutcomes(outcomes, target.name)
+
+  // Refetch either way: after a PARTIAL save the ticks must show what is
+  // actually true, not what the leader asked for (RLS doctrine rule 8 — no
+  // false "Saved"). The modal stays open so the failures are read.
+  await Promise.all([fetchClasses(), fetchTeachers()])
+  for (const o of outcomes) {
+    if (!o.ok) console.error(`[TeachersView] class-teacher ${o.action} failed for ${target.name} on ${o.className}:`, o.error)
   }
 }
 
@@ -225,8 +324,23 @@ watch(selectedUser, (newUser) => {
               </span>
             </td>
             <td class="cell-action">
+              <!-- People-first assignment: the leader is on their staff list,
+                   so the verb lives on the PERSON. Admins teach too (they
+                   appear here as staff), so this is offered on every row. -->
               <button
-                v-if="canManageStaff"
+                v-if="canAssignClasses"
+                type="button"
+                class="btn-ghost btn-small assign-btn"
+                data-walk="teacher-assign-classes"
+                @click="openAssign({ user_id: t.user_id, name: t.name })"
+              >
+                Assign to a class
+              </button>
+              <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
+                   deliberately refuses an admin, so a school can't lose its own
+                   admin through the staff list) — so don't offer the control. -->
+              <button
+                v-if="canManageStaff && t.role !== 'Admin'"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
                 @click="handleRemoveTeacher(t.user_id, t.name)"
@@ -307,6 +421,19 @@ watch(selectedUser, (newUser) => {
         </template>
       </div>
     </div>
+
+    <AssignClassesModal
+      :is-open="!!assignTarget"
+      :teacher-name="assignTarget?.name ?? ''"
+      :classes="assignClasses"
+      :loading="classesLoading"
+      :load-error="assignLoadError"
+      :submitting="assignBusy"
+      :outcomes="assignOutcomes"
+      :summary="assignSummary"
+      @close="closeAssign"
+      @confirm="handleAssignConfirm"
+    />
   </main>
 </template>
 
@@ -441,7 +568,10 @@ watch(selectedUser, (newUser) => {
 
 .cell-action {
   text-align: right;
+  white-space: nowrap;
 }
+
+.assign-btn { margin-right: 6px; }
 
 .remove-btn:hover {
   color: var(--schools-red-deep);

@@ -20,7 +20,19 @@ import { refreshListeningMetaIfStale } from './listeningMetaCache'
 // cold offline reopen — no cached script to play). IndexedDB has GBs of room.
 // Bump SCRIPT_VERSION to invalidate — it's part of the key, so old entries
 // orphan and regenerate. This is the ONLY invalidation (no TTL).
-const SCRIPT_VERSION = 'v9' // v9: carry display_tiling (authored {n,r,salient} tiles) on phrase items
+// v10: script items now carry per-clip versioned audio refs (`<uuid>.v<N>`).
+// Every v9 entry was written by a walk that emitted bare uuids, so a revised
+// clip in it resolves to the pre-repair bytes in both downstream caches — and
+// the audio_stamp drop lane below could not heal that, because the regenerated
+// walk emitted bare uuids too. Orphaning v9 once is what retires those.
+// v11: the walk went MODE-NEUTRAL (2026-08-09). Every v10 entry was generated
+// with the ACTIVE mode's caps already applied — Easy's entries are a thinned
+// subset, missing the long phrases Fast is supposed to play, and nothing can
+// put them back. The player now selects live from a generous superset, so v10
+// entries are the wrong SHAPE, not merely stale. This is a one-time format
+// bump on the existing lever, NOT a toggle-triggered invalidation: from v11
+// onward one cached script serves both modes and a toggle never touches it.
+const SCRIPT_VERSION = 'v11' // v11: the walk is mode-neutral (see below)
 const SCRIPT_DB_NAME = 'ssi-script-cache'
 const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
@@ -471,10 +483,14 @@ const doCheckContentVersion = async (
       localStorage.setItem(audioStampKey, liveAudioStamp)
     }
 
+    // Listening metadata bundle: background refresh, never blocks anything.
+    // Outside the liveStamp guard on purpose (A-86) — an AUDIO repair moves
+    // audio_stamp without necessarily moving content_stamp, and the downloaded
+    // snapshot has to pick up the new `<uuid>.vN` refs either way.
+    void refreshListeningMetaIfStale(supabase, courseCode, liveStamp, liveAudioStamp).catch(() => {})
+
     if (liveStamp) {
       liveContentStamps.set(courseCode, liveStamp)
-      // Listening metadata bundle: background refresh, never blocks anything.
-      void refreshListeningMetaIfStale(supabase, courseCode, liveStamp).catch(() => {})
       // Script cache: entry built from an older content vintage → mark it
       // STALE, never drop it (SWR, founder ruling 2026-07-27): this session
       // plays the cached script immediately; the player revalidates in the
@@ -675,8 +691,24 @@ export const lookupAudioLazy = async (
   }
 }
 
-// Load intro audio for LEGOs from lego_introductions table
-// Handles both v13 (presentation_audio_id → course_audio) and legacy (audio_uuid)
+// Load intro audio for LEGOs.
+//
+// RESOLUTION ORDER — the LEGO's own link first, id-matching only as a fallback:
+//   1. course_legos.presentation_audio_id  (the link; what the player plays)
+//   2. lego_introductions.presentation_audio_id / audio_uuid  (legacy link)
+//   3. course_audio WHERE role='presentation' AND lego_id=<id>  (last resort)
+//
+// Step 1 used to be missing, and that was a real content defect reaching real
+// people (Greek forum complaint, 2026-08-11): a presentation clip OWNS the
+// lego_id of the chunk it was cut for, so step 3 always hands back that clip
+// even when the LEGO has since been repointed at a different, corrected one.
+// Greek had 54 intro clips that spoke their bracketed grammar label out loud
+// ("The Greek for: 'to answer (I, aorist)', is:"); the content fix repointed
+// course_legos at 54 clean clips, but the dirty clips kept the lego_id, so
+// every consumer of this map — Course Explorer / "View Script" — still played
+// the label. The link is the single source of truth for WHICH clip; the
+// lego_id on a clip only records which chunk it was cut for.
+//
 // Uses batched queries to avoid Supabase URL length limits (400 error)
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
@@ -690,10 +722,62 @@ export const loadIntroAudio = async (
   const legoIdArray = [...legoIds]
 
   try {
-    // Batch query lego_introductions to avoid URL length limits
-    let allIntroData: any[] = []
+    // Track which LEGOs already have intro audio resolved (highest-priority
+    // source wins; later sources only fill gaps).
+    const foundLegoIds = new Set<string>()
+
+    // Resolve a set of course_audio ids to s3_keys, batched.
+    const resolveS3Keys = async (audioIds: string[]): Promise<Map<string, string>> => {
+      const s3KeyMap = new Map<string, string>()
+      for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
+        const { data: audioData } = await supabase
+          .from('course_audio')
+          .select('id, s3_key')
+          .in('id', audioIds.slice(i, i + BATCH_SIZE))
+        for (const audio of (audioData || [])) {
+          if (audio.id && audio.s3_key) s3KeyMap.set(audio.id, audio.s3_key)
+        }
+      }
+      return s3KeyMap
+    }
+
+    // STEP 1 — the LEGO's own link. This is what the player plays, so this map
+    // must agree with it. See the resolution-order note above.
+    const legoLinks: { lego_id: string; presentation_audio_id: string }[] = []
     for (let i = 0; i < legoIdArray.length; i += BATCH_SIZE) {
-      const batchIds = legoIdArray.slice(i, i + BATCH_SIZE)
+      const { data: legoRows, error: legoErr } = await supabase
+        .from('course_legos')
+        .select('lego_id, presentation_audio_id')
+        .eq('course_code', courseCode)
+        .in('lego_id', legoIdArray.slice(i, i + BATCH_SIZE))
+      if (legoErr) {
+        console.warn('[ScriptCache] Could not load LEGO presentation links:', legoErr.message)
+        continue
+      }
+      for (const row of (legoRows || [])) {
+        if (row.lego_id && row.presentation_audio_id) {
+          legoLinks.push({ lego_id: row.lego_id, presentation_audio_id: row.presentation_audio_id })
+        }
+      }
+    }
+    if (legoLinks.length > 0) {
+      const linkedKeys = await resolveS3Keys(legoLinks.map(l => l.presentation_audio_id))
+      for (const link of legoLinks) {
+        const s3Key = linkedKeys.get(link.presentation_audio_id)
+        if (s3Key) {
+          audioMap.set(`intro:${link.lego_id}`, { intro: s3Key })
+          foundLegoIds.add(link.lego_id)
+        }
+      }
+      console.log('[ScriptCache] Loaded', foundLegoIds.size, 'intro audio entries (course_legos link)')
+    }
+
+    // STEP 2 — legacy link table, for LEGOs step 1 could not resolve.
+    // Batch query lego_introductions to avoid URL length limits
+    const unlinkedLegoIds = legoIdArray.filter(id => !foundLegoIds.has(id))
+    let allIntroData: any[] = []
+    for (let i = 0; i < unlinkedLegoIds.length; i += BATCH_SIZE) {
+      const batchIds = unlinkedLegoIds.slice(i, i + BATCH_SIZE)
       const { data: batchData, error } = await supabase
         .from('lego_introductions')
         .select('lego_id, presentation_audio_id, audio_uuid')
@@ -711,32 +795,13 @@ export const loadIntroAudio = async (
 
     const introData = allIntroData
 
-    // Track which LEGOs have intro audio from lego_introductions
-    const foundLegoIds = new Set<string>()
-
     // Separate v13 (has presentation_audio_id) from legacy (only audio_uuid)
     const v13Entries = introData.filter(i => i.presentation_audio_id)
     const legacyEntries = introData.filter(i => !i.presentation_audio_id && i.audio_uuid)
 
     // Handle v13 entries: lookup s3_key from course_audio (also batched)
     if (v13Entries.length > 0) {
-      const audioIds = v13Entries.map(i => i.presentation_audio_id)
-      const s3KeyMap = new Map<string, string>()
-
-      // Batch the course_audio queries
-      for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
-        const batchAudioIds = audioIds.slice(i, i + BATCH_SIZE)
-        const { data: audioData } = await supabase
-          .from('course_audio')
-          .select('id, s3_key')
-          .in('id', batchAudioIds)
-
-        for (const audio of (audioData || [])) {
-          if (audio.id && audio.s3_key) {
-            s3KeyMap.set(audio.id, audio.s3_key)
-          }
-        }
-      }
+      const s3KeyMap = await resolveS3Keys(v13Entries.map(i => i.presentation_audio_id))
 
       for (const intro of v13Entries) {
         const s3Key = s3KeyMap.get(intro.presentation_audio_id)
@@ -757,9 +822,12 @@ export const loadIntroAudio = async (
       console.log('[ScriptCache] Loaded', legacyEntries.length, 'intro audio entries (legacy)')
     }
 
-    // FALLBACK: Query course_audio for LEGOs not in lego_introductions
-    // This handles courses (like Portuguese) where intro audio is in course_audio
-    // but not linked via lego_introductions table
+    // STEP 3 — LAST RESORT: match a clip by the lego_id it carries, for LEGOs
+    // neither link resolved. This handles courses (like Portuguese) where intro
+    // audio exists in course_audio but is not linked from anywhere. It is a
+    // guess, not a link: if a LEGO has been repointed at a different clip, the
+    // old clip still carries this lego_id — which is exactly why steps 1 and 2
+    // must win. Never promote this above them.
     const missingLegoIds = legoIdArray.filter(id => !foundLegoIds.has(id))
     if (missingLegoIds.length > 0) {
       console.log('[ScriptCache] Looking for', missingLegoIds.length, 'missing intro audios in course_audio')

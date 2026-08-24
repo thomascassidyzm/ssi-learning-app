@@ -9,6 +9,9 @@ import AdminTopBar from './AdminTopBar.vue'
 // Stats + Insights (numbers) — and a grouped "More" menu carries the rest
 // with icons + one-line descriptions, including a demoted read-only Invites
 // audit list (ways in now live ON the node in Structure, not a nav tab).
+// 2026-08-19: Onboarding left this menu — the onboarding message editor
+// retired, its copy moved to popty.app/copy/onboarding (one copy surface per
+// protocol).
 // These tests pin the grouping — every admin destination must stay
 // reachable within two clicks, and the More trigger must carry the active
 // state when the current section lives inside it (so "where am I" survives
@@ -32,11 +35,11 @@ describe('AdminTopBar — primary tabs + grouped More menu', () => {
     const more = wrapper.findAll('.tabs .nvm')[0]
     await more.find('button.nvm-trigger').trigger('click')
     const itemLabels = more.findAll('.nvm-item-label').map((el) => el.text())
-    expect(itemLabels).toEqual(['Onboarding', 'Invites (audit)', 'Methodology'])
+    expect(itemLabels).toEqual(['Invites (audit)', 'Methodology'])
     const groupLabels = more.findAll('.nvm-group-label').map((el) => el.text())
     expect(groupLabels).toEqual(['Provisioning', 'Platform'])
     // Meaning restored: every collapsed item carries a one-line description.
-    expect(more.findAll('.nvm-item-desc')).toHaveLength(3)
+    expect(more.findAll('.nvm-item-desc')).toHaveLength(2)
   })
 
   it('marks the More trigger active when the current section lives inside it', async () => {
@@ -54,6 +57,6 @@ describe('AdminTopBar — primary tabs + grouped More menu', () => {
     // The collapsed menu carries ALL destinations.
     await wrapper.find('.tabs-collapsed .nvm-trigger').trigger('click')
     const items = wrapper.findAll('.tabs-collapsed .nvm-item-label').map((el) => el.text())
-    expect(items).toEqual(['Structure', 'Users', 'Stats', 'Insights', 'Onboarding', 'Invites (audit)', 'Methodology'])
+    expect(items).toEqual(['Structure', 'Users', 'Stats', 'Insights', 'Invites (audit)', 'Methodology'])
   })
 })

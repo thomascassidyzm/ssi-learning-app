@@ -3,8 +3,9 @@
 
 metadata:
   title: "Learner Profile / Mirror / Portrait"
-  version: "1.0.0"
+  version: "1.1.0"
   date: "2026-08-03"
+  last_updated: "2026-08-19 — the explainer prose now reads live from Popty's published document, with the repo-authored copy as its silent fallback; A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
   author: "SSi Team"
   status: "preview — shipped to dev on the unlinked /me route"
   source: "founder design session 2026-08-03"
@@ -173,12 +174,188 @@ implementation:
     - "components/me/WhyThisWorks.vue"
     - "components/me/CourseSwitchRow.vue"
     - "components/me/SettingsDirection.vue"
+    - "components/me/CyclePillFigure.vue"
+    - "components/me/PlayerScreenFigure.vue"
+    - "components/me/ExplainerFigure.vue — figure NAME to drawing, the only map"
+    - "components/me/ThreeGapsFigure.vue"
+    - "components/me/SpacingReturnsFigure.vue"
+    - "components/me/ListeningStretchFigure.vue"
+    - "components/me/WornPathFigure.vue"
+    - "components/me/ClimbingBandFigure.vue"
   content: "explainer/learnerExplainers.ts"
+  published_copy: "explainer/parseHtwCopy.ts + explainer/usePublishedExplainers.ts"
   throb: "explainer/learnerThrob.ts — learner-side sibling of howThisWorksThrob.ts, which is untouched"
+
+# =============================================================================
+# THE PUBLISHED COPY — the words are editable, the structure is not
+# =============================================================================
+
+ruling CopyReadsLiveFromPopty:
+  date: "2026-08-19"
+  decision: |
+    The two explainer sections read their WORDS from the document published in
+    Popty at GET /api/copy-published?doc=htw, so an editor changes the learner-
+    facing prose without a deploy. learnerExplainers.ts is unchanged and stays
+    in the app as the FALLBACK, not as dead weight.
+  join_key: |
+    Headings. The document says so in its own front matter — "The headings and
+    the ###/## structure markers are how we map your edits back into the app" —
+    so parseHtwCopy matches a document block to a code block by heading, after
+    stripping the document's "Part 2a — " navigation prefixes. A heading the
+    code does not carry is simply not a block: that is how "### The player
+    screen" and everything under "## Where a learner meets this" stay out,
+    without a skip-list.
+  code_owns:
+    - "figure names — the ExplainerFigureName union maps to components; a name from a document would not compile"
+    - "link urls and titles — the in-app-browser framing constraint lives here, which is why rte.ie is a recorded source and not a link"
+    - "which blocks exist, and in what order"
+  document_owns:
+    - "section link label and intro line"
+    - "every body paragraph and every bullet"
+    - "the learner-visible label on each proof link, matched positionally to the code's rows"
+  never_learner_facing: "the front matter, the ⚠ SETTLED notes, the '*A drawing sits here…*' descriptions, and the sections the app does not model"
+  fallback_law: |
+    One background fetch per page load with a 2.5s timeout. The hardcoded prose
+    renders on the first frame and STAYS unless a complete, parseable document
+    arrives. Fetch failure, timeout, 404 — the ordinary state until somebody
+    publishes — a server error, a non-JSON body, an empty document or a parse
+    throw all land silently on it. Merging is per field: a block the document
+    lost keeps its shipped words rather than emptying. There is no loading
+    state, no error state and no spinner, because there is nothing a learner
+    could do about any of it.
+  base_url: "VITE_POPTY_BASE_URL, defaulting to https://popty.app"
+  enforced_in: "explainer/parseHtwCopy.test.ts — every shipped string round-trips out of the frozen original; explainer/usePublishedExplainers.test.ts — the failure modes"
+
+# =============================================================================
+# THE EXPLAINER FIGURE — A-176, founder ruling 2026-08-19
+# =============================================================================
+
+ruling DiagramLedExplainer:
+  date: "2026-08-19"
+  founder_words: "A is best - diagram led, but I wonder if we should use the graphic from the actual player to illustrate"
+  decision: |
+    The "What pressing play does" block is illustrated, and the illustration is
+    the player's OWN phase pill — same shape, same four icons, same 20/40/20/20
+    proportions, same red. The picture in the explainer and the pill on the
+    player screen teach each other; an invented graphic would teach neither.
+  component: "components/me/CyclePillFigure.vue"
+  mechanism: |
+    ExplainerBlock gains an optional `figure` field naming an illustration.
+    Prose stays in explainer/learnerExplainers.ts, pixels stay in the component
+    — the existing separation, extended rather than broken.
+  deliberate_duplication: |
+    CyclePillFigure DUPLICATES the player's markup rather than sharing it. The
+    live pill in LearningPlayer.vue is interactive and carries a long bug
+    history in its CSS comments — sticky iOS hover, the invisible-countdown
+    track, the pointer-events pass-through. Fifty static lines is the cheaper
+    and safer trade than refactoring load-bearing playback chrome.
+  inert_by_construction: "divs not buttons, no handlers, pill aria-hidden behind one sentence of alt text in learner words; nothing animates"
+  labels: "learner language only — 'you hear it', 'your turn', 'then twice, properly'; never PROMPT / SPEAK / VOICE_1"
+
+ruling ShowMeTheScreen:
+  date: "2026-08-19"
+  founder_decision: "ship option 1 — the screenshot stays crisp and small inline, tappable, and opens the labelled version at full width"
+  problem: |
+    The annotated foldout is legible; the LABELS are what will not fit. Beside
+    the phone they need gutters, so the composite wants 760 across, and the
+    explainer card is 302 — dropped in as a figure the phone squeezes to about
+    127, a smudge with callout text smaller than the prose explaining it.
+  decision: |
+    The card carries a small honest thumbnail with a "Show me the screen"
+    affordance. Tapping it opens a full-screen sheet where the shot is big and
+    its four things are named. The figure belongs to the SECTION rather than to
+    a block, because what it names is spread across four blocks — so
+    ExplainerSection gains an optional `figure` field, drawn under the intro.
+  component: "components/me/PlayerScreenFigure.vue"
+  labels_are_live_text: |
+    The callouts are HTML pins plus a legend, NOT pixels baked into a wide
+    picture. A 760-wide annotated composite halves itself on a 390-wide phone,
+    which is the very smudge this ruling avoids, and a phone is where learners
+    read this. As text they stay readable at any width, are read out by a screen
+    reader, and a copy change never needs the shot taken again. Pins touch the
+    EDGE of what they name — dead centre buries the icon being pointed at.
+  the_shot: |
+    Production, guest, phone viewport, 2x, captured mid-turn so the gap segment
+    is part-filled — the same moment CyclePillFigure draws. Nothing dev-only is
+    in it: the DEV badge, the dev reset, the guest Save Progress nudge and the
+    debug fab are all hidden before the shutter, because no learner ever sees
+    them. Re-shoot with e2e/explainer/shoot-player-screen.mjs.
+  sheet_reuses_the_in_app_browser_idiom: |
+    Fixed full-screen, safe-area-padded header per CLAUDE.md, one close, Escape
+    closes, body scroll locked while open. No new overlay abstraction.
+  verified_live: "e2e/explainer/player-screen-figure-verify.mjs — all green against a real build"
+
+ruling TheRestOfTheDrawings:
+  date: "2026-08-19"
+  founder_words: "the graphics are good. The ones where you've talked about what a go is and what listening is and what speaking is and all that sort of stuff. I think it's all very valuable. Looks excellent."
+  decision: |
+    Five more figures ship, restyled to the Style A conventions Part 1 set —
+    Mist tokens, white card, one ink weight, no new colours, no animation, live
+    SVG plus real text rather than baked images. The style fork A-179 is closed
+    by this: Parts 2 and 3 match Part 1 rather than proposing an alternative.
+  figures:
+    three-gaps: "What a go is — three gaps, one arriving, one half arriving, one wrong, all three carrying the SAME tick. The sameness is the argument, so the sentence 'that is all it takes to count' is gone."
+    spacing-returns: "What a session feels like — arrivals along a line, each returning below at widening intervals. NO calendar, NO grid, NO days: a spacing picture with days on it is a streak picture in disguise. No 'you are here' marker either."
+    listening-stretch: "The listening stretches — beats and gaps giving way to one unbroken stroke. The ABSENCE of gaps is the proof that nothing is asked."
+    worn-path: "Say it before you hear it — a route worn in by footfalls beside the same route merely read. Reaching and recognising differ in kind, not in degree."
+    climbing-band: "Speaking first, deep listening later — one climbing band whose halves swap width at a corner. It has no switch in it: proportions change, nothing stops. The thirty-hour number stays OFF the drawing and in the body text."
+  undrawn_on_purpose: |
+    "Changing course" gets NO illustration. It is a directory row, and the real
+    Library glyph the learner hunts for at the bottom left is the whole point —
+    a drawing of a glyph teaches the learner to look for the drawing.
+  one_map: |
+    ExplainerBlock.figure is typed ExplainerFigureName; ExplainerFigure.vue
+    holds a Record over exactly that union. A name with no component behind it
+    fails the typecheck, so a figure nothing draws cannot ship silently.
+  drawings_buy_shorter_prose: |
+    Every illustrated block was TRIMMED. If the words stay the same length the
+    drawing is a net cost — the point of a picture is that the prose can stop
+    arguing what the picture states.
+  no_second_moving_thing: "Part 1's breathing dot stays the only animation; a second would make it a style rather than an accent."
+
+ruling TheBestWayToSpendThirtyHours:
+  date: "2026-08-19"
+  founder_words: "Easy has more time to think, more repetitions - literally doubled up each phrase … but EASY is an illusion. In terms of cognitive load, it's way harder to do it on the fast settings. But in terms of adherence is much easier to do a few short bursts at the start. We're not going to change the wording on it."
+  replaces: "the Why-this-works block formerly headed 'Thirty hours, spent however suits you'"
+  decision: |
+    The block leads with the recommendation rather than the menu: start with a
+    big stretch, then settle into a rhythm. It names Easy and Fast, because the
+    settings and the spread are one argument, not two.
+  the_illusion_stated_both_ways: |
+    Taken steadily, Easy really is the better learning — said plainly, not
+    hedged. AND five minutes a day for a year is far harder to actually keep up
+    than it sounds. Both halves ship, or the block is a lie or a scolding.
+  fast_is_sold_as_sooner_never_as_better: "'You get there sooner, and you can start using the language sooner' — never that rushing teaches more."
+  setting_names_are_fixed: "Easy and Fast are never renamed, subtitled or held in quotation marks anywhere in learner copy."
+  ten_hours_softened: "The founder's '10 hour day' ships as 'a whole day of it' — a stated ten hours reads as a dare rather than an invitation. One word to flip it back."
+
+ruling HonestAboutWhatWeKnow:
+  date: "2026-08-19"
+  founder_words: "we don't want to mislead - the app DOES timestamp every session, so we DO know how long has elapsed since the previous session. we just don't use streaks because they create pressure and we want this journey to be fun"
+  corrects: "the earlier acceptance_test below, which asserted the system CANNOT know about an absence"
+  rule: |
+    The system CAN know. Every session is timestamped, which is how the app
+    resumes where the learner left off. The law is not ignorance, it is
+    restraint: that timestamp is never surfaced, never counted into a run of
+    days, and never used to push. Copy that claims we cannot know is a lie and
+    fails the build.
+  and_no_snippiness: |
+    Founder, same message: "we don't want to be snippy about what other apps do,
+    and why streaks are bad". The copy states OUR choice and OUR reason. A
+    reader must not be able to tell we hold an opinion about anyone else's app —
+    no comparison, no argument against streaks, warmth only.
+  thirty_hours_honestly: |
+    Founder: "it's tough for the first 30 hours but then it really does get a
+    lot easier". Both halves, neither oversold. Still inside Why this works,
+    still never a headline.
+  enforced_in: "explainer/learnerExplainers.test.ts"
 
 acceptance_test:
   fixture: "the anti-gallery — six real Duolingo shame emails"
   rule: |
     Nothing in this design could ever generate any of them. Every one of those
-    emails needs the system to know about an absence, so the system cannot know
-    about an absence. If it could know 'streak: 0', the data model is wrong.
+    emails needs the system to know about an absence — and per
+    HonestAboutWhatWeKnow the system DOES know, because sessions are
+    timestamped. So the guarantee is a product law rather than a data-model
+    accident: nothing on any learner surface reads, counts or acts on that gap,
+    and no copy may claim we are unable to.

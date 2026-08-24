@@ -20,9 +20,13 @@ import pack from './pack.json'
 
 // Semantic places a walk can live — the compiler gate checks every walk's
 // place.route against this list (lockstep, like the explainer's KNOWN_TARGETS).
-export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']
+export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites', 'library']
 
-export type WalkPersona = 'admin' | 'leader' | 'school_admin' | 'teacher'
+// 'learner' (A-159, 2026-08-18) — the engine's first non-dashboard persona.
+// A learner is emphatically not an admin: it is a MEMBER persona in the
+// compiler (tools/walkthrough/lib.mjs), so a learner walk may never anchor to
+// an element that only exists behind an admin-only guard.
+export type WalkPersona = 'admin' | 'leader' | 'school_admin' | 'teacher' | 'learner'
 
 export interface WalkStep {
   anchor: string
@@ -34,6 +38,10 @@ export interface WalkStep {
 export interface Walk {
   id: string
   title: string
+  /** Short chip label for the How-this-works hub; falls back to the title. */
+  topic?: string
+  /** Lower-case words a learner might search for to reach this walk. */
+  keywords?: string[]
   personas: WalkPersona[]
   place: { route: string; kinds?: string[] }
   steps: WalkStep[]
@@ -74,6 +82,40 @@ export function walksFor(persona: WalkPersona, place: string, kind?: string): Wa
     w.place.route === place &&
     w.personas.includes(persona) &&
     (!w.place.kinds || !kind || w.place.kinds.includes(kind)))
+}
+
+/** The chip label for a walk — its topic where it has one, else its title. */
+export function walkTopic(walk: Walk): string {
+  return walk.topic?.trim() || walk.title
+}
+
+/**
+ * The hub's search (A-159). Ranks the walks ALREADY offerable at this
+ * persona × place × kind — search can never surface a walk the learner is not
+ * entitled to see, because it filters the same walksFor() list the chips do.
+ *
+ * Matching is deliberately dumb and local: every query word must appear
+ * somewhere in the walk's searchable text (title, topic, keywords, and the
+ * words the walk actually says). No index, no network, no tokens.
+ */
+export function searchWalks(persona: WalkPersona, place: string, kind: string | undefined, query: string): Walk[] {
+  const offerable = walksFor(persona, place, kind)
+  const words = query.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean)
+  if (!words.length) return offerable
+  const scored = offerable.map((w) => {
+    const label = `${w.title} ${walkTopic(w)} ${(w.keywords ?? []).join(' ')}`.toLowerCase()
+    const body = w.steps.map((s) => `${s.say} ${s.terminal ?? ''}`).join(' ').toLowerCase()
+    // A label hit is worth more than a body hit — the learner searched for the
+    // thing, not for a sentence that happens to mention it.
+    let score = 0
+    for (const word of words) {
+      if (label.includes(word)) score += 3
+      else if (body.includes(word)) score += 1
+      else return { w, score: -1 }
+    }
+    return { w, score }
+  })
+  return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.w)
 }
 
 export function walkById(id: string): Walk | null {

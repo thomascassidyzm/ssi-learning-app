@@ -16,6 +16,14 @@ vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: authUserId })),
 }))
 
+// The rename has a second home: the school's own node, which is what the
+// dashboard heading reads. The sync itself is unit-tested in
+// _utils/schoolNodeName.test.ts — here we pin that this endpoint calls it.
+const syncNodeSpy = vi.fn(async () => 'node-1')
+vi.mock('../_utils/schoolNodeName', () => ({
+  syncNodeNameForSchool: (...args: any[]) => syncNodeSpy(...(args as [])),
+}))
+
 const auditSpy = vi.fn(async () => {})
 vi.mock('../_utils/auditSchoolWriteRejection', () => ({
   auditSchoolWriteRejection: auditSpy,
@@ -71,6 +79,7 @@ let handler: typeof import('./update-profile').default
 beforeEach(async () => {
   vi.resetModules()
   auditSpy.mockClear()
+  syncNodeSpy.mockClear()
   handler = (await import('./update-profile')).default
   DB = {
     schools: [{ id: 'school-1', admin_user_id: 'admin-a', school_name: 'Old Name', region_code: null, name_confirmed: null }],
@@ -114,6 +123,19 @@ describe('POST /api/school/update-profile', () => {
     await handler(makeReq({ school_name: 'New Name' }), res)
     expect(res.statusCode).toBe(404)
     expect(auditSpy).not.toHaveBeenCalled()
+  })
+
+  it('renames the school\'s node too, so the dashboard heading follows', async () => {
+    authUserId = 'admin-a'
+    await handler(makeReq({ school_name: 'Chepstow School' }), makeRes())
+    expect(syncNodeSpy).toHaveBeenCalledWith(expect.anything(), 'school-1', 'Chepstow School')
+  })
+
+  it('does not touch any node when the rename was rejected', async () => {
+    authUserId = 'teacher-c'
+    DB.user_tags.push({ user_id: 'teacher-c', tag_type: 'school', tag_value: 'SCHOOL:school-1', role_in_context: 'teacher', removed_at: null })
+    await handler(makeReq({ school_name: 'Hacked Name' }), makeRes())
+    expect(syncNodeSpy).not.toHaveBeenCalled()
   })
 
   it('400s a missing school_name', async () => {

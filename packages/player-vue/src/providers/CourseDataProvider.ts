@@ -30,6 +30,7 @@ import type {
   AudioRef,
   LegoPair,
 } from '@ssi/core'
+import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from './revisedAudioRefs'
 
 export interface LearningItem {
   lego: {
@@ -208,7 +209,7 @@ export class CourseDataProvider {
       }
 
       // Transform database records to LearningItem format
-      return this.transformToLearningItems(data)
+      return this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), data))
     } catch (err) {
       return []
     }
@@ -307,6 +308,23 @@ export class CourseDataProvider {
   }
 
   /**
+   * A-86: the per-clip versioned-ref map for this course, shared with every
+   * other lane that needs it.
+   *
+   * This provider runs its OWN Supabase walks — it does not go through
+   * generateLearningScript — so every walk stamps its fetched rows here before
+   * buildProxyUrl turns an id into a URL. Stamping at the walk rather than at
+   * the URL builder is deliberate: the ids also become IndexedDB cache keys,
+   * and a bare uuid for a revised clip is a permanent stale-audio bug.
+   *
+   * Empty map on error by design — a missed suffix costs one stale clip, a
+   * throw would cost the whole lane.
+   */
+  private revisedRefs(): Promise<Map<string, string>> {
+    return getRevisedAudioRefs(this.client, this.courseId)
+  }
+
+  /**
    * Build proxy URL from audio UUID
    * v2.2: Routes through /api/audio/{audioId} for CORS bypass and analytics
    */
@@ -364,9 +382,10 @@ export class CourseDataProvider {
 
       if (error || !data || !data.id) return null
 
+      const ref = applyAudioRef(await this.revisedRefs(), data.id)!
       return {
-        id: data.id,
-        url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
+        id: ref,
+        url: this.buildProxyUrl(ref),  // v2.2: use proxy for CORS bypass
         duration_ms: data.duration_ms || null,
         text: data.text || null,
       }
@@ -476,7 +495,7 @@ export class CourseDataProvider {
       }
 
       // Transform to ClassifiedBasket
-      return this.transformToBasket(legoId, data, lego)
+      return this.transformToBasket(legoId, stampRowAudioRefs(await this.revisedRefs(), data), lego)
     } catch (err) {
       return this.createEmptyBasket(legoId, lego)
     }
@@ -519,8 +538,9 @@ export class CourseDataProvider {
       if (!data || data.length === 0) return baskets
 
       // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
+      // A-86: versioned refs stamped here, at the walk (see revisedRefs).
       const grouped = new Map<string, any[]>()
-      for (const row of data) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
         const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(legoId)) {
           grouped.set(legoId, [])
@@ -546,7 +566,13 @@ export class CourseDataProvider {
 
   /**
    * Get introduction audio for a LEGO ("The German for X is...")
-   * Queries course_audio directly where role='presentation' and lego_id matches.
+   *
+   * Follows the LEGO's own link (course_legos.presentation_audio_id) first;
+   * matching a clip by the lego_id it carries is only a fallback for LEGOs
+   * with no link. The order matters: a presentation clip keeps the lego_id it
+   * was cut for even after that LEGO is repointed at a corrected clip, so the
+   * lego_id match hands back the superseded recording. (Greek, 2026-08-11 —
+   * 54 intros that read their grammar label aloud.)
    */
   async getIntroductionAudio(legoId: string): Promise<{
     id: string
@@ -557,7 +583,33 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Query course_audio directly for presentation audio by lego_id
+      // The link first — this is the clip the player plays.
+      const { data: legoRow } = await this.client
+        .from('course_legos')
+        .select('presentation_audio_id')
+        .eq('course_code', this.courseId)
+        .eq('lego_id', legoId)
+        .maybeSingle()
+
+      if (legoRow?.presentation_audio_id) {
+        const { data: linked } = await this.client
+          .from('course_audio')
+          .select('id, duration_ms, origin')
+          .eq('id', legoRow.presentation_audio_id)
+          .maybeSingle()
+
+        if (linked?.id) {
+          const ref = applyAudioRef(await this.revisedRefs(), linked.id)!
+          return {
+            id: ref,
+            url: this.buildProxyUrl(ref),
+            duration_ms: linked.duration_ms,
+            origin: linked.origin || 'tts',
+          }
+        }
+      }
+
+      // Fallback: no link — match a clip by the lego_id it carries.
       const { data, error } = await this.client
         .from('course_audio')
         .select('id, s3_key, duration_ms, origin')
@@ -571,9 +623,10 @@ export class CourseDataProvider {
       }
 
       if (data?.id) {
+        const ref = applyAudioRef(await this.revisedRefs(), data.id)!
         return {
-          id: data.id,
-          url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
+          id: ref,
+          url: this.buildProxyUrl(ref),  // v2.2: use proxy for CORS bypass
           duration_ms: data.duration_ms,
           origin: data.origin || 'tts',
         }
@@ -588,6 +641,10 @@ export class CourseDataProvider {
   /**
    * Batch load introduction audio for multiple LEGOs
    * More efficient than individual getIntroductionAudio calls (one query instead of N)
+   *
+   * Same resolution order as getIntroductionAudio: the LEGO's own link wins,
+   * lego_id matching only fills the gaps. See that method for why.
+   *
    * @param legoIds - Array of LEGO IDs to load intro audio for
    * @returns Map of legoId -> intro audio ref
    */
@@ -601,19 +658,52 @@ export class CourseDataProvider {
     if (!this.client || legoIds.length === 0) return result
 
     try {
+      const revised = await this.revisedRefs()
+
+      // The links first.
+      const { data: legoRows } = await this.client
+        .from('course_legos')
+        .select('lego_id, presentation_audio_id')
+        .eq('course_code', this.courseId)
+        .in('lego_id', legoIds)
+
+      const linked = (legoRows || []).filter(r => r.lego_id && r.presentation_audio_id)
+      if (linked.length > 0) {
+        const { data: linkedAudio } = await this.client
+          .from('course_audio')
+          .select('id, duration_ms')
+          .in('id', linked.map(r => r.presentation_audio_id))
+
+        const byId = new Map((linkedAudio || []).map(a => [a.id, a]))
+        for (const row of linked) {
+          const audio = byId.get(row.presentation_audio_id)
+          if (!audio) continue
+          const ref = applyAudioRef(revised, audio.id)!
+          result.set(row.lego_id, {
+            id: ref,
+            url: this.buildProxyUrl(ref),
+            duration_ms: audio.duration_ms,
+          })
+        }
+      }
+
+      // Fallback: LEGOs with no usable link — match by the lego_id a clip carries.
+      const unresolved = legoIds.filter(id => !result.has(id))
+      if (unresolved.length === 0) return result
+
       const { data, error } = await this.client
         .from('course_audio')
         .select('id, s3_key, duration_ms, lego_id')
         .eq('course_code', this.courseId)
         .eq('role', 'presentation')
-        .in('lego_id', legoIds)
+        .in('lego_id', unresolved)
 
       if (error || !data) {
         return result
       }
 
-      for (const row of data) {
-        if (row.lego_id && row.id) {
+      for (const row of stampRowAudioRefs(revised, data)) {
+        if (row.lego_id && row.id && !result.has(row.lego_id)) {
           result.set(row.lego_id, {
             id: row.id,
             url: this.buildProxyUrl(row.id),
@@ -856,7 +946,7 @@ export class CourseDataProvider {
       }
 
       // Transform to LearningItem
-      const items = this.transformToLearningItems([data])
+      const items = this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), [data]))
       return items[0] ?? null
     } catch (err) {
       return null
@@ -906,7 +996,7 @@ export class CourseDataProvider {
         return true
       })
 
-      return this.transformToLearningItems(uniqueRecords)
+      return this.transformToLearningItems(stampRowAudioRefs(await this.revisedRefs(), uniqueRecords))
     } catch (err) {
       return []
     }
@@ -973,8 +1063,9 @@ export class CourseDataProvider {
       }
 
       // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
+      // A-86: versioned refs stamped here, at the walk (see revisedRefs).
       const grouped = new Map<string, any[]>()
-      for (const row of data) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
         const constructedLegoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(constructedLegoId)) {
           grouped.set(constructedLegoId, [])

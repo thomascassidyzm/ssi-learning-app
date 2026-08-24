@@ -1,6 +1,18 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
+# Last Updated: 2026-08-16 (THE BOOT LINE STILL TRUSTED navigator.onLine — a weak signal (onLine TRUE, requests hang) let the inline boot watchdog conclude "broken deploy", delete the SW + precache and reload into a network that could not answer: permanent white screen. Healing now demands a real network ANSWER, and a boot stalled past 3s swaps in the precached shell. See offline_infinite_play.the_boot_line_still_trusted_it / .lie_fi_had_no_test_that_could_catch_it and docs/pwa-lifecycle-design.md §2.1b)
+# Prev: 2026-08-15 (THREE OFFLINE STATES, and unexpected offline is NOT modelled on infinite play — Tom's refinement. Unexpected offline keeps going FORWARD through the normal script from cache (appendForwardFromCacheOffline, ahead of the recycle at all five sites) and recycles only once forward material runs out; neither offline state is a completion trigger and neither changes the belt reached, so enterInfPlayFromCache no longer writes current_mode or ratchets the cursor. See offline_infinite_play.the_offline_model / .forward_before_recycle / .offline_is_never_a_completion_trigger)
+# Prev: 2026-08-15 (THE OFFLINE CACHE GATE FAILS CLOSED — one isCyclePlayableOffline (playback/offlinePlayable.ts) replaces four inline copies whose `!id ||` answered "cached" for a BLANK url, so an audio-less intro was the one cycle guaranteed to survive the filter and play four phases of silence. Plus: AudioCache.ready() awaited at boot so a synchronous has() is never answered from an unhydrated Set, and offline session_complete no longer awaits a doomed expandScript walk. See offline_infinite_play.the_gate_fails_closed / .hydrate_before_you_trust_the_index / .never_await_a_doomed_walk)
+# Prev: 2026-08-15 (OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE — Tom's ruling. Offline recycling takes infinite play's SELECTION without its MODE CHANGE: the learner keeps their own belt colour and belt nav, no red accent, no ∞ pill. isInfPlayActive (the formal mode: look + navigation) is split from isRecycledRoundPlayback (the round shape: belt freeze, belt-write suppression, pod cadence), with offlineRecycleBeltHeld distinguishing them. See offline_infinite_play.offline_changes_what_plays_never_where_you_are)
+# Prev: 2026-08-15 (OFFLINE INFINITE PLAY is a weighted urn sampled WITHOUT replacement over the MEASURED cache — tickets = 1 + length_bonus + recency_bonus, capped; full coverage per pass, weights control frequency within it; spaced repetition falls out of the structure with no learner model. See offline_infinite_play)
+# Prev: 2026-08-15 (NEVER GATE PLAYBACK ON THE NETWORK — Tom's ruling. One critical-path budget in config/networkGate.ts; every boot fetch falls back to cache on timeout/5xx/403; navigator.onLine replaced by an OBSERVED stall signal; the deliberate-offline toggle is now INTENT, not playback permission. See never_gate_on_network)
+# Prev: 2026-08-11 (INTRO CLIP RESOLUTION: the LEGO's own link now beats the lego_id a clip carries, everywhere. A presentation clip keeps the lego_id it was cut for even after the LEGO is repointed at a corrected clip, so by-lego_id matching returned the superseded recording — 54 Greek intros reading their grammar tag aloud on the Course Explorer surface. See intro_clip_resolution)
+# Prev: 2026-08-11 (SECURITY INPUT-01: POST /api/audio/batch-urls no longer serves premium past-preview ids to unidentified callers. The gate is unconditional — NOT behind ENTITLEMENT_ENFORCE, which is absent in Vercel production and defaults fail-open — so the bulk shape (500 direct-to-S3 presigned URLs per anonymous request) is closed. bulkAudioDownload now sends a Supabase session or try-link bearer. See offline_download.bulk_download_transport.auth)
+# Prev: 2026-08-09 (SCRIPT_VERSION v11 — the walk is MODE-NEUTRAL. Every v10 entry was walked with a mode's caps applied and is a thinned subset in the wrong shape; from v11 one cached script serves Easy and Fast, and a mode toggle never touches any cache. See script_cache)
+# Prev: 2026-08-07 (A-86: EVERY client-side walk of an audio-id column now stamps the versioned ref — see versioned_audio_refs.all_client_lanes_stamped)
+# Prev: 2026-08-07 (PWA UPDATE never activates a worker under a live page — activation deletes every changed chunk from the precache and kills the running document; skipWaiting/clientsClaim now false in every environment, and directoryIndex:null stops the precache route shadowing navigations. See service_worker + docs/pwa-lifecycle-design.md §2.1a)
+# Prev: 2026-08-06 (learning-mode wording: Turbo retired, Easy/Fast are the two modes. PER-CLIP VERSIONED AUDIO REFS documented — the `<uuid>.v<N>` scheme, the server lane (api/_utils/audioAccess.ts → cycles/infplay-cycles) and the client lane (providers/revisedAudioRefs.ts → generateLearningScript), plus why the script-cache drop lane alone could not heal a stale clip. See versioned_audio_refs)
+# Prev: 2026-08-04 (intro_audio_missing telemetry — the silence-class that emitted nothing now reports at the fallback point. Earlier: tail-pacing: straggler rounds announce themselves via offlineDlStragglers; stall-proofing: hard per-fetch timeouts + UI liveness rule; readiness THRESHOLD + straggler retry rounds)
 # Prev: 2026-07-29 (offline-lease subscription read is FAMILY-AWARE: resolveEffectiveSubscription — a live family member renews on the owner's 'SSi Family' row; see offline_lease.files)
 # Prev: 2026-07-27 (content_stamp lane is now STALE-WHILE-REVALIDATE: play the cached script immediately, regenerate in background, fresh applies next session — see content_freshness_stamp)
 # Prev: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
@@ -90,6 +102,146 @@ spec audio_caching_architecture:
         id per session (a round is rebuilt several times per session; the gap
         is a property of the CONTENT). A throwing sink is swallowed —
         telemetry never interferes with playback.
+
+  ## ==========================================================================
+  ## INTRO CLIP RESOLUTION — the LINK is the truth, the lego_id on a clip is not
+  ## ==========================================================================
+
+  intro_clip_resolution:
+    added: "2026-08-11"
+    rule: |
+      "Which clip is this LEGO's introduction?" has exactly ONE answer, and it
+      is the LEGO's own link. Resolution order, highest first:
+        1. a pre-resolved presentationAudio object on the item (the /cycles
+           wire format supplies this)
+        2. course_legos.presentation_audio_id — what generateLearningScript
+           emits as ScriptItem.presentationAudioId
+        3. lego_introductions.presentation_audio_id / audio_uuid (legacy link)
+        4. LAST RESORT ONLY: course_audio WHERE role='presentation' AND
+           lego_id=<id> — matching a clip by the lego_id it carries
+
+    why_the_order: |
+      A presentation clip carries the lego_id it was CUT for, permanently. That
+      is provenance, not ownership. When content repairs a LEGO by repointing
+      it at a different, already-correct clip, the superseded clip keeps the
+      lego_id — so step 4 hands back the recording that was just superseded.
+      Step 4 is a guess; steps 1-3 are links. Never promote a guess above a link.
+
+    the_defect_this_encodes: |
+      Greek, reported on the forum 2026-08-11. 54 ell_for_eng presentation
+      clips read their bracketed grammar tag out loud — "The Greek for: 'to
+      answer (I, aorist)', is:". The content fix repointed course_legos at 54
+      already-clean clips, taking the player (which follows the link) to zero.
+      The dirty clips could be neither corrected nor deleted — a clip saying
+      the same words in the same voice already existed — so they kept their
+      lego_ids, and every by-lego_id resolver kept playing the label. Verified
+      live: all 54 LEGOs link to a clean clip; all 54 clean clips carry a
+      DIFFERENT lego_id, so a by-lego_id match returns the labelled clip 54
+      times out of 54.
+
+    resolvers:
+      - "providers/resolveIntroAudioUrl.ts — the shared precedence function (both CourseExplorer call sites)"
+      - "composables/useScriptCache.ts loadIntroAudio — builds the audioMap `intro:<legoId>` entries; steps 2,3,4 in that order"
+      - "providers/CourseDataProvider.ts getIntroductionAudio / getIntroductionAudioBatch — link first, lego_id match as fallback"
+      - "providers/generateLearningScript.ts — reads course_legos.presentation_audio_id directly (step 2); its backfill block is step 4 and only fires when the link is NULL"
+
+    scope: |
+      This is a resolver rule, not a content fix. It clears a LEGO only where a
+      corrected clip has actually been wired onto course_legos. Live census
+      2026-08-11: ell_for_eng is the only course where that repointing has been
+      done (54/54). In 43 other courses ~2,180 bracketed presentation clips
+      remain, and there the LEGO links at the labelled clip itself — those need
+      content work, and no resolver change can help them.
+
+  ## ==========================================================================
+  ## PER-CLIP VERSIONED AUDIO REFS — how a repaired clip busts every cache
+  ## ==========================================================================
+
+  versioned_audio_refs:
+    rule: |
+      An audio ref is either a bare uuid — "whatever revision is current" — or
+      `<uuid>.v<N>`, naming one exact revision. Only clips that have actually
+      been revised ever grow a suffix, so unrevised audio keeps its URL and its
+      cached bytes and nobody re-downloads a course.
+
+    why_the_revision_rides_in_the_id: |
+      There are TWO caches downstream and they key differently. The browser HTTP
+      cache keys by URL (a `?v=` query string would bust it). AudioCache keys by
+      audio ID and never looks at the URL at all, so a query string would leave
+      every learner on stale bytes for good. Versioning the ID moves both,
+      because the id IS the cache key AND the thing every `/api/audio/${id}`
+      call site interpolates. That is why no player code changed for this: the
+      ref is an opaque string that rides through the builders untouched.
+
+    server_lane:
+      file: "api/_utils/audioAccess.ts"
+      helpers: "parseAudioRef / buildAudioRef / fetchRevisedAudioRefs / stampRowAudioRefs / AUDIO_ID_COLUMNS"
+      wired_into:
+        - "api/courses/[code]/cycles.ts — the instant-playback bootstrap + tier-3 near-edge rounds"
+        - "api/courses/[code]/infplay-cycles.ts"
+        - "api/courses/[code]/bundle.ts (no player caller today — tested, not consumed)"
+      resolution: "api/audio/[audioId].ts resolves a pinned revision against the course_audio_revisions ledger; a bare ref serves current. batch-urls accepts refs via isValidAudioId."
+
+    client_lane:
+      file: "packages/player-vue/src/providers/revisedAudioRefs.ts"
+      why: |
+        The player does NOT get all its content from the stamped routes.
+        generateLearningScript walks course_legos / course_practice_phrases /
+        course_seeds / listening_pod_sentences / course_audio DIRECTLY over
+        Supabase, and its output is what the script cache stores. The returning-
+        learner CACHE FAST PATH in LearningPlayer hydrates SimplePlayer straight
+        from that cache and returns — no bootstrap, no round-map, so the tier-3
+        /cycles watcher never fires either. A whole session can therefore run
+        without ever touching a stamped route.
+      rule: |
+        The walk fetches the same revised-ref map (one query, in parallel with
+        the content queries) and stamps the rows ONCE, before anything copies an
+        id onto a ScriptItem. Any future client-side reader of a *_audio_id
+        column must do the same, or it reintroduces the stale-clip bug.
+      drop_lane_is_not_enough: |
+        Dropping the script cache on an audio_stamp move does NOT heal an
+        unstamped walk — the regenerated script is just as stale as the one it
+        replaced. This was the live German symptom on 2026-08-06: the repair,
+        the stamp and the drop lane all fired correctly and the learner still
+        heard pre-repair audio. SCRIPT_VERSION v10 orphans the v9 entries.
+      shared_map: |
+        getRevisedAudioRefs(supabase, courseCode) — ONE in-flight query per
+        course, shared by every lane. An EMPTY result is deliberately not
+        memoised: empty means either "no revised clips" or "the lookup failed",
+        the two are indistinguishable by design, and caching a failure would
+        strand a whole session on bare refs. clearRevisedAudioRefs() drops it.
+
+      array_id_columns: |
+        stampRowAudioRefs also walks sentence_audio_ids /
+        sentence_known_audio_ids on listening_pod_sentences. Those ids become
+        the per-sentence target/known clips after the silence-split flatten, so
+        leaving them bare would defeat the stamping of the row they came from.
+        bareAudioId(ref) strips `.vN` back for any lookup that must go to the
+        DATABASE — course_audio is keyed by the bare uuid.
+
+      all_client_lanes_stamped:
+        - "providers/generateLearningScript.ts — the script walk (original consumer)"
+        - "composables/usePodLapScheduler.ts — listening_pod_sentences + bookends, stamped after the offline fallback resolves"
+        - "composables/useLayer1Scheduler.ts — course_seeds + bookends, same position"
+        - "composables/listeningMetaCache.ts — the OFFLINE listening snapshot, and it now refreshes on an AUDIO stamp move as well as a content stamp move (a clip repair moves audio_stamp and not necessarily content_stamp, so the content lane alone would leave a downloaded snapshot on the pre-repair ref forever). Load-bearing: offline the ref lookup cannot run, so the schedulers' own stamping degrades to a no-op; the snapshot must be written stamped while online or an offline learner plays pre-repair audio for its whole life. clipTexts is queried by bare id and keyed by the stamped ref"
+        - "components/ListeningOverlay.vue — its four own walks: fine-knowns, USE phrases, seeds, and the offline listening pack's id list"
+        - "components/PronunciationOverlay.vue — its course_practice_phrases walk"
+        - "providers/CourseDataProvider.ts — every walk, via the private revisedRefs() accessor: session items, welcome, presentation (single + batch), baskets, lego range"
+        - "composables/usePodStage0.ts — drives the PodStageAuditioner QA surface; a QA surface that plays the pre-repair clip is a QA surface that lies"
+
+      already_covered_no_change_needed:
+        - "composables/useFullCourseScript.ts (CourseExplorer) — builds URLs from generateLearningScript output, which is stamped upstream"
+
+      still_unstamped_by_design:
+        - "useScriptCache's direct-to-bucket getAudioUrl fallback — bypasses /api/audio entirely; s3_key is current, so it is fresh-by-accident, not by design"
+        - "shared_audio rows (instructions, encouragements) in CourseDataProvider — cross-course template table, outside the per-course course_audio revision ledger"
+
+      stamp_at_the_walk_not_the_url: |
+        Standing rule for any future client-side reader of a *_audio_id column:
+        stamp where the ROWS are fetched, never at the URL builder. The fetched
+        rows are what flows into the script cache, the schedulers and the
+        offline snapshot, so a last-moment URL rewrite leaves the bare id sitting
+        in cached state upstream — which is the bug, not the symptom.
 
   ## ==========================================================================
   ## THE CACHE — AudioCache (one IndexedDB store, two lifecycles)
@@ -215,9 +367,9 @@ spec audio_caching_architecture:
       of the SW.
     what_sw_still_does:
       - "Precache the app shell (js/css/html/svg/woff2)"
-      - "NetworkFirst on document navigations (3s timeout → cache) so deploys propagate"
+      - "NetworkFirst on document navigations (3s timeout → cache) so deploys propagate — real since 2026-08-07: directoryIndex:null stops the precache route shadowing '/' navigations"
       - "CacheFirst on Google Fonts (fonts.googleapis.com / fonts.gstatic.com) only"
-      - "skipWaiting/clientsClaim FALSE in prod (registerType:'prompt') — never auto-interrupt a playing session"
+      - "skipWaiting/clientsClaim FALSE in EVERY environment (registerType:'prompt'). The app never activates a waiting worker: activation deletes every changed chunk from the precache, so a live page loses its own code and dies at its next lazy import. Taking an update is a plain reload; the worker takes over once no client is open. See docs/pwa-lifecycle-design.md §2.1a"
 
   ## ==========================================================================
   ## OFFLINE DOWNLOAD — DEPTH PICKER
@@ -281,7 +433,8 @@ spec audio_caching_architecture:
         the slider/bar/labels to the 'keep N% of the course offline' framing.
       why_not_time: >
         Time is misleading twice: INF PLAY makes total offline time infinite, and
-        the 'new' portion stretches with turbo/replay. So the readout is MB (real
+        the 'new' portion stretches with replay and with the learner's mode
+        (Easy doubles the reps). So the readout is MB (real
         cost) + a course-depth bar (the pre-INF-PLAY new learning made visible),
         never a duration.
       course_depth_bar: >
@@ -324,6 +477,16 @@ spec audio_caching_architecture:
         concurrency (24 idle / 6 playing), skipping the per-clip serverless
         proxy hop. Proxy path (12 / 4) remains the fallback for endpoint
         failure, denied ids, and clips whose direct fetch fails.
+      auth: >
+        SECURITY (INPUT-01, 2026-08-11): batch-urls denies premium
+        past-preview ids to callers it cannot identify, unconditionally — NOT
+        behind ENTITLEMENT_ENFORCE (absent in production, defaults fail-open).
+        This module therefore sends an Authorization bearer: the Supabase
+        session access_token when signed in, else a live `ssi-try-token`
+        entitlement token, else no header. Free/community courses and preview
+        seeds (<= Yellow, seed 19) are never gated, so anonymous guests keep
+        full bulk download of everything they may have. The per-clip proxy
+        keeps its fail-open posture — `<audio src>` cannot send a header.
       jit_url_resolution: >
         Presigned URLs are requested JUST-IN-TIME, one chunk at a time: resolve
         chunk → download chunk to completion → resolve next chunk. Never
@@ -709,8 +872,387 @@ spec audio_caching_architecture:
   ## QUALITY METRICS
   ## ==========================================================================
 
+  ## ==========================================================================
+  ## NEVER GATE PLAYBACK ON THE NETWORK  (Tom's ruling, 2026-08-15)
+  ## ==========================================================================
+
+  never_gate_on_network:
+    ruling: |
+      "If there's very little signal, but app is not in offline mode. It should
+       not check online for the handshake, it should just be ready from the
+       cache. If phone is in airplane mode it should ALSO play whatever it has
+       in the cache rather than do nothing. This is important because people
+       might not have remembered to put the app in offline mode deliberately.
+       The heuristic is that the app should always play whatever it has. It
+       should never allow a weak Internet connection to block the learner. …
+       Play what you have. Verify access as and when you can. Never as a gate."
+
+    the_gate_module: |
+      config/networkGate.ts is the single owner of the answer to "how long may a
+      learner be made to wait". CRITICAL_PATH_TIMEOUT_MS = 2500 for anything
+      between boot and first audio; BACKGROUND_FETCH_TIMEOUT_MS = 9000 as a
+      leak-guard for work nobody is waiting on. `withNetworkTimeout` returns a
+      NETWORK_TIMEOUT sentinel instead of hanging — and deliberately does NOT
+      swallow a real rejection, because a 403 is not the same event as a hang
+      and the caller must be free to treat them differently.
+
+    onLine_is_not_an_oracle: |
+      navigator.onLine reports TRUE on a connection too weak to complete
+      anything, and behind captive portals — the codebase already said so in
+      two comments before this pass. It is now trusted in ONE direction:
+      `onLine === false` means genuinely offline (airplane mode), so skip the
+      doomed fetch. In the other direction we ask isNetworkPresumedDown(),
+      which reports an OBSERVED critical-path stall (60s TTL, cleared by any
+      critical-path success or an 'online' event). isOfflineish() = either.
+
+    the_boot_line_still_trusted_it: |
+      2026-08-16. onLine_is_not_an_oracle was applied to PLAYBACK on 2026-08-15
+      and stopped at the app's front door. The inline boot watchdog in
+      index.html — which runs before any module, so it cannot import
+      networkGate — still asked navigator.onLine, and it is the one component
+      whose failure mode is DESTRUCTIVE: on a boot that never mounts it deletes
+      the service worker and the whole precache and reloads.
+
+      On a weak cellular signal (Tom, field report, phone, 2026-08-16) that
+      flag reads TRUE, so the watchdog concluded "broken deploy", deleted the
+      only copy of the app that could still render, and reloaded into a network
+      that could not send a new one. Permanent white screen, surviving reloads
+      — as distinct from the warm #e8e3dd boot screen, which proves the
+      document DID arrive. Brown means the shell loaded; white means it did not.
+
+      The compounding cause is the chunk trap: navigations are NetworkFirst
+      with a 3s timeout, so a ~11KB index.html can arrive inside the budget
+      while the hashed chunks it names cannot — and sub-resource fetches carry
+      NO timeout. dev redeploys constantly, so that fresh HTML names chunks the
+      old precache has never seen.
+
+      Fix, at the boot line, mirroring the same doctrine one layer earlier:
+        - Healing now requires the network to have ANSWERED (same-origin fetch,
+          cache:'no-store', 2s deadline) — not to have claimed it is online.
+          shouldHealOnBootFailure(networkAnswered) in utils/bootHeal.ts.
+        - A boot stalled past CACHED_SHELL_FALLBACK_MS (3000) swaps in the
+          PRECACHED shell (caches.match('/index.html', {ignoreSearch:true}),
+          document.write) rather than waiting: its chunk hashes are precached by
+          construction, so it mounts at once. Weak signal now behaves like
+          airplane mode, which was Tom's ruling.
+        - The swap guard EXPIRES (SWAP_GUARD_MS 30000) rather than lasting the
+          session, so a learner who reloads twice on a bad signal is rescued
+          twice. It cannot rely on being cleared by the swapped-in document,
+          whose inline script the vercel.json CSP hash blocks whenever the
+          cached shell is from a different build.
+      NetworkFirst navigation is untouched: a healthy reload still gets fresh
+      code. See docs/pwa-lifecycle-design.md §2.1b.
+
+    lie_fi_had_no_test_that_could_catch_it: |
+      Every offline probe in e2e/ establishes its condition with
+      context.setOffline(true) or by killing the server — the FAILURE path,
+      where requests reject immediately. The two most recent (identity,
+      belt-held) do hang requests via a never-resolving context.route, but only
+      for supabase/api/S3 DATA; the app's own shell and chunks were served
+      instantly by a healthy local server in every probe ever written. So a
+      fully green offline suite was compatible with a permanent white screen on
+      a weak signal.
+
+      e2e/lie-fi-shell-boot-probe.mjs closes it, hanging requests AT THE SERVER
+      (accept the socket, never answer). That is the only faithful harness
+      here: CDP Network.emulateNetworkConditions attaches to the PAGE target
+      and leaves the service worker's own fetches unthrottled, and Playwright
+      routing does not intercept SW requests at all — both were tried first and
+      both reported a healthy 116ms boot while the failure was reproducible.
+      Four runs per build: airplane (regression), uniform hang, hang + fresh
+      deploy (the real one), healthy.
+
+    deliberate_offline_is_now_intent_only: |
+      RETIRED: the behavioural split between "learner flipped the offline
+      toggle" and "learner's phone lost signal". offlinePlaybackActive() is
+      `(offlineActive || !isOnline || isNetworkPresumedDown()) &&
+      !offlineLeaseLocked`. The toggle still exists and still persists per
+      course, but it now expresses INTENT — don't spend my data on background
+      downloads, and the UI copy — not permission to play cached bytes. A
+      learner who forgot to flip it gets what one who remembered gets.
+
+    entitlement_is_verified_never_gated: |
+      A 403 from the /cycles entitlement gate serves cached cycles rather than
+      locking the learner out; the 403 is still logged LOUDLY so a real
+      token-plumbing regression stays visible. The offline lease was already
+      correct here (lazy, hard-timeout, fail-open) and is unchanged. Read-path
+      degradation is silent-to-the-learner; WRITE-path failures stay loud, per
+      the RLS doctrine's no-false-"Saved" rule.
+
+    the_one_honest_failure: |
+      Offline-ish AND the cache is genuinely empty. Nothing to play, so say so
+      plainly — "connect once and download for offline to bring it along" —
+      never a raw TypeError, never an infinite spinner, and never for the case
+      where content IS cached.
+
+    tests: |
+      src/config/networkGate.test.ts and
+      src/composables/useInstantPlayback.cacheFirst.test.ts pin the three named
+      scenarios: airplane-mode-cache-warm, weak-signal-cache-warm (requests
+      hang; playback starts on the budget), and toggle-OFF-no-connectivity
+      (identical to airplane mode — the case that encodes the retirement),
+      plus 403-serves-cache and empty-cache-still-fails.
+
+  ## ==========================================================================
+  ## OFFLINE INFINITE PLAY  (Tom's ruling, 2026-08-15)
+  ## ==========================================================================
+
+  offline_infinite_play:
+    the_offline_model: |
+      THREE STATES, and they are not the same thing (Tom's ruling, 2026-08-15
+      — this supersedes the earlier framing that modelled unexpected offline
+      on infinite play):
+
+        1. INFINITE PLAY PROPER — the course is COMPLETED, no more LEGOs exist
+           in the DB. This is the ONLY completion trigger.
+        2. OFFLINE MODE — the deliberate download-ahead (the depth picker).
+           Progresses the course NORMALLY and CAN load new LEGOs; that is the
+           entire point of it.
+        3. UNEXPECTED OFFLINE — weak signal, airplane mode. PLAY WHAT YOU
+           HAVE: keep going FORWARD through the normal script, loading new
+           items from the cache — which will almost certainly include some NEW
+           LEGOs, since the cache pre-fills ahead of the playhead — until
+           nothing new can be loaded, and only THEN recycle cached phrases
+           until the app is next online.
+
+      NEITHER offline state is a completion trigger, and NEITHER changes the
+      belt the learner has reached.
+
+    forward_before_recycle: |
+      appendForwardFromCacheOffline (LearningPlayer.vue) is state 3's forward
+      half, and it runs AHEAD of the recycle at all five offline sites:
+      session_complete, the pre-tail expansion watcher, both lap boundaries,
+      and the pre-engine tail. The recycle runs only when it returns 0.
+
+      It has to exist because the offline BOOTSTRAP path serves only a few
+      rounds, so the pre-tail watcher fires almost immediately on a resume.
+      Before it, every offline branch went straight to recycling — which is
+      why Tom landed in recycled phrases about three rounds into a resume with
+      the rest of his downloaded course unread in IndexedDB.
+
+      Forward material is simply the rounds the ENGINE does not hold, taken
+      from the cached script (useScriptCache, no TTL, holds the FULL generated
+      round list). Two details that are load-bearing:
+        - Rounds with nothing playable are SKIPPED, not treated as the end of
+          the walk: one audio-less LEGO mid-course must not cap progress. The
+          engine's fail-closed cycle gate still polices what plays inside a
+          round.
+        - Dedupe is on the engine's own hasRound, NEVER an index into the
+          mirror. On the resume path the engine's queue is a WINDOW at the
+          cursor, not the head of the script array.
+
+    offline_is_never_a_completion_trigger: |
+      enterInfPlayFromCache (a skip landing past all loaded content offline)
+      used to write current_mode='infplay', ratchet the cursor to the course's
+      final LEGO, and freeze the belt at the top belt. All three are gone.
+
+      Running out of CACHED material is a fact about this device's storage on
+      this journey — not about the learner's progress. It holds the belt where
+      the learner actually is and plays what is cached until the network comes
+      back. Only INFINITE PLAY PROPER (state 1) may set the mode.
+
+    offline_changes_what_plays_never_where_you_are: |
+      Tom's ruling, 2026-08-15, after testing a signed-in offline resume in
+      airplane mode. Offline is meant to be UNREMARKABLE. The app quietly
+      plays what it already holds, FROM WHERE THE LEARNER ALREADY IS.
+
+        "what we want is to stay at the current belt colour and belt nav /
+         But just to play the cached phrases it has, like in infinite play /
+         But not necessarily to move to the formal infinite play section"
+
+      So offline recycling takes the SELECTION BEHAVIOUR of infinite play (the
+      urn) without the MODE CHANGE: no SSi-red accent, no ∞ glyph on the
+      central pill, no formal INF PLAY entry. The belt keeps saying "you are
+      where you were".
+
+      This required splitting one overloaded signal in LearningPlayer.vue,
+      because isInfPlayActive meant two things at once and the offline recycle
+      tripped the wrong one:
+
+        isInfPlayActive        — the formal MODE. Governs the LOOK and the
+                                 NAVIGATION: red accent (beltCssVars), the ∞
+                                 glyph and .is-infplay pill, belt-chevron
+                                 semantics. Reached ONLY by deliberate entry
+                                 (enterInfPlay, the ∞ activator), by the
+                                 persisted 'infplay' mode, by
+                                 enterInfPlayFromCache (a real skip past all
+                                 loaded content), or — for GUESTS, who never
+                                 get the persisted mode — by the round-shape
+                                 inference.
+        isRecycledRoundPlayback — the round SHAPE, by either route. Governs
+                                 what follows the shape rather than the
+                                 learner's location: suppressing the
+                                 belt-follows-the-drawn-phrase write, the belt
+                                 anchor freeze, the revival pod cadence.
+
+      offlineRecycleBeltHeld is the new flag distinguishing them. It is raised
+      at the single point where offline recycling engages
+      (appendCachedLoopForOffline), and it SUPPRESSES the round-shape
+      inference inside isInfPlayActive so USE-only rounds no longer imply the
+      formal mode. It is cleared by deliberate ∞ entry, by
+      enterInfPlayFromCache (which promotes to the formal mode, and clears it
+      unconditionally so guests keep their shape inference), and by genuine
+      main-loop content landing again.
+
+      BELT ANCHOR WHILE HELD: the urn draws from anywhere in the cached
+      syllabus and so crosses belts. The belt anchors to the learner's REAL
+      CURSOR — highest LEGO played, the canonical position — and does not
+      follow the drawn phrase's belt. A learner with no recorded cursor gets a
+      null anchor, hence no write, hence the belt HOLDS its last value.
+      [DEFAULT CHOSEN BY THE IMPLEMENTER, flagged for Tom's eye: it is the
+      direct reading of "stay at the current belt colour and belt nav".]
+
+      tests: "src/playback/offlineBeltHeld.test.ts — the offline half (no red,
+      no ∞, belt held across belt-crossing draws, the no-cursor edge, release
+      on main-loop return) and the deliberate half (the ∞ activator still goes
+      red, a deliberate tap outranks a hold, guests still infer from shape)."
+
+    step_1_measure_the_cache: |
+      Inventory what is actually fetchable RIGHT NOW; that list is the session
+      syllabus. Never assume coverage. In code this is
+      isCyclePlayableOffline (playback/offlinePlayable.ts): a cycle enters the
+      pool only if every clip it actually needs is genuinely in the persistent
+      audio cache.
+
+    the_gate_fails_closed: |
+      ONE definition of "can this cycle make a sound offline?", in
+      playback/offlinePlayable.ts, replacing four verbatim inline copies
+      (shouldSkipCycle's offline branch, offlineUnavailableBeltNames, the INF
+      PLAY warm-up net, and the urn's cache measurement above).
+
+      The copies all carried this hole:
+
+        const cachedId = (u) => { const id = idOf(u); return !id || cache.has(id) }
+                                                      ^^^^
+
+      A BLANK url yields no id, so it answered "cached" — and both round
+      builders emit exactly that, the empty string, whenever an audio id is
+      missing. So a cycle with a MISSING clip was not merely uncached, it was
+      maximally cached: the one thing guaranteed to survive the filter. It then
+      played all four phases in silence with its text on screen, because
+      SimplePlayer treats a falsy url as "nothing here, move on".
+
+      Intros are where it bit. Both builders deliberately exempt intros from
+      the audio-completeness check every other cycle type must pass, and an
+      intro is cycle 0 of a round, and a resume lands at a round start — so the
+      silence landed on the FIRST phrase. Tom hit it on 2026-08-15 resuming
+      ita_for_eng, which has 158 of 1,457 LEGOs (11%) with no presentation
+      audio at all.
+
+      The rule is now: a blank or unparseable url is NOT PLAYABLE, never
+      "cached". The nuance that makes failing closed safe is that some blanks
+      are DELIBERATE — a singleAudio cycle (listening, pod, bookend, drained
+      seed-sandwich) is supposed to carry one clip and two empty slots, so it
+      is asked only for the clip it needs. Telling "deliberately empty" from
+      "missing" is the fix; treating them identically was the bug.
+
+      tests: "src/playback/offlinePlayable.test.ts"
+
+    hydrate_before_you_trust_the_index: |
+      persistent.has(id) is a SYNCHRONOUS read of an in-memory Set that is
+      filled only by AudioCache's lazy doInit() cursor walk. Until that
+      finishes it answers FALSE FOR EVERYTHING — so offline, on a cold load,
+      every cycle with real audio looked uncached and the whole round queue got
+      culled, leaving only the blank-url cycles above. The race did not create
+      the silence; it CONCENTRATED it at the start of a session, which is
+      exactly where a resume lands.
+
+      AudioCache.ready() is now public and awaited once at boot
+      (LearningPlayer onMounted, next to the offline-lease check) before
+      anything consults the gate. It fails open — a cache that cannot hydrate
+      must not block boot.
+
+    never_await_a_doomed_walk: |
+      With the index unhydrated, the cull ran the engine to the tail, where
+      session_complete found nothing to recycle and fell through to
+      `await expandScript()` — a full Supabase course walk on the play path,
+      with no network budget bound to it, offline. It cannot succeed; it just
+      takes several seconds to say so, with "Warming up the synapses..." on
+      screen, after which wrapInfPlayAtTail drops the learner on a revival
+      sentence. That was Tom's ~5s wait, and his "and then goes to an infinite
+      play sentence", 2026-08-15.
+
+      Offline, session_complete no longer falls through to expandScript at all.
+      The preparing message was never the problem — the typewriter is 26 chars
+      at 35ms with no minimum-display floor, and clears the instant the first
+      prompt phase starts. Cutting a network await that can only fail beats
+      showing a nicer message while it runs down.
+
+      Same signal now gates the player-event telemetry flush
+      (composables/usePlayerLog.ts), which fires on a 5s interval and whose
+      failures were already silent with the buffer already dropped by design —
+      so nothing is lost, and on iOS each failed foreground request is another
+      chance to trip the system "not connected, open Settings" alert.
+
+      NOT FIXED, and not fixable from web code: that iOS alert itself. Its
+      main trigger is the WKWebView top-level NAVIGATION, which fails at the
+      OS layer before any of our JS runs; there is no web hook to intercept
+      native chrome. The service worker's NetworkFirst navigation route is a
+      deliberate, hard-won tradeoff (see vite.config.js) and must NOT be
+      flipped to CacheFirst to chase this — that trades the alert for the
+      stale-shell and dead-chunk classes it was chosen to prevent.
+
+    step_2_weighted_urn_without_replacement: |
+      playback/offlineUrn.ts. Tickets per phrase = 1 + length_bonus +
+      recency_bonus, capped. Every ticket goes in the urn; draw WITHOUT
+      replacement until empty, then refill.
+
+      Without-replacement is mandatory and is the whole point: it guarantees
+      full coverage of the cached syllabus every pass, so the weights control
+      only how OFTEN within a pass, never whether. A with-replacement sampler
+      would let a phrase vanish for an arbitrarily long time, which is exactly
+      what spaced repetition must not do.
+
+      The urn PERSISTS across appends (LearningPlayer holds it, rebuilt on a
+      cache-inventory signature change). Each append draws only as many phrases
+      as the cached material has cycles, while a full pass is up to 4x that —
+      so a fresh urn per append would hand out only the first quarter of each
+      pass and silently lose the coverage guarantee.
+
+    step_3_length_bonus: "Top third by clip duration gets extra tickets — hardest covered content, decays fastest. URN_LENGTH_BONUS_TICKETS, default 2."
+
+    step_4_recency_bonus: "Top third by POSITION IN COURSE (introduction order — the source round number), NOT clock time. Newest-introduced is least consolidated. URN_RECENCY_BONUS_TICKETS, default 1."
+
+    the_floor_is_load_bearing: |
+      One ticket minimum for every cached phrase, always. Early short phrases
+      must keep resurfacing because they are the skeleton inside the long ones.
+      Spaced repetition falls out of the urn structure itself — no learner
+      model, no per-item state, no scheduler. The only inputs are cache
+      contents and course position.
+
+    ordering_is_greedy_not_shuffle_then_repair: |
+      Two things had to be got right, and neither is obvious:
+
+      (a) A shuffled ticket multiset repaired by forward swaps STARVES at the
+      tail of a pass — by then the only elements left to swap with are the very
+      keys that are clashing. Structural, not unlucky: it produced a
+      back-to-back repeat in the closing draws of every pass. Replaced by
+      greedy weighted selection over keys bucketed by remaining count.
+
+      (b) On a THIN cache a heavy weighting cannot be spaced at all. A phrase
+      holding c tickets needs 2c-1 slots; three cached phrases with one on 4
+      tickets needs 7 slots in a 6-slot pass, which no ordering satisfies. So
+      the cap damps itself to `distinct - 1` on small syllabi — which matters
+      precisely when a learner has little downloaded and would most notice.
+
+      Selection is O(cap) per draw via count buckets, not O(distinct): this
+      runs mid-playback when the queue drains, and the naive form cost ~470ms
+      on a fully-downloaded course — a freeze long enough to hear.
+
+    round_shape_is_preserved: |
+      Drawn phrases are dealt back into the SAME number of rounds, of the same
+      lengths, as the cached material had. The urn changes what plays and how
+      often — not session pacing, and nothing downstream that counts rounds.
+
+    taste_knobs: |
+      URN_LENGTH_BONUS_TICKETS (2), URN_RECENCY_BONUS_TICKETS (1),
+      URN_MAX_TICKETS (4), URN_TOP_FRACTION (1/3), URN_MIN_GAP (3). Named
+      constants by design — Tom tunes these by ear.
+
+    tests: "src/playback/offlineUrn.test.ts — tickets, coverage, weighting, and an 800-seed sweep for the back-to-back property (a single seed passed both broken implementations)."
+
   quality_targets:
-    never_fail: "Audio must ALWAYS play, regardless of network"
+    never_fail: "Audio must ALWAYS play, regardless of network — and never WAIT on it: one 2500ms critical-path budget, then cache (networkGate)"
     atomic_binding: "Text and audio ALWAYS match (Cycle ensures this)"
     cache_first: "The player only ever reads from the cache; the network only fills it ahead"
     buffer_target: "~20 min of cycles (+pods+L1) warmed ahead of the playhead (ROLLING_SPAN_MS)"

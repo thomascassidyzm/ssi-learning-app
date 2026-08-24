@@ -23,6 +23,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { ensureSchoolTrialCourse } from '../_utils/schoolPlatformTrial'
 import { rejectIfViewAs } from '../_utils/actAsGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -73,7 +74,7 @@ export default async function handler(
   try {
     const { data: cls, error: classError } = await supabase
       .from('classes')
-      .select('id, teacher_user_id, school_id')
+      .select('id, teacher_user_id, school_id, course_code')
       .eq('id', classId)
       .single()
 
@@ -122,6 +123,16 @@ export default async function handler(
     if (!authorized) {
       res.status(403).json({ error: 'Not authorized to create a learner entity for this class' })
       return
+    }
+
+    // A trial school that never chose a language at signup (invite-born —
+    // redeem.ts has no course to pass) records it HERE, the first time it
+    // creates a class with a course. Fill-once and guarded inside the helper;
+    // fail-open, so it can never block the learner-entity mint below.
+    try {
+      await ensureSchoolTrialCourse(supabase, cls.school_id, (cls as { course_code?: string | null }).course_code)
+    } catch (trialErr) {
+      console.warn('[CreateClassLearner] trial-course record failed (non-fatal):', trialErr)
     }
 
     const result = await ensureClassLearnerEntity(supabase, classId)

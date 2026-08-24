@@ -1,0 +1,31 @@
+{
+  "id": "reading-the-course-list",
+  "title": "Reading the course list",
+  "topic": "Reading a course card",
+  "keywords": ["course", "courses", "card", "list", "for english speakers", "speakers", "direction", "premium", "try free", "free", "paid", "pay", "variants", "northern", "southern", "which one", "dot"],
+  "personas": ["learner"],
+  "place": { "route": "library" },
+  "steps": [
+    {
+      "anchor": "library-course-card",
+      "say": "Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "library-course-card",
+      "say": "The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "library-course-card",
+      "say": "**Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "library-course-grid",
+      "say": "Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.",
+      "advance": { "on": "next" },
+      "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+    }
+  ]
+}

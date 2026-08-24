@@ -58,10 +58,17 @@ const NO_POST = DRY || argv.includes('--no-post')
 const NO_PUSH = DRY || argv.includes('--no-push')
 
 // ── 3. CI health ────────────────────────────────────────────────────────────
-// verify.yml runs on claude/**, dev, staging, main and PRs. Runs are SHA-keyed, so for any
-// candidate commit we can ask "did Verify ever go green on exactly this tree?" regardless of
-// which branch it was on when tested. Commits with no run at all are reported as UNTESTED
-// rather than silently counted green — most of those are merge commits, which is why the
+// verify.yml runs on dev, staging, main and PRs; auto-merge-claude.yml runs a byte-identical
+// verify job on claude/** pushes. Both are SHA-keyed, so scanning BOTH lets us ask, for any
+// candidate commit, "did the gate ever go green on exactly this tree?" regardless of which
+// branch it was on when tested. (Before 2026-08-07 verify.yml also ran on claude/**; that
+// duplicate was removed for cost, so auto-merge-claude.yml is now the only record for
+// commits that were only ever pushed to a claude branch.)
+//
+// auto-merge-claude.yml's conclusion covers verify AND the merge step, so a failure there
+// cannot be attributed to the gate — only its successes are counted, and a failure leaves the
+// commit UNTESTED rather than RED. Commits with no run at all are reported as UNTESTED rather
+// than silently counted green — most of those are merge commits, which is why the
 // substantive/process split matters here too.
 
 function gh(args) {
@@ -79,6 +86,13 @@ function ciHealth(cand) {
       // run list is newest-first; keep the newest verdict per sha
       if (!verdict.has(r.headSha)) verdict.set(r.headSha, r.conclusion || r.status)
     }
+    // Fill the gap for commits that only ever ran the gate on a claude branch. Successes only:
+    // a failed auto-merge run may have failed at the merge step, not the gate.
+    const claudeRuns = gh(['run', 'list', '--workflow', 'auto-merge-claude.yml', '--limit', '400',
+      '--json', 'headSha,conclusion,status,displayTitle'])
+    for (const r of claudeRuns) {
+      if (r.conclusion === 'success' && !verdict.has(r.headSha)) verdict.set(r.headSha, 'success')
+    }
     const green = [], red = [], untested = []
     for (const c of cand.commits) {
       const v = verdict.get(c.sha)
@@ -86,7 +100,7 @@ function ciHealth(cand) {
       else if (v === undefined) untested.push(c)
       else red.push({ ...c, conclusion: v })
     }
-    out.verify = { green, red, untested, runsScanned: runs.length }
+    out.verify = { green, red, untested, runsScanned: runs.length + claudeRuns.length }
   } catch (e) {
     out.error = String(e.message || e).slice(0, 200)
   }

@@ -76,6 +76,8 @@ function makeChainable(table: string) {
     delete: () => { calls.push(['delete']); recordWrite(table, 'delete', undefined); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
+    in: (col: string, vals: unknown) => { calls.push(['in', col, vals]); return builder },
+    limit: (n: number) => { calls.push(['limit', n]); return builder },
     resolve: () => {
       const respond = responders[table]
       if (respond) { const r = respond(calls); if (r !== undefined) return r }
@@ -271,7 +273,25 @@ describe('POST /api/teacher/paddle-webhook', () => {
 
   // ── school_platform ──
   it('school_platform on a premium price sets school platform columns incl. seats = item quantity', async () => {
-    responders.schools = () => ({ error: null })
+    // The target is resolved server-side from the PAYER (security fix
+    // 2026-08-11): Paddle customer email → learner_emails → learners.user_id →
+    // schools.admin_user_id. customData.school_id is no longer the address.
+    // A-123 (2026-08-16): the email row must be VERIFIED, and the access
+    // guards read the node's own billing state before writing — a lapsed,
+    // unbound school has nothing the incoming subscription could take away.
+    responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner', verified: true }], error: null })
+    responders.learners = () => ({ data: [{ user_id: 'payer-uid' }], error: null })
+    responders.schools = (calls) => {
+      const eq = calls.find((c) => c[0] === 'eq')
+      if (eq?.[1] === 'admin_user_id') return { data: { id: 'school-1' }, error: null }
+      if (eq?.[1] === 'id' && eq?.[2] === 'school-1') {
+        return {
+          data: { id: 'school-1', provider_subscription_id: null, platform_status: 'cancelled', platform_expires_at: null },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
     currentEvent = subEvent(
       { kind: 'school_platform', school_id: 'school-1' },
       { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },
@@ -297,7 +317,21 @@ describe('POST /api/teacher/paddle-webhook', () => {
 
   // ── org_platform ──
   it('org_platform on a premium price sets groups platform columns incl. seats = item quantity', async () => {
-    responders.groups = () => ({ error: null })
+    // Server-side target resolution, org lane: payer → govt_admins.group_id.
+    // A-123, as above: verified email, and a guard read of the org's own state.
+    responders.learner_emails = () => ({ data: [{ learner_id: 'payer-learner', verified: true }], error: null })
+    responders.learners = () => ({ data: [{ user_id: 'payer-uid' }], error: null })
+    responders.govt_admins = () => ({ data: { group_id: 'org-1' }, error: null })
+    responders.groups = (calls) => {
+      const eq = calls.find((c) => c[0] === 'eq')
+      if (eq?.[1] === 'id' && eq?.[2] === 'org-1') {
+        return {
+          data: { id: 'org-1', provider_subscription_id: null, platform_status: 'cancelled', platform_expires_at: null },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
     currentEvent = subEvent(
       { kind: 'org_platform', group_id: 'org-1' },
       { items: [{ price: { id: PREMIUM_PRICE }, quantity: 5 }] },

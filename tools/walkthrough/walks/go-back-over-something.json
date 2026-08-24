@@ -1,0 +1,26 @@
+{
+  "id": "go-back-over-something",
+  "title": "Go back over something",
+  "topic": "Going back over things",
+  "keywords": ["back", "again", "revisit", "repeat", "redo", "review", "earlier", "revise", "jump", "move", "restart", "start again", "belts", "browse"],
+  "personas": ["learner"],
+  "place": { "route": "library" },
+  "steps": [
+    {
+      "anchor": "library-belt-browser",
+      "say": "Nothing is ever locked behind you. Tap here to open the whole course up.",
+      "advance": { "on": "click" }
+    },
+    {
+      "anchor": "belt-browser-list",
+      "say": "Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.",
+      "advance": { "on": "next" }
+    },
+    {
+      "anchor": "belt-browser-list",
+      "say": "Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.",
+      "advance": { "on": "next" },
+      "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+    }
+  ]
+}

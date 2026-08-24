@@ -269,6 +269,12 @@ Distinct from the school-level `/schools/setup` (`SetupView.vue`, already audite
 
 ### AdminOnboardingView.vue — `/admin/onboarding`, child of `AdminContainer`
 
+> **RETIRED 2026-08-19.** The page, its API (`api/admin/onboarding-messages.ts`) and its nav
+> entry are gone: one copy surface per protocol, and the onboarding copy now lives at
+> `popty.app/copy/onboarding`. The findings below (incl. G1 and danger-verb 6) are history —
+> the silent toggle no longer exists to fix. The `onboarding_messages` table stays, for the
+> sender that has still never been built.
+
 | # | Direction | Message |
 |---|-----------|---------|
 | 37-57 | App→User / User→App / App→App | "This is the live source" notice; `GET /api/admin/onboarding-messages`; message list with active/inactive toggle pill; editor panel (title/channel/subject/body/trigger/notes/active) with live markdown preview; Save → `POST {action:'update'}` (server validates channel enum, whitelists editable fields); **Active/Inactive toggle has no confirmation despite silently deactivating a live series message, and toggle failure has NO error surfaced at all** (`return`s silently) |

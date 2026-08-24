@@ -1,8 +1,164 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.7.1 (demo VAD coverage ~50%)
-# Last updated: 2026-08-06
+# Version: 0.7.4 (VAD keeps genuine early speech, and keeps it honest)
+# Last updated: 2026-08-20
+#
+# 2026-08-20 (EARLY SPEECH IS DATA — the prompt-end boundary becomes the
+# discriminator). Tom's ruling, verbatim: "we do want the latency measure to
+# start timing from the beginning of the prompt, not the end of it, we want to
+# capture the fact that confident speakers often start speaking before the
+# whole prompt has finished." Ledger L-37.
+# - THE ZERO POINT DOES NOT MOVE. response_latency_ms stays measured from
+#   PROMPT-AUDIO START. prompt_end_ms is stored so a SIGNED offset
+#   (speech_start_ms - prompt_end_ms) is computable on the READ side, and it is
+#   NEGATIVE for a genuine early speaker. Decision closed — do not re-base.
+# - The 0.7.3 pass rejected bleed correctly but cost genuine early speech in
+#   three measured ways. All three are now fixed, all three pinned by tests:
+#   (f) ONSET INSIDE THE CALIBRATION SLICE WAS SILENTLY INFLATED. The slice
+#       cannot judge its own samples — there is no floor yet — so a learner
+#       starting at 200ms was credited at the moment the slice happened to
+#       close: measured 432ms, reported as truth. 0.7.3's claim that "400ms is
+#       far below any human response, so nothing real is lost" was WRONG for
+#       exactly the most confident speaker. Fixed by BACK-DATING: once the
+#       floor exists the slice is re-read backwards and an onset already in
+#       progress is credited to where it really began. Only ever done with a
+#       measured floor in hand — back-dating under the starved-calibration
+#       fallback would hand the cycle back to playback, i.e. the original bug.
+#   (g) THE LEARNER'S OWN VOICE POISONED THE FLOOR. 0.7.3 argued the MEDIAN was
+#       safe because "a learner's burst is short relative to the slice". It is
+#       not: a learner talking from 150ms covers ~64% of a 400ms slice, the
+#       median lands on their own voice, the floor rises above them and the
+#       ENTIRE utterance is discarded (measured: speech_detected=false). The
+#       contamination is one-directional — speech is ADDITIVE, it can only push
+#       samples UP — so the estimator only has to survive upward contamination,
+#       and a LOW QUANTILE does that where the median cannot.
+#       calibration_percentile (0.25) replaces the median. Differential control
+#       in the suite re-runs the same script at 0.5 and asserts the loss.
+#   (h) THE ENERGY MARGIN ALONE IS NOT A SUFFICIENT DISCRIMINATOR. Measured: a
+#       prompt whose audio has a quiet head and a louder body gets its floor
+#       measured on the head, so the body clears the 9 dB margin on its own and
+#       the app records a learner "responding" at ~430ms with NOBODY in the
+#       room — and, worse, steals the latency of the real answer given at
+#       3000ms. What separates them is not level but the PROMPT-END BOUNDARY,
+#       because bleed IS the prompt audio:
+#         - run still above the floor at PROMPT_END + guard → outlived the
+#           prompt → learner;
+#         - run back at the floor before PROMPT_END - guard → stopped while the
+#           prompt was still playing → learner (THE SHORT EARLY ANSWER — a
+#           naive "must continue past prompt end" rule would destroy it, which
+#           is why the rule is two-sided);
+#         - run that dies WITH the prompt, inside the guard band → bleed,
+#           discarded, and the detector RE-ARMS for the real response.
+#       prompt_boundary_guard_ms (250), 0 disables. Applies to prompt-window
+#       onsets ONLY; a post-prompt onset has already outlived the prompt.
+#       Only the die-with-the-prompt case is genuinely ambiguous, and at a
+#       measured 83% bleed base rate reading it as bleed is right.
+# - CONSEQUENCE for the resolution order: PROMPT_END is marked by the player
+#   when the prompt audio actually ends, which is normally LONG after the
+#   candidate began. So a prompt-window candidate is HELD — across the end of
+#   its own run — until the boundary can judge it, and resolved lazily on
+#   whichever frame the mark arrives (or at stop). Two knock-ons, both fixed:
+#   confirming an onset no longer wipes an end recorded by the candidate's own
+#   run (only ends PREDATING the onset are discarded, which was the original
+#   intent), and a rejected-bleed cycle no longer emits speech_end with a null
+#   speech_start.
+# - The four 0.7.3 defects stay fixed; its 8 acceptance tests are unchanged and
+#   still green. 10 further tests added, FOUR of them differential controls
+#   (median floor loses the contaminating speaker; guard=0 records the ramping
+#   bleed as a learner; guard=0 lets that bleed steal the real 3000ms latency)
+#   so the suite cannot pass vacuously. 18 total.
+# - KNOWN RESIDUAL, not fixed here, reported: if the calibration slice contains
+#   NO prompt audio at all (a lead-in gap before playback actually starts) the
+#   floor is measured on near-silence and everything clears it. Measured: a
+#   500ms lead-in yields a false onset at 544ms spanning to the VOICE_1 grace
+#   clamp. This is a floor-MEASUREMENT defect, not a discrimination one — the
+#   detector has no information that separates it — and the fix belongs at the
+#   player, opening the window at audio start rather than phase start.
+# - KNOWN LIMIT, by construction: a learner already speaking when the window
+#   opens (100% of the slice contaminated) cannot be separated from a loud
+#   room. That is not a response to the prompt anyway.
+# - STILL NOT verified live — headless box, no microphone. Unit tests are the
+#   acceptance gate, as in 0.7.3.
+#
+# 2026-08-20 (VAD playback rejection — the capture gate is now RELATIVE):
+# - Diagnosis: docs/vad-telemetry/playback-rejection-diagnosis.md. The timing
+#   window opens at PROMPT START, so the mic detects across the whole cycle
+#   while the app plays prompt/voice1/voice2 through the same speaker. The gate
+#   was a bare absolute threshold (energy_threshold_db, -45) that playback
+#   trivially cleared: measured live, 1193/1433 real rows (83.3%) had speech
+#   "starting" at a median 32.5ms and 1128 (78.7%) had "utterances" longer than
+#   10s — median 14.4 SECONDS. Only 207 (14.4%) were plausibly real.
+# - Root cause is that -45 is not on an acoustic scale: getCurrentEnergy()
+#   re-logs bytes getByteFrequencyData already log-mapped over
+#   [minDecibels, maxDecibels], so -45 means "near digital silence across the
+#   spectrum". No value of that threshold could work; the requested
+#   echoCancellation flags are a red herring for the same reason.
+# - Fix, continuous mode only (legacy analyzeLoop untouched):
+#   (a) ADAPTIVE FLOOR — the first calibration_window_ms (400) of the cycle is
+#       a calibration slice in which no onset may be established; its MEDIAN
+#       energy + adaptive_margin_db (9) becomes the gate. Median because
+#       playback is continuous through the prompt while a learner's burst is
+#       short, so a real early start cannot raise the floor over itself.
+#       Under calibration_min_samples (6) it falls back to the absolute
+#       threshold rather than trusting a floor built on noise.
+#       ^^ SUPERSEDED BY 0.7.4 (f)+(g), see the block above. Both claims in
+#       this paragraph were measured false: onsets inside the slice are now
+#       back-dated rather than blocked, and the floor is the LOWER QUARTILE,
+#       not the median — a learner CAN raise a median floor over themselves.
+#   (b) SUSTAINED, RE-ARMABLE ONSET — min_speech_duration_ms (100) was declared
+#       and defaulted since the class was written but NEVER READ, so ~48ms of
+#       transient owned the whole cycle's measurement with no way to re-arm. A
+#       burst is now a candidate promoted only on sustain, crediting the
+#       burst's START so latency is not inflated; an unsustained burst is
+#       discarded.
+#   (c) ONSET WINDOW CLOSES AT VOICE_1 — no NEW utterance once target audio
+#       plays. In-progress speech is unaffected, so still_speaking_at_voice1
+#       stays measurable.
+#   (d) END CLAMPED to min(cycle end, voice1 + post_voice1_grace_ms 1500),
+#       which is what produced the whole-cycle spans.
+#   (e) The loop now reads continuousConfig for threshold and min_frames. It
+#       read this.config for those and continuousConfig only for the debounce,
+#       so a per-call config passed to startContinuousMonitoring was SILENTLY
+#       IGNORED for the gate. Independent defect, confirmed and fixed.
+# - PRESERVED DELIBERATELY: started_during_prompt stays an HONEST signal. A
+#   learner speaking over the prompt adds to playback and clears the margin, so
+#   genuine early starts are still recorded with a correct latency. The bug was
+#   playback mistaken for a learner, not early starts being recorded. Pinned.
+# - CORPUS NARROWING, stated: on a device with this failure mode expect up to
+#   ~85% FEWER cycle_prosody rows, because those cycles now have
+#   speech_detected=false and the emission is guarded on it. Smaller and true
+#   beats large and false, but it also WORSENS the known missing-silence bias
+#   (a learner who says nothing emits no row), which makes logging silent
+#   cycles more urgent than it was.
+# - Escape hatches, both per-call config and now actually effective given (e):
+#   adaptive_margin_db can come down; adaptive_floor_enabled:false restores the
+#   previous behaviour exactly.
+# - Acceptance tests: VoiceActivityDetector.playbackRejection.test.ts (8),
+#   synthetic energy timelines over a full cycle on a virtual clock, including
+#   a starved-calibration differential control so they cannot pass vacuously.
+#   NOT verified live — headless box, no microphone. See the diagnosis doc's
+#   one-minute phone check.
+#
+# 2026-08-20 (zero-point fix — cycle_prosody carries promptEndMs/voice1StartMs):
+# - `response_latency_ms` is measured from PROMPT AUDIO START (the VAD's
+#   continuousStartTime, set at phase === 'prompt'), so it silently contains
+#   the known-language prompt duration — which differs per phrase. Within one
+#   LEGO the prompt is constant, so a per-phrase slope is clean; ACROSS phrases
+#   a rolling average, deviation-from-mean or z-score for one learner measures
+#   prompt length as much as difficulty. Those second-order quantities are the
+#   ones the adaptation consumer cares about.
+# - `SpeechTimingResult` already carried `prompt_end_ms` and `voice1_start_ms`;
+#   they were simply never copied into the payload. They now are, as
+#   `promptEndMs` / `voice1StartMs` (~10 bytes/row). Invitation-to-speak
+#   latency = speechStartMs - promptEndMs, derived on the READ side: raw marks
+#   are recomputable forever, a stored derived field bakes in a definition.
+# - `responseLatencyMs` is deliberately UNCHANGED in meaning, so rows written
+#   before and after this change stay comparable on that key. Additive only.
+# - Pinned by packages/player-vue/src/playback/cycleProsodyPayload.test.ts.
+# - Rows written before 2026-08-20 are permanently confounded across phrases;
+#   the prompt duration is only recoverable for them via a three-way join
+#   through audio_play → course_audio.duration_ms, while those rows survive.
 #
 # 2026-08-06 (founder ruling — demo VAD coverage):
 # - The schools demo generator (scripts/demo-data/generate-demo-suite.cjs) now
@@ -88,7 +244,9 @@
 #   phrase-matched CEFR variance bands) recompute over historical rows.
 #   Additive output only: extraction constants and all existing derived
 #   numbers unchanged, extractor version stays 1. The event also carries
-#   speech_start/end, overlap flags, and peak/average energy dB. WP-7b note:
+#   speech_start/end, prompt_end/voice1_start marks (added 2026-08-20 — see
+#   the zero-point note at the head of this file), overlap flags, and
+#   peak/average energy dB. WP-7b note:
 #   when the dashboard-repo envelope job runs, it should store the MODEL-side
 #   contour too, or contour-vs-contour similarity has no model operand.
 # Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6
@@ -226,7 +384,7 @@ module: behavioural_producer
   purpose: >
     Producer #2 on the evidence wire (build spec §3). Maps the behavioural
     events already logged today (phase_skip, tap_skip, lego_skip, tap_pause/
-    tap_play, turbo_toggle, belt_skip, audio_retry) into MasteryEvidence at
+    tap_play, learning_mode_toggle, belt_skip, audio_retry) into MasteryEvidence at
     the logEvent emit site in LearningPlayer.vue — no round-trip through
     player_events; the DB copy stays the analytics record. Mic-free: guest /
     VAD-unavailable learners still produce this evidence, which is what makes
@@ -244,11 +402,11 @@ module: behavioural_producer
       lego_skip forward                                    -> value 0.4, weight 0.5 ("got this / too easy")
       tap_pause mid-PAUSE-phase, followed by tap_play       -> value 1.4, weight 0.5 (processing time needed)
       tap_pause outside the PAUSE phase                    -> dropped (not learner struggle)
-      turbo_toggle, belt_skip                               -> dropped from unit series; set manualOverrideActive
+      learning_mode_toggle, belt_skip                       -> dropped from unit series; set manualOverrideActive
       audio_retry                                           -> dropped (infrastructure, not learner evidence)
 
   manual_dial_rule: >
-    turbo_toggle and belt_skip are the learner outranking the engine (paper
+    learning_mode_toggle and belt_skip are the learner outranking the engine (paper
     Principle 1) — they never enter a unit's difficulty series. Instead they
     set a session-level manualOverrideActive flag the rate policy reads to
     widen its hysteresis dead-zone (build spec §4.5), so the engine yields to
@@ -281,7 +439,7 @@ module: behavioural_producer
     useBehaviouralEvidence(createEvidenceAggregator()) instance constructed
     alongside the existing adaptationEngine ref; onPlayerEvent hooked beside
     logEvent at every phase_skip / tap_skip / lego_skip / tap_pause / tap_play
-    / turbo_toggle / belt_skip call site. audio_retry is left unhooked — the
+    / learning_mode_toggle / belt_skip call site. audio_retry is left unhooked — the
     mapping drops it unconditionally, so there is nothing for a hook to do.
 
   guarantees:
@@ -290,7 +448,7 @@ module: behavioural_producer
     - pure_classification: the value/weight mapping for every event type is a
       pure function (classifyPhaseSkip / classifyTapSkip / classifyLegoSkip),
       independently testable against the mapping table above
-    - manual_dial_never_in_series: turbo_toggle/belt_skip never call sink.record()
+    - manual_dial_never_in_series: learning_mode_toggle/belt_skip never call sink.record()
     - guest_safe: no VAD/mic dependency anywhere in this producer
 
   tests:
@@ -348,7 +506,7 @@ module: rate_policy
       hysteresisReads: number              # PROPOSED 2 consecutive confirming reads
       decayRounds: number                  # PROPOSED 5 quiet rounds to fully decay a one-step nudge
       manualOverrideDeadZoneMultiplier: number  # PROPOSED 2 — widens hysteresisReads while the learner
-                                                 #   has exercised belt_skip/turbo_toggle this session
+                                                 #   has exercised belt_skip/learning_mode_toggle this session
     RoundBoundaryInput:
       roundLegoId: string                  # the round about to play's own LEGO
       roundLegoOrdinal: number             # its introduction ordinal (criticality guard)
@@ -460,8 +618,11 @@ module: player_wiring
   purpose: >
     WP-3: wires the evidence stream (WP-0/1) and rate policy (WP-2) into the
     live player, entirely through SimplePlayer's EXISTING runtime-overrides
-    surface (`shouldSkipCycle`, `getPauseDuration`) — no script regeneration,
-    same mechanism Turbo already proves out. SHADOW MODE IS THE DELIVERABLE:
+    surface (`shouldSkipCycle`, `getPauseDuration`) — no script regeneration.
+    (This is the same mechanism Turbo used to prove out; Turbo itself was
+    RETIRED 2026-08-06 — the overrides surface it exercised is still here and
+    is now adaptation v2's alone, alongside the Easy/Fast mode's pause and
+    speed overrides.) SHADOW MODE IS THE DELIVERABLE:
     the engine computes and logs a RoundPlan every round boundary, but the
     kill switch / shadow flag (WP-5, folded in here) means nothing is
     APPLIED until Tom flips `adaptation_v2.shadow` to false in the DB.
@@ -504,8 +665,10 @@ module: player_wiring
     (`nextRound`) EVERY boundary the engine is enabled, logs it unconditionally,
     then applies it ONLY when `shadow:false`:
       - `computeAdaptOmitCycleIds(round, plan)` (packages/player-vue/src/
-        playback/adaptationOverrides.ts) mirrors the `turboOmit` cull exactly
-        — walks the round's cycles counting BUILD/USE/spaced_rep occurrences
+        playback/adaptationOverrides.ts) mirrors the RETIRED-2026-08-06
+        `turboOmit` cull exactly — that flag no longer exists on ScriptItem or
+        Cycle, and this live computation is now the only culling in the player
+        — walking the round's cycles counting BUILD/USE/spaced_rep occurrences
         in order, marking the (N+1)-th-and-later of each type past
         buildCount/consolidateCount/spacedRepCap. This is a COMPLETE and
         correct realisation for buildCount/spacedRepCap (their ceiling always

@@ -19,6 +19,11 @@ import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { hasTryEntitlement } from './composables/useEntitlement'
 import { useSharedSubscription } from './composables/useSubscription'
 import { useOfflineLease } from './composables/useOfflineLease'
+import {
+  withNetworkTimeout,
+  NETWORK_TIMEOUT,
+  wireNetworkRecovery,
+} from './config/networkGate'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
@@ -35,9 +40,16 @@ const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOv
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
+// In-app browser — renders nothing until a link asks to open a page inside the
+// app rather than throwing the learner out to a browser tab.
+const InAppBrowser = defineAsyncComponent(() => import('./components/InAppBrowser.vue'))
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
+// Clear the "network is stalled" observation the moment the browser reports a
+// reconnect, so a learner walking back into signal gets live content again
+// without waiting out the TTL.
+wireNetworkRecovery()
 
 // "No dead ends": show the shell-level escape on any route that doesn't carry
 // its own way out. The immersive player and the shelled containers (schools /
@@ -425,12 +437,21 @@ const fetchEnrolledCourses = async () => {
     try {
       // Get courses available for this app (live or beta)
       // Status options: draft (hidden), beta (visible with badge), live (fully visible)
-      const res = await supabaseClient.value
-        .from('courses')
-        .select('*')
-        .in('new_app_status', ['live', 'beta'])
-        .order('display_name')
-      if (res.error) {
+      // Bounded: supabase-js has no default request timeout, so on a weak
+      // signal this select hangs and the app never picks an active course —
+      // no course, no player, nothing plays, even with a full cache sitting
+      // on the device. The offline catalogue mirror below is exactly the
+      // fallback we want; it just has to be REACHED. (Tom 2026-08-15.)
+      const res = await withNetworkTimeout(
+        supabaseClient.value
+          .from('courses')
+          .select('*')
+          .in('new_app_status', ['live', 'beta'])
+          .order('display_name'),
+      )
+      if (res === NETWORK_TIMEOUT) {
+        console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
+      } else if (res.error) {
         console.error('[App] Failed to fetch courses:', res.error)
       } else {
         data = res.data
@@ -601,7 +622,18 @@ onMounted(async () => {
       // redirect. One mechanism, reachable from router guards too, instead of
       // this component-local check.
       if (auth) {
-        await auth.initialize(supabaseClient.value)
+        // Bounded. auth.initialize() times out its own getSession(), but the
+        // learner-row read and guest-progress migration behind it were
+        // unbounded, so on a weak signal this await could hold boot
+        // indefinitely — and everything below it, including the course
+        // catalogue the player needs to mount at all. A learner whose auth
+        // has not resolved still gets to play what is cached; the session
+        // settles behind them and the UI is reactive to it.
+        // (Tom 2026-08-15: "never as a gate".)
+        const authResult = await withNetworkTimeout(auth.initialize(supabaseClient.value))
+        if (authResult === NETWORK_TIMEOUT) {
+          console.warn('[App] Auth init exceeded its budget — booting into cached content; session will settle behind us.')
+        }
       }
 
       // Initialize entitlements + subscription (now that supabase + auth are
@@ -730,6 +762,7 @@ onMounted(async () => {
     <TesterFeedback />
     <WalkOverlay />
     <CheckoutOverlay />
+    <InAppBrowser />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>

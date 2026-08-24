@@ -623,3 +623,38 @@ describe('AdminStructure — duplicate-name warning on rename', () => {
     expect(wrapper.text()).not.toContain('Go ahead anyway')
   })
 })
+
+// Adding one human should cost what adding one school costs (founder ask
+// 2026-08-11): the individual verb is a peer of "+ Add organisation" on this
+// page, not three levels down a menu.
+describe('AdminStructure — "+ Add individual"', () => {
+  it('offers the individual verb alongside "+ Add organisation"', async () => {
+    setupFetch({
+      '/api/groups/tree': { roots: [makeNode()] },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    const labels = wrapper.findAll('.head-actions button').map((b) => b.text())
+    expect(labels).toContain('+ Add organisation')
+    expect(labels).toContain('+ Add individual')
+  })
+
+  it('opens the person-first grant form inline — course, duration and sign-up cap, no trial', async () => {
+    setupFetch({
+      '/api/groups/tree': { roots: [makeNode()] },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    expect(wrapper.find('.individual-panel').exists()).toBe(false)
+
+    const addIndividual = wrapper.findAll('.head-actions button').find((b) => b.text() === '+ Add individual')
+    await addIndividual!.trigger('click')
+    await flushPromises()
+
+    const panel = wrapper.find('.individual-panel')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('Sign-ups')
+    expect(panel.text()).toContain('For how long')
+    expect(panel.text()).toContain('do not get a trial')
+  })
+})

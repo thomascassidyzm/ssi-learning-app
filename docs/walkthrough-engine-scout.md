@@ -143,7 +143,7 @@ All ssi_admin only. †See the synthesis note below §2.6 — for these, guard c
 | Switch create mode (org/direct/demo) | InviteCreateCard.vue:37 | ONE-LINE HINT | Three mental models on one tab strip |
 | **Select "Who" for org invite** | OrgInviteForm.vue:220 | **WALKTHROUGH** | Two of four options surface a *standing* code, two mint fresh — the button label silently switches |
 | **Submit org invite (leader)** | OrgInviteForm.vue:258 | **WALKTHROUGH** | Mints a real govt_admin invite — a leaked link makes a stranger a group leader |
-| Direct-access sub-modes, code/duration/course fields | DirectAccessForm/DirectCodeForm | ONE-LINE HINT / NOTHING | Mostly plain forms; submit mints a real redeemable code (hint) |
+| Direct-access sub-modes, person/duration/course fields | DirectAccessForm/IndividualAccessForm | ONE-LINE HINT / NOTHING | Mostly plain forms; submit mints a real redeemable code (hint) |
 | **Submit magic link for one person** | EmailAllowlistForm.vue:300 | **WALKTHROUGH** | Single-use full/course grant tied to one real email |
 | **"Grant access" — bulk email allowlist** | EmailAllowlistForm.vue:357 | **WALKTHROUGH**† | Highest blast radius in the app: silent bulk lifetime access, applies instantly to existing accounts on a paste error |
 | **Create demo org** | DemoOrgCreateForm.vue:123 | **WALKTHROUGH** | One click provisions a real org tree AND mints two live links |
@@ -378,3 +378,46 @@ seen once doesn't protect the hundredth use.
 `docs/first-boot-experience.md`, `docs/self-explaining-dashboard.md`,
 `tools/explainer/compile.mjs`, `explainer/evaluateRules.ts`,
 `components/admin/{HowThisWorks,NoticingInvitations,NodeActionBar}.vue`.*
+
+---
+
+## Addendum — the learner persona at the Library (A-159, 2026-08-18)
+
+**Founder instruction, 2026-08-18:** the same protocol the schools and organisation
+dashboards use — the subtle throbbing "How this works", with hand-authored JSON walks that
+show what actually happens rather than a video — is to be used "for anything we want to show
+them about how the app works either how the methodology itself works or how features of the
+app work. And basically a way to make the library more useful."
+
+This **supersedes** the founding ruling in `docs/self-explaining-dashboard.md` (2026-07-27)
+that the learner level is "deliberately nothing". The bar that ruling set still holds: the
+explanation stays optional, quiet, and never something a learner has to get past.
+
+What changed in the engine:
+
+- **`learner` is a persona**, and it is a **member** persona (`MEMBER_PERSONAS` in
+  `tools/walkthrough/lib.mjs`) — the furthest thing there is from an admin, so gate 2 refuses
+  any learner walk anchored behind an `v-if="!member"` guard.
+- **`library` is a place** (`KNOWN_PLACES` in `useWalkthrough.ts`), in lockstep with the
+  compiler's gate 3.
+- **The offering surface** is `components/me/HowThisWorksLibrary.vue`, mounted in
+  `BrowseScreen.vue` beneath *Your Progress*, closed by default. Practical first: it opens on
+  the walks, with the two existing methodology sections collapsed beneath it. The prose is the
+  existing `learnerExplainers.ts` content, reused unchanged.
+- **Three walks**, all anchored inside the Library overlay:
+  `where-you-are-in-this-course`, `choose-something-else-to-learn`, and (guests only, via
+  `place.kinds`) `save-your-progress`.
+
+**Anchoring, first slice.** Every learner walk anchors to an element inside the Library
+overlay. The Library is drawn *over* the player, so an anchor in the player behind it may be
+covered or unmounted; where the doing genuinely lives in the player, the walk says "close this
+and press play" in its terminal line rather than pointing at something the learner cannot see.
+Whether walks should reach through into the player is a founder call, not an engine limit.
+
+**Over-tutorialising is still the named failure mode.** Three walks, not a tour of everything.
+Most learner surfaces should get nothing.
+
+**Content laws.** Learner walk prose obeys the `learnerExplainers.ts` header laws exactly as
+the profile sections do — no streaks, no days-since, no guilt, no points, no score, no
+leaderboard, no internal terminology. Unit-tested in `useWalkthrough.test.ts`. The thirty-hour
+promise stays in "Why this works" and appears in no walk.

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // Direct access (no organisation) — three delivery sub-variants sharing one
-// segmented control: code (redeemable), email allowlist (delivery by
-// email-match), preview link (guest, no account). Deep-linkable via ?sub=.
+// segmented control: individual (a named person, redeemable code), email
+// allowlist (delivery by email-match), preview link (guest, no account).
+// Deep-linkable via ?sub= — 'code' stays the sub key so existing links live.
 import { ref, watch } from 'vue'
-import DirectCodeForm from './DirectCodeForm.vue'
+import IndividualAccessForm from './IndividualAccessForm.vue'
 import EmailAllowlistForm from './EmailAllowlistForm.vue'
 import PreviewLinkForm from './PreviewLinkForm.vue'
 
@@ -29,7 +30,7 @@ watch(() => props.initialSub, (v) => { sub.value = normalizeSub(v) })
         :class="{ 'is-active': sub === 'code' }"
         :aria-selected="sub === 'code'"
         @click="sub = 'code'"
-      >Code</button>
+      >Individual</button>
       <button
         type="button" role="tab" class="sub-btn"
         :class="{ 'is-active': sub === 'email' }"
@@ -44,7 +45,7 @@ watch(() => props.initialSub, (v) => { sub.value = normalizeSub(v) })
       >Preview link</button>
     </div>
 
-    <DirectCodeForm v-if="sub === 'code'" @created="emit('created')" />
+    <IndividualAccessForm v-if="sub === 'code'" @created="emit('created')" />
     <EmailAllowlistForm v-else-if="sub === 'email'" @created="emit('created')" />
     <PreviewLinkForm v-else @created="emit('created')" />
   </div>

@@ -3,8 +3,14 @@
  *
  * Instant-playback critical path. Returns the next `n` fully-assembled
  * cycles starting from the LEGO matching `:from`, in script order
- * (intro -> component_intro(s) -> debut -> BUILDs -> USEs per LEGO, then
- * next LEGO).
+ * (intro -> debut -> BUILDs -> USEs per LEGO, then next LEGO).
+ *
+ * COMPONENTS ARE NEVER INTRODUCED (Tom, 2026-08-06). Only LEGOs get
+ * introductions. Component rows are tiling parts of a whole thought; the
+ * learner absorbs them inside the carrier M-LEGO's own introduction, and a
+ * component debut hands the learner no producible intention. This endpoint
+ * emitted `component_intro` cycles between 2026-08-04 (9e9a19bf) and
+ * 2026-08-06; it does not any more, and must not again.
  *
  * Frontend calls this with limit=1 on Start (for instant first cycle),
  * then limit=15 once audio is playing.
@@ -28,9 +34,32 @@
  *  - Audio IDs are returned, not bytes. Frontend uses /api/audio/[audioId].
  *  - decomposition is included only when course_practice_phrases.decomposition
  *    is non-null (column added by 20260518_course_practice_phrases_decomposition.sql).
- *  - Cross-LEGO spaced-rep is NOT included here; the frontend constructs
- *    those from the round-map and re-fetches the same per-LEGO data
- *    (cheap, cached). Keeping cycles per-LEGO is the simpler/cheaper split.
+ *
+ * SPACED REVIEW (2026-08-09). This comment used to read "Cross-LEGO spaced-rep
+ * is NOT included here; the frontend constructs those from the round-map".
+ * The frontend never did. INSTANT_PLAYBACK_ALL makes this endpoint the live
+ * default for every course, so every round it built played with ZERO spaced
+ * review — while rounds built by the JS walk (generateLearningScript, via the
+ * script-cache fast path) carried a full review block. One session queue mixes
+ * both producers, so the learner got reviews on some rounds and none on the
+ * next. That is the bug this file now closes: the endpoint emits the SAME
+ * round shape the walk does —
+ *
+ *   intro -> debut -> BUILD ×≤7 (USE-filled) -> spaced_rep ×≤12 -> USE ×≤2
+ *
+ * with the Fibonacci offsets, the N-1 triple, and the consolidation tail all
+ * mirrored from generateLearningScript.ts, which stays the source of truth:
+ * parity means this endpoint moves to match the walk, never the reverse.
+ *
+ * KNOWN GAPS vs the walk, deliberate and documented rather than silently
+ * approximated:
+ *   - SEED-PHASE reviews (offsets ≥144, the drained target→known→target→target
+ *     sandwich) are not emitted: they need course_seeds rows and the walk's
+ *     graduation bookkeeping. Offsets [1..89] — every use-phrase review — are.
+ *   - The walk's algorithm_config-driven pools (shortest-first syllable sort,
+ *     phrase-length cap, known-side review pull filter, sliding word cap) are
+ *     not applied here; this endpoint keeps DB position order. It changes WHICH
+ *     phrase a review pulls, not whether the review exists.
  *
  * Cache-Control: private, max-age=60 — frontend may re-fetch cheaply,
  * other learners aren't sharing this (per-session walk).
@@ -57,6 +86,24 @@ const LEGO_ID_RE = /^S\d{4}L\d{2}$/
 const DEFAULT_LIMIT = 15
 const MAX_LIMIT = 50
 
+// --- Round shape ------------------------------------------------------------
+// Mirrored from DEFAULT_SCRIPT_SHAPE in
+// packages/player-vue/src/providers/generateLearningScript.ts, which is the
+// source of truth. Duplicated rather than imported because api/** compiles
+// standalone (see tsconfig.api.json) and must not pull the Vue package's
+// dependency graph into a serverless bundle on the instant path.
+//
+// Only the use-phrase offsets are listed. The walk's tail (144, 233, 377, …)
+// is the SEED-PHASE production review, which this endpoint does not emit —
+// see the KNOWN GAPS note in the file header.
+export const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+/** N-1 (the LEGO introduced last round) contributes three review phrases; every
+ *  other offset contributes one. */
+export const N1_PHRASE_COUNT = 3
+export const MAX_SPACED_REP_PHRASES = 12
+export const MAX_BUILD_PHRASES = 7
+export const USE_CONSOLIDATION_COUNT = 2
+
 interface CourseLegoRow {
   seed_number: number
   lego_index: number
@@ -66,6 +113,11 @@ interface CourseLegoRow {
   target_text: string | null
   target_text_roman: string | null
   components: Array<{ known: string; target: string }> | null
+  /** The human's own segmentation of the known gloss against the TARGET's word
+   *  order — authored in Popty's mapping editor, stored per LEGO. Each chunk
+   *  covers `span` consecutive target words; the spans sum to the target's word
+   *  count. Projected by 20260813_course_cycles_window_gloss_segments.sql. */
+  known_gloss_segments: Array<{ span: number; known: string }> | null
   is_new: boolean | null
   known_audio_id: string | null
   target1_audio_id: string | null
@@ -98,13 +150,12 @@ interface CoursePhraseRow {
   target2_audio_id: string | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
-  /** Component rows carry their own "as in" narration — the clip that
-   * contextualises this piece inside its parent M-LEGO. Only ever non-null
-   * on `phrase_role = 'component'` rows. */
+  /** Historic per-component "as in" narration on `phrase_role = 'component'`
+   * rows. NEVER played: components are never introduced (Tom, 2026-08-06). */
   presentation_audio_id?: string | null
-  /** false = visual-only tile (particles/stubs that make no sense alone);
-   * such components get a ghost tile on the intro card but never their own
-   * audio cycle. Absent/null is treated as true. */
+  /** Authoring flag on component rows. NOT a licence to introduce the `true`
+   * ones — components are never introduced either way (Tom, 2026-08-06).
+   * Retained only because component rows still render as visual tiles. */
   introduce?: boolean | null
 }
 
@@ -134,6 +185,53 @@ function parseLegoId(legoId: string): { seedNumber: number; legoIndex: number } 
 }
 
 /**
+ * The intro's AUTHORED word mapping, ready for the tile assembler — PURE.
+ *
+ * Tom, 2026-08-13: the mapping is "the breakdown that feeds into the LEGO TILE
+ * ASSEMBLER function... to show the literal builds in the known language that
+ * 'map' to the correct order in the target language". Each chunk covers `span`
+ * consecutive TARGET words and carries the literal known-language text that
+ * sits under them. Target order is never touched — the known side reading wrong
+ * when the orders differ is the whole point (`hitz bat` reads `word` `a`).
+ *
+ * Returned only when the segmentation still covers the target text exactly. A
+ * mapping authored against an older wording no longer describes this sentence,
+ * and rendering it would put the wrong English under the right Basque — so a
+ * stale mapping is dropped and componentisation stays the fallback, which is
+ * exactly what it did before anyone authored anything.
+ *
+ * Native vs roman: the spans are counted against the NATIVE target words, the
+ * side the author segmented in Popty. Callers pairing this onto a romanised
+ * tiling must check the word counts agree.
+ */
+export function authoredGlossSegments(
+  lego: { type?: string | null; target_text: string | null; known_gloss_segments: unknown },
+): Array<{ span: number; known: string }> | undefined {
+  // An A-LEGO is one word in at least one language, so it cannot be split and
+  // mapped (Tom, 2026-08-13) — it renders as a single unsplit tile, and that is
+  // correct, not a gap. Popty no longer lets one be authored; this refuses any
+  // that were authored before that rule landed, so no learner sees an A-LEGO
+  // cut into pieces.
+  if (lego?.type !== 'M') return undefined
+  const stored = lego.known_gloss_segments
+  if (!Array.isArray(stored) || stored.length === 0) return undefined
+  const wordCount = String(lego.target_text ?? '').trim().split(/\s+/).filter(Boolean).length
+  if (wordCount < 1) return undefined
+  let total = 0
+  const out: Array<{ span: number; known: string }> = []
+  for (const seg of stored) {
+    if (!seg || typeof seg !== 'object') return undefined
+    const span = (seg as { span?: unknown }).span
+    const known = (seg as { known?: unknown }).known
+    if (!Number.isInteger(span) || (span as number) < 1) return undefined
+    if (typeof known !== 'string') return undefined
+    total += span as number
+    out.push({ span: span as number, known })
+  }
+  return total === wordCount ? out : undefined
+}
+
+/**
  * Pick the display target text. Convention from generateLearningScript.ts:
  * when target_text_roman exists, show romanized; native script goes under
  * target_text_native. When no romanization, target_text is itself native.
@@ -149,6 +247,27 @@ function pickTargets(row: {
     }
   }
   return { target_text: row.target_text ?? '' }
+}
+
+/**
+ * Within-round identity of a phrase: normalised known text + normalised target
+ * text. Deliberately character-for-character the same notion the script path
+ * uses (`getPhraseId`/`normalizeText` in `generateLearningScript.ts`), so the
+ * two builders claim and skip exactly the same rows.
+ */
+function normalizeForKey(text: string | null | undefined): string {
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?;:\u00a1\u00bf'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g, '')
+}
+
+function phraseKey(
+  knownText: string | null | undefined,
+  targetText: string | null | undefined
+): string {
+  return `${normalizeForKey(knownText)}|${normalizeForKey(targetText)}`
 }
 
 /**
@@ -168,6 +287,68 @@ function buildAudio(opts: {
   if (opts.target2AudioId) audio.target2_id = opts.target2AudioId
   if (opts.presentationAudioId) audio.presentation_id = opts.presentationAudioId
   return audio
+}
+
+/** All three clips present — the walk drops any phrase without them rather
+ *  than schedule a cycle the player would only skip. */
+function phraseHasFullAudio(p: CoursePhraseRow): boolean {
+  return !!(p.known_audio_id && p.target1_audio_id && p.target2_audio_id)
+}
+
+/**
+ * One earlier LEGO due for review in this round, already resolved by the
+ * handler from the round map. `offsetIndex` indexes SPACED_REP_OFFSETS, so 0
+ * is N-1 (the LEGO introduced last round) and the list arrives in offset order
+ * — the same order the walk's `dueForReview` is built in.
+ */
+export interface ReviewLego {
+  offsetIndex: number
+  legoId: string
+  seedNumber: number
+  /** The round the reviewed LEGO was introduced in — the walk's `reviewOf`. */
+  reviewOf: number
+  usePhrases: CoursePhraseRow[]
+}
+
+/**
+ * Where this review's round-robin cursor sits in the reviewed LEGO's USE
+ * basket.
+ *
+ * The walk keeps `state.useIndex` on the LEGO and advances it by one per
+ * phrase pulled, across the whole session. A LEGO introduced at round R is
+ * reviewed at R+1 (three phrases), then R+2, R+3, R+5, … (one each) — so by
+ * the review at offset index k the cursor has advanced a known, closed-form
+ * amount. This endpoint has no session state, and reconstructing it is exactly
+ * this arithmetic.
+ *
+ * Caveat, stated rather than hidden: it assumes no earlier review of this LEGO
+ * was truncated by the 12-phrase round cap or skipped by within-round
+ * de-duplication. Both are rare; when they happen the endpoint picks a
+ * neighbouring phrase from the same basket, never a wrong LEGO.
+ */
+/**
+ * Which earlier rounds come due for review in `roundIndex`, in offset order.
+ *
+ * The walk's phase 4 in closed form: it scans the offsets ascending and takes
+ * any LEGO whose `lastRound` is exactly `roundNumber - offset`. Because the
+ * round map introduces exactly one new LEGO per round, "the LEGO at round
+ * r - offset" and "the LEGO due at this offset" are the same thing. Offsets
+ * that reach before round 1 stop the scan — an early round legitimately has
+ * nothing to review, and gets an empty list rather than a padded one.
+ */
+export function dueReviewRounds(roundIndex: number): Array<{ offsetIndex: number; reviewRound: number }> {
+  const due: Array<{ offsetIndex: number; reviewRound: number }> = []
+  for (let k = 0; k < SPACED_REP_OFFSETS.length; k++) {
+    const reviewRound = roundIndex - SPACED_REP_OFFSETS[k]
+    if (reviewRound < 1) break
+    due.push({ offsetIndex: k, reviewRound })
+  }
+  return due
+}
+
+export function reviewCursor(offsetIndex: number, poolLength: number): number {
+  if (offsetIndex <= 0 || poolLength <= 0) return 0
+  return Math.min(N1_PHRASE_COUNT, poolLength) + (offsetIndex - 1)
 }
 
 function buildDurations(t1?: number | null, t2?: number | null): Record<string, number> {
@@ -221,8 +402,16 @@ export default async function handler(
     // function definition. The RPC's `course` payload only carries
     // course_code + version (no pricing metadata), so the entitlement gate
     // needs its own tiny lookup — run in parallel, it's a single indexed row.
+    //
+    // Spaced review needs the round map BEFORE the window too — a review at
+    // offset 89 reaches 89 rounds back, which the RPC's window never contains.
+    // The whole map is small (one small row per LEGO; round-map.ts already
+    // ships all of it to every client) and, crucially, does NOT depend on the
+    // RPC's answer, so it rides the same Promise.all and costs zero extra
+    // latency. Only the review PHRASES have to wait for it — one sequential
+    // round-trip, added below.
     const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
-    const [rpcResult, pricingRes] = await Promise.all([
+    const [rpcResult, pricingRes, fullMapRes] = await Promise.all([
       supabase.rpc('get_course_cycles_window', {
         p_course_code: code,
         p_from_lego_id: from,
@@ -233,6 +422,11 @@ export default async function handler(
         .select('target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .maybeSingle(),
+      supabase
+        .from('course_round_index')
+        .select('round_index, lego_id, seed_number')
+        .eq('course_code', code)
+        .order('round_index', { ascending: true }),
     ])
     const { data, error } = rpcResult
 
@@ -247,6 +441,13 @@ export default async function handler(
       res.setHeader('Cache-Control', 'no-store')
       res.status(500).json({ error: 'Failed to load course pricing' })
       return
+    }
+    if (fullMapRes.error) {
+      // Non-fatal: the window itself is intact, so serve the round WITHOUT its
+      // review block rather than fail the instant path. Loud in the log,
+      // because a session that quietly loses spaced review is precisely the
+      // bug this code exists to close.
+      console.error('[Cycles] round-map lookup failed (serving without reviews):', fullMapRes.error.message)
     }
 
     const payload = (data || {}) as {
@@ -347,14 +548,131 @@ export default async function handler(
       list.push(p)
     }
 
-    // 5. Assemble cycles. Walk LEGOs in round order, emit intro/debut/builds/uses
-    //    until we hit `limit` cycles. Track `nextLegoId` = first LEGO we did NOT
-    //    fully exhaust (or the next one beyond the last fully-emitted LEGO).
+    // --- Spaced review: resolve which earlier LEGOs come due ------------------
+    //
+    // Round numbering is the materialised one (course_round_index.round_index,
+    // 1-based) — the same numbering the walk's `roundNumber` produces, because
+    // both count NEW LEGOs in script order. A LEGO whose round is exactly
+    // `r - offset` for one of SPACED_REP_OFFSETS is due in round r; the first
+    // offset that matches a given LEGO wins, which for a one-LEGO-per-round map
+    // means one distinct LEGO per offset.
+    //
+    // We only resolve reviews for a bounded PREFIX of the window. Every round
+    // emits at least intro+debut+one practice cycle, so `limit/3 + 1` rounds
+    // covers any request that isn't unusually thin, and the loop below refuses
+    // to emit a round it has no review answer for — it paginates instead. That
+    // keeps the one added phrase query bounded regardless of `limit`.
+    const fullMapRows = (fullMapRes.data || []) as Array<{
+      round_index: number
+      lego_id: string
+      seed_number: number
+    }>
+    const roundByIndex = new Map<number, { legoId: string; seedNumber: number; legoIndex: number }>()
+    for (const row of withinCeiling(fullMapRows)) {
+      const parsed = parseLegoId(row.lego_id)
+      if (!parsed) continue
+      roundByIndex.set(row.round_index, {
+        legoId: row.lego_id,
+        seedNumber: row.seed_number,
+        legoIndex: parsed.legoIndex,
+      })
+    }
+
+    const reviewRoundBudget = roundByIndex.size === 0
+      ? 0
+      : Math.min(rounds.length, Math.ceil(limit / 3) + 1)
+
+    /** roundIndex → the earlier LEGOs due in it, in offset order. */
+    const reviewsByRound = new Map<number, ReviewLego[]>()
+    const neededKeys = new Set<string>()
+    for (let i = 0; i < reviewRoundBudget; i++) {
+      const r = rounds[i]
+      const due: ReviewLego[] = []
+      const seen = new Set<string>()
+      for (const { offsetIndex: k, reviewRound } of dueReviewRounds(r.round_index)) {
+        const entry = roundByIndex.get(reviewRound)
+        if (!entry || entry.legoId === r.lego_id || seen.has(entry.legoId)) continue
+        seen.add(entry.legoId)
+        due.push({
+          offsetIndex: k,
+          legoId: entry.legoId,
+          seedNumber: entry.seedNumber,
+          reviewOf: reviewRound,
+          usePhrases: [],
+        })
+        neededKeys.add(`${entry.seedNumber}:${entry.legoIndex}`)
+      }
+      reviewsByRound.set(r.round_index, due)
+    }
+
+    // Fetch the USE baskets we don't already hold from the window. This is the
+    // ONE extra sequential round-trip the review block costs. It is filtered to
+    // the exact (seed, lego) pairs due — an `in('seed_number', …)` would be a
+    // shorter URL but would drag back every LEGO of every seed touched, which
+    // on the instant path is the wrong trade.
+    const missingPairs = [...neededKeys].filter((k) => !phrasesByKey.has(k))
+    if (missingPairs.length > 0) {
+      const pairFilter = missingPairs
+        .map((k) => {
+          const [seedNumber, legoIndex] = k.split(':')
+          return `and(seed_number.eq.${seedNumber},lego_index.eq.${legoIndex})`
+        })
+        .join(',')
+      const { data: reviewPhraseRows, error: reviewPhraseErr } = await supabase
+        .from('course_practice_phrases')
+        .select(
+          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, display_tiling, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms'
+        )
+        .eq('course_code', code)
+        .eq('phrase_role', 'use')
+        .or(pairFilter)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .order('position', { ascending: true })
+      if (reviewPhraseErr) {
+        console.error('[Cycles] review phrase lookup failed (serving without reviews):', reviewPhraseErr.message)
+      } else {
+        for (const p of stampRowAudioRefs(audioRefs, (reviewPhraseRows || []) as CoursePhraseRow[])) {
+          const key = `${p.seed_number}:${p.lego_index}`
+          let list = phrasesByKey.get(key)
+          if (!list) {
+            list = []
+            phrasesByKey.set(key, list)
+          }
+          list.push(p)
+        }
+      }
+    }
+
+    // Fill each due LEGO's basket. ONLY use phrases enter spaced repetition —
+    // components never do, and a build phrase is a fragment that belongs to
+    // its own debut round. A phrase missing any of its three clips is dropped
+    // here rather than scheduled and then skipped by the player.
+    for (const due of reviewsByRound.values()) {
+      for (const review of due) {
+        const parsed = parseLegoId(review.legoId)
+        if (!parsed) continue
+        const basket = phrasesByKey.get(`${review.seedNumber}:${parsed.legoIndex}`) || []
+        review.usePhrases = basket.filter((p) => p.phrase_role === 'use' && phraseHasFullAudio(p))
+      }
+    }
+
+    // 5. Assemble cycles. Walk LEGOs in round order, emit the full round shape
+    //    (intro/debut/builds/reviews/consolidation) until we hit `limit` cycles.
+    //    Track `nextLegoId` = first LEGO we did NOT fully exhaust (or the next
+    //    one beyond the last fully-emitted LEGO).
     const cycles: Cycle[] = []
     let nextLegoId: string | null = null
 
     outer: for (let i = 0; i < rounds.length; i++) {
       const r = rounds[i]
+      // Past the review budget we stop rather than serve a review-less round —
+      // a round with no spaced review is the defect, and the client's next
+      // page picks up exactly here.
+      if (i >= reviewRoundBudget && roundByIndex.size > 0) {
+        nextLegoId = r.lego_id
+        break
+      }
       const legoKey = `${r.seed_number}:${r.lego_index}`
       const lego = legoByKey.get(legoKey)
       if (!lego) {
@@ -364,7 +682,11 @@ export default async function handler(
         continue
       }
 
-      const legoCycles = buildLegoCycles(lego, phrasesByKey.get(legoKey) || [])
+      const legoCycles = buildLegoCycles(
+        lego,
+        phrasesByKey.get(legoKey) || [],
+        reviewsByRound.get(r.round_index) || []
+      )
 
       for (const cycle of legoCycles) {
         if (cycles.length >= limit) {
@@ -406,17 +728,26 @@ export default async function handler(
 }
 
 /**
- * Emit the cycle sequence for one LEGO: intro -> component_intro(s) ->
- * debut -> BUILD phrases -> USE phrases. Phrases honour their `position`
- * order from the DB.
+ * Emit the cycle sequence for one LEGO: intro -> debut -> BUILD phrases ->
+ * USE phrases. Phrases honour their `position` order from the DB.
  *
- * No filtering by audio completeness here for the main cycle types — the
- * spec says return everything in script order and let the frontend decide.
- * The audio.* keys are simply omitted when their IDs are null; the player
- * handles missing roles. `component_intro` is the exception: it is skipped
- * outright when unplayable (see buildComponentIntroCycles).
+ * No filtering by audio completeness here — the spec says return everything
+ * in script order and let the frontend decide. The audio.* keys are simply
+ * omitted when their IDs are null; the player handles missing roles.
+ *
+ * Component rows never produce a cycle of any kind: components are never
+ * introduced (Tom, 2026-08-06). They reach the learner only as visual tiles
+ * via `lego.components` on the intro and debut cards.
  */
-export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[]): Cycle[] {
+export function buildLegoCycles(
+  lego: CourseLegoRow,
+  phrases: CoursePhraseRow[],
+  /** Earlier LEGOs due for review in this round, in Fibonacci-offset order.
+   *  Empty (the default) reproduces the pre-2026-08-09 shape — which is also
+   *  the correct answer for the opening rounds of a course, where nothing has
+   *  yet come due. */
+  reviews: ReviewLego[] = []
+): Cycle[] {
   const out: Cycle[] = []
   const legoId = lego.lego_id
   const seed = lego.seed_number
@@ -427,6 +758,11 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
     Array.isArray(lego.components) && lego.components.length > 0
       ? lego.components.map((c) => ({ known: c?.known ?? '', target: c?.target ?? '' }))
       : undefined
+  // The authored mapping, when there is one. It does not replace `components`
+  // on the wire — the client prefers it and falls back to componentisation, so
+  // both have to travel (Tom: "componentisation as fallback, mapping as the new
+  // primary source").
+  const glossSegments = authoredGlossSegments(lego)
 
   // INTRO — the "reveal" cycle. The prompt is the presentation narration
   // ("The Italian for: 'to speak', as in — 'I want to speak Italian', is:")
@@ -453,6 +789,7 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
       ? { target_text_native: legoTargets.target_text_native }
       : {}),
     ...(components ? { components } : {}),
+    ...(glossSegments ? { gloss_segments: glossSegments } : {}),
     audio: buildAudio({
       knownAudioId: lego.known_audio_id,
       target1AudioId: lego.target1_audio_id,
@@ -463,12 +800,12 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
     is_new: isNew,
   })
 
-  // COMPONENT INTROS — for M-LEGOs, the per-piece "as in" narrations that
-  // give each component its context inside the parent phrase. Emitted after
-  // the M-LEGO's own intro and before its debut, matching the client's
-  // TYPE_ORDER (validateLearningScript.ts) so a round that mixes producers
-  // still validates.
-  out.push(...buildComponentIntroCycles(lego, phrases))
+  // NO COMPONENT INTROS. Between 2026-08-04 and 2026-08-06 this is where
+  // `buildComponentIntroCycles` inserted one `component_intro` per component,
+  // narrating each tiling piece as its own introduction. Tom's ruling of
+  // 2026-08-06 — "Components do NOT get introduced" — removed it. The
+  // M-LEGO's own intro already names its pieces inline; that IS the LEGO's
+  // introduction. A per-component introduction is the bug.
 
   // DEBUT — the standard 4-phase cycle on the LEGO itself.
   out.push({
@@ -482,6 +819,7 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
       ? { target_text_native: legoTargets.target_text_native }
       : {}),
     ...(components ? { components } : {}),
+    ...(glossSegments ? { gloss_segments: glossSegments } : {}),
     audio: buildAudio({
       knownAudioId: lego.known_audio_id,
       target1AudioId: lego.target1_audio_id,
@@ -501,91 +839,128 @@ export function buildLegoCycles(lego: CourseLegoRow, phrases: CoursePhraseRow[])
   )
   const uses = phrases.filter((p) => p.phrase_role === 'use')
 
+  // The debut IS the bare LEGO — claim it so no later cycle replays it, and
+  // claim each phrase as it is emitted so a duplicated row cannot play twice.
+  // Most courses carry build rows whose text equals their own LEGO
+  // (fra_for_eng S0009L01 'I speak / je parle'); emitting one as a BUILD makes
+  // the known-word step fire again immediately after the debut — twice over,
+  // once the Easy-mode x2 repeat doubles it — and burns a build slot a real
+  // phrase should have had. It also breaks the rule that a BUILD is the new
+  // LEGO plugged into ALREADY-KNOWN vocabulary.
+  //
+  // Both other sequence builders have always had this guard —
+  // `generateLearningScript.ts` (the script path) and the dashboard's
+  // `services/learning-script-generator.cjs`. This endpoint never did, which
+  // is why the same LEGO doubled when it was entered by a skip or cold start
+  // and played clean on natural progression.
+  //
+  // The same set doubles as the walk's `usedPhrasesThisRound`: a phrase plays
+  // at most once per round, whichever phase reaches it first. Without that a
+  // LEGO whose BUILD and USE baskets overlap drills the same sentence twice in
+  // one round.
+  const debutKey = phraseKey(lego.known_text, legoTargets.target_text)
+  const claimed = new Set<string>([debutKey])
+  const claim = (p: CoursePhraseRow): boolean => {
+    // Key on the SAME text the cycle will carry — `pickTargets` picks the roman
+    // form on romanized courses, and the debut above was claimed that way too.
+    const key = phraseKey(p.known_text, pickTargets(p).target_text)
+    if (claimed.has(key)) return false
+    claimed.add(key)
+    return true
+  }
+
+  // BUILD ×≤7. BUILD rows first; then USE rows fill any slots left over —
+  // "BUILD priority > CONSOLIDATE… filling 7 BUILD is non-negotiable" (the
+  // walk's phase 3). A USE row promoted into a build slot is emitted as a
+  // `build` cycle, exactly as the walk types it.
   let buildIdx = 0
   for (const p of builds) {
+    if (buildIdx >= MAX_BUILD_PHRASES) break
+    // Claim BEFORE taking an ordinal, so a skipped row costs nothing.
+    if (!claim(p)) continue
     buildIdx++
     out.push(phraseToCycle(p, legoId, seed, 'build', buildIdx))
   }
+  for (const p of uses) {
+    if (buildIdx >= MAX_BUILD_PHRASES) break
+    if (!claim(p)) continue
+    buildIdx++
+    out.push(phraseToCycle(p, legoId, seed, 'build', buildIdx))
+  }
+
+  // SPACED REP ×≤12. `reviews` arrives in Fibonacci-offset order; N-1 draws
+  // three phrases, every later offset one, and the round stops at the cap.
+  // Reviews are always USE phrases of EARLIER LEGOs — components never enter
+  // spaced repetition, and the handler only ever puts `phrase_role = 'use'`
+  // rows in these baskets.
+  let repCount = 0
+  for (const review of reviews) {
+    if (repCount >= MAX_SPACED_REP_PHRASES) break
+    // Second gate on the same rule the handler applies when it fills these
+    // baskets. It is cheap, and "a component reached spaced repetition" is
+    // the kind of defect that is invisible until a learner hears a bare
+    // particle drilled as a sentence.
+    const pool = review.usePhrases.filter((p) => p.phrase_role === 'use')
+    if (pool.length === 0) continue
+    const want = review.offsetIndex === 0 ? N1_PHRASE_COUNT : 1
+    const take = Math.min(want, MAX_SPACED_REP_PHRASES - repCount, pool.length)
+    let cursor = reviewCursor(review.offsetIndex, pool.length)
+    for (let i = 0; i < take; i++) {
+      const p = pool[cursor % pool.length]
+      // Advance the cursor even when the phrase is then skipped — the walk
+      // increments `state.useIndex` before its de-dup check, and rotation has
+      // to stay in step with it.
+      cursor++
+      if (!claim(p)) continue
+      repCount++
+      out.push(reviewToCycle(p, review, legoId, repCount))
+    }
+  }
+
+  // CONSOLIDATE ×≤2 — this LEGO's own USE phrases, last in the round. First
+  // pass takes phrases the round hasn't used; if the basket was too small for
+  // that, the second pass allows reuse rather than leaving the round short.
   let useIdx = 0
   for (const p of uses) {
+    if (useIdx >= USE_CONSOLIDATION_COUNT) break
+    if (!claim(p)) continue
     useIdx++
     out.push(phraseToCycle(p, legoId, seed, 'use', useIdx))
+  }
+  if (useIdx < USE_CONSOLIDATION_COUNT) {
+    for (const p of uses) {
+      if (useIdx >= USE_CONSOLIDATION_COUNT) break
+      // The reuse pass relaxes the once-per-round rule, but NOT the bare-LEGO
+      // rule: replaying the debut's own text is the doubling defect, and a
+      // round one phrase short beats a round that says the LEGO twice.
+      if (phraseKey(p.known_text, pickTargets(p).target_text) === debutKey) continue
+      useIdx++
+      out.push(phraseToCycle(p, legoId, seed, 'use', useIdx))
+    }
   }
 
   return out
 }
 
 /**
- * Build the `component_intro` cycles for one LEGO.
+ * Convert one USE phrase of an EARLIER LEGO into a spaced-review cycle.
  *
- * A component row (`phrase_role = 'component'`) is one tiling piece of an
- * M-LEGO, and it carries its OWN presentation clip contextualising that piece
- * inside the parent phrase — the live "as in" shape, verbatim from the data:
- *
- *   lego  S0005L02  "to practise speaking" / "fare pratica parlando"
- *     └ "The Italian for: 'to practise', as in — 'to practise speaking', is:"
- *     └ "The Italian for: 'speaking',    as in — 'to practise speaking', is:"
- *
- * Two rules govern what actually becomes a cycle:
- *
- *  1. `introduce === false` means "visual tile only" — stubs that make no
- *     sense detached (single-letter prepositions, particles with no known-
- *     language equivalent). They still render as ghost tiles under the intro
- *     card via `lego.components`, but they never get their own audio cycle.
- *     Same rule the legacy generator applies.
- *
- *  2. Skip, don't emit a hole. A component with no presentation narration and
- *     no target voice has nothing to play, so it is dropped entirely rather
- *     than emitted as a silent cycle — matching the skip-policy in
- *     `toPlayerCycle` / `toSimpleRounds`, where a structurally unplayable
- *     cycle returns null.
- *
- * Like the LEGO intro, the prompt is `presentation || known` — the component
- * rows do carry known audio, so a component whose narration is missing still
- * introduces itself with the known-language clip instead of going silent.
+ * `lego_id` names the LEGO being reviewed (what the walk puts in `legoKey`),
+ * while `round_lego_id` names the round this cycle plays in. The client keys
+ * its cycle buffer on `round_lego_id ?? lego_id`, so a review lands in the
+ * round that scheduled it rather than back in the round that introduced it.
  */
-function buildComponentIntroCycles(
-  lego: CourseLegoRow,
-  phrases: CoursePhraseRow[]
-): Cycle[] {
-  const legoId = lego.lego_id
-  const seed = lego.seed_number
-  const out: Cycle[] = []
-  let ordinal = 0
-
-  for (const p of phrases) {
-    if (p.phrase_role !== 'component') continue
-    // Visual-only tile — rendered, never played.
-    if (p.introduce === false) continue
-    // Nothing playable: no prompt (presentation or known) or no target voice.
-    const promptId = p.presentation_audio_id || p.known_audio_id
-    if (!promptId || !p.target1_audio_id) continue
-
-    ordinal++
-    const targets = pickTargets(p)
-    out.push({
-      id: `${legoId}_component_intro_${ordinal}`,
-      type: 'component_intro',
-      lego_id: legoId,
-      seed_number: seed,
-      known_text: p.known_text ?? '',
-      target_text: targets.target_text,
-      ...(targets.target_text_native !== undefined
-        ? { target_text_native: targets.target_text_native }
-        : {}),
-      audio: buildAudio({
-        knownAudioId: p.known_audio_id,
-        target1AudioId: p.target1_audio_id,
-        target2AudioId: p.target2_audio_id,
-        presentationAudioId: p.presentation_audio_id,
-      }),
-      durations: buildDurations(p.target1_duration_ms, p.target2_duration_ms),
-      // A component is part of the LEGO being introduced, not a review item.
-      is_new: true,
-    })
-  }
-
-  return out
+function reviewToCycle(
+  p: CoursePhraseRow,
+  review: ReviewLego,
+  roundLegoId: string,
+  ordinal: number
+): Cycle {
+  const cycle = phraseToCycle(p, review.legoId, review.seedNumber, 'spaced_rep', ordinal)
+  cycle.round_lego_id = roundLegoId
+  cycle.fib_position = review.offsetIndex
+  cycle.review_of = review.reviewOf
+  return cycle
 }
 
 /**
@@ -595,7 +970,7 @@ function phraseToCycle(
   p: CoursePhraseRow,
   legoId: string,
   seed: number,
-  cycleType: 'build' | 'use',
+  cycleType: 'build' | 'use' | 'spaced_rep',
   ordinal: number
 ): Cycle {
   const targets = pickTargets(p)

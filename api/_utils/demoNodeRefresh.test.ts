@@ -126,11 +126,13 @@ describe('refreshDemoNodeActivity — hard safety', () => {
     const log = emptyLog()
     const result = await refreshDemoNodeActivity(makeSupabase(makeDb(), log), 'g-demo', 'admin-1')
     expect(result.learnersTouched).toBe(1)
-    // sessions carries BOTH the student and the class-identity rows; seed_progress
-    // /lego_progress are student-only (the class entity has no per-seed drill).
+    // sessions — and its per-day speaking-opportunity rollup — carry BOTH the
+    // student and the class-identity rows; seed_progress/lego_progress are
+    // student-only (the class entity has no per-seed drill). Either way no id
+    // outside the demo set may appear, which is what this test exists to hold.
     const allowedIds = new Set(['l-demo', 'l-class-1'])
     for (const d of log.deletes.filter((d) => d.col === 'learner_id')) {
-      if (d.table === 'sessions') {
+      if (d.table === 'sessions' || d.table === 'learner_speaking_opportunities') {
         for (const v of d.vals) expect(allowedIds.has(v as string)).toBe(true)
       } else {
         expect(d.vals).toEqual(['l-demo'])
@@ -208,9 +210,42 @@ describe('refreshDemoNodeActivity — replace + recency shape', () => {
     const log = emptyLog()
     await refreshDemoNodeActivity(makeSupabase(makeDb(), log), 'g-demo', 'admin-1')
     const deletedTables = log.deletes.map((d) => d.table)
-    expect(deletedTables).toEqual(expect.arrayContaining(['sessions', 'seed_progress', 'lego_progress', 'class_sessions']))
+    expect(deletedTables).toEqual(expect.arrayContaining(['sessions', 'seed_progress', 'lego_progress', 'class_sessions', 'learner_speaking_opportunities']))
     const insertedTables = log.inserts.map((i) => i.table)
-    expect(insertedTables).toEqual(expect.arrayContaining(['sessions', 'seed_progress', 'lego_progress', 'class_sessions']))
+    expect(insertedTables).toEqual(expect.arrayContaining(['sessions', 'seed_progress', 'lego_progress', 'class_sessions', 'learner_speaking_opportunities']))
+  })
+
+  // Regression, founder report 2026-08-19 ("nothing in the last 7 days" on a
+  // learner page whose org had just been refreshed): every "Last 7 days" panel
+  // reads learner_speaking_opportunities, not `sessions`. If the rollup is not
+  // written, fresh sessions are invisible on every learner page.
+  it('writes a speaking-opportunity rollup that agrees exactly with the sessions it generated', async () => {
+    const log = emptyLog()
+    const result = await refreshDemoNodeActivity(makeSupabase(makeDb(), log), 'g-demo', 'admin-1')
+    const sessions = log.inserts.filter((i) => i.table === 'sessions').flatMap((i) => i.rows)
+    const rollups = log.inserts.filter((i) => i.table === 'learner_speaking_opportunities').flatMap((i) => i.rows)
+    expect(rollups.length).toBe(result.speakingRowsWritten)
+    expect(rollups.length).toBeGreaterThan(0)
+
+    // Derived, never re-drawn: rebuild the expected rollup from the session
+    // rows and require an exact match, so the two can never drift apart.
+    const expected = new Map<string, { opportunities: number; play_seconds: number }>()
+    for (const s of sessions) {
+      const key = `${s.learner_id}|${s.course_id}|${(s.started_at as string).slice(0, 10)}`
+      const acc = expected.get(key) ?? { opportunities: 0, play_seconds: 0 }
+      acc.opportunities += (s.items_practiced as number) || 0
+      acc.play_seconds += (s.duration_seconds as number) || 0
+      expected.set(key, acc)
+    }
+    expect(rollups.length).toBe(expected.size)
+    for (const r of rollups) {
+      const key = `${r.learner_id}|${r.course_code}|${r.day}`
+      const want = expected.get(key)
+      expect(want).toBeDefined()
+      expect(r.opportunities).toBe(want!.opportunities)
+      expect(r.play_seconds).toBe(want!.play_seconds)
+      expect(r.day).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    }
   })
 
   it('writes sessions inside the ~8-week window, none in the future, and advances the position coherently', async () => {

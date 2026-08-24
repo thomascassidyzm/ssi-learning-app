@@ -1,6 +1,24 @@
 # Walkthrough pack — compiled render
 
-**Version `b26c1e68be11` · generated 2026-08-06 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `13e56e8b59fb` · generated 2026-08-19 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## choose-something-else-to-learn — Choose something else to learn
+
+Personas: learner · place: library
+
+1. [`library-course-search` · next] Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go.
+2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
+3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
+   - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## go-back-over-something — Go back over something
+
+Personas: learner · place: library
+
+1. [`library-belt-browser` · click] Nothing is ever locked behind you. Tap here to open the whole course up.
+2. [`belt-browser-list` · next] Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.
+3. [`belt-browser-list` · next] Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.
+   - terminal: If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering.
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -59,6 +77,17 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## move-a-teacher-between-classes — Move a teacher to another class
+
+Personas: teacher · place: class-detail
+
+1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
+2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
+3. [`assign-classes-list` · next] Every class in the school, with the ones this teacher already takes already ticked. Ticking a second, or a third, is all 'belonging to several classes' means — there is no separate step for it.
+4. [`assign-classes-list` · next] A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.
+5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
+   - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -69,6 +98,16 @@ Personas: admin, leader, school_admin · place: node-insights
 4. [`insights-overview` · next] **Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
 
+## reading-the-course-list — Reading the course list
+
+Personas: learner · place: library
+
+1. [`library-course-card` · next] Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in.
+2. [`library-course-card` · next] The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you.
+3. [`library-course-card` · next] **Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.
+4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
+   - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
+
 ## run-class-session — Run your first class session
 
 Personas: teacher · place: class-detail
@@ -77,6 +116,14 @@ Personas: teacher · place: class-detail
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
 3. [`class-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
    - terminal: When you're ready, tap Play as class for real — this tour never starts a session for you.
+
+## save-your-progress — Save your progress
+
+Personas: learner · place: library (guest)
+
+1. [`library-save-progress` · next] Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.
+2. [`library-save-progress` · next] Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.
+   - terminal: Everything you have already done comes with you — signing in adds your account to it, it never starts you again.
 
 ## set-your-password — Set or change your password
 
@@ -92,7 +139,7 @@ Personas: leader · place: node-home (org/group/school)
 Personas: teacher · place: class-detail
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
-2. [`class-teacher-add` · click] **Add a co-teacher** is how you share it. Nobody is added until you pick a name and confirm.
+2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.
 3. [`class-teacher-picker` · next] You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
@@ -106,3 +153,22 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 3. [`ways-in-remint` · next] **Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.
 4. [`ways-in-revoke` · next] **Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.
    - terminal: The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone.
+
+## what-your-numbers-mean — What your numbers mean
+
+Personas: learner · place: library
+
+1. [`library-activity-stats` · next] These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.
+2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
+3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
+   - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
+
+## where-you-are-in-this-course — Where you are in this course
+
+Personas: learner · place: library
+
+1. [`library-progress-card` · next] This card is your whole position in the course in one glance. Nothing here is a score, and nothing here is counting anything against you.
+2. [`library-belt-strip` · next] Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on.
+3. [`library-position-track` · next] The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.
+4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
+   - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.

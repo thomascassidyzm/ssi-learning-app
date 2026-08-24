@@ -12,8 +12,17 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
+import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt,
+  REDEEM_PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -153,6 +162,29 @@ export default async function handler(
     return
   }
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  // Per-IP enumeration throttle (SEC-AUDIT-2026-08-18 Finding 2), the same
+  // control the two siblings already carry (api/code/validate.ts,
+  // api/auth/possession-redeem.ts) against the same table and the same
+  // window/limit. A bearer token is not a cost: sign-up is open self-service
+  // OTP, so an unthrottled redeem is a sweepable oracle over the ~13.8M
+  // ABC-123 keyspace — and a hit here does not merely report the code, it
+  // REDEEMS it (platform_role, educational_role, a govt_admins row).
+  const ipHash = hashIp(getClientIp(req))
+  try {
+    if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
+      await logAttempt(supabase, 'CodeRedeem', { ipHash, authUserId: userId, outcome: 'rate_limited_ip' })
+      res.status(429).json({ success: false, error: 'Too many attempts. Please try again later.' })
+      return
+    }
+    // Record this attempt so the window accumulates (the count above excludes
+    // the current request) and every redemption attempt has an audit row.
+    await logAttempt(supabase, 'CodeRedeem', { ipHash, authUserId: userId, outcome: 'redeem_attempt' })
+  } catch (error) {
+    console.error('[CodeRedeem] Throttle check failed:', error)
+    res.status(500).json({ error: 'Internal server error' })
+    return
+  }
 
   try {
     if (codeKind === 'invite') {
@@ -447,6 +479,17 @@ async function redeemInviteCode(
       await supabase.from('groups').delete().eq('id', groupId)
     } else {
       leaderGroupId = groupId
+      // …and make that leadership a MEMBERSHIP too, exactly as the org-creation
+      // paths do (rootOrgProvision.ts, groups/index.ts). This CLAIM path was
+      // the one govt_admins writer that still recorded leadership as authz
+      // only. Names survived that gap because the org reads UNION govt_admins
+      // with the leader tag — but practice hours do not: directMemberPractice
+      // is tag-only, so a leader who claimed a seat by code had their own
+      // practice counted nowhere in their org's headline. Same class as the
+      // founding school admin (Chepstow, 2026-08-06), one level up.
+      // Best-effort: the govt_admins row is already sound and grants the
+      // authority; a failure here costs visibility, never the redemption.
+      await ensureGroupLeaderTag(supabase, { groupId, userId, addedBy: userId })
     }
   } else if (codeType === 'school_admin') {
     // Idempotent select-then-insert: reuse an existing school for this admin
@@ -547,6 +590,18 @@ async function redeemInviteCode(
     // ensureJoinCodesRegistered, now shared from there).
     await ensureJoinCodesRegistered(supabase, newSchool!.id as string, userId)
 
+    // The founding admin's own membership row. This is the THIRD path that
+    // creates a school with an admin_user_id (alongside onboarding/provision
+    // and admin/create-school) and, like them, never tagged anyone — so a
+    // leader-invited school admin was equally invisible to every staff-keyed
+    // read of her own school. Idempotent, and non-fatal for the same reason
+    // ensureJoinCodesRegistered above is best-effort.
+    const foundingTagErr = await ensureSchoolAdminTag(supabase, {
+      userId,
+      schoolId: newSchool!.id as string,
+    })
+    if (foundingTagErr) console.error('[CodeRedeem] founding-admin tag failed (non-fatal):', foundingTagErr)
+
     // Set the platform trial clocks HERE, at redemption, instead of routing
     // the admin through the /schools1 onboarding continuation to trigger
     // POST /api/onboarding/provision (the old design, region-tier-design.md
@@ -568,21 +623,16 @@ async function redeemInviteCode(
       console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
     }
   } else if (codeType === 'school_admin_join') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'school',
-        tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
-        role_in_context: 'admin',
-        added_by: userId,
-      })
-    // 23505 = unique_violation on the active-user_tags partial unique index:
-    // a concurrent redemption of this same invite (multi-tab, or a retry after
-    // timeout) already inserted the identical tag — idempotent no-op, not an
-    // error, since the existing tag grants exactly what this request asked for.
-    // Mirrors the govt_admins/schools 23505 handling above.
-    if (tagError && tagError.code !== '23505') {
+    // Shared with the school-CREATION paths (see api/_utils/schoolStaff.ts) so
+    // a claimed seat and a founding seat produce the identical membership row —
+    // one convention, one writer. Idempotent on 23505: a concurrent redemption
+    // of this same invite (multi-tab, or a retry after timeout) already wrote
+    // the identical tag, which grants exactly what this request asked for.
+    const tagError = await ensureSchoolAdminTag(supabase, {
+      userId,
+      schoolId: inviteRow.grants_school_id as string,
+    })
+    if (tagError) {
       console.error('[CodeRedeem] Failed to create school admin tag:', tagError)
       res.status(500).json({ error: 'Internal server error' })
       return

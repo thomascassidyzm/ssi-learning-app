@@ -28,7 +28,7 @@ const walk = (over: Record<string, unknown> = {}) => ({
 })
 
 const RUNTIME_SRC = [
-  "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites']",
+  "export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites', 'library']",
   `export const DESTRUCTIVE_ANCHOR_PATTERNS = [${DESTRUCTIVE_ANCHOR_PATTERNS.map((re: RegExp) => re.toString()).join(', ')}]`,
 ].join('\n')
 const EVAL_SRC = "const walkId = rule.cta.target.startsWith('walk:') ? rule.cta.target.slice(5) : undefined"
@@ -51,6 +51,18 @@ describe('validateWalkSchema', () => {
     }))
     expect(errs.some((e: string) => e.includes('terminal'))).toBe(true)
   })
+  // A-159 hub: topic is the chip label, keywords are the search vocabulary.
+  // Both optional (every pre-hub walk stays valid), both policed when present —
+  // a blank chip or an upper-case keyword is a door that lies or never opens.
+  it('accepts a walk with a topic and keywords', () => {
+    expect(validateWalkSchema(walk({ topic: 'Where you are', keywords: ['belt', 'how far'] }))).toEqual([])
+  })
+  it('rejects a blank topic and non-lower-case or empty keywords', () => {
+    expect(validateWalkSchema(walk({ topic: '   ' }))).toHaveLength(1)
+    expect(validateWalkSchema(walk({ keywords: 'belt' }))).toHaveLength(1)
+    expect(validateWalkSchema(walk({ keywords: ['Belt'] }))).toHaveLength(1)
+    expect(validateWalkSchema(walk({ keywords: [''] }))).toHaveLength(1)
+  })
 })
 
 describe('gateAnchors', () => {
@@ -67,6 +79,15 @@ describe('gateAnchors', () => {
   it('FAILS a member-persona walk whose anchor is admin-only (v-if="!member")', () => {
     const { failures } = gateAnchors(
       [walk({ personas: ['leader'] })],
+      vue('<button v-if="!member" data-walk="verb-invite-person">Go</button>'),
+    )
+    expect(failures.some((f: string) => f.includes('PERSONA'))).toBe(true)
+  })
+  // A-159: the learner persona is the furthest thing from an admin, so gate 2
+  // must police it exactly like the other member personas.
+  it('FAILS a learner walk whose anchor is admin-only (v-if="!member")', () => {
+    const { failures } = gateAnchors(
+      [walk({ personas: ['learner'] })],
       vue('<button v-if="!member" data-walk="verb-invite-person">Go</button>'),
     )
     expect(failures.some((f: string) => f.includes('PERSONA'))).toBe(true)

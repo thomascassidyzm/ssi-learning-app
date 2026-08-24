@@ -8,12 +8,13 @@
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
 
-export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher']
+export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher', 'learner']
 export const ADVANCE_KINDS = ['next', 'click', 'visible']
 
 // Member personas — anyone who is NOT ssi_admin. A walk offered to any of
 // these must never anchor to an element behind the admin-only marker.
-export const MEMBER_PERSONAS = ['leader', 'school_admin', 'teacher']
+// 'learner' (A-159) is the furthest of all from admin, so it belongs here.
+export const MEMBER_PERSONAS = ['leader', 'school_admin', 'teacher', 'learner']
 
 // Gate 6 — the destructive-verb denylist (founder ruling: click-through only
 // on reversible verbs; a click-advance step touching a destructive or
@@ -34,6 +35,19 @@ export function validateWalkSchema(walk) {
   if (!Array.isArray(walk.personas) || !walk.personas.length) at('personas[] is required')
   for (const p of walk.personas ?? []) {
     if (!PERSONAS.includes(p)) at(`unknown persona "${p}"`)
+  }
+  // topic + keywords (A-159 hub) — the chip label and the search vocabulary.
+  // Optional so every pre-hub walk stays valid; when present they must be
+  // usable, because a blank chip or a stray keyword is a lying door.
+  if (walk.topic !== undefined && (typeof walk.topic !== 'string' || !walk.topic.trim())) {
+    at('topic must be a non-empty string when present')
+  }
+  if (walk.keywords !== undefined) {
+    if (!Array.isArray(walk.keywords)) at('keywords must be an array of strings')
+    else for (const k of walk.keywords) {
+      if (typeof k !== 'string' || !k.trim()) at('keywords entries must be non-empty strings')
+      else if (k !== k.toLowerCase()) at(`keyword "${k}" must be lower-case (search normalises to lower-case)`)
+    }
   }
   if (!walk.place || typeof walk.place.route !== 'string') at('place.route is required')
   if (walk.place?.kinds && !Array.isArray(walk.place.kinds)) at('place.kinds must be an array')
