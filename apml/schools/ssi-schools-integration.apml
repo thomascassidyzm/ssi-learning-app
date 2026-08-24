@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.11.0"
-  date: "2026-08-16"   # A-123: the payer is bound before the money moves
+  version: "1.12.0"
+  date: "2026-08-18"   # SEC-AUDIT findings 1+2: CSPRNG-minted codes, redeem throttled
   author: "Tom Cassidy"
   status: "draft"
 
@@ -548,6 +548,29 @@ principle OnePlayerOneDoor:
         a bespoke check in App.vue's onMounted; migrated onto the shared gate
         2026-07-16 so it's reachable from router guards too, not just
         components.
+
+principle CodeGuessingIsThrottledEverywhere:
+  statement: |
+    A code that grants an elevated role is a secret, so it is minted from a
+    CSPRNG and every endpoint that answers questions about one counts the
+    asking. Minting: ALL invite/entitlement codes come from the shared
+    generateCode() in api/_utils/codeGen.ts (crypto.randomInt, ABC-123) —
+    no endpoint carries a private generator (api/admin/create-govt-admin.ts
+    had one on Math.random() until 2026-08-18). Asking: api/code/validate.ts,
+    api/auth/possession-redeem.ts and api/code/redeem.ts all throttle per IP
+    against possession_mint_attempts, on the SAME 15-minute window and limit
+    of 10 — if one changes, all must. redeem.ts uses the shared
+    api/_utils/codeAttemptThrottle.ts; the two older siblings still carry
+    byte-equivalent inline copies. 'personal_signin' and 'rate_limited_*'
+    outcomes never count toward a window: a successful personal-link login is
+    not an enumeration attempt, and a limiter counts actions, not its own
+    refusals.
+  why: |
+    The ~13.8M ABC-123 keyspace is sweepable, and a hit is not information —
+    it is school infiltration: redemption writes platform_role /
+    educational_role and creates a govt_admins row. A bearer token is not a
+    cost when signup is open self-service OTP. SEC-AUDIT-2026-08-18 findings
+    1 and 2; regression specs ride the gated pnpm run test:api suite.
 
 principle OperatorCaptureGuard:
   statement: |
