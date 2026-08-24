@@ -301,6 +301,81 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(lap!.plays.find(p => p.playRole === 'explainer')!.audioId).toBe('exp-1')
   })
 
+  /**
+   * The 2026-08-24 flip, end to end: Tom's fade ladder in the `pods` row +
+   * listeningUseStagePlaylist on the `listening` row = what a learner hears.
+   * Shape-level assertions live in podFadeSchedule.test.ts; this one proves
+   * the whole chain is actually wired — live row → scheduler → plays.
+   */
+  describe('the live fade schedule (Tom, 2026-08-24)', () => {
+    const TOM_LADDER: Record<string, any> = {
+      '1': ['ps', 'trans', 'ps', 'ps'],
+      '2': ['ps', 'trans', 'ps', 'ps2x'],
+      '3': ['ps', 'trans', 'ps2x', 'ps2x'],
+      '4': ['ps', 'trans', 'ps2x'],
+      '5': ['ps2x', 'trans', 'ps2x'],
+      '6': ['ps', 'ps2x'],
+      '7': ['ps2x', 'ps2x'],
+      '8': ['ps2x'],
+    }
+    const withLadder = (extra: Record<string, any> = {}) => usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      listeningPolicy: STAGE_LADDER_POLICY,
+      stagePlaylist: TOM_LADDER,
+      stageDuration: 5,
+      stageDurations: { '1': 2 },
+      ...extra,
+    })
+
+    it('lap 1 plays t·k·t·t with every clip at 1×', async () => {
+      state.podSentences = [podSentence(1)]
+      const s = withLadder()
+      await s.initialize()
+      const lap = s.nextLap()
+      expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+      expect(lap!.plays.map(p => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 1.0])
+    })
+
+    it('lap 2 plays the SAME thing — the opening pattern is heard twice before anything thins', async () => {
+      state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
+      state.podSentences = [podSentence(1), podSentence(2), podSentence(3)]
+      const s = withLadder()
+      await s.initialize()
+      const first = s.nextLap()!.plays.filter(p => p.sentenceIdx === 1)
+      expect(first.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+      expect(first.map(p => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 1.0])
+    })
+
+    it('lap 3 is the first thinning — the closing rep goes to 2×, above the retired 1.0 ceiling', async () => {
+      state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 3 }
+      state.podSentences = [podSentence(1), podSentence(2), podSentence(3), podSentence(4), podSentence(5)]
+      const s = withLadder()
+      await s.initialize()
+      const lap = s.nextLap()!
+      const first = lap.plays.filter(p => p.sentenceIdx === 1)
+      expect(first.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps2x'])
+      expect(first[first.length - 1].playbackSpeed).toBe(2.0)
+      expect(first[first.length - 1].playbackSpeed).toBeGreaterThan(LISTENING_SPEED_CEILING)
+      // …and the fade is per-cohort, not per-session: the sentence that only
+      // just debuted on this same lap is still on rung 1, hearing t·k·t·t at 1×.
+      const newest = lap.plays.filter(p => p.sentenceIdx === 4)
+      expect(newest.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+      expect(newest.every(p => p.playbackSpeed === 1.0)).toBe(true)
+    })
+
+    it('with the flag OFF the ladder is inert — the same live row plays the one flat pattern', async () => {
+      state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 3 }
+      state.podSentences = [podSentence(1), podSentence(2), podSentence(3), podSentence(4), podSentence(5)]
+      const s = withLadder({ listeningPolicy: undefined })
+      await s.initialize()
+      const first = s.nextLap()!.plays.filter(p => p.sentenceIdx === 1)
+      expect(first.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+      expect(first.every(p => p.playbackSpeed <= LISTENING_SPEED_CEILING)).toBe(true)
+    })
+  })
+
   it('Phase 0 retires after 2 rounds: alive=3 lands in Phase 1 with the plain translation pattern', async () => {
     state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
     state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
