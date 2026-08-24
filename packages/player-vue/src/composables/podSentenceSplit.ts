@@ -47,6 +47,30 @@ export interface SplittableRow {
 const splitText = (t: string | null | undefined): string[] =>
   (t || '').split(POD_SENTENCE_BOUNDARY).map((s) => s.trim()).filter(Boolean)
 
+/** Letters and digits only, lower-cased: compares WORDS while ignoring
+ *  punctuation, spacing and case, which routinely differ between a turn's
+ *  stored text and its per-sentence clips' stored texts. Unicode-aware so it
+ *  works on every script we ship, not just Latin. */
+const wordsOnly = (t: string | null | undefined): string =>
+  (t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+
+/**
+ * Do the split clips between them account for the WHOLE turn's text?
+ *
+ * The unit count comes from the CLIPS, so any sentence of text beyond the last
+ * clip is not merely silent — it never reaches the screen at all. That shipped:
+ * Italian Pod 1 Scene 1 rendered Sarah's "Buongiorno. Come stai?" as just
+ * "Buongiorno.", so the neighbour answered a question the learner never saw
+ * asked (founder report, 2026-08-24).
+ *
+ * Compared on words rather than sentence COUNTS on purpose: the boundary regex
+ * mis-splits abbreviations ("Sig. Rossi" looks like two sentences) and cannot
+ * split CJK/Indic/Thai at all, so a count test would both false-alarm and
+ * miss. Word coverage is the thing we actually care about — no text lost.
+ */
+const clipsCoverTurn = (clips: string[], turnText: string | null | undefined, textById: Map<string, string>): boolean =>
+  clips.map((id) => wordsOnly(textById.get(id))).join('') === wordsOnly(turnText)
+
 /**
  * Split a row into per-sentence units. Returns a SINGLE whole-turn unit when
  * the row hasn't been split (fewer than 2 sentence clips) — backwards
@@ -64,6 +88,15 @@ export function splitRowUnits(row: SplittableRow, textById?: Map<string, string>
   const clips = (Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids : []).filter(Boolean) as string[]
   const knownClips = (Array.isArray(row.sentence_known_audio_ids) ? row.sentence_known_audio_ids : []).filter(Boolean) as string[]
 
+  const wholeTurn = (): PodSplitUnit[] => [{
+    index: 0,
+    targetText: row.target_text || '',
+    knownText: row.known_text || '',
+    targetAudioId: row.target_audio_id || null,
+    knownAudioId: row.known_audio_id || null,
+    isSplit: false,
+  }]
+
   // Stale-slice guard. Split clip ids can outlive the course_audio rows they
   // point at — e.g. a course's main audio is re-rendered and the old June
   // per-sentence slices are deleted, but the pod row still lists them. Playing
@@ -77,28 +110,32 @@ export function splitRowUnits(row: SplittableRow, textById?: Map<string, string>
     !clips.every((id) => textById.has(id)) ||
     (knownClips.length > 0 && !knownClips.every((id) => textById.has(id)))
   )) {
-    return [{
-      index: 0,
-      targetText: row.target_text || '',
-      knownText: row.known_text || '',
-      targetAudioId: row.target_audio_id || null,
-      knownAudioId: row.known_audio_id || null,
-      isSplit: false,
-    }]
+    return wholeTurn()
   }
 
-  if (clips.length < 2) {
-    return [{
-      index: 0,
-      targetText: row.target_text || '',
-      knownText: row.known_text || '',
-      targetAudioId: row.target_audio_id || null,
-      knownAudioId: row.known_audio_id || null,
-      isSplit: false,
-    }]
-  }
+  if (clips.length < 2) return wholeTurn()
 
   const tSents = splitText(row.target_text)
+
+  // NO SENTENCE WITH TEXT IS EVER DROPPED FROM THE SCREEN. The split emits one
+  // unit per CLIP, so a turn whose clips don't account for all of its text
+  // loses the remainder silently. When that's the case, render the whole turn:
+  // its text is complete by construction and its one clip is the canonical
+  // audio for all of it. Same all-or-nothing reasoning as the stale-slice
+  // guard above — a partial split is worse than no split.
+  //
+  // With textById we can check coverage honestly, word for word. Without it
+  // (the scheduler's bare call) the regex count is the only signal available;
+  // it can only over-count on abbreviations, and over-counting here costs a
+  // split, never a sentence.
+  const covered = textById
+    ? clipsCoverTurn(clips, row.target_text, textById)
+    : tSents.length <= clips.length
+  if (!covered) {
+    console.warn('[podSentenceSplit] split clips do not cover the turn text — rendering the whole turn instead.',
+      { clips: clips.length, textSentences: tSents.length, targetText: row.target_text })
+    return wholeTurn()
+  }
   const kSents = splitText(row.known_text)
   const knownMatches = knownClips.length === clips.length
   return clips.map((clip, i) => {
