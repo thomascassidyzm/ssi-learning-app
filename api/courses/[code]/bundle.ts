@@ -383,10 +383,25 @@ export default async function handler(
         )
         .eq('course_code', code)
         .order('seed_number', { ascending: true }),
+      // `visibility = 'live'` is NOT optional here. This route builds its
+      // client from SUPABASE_SERVICE_ROLE_KEY, so it bypasses the RLS policies
+      // that hold a pod back from every other learner-facing read (2026-08-23,
+      // database/changes/20260823_listening_pod_visibility.sql in
+      // ssi-dashboard-v7-clean). Without this filter the offline bundle is the
+      // one path that still hands a learner the content of a pod a human is
+      // mid-way through recording. The sentence read below follows only the
+      // pods that survive this filter, so held sentences never load either.
+      //
+      // The literal is deliberate: the client-side twin is
+      // LIVE_POD_VISIBILITY in packages/player-vue/src/composables/servedPod.ts
+      // (rule 5), but importing it would drag that module's IndexedDB cache
+      // into a serverless route to fetch one string. Pinned instead by
+      // bundle.podVisibility.test.ts.
       supabase
         .from('listening_pods')
         .select('id, pod_order, title')
         .eq('course_code', code)
+        .eq('visibility', 'live')
         .order('pod_order', { ascending: true, nullsFirst: true }),
       // Bookends live in course_audio (role-based), not on listening_pods.
       // One pair per course today — shared across all that course's pods.
