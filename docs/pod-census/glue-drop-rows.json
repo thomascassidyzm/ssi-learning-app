@@ -1,0 +1,2441 @@
+{
+ "note": "Live pod-1 rows where glueLeadingInterjection fires (turn-initial one-word sentence, >=2 sentences, atom_map_fine present). Before fix a7158431 the SECOND sentence was deleted from the screen in Immersion. Approximate: computed from row text + the glue rule, not by running buildFusionGroups.",
+ "rows": 487,
+ "detail": [
+  {
+   "id": "por_br_for_eng:pod-1:SC09-S018",
+   "first": "Sete.",
+   "lostSentence": "Nove."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC14-S001",
+   "first": "Olá.",
+   "lostSentence": "Você pode me levar até a estação de trem, por favor?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC06-S013",
+   "first": "Unu.",
+   "lostSentence": "Doi."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC07-S005",
+   "first": "Bineînțeles.",
+   "lostSentence": "Doriți să stați aici sau să luați cu dumneavoastră?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC07-S012",
+   "first": "Bineînțeles.",
+   "lostSentence": "Poftiți aparatul."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC09-S018",
+   "first": "Șapte.",
+   "lostSentence": "Nouă."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC10-S003",
+   "first": "Mulțumesc.",
+   "lostSentence": "Și aveți calmante pentru copii?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC10-S010",
+   "first": "Doisprezece.",
+   "lostSentence": "Treisprezece."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC11-S003",
+   "first": "Desigur.",
+   "lostSentence": "Poftiți pașaportul meu."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC12-S002",
+   "first": "Desigur.",
+   "lostSentence": "Ce simptome ai?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC12-S010",
+   "first": "Nouăsprezece.",
+   "lostSentence": "Douăzeci."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC13-S011",
+   "first": "Treizeci.",
+   "lostSentence": "Patruzeci."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC14-S001",
+   "first": "Bună.",
+   "lostSentence": "Mă puteți duce la gară, vă rog?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC06-S013",
+   "first": "Eitt.",
+   "lostSentence": "Tvö."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC07-S005",
+   "first": "Auðvitað.",
+   "lostSentence": "Viltu sitja hér eða taka með þér?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC11-S004",
+   "first": "Ótimo.",
+   "lostSentence": "O quarto é no terceiro andar, quarto 709."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC12-S010",
+   "first": "Dezanove.",
+   "lostSentence": "Vinte."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC06-S001",
+   "first": "Perdón.",
+   "lostSentence": "Hola."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC13-S011",
+   "first": "Trinta.",
+   "lostSentence": "Quarenta."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC14-S001",
+   "first": "Olá.",
+   "lostSentence": "Pode levar-me à estação de comboios, se faz favor?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S008",
+   "first": "Subito.",
+   "lostSentence": "Desidera altro?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC13-S008",
+   "first": "Frábært.",
+   "lostSentence": "Og er hraðbanki í nágrenninu?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S013",
+   "first": "Buongiorno.",
+   "lostSentence": "Due caffè americani e una tazza di tè, per favore."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC08-S016",
+   "first": "Quatre.",
+   "lostSentence": "Six."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC09-S018",
+   "first": "Sette.",
+   "lostSentence": "Nove."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC10-S008",
+   "first": "Prego.",
+   "lostSentence": "È qui in vacanza?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC10-S010",
+   "first": "Dodici.",
+   "lostSentence": "Tredici."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S001",
+   "first": "Buonasera.",
+   "lostSentence": "Ho una prenotazione a nome Jones."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S009",
+   "first": "Meraviglioso.",
+   "lostSentence": "È possibile per noi avere un check-out posticipato?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S013",
+   "first": "Sedici.",
+   "lostSentence": "Diciassette."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC12-S002",
+   "first": "Certo.",
+   "lostSentence": "Quali sono i suoi sintomi?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC13-S011",
+   "first": "Trenta.",
+   "lostSentence": "Quaranta."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC10-S001",
+   "first": "Perdón.",
+   "lostSentence": "¿Tiene analgésicos?"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC06-S013",
+   "first": "واحد.",
+   "lostSentence": "اتنين."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC12-S010",
+   "first": "Diecinueve.",
+   "lostSentence": "Veinte."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC07-S012",
+   "first": "بالتأكيد.",
+   "lostSentence": "اتفضل الماكينة."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC11-S003",
+   "first": "طبعاً.",
+   "lostSentence": "اتفضل، ده جواز سفري."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC11-S009",
+   "first": "رائع.",
+   "lostSentence": "ممكن نعمل ليت تشيك أواي؟"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC11-S013",
+   "first": "ستاشر.",
+   "lostSentence": "سبعتاشر."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC09-S018",
+   "first": "Sieben.",
+   "lostSentence": "Neun."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC10-S010",
+   "first": "Zwölf.",
+   "lostSentence": "Dreizehn."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC11-S003",
+   "first": "Natürlich.",
+   "lostSentence": "Hier ist mein Reisepass."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC12-S010",
+   "first": "neunzehn.",
+   "lostSentence": "zwanzig."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC14-S010",
+   "first": "hundert.",
+   "lostSentence": "zweihundert."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC06-S013",
+   "first": "Un.",
+   "lostSentence": "Deux."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC09-S001",
+   "first": "Bonsoir.",
+   "lostSentence": "Nous avons une réservation pour deux, au nom de Davies."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC10-S001",
+   "first": "Desculpe.",
+   "lostSentence": "Tem analgésicos?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC10-S003",
+   "first": "Obrigado.",
+   "lostSentence": "E tem analgésicos para crianças?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC10-S010",
+   "first": "Doze.",
+   "lostSentence": "Treze."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC11-S002",
+   "first": "Bem-vindo.",
+   "lostSentence": "Sim, tem um quarto duplo por três noites."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC11-S003",
+   "first": "Claro.",
+   "lostSentence": "Aqui está o meu passaporte."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC11-S009",
+   "first": "Óptimo.",
+   "lostSentence": "É possível fazermos um late check-out?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC11-S013",
+   "first": "Dezasseis.",
+   "lostSentence": "Dezassete."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC12-S002",
+   "first": "Claro.",
+   "lostSentence": "Quais são os seus sintomas?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC12-S009",
+   "first": "Obrigado.",
+   "lostSentence": "Podia também dar-me um pacote de pensos rápidos?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC07-S012",
+   "first": "Claro.",
+   "lostSentence": "Aquí está la terminal."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC09-S002",
+   "first": "Bienvenidos.",
+   "lostSentence": "Por favor, síganme."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC10-S001",
+   "first": "Disculpe.",
+   "lostSentence": "¿Tienen analgésicos?"
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC13-S008",
+   "first": "Iontach.",
+   "lostSentence": "Agus an bhfuil meaisín airgid in aice láimhe?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC04-S002",
+   "first": "¡Hola!",
+   "lostSentence": "Lo siento, pero no puedo hablar ahora mismo."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC15-S011",
+   "first": "100.000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S015",
+   "first": "Fem.",
+   "lostSentence": "Tio."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC09-S002",
+   "first": "Bienvenidos.",
+   "lostSentence": "Por favor, síganme."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC09-S018",
+   "first": "Siete.",
+   "lostSentence": "Nueve."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC11-S009",
+   "first": "Maravilloso.",
+   "lostSentence": "¿Es posible que hagamos una salida tardía?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC11-S013",
+   "first": "Dieciséis.",
+   "lostSentence": "Diecisiete."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC13-S011",
+   "first": "Treinta.",
+   "lostSentence": "Cuarenta."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC07-S008",
+   "first": "Oraintxe.",
+   "lostSentence": "Beste zerbait nahi duzu?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC07-S015",
+   "first": "Bost.",
+   "lostSentence": "Hamar."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC10-S001",
+   "first": "Barkatu.",
+   "lostSentence": "Ba al duzue analgesikoak?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC11-S013",
+   "first": "Hamasei.",
+   "lostSentence": "Hamazazpi."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC13-S008",
+   "first": "Zoragarria.",
+   "lostSentence": "Eta badago kutxazain automatikorik inguruan?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC06-S013",
+   "first": "Uno.",
+   "lostSentence": "Dos."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC01-S002",
+   "first": "Bonjour.",
+   "lostSentence": "Comment tu vas?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC07-S015",
+   "first": "Cinco.",
+   "lostSentence": "Diez."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC10-S003",
+   "first": "Gracias.",
+   "lostSentence": "¿Y tienen analgésicos para niños?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC09-S018",
+   "first": "Siete.",
+   "lostSentence": "Nueve."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC06-S013",
+   "first": "Un.",
+   "lostSentence": "Deux."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC10-S010",
+   "first": "Doce.",
+   "lostSentence": "Trece."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC11-S004",
+   "first": "Estupendo.",
+   "lostSentence": "La habitación está en la tercera planta, la 709."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC12-S002",
+   "first": "Claro.",
+   "lostSentence": "¿Cuáles son sus síntomas?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC11-S013",
+   "first": "Dieciséis.",
+   "lostSentence": "Diecisiete."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC07-S015",
+   "first": "Cinq.",
+   "lostSentence": "Dix."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC12-S010",
+   "first": "Diecinueve.",
+   "lostSentence": "Veinte."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC10-S001",
+   "first": "Excuse-moi.",
+   "lostSentence": "T'as-tu des analgésiques?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC12-S001",
+   "first": "Bonjour.",
+   "lostSentence": "Je me sens pas super bien — tu pourrais me recommander quelque chose?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC14-S001",
+   "first": "Bonjour.",
+   "lostSentence": "Tu peux m'amener à la gare, s'il te plaît?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC07-S015",
+   "first": "Pet.",
+   "lostSentence": "Deset."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC11-S004",
+   "first": "Divno.",
+   "lostSentence": "Soba je na trećem katu, soba sedamsto devet."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC13-S011",
+   "first": "Trideset.",
+   "lostSentence": "Četrdeset."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC14-S001",
+   "first": "Bok.",
+   "lostSentence": "Možete li me odvesti…"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC06-S013",
+   "first": "واحد.",
+   "lostSentence": "اتنين."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC07-S012",
+   "first": "بالطبع.",
+   "lostSentence": "اتفضل الماكينة."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC07-S015",
+   "first": "خمسة.",
+   "lostSentence": "عشرة."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC08-S016",
+   "first": "أربعة.",
+   "lostSentence": "ستة."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC10-S003",
+   "first": "شكراً.",
+   "lostSentence": "وعندك مسكنات للألم للأطفال؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC11-S004",
+   "first": "تمام.",
+   "lostSentence": "الأوضة في الدور التالت، أوضة سبعمية وتسعة."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC13-S008",
+   "first": "تمام.",
+   "lostSentence": "وفيه ماكينة صراف آلي قريبة؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC06-S001",
+   "first": "Fyrirgefðu.",
+   "lostSentence": "Hæ."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC09-S011",
+   "first": "Auðvitað.",
+   "lostSentence": "Og hvað viljið þið hafa að drekka?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC10-S003",
+   "first": "Takk.",
+   "lostSentence": "Og ertu með verkjalyf fyrir börn?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC11-S002",
+   "first": "Velkomin.",
+   "lostSentence": "Já, þú ert með tveggja manna herbergi í þrjár nætur."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC11-S004",
+   "first": "Frábært.",
+   "lostSentence": "Herbergið er á þriðju hæð, herbergi sjö núll níu."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC12-S009",
+   "first": "Takk.",
+   "lostSentence": "Gæti ég líka fengið pakka af plástrum?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC13-S011",
+   "first": "Þrjátíu.",
+   "lostSentence": "Fjörutíu."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC07-S015",
+   "first": "خمسة.",
+   "lostSentence": "عشرة."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC10-S003",
+   "first": "Obrigado.",
+   "lostSentence": "E você tem algum analgésico para crianças?"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC11-S004",
+   "first": "تمام.",
+   "lostSentence": "الأوضة في الدور التالت، أوضة سبعمية وتسعة."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC10-S010",
+   "first": "Doze.",
+   "lostSentence": "Treze."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC11-S002",
+   "first": "Bem-vindo.",
+   "lostSentence": "Sim, você tem um quarto de casal por três noites."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC11-S003",
+   "first": "Claro.",
+   "lostSentence": "Aqui está o meu passaporte."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC13-S008",
+   "first": "تمام.",
+   "lostSentence": "وفيه ماكينة صراف أوتوماتيكي قريب هنا؟"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC11-S004",
+   "first": "Ótimo.",
+   "lostSentence": "O quarto fica no terceiro andar, quarto 709."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC14-S001",
+   "first": "أهلاً.",
+   "lostSentence": "تقدر توصلني لمحطة القطر، من فضلك؟"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC11-S013",
+   "first": "Dezesseis.",
+   "lostSentence": "Dezessete."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC14-S007",
+   "first": "وصلنا.",
+   "lostSentence": "الحساب اتناشر جنيه ونص."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC14-S007",
+   "first": "Chegamos.",
+   "lostSentence": "São doze libras e cinquenta."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC06-S001",
+   "first": "Scuzați-mă.",
+   "lostSentence": "Bună."
+  },
+  {
+   "id": "jpn_for_eng:pod-1:SC10-S009",
+   "first": "ご親切にどうもありがとうございます!",
+   "lostSentence": "はい、休暇で来ていて、日本語をもっと上手に話せるように練習が必要なんです。どうもありがとうございました、それでは失礼します。"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC07-S008",
+   "first": "Imediat.",
+   "lostSentence": "Doriți altceva?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC09-S011",
+   "first": "Desigur.",
+   "lostSentence": "Și ce doriți să beți?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC11-S009",
+   "first": "Minunat.",
+   "lostSentence": "Este posibil să avem un check-out mai târziu?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC12-S009",
+   "first": "Mulțumesc.",
+   "lostSentence": "Aș putea lua și un pachet de plasturi?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC13-S008",
+   "first": "Minunat.",
+   "lostSentence": "Și există un bancomat prin apropiere?"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC13-S008",
+   "first": "Ótimo.",
+   "lostSentence": "E tem algum caixa eletrônico por aqui?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC03-S002",
+   "first": "Bonjour.",
+   "lostSentence": "Je voudrais un café, s'il te plaît."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC04-S002",
+   "first": "Allô!",
+   "lostSentence": "Je m'excuse, mais je peux pas parler là."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC03-S002",
+   "first": "안녕하세요.",
+   "lostSentence": "커피 한 잔 주세요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC04-S002",
+   "first": "안녕하세요!",
+   "lostSentence": "죄송하지만 지금은 얘기할 수가 없어요."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC04-S002",
+   "first": "Hallo!",
+   "lostSentence": "Es tut mir leid, aber ich kann gerade nicht reden."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC08-S016",
+   "first": "أربعة.",
+   "lostSentence": "ستة."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC07-S001",
+   "first": "Bonjour!",
+   "lostSentence": "Qu'est-ce que je peux te servir?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC07-S013",
+   "first": "Bonjour.",
+   "lostSentence": "Deux americanos et un thé, s'il te plaît."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC12-S009",
+   "first": "Obrigada.",
+   "lostSentence": "Eu também poderia pegar um pacote de band-aid?"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC12-S002",
+   "first": "طبعاً.",
+   "lostSentence": "إيه الأعراض اللي عندك؟"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC08-S001",
+   "first": "Bonsoir.",
+   "lostSentence": "Qu'est-ce que je peux te servir?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC09-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "두 명으로 예약했는데요, 데이비스 이름으로요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC10-S008",
+   "first": "천만에요.",
+   "lostSentence": "여행 오셨어요?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC06-S013",
+   "first": "Eins.",
+   "lostSentence": "Zwei."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC13-S008",
+   "first": "좋아요.",
+   "lostSentence": "그리고 근처에 ATM이 있나요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC12-S010",
+   "first": "십구.",
+   "lostSentence": "이십."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC14-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "기차역까지 데려다 주시겠어요?"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC15-S011",
+   "first": "100,000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC06-S001",
+   "first": "Pardon.",
+   "lostSentence": "Hallo."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC06-S004",
+   "first": "Insgelijks.",
+   "lostSentence": "Waar kom jij vandaan?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC09-S001",
+   "first": "Bonsoir.",
+   "lostSentence": "On a une réservation pour deux, au nom de Davies."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC09-S018",
+   "first": "Sept.",
+   "lostSentence": "Neuf."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC10-S003",
+   "first": "Merci.",
+   "lostSentence": "Pis t'as-tu des analgésiques pour les enfants?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC10-S010",
+   "first": "Douze.",
+   "lostSentence": "Treize."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC11-S009",
+   "first": "Formidable.",
+   "lostSentence": "Est-ce qu'il nous est possible d'avoir un départ tardif?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC11-S013",
+   "first": "Seize.",
+   "lostSentence": "Dix-sept."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC12-S009",
+   "first": "Merci.",
+   "lostSentence": "Je pourrais aussi avoir un paquet de diachylons?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC07-S005",
+   "first": "Natuurlijk.",
+   "lostSentence": "Wilt u dit meenemen of hier eten?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC08-S001",
+   "first": "Goedenavond.",
+   "lostSentence": "Wat mag het zijn?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC13-S011",
+   "first": "Trente.",
+   "lostSentence": "Quarante."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC07-S015",
+   "first": "Fünf.",
+   "lostSentence": "Zehn."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC08-S016",
+   "first": "Vier.",
+   "lostSentence": "Sechs."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC09-S002",
+   "first": "Willkommen.",
+   "lostSentence": "Bitte folgen Sie mir."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC11-S009",
+   "first": "Wunderbar.",
+   "lostSentence": "Ist es möglich, dass wir spät auschecken?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC10-S001",
+   "first": "Pardon.",
+   "lostSentence": "Heeft u pijnstillers?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S001",
+   "first": "Goedemiddag.",
+   "lostSentence": "Ik heb een reservering op naam van Jones."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S003",
+   "first": "Natuurlijk.",
+   "lostSentence": "Hier is mijn paspoort."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S004",
+   "first": "Fijn.",
+   "lostSentence": "De kamer is op de derde verdieping, kamer 709."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC13-S008",
+   "first": "Wunderbar.",
+   "lostSentence": "Und gibt es einen Geldautomaten in der Nähe?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC12-S001",
+   "first": "Goedemorgen.",
+   "lostSentence": "Ik voel me niet zo goed — kunt u iets aanbevelen?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC13-S011",
+   "first": "Dreißig.",
+   "lostSentence": "Vierzig."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC13-S008",
+   "first": "Prachtig.",
+   "lostSentence": "En is er ergens een geldautomaat in de buurt?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC03-S001",
+   "first": "Godeftermiddag.",
+   "lostSentence": "Vad kan jag få dig?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC03-S002",
+   "first": "Godeftermiddag.",
+   "lostSentence": "Jag skulle vilja ha ett kaffe, tack."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC07-S012",
+   "first": "Natürlich.",
+   "lostSentence": "Das Gerät ist hier."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC10-S008",
+   "first": "Bitte.",
+   "lostSentence": "Sind Sie hier im Urlaub?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC12-S002",
+   "first": "Natürlich.",
+   "lostSentence": "Was sind Ihre Symptome?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S005",
+   "first": "Självklart.",
+   "lostSentence": "Vill du äta här eller ta med?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S008",
+   "first": "Genast.",
+   "lostSentence": "Vill du ha något annat?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S012",
+   "first": "Självklart.",
+   "lostSentence": "Här är maskinen."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S013",
+   "first": "Godmorgon.",
+   "lostSentence": "Två americanos och en kopp te, tack."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC11-S002",
+   "first": "Välkommen.",
+   "lostSentence": "Ja, du har ett dubbelrum för tre nätter."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC11-S004",
+   "first": "Underbart.",
+   "lostSentence": "Rummet ligger på tredje våningen, rum 709."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC12-S001",
+   "first": "Godmorgon.",
+   "lostSentence": "Jag mår inte så bra — kan du rekommendera något?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC12-S002",
+   "first": "Självklart.",
+   "lostSentence": "Vilka symptom har du?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC12-S009",
+   "first": "Tack.",
+   "lostSentence": "Kan jag också få ett paket plåster?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC14-S001",
+   "first": "Hej.",
+   "lostSentence": "Kan du köra mig till tågstationen, tack?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC10-S003",
+   "first": "Tack.",
+   "lostSentence": "Och har du några smärtstillande medel för barn?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC04-S002",
+   "first": "Kaixo!",
+   "lostSentence": "Barkatu, baina orain ezin dut hitz egin."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC03-S001",
+   "first": "Buonasera.",
+   "lostSentence": "Cosa prendo?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S012",
+   "first": "Certo.",
+   "lostSentence": "Ecco il lettore."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S005",
+   "first": "Certo.",
+   "lostSentence": "Qui o per asporto?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC09-S002",
+   "first": "Benvenuti.",
+   "lostSentence": "Prego, mi seguano."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC09-S011",
+   "first": "Certamente.",
+   "lostSentence": "E cosa desiderano da bere?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC10-S003",
+   "first": "Grazie.",
+   "lostSentence": "E ha degli antidolorifici per bambini?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC06-S013",
+   "first": "Bat.",
+   "lostSentence": "Bi."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S002",
+   "first": "Benvenuto.",
+   "lostSentence": "Sì, ha una camera doppia per tre notti."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC07-S005",
+   "first": "Jakina.",
+   "lostSentence": "Hemen hartuko duzu edo eramateko?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC12-S001",
+   "first": "Buongiorno.",
+   "lostSentence": "Non mi sento molto bene - potrebbe consigliarmi qualcosa?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC07-S012",
+   "first": "Jakina.",
+   "lostSentence": "Horra makina."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC08-S001",
+   "first": "Gabon.",
+   "lostSentence": "Zer nahi duzu?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC12-S009",
+   "first": "Grazie.",
+   "lostSentence": "Potrei avere anche un pacchetto di cerotti?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC13-S008",
+   "first": "Meraviglioso.",
+   "lostSentence": "E c'è un bancomat qui vicino?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC08-S016",
+   "first": "Lau.",
+   "lostSentence": "Sei."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC04-S002",
+   "first": "Bună!",
+   "lostSentence": "Îmi pare rău, dar nu pot să vorbesc acum."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC09-S011",
+   "first": "Jakina.",
+   "lostSentence": "Eta zer nahi duzue edateko?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC09-S018",
+   "first": "Zazpi.",
+   "lostSentence": "Bederatzi."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC07-S015",
+   "first": "Cinq.",
+   "lostSentence": "Dix."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC10-S010",
+   "first": "Hamabi.",
+   "lostSentence": "Hamahiru."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC04-S002",
+   "first": "¡Hola!",
+   "lostSentence": "Lo siento, pero no puedo hablar en este momento."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC15-S011",
+   "first": "100.000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC01-S002",
+   "first": "Goedemorgen.",
+   "lostSentence": "Hoe gaat het met je?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC04-S002",
+   "first": "Hallo!",
+   "lostSentence": "Het spijt me, maar ik kan nu niet praten."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC11-S009",
+   "first": "Zoragarria.",
+   "lostSentence": "Posible al da berandu irtetea?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC12-S002",
+   "first": "Noski.",
+   "lostSentence": "Zer sintoma dituzu?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC09-S001",
+   "first": "Goedenavond.",
+   "lostSentence": "We hebben een reservering voor twee personen, onder de naam Davies."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC14-S007",
+   "first": "Alstublieft.",
+   "lostSentence": "Dat is twaalf pond vijftig."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S013",
+   "first": "Zestien.",
+   "lostSentence": "Zeventien."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC13-S011",
+   "first": "Dertig.",
+   "lostSentence": "Veertig."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC06-S013",
+   "first": "Een.",
+   "lostSentence": "Twee."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC09-S018",
+   "first": "Zeven.",
+   "lostSentence": "Negen."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S002",
+   "first": "Welkom.",
+   "lostSentence": "Ja, u heeft een tweepersoonskamer voor drie nachten."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC06-S001",
+   "first": "Perdón.",
+   "lostSentence": "Hola."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC15-S011",
+   "first": "100.000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC10-S003",
+   "first": "شكراً.",
+   "lostSentence": "وعندك مسكنات ألم للأطفال؟"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC12-S009",
+   "first": "شكراً.",
+   "lostSentence": "أقدر كمان آخذ علبة لصقات؟"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC12-S009",
+   "first": "Danke.",
+   "lostSentence": "Könnte ich auch noch ein Pflaster-Set bekommen?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC06-S001",
+   "first": "Entschuldigung.",
+   "lostSentence": "Hallo."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC10-S001",
+   "first": "Entschuldigung.",
+   "lostSentence": "Haben Sie Schmerzmittel?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC09-S011",
+   "first": "Natürlich.",
+   "lostSentence": "Und was möchten Sie trinken?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC14-S007",
+   "first": "Voilà.",
+   "lostSentence": "Ça fait douze livres cinquante."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC12-S009",
+   "first": "Gracias.",
+   "lostSentence": "¿Me podría dar también un paquete de tiritas?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC07-S005",
+   "first": "Natürlich.",
+   "lostSentence": "Möchten Sie hier sitzen oder zum Mitnehmen?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC07-S008",
+   "first": "Sofort.",
+   "lostSentence": "Möchten Sie noch etwas?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC14-S001",
+   "first": "Hola.",
+   "lostSentence": "¿Me puede llevar a la estación de tren, por favor?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC12-S001",
+   "first": "Bonjour.",
+   "lostSentence": "Je ne me sens pas très bien, vous pourriez me conseiller quelque chose ?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC12-S009",
+   "first": "Merci.",
+   "lostSentence": "Est-ce que je pourrais aussi avoir un paquet de pansements ?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC11-S002",
+   "first": "Willkommen.",
+   "lostSentence": "Ja, Sie haben ein Doppelzimmer für drei Nächte."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC10-S003",
+   "first": "Danke.",
+   "lostSentence": "Und haben Sie auch Schmerzmittel für Kinder?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC15-S011",
+   "first": "hunderttausend.",
+   "lostSentence": "sechzig."
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC14-S001",
+   "first": "Hallo.",
+   "lostSentence": "Können Sie mich bitte zum Bahnhof fahren?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC07-S001",
+   "first": "Bonjour !",
+   "lostSentence": "Qu'est-ce que je peux vous proposer ?"
+  },
+  {
+   "id": "deu_for_eng:pod-1:SC11-S013",
+   "first": "Sechzehn.",
+   "lostSentence": "Siebzehn."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC01-S002",
+   "first": "Buongiorno.",
+   "lostSentence": "Come stai?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC07-S013",
+   "first": "Bonjour !",
+   "lostSentence": "Deux americanos et un thé, s'il vous plaît."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC09-S002",
+   "first": "Bienvenue.",
+   "lostSentence": "Veuillez me suivre, s'il vous plaît."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC06-S013",
+   "first": "Um.",
+   "lostSentence": "Dois."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC11-S004",
+   "first": "Parfait.",
+   "lostSentence": "La chambre est au troisième étage, chambre 709."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC11-S009",
+   "first": "Formidable.",
+   "lostSentence": "Est-il possible d'avoir un départ tardif ?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC10-S001",
+   "first": "Ursäkta.",
+   "lostSentence": "Har du några smärtstillande medel?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC07-S008",
+   "first": "Enseguida.",
+   "lostSentence": "¿Quiere algo más?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC13-S008",
+   "first": "Estupendo.",
+   "lostSentence": "¿Y hay un cajero automático cerca?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC14-S001",
+   "first": "Bonjour.",
+   "lostSentence": "Vous pouvez m'emmener à la gare, s'il vous plaît ?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC07-S012",
+   "first": "Claro.",
+   "lostSentence": "Ali está a máquina."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC10-S010",
+   "first": "Doce.",
+   "lostSentence": "Trece."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC06-S013",
+   "first": "Uno.",
+   "lostSentence": "Dos."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC08-S016",
+   "first": "Cuatro.",
+   "lostSentence": "Seis."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC11-S002",
+   "first": "Bienvenido.",
+   "lostSentence": "Sí, tiene una habitación doble para tres noches."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC10-S003",
+   "first": "Gracias.",
+   "lostSentence": "¿Y tiene analgésicos para niños?"
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC11-S004",
+   "first": "Estupendo.",
+   "lostSentence": "La habitación está en la tercera planta, la 709."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC14-S010",
+   "first": "Cien.",
+   "lostSentence": "Doscientos."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC04-S002",
+   "first": "Oi!",
+   "lostSentence": "Desculpa, mas não consigo falar agora."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC07-S008",
+   "first": "Ahorita.",
+   "lostSentence": "¿Le doy algo más?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC09-S011",
+   "first": "Claro.",
+   "lostSentence": "¿Y qué van a querer tomar?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC13-S011",
+   "first": "Treinta.",
+   "lostSentence": "Cuarenta."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC11-S003",
+   "first": "Claro.",
+   "lostSentence": "Aquí tiene mi pasaporte."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC11-S002",
+   "first": "Bienvenido.",
+   "lostSentence": "Sí, tiene una habitación doble para tres noches."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC12-S009",
+   "first": "Gracias.",
+   "lostSentence": "¿Me da también un paquete de curitas?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC13-S008",
+   "first": "Perfecto.",
+   "lostSentence": "¿Y hay un cajero automático cerca?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC09-S011",
+   "first": "Claro.",
+   "lostSentence": "E o que desejam beber?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC14-S001",
+   "first": "Hola.",
+   "lostSentence": "¿Me puede llevar a la estación de tren, por favor?"
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC14-S010",
+   "first": "Cien.",
+   "lostSentence": "Doscientos."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC09-S002",
+   "first": "Bem-vindos.",
+   "lostSentence": "Façam favor de me seguir."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC09-S018",
+   "first": "Sete.",
+   "lostSentence": "Nove."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC13-S008",
+   "first": "Ótimo.",
+   "lostSentence": "E há uma caixa multibanco aqui perto?"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC07-S005",
+   "first": "Claro.",
+   "lostSentence": "Você quer comer aqui ou levar?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC09-S002",
+   "first": "Välkommen.",
+   "lostSentence": "Varsågod och följ med mig."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC14-S010",
+   "first": "Cem.",
+   "lostSentence": "Duzentos."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC11-S009",
+   "first": "Maravilhoso.",
+   "lostSentence": "É possível a gente fazer um check-out tardio?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC07-S013",
+   "first": "Goedemorgen.",
+   "lostSentence": "Twee americano's en een kopje thee, alstublieft."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC07-S008",
+   "first": "Já.",
+   "lostSentence": "Você quer mais alguma coisa?"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC09-S011",
+   "first": "Claro.",
+   "lostSentence": "E o que vocês gostariam de beber?"
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC09-S002",
+   "first": "Bem-vindos.",
+   "lostSentence": "Por favor, me sigam."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC08-S016",
+   "first": "Quatro.",
+   "lostSentence": "Seis."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC11-S004",
+   "first": "Minunat.",
+   "lostSentence": "Camera este la etajul trei, camera 709."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC14-S007",
+   "first": "Poftim.",
+   "lostSentence": "Sunt douăsprezece lire și cincizeci."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC10-S010",
+   "first": "Tolv.",
+   "lostSentence": "Tretton."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC07-S012",
+   "first": "Natuurlijk.",
+   "lostSentence": "Hier is het apparaat."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC04-S002",
+   "first": "Hej!",
+   "lostSentence": "Jag är ledsen men jag kan inte prata just nu."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC12-S002",
+   "first": "Claro.",
+   "lostSentence": "Quais são seus sintomas?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC15-S011",
+   "first": "100.000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC14-S001",
+   "first": "Hallo.",
+   "lostSentence": "Kunt u me naar het station brengen, alstublieft?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC09-S011",
+   "first": "Självklart.",
+   "lostSentence": "Och vad vill ni dricka?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC13-S011",
+   "first": "Trettio.",
+   "lostSentence": "Fyrtio."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC11-S009",
+   "first": "Underbart.",
+   "lostSentence": "Är det möjligt för oss att ha sen utcheckning?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC13-S008",
+   "first": "Underbart.",
+   "lostSentence": "Och finns det ett bankomat i närheten?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC09-S002",
+   "first": "Velkomin.",
+   "lostSentence": "Gjörðu svo vel að fylgja mér."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC03-S001",
+   "first": "Goedemiddag.",
+   "lostSentence": "Wat mag het zijn?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC03-S002",
+   "first": "Goedemiddag.",
+   "lostSentence": "Ik wil graag een koffie, alstublieft."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC07-S001",
+   "first": "Goedemorgen.",
+   "lostSentence": "Wat mag het zijn?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC06-S001",
+   "first": "Oprosti.",
+   "lostSentence": "Dobar dan."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC14-S001",
+   "first": "Hæ.",
+   "lostSentence": "Geturðu keyrt mig á lestarstöðina, takk?"
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC09-S002",
+   "first": "Fáilte.",
+   "lostSentence": "Lean mé, le do thoil."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC03-S001",
+   "first": "Bonjour!",
+   "lostSentence": "Qu'est-ce que je peux te servir?"
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC13-S008",
+   "first": "Parfait.",
+   "lostSentence": "Et est-ce qu'y'a un guichet automatique pas loin?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC07-S012",
+   "first": "Auðvitað.",
+   "lostSentence": "Þarna er posinn."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC07-S008",
+   "first": "حاضر.",
+   "lostSentence": "عايز حاجة تانية؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC06-S001",
+   "first": "معلش.",
+   "lostSentence": "أهلاً."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC15-S011",
+   "first": "100.000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC01-S002",
+   "first": "안녕하세요.",
+   "lostSentence": "어떻게 지내세요?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC12-S002",
+   "first": "Auðvitað.",
+   "lostSentence": "Hver eru einkennin þín?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC14-S007",
+   "first": "Izvolite.",
+   "lostSentence": "To je dvanaest funti i pedeset penija."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC06-S001",
+   "first": "Barkatu.",
+   "lostSentence": "Kaixo."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC09-S001",
+   "first": "Gabon.",
+   "lostSentence": "Bi lagunentzako erreserba dugu, Davies izenean."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC14-S001",
+   "first": "Kaixo.",
+   "lostSentence": "Tren geltokira eraman nazakezu, mesedez?"
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC11-S003",
+   "first": "Noski.",
+   "lostSentence": "Hemen dut nire pasaportea."
+  },
+  {
+   "id": "eus_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC06-S001",
+   "first": "Excuse-moi.",
+   "lostSentence": "Bonjour."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC11-S003",
+   "first": "بالطبع.",
+   "lostSentence": "اتفضل، ده جواز سفري."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC09-S002",
+   "first": "Bienvenue.",
+   "lostSentence": "Suivez-moi, s'il vous plaît."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC11-S004",
+   "first": "Parfait.",
+   "lostSentence": "La chambre est au troisième étage, chambre sept cent neuf."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC04-S002",
+   "first": "أهلاً!",
+   "lostSentence": "آسفة بس مش قادرة أتكلم دلوقتي."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC14-S007",
+   "first": "Voilà.",
+   "lostSentence": "Ça fait douze livres cinquante."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC14-S010",
+   "first": "100.",
+   "lostSentence": "200."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC04-S002",
+   "first": "أهلاً!",
+   "lostSentence": "آسفة بس مش قادرة أتكلم دلوقتي."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC09-S011",
+   "first": "알겠습니다.",
+   "lostSentence": "음료는 뭘로 드시겠어요?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC01-S002",
+   "first": "Bonjour.",
+   "lostSentence": "Comment allez-vous ?"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC07-S005",
+   "first": "بالطبع.",
+   "lostSentence": "عايز تشرب هنا ولا تاخده معاك؟"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC11-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "존스 이름으로 예약이 되어 있어요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC11-S003",
+   "first": "물론이죠.",
+   "lostSentence": "여기 여권이에요."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC14-S010",
+   "first": "مية.",
+   "lostSentence": "ميتين."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC10-S008",
+   "first": "العفو.",
+   "lostSentence": "حضرتك هنا في إجازة؟ أنت بتتكلم عربي كويس قوي."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC11-S013",
+   "first": "열여섯.",
+   "lostSentence": "열일곱."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC09-S011",
+   "first": "بالطبع.",
+   "lostSentence": "وحضرتكم عايزين تشربوا إيه؟"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC12-S002",
+   "first": "물론이죠.",
+   "lostSentence": "어떤 증상이 있으세요?"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC09-S018",
+   "first": "سبعة.",
+   "lostSentence": "تسعة."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC04-S002",
+   "first": "Bonjour !",
+   "lostSentence": "Je suis désolée mais je ne peux pas parler en ce moment."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC10-S010",
+   "first": "اتناشر.",
+   "lostSentence": "تلاتاشر."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC06-S001",
+   "first": "Excusez-moi.",
+   "lostSentence": "Bonjour."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC11-S009",
+   "first": "ممتاز.",
+   "lostSentence": "ممكن نعمل تشيك أوت متأخر؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC12-S002",
+   "first": "بالطبع.",
+   "lostSentence": "عندك إيه من أعراض؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC12-S009",
+   "first": "شكراً.",
+   "lostSentence": "ممكن كمان آخد علبة لاصق جروح؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC11-S013",
+   "first": "ستاشر.",
+   "lostSentence": "سبعتاشر."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC15-S011",
+   "first": "십만.",
+   "lostSentence": "육십."
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC14-S001",
+   "first": "مَرْحَبًا.",
+   "lostSentence": "هَلْ يُمْكِنُكَ أَنْ تَأْخُذَني إِلى مَحَطَّةِ القِطارِ، مِنْ فَضْلِكَ؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC13-S011",
+   "first": "تلاتين.",
+   "lostSentence": "أربعين."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC07-S008",
+   "first": "حاضر.",
+   "lostSentence": "في حاجة تانية؟"
+  },
+  {
+   "id": "ara_for_eng:pod-1:SC15-S011",
+   "first": "100,000.",
+   "lostSentence": "60."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC13-S011",
+   "first": "تلاتين.",
+   "lostSentence": "أربعين."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC07-S005",
+   "first": "بالتأكيد.",
+   "lostSentence": "هتقعد هنا ولا تيك أواي؟"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC09-S011",
+   "first": "حاضر.",
+   "lostSentence": "وحضراتكم تحبوا تشربوا إيه؟"
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC09-S018",
+   "first": "سبعة.",
+   "lostSentence": "تسعة."
+  },
+  {
+   "id": "ara_eg_for_eng:pod-1:SC10-S010",
+   "first": "اتناشر.",
+   "lostSentence": "تلاتاشر."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC07-S012",
+   "first": "물론이죠.",
+   "lostSentence": "여기 단말기 있어요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC14-S010",
+   "first": "백.",
+   "lostSentence": "이백."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC13-S011",
+   "first": "삼십.",
+   "lostSentence": "사십."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC07-S005",
+   "first": "물론이죠.",
+   "lostSentence": "매장에서 드시겠어요, 아니면 테이크아웃하실래요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC08-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "뭘 도와드릴까요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC10-S003",
+   "first": "감사합니다.",
+   "lostSentence": "그리고 어린이용 진통제도 있어요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC10-S009",
+   "first": "감사합니다!",
+   "lostSentence": "네, 여행 중이에요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC13-S010",
+   "first": "감사합니다.",
+   "lostSentence": "정말 도움이 많이 됐어요."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC13-S011",
+   "first": "Trinta.",
+   "lostSentence": "Quarenta."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC08-S001",
+   "first": "Bonsoir.",
+   "lostSentence": "Qu'est-ce que je peux vous proposer ?"
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC01-S004",
+   "first": "Tá.",
+   "lostSentence": "Tá lá gnóthach agam inniu."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC09-S005",
+   "first": "Oprostite,…",
+   "lostSentence": "imate li nešto…"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC09-S018",
+   "first": "Sept.",
+   "lostSentence": "Neuf."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC09-S011",
+   "first": "Naravno.",
+   "lostSentence": "A što biste željeli…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC10-S001",
+   "first": "Oprostite.",
+   "lostSentence": "Imate li…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC11-S002",
+   "first": "Dobrodošli.",
+   "lostSentence": "Da, imate dvokrevetnu…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC12-S009",
+   "first": "Hvala.",
+   "lostSentence": "Mogu li dobiti…"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC10-S001",
+   "first": "Excusez-moi.",
+   "lostSentence": "Est-ce que vous avez des analgésiques ?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC14-S003",
+   "first": "Otprilike…",
+   "lostSentence": "koliko dugo mislite…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC14-S004",
+   "first": "Možda…",
+   "lostSentence": "oko dvadeset minuta,…"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC10-S003",
+   "first": "Merci.",
+   "lostSentence": "Et est-ce que vous avez des analgésiques pour enfants ?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC10-S010",
+   "first": "Douze.",
+   "lostSentence": "Treize."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC11-S001",
+   "first": "Bonjour.",
+   "lostSentence": "J'ai une réservation au nom de Jones."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC11-S002",
+   "first": "Bienvenue.",
+   "lostSentence": "Oui, vous avez une chambre double pour trois nuits."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC11-S013",
+   "first": "Seize.",
+   "lostSentence": "Dix-sept."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC13-S008",
+   "first": "Parfait.",
+   "lostSentence": "Et est-ce qu'il y a un distributeur de billets près d'ici ?"
+  },
+  {
+   "id": "fra_for_eng:pod-1:SC13-S011",
+   "first": "Trente.",
+   "lostSentence": "Quarante."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC07-S015",
+   "first": "Cinci.",
+   "lostSentence": "Zece."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC08-S016",
+   "first": "Patru.",
+   "lostSentence": "Șase."
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC11-S013",
+   "first": "Șaisprezece.",
+   "lostSentence": "Șaptesprezece."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC07-S015",
+   "first": "Cinco.",
+   "lostSentence": "Diez."
+  },
+  {
+   "id": "spa_for_eng:pod-1:SC08-S016",
+   "first": "Cuatro.",
+   "lostSentence": "Seis."
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC13-S011",
+   "first": "Tríocha.",
+   "lostSentence": "Daichead."
+  },
+  {
+   "id": "spa_mx_for_eng:pod-1:SC07-S005",
+   "first": "Claro.",
+   "lostSentence": "¿Para aquí o para llevar?"
+  },
+  {
+   "id": "ron_for_eng:pod-1:SC10-S001",
+   "first": "Scuzați-mă.",
+   "lostSentence": "Aveți calmante?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC01-S004",
+   "first": "Da,…",
+   "lostSentence": "imam zauzet dan danas."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC02-S001",
+   "first": "Oprostite,…",
+   "lostSentence": "je li ovo mjesto…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC06-S009",
+   "first": "Oprosti,…",
+   "lostSentence": "nisam te razumio."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC06-S013",
+   "first": "Jedan.",
+   "lostSentence": "Dva."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC07-S005",
+   "first": "Naravno.",
+   "lostSentence": "Želite li za ovdje ili za van?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC07-S008",
+   "first": "Odmah.",
+   "lostSentence": "Želite li još nešto?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC07-S012",
+   "first": "Naravno.",
+   "lostSentence": "Izvolite…"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC01-S002",
+   "first": "Godmorgon.",
+   "lostSentence": "Hur mår du?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC06-S001",
+   "first": "Ursäkta.",
+   "lostSentence": "Hej."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC07-S001",
+   "first": "Godmorgon.",
+   "lostSentence": "Vad kan jag få dig?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC06-S013",
+   "first": "Ett.",
+   "lostSentence": "Två."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC08-S016",
+   "first": "Četiri.",
+   "lostSentence": "Šest."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC09-S002",
+   "first": "Dobrodošli.",
+   "lostSentence": "Izvolite, pratite me."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC08-S016",
+   "first": "Fyra.",
+   "lostSentence": "Sex."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC09-S018",
+   "first": "Sju.",
+   "lostSentence": "Nio."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC10-S008",
+   "first": "Varsågod.",
+   "lostSentence": "Är du här på semester?"
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC11-S003",
+   "first": "Självklart.",
+   "lostSentence": "Här är mitt pass."
+  },
+  {
+   "id": "swe_for_eng:pod-1:SC11-S013",
+   "first": "Sexton.",
+   "lostSentence": "Sjutton."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC09-S018",
+   "first": "Sedam.",
+   "lostSentence": "Devet."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC10-S003",
+   "first": "Hvala.",
+   "lostSentence": "A imate li…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC11-S003",
+   "first": "Naravno.",
+   "lostSentence": "Evo moje putovnice."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC10-S010",
+   "first": "Dvanaest.",
+   "lostSentence": "Trinaest."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC11-S009",
+   "first": "Odlično.",
+   "lostSentence": "Je li moguće…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC11-S013",
+   "first": "Šesnaest.",
+   "lostSentence": "Sedamnaest."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC12-S002",
+   "first": "Naravno.",
+   "lostSentence": "Koji su vaši simptomi?"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC12-S004",
+   "first": "Pokušajte…",
+   "lostSentence": "paracetamol…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC12-S010",
+   "first": "Devetnaest.",
+   "lostSentence": "Dvadeset."
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC13-S008",
+   "first": "Odlično.",
+   "lostSentence": "A ima li tu…"
+  },
+  {
+   "id": "hrv_for_eng:pod-1:SC14-S010",
+   "first": "Sto.",
+   "lostSentence": "Dvjesto."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC08-S016",
+   "first": "Quatre.",
+   "lostSentence": "Six."
+  },
+  {
+   "id": "fra_ca_for_eng:pod-1:SC11-S002",
+   "first": "Bienvenue.",
+   "lostSentence": "Oui, vous avez une chambre double pour trois nuits."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC03-S002",
+   "first": "Buonasera.",
+   "lostSentence": "Vorrei un caffè, per favore."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC04-S002",
+   "first": "Ciao!",
+   "lostSentence": "Mi dispiace ma non posso parlare adesso."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC06-S001",
+   "first": "Scusa.",
+   "lostSentence": "Ciao."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC06-S013",
+   "first": "Uno.",
+   "lostSentence": "Due."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S001",
+   "first": "Buongiorno.",
+   "lostSentence": "Cosa prendo?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC07-S015",
+   "first": "Cinque.",
+   "lostSentence": "Dieci."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC08-S001",
+   "first": "Buonasera.",
+   "lostSentence": "Cosa prendo?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC08-S016",
+   "first": "Quattro.",
+   "lostSentence": "Sei."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC09-S001",
+   "first": "Buonasera.",
+   "lostSentence": "Abbiamo una prenotazione per due, a nome Davies."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC10-S001",
+   "first": "Scusi.",
+   "lostSentence": "Ha degli antidolorifici?"
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S003",
+   "first": "Certo.",
+   "lostSentence": "Ecco il mio passaporto."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC11-S004",
+   "first": "Perfetto.",
+   "lostSentence": "La camera è al terzo piano, camera 709."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC12-S010",
+   "first": "19.",
+   "lostSentence": "20."
+  },
+  {
+   "id": "ita_for_eng:pod-1:SC14-S001",
+   "first": "Salve.",
+   "lostSentence": "Mi può portare alla stazione ferroviaria, per favore?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC10-S001",
+   "first": "실례합니다.",
+   "lostSentence": "진통제 있어요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC03-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "뭘 드릴까요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC06-S001",
+   "first": "실례합니다.",
+   "lostSentence": "안녕하세요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC06-S013",
+   "first": "일.",
+   "lostSentence": "이."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC07-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "뭘 도와드릴까요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC07-S013",
+   "first": "안녕하세요.",
+   "lostSentence": "아메리카노 두 잔이랑 홍차 한 잔 주세요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC07-S015",
+   "first": "오.",
+   "lostSentence": "십."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC08-S016",
+   "first": "사.",
+   "lostSentence": "육."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC09-S018",
+   "first": "칠.",
+   "lostSentence": "구."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC10-S010",
+   "first": "열둘.",
+   "lostSentence": "열셋."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC11-S004",
+   "first": "좋아요.",
+   "lostSentence": "방은 3층에 있고, 709호예요."
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC12-S001",
+   "first": "안녕하세요.",
+   "lostSentence": "몸이 좀 안 좋은데요, 뭔가 추천해 주실 수 있을까요?"
+  },
+  {
+   "id": "kor_for_eng:pod-1:SC12-S009",
+   "first": "감사합니다.",
+   "lostSentence": "반창고 한 봉지도 살 수 있을까요?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC04-S002",
+   "first": "Olá!",
+   "lostSentence": "Desculpa, mas não posso falar agora."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC06-S001",
+   "first": "Desculpe.",
+   "lostSentence": "Olá."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC07-S005",
+   "first": "Claro.",
+   "lostSentence": "Quer para ficar ou para levar?"
+  },
+  {
+   "id": "por_for_eng:pod-1:SC07-S015",
+   "first": "Cinco.",
+   "lostSentence": "Dez."
+  },
+  {
+   "id": "por_for_eng:pod-1:SC08-S016",
+   "first": "Quatro.",
+   "lostSentence": "Seis."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC06-S013",
+   "first": "Um.",
+   "lostSentence": "Dois."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC07-S012",
+   "first": "Claro.",
+   "lostSentence": "A máquina está ali."
+  },
+  {
+   "id": "por_br_for_eng:pod-1:SC07-S015",
+   "first": "Cinco.",
+   "lostSentence": "Dez."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC07-S015",
+   "first": "Vijf.",
+   "lostSentence": "Tien."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC08-S016",
+   "first": "Vier.",
+   "lostSentence": "Zes."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC09-S002",
+   "first": "Welkom.",
+   "lostSentence": "Wilt u mij volgen?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC09-S011",
+   "first": "Natuurlijk.",
+   "lostSentence": "En wat wilt u drinken?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC10-S010",
+   "first": "Twaalf.",
+   "lostSentence": "Dertien."
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC11-S009",
+   "first": "Geweldig.",
+   "lostSentence": "Is het mogelijk voor ons om laat uit te checken?"
+  },
+  {
+   "id": "nld_for_eng:pod-1:SC12-S002",
+   "first": "Natuurlijk.",
+   "lostSentence": "Wat zijn uw klachten?"
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC08-S016",
+   "first": "Ceathair.",
+   "lostSentence": "Sé."
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC11-S002",
+   "first": "Fáilte.",
+   "lostSentence": "Sea, tá seomra dúbailte agat ar feadh trí oíche."
+  },
+  {
+   "id": "gle_for_eng:pod-1:SC14-S010",
+   "first": "Céad.",
+   "lostSentence": "Dhá chéad."
+  },
+  {
+   "id": "hin_for_eng:pod-1:SC04-S002",
+   "first": "हेलो!",
+   "lostSentence": "माफ़ कीजिए, लेकिन मैं अभी बात नहीं कर सकती। मुझे अभी घर जाना है। क्या हम कल बात कर सकते हैं?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC04-S002",
+   "first": "Halló!",
+   "lostSentence": "Fyrirgefðu, en ég get ekki talað núna."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC07-S008",
+   "first": "Strax.",
+   "lostSentence": "Má ég bjóða þér eitthvað annað?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC07-S015",
+   "first": "Fimm.",
+   "lostSentence": "Tíu."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC08-S016",
+   "first": "Fjórir.",
+   "lostSentence": "Sex."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC09-S018",
+   "first": "Sjö.",
+   "lostSentence": "Níu."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC10-S001",
+   "first": "Fyrirgefðu.",
+   "lostSentence": "Ertu með verkjalyf?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC10-S010",
+   "first": "Tólf.",
+   "lostSentence": "Þrettán."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC11-S003",
+   "first": "Auðvitað.",
+   "lostSentence": "Hérna er vegabréfið mitt."
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC11-S009",
+   "first": "Frábært.",
+   "lostSentence": "Er hægt að fá seina brottför fyrir okkur?"
+  },
+  {
+   "id": "isl_for_eng:pod-1:SC11-S013",
+   "first": "Sextán.",
+   "lostSentence": "Sautján."
+  }
+ ]
+}
