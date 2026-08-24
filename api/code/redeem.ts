@@ -16,7 +16,13 @@ import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
-import { getClientIp, hashIp, isIpOverLimit, logAttempt } from '../_utils/codeAttemptThrottle'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt,
+  REDEEM_PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -166,7 +172,7 @@ export default async function handler(
   // REDEEMS it (platform_role, educational_role, a govt_admins row).
   const ipHash = hashIp(getClientIp(req))
   try {
-    if (await isIpOverLimit(supabase, ipHash)) {
+    if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
       await logAttempt(supabase, 'CodeRedeem', { ipHash, authUserId: userId, outcome: 'rate_limited_ip' })
       res.status(429).json({ success: false, error: 'Too many attempts. Please try again later.' })
       return

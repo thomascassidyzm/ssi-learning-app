@@ -33,7 +33,7 @@
  * deliberately shared by all three endpoints so it stays a one-place fix.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
+import { PER_IP_LIMIT, REDEEM_PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
@@ -126,7 +126,7 @@ describe('SEC-AUDIT Finding 2 — /api/code/redeem enumeration throttle', () => 
   it('429s a sustained wrong-code sweep from one account and one IP', async () => {
     const { default: handler } = await import('./redeem')
 
-    const ATTEMPTS = 200
+    const ATTEMPTS = REDEEM_PER_IP_LIMIT + 80
     const statuses: number[] = []
     for (let i = 0; i < ATTEMPTS; i++) {
       const out = await guess(handler, `ABC-${String(i).padStart(3, '0')}`, '203.0.113.9')
@@ -137,13 +137,13 @@ describe('SEC-AUDIT Finding 2 — /api/code/redeem enumeration throttle', () => 
     // reach the code table.
     expect(statuses).toContain(429)
     expect(lookups.length).toBeLessThan(ATTEMPTS)
-    expect(lookups).toHaveLength(PER_IP_LIMIT)
-    expect(statuses.filter((s) => s === 429)).toHaveLength(ATTEMPTS - PER_IP_LIMIT)
+    expect(lookups).toHaveLength(REDEEM_PER_IP_LIMIT)
+    expect(statuses.filter((s) => s === 429)).toHaveLength(ATTEMPTS - REDEEM_PER_IP_LIMIT)
 
     // The refusals themselves are not counted into the window — a limiter
     // counts actions, not its own refusals — so a retrying client cannot keep
     // its own block alive forever.
-    expect(attempts.filter((a) => a.outcome === 'redeem_attempt')).toHaveLength(PER_IP_LIMIT)
+    expect(attempts.filter((a) => a.outcome === 'redeem_attempt')).toHaveLength(REDEEM_PER_IP_LIMIT)
   })
 
   it('answers a wrong code uniformly and cheaply, and records the attempt', async () => {
@@ -165,11 +165,42 @@ describe('SEC-AUDIT Finding 2 — /api/code/redeem enumeration throttle', () => 
   it('buckets by IP: a different IP is unaffected by another IP spending its window', async () => {
     const { default: handler } = await import('./redeem')
 
-    for (let i = 0; i < PER_IP_LIMIT + 5; i++) {
+    for (let i = 0; i < REDEEM_PER_IP_LIMIT + 5; i++) {
       await guess(handler, `ABC-${String(i).padStart(3, '0')}`, '203.0.113.9')
     }
     const other = await guess(handler, 'QRS-123', '198.51.100.4')
 
     expect(other.status).toBe(200)
+  })
+
+  /**
+   * The reason redeem does NOT share the mint/validate limit. A school onboards
+   * a whole class from one building, so every child redeems a valid code through
+   * a single NAT'd IP within minutes. At the mint limit the eleventh child is
+   * refused while holding a correct code — a lockout indistinguishable, from the
+   * teacher's side, from the codes being broken.
+   */
+  it('a whole class redeeming from one school IP is never locked out', () => {
+    const BIG_CLASS = 35
+    const THREE_CLASSES_BACK_TO_BACK = BIG_CLASS * 3
+
+    expect(REDEEM_PER_IP_LIMIT).toBeGreaterThan(PER_IP_LIMIT)
+    expect(REDEEM_PER_IP_LIMIT).toBeGreaterThanOrEqual(THREE_CLASSES_BACK_TO_BACK)
+  })
+
+  /**
+   * ...and it still bounds the oracle hard. Be honest about what a per-IP
+   * limit buys: it caps ONE address, and a distributed attacker routes around
+   * it at any limit — that was as true at the mint limit of 10 as it is here.
+   * What it must do is keep a single address far away from a meaningful slice
+   * of the ~13.8M keyspace on any timescale where nobody would notice, against
+   * a table that logs every attempt.
+   */
+  it('keeps a single IP more than a week away from even 1% of the keyspace', () => {
+    const KEYSPACE = 23 * 23 * 23 * 10 * 10 * 10 // consonants + digits, ~13.8M
+    const perDay = REDEEM_PER_IP_LIMIT * ((24 * 60) / 15)
+    const daysToOnePercent = (KEYSPACE * 0.01) / perDay
+
+    expect(daysToOnePercent).toBeGreaterThan(7)
   })
 })

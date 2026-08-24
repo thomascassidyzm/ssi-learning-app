@@ -29,6 +29,23 @@ export const RATE_WINDOW_MS = 15 * 60 * 1000
 export const PER_IP_LIMIT = 10
 
 /**
+ * Redemption gets a wider window than minting or validation, because the
+ * legitimate shape of the traffic is different: a teacher onboards a whole
+ * class from one school building, so every student redeems a valid code
+ * through a single NAT'd IP inside a few minutes. At PER_IP_LIMIT that
+ * cohort is locked out on the eleventh child, holding a correct code.
+ *
+ * It still bounds the enumeration hole it was raised for, and it is worth
+ * being straight about how much: a per-IP limit caps one address, and a
+ * distributed attacker routes around it at any value — that was equally true
+ * at 10. Against the ~13.8M ABC-123 keyspace, 120 per quarter-hour leaves a
+ * single address around twelve days short of even one percent, on a table
+ * that logs every attempt including the refusals. The limit exists to make
+ * the endpoint useless as a quiet oracle, not to cap a school's morning.
+ */
+export const REDEEM_PER_IP_LIMIT = 120
+
+/**
  * sha256-truncated, identical to possession-redeem.ts / validate.ts — IPs are
  * only ever stored hashed, and the hash must match across endpoints so one
  * machine's attempts correlate into a single bucket.
