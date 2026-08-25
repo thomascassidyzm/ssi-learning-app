@@ -3,6 +3,7 @@ import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed } from '@/composables/useBeltProgress'
 import { getLanguageName, getLanguageEndonym, forSpeakersLabel } from '@/composables/useI18n'
+import { courseTargetName } from '@/utils/courseDisplayName'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
@@ -713,7 +714,7 @@ onMounted(() => {
                   :class="{ active: isActiveCourse(course.course_code) }"
                   @click="handleCourseClick(course)"
                 >
-                  <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
+                  <span class="variant-name">{{ getVariantLabel(course) || courseTargetName(course) }}</span>
                   <span v-if="isPreviewOnly(course)" class="course-status">Try free →</span>
                   <span v-else-if="isEnrolled(course.course_code)" class="course-status"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</span>
                 </button>
