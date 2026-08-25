@@ -124,9 +124,21 @@ Tests: `api/_security/reconcile-2026-08-25-tenancy.security.test.ts`.
 (`:19074`, `:19083`) and **no internal auth check** — the body goes straight to `sessions`. They pin
 `search_path`, so D-01 does not apply; the gap is authorization, not resolution. They therefore
 bypass the learner-data own-row RLS that CLAUDE.md records as live since 2026-06-10, for any caller
-holding only the public anon key. The mitigation, stated plainly: the caller must already know
-learner UUIDs, which are not enumerable through this function. Same shape as SEC22-01 — a privileged
-DB object left reachable by `anon`.
+holding only the public anon key. Same shape as SEC22-01 — a privileged DB object left reachable by
+`anon`. Sibling `admin_user_course_stats` gates on `is_ssi_admin()`; these two are the missed callers.
+
+**The two variants have different reach, and the difference matters:**
+
+| Function | Signature | What an anonymous caller needs |
+|---|---|---|
+| `admin_practice_minutes` | `(p_learner_ids uuid[])` — no default | **a learner UUID**, which is not enumerable through this function. Targeted lookup only. |
+| `admin_practice_minutes_by_course` | `(p_learner_ids uuid[] DEFAULT NULL)` | **nothing.** The body reads `where (p_learner_ids is null or …)`, so a no-argument call returns **platform-wide practice minutes grouped by course**. |
+
+An earlier draft of this section claimed a known learner UUID was required in both cases. That is
+wrong for the `_by_course` variant and the correction is load-bearing: the no-argument call needs no
+prior knowledge at all. What it returns is course-level *aggregate* engagement — commercially
+sensitive platform metrics, not per-learner personal data. The per-learner variant is the one that
+touches individuals, and that one does require a UUID.
 
 ### #7 — SEC25-D-03 is a cross-repo hand-off, not a learner-facing hole
 
