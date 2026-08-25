@@ -6,6 +6,7 @@ import { loadIntroAudio } from '../composables/useScriptCache'
 import { resolveIntroAudioUrl } from '../providers/resolveIntroAudioUrl'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
 import { getLanguageName } from '../composables/useI18n'
+import { courseTargetName } from '../utils/courseDisplayName'
 
 // ============================================================================
 // Simple audio controller for script preview playback
@@ -332,8 +333,10 @@ const selectedSeed = ref('')
 
 // Computed
 const courseName = computed(() => {
-  if (props.course?.target_lang) return getLanguageName(props.course.target_lang)
-  return props.course?.display_name || 'Course'
+  // Variant-aware: a variant course's target_lang is its BASE code, so the
+  // language name alone would title an Austrian German explorer "German"
+  // (utils/courseDisplayName).
+  return courseTargetName(props.course) || props.course?.display_name || 'Course'
 })
 const courseCode = computed(() => props.course?.course_code || '')
 /**

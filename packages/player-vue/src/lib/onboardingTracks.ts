@@ -14,6 +14,7 @@
  */
 
 import { isCommercialCourse } from '@ssi/core'
+import { stripSourceSuffix } from '@/utils/courseDisplayName'
 
 export type OnboardingTrack = 'school' | 'tutor' | 'org'
 
@@ -131,11 +132,5 @@ export function courseLabel(c: LiveCourse): string {
  * "Brazilian Portuguese" / "Welsh (Northern)" are preserved.
  */
 export function targetLabel(c: LiveCourse): string {
-  const full = courseLabel(c)
-  const stripped = full
-    .replace(/\s+for\s+.+?\s+speakers?$/i, '')
-    .replace(/\s+para\s+\S.*$/i, '')
-    .replace(/\s+pour\s+\S.*$/i, '')
-    .trim()
-  return stripped || full
+  return stripSourceSuffix(courseLabel(c))
 }

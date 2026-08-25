@@ -14,6 +14,7 @@
 import { ref, computed, watch, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../composables/useI18n'
+import { courseTargetName } from '../utils/courseDisplayName'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { hasTryEntitlement } from '../composables/useEntitlement'
@@ -76,12 +77,11 @@ const isBetaCourse = (course) => {
 
 // Target language name in the known language (via locale)
 // e.g., for eus_for_spa: "Euskera" (Basque in Spanish)
-const getTargetDisplayName = (course) => {
-  if (course.variant_label) {
-    return `${getLanguageName(course.target_lang)} (${course.variant_label})`
-  }
-  return getLanguageName(course.target_lang)
-}
+// Same helper the player, resting screen and explorer use, so the name a
+// learner picks here is the name they see for the rest of the session
+// (utils/courseDisplayName) — including variants with no variant_label, e.g.
+// "Austrian German" rather than a bare "German".
+const getTargetDisplayName = (course) => courseTargetName(course)
 
 // Strip variant suffixes to group dialects together (cym_n → cym, cym_s → cym)
 const getBaseLang = (code) => code?.replace(/_(n|s|north|south|latam)$/i, '') || code
