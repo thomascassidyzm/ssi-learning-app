@@ -27,6 +27,26 @@ That table is itself the audit's first observation, and it drove the whole parti
 > actually ships, those findings have no document, no test, and no way to go red. A finding that
 > cannot regress-fail is not a finding, it is a memory.
 
+Measured, so it is not left as an impression:
+
+```
+$ git ls-tree -r --name-only origin/sec/audit-2026-08-11 | grep 'security.test.ts$' | wc -l   # 33
+$ git ls-tree -r --name-only origin/dev                  | grep 'security.test.ts$' | wc -l   # 10
+$ comm -23 <(…08-11…) <(…dev…) | wc -l                                                       # 29 missing
+```
+
+**29 of the 33 security-test files that audit wrote never reached `dev`.** The four that did are
+`batchUrlsBulk`, the two `paddle-webhook` tenancy suites, and `securityHeaders` — that is, *exactly*
+the tests attached to a finding someone then went and fixed. **Tests attached to findings nobody
+fixed stayed stranded with them.** The tripwire only survives if it rides a fix.
+
+And the branch is decaying: it is now **330 commits behind `dev`**, and a merge today conflicts on
+`api/audio/batchUrlsBulk.security.test.ts` — a file that reached `dev` by another route and has since
+diverged. "Just merge it" was a one-liner two weeks ago. It is not one now.
+
+This audit's own output is on a branch too, and is subject to the same decay. That is the one item in
+§7 that needs a human decision rather than a fix.
+
 So this audit's four areas are the four things the earlier three could not or did not do:
 
 | Area | Question | Worker |
