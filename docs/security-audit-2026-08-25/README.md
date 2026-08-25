@@ -72,7 +72,7 @@ The audit's single most important output is not a new vulnerability. It is this:
 |---|---|---|---|---|---|
 | 1 | TENANCY-01 | **critical** | **still live** | `api/groups/[id]/invites.ts:132` | a signed-in account and a duplicate org name |
 | 2 | SEC25-X-03 (esc. of SEC25-A-01 + AUTH-CORE-01/05) | **high** | still live | `api/code/redeem.ts` + `_utils/codeAttemptThrottle.ts` | patience, unmetered |
-| 3 | SEC25-D-02 | **high** | still live | `admin_practice_minutes()` — `SECURITY DEFINER`, `EXECUTE` to `anon`, no auth gate | a learner UUID |
+| 3 | SEC25-D-02 | **high** | still live | `admin_practice_minutes*()` — `SECURITY DEFINER`, `EXECUTE` to `anon`, no auth gate | a learner UUID; **nothing at all** for the `_by_course` variant |
 | 4 | TENANCY-02 | high | still live | `api/groups/[id]/rate-compare.ts:319` | the same collision as #1 |
 | 5 | SEC25-D-01 | medium | still live | 16 `SECURITY DEFINER` functions with no `SET search_path` | object-creation rights |
 | 6 | TENANCY-04/05/06/07, AUTH-CORE-03/04 | medium | still live | see `area-c-reconciliation.md` | — |
@@ -153,8 +153,10 @@ use of these tables was not audited** — see §4.
 
 ### The reconciliation, in one line
 
-Of the 2026-08-11 findings re-checked against today's `dev`: **6 FIXED · 36 STILL LIVE · 1 MOVED ·
-2 SUPERSEDED · 2 UNVERIFIABLE**. The fixes that landed are the ones that audit ranked most severe —
+Of the 34 *substantive* 2026-08-11 findings re-checked line-by-line against today's `dev`:
+**8 FIXED · ~24 STILL LIVE · 1 SUPERSEDED · 1 UNVERIFIABLE** (worker #469's own count, over
+substantive findings only; a naive count of verdict markers in the table reads 6/36/1/2/2 because
+several rows carry more than one marker and info/design-note rows are excluded from the 34). The fixes that landed are the ones that audit ranked most severe —
 both criticals it found in the money path, and the highest-confidence high. That is correct
 prioritisation happening *despite* the branch never merging. Full table: `area-c-reconciliation.md`.
 
