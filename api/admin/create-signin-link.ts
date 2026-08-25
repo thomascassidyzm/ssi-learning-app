@@ -20,21 +20,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { getAppOrigin } from '../_utils/appOrigin'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PER_ADMIN_LIMIT = 15
-
-/** Derive the app origin from the request — never trust a client-supplied value here. */
-function getAppOrigin(req: VercelRequest): string {
-  const host = ((req.headers['host'] as string) || '').toLowerCase().replace(/:\d+$/, '')
-  if (host === 'saysomethingin.app' || host === 'www.saysomethingin.app') return 'https://saysomethingin.app'
-  if (host === 'staging.saysomethingin.app') return 'https://staging.saysomethingin.app'
-  if (host) return `https://${host}`
-  return 'https://saysomethingin.app'
-}
 
 export default async function handler(
   req: VercelRequest,

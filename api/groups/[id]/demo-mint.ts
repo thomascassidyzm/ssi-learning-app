@@ -45,25 +45,13 @@ import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { isStrictDescendantGroup } from '../../_utils/schoolScope'
 import { ensureDemoLeafClass, resolveDemoOrgCourseCode } from '../../_utils/demoLeaf'
 import { generateCodeForType } from '../../_utils/codeGen'
+import { getAppOrigin } from '../../_utils/appOrigin'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const DAY = 86400000
 const DEFAULT_DEMO_DAYS = 30
-
-/**
- * Derive the app origin from the request — never trust a client-supplied
- * value (same pattern as api/admin/create-signin-link.ts). Links-first
- * (THE-MODEL §1.10): the URL is the artifact, the code is plumbing.
- */
-function getAppOrigin(req: VercelRequest): string {
-  const host = ((req.headers['host'] as string) || '').toLowerCase().replace(/:\d+$/, '')
-  if (host === 'saysomethingin.app' || host === 'www.saysomethingin.app') return 'https://saysomethingin.app'
-  if (host === 'staging.saysomethingin.app') return 'https://staging.saysomethingin.app'
-  if (host) return `https://${host}`
-  return 'https://saysomethingin.app'
-}
 
 /**
  * ssi_admin first; fall back to a leader whose OWN governed group is

@@ -146,6 +146,19 @@ describe('AUTH-CORE-08 / INPUT-10: the app origin allow-lists known hosts', () =
     expect(src).not.toContain('if (host) return `https://${host}`')
   })
 
+  it('SECURE: no handler carries its own copy of the old Host-echoing helper', () => {
+    // The fix is only worth the allowlist if there is ONE definition. Two
+    // handlers carried a verbatim copy of the vulnerable version — and one of
+    // them (create-signin-link.ts) fed `redirectTo` on a magic link, i.e. the
+    // poisoned origin would have been where a real admin's sign-in landed.
+    // Both now import the shared helper.
+    for (const file of ['api/admin/create-signin-link.ts', 'api/groups/[id]/demo-mint.ts']) {
+      const src = read(file)
+      expect(src, file).not.toMatch(/function getAppOrigin\(/)
+      expect(src, file).toMatch(/import \{ getAppOrigin \} from '[^']*_utils\/appOrigin'/)
+    }
+  })
+
   it('the hosts the team actually uses still work', () => {
     expect(origin('saysomethingin.app')).toBe('https://saysomethingin.app')
     expect(origin('www.saysomethingin.app')).toBe('https://saysomethingin.app')
