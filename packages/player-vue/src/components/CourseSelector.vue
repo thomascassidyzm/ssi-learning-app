@@ -557,6 +557,7 @@ onMounted(() => {
                       @click="handleCourseSelect(course)"
                     >
                       <span class="variant-indent" />
+                      <LanguageFlag :code="course.course_code" :size="18" class="row-flag" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
@@ -618,6 +619,7 @@ onMounted(() => {
                       @click="handleCourseSelect(course)"
                     >
                       <span class="variant-indent" />
+                      <LanguageFlag :code="course.course_code" :size="18" class="row-flag" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>

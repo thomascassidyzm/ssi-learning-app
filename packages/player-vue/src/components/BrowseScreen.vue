@@ -714,6 +714,7 @@ onMounted(() => {
                   :class="{ active: isActiveCourse(course.course_code) }"
                   @click="handleCourseClick(course)"
                 >
+                  <LanguageFlag :code="course.course_code" :size="18" />
                   <span class="variant-name">{{ getVariantLabel(course) || courseTargetName(course) }}</span>
                   <span v-if="isPreviewOnly(course)" class="course-status">Try free →</span>
                   <span v-else-if="isEnrolled(course.course_code)" class="course-status"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</span>
