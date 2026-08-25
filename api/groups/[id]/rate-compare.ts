@@ -44,7 +44,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
-import { resolveVisibleScope, ownSchoolIdForNode, isStrictDescendantGroup, chunk } from '../../_utils/schoolScope'
+import { resolveVisibleScope, ownSchoolIdForNode, chunk } from '../../_utils/schoolScope'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
@@ -295,7 +295,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const allGroups = (allGroupsData ?? []) as GroupRow[]
-    const groupPathById = new Map(allGroups.map((g) => [g.id, g.path]))
 
     // ─── Authz (non-admin): class membership / own school / governed subtree. ───
     if (!isAdmin) {
@@ -311,13 +310,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         else if (scope.groupId) {
           if (scope.groupId === nodeId) authorized = true
           else {
-            // Strict-descendant check from the forest already in hand; the
-            // helper query only when a path is missing.
-            const ownPath = groupPathById.get(scope.groupId)
-            const nodePath = groupPathById.get(nodeId)
-            authorized = ownPath && nodePath
-              ? nodePath === ownPath || nodePath.startsWith(ownPath + '/')
-              : await isStrictDescendantGroup(svc, scope.groupId, nodeId)
+            // Descendant check by parent_id over the forest already in hand.
+            // Never by slug path (TENANCY-02, fixed 2026-08-25): slugs are not
+            // unique, so two unrelated ROOT orgs with the same name get EQUAL
+            // paths, and comparing those strings authorized a stranger — then
+            // the '/'-prefix half carried that grant across their whole
+            // subtree.
+            authorized = descendantIds(allGroups, scope.groupId).includes(nodeId)
           }
         }
       }
