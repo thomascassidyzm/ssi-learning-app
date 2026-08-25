@@ -7,7 +7,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
-import { generateCode } from '../_utils/codeGen'
+import { generateCode, redactCode } from '../_utils/codeGen'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -98,7 +98,7 @@ export default async function handler(
       return
     }
 
-    console.log('[TryLinkCreate] Created:', newCode, 'label:', label, 'by:', authResult.userId)
+    console.log('[TryLinkCreate] Created:', redactCode(newCode), 'label:', label, 'by:', authResult.userId)
     res.status(201).json(created)
   } catch (error: any) {
     console.error('[TryLinkCreate] Error:', error)

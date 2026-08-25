@@ -10,11 +10,47 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
+import {
+  getClientIp,
+  hashIp,
+  logAttempt,
+  RATE_WINDOW_MS,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+/**
+ * AUTH-CORE-04 — a local budget on OTP guesses.
+ *
+ * Every {email, token} pair used to be relayed straight to GoTrue with no
+ * counter of our own, so an attacker's guesses against a 6-digit code shared
+ * whatever budget GoTrue applies globally rather than being isolated per
+ * caller. Counted on BOTH axes, because they defeat different attacks:
+ *   - per target email: stops one mailbox being ground down from many sessions;
+ *   - per account (auth_user_id): stops one signed-in account grinding many
+ *     mailboxes, which is the shape that matters here — this endpoint attaches
+ *     a verified email to the CALLER's learner row.
+ * Refusals are excluded from the window for the reason the sibling endpoints
+ * exclude them: a limiter that counts its own refusals never drains.
+ */
+const OTP_ATTEMPT_LIMIT = 10
+
+async function otpAttemptsOverLimit(
+  admin: SupabaseClient,
+  column: 'email' | 'auth_user_id',
+  value: string
+): Promise<boolean> {
+  const { count } = await admin
+    .from('possession_mint_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq(column, value)
+    .eq('outcome', 'email_verify_attempt')
+    .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
+  return (count ?? 0) >= OTP_ATTEMPT_LIMIT
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -29,7 +65,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { email, token } = req.body || {}
 
-  if (!email || !token) {
+  // INPUT-07: a shaped body ({email: {...}}) used to reach .toLowerCase() and
+  // throw a raw TypeError out of the handler — an opaque 500 with a stack
+  // trace in the logs, where the honest answer is a 400. Type-check before
+  // touching either value.
+  if (typeof email !== 'string' || typeof token !== 'string' || !email || !token) {
     return res.status(400).json({ error: 'Missing email or token' })
   }
 
@@ -40,8 +80,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const admin = createClient(supabaseUrl, supabaseServiceKey)
+  const ipHash = hashIp(getClientIp(req))
 
   try {
+    if (
+      (await otpAttemptsOverLimit(admin, 'email', normalizedEmail)) ||
+      (await otpAttemptsOverLimit(admin, 'auth_user_id', userId))
+    ) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again later.' })
+    }
+    // Logged BEFORE the guess is relayed, so a crash mid-verify still spends
+    // the budget — a limiter that only counts completed attempts can be
+    // drained by abandoning requests.
+    await logAttempt(admin, '[email/verify]', {
+      email: normalizedEmail,
+      authUserId: userId,
+      ipHash,
+      outcome: 'email_verify_attempt',
+    })
+
     // Verify the OTP server-side using the admin client
     // This confirms the user has access to this email without affecting client session
     const { error: verifyError } = await admin.auth.verifyOtp({
@@ -54,12 +111,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: verifyError.message || 'Invalid code' })
     }
 
-    // OTP is valid — check this email isn't already linked to a DIFFERENT learner
-    const { data: existingLearner } = await admin
+    // OTP is valid — check this email isn't already linked to a DIFFERENT learner.
+    //
+    // AUTH-CORE-06: this was `.single()` with the error discarded. `.single()`
+    // errors on zero rows AND on two-or-more, so once two learners already
+    // held an address the probe returned no data and the guard silently
+    // stopped firing for a third — the collision check failed OPEN precisely
+    // in the case it exists for. `.limit(1).maybeSingle()` returns the first
+    // colliding row instead of erroring, and the error branch now refuses
+    // rather than being dropped: an unreadable learners table must not read as
+    // "no collision".
+    const { data: existingLearner, error: collisionError } = await admin
       .from('learners')
       .select('id, user_id')
       .contains('verified_emails', [normalizedEmail])
-      .single()
+      .limit(1)
+      .maybeSingle()
+
+    if (collisionError) {
+      console.error('[email/verify] Collision probe failed:', collisionError)
+      return res.status(503).json({ error: 'Verification unavailable, please try again' })
+    }
 
     if (existingLearner && existingLearner.user_id !== userId) {
       return res.status(409).json({

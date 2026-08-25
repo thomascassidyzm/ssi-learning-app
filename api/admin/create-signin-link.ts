@@ -76,7 +76,15 @@ export default async function handler(
       .contains('payload', { actor_user_id: adminResult.userId })
 
     if (rateErr) {
-      console.warn('[CreateSigninLink] rate-limit check failed (failing open):', rateErr.message)
+      // AUTH-CORE-07 — fail CLOSED. This used to warn and proceed, which meant
+      // an unreadable player_events (an RLS change, a permission regression, an
+      // outage) silently removed the ONLY volume bound on an endpoint that
+      // mints a session-granting magic link for any learner. A quota that
+      // evaporates exactly when the database is misbehaving is not a quota.
+      // 503 rather than 500: this is "try again", not "you did something wrong".
+      console.error('[CreateSigninLink] rate-limit check failed — refusing:', rateErr.message)
+      res.status(503).json({ error: 'Rate limit unavailable, please try again' })
+      return
     } else if ((recentCount ?? 0) >= PER_ADMIN_LIMIT) {
       res.status(429).json({ error: 'Too many sign-in links minted recently. Please wait a few minutes.' })
       return

@@ -66,20 +66,23 @@ describe('INPUT-06 / COORD-01: admin/users.ts search param still injects into a 
   it.todo('SECURE: escape/reject `, ( ) .` in search before interpolation, or use a shared escapePostgrestFilterValue()')
 })
 
-describe('INPUT-07: /api/email/verify still throws an unhandled TypeError on a non-string email', () => {
-  // SECURITY FINDING INPUT-07: `email.toLowerCase()` sits outside the try
-  // block, so a shaped body ({email: {...}}) throws a raw TypeError out of
-  // the handler — an opaque 500 with a stack trace in the logs.
-  it('normalizedEmail is still computed with no typeof check, before the try block', () => {
+describe('INPUT-07: /api/email/verify guards a non-string email — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25. `email.toLowerCase()` still sits outside the try block —
+  // that placement is fine — but a shaped body ({email: {...}}) no longer
+  // reaches it: both fields are type-checked first and a non-string gets the
+  // honest 400 rather than a raw TypeError escaping as an opaque 500 with a
+  // stack trace in the logs. `token` is checked too; it is relayed to GoTrue.
+  it('SECURE: email and token are type-checked as strings, 400 otherwise', () => {
     const src = read('api/email/verify.ts')
     const normalizeIdx = src.indexOf('const normalizedEmail = email.toLowerCase().trim()')
-    const tryIdx = src.indexOf('try {')
     expect(normalizeIdx).toBeGreaterThan(-1)
-    expect(tryIdx).toBeGreaterThan(-1)
-    expect(normalizeIdx).toBeLessThan(tryIdx)
-    expect(src.slice(0, normalizeIdx)).not.toMatch(/typeof email/)
+    const guardIdx = src.indexOf("typeof email !== 'string'")
+    expect(guardIdx).toBeGreaterThan(-1)
+    // The guard runs BEFORE the normalisation, and refuses.
+    expect(guardIdx).toBeLessThan(normalizeIdx)
+    expect(src).toMatch(/typeof email !== 'string' \|\| typeof token !== 'string'/)
+    expect(src.slice(guardIdx, normalizeIdx)).toMatch(/status\(400\)/)
   })
-  it.todo('SECURE: type-check email/token as strings and 400 otherwise')
 })
 
 describe('INPUT-08: the audio proxy 502 body still leaks the S3 key and raw AWS error', () => {
@@ -112,19 +115,34 @@ describe('INPUT-09: unbounded / untyped string writes remain', () => {
   it.todo('SECURE: apply the typeof===\'string\' ? x.slice(0,N) : null pattern used by update-profile.ts/onboarding/profile.ts')
 })
 
-describe('INPUT-11: an unauthenticated request body still drives an outbound DNS lookup', () => {
-  // SECURITY FINDING INPUT-11: hasMxRecord() runs dns.resolveMx on a
-  // caller-supplied domain from possession-redeem, with no rate limit ahead
-  // of the lookup — a low-bandwidth beacon/amplification lever from the
-  // serverless egress IP.
-  it('hasMxRecord is called with no rate-limit gate ahead of it in possession-redeem.ts', () => {
+describe('INPUT-11: outbound DNS driven by an unauthenticated body — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25 with two in-process brakes ahead of dns.resolveMx: a
+  // per-bucket window keyed on the caller's platform-attested IP hash (passed
+  // in by possession-redeem, the same hash the code throttle uses), and a
+  // short-lived per-domain answer cache that collapses the ordinary case — a
+  // school onboarding fifty pupils on one domain — to a single lookup.
+  //
+  // Deliberately NOT the possession_mint_attempts ledger: a DB round-trip to
+  // decide whether to make a DNS round-trip costs more than the thing it
+  // protects. Honest limit, stated in the module: this state is per warm lambda
+  // instance, so it bounds the cheap high-volume abuse, which is the abuse that
+  // exists. Over-budget returns null — the module's existing "inconclusive" —
+  // so the fail-open semantics the paired todo asked to keep are kept, and a
+  // throttled legitimate signup proceeds rather than being blocked.
+  it('SECURE: the MX lookup is rate-limited per caller and keeps its fail-open semantics', () => {
     const emailValidation = read('api/_utils/emailValidation.ts')
     expect(emailValidation).toContain('dns.resolveMx(domain)')
+    // The gate sits BEFORE the lookup.
+    const gateIdx = emailValidation.indexOf('if (mxBucketOverLimit(bucketKey))')
+    const lookupIdx = emailValidation.indexOf('dns.resolveMx(domain)')
+    expect(gateIdx).toBeGreaterThan(-1)
+    expect(gateIdx).toBeLessThan(lookupIdx)
+    // Over budget is inconclusive (null), never "invalid" — fail open.
+    expect(emailValidation).toMatch(/if \(mxBucketOverLimit\(bucketKey\)\) \{[\s\S]{0,200}return null/)
+    // And the caller supplies its platform-attested bucket.
     const redeem = read('api/auth/possession-redeem.ts')
-    // The throttle in this file keys on invite-code attempts, not on the MX lookup itself.
-    expect(redeem).toContain('hasMxRecord')
+    expect(redeem).toContain('hasMxRecord(normalizedEmail, undefined, ipHash)')
   })
-  it.todo('SECURE: rate-limit per IP ahead of the MX lookup; keep the fail-open semantics')
 })
 
 describe('INPUT-12: cron secret comparison is still non-constant-time; the non-prod skip persists', () => {

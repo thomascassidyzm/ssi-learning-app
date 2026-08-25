@@ -13,12 +13,11 @@
  * all three throttle the same codes against the same table, so if one changes
  * they all must.
  *
- * Those two siblings predate this module and still carry their own inline
- * copies of hashIp/getClientIp/logAttempt. They are byte-equivalent to the
- * functions here; migrating them onto this module is the natural moment to fix
- * Finding 5 (the bucket key is a client-set header), which touches getClientIp
- * in all three at once. Deliberately not done here — this branch fixes
- * Findings 1 and 2 only, and Finding 5 stays red on purpose.
+ * Finding 5 (the bucket key is a client-set header) is FIXED here as of
+ * 2026-08-25 — see getClientIp below — and the three siblings that carried
+ * byte-equivalent inline copies (api/code/validate.ts, api/auth/possession-redeem.ts,
+ * api/try-link/validate.ts) now import from this module rather than duplicating
+ * it, so there is exactly one bucket-key definition in the estate.
  */
 
 import type { VercelRequest } from '@vercel/node'
@@ -54,12 +53,51 @@ export function hashIp(ip: string): string {
   return createHash('sha256').update(ip).digest('hex').slice(0, 16)
 }
 
+/**
+ * The throttle bucket key. FIXED 2026-08-25 (SEC-AUDIT-2026-08-18 Finding 5 =
+ * AUTH-CORE-05 = ADMIN-ENT-06 = SEC25-A-01) by keying on platform-attested
+ * sources only.
+ *
+ * What was wrong: this read `x-forwarded-for.split(',')[0]`, which is the entry
+ * the ORIGINAL CLIENT wrote, and fell back to `x-real-ip`, which any client can
+ * send. Both are attacker input, so an enumerating caller bought a fresh window
+ * on every request simply by incrementing a header — and the window it defeated
+ * is the only anti-enumeration control in front of api/code/redeem.ts, which
+ * grants `platform_role = 'ssi_admin'`.
+ *
+ * What it reads now, in order:
+ *   1. `x-vercel-forwarded-for` — set by the Vercel edge, which OVERWRITES rather
+ *      than appends, so a caller cannot pre-seed it. Its leftmost entry is the
+ *      platform's own view of the peer.
+ *   2. `req.socket.remoteAddress` — transport truth, unforgeable by definition;
+ *      the value when running outside Vercel (local dev, any other host).
+ *   3. the literal 'unknown'.
+ *
+ * `x-forwarded-for` and `x-real-ip` are deliberately NOT consulted at all, not
+ * even as a later fallback: a fallback an attacker can reach by suppressing the
+ * headers above is not a fallback, it is the same hole one step down.
+ *
+ * On (3): 'unknown' is a real bucket, not an exemption. Everything that lands
+ * there shares ONE window, which is strictly more restrictive than a per-IP one —
+ * a missing platform header must never buy an unlimited allowance. In practice
+ * it is unreachable on Vercel (the edge header is always present) and on any
+ * normal socket, so the shared bucket cannot lock out real traffic.
+ */
 export function getClientIp(req: VercelRequest): string {
-  return (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    (req.headers['x-real-ip'] as string) ||
-    'unknown'
-  )
+  // Defensive on `headers` itself: this runs before anything else on an
+  // unauthenticated path, so a malformed request must produce a bucket, never
+  // a thrown 500 that skips the throttle entirely.
+  const headers = req?.headers ?? {}
+  const vercelForwarded = (headers['x-vercel-forwarded-for'] as string | undefined)
+    ?.split(',')[0]
+    ?.trim()
+  if (vercelForwarded) return vercelForwarded
+
+  const socketAddr = (req as unknown as { socket?: { remoteAddress?: string } }).socket
+    ?.remoteAddress
+  if (socketAddr) return socketAddr
+
+  return 'unknown'
 }
 
 /**
