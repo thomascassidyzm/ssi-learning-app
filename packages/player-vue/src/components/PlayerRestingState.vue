@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, forSpeakersLabel, t } from '@/composables/useI18n'
+import { courseTargetName } from '@/utils/courseDisplayName'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
@@ -22,13 +23,15 @@ const courseName = computed(() => {
   // activeCourse, so this rarely shows, but if it does we'd rather a
   // quiet "…" than an over-emphatic "Loading...".
   if (!props.course) return '…'
-  // Always use the target language name in the known language (via locale)
-  // e.g., for eus_for_spa: "Euskera" (Basque in Spanish), not "Basque" or "Euskara"
+  // The target language name in the known language (via locale) — for
+  // eus_for_spa: "Euskera" (Basque in Spanish), not "Basque" or "Euskara" —
+  // and for a variant course the VARIANT's own name ("Austrian German"), since
+  // its target_lang is the base code and would otherwise read "German".
   // A course object can arrive without target_lang (a class whose course_code
   // the catalogue can't resolve) — fall back to its display name, then the
   // code prefix, rather than rendering a blank title.
   return (
-    getLanguageName(props.course.target_lang) ||
+    courseTargetName(props.course) ||
     props.course.learner_display_name ||
     props.course.display_name ||
     getLanguageName(String(props.course.course_code || '').split('_')[0]) ||
@@ -75,7 +78,7 @@ const setMode = (mode) => {
   <div class="resting-state">
     <div class="resting-content">
       <!-- Course identity -->
-      <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />
+      <LanguageFlag :code="course?.course_code || course?.target_lang || ''" :size="48" class="course-flag" />
       <h2 class="course-name course-name--tappable" @click.stop="handleChangeCourse">
         {{ courseName }}
         <svg class="course-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

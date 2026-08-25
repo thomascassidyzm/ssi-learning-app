@@ -10,6 +10,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
+import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
 import { paddleConfig } from '../lib/paddle'
@@ -49,8 +50,9 @@ const resetSuccess = ref(false)
 
 // Current course info for reset
 const courseName = computed(() => {
-  if (props.course?.target_lang) return getLanguageName(props.course.target_lang)
-  return props.course?.course_code || 'this course'
+  // Variant-aware — "Reset Austrian German?" rather than "Reset German?",
+  // which would misname what the learner is about to wipe.
+  return courseTargetName(props.course) || props.course?.course_code || 'this course'
 })
 
 // Data for reset confirmation — show what will be lost
