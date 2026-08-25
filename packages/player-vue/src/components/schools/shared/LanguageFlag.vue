@@ -77,7 +77,13 @@ import afrFlag from '@/assets/flags/afr.svg'
 // Variant flags — a course whose code carries a variant segment (deu_at_for_eng)
 // flies its own flag rather than the parent language's.
 import deuAtFlag from '@/assets/flags/deu_at.svg'
+import deuChFlag from '@/assets/flags/deu_ch.svg'
 import porBrFlag from '@/assets/flags/por_br.svg'
+import spaMxFlag from '@/assets/flags/spa_mx.svg'
+import araEgFlag from '@/assets/flags/ara_eg.svg'
+import araLbFlag from '@/assets/flags/ara_lb.svg'
+import araSyFlag from '@/assets/flags/ara_sy.svg'
+import fraCaFlag from '@/assets/flags/fra_ca.svg'
 
 const flagMap = {
   cym: cymFlag,
@@ -157,10 +163,21 @@ const flagMap = {
  * Variant → own flag. Keyed on the target-side segment of a course code
  * (deu_at_for_eng → 'deu_at'). A variant with no entry here simply falls
  * through to its parent language's flag, so nothing regresses.
+ *
+ * Only variants whose home has one unambiguous flag of its own get an entry.
+ * The Welsh and Irish dialects (cym_n, cym_s, gle_cn, gle_mu, gle_ul) do NOT:
+ * they are regions within one flag's country, and they carry a variant_label
+ * instead — they stay on the parent flag deliberately.
  */
 const variantFlagMap = {
   deu_at: deuAtFlag,   // Austrian German
+  deu_ch: deuChFlag,   // Swiss German
   por_br: porBrFlag,   // Brazilian Portuguese
+  spa_mx: spaMxFlag,   // Mexican Spanish
+  ara_eg: araEgFlag,   // Egyptian Arabic
+  ara_lb: araLbFlag,   // Lebanese Arabic
+  ara_sy: araSyFlag,   // Syrian Arabic
+  fra_ca: fraCaFlag,   // Quebec French — the Québec fleurdelisé
 }
 
 const props = defineProps({
