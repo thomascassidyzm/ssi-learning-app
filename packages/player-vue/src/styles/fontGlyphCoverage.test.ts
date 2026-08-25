@@ -32,6 +32,10 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const tokens = readFileSync(resolve(here, './design-tokens.css'), 'utf8')
 const styles = readFileSync(resolve(here, '../style.css'), 'utf8')
+/* The font stylesheets moved off the render-blocking path on 2026-08-25 — the
+ * families are now requested from JS. See utils/loadWebFonts.ts. */
+const fontLoader = readFileSync(resolve(here, '../utils/loadWebFonts.ts'), 'utf8')
+const indexHtml = readFileSync(resolve(here, '../../index.html'), 'utf8')
 
 /**
  * Families verified to cover every letter of estate course text in the
@@ -105,12 +109,37 @@ describe('glyph coverage — the fonts behind it', () => {
     expect(KNOWN_SHORT).not.toContain(primaryFamily('font-coverage'))
   })
 
-  it('both families are actually imported, not just named', () => {
+  it('both families are actually requested, not just named', () => {
     for (const token of ['font-brand', 'font-coverage']) {
       const family = primaryFamily(token)
       // Google Fonts spells spaces as '+' in the css2 family param
-      expect(styles, `${family} must be imported`).toContain(`family=${family.replace(/ /g, '+')}:`)
+      expect(fontLoader, `${family} must be requested`).toContain(
+        `family=${family.replace(/ /g, '+')}:`,
+      )
     }
+  })
+
+  /**
+   * 2026-08-25. The font stylesheets used to be a remote @import at the top of
+   * style.css and a <link> in index.html's head. Both are RENDER-BLOCKING, and
+   * on a weak signal a blocking cross-origin stylesheet neither loads nor
+   * fails — it hangs, and the app never paints at all. Fonts are decoration;
+   * they may never gate first paint. See utils/loadWebFonts.ts.
+   */
+  it('no font stylesheet sits on the render-blocking path', () => {
+    expect(styles, 'style.css must not @import a remote stylesheet').not.toMatch(
+      /@import\s+url\(\s*['"]?https?:/i,
+    )
+    expect(indexHtml, 'index.html must not <link rel=stylesheet> a font host').not.toMatch(
+      /<link[^>]+rel=["']?stylesheet["']?[^>]*fonts\.googleapis\.com/i,
+    )
+  })
+
+  it('the loader cannot apply a font before it has arrived', () => {
+    // media="print" is what makes the link non-render-blocking; the load
+    // listener is what makes the font eventually apply. Both or neither.
+    expect(fontLoader).toContain(`link.media = 'print'`)
+    expect(fontLoader).toMatch(/addEventListener\(\s*['"]load['"]/)
   })
 
   it('every coverage language carries the evidence for why it is on the list', () => {
