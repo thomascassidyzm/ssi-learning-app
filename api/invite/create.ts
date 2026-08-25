@@ -8,7 +8,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
-import { generateCode } from '../_utils/codeGen'
+import { generateCodeForType } from '../_utils/codeGen'
 import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import {
@@ -226,7 +226,7 @@ export default async function handler(
     // Generate unique code with up to 10 retries
     let newCode: string | null = null
     for (let attempt = 0; attempt < 10; attempt++) {
-      const candidate = generateCode()
+      const candidate = generateCodeForType(code_type)
       const { data: existing } = await supabase
         .from('invite_codes')
         .select('id')

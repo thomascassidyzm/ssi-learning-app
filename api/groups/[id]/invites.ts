@@ -43,7 +43,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { generateCode } from '../../_utils/codeGen'
+import { generateCodeForType } from '../../_utils/codeGen'
 import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTreeAuth'
 import { ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { fetchSubtree } from '../../_utils/groupSubtree'
@@ -237,7 +237,7 @@ export default async function handler(
       }
       let rotated: string | null = null
       for (let attempt = 0; attempt < 10; attempt++) {
-        const candidate = generateCode()
+        const candidate = generateCodeForType(row.code_type as string)
         const { data: existing } = await supabase
           .from('invite_codes')
           .select('id')
@@ -548,7 +548,7 @@ export default async function handler(
 
     let newCode: string | null = null
     for (let attempt = 0; attempt < 10; attempt++) {
-      const candidate = generateCode()
+      const candidate = generateCodeForType(CODE_TYPE_BY_ROLE[role])
       const { data: existing } = await supabase
         .from('invite_codes')
         .select('id')

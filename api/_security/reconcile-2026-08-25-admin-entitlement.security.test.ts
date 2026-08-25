@@ -19,18 +19,38 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const read = (relPath: string) => readFileSync(resolve(repoRoot, relPath), 'utf8')
 
-describe('ADMIN-ENT-03: staff-granting invite codes still mint at the same 13.8M keyspace', () => {
-  // SECURITY FINDING ADMIN-ENT-03: teacher/school_admin/school_admin_join/
-  // govt_admin codes still use generateCode() (24^3 x 10^3 = 13.8M), not the
-  // 128-bit generateShareCode() already in the same file — a throttle is the
-  // only brake on a 23.7-bit secret that grants staff/admin roles.
-  it('invite/create.ts and groups/[id]/invites.ts still mint staff codes with generateCode(), not generateShareCode()', () => {
-    for (const file of ['api/invite/create.ts', 'api/groups/[id]/invites.ts']) {
+describe('ADMIN-ENT-03: staff-granting invite code types mint at 128 bits', () => {
+  // SECURITY FINDING ADMIN-ENT-03 — FIXED 2026-08-25: teacher/school_admin/
+  // school_admin_join/govt_admin/ssi_admin codes used generateCode()
+  // (24^3 x 10^3 = 13.8M, 23.7 bits), not the 128-bit generateShareCode() that
+  // already existed in the same file. Every invite minter now goes through
+  // generateCodeForType(), which routes PRIVILEGED_CODE_TYPES to the 128-bit
+  // minter and leaves the human-typeable ABC-123 format to the read-aloud
+  // population (student/tester and the DB-minted class join codes).
+  const MINTERS = [
+    'api/invite/create.ts',
+    'api/groups/[id]/invites.ts',
+    'api/groups/[id]/demo-mint.ts',
+    'api/admin/create-govt-admin.ts',
+  ]
+
+  it('SECURE: every invite minter routes through generateCodeForType(), never generateCode() directly', () => {
+    for (const file of MINTERS) {
       const src = read(file)
-      expect(src, file).toMatch(/generateCode\(\)/)
+      expect(src, file).toMatch(/generateCodeForType\(/)
+      // The bare minter must not survive anywhere in the file, import included.
+      expect(src, file).not.toMatch(/\bgenerateCode\(\)/)
+      expect(src, file).not.toMatch(/import \{[^}]*\bgenerateCode\b[^}]*\} from/)
     }
   })
-  it.todo('SECURE: mint staff-granting code types (teacher/school_admin/govt_admin/school_admin_join) at 128 bits via generateShareCode()')
+
+  it('SECURE: generateCodeForType() sends every staff-granting type to the 128-bit minter', () => {
+    const src = read('api/_utils/codeGen.ts')
+    for (const t of ['ssi_admin', 'god', 'govt_admin', 'school_admin', 'school_admin_join', 'teacher']) {
+      expect(src, t).toContain(`'${t}'`)
+    }
+    expect(src).toMatch(/PRIVILEGED_CODE_TYPES\.has\(codeType\) \? generateShareCode\(\) : generateCode\(\)/)
+  })
 })
 
 describe('ADMIN-ENT-04: both webhook idempotency ledgers fail CLOSED on a non-duplicate-key error', () => {

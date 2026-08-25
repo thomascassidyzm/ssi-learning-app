@@ -165,25 +165,26 @@ describe('SEC25-X-03: the reach of the endpoint behind the throttle', () => {
     expect(throttle).not.toMatch(/x-forwarded-for'\]\s*as string\)\?\.split\(','\)\[0\]/)
   })
 
-  // ── NAMED GAP: the mint half is landed but not wired ──
+  // ── the mint half, now wired ──
   //
-  // `generateCodeForType()` exists and is proven correct above, but the invite
-  // minters that should call it — api/invite/create.ts, api/groups/[id]/invites.ts,
-  // api/groups/[id]/demo-mint.ts, api/admin/create-govt-admin.ts — were OFF
-  // LIMITS to this remediation shard (they carry TENANCY-07, which belongs to a
-  // sibling worker), so they still call `generateCode()` directly. That is
-  // ADMIN-ENT-03, and it remains open; its characterization in
-  // api/_security/reconcile-2026-08-25-admin-entitlement.security.test.ts is
-  // deliberately NOT flipped.
-  //
-  // The consequence is bounded and worth stating precisely: newly minted
-  // govt_admin / school_admin / teacher codes are still 23.7-bit until that
-  // one-line swap lands. The `ssi_admin` door itself is closed regardless, by
-  // the redeem-side refusal above, which does not depend on the minter.
-  it.todo(
-    'ADMIN-ENT-03: wire generateCodeForType() into invite/create.ts, ' +
-      'groups/[id]/invites.ts, groups/[id]/demo-mint.ts and admin/create-govt-admin.ts'
-  )
+  // ADMIN-ENT-03: `generateCodeForType()` is reached by all four invite
+  // minters (api/invite/create.ts, api/groups/[id]/invites.ts,
+  // api/groups/[id]/demo-mint.ts, api/admin/create-govt-admin.ts), so newly
+  // minted staff codes are 128-bit. The `ssi_admin` door is closed twice over:
+  // by the mint keyspace going forward, and by the redeem-side refusal above,
+  // which covers every ABC-123 code already in existence.
+  it('every invite minter mints privileged types at 128 bits (ADMIN-ENT-03)', () => {
+    for (const file of [
+      'api/invite/create.ts',
+      'api/groups/[id]/invites.ts',
+      'api/groups/[id]/demo-mint.ts',
+      'api/admin/create-govt-admin.ts',
+    ]) {
+      const minterSrc = readFileSync(resolve(here, '../..', file), 'utf8')
+      expect(minterSrc, file).toMatch(/generateCodeForType\(/)
+      expect(minterSrc, file).not.toMatch(/\bgenerateCode\(\)/)
+    }
+  })
 })
 
 /** 24 consonants — I and O excluded as confusable with 1 and 0. */

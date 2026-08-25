@@ -44,7 +44,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { isStrictDescendantGroup } from '../../_utils/schoolScope'
 import { ensureDemoLeafClass, resolveDemoOrgCourseCode } from '../../_utils/demoLeaf'
-import { generateCode } from '../../_utils/codeGen'
+import { generateCodeForType } from '../../_utils/codeGen'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -214,7 +214,7 @@ export default async function handler(
     // ---- one gesture, step 3: the leader invite (people-only, I8) ----
     let newCode: string | null = null
     for (let attempt = 0; attempt < 10; attempt++) {
-      const candidate = generateCode()
+      const candidate = generateCodeForType('govt_admin')
       const { data: existing } = await supabase.from('invite_codes').select('id').eq('code', candidate).maybeSingle()
       if (!existing) { newCode = candidate; break }
     }
