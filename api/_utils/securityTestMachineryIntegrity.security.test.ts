@@ -71,6 +71,12 @@ const rel = (p: string) => p.slice(repoRoot.length + 1).replace(/\\/g, '/')
 const securityAuditFiles = allApiFiles.filter((f) => f.endsWith('.security-audit.ts')).map(rel).sort()
 const securityTestFiles = allApiFiles.filter((f) => f.endsWith('.security.test.ts')).map(rel).sort()
 
+// ROSTER MAINTENANCE (coordinator, 2026-08-25). This roster is deliberately
+// hand-maintained: adding a security test is a two-line change here, and
+// DELETING one is what this file exists to make loud. It was updated once
+// already, at the moment the four 2026-08-25 audit areas were merged together
+// — the guard went red on the merge and named all seven added files, which is
+// exactly the behaviour it was written for. Do not replace it with a glob.
 describe('security-test machinery integrity — pinned roster', () => {
   // Pinned as of 2026-08-25. A file dropping off either list — deleted,
   // renamed to a non-matching suffix, or moved out of api/ — fails here.
@@ -83,14 +89,21 @@ describe('security-test machinery integrity — pinned roster', () => {
   ].sort()
 
   const KNOWN_SECURITY_TEST_FILES = [
+    'api/_security/reconcile-2026-08-25-admin-entitlement.security.test.ts',
+    'api/_security/reconcile-2026-08-25-auth-core.security.test.ts',
+    'api/_security/reconcile-2026-08-25-input.security.test.ts',
+    'api/_security/reconcile-2026-08-25-tenancy.security.test.ts',
     'api/_utils/actAsGuard.advisory.security.test.ts',
     'api/_utils/adminPracticeMinutesAnonExposure.security.test.ts',
+    'api/_utils/codeAttemptThrottle.security.test.ts',
     'api/_utils/definerSearchPath.security.test.ts',
     'api/_utils/joinCodeEntropy.security.test.ts',
     'api/_utils/securityTestMachineryIntegrity.security.test.ts',
     'api/admin/vadProsody.security.test.ts',
     'api/audio/batchUrlsBulk.security.test.ts',
     'api/billing/bindingLadder.security.test.ts',
+    'api/code/redeemPrivilegeReach.security.test.ts',
+    'api/courses/roundMap.security.test.ts',
     'api/teacher/admin-entitlement.paddle-webhook.security.test.ts',
     'api/teacher/paddle-billing-intent-addressing.security.test.ts',
     'api/teacher/paddle-payer-email-addressing.security.test.ts',
