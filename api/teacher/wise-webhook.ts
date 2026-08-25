@@ -131,8 +131,11 @@ export default async function handler(
   const transferIdStr = String(transferId)
 
   // Idempotency: Wise can re-deliver the same state-change. Key on
-  // transfer+state+occurred_at. 23505 = already processed → no-op. Fails OPEN if
-  // the ledger table is absent (pre-migration).
+  // transfer+state+occurred_at. 23505 = already processed → no-op.
+  //
+  // ADMIN-ENT-04 (fixed 2026-08-25): any other ledger error now FAILS CLOSED with
+  // a 500 rather than warning and proceeding — Wise retries, so a retry once the
+  // ledger recovers beats replaying a payout state change unprotected.
   const eventKey = `${transferIdStr}:${currentState}:${event.data?.occurred_at || ''}`
   try {
     const { error: dedupErr } = await supabase
@@ -143,10 +146,14 @@ export default async function handler(
       return
     }
     if (dedupErr) {
-      console.warn('[wise-webhook] Event dedup unavailable (proceeding):', dedupErr.code, dedupErr.message)
+      console.error('[wise-webhook] Event dedup unavailable (failing closed):', dedupErr.code, dedupErr.message)
+      res.status(500).json({ error: 'Event dedup unavailable' })
+      return
     }
   } catch (e: any) {
-    console.warn('[wise-webhook] Event dedup threw (proceeding):', e?.message)
+    console.error('[wise-webhook] Event dedup threw (failing closed):', e?.message)
+    res.status(500).json({ error: 'Event dedup unavailable' })
+    return
   }
 
   try {

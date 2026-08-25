@@ -33,20 +33,21 @@ describe('ADMIN-ENT-03: staff-granting invite codes still mint at the same 13.8M
   it.todo('SECURE: mint staff-granting code types (teacher/school_admin/govt_admin/school_admin_join) at 128 bits via generateShareCode()')
 })
 
-describe('ADMIN-ENT-04: both webhook idempotency ledgers still fail open on a non-duplicate-key error', () => {
-  // SECURITY FINDING ADMIN-ENT-04: only a 23505 (duplicate key) short-circuits;
-  // any other dedup error just warns and proceeds, silently disabling replay
-  // protection for the whole money spine on a transient DB/RLS issue.
-  it('paddle-webhook.ts still warns-and-proceeds on any dedup error other than 23505', () => {
-    const src = read('api/teacher/paddle-webhook.ts')
-    expect(src).toContain("dedupErr.code === '23505'")
-    expect(src).toMatch(/Event dedup unavailable \(proceeding\)/)
+describe('ADMIN-ENT-04: both webhook idempotency ledgers fail CLOSED on a non-duplicate-key error', () => {
+  // SECURITY FINDING ADMIN-ENT-04 — FIXED 2026-08-25: only a 23505 (duplicate key)
+  // short-circuits with a 200/deduped; every other dedup error (and a thrown
+  // client error) now returns 500 before any side effect, so the provider's
+  // at-least-once retry reprocesses instead of the handler running unprotected.
+  it('fail closed (500) on any dedup error other than 23505, so the provider retries', () => {
+    for (const file of ['api/teacher/paddle-webhook.ts', 'api/teacher/wise-webhook.ts']) {
+      const src = read(file)
+      expect(src, file).toContain("dedupErr.code === '23505'")
+      expect(src, file).toMatch(/Event dedup unavailable \(failing closed\)/)
+      expect(src, file).toMatch(/Event dedup threw \(failing closed\)/)
+      expect(src, file).not.toMatch(/Event dedup .* \(proceeding\)/)
+      expect(src, file).toMatch(/res\.status\(500\)\.json\(\{ error: 'Event dedup unavailable' \}\)/)
+    }
   })
-  it('wise-webhook.ts shares the same fail-open dedup shape', () => {
-    const src = read('api/teacher/wise-webhook.ts')
-    expect(src).toMatch(/proceeding/i)
-  })
-  it.todo('SECURE: fail closed (500) on any dedup error other than 23505, so the provider retries')
 })
 
 describe('ADMIN-ENT-05: schools.teacher_seats is still not enforced on any join path', () => {
