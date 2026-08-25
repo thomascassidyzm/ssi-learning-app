@@ -120,6 +120,55 @@ Tests: `api/courses/roundMap.security.test.ts` — 8 passing, 2 `todo`.
 
 ---
 
+## 3a. Coordinator escalation — SEC25-X-03 · the `ssi_admin` door
+
+Area A (#467) reported **SEC25-A-01** at *low (confirmation)*: the new shared limiter
+`_utils/codeAttemptThrottle.ts` carries the 2026-08-18 Finding 5 shape into its own bucket key —
+`getClientIp()` reads the leftmost `X-Forwarded-For` entry or `X-Real-IP`, both caller-written, with
+no platform-attested fallback — so `REDEEM_PER_IP_LIMIT` (120 / 15 min) does not bind an attacker who
+rotates the header. That reading of the mechanism is exactly right. **The severity is too low**, and
+the reason is only visible from the coordinator's seat, because it needs three facts that sit in
+three different areas:
+
+1. **`redeem.ts` is the grant path for `platform_role = 'ssi_admin'`.** `redeem.ts:371-373` — a code
+   of type `ssi_admin` (or the legacy `god`) sets full platform privilege on the redeemer. The branch
+   is selected on `codeType` alone: no second condition, no out-of-band step, nothing a privileged
+   type must satisfy that a student type need not.
+2. **Privileged codes share the small keyspace.** Every invite code, `ssi_admin` included, comes from
+   the one `generateCode()` in ABC-123 format: 24³ × 10³ = **13,824,000**. `codeGen.ts` contains a
+   128-bit minter — `generateShareCode()`, `randomBytes(16)` — used for board share links. **The
+   weakest keyspace guards the strongest grant, in the same file as the strong one.**
+3. **The bearer token is not a cost.** Sign-up is open self-service OTP, so obtaining a token to call
+   the endpoint with is free and unlimited.
+
+So the only control bounding blind guessing against the highest-privilege grant in the system is a
+limiter whose bucket the attacker chooses.
+
+**This is an escalation, not a disclosure, and the report should be read that way.** The bucket-key
+weakness is 2026-08-18's Finding 5. The unmetered-redemption concern is 2026-08-11's **AUTH-CORE-01**,
+already rated *high* ("costs an attacker patience"). What is new is that they are the **same door**,
+that the door reaches `ssi_admin`, and that the limiter added since — the one thing that looked like a
+fix — does not close it. Strongest corroboration available: `redeem.ts:167-172` says so itself.
+
+> …sign-up is open self-service OTP, so an unthrottled redeem is a sweepable oracle over the ~13.8M
+> ABC-123 keyspace — and a hit here does not merely report the code, it REDEEMS it (`platform_role`,
+> `educational_role`, a `govt_admins` row).
+
+**Honest limit on the claim:** exploitation additionally requires an *active* `ssi_admin`-type code to
+exist at the moment of the sweep. **This audit made no live check for one** — that would be a
+production read against the invite table, which these rules forbid. A sweep with no privileged code
+live still lands on whatever teacher / school_admin / govt_admin codes are active, which is the
+already-filed AUTH-CORE-01. See §4.
+
+**Suggested fixes (not applied), cheapest first:** mint privileged code types from `generateShareCode()`
+rather than `generateCode()` — the function already exists, and nobody types an `ssi_admin` code off a
+whiteboard; and key the limiter on `x-vercel-forwarded-for` / `req.socket.remoteAddress` rather than on
+caller-written headers.
+
+Tests: `api/code/redeemPrivilegeReach.security.test.ts` — 8 passing, 1 `todo`.
+
+---
+
 ## 4. Gaps (explicit)
 
 *(consolidated from the area reports)*
