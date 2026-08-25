@@ -1393,7 +1393,11 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 // staff member's AUTH UID (not their learner PK — same field class_sessions
 // uses for teacher_user_id) on every event too — see usePlayerLog's actorUserId.
 const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)?.userId?.value ?? null) : null))
-const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION })
+// SEC25 INPUT-04: /api/player-events attributes rows from a VERIFIED bearer
+// now, not from the ssi-user-id cookie — so hand the log the session token.
+const playerLogGetToken = (): Promise<string | null> =>
+  ((auth as any)?.getToken?.() ?? Promise.resolve(null))
+const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken })
 const logEvent = playerLog.event
 
 // Intro/presentation audio never reaches SimplePlayer's audio_failed path —
