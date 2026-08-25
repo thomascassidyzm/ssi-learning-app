@@ -14,12 +14,19 @@
  * no known text, no target text, no audio id, no presigned URL. What it does
  * carry is two things that are worth pinning:
  *
- *   SEC25-X-01 (low) — the 503 branch hands an anonymous caller an operator
- *   instruction naming an internal database object.
+ *   SEC25-X-01 (low) — the 503 branch handed an anonymous caller an operator
+ *   instruction naming an internal database object. FIXED 2026-08-25: the body
+ *   is now a fixed 'Course temporarily unavailable', the remedy is logged.
  *
- *   SEC25-X-02 (low) — a missing service-role key degrades SILENTLY to the anon
+ *   SEC25-X-02 (low) — a missing service-role key degraded SILENTLY to the anon
  *   key, where every comparable handler on this surface returns 500
- *   "Server misconfigured".
+ *   "Server misconfigured". FIXED 2026-08-25 in BOTH places: round-map guards
+ *   before constructing its client, and `_utils/audioAccess`'s shared factory
+ *   throws rather than swapping identity under the two audio-entitlement
+ *   endpoints.
+ *
+ * The characterisation assertions for both have been flipped to the secure
+ * shape; they are now the regression locks.
  *
  * Nothing here touches a database or a network. Every assertion reads the
  * handler's own source text, resolved from this file rather than from cwd so
@@ -73,43 +80,48 @@ describe('SEC25-X: round-map — the ungated course-content sibling', () => {
     }
   })
 
-  // ── SEC25-X-01: the 503 leaks an operator instruction ──
+  // ── SEC25-X-01: the 503 no longer leaks an operator instruction ──
 
-  // SECURITY FINDING SEC25-X-01: an unauthenticated caller who asks for a
-  // course whose materialised view has not been refreshed is told the name of
-  // the internal object and the DDL to run against it. Every comparable
-  // handler returns a fixed string and logs the detail server-side (compare
-  // `api/board/snapshot/[code].ts` -> 'Internal server error'). Characterizes
-  // today's behaviour, so it PASSES today and goes red when fixed.
-  it('SEC25-X-01: names an internal relation and its DDL in a response body', () => {
-    expect(roundMap).toContain('run REFRESH MATERIALIZED VIEW course_round_index')
-    // …and it is in the response body, not only in a server-side log.
+  // SECURITY FINDING SEC25-X-01 — FIXED 2026-08-25. An unauthenticated caller
+  // who asked for a course whose materialised view had not been refreshed was
+  // told the name of the internal object and the DDL to run against it. The
+  // 503 body now carries a fixed caller-safe string and the relation name +
+  // remedy go to console.error only, matching the convention every comparable
+  // handler follows (compare `api/board/snapshot/[code].ts`).
+  it('SEC25-X-01 FIXED: the 503 body carries a fixed caller-safe string, not a relation name', () => {
+    expect(roundMap).toContain("res.status(503).json({ error: 'Course temporarily unavailable' })")
+    // The remedy still exists — but only in a server-side log.
     const i = roundMap.indexOf('run REFRESH MATERIALIZED VIEW')
+    expect(i, 'the operator remedy should still be logged for whoever has to fix it').toBeGreaterThan(0)
     const preceding = roundMap.slice(Math.max(0, i - 300), i)
-    expect(preceding).toContain('res.status(503)')
+    expect(preceding, 'the remedy must be inside a console.error, not a response body').toContain(
+      'console.error'
+    )
+    expect(preceding).not.toContain('res.status(503)')
   })
-
-  it.todo(
-    'SEC25-X-01 fixed: the 503 body carries a fixed caller-safe string, and the ' +
-      'relation name and remedy go to console.error only'
-  )
 
   // ── SEC25-X-02: silent degradation to the anon key ──
 
-  // SECURITY FINDING SEC25-X-02: `supabaseServiceKey || <anon key>`. A missing
-  // or mistyped SUPABASE_SERVICE_ROLE_KEY does not fail the request — it
-  // silently swaps the identity the query runs as, which moves the endpoint's
-  // read authority from "the handler decided" to "whatever RLS on
-  // course_round_index happens to be". The failure is invisible either way:
-  // if RLS permits the read the swap is undetectable, and if it denies it the
-  // handler reports 503 "not yet materialised", which points an operator at
-  // the wrong cause entirely.
-  it('SEC25-X-02: falls back from the service key to the anon key without erroring', () => {
-    expect(roundMap).toMatch(/supabaseServiceKey \|\|\s*\n?\s*\(process\.env\.VITE_SUPABASE_ANON_KEY/)
-    expect(roundMap).not.toContain('Server misconfigured')
+  // SECURITY FINDING SEC25-X-02 — FIXED 2026-08-25. `supabaseServiceKey ||
+  // <anon key>` meant a missing or mistyped SUPABASE_SERVICE_ROLE_KEY did not
+  // fail the request — it silently swapped the identity the query ran as,
+  // moving the endpoint's read authority from "the handler decided" to
+  // "whatever RLS on course_round_index happens to be". Both places now fail
+  // CLOSED on a missing key: round-map returns 500 'Server misconfigured'
+  // before it builds a client, and audioAccess's shared factory throws with
+  // the same words (its two callers already 500 from their catch).
+  it('SEC25-X-02 FIXED: round-map refuses to serve without a service-role key', () => {
+    expect(roundMap).not.toMatch(/supabaseServiceKey \|\|/)
+    expect(roundMap).not.toContain('SUPABASE_ANON_KEY')
+    expect(roundMap).toContain("res.status(500).json({ error: 'Server misconfigured' })")
+    // …and it refuses BEFORE constructing the client, not after a failed query.
+    const guard = roundMap.indexOf("error: 'Server misconfigured'")
+    const construct = roundMap.indexOf('createClient(supabaseUrl')
+    expect(guard).toBeGreaterThan(0)
+    expect(construct).toBeGreaterThan(guard)
   })
 
-  it('SEC25-X-02: and the swap is UNDETECTABLE here, because anon can read the view', () => {
+  it('SEC25-X-02: the swap this closed would have been UNDETECTABLE, because anon can read the view', () => {
     // This is what makes the silent fallback a real observation rather than a
     // style note. `anon` holds a grant on `course_round_index`, so a service
     // key that has gone missing produces byte-identical responses — the
@@ -122,16 +134,22 @@ describe('SEC25-X: round-map — the ungated course-content sibling', () => {
     expect(schema).toContain('ON TABLE public.course_round_index TO anon')
   })
 
-  it('SEC25-X-02: the same silent fallback is in the shared audio-access client', () => {
+  it('SEC25-X-02 FIXED: the shared audio-access client fails closed too', () => {
     // `_utils/audioAccess.createServiceSupabaseClient()` is the client behind
     // BOTH `audio/[audioId].ts` and `audio/batch-urls.ts` — the two endpoints
     // that decide audio entitlement. Same shape, higher stakes, which is why
     // it is pinned here rather than left as a note.
     const audioAccess = src('../_utils/audioAccess.ts')
-    expect(audioAccess).toContain('supabaseServiceKey || supabaseAnonKeyFallback')
+    expect(audioAccess).not.toMatch(/createClient\(supabaseUrl, supabaseServiceKey \|\|/)
+    expect(audioAccess).toContain('createClient(supabaseUrl, supabaseServiceKey)')
+    expect(audioAccess).toMatch(
+      /if \(!supabaseServiceKey\) \{\s*\n\s*throw new Error\('Server misconfigured/
+    )
+    // The anon fallback is gone entirely, not merely bypassed.
+    expect(audioAccess).not.toContain('SUPABASE_ANON_KEY')
   })
 
-  it('the fail-CLOSED convention this diverges from is the majority behaviour', () => {
+  it('the fail-CLOSED convention both now follow is the majority behaviour', () => {
     // Named so the finding is read as a convention divergence with a quorum
     // behind it, not as one reviewer's preference.
     for (const rel of ['../access/claim.ts', '../family/remove.ts', '../groups/tree.ts']) {
@@ -139,8 +157,4 @@ describe('SEC25-X: round-map — the ungated course-content sibling', () => {
     }
   })
 
-  it.todo(
-    'SEC25-X-02 fixed: a missing SUPABASE_SERVICE_ROLE_KEY returns 500 ' +
-      '"Server misconfigured" rather than silently re-identifying the query as anon'
-  )
 })

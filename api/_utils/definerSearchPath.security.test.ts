@@ -11,18 +11,17 @@
  * primitive (CVE-class: "trojan-horse function"). `SET search_path` on the
  * function pins resolution and closes it.
  *
- * This is a CHARACTERISATION test: it PASSES today because it is recording
- * the current (incomplete) state, not asserting the secure one. It reads
- * supabase/schema.sql only — no DB or network contact.
+ * FIXED 2026-08-25 by supabase/migrations/20260825_sec25_d01_definer_search_path.sql,
+ * which runs `ALTER FUNCTION … SET search_path TO 'public', 'pg_temp'` over all
+ * 16 functions of the roster (resolution only — not one line of body logic
+ * changed), with supabase/schema.sql hand-edited to match. This file was the
+ * CHARACTERISATION test for the finding; it is now flipped to assert the SECURE
+ * state — every `SECURITY DEFINER` function in the dump pins a search_path, and
+ * a new one landing without a pin goes red here. It reads supabase/schema.sql
+ * only — no DB or network contact.
  *
- * Exploitability is graded per function, not asserted uniformly here — most
- * of the list below only ever touches `sessions`/`course_*`/`learners` by
- * schema-qualified table access inside their own bodies (which the identifier
- * search_path trick does NOT protect against object-creation shadowing of
- * unqualified *function* calls, e.g. an unqualified `now()`-shaped helper).
- * The severity call and per-function detail live in the area-d report; this
- * file's job is to keep the inventory honest so the count cannot drift
- * without the test being touched.
+ * Why `pg_temp` last: omitting it entirely leaves it implicitly first on some
+ * Postgres versions, which reopens the very shadowing hole the pin closes.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -51,14 +50,14 @@ function functionBodyAt(start: number): string {
   return schema.slice(start, end)
 }
 
-describe('SEC25-D-01: SECURITY DEFINER functions without SET search_path', () => {
-  // ── the finding, pinned ──
+describe('SEC25-D-01: every SECURITY DEFINER function pins SET search_path', () => {
+  // ── the finding, now closed ──
 
-  // The known-bad-shape roster as of the 2026-08-25 audit. Pinned by name so
-  // that ADDING a new unpinned DEFINER function is caught by the "no growth"
-  // assertion below, and FIXING one (adding SET search_path) is caught by
-  // this list going stale — update it only when the report is updated too.
-  const KNOWN_UNPINNED = [
+  // The roster the 2026-08-25 audit found unpinned. Kept by name as the
+  // regression lock: each of these must now carry a search_path pin on every
+  // SECURITY DEFINER overload. If a future schema dump drops one, this goes red
+  // naming the function.
+  const FIXED_ROSTER = [
     'activate_brief_version',
     'activate_prompt_version',
     'analytics_course_comparison',
@@ -77,29 +76,31 @@ describe('SEC25-D-01: SECURITY DEFINER functions without SET search_path', () =>
     'update_daily_contributions',
   ]
 
-  it('SECURITY FINDING SEC25-D-01: the pinned list of DEFINER functions has no SET search_path in its body', () => {
-    for (const name of KNOWN_UNPINNED) {
+  it('SEC25-D-01 FIXED: every function of the 16-strong roster pins search_path', () => {
+    for (const name of FIXED_ROSTER) {
       const occurrences = allFunctionStarts().filter((f) => f.name === name)
       expect(occurrences.length, `expected ${name}() to exist in schema.sql`).toBeGreaterThan(0)
 
-      // At least one overload of this name must be SECURITY DEFINER with no
-      // search_path — that is the shape this finding is about.
-      const vulnerable = occurrences.some((occ) => {
+      for (const occ of occurrences) {
         const body = functionBodyAt(occ.start)
-        return body.includes('SECURITY DEFINER') && !/SET\s+search_path/i.test(body)
-      })
-      expect(vulnerable, `expected ${name}() to be SECURITY DEFINER without SET search_path`).toBe(true)
+        if (!body.includes('SECURITY DEFINER')) continue
+        expect(body, `${name}() is SECURITY DEFINER and must pin SET search_path`).toMatch(
+          /SET\s+search_path/i
+        )
+        // pg_temp must be present and LAST — omitting it leaves it implicitly
+        // first on some versions, which is the hole rather than the fix.
+        expect(body, `${name}() must pin 'public', 'pg_temp'`).toMatch(
+          /SET\s+search_path\s+TO\s+'public',\s*'pg_temp'/i
+        )
+      }
     }
   })
 
-  it.todo('SECURE: every SECURITY DEFINER function in schema.sql carries SET search_path')
-
   // ── no silent growth ──
-  // A new DEFINER function landing without search_path should fail THIS
-  // assertion, not slide in unnoticed. If it's a deliberate new instance of
-  // the same shape, add it to KNOWN_UNPINNED here (which also means adding it
-  // to the area-d report) rather than loosening this bound.
-  it('no NEW unpinned SECURITY DEFINER functions beyond the pinned roster', () => {
+  // A new DEFINER function landing without search_path fails THIS assertion
+  // rather than sliding in unnoticed. There is no allowance list any more: the
+  // roster is empty, and it stays empty.
+  it('SECURE: no SECURITY DEFINER function in schema.sql is missing SET search_path', () => {
     const unpinned = new Set<string>()
     for (const { name, start } of allFunctionStarts()) {
       const body = functionBodyAt(start)
@@ -107,7 +108,20 @@ describe('SEC25-D-01: SECURITY DEFINER functions without SET search_path', () =>
         unpinned.add(name)
       }
     }
-    expect([...unpinned].sort()).toEqual([...KNOWN_UNPINNED].sort())
+    expect([...unpinned].sort()).toEqual([])
+  })
+
+  it('the fix ships as a migration, not only as a schema-dump edit', () => {
+    // schema.sql is a dump; the migration is what actually runs against the DB.
+    // Both must move together or the next dump silently reverts the fix.
+    const migration = readFileSync(
+      resolve(here, '../../supabase/migrations/20260825_sec25_d01_definer_search_path.sql'),
+      'utf8'
+    )
+    for (const name of FIXED_ROSTER) {
+      expect(migration, `migration must ALTER ${name}()`).toContain(`alter function public.${name}(`)
+    }
+    expect(migration).toContain("notify pgrst, 'reload schema';")
   })
 
   // ── the control that DOES hold ──

@@ -172,6 +172,7 @@ $$;
 
 CREATE FUNCTION public.activate_brief_version(p_known_code text, p_target_code text, p_version text) RETURNS TABLE(success boolean, previous_active_version text, new_active_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_previous_version TEXT;
@@ -212,6 +213,7 @@ $$;
 
 CREATE FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) RETURNS TABLE(success boolean, previous_active_version text, new_active_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_previous_version TEXT;
@@ -606,6 +608,7 @@ $$;
 
 CREATE FUNCTION public.analytics_course_comparison() RETURNS TABLE(course_id text, enrolled integer, active_30d integer, avg_seeds numeric, avg_belt text, completion_pct numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -835,6 +838,7 @@ $$;
 
 CREATE FUNCTION public.analytics_engagement() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_dau   BIGINT;
@@ -960,6 +964,7 @@ $$;
 
 CREATE FUNCTION public.analytics_entitlement_funnel() RETURNS TABLE(code text, label text, redemptions integer, started_session integer, retained_30d integer)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -1106,6 +1111,7 @@ $_$;
 
 CREATE FUNCTION public.analytics_friction_map(p_course_id text) RETURNS TABLE(seed_number integer, stopped_here_count integer, spike_rate numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_max_seed INT;
@@ -1174,6 +1180,7 @@ $$;
 
 CREATE FUNCTION public.analytics_growth(p_period text DEFAULT 'week'::text, p_count integer DEFAULT 12) RETURNS TABLE(period_start timestamp with time zone, new_users integer, enrollments_by_course jsonb)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                 -- demo: id set
@@ -1248,6 +1255,7 @@ $$;
 
 CREATE FUNCTION public.analytics_health(p_days integer DEFAULT 30) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_since           TIMESTAMPTZ := NOW() - (p_days || ' days')::INTERVAL;
@@ -1571,6 +1579,7 @@ COMMENT ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_
 
 CREATE FUNCTION public.analytics_overview() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_total_learners   BIGINT;
@@ -1631,6 +1640,7 @@ $$;
 
 CREATE FUNCTION public.analytics_retention_cohorts(p_weeks integer DEFAULT 12) RETURNS TABLE(cohort_week text, cohort_size integer, w1_pct numeric, w2_pct numeric, w4_pct numeric, w8_pct numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NOT is_ssi_admin() THEN
@@ -1705,6 +1715,7 @@ $$;
 
 CREATE FUNCTION public.analytics_retention_days_active(p_weeks integer DEFAULT 12) RETURNS TABLE(week_start date, avg_days_active numeric, w7_return_rate numeric, w30_return_rate numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -1794,6 +1805,7 @@ COMMENT ON FUNCTION public.analytics_retention_days_active(p_weeks integer) IS '
 
 CREATE FUNCTION public.analytics_trial_conversion() RETURNS TABLE(stage text, label text, learner_count bigint)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   -- learner-to-first-event lookup reused across all stages
@@ -3316,6 +3328,7 @@ COMMENT ON FUNCTION public.generate_join_code() IS 'Mints an XXX-NNN join code f
 
 CREATE FUNCTION public.get_active_brief(p_known_code text, p_target_code text) RETURNS TABLE(id uuid, known_code text, target_code text, version text, brief_content jsonb, updated_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   RETURN QUERY
@@ -3340,6 +3353,7 @@ $$;
 
 CREATE FUNCTION public.get_active_prompt(p_phase_code text) RETURNS TABLE(id uuid, phase_code text, version text, title text, prompt_content text, metadata jsonb, updated_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   RETURN QUERY
@@ -3947,6 +3961,7 @@ $$;
 
 CREATE FUNCTION public.get_my_verified_emails() RETURNS text[]
     LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
     SELECT COALESCE(verified_emails,
   ARRAY[]::TEXT[])
@@ -6085,6 +6100,7 @@ BEGIN RETURN canonical_voice_id(v); EXCEPTION WHEN OTHERS THEN RETURN NULL; END 
 
 CREATE FUNCTION public.update_daily_contributions() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_target_lang TEXT;

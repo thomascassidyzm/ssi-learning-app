@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import { getAppOrigin } from '../_utils/appOrigin'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
@@ -113,15 +114,50 @@ describe('AUTH-CORE-07: the sign-in-link mint quota — FIXED 2026-08-25', () =>
   })
 })
 
-describe('AUTH-CORE-08 / INPUT-10: the app origin still echoes an unrecognised Host header', () => {
-  // SECURITY FINDING AUTH-CORE-08 / INPUT-10: getAppOrigin() pins the two
-  // canonical hosts but echoes any other Host verbatim into an https:// origin,
-  // which feeds magic-link redirectTo and join/redeem URLs.
-  it('getAppOrigin falls through to `https://${host}` for any unrecognised host', () => {
+describe('AUTH-CORE-08 / INPUT-10: the app origin allow-lists known hosts', () => {
+  // SECURITY FINDING AUTH-CORE-08 / INPUT-10 — FIXED 2026-08-25. getAppOrigin()
+  // pinned the two canonical hosts and then echoed any other caller-written
+  // Host verbatim into an https:// origin, which feeds join/redeem URLs (and,
+  // in the two handlers carrying their own copy of this function, magic-link
+  // redirectTo). It is now an allowlist — every `*.saysomethingin.app` host we
+  // own, plus this project's own Vercel preview aliases
+  // (`ssi-learning-app-…-zenjin.vercel.app`) — with production as the fallback
+  // for anything unrecognised. Behavioural, not source-text: the real function
+  // is called with real Host headers.
+  const origin = (host: string) =>
+    getAppOrigin({ headers: { host } } as unknown as Parameters<typeof getAppOrigin>[0])
+
+  it('SECURE: a poisoned Host falls back to production instead of being echoed', () => {
+    for (const evil of [
+      'evil.example',
+      'saysomethingin.app.evil.example',
+      'notsaysomethingin.app',
+      'ssi-learning-app-git-dev-zenjin.vercel.app.evil.example',
+      'attacker-zenjin.vercel.app',
+      'ssi-learning-app-evil.vercel.app',
+      'localhost',
+      '',
+    ]) {
+      expect(origin(evil), `Host: ${evil} must not reach the minted link`).toBe(
+        'https://saysomethingin.app'
+      )
+    }
     const src = read('api/_utils/appOrigin.ts')
-    expect(src).toContain('if (host) return `https://${host}`')
+    expect(src).not.toContain('if (host) return `https://${host}`')
   })
-  it.todo('SECURE: getAppOrigin should allow-list known app origins and fall back to production otherwise')
+
+  it('the hosts the team actually uses still work', () => {
+    expect(origin('saysomethingin.app')).toBe('https://saysomethingin.app')
+    expect(origin('www.saysomethingin.app')).toBe('https://saysomethingin.app')
+    expect(origin('SaySomethingIn.app:443')).toBe('https://saysomethingin.app')
+    expect(origin('staging.saysomethingin.app')).toBe('https://staging.saysomethingin.app')
+    expect(origin('ssi-learning-app-git-dev-zenjin.vercel.app')).toBe(
+      'https://ssi-learning-app-git-dev-zenjin.vercel.app'
+    )
+    expect(origin('ssi-learning-app-abc1234-zenjin.vercel.app')).toBe(
+      'https://ssi-learning-app-abc1234-zenjin.vercel.app'
+    )
+  })
 })
 
 describe('AUTH-CORE-09: invite/entitlement codes in logs — FIXED 2026-08-25', () => {
