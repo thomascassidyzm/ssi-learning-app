@@ -107,18 +107,18 @@ describe('ADMIN-ENT-09: /api/invite/create still persists grant fields the calle
   it.todo('SECURE: assemble insertData grant fields inside each code_type branch; drop anything the branch did not authorise')
 })
 
-describe('ADMIN-ENT-12: grant/revoke-entitlement still hand-roll a narrower admin check than verifyAdmin', () => {
-  // SECURITY FINDING ADMIN-ENT-12 (info — not a hole, a drift risk): these two
-  // endpoints check platform_role === 'ssi_admin' directly under the
-  // service-role key rather than calling the shared verifyAdmin(), which also
-  // accepts educational_role === 'god' and reads under the caller's own RLS
-  // token. Two definitions of "admin" that can silently diverge.
-  it('grant-entitlement.ts and revoke-entitlement.ts still hand-roll the check instead of calling verifyAdmin', () => {
+describe('ADMIN-ENT-12: grant/revoke-entitlement authorise via the shared verifyAdmin', () => {
+  // SECURITY FINDING ADMIN-ENT-12 — FIXED 2026-08-25: both endpoints checked
+  // platform_role === 'ssi_admin' directly under the service-role key rather than
+  // calling the shared verifyAdmin(). Two definitions of "admin" that could
+  // silently diverge; both now call the one helper, which also honours
+  // educational_role === 'god', reads under the caller's own RLS token, and
+  // separates a transient failure (500) from not-an-admin (403).
+  it('SECURE: both endpoints call verifyAdmin() and no longer hand-roll the platform_role check', () => {
     for (const file of ['api/admin/grant-entitlement.ts', 'api/admin/revoke-entitlement.ts']) {
       const src = read(file)
-      expect(src, file).toMatch(/caller\.platform_role !== 'ssi_admin'/)
-      expect(src, file).not.toContain('verifyAdmin(')
+      expect(src, file).toContain('verifyAdmin(req)')
+      expect(src, file).not.toMatch(/caller\.platform_role !== 'ssi_admin'/)
     }
   })
-  it.todo('SECURE: replace both hand-rolled checks with verifyAdmin(), or an explicit narrower option on the shared helper')
 })
