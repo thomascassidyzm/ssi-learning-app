@@ -6,6 +6,7 @@ import './styles/global.css'
 import App from './App.vue'
 import router from './router'
 import { shouldReloadForPreloadError } from './utils/bootHeal'
+import { loadWebFonts } from './utils/loadWebFonts'
 import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 
 // Cold-start boot marks (all from navigation start via performance.now()).
@@ -16,6 +17,12 @@ import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 // back to decompose the app-shell prefix.
 const __ssiBoot = (window.__ssiBoot = window.__ssiBoot || {})
 __ssiBoot.mainExecMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
+
+// Web fonts, off the critical path. This module script is deferred and the
+// links it appends are media="print" until they load, so a hanging font host
+// can no longer stop the app painting — it just renders in the system fallback
+// every font token already names. See utils/loadWebFonts.ts.
+loadWebFonts()
 
 // Debug tooling — preview deploys (*.vercel.app) or ?debug only, NEVER
 // production. eruda is an on-screen console/network inspector so logs are

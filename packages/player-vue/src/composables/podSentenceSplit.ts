@@ -16,8 +16,30 @@
  */
 
 /** Sentence boundary: split after terminal punctuation followed by whitespace.
- *  Single-source so a future tweak (e.g. adding CJK '。') lands in one place. */
-export const POD_SENTENCE_BOUNDARY = /(?<=[.!?…])\s+/
+ *  Single-source so a future tweak (e.g. adding CJK '。') lands in one place.
+ *
+ *  '…' IS NOT TERMINAL (2026-08-24). It used to be, and that was wrong in the
+ *  direction that costs the learner a card: Croatian Pod 1 writes hesitation
+ *  with an ellipsis — "Da, mogu li dobiti… i čašu vode, molim." is ONE sentence
+ *  — and 78 of its 131 multi-sentence rows do it. Counting '…' as a sentence
+ *  end over-counted those turns, so the scheduler's coverage check
+ *  (tSents.length <= clips.length, the branch with no textById oracle) rejected
+ *  their correctly-spliced clips and fell back to the whole turn, while the
+ *  overlay's word-coverage oracle accepted them. Two doors disagreeing on the
+ *  unit count also desynchronises the shared podOrdinal.
+ *
+ *  Safe estate-wide, measured rather than assumed before the change: across all
+ *  67 live core pods and 11,483 rows, exactly 225 rows change their regex count
+ *  (hrv 78, cym_s 144, fin 3) and NOT ONE of them is currently split — every
+ *  affected row has fewer than 2 sentence clips, so it returns wholeTurn()
+ *  before any of this is consulted. Zero currently-split rows change unit count
+ *  or unit text.
+ *
+ *  Under-splitting is also the safe direction here in general: a turn this
+ *  regex declines to split keeps its whole, correct clip (the same way the
+ *  regex is blind to the Devanagari danda '।'), whereas over-splitting hands
+ *  out cards with no translation. */
+export const POD_SENTENCE_BOUNDARY = /(?<=[.!?])\s+/
 
 export interface PodSplitUnit {
   /** 0-based index within the source row (0 for a non-split whole-turn row). */

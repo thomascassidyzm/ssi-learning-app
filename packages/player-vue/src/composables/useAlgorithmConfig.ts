@@ -1157,6 +1157,22 @@ const DEFAULT_META_COMMENTARY: MetaCommentaryConfig = {
   encouragementTaper: DEFAULT_ENCOURAGEMENT_TAPER,
 }
 
+/**
+ * Resolve the live `pods` row against the shipped defaults. Field-level merge,
+ * so a partial row never drops a field.
+ *
+ * SPREAD, NEVER `||`. Every gap in the live row is 0 (Tom, 2026-08-24: the
+ * fade launches on a hard cut, no pause between clips or between sentences),
+ * and 0 is falsy — a `row.gapBetweenMs || DEFAULT_PODS.gapBetweenMs` anywhere
+ * on this path would silently restore the 1000 ms between-sentence pause and
+ * nobody would see an error. The test locks that.
+ *
+ * Exported for tests.
+ */
+export function resolvePodsConfig(loaded: Partial<PodsConfig> | null | undefined): PodsConfig {
+  return { ...DEFAULT_PODS, ...(loaded || {}) }
+}
+
 /** Read the taper out of a loaded DB row, honouring only the known
  *  minute-denominated keys — see the call site for why. Exported for tests. */
 export function pickTaper(loaded: any): EncouragementTaperConfig {
@@ -1236,7 +1252,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           fast_mode: { ...DEFAULT_FAST, ...(loaded.fast_mode || loaded.normal_mode || {}) },
           easy_mode: { ...DEFAULT_EASY, ...(loaded.easy_mode || {}) },
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },
-          pods: { ...DEFAULT_PODS, ...(loaded.pods || {}) },
+          pods: resolvePodsConfig(loaded.pods),
           script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
           resume: { ...DEFAULT_RESUME, ...(loaded.resume || {}) },
           stage0: { ...DEFAULT_STAGE0, ...(loaded.stage0 || {}) },

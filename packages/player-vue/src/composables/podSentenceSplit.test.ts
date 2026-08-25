@@ -164,6 +164,35 @@ describe('splitRowUnits', () => {
     expect(units).toHaveLength(1)
     expect(units[0].targetText).toBe('Uno. Due. Tre.')
   })
+
+  it('treats "…" as hesitation, not a sentence end, for the BARE caller', () => {
+    // hrv Pod 1 SC*-S004, verbatim: three sentences, two of which contain a
+    // mid-sentence hesitation ellipsis. When '…' counted as terminal the regex
+    // saw FIVE sentences against 3 clips, so this exact row fell back to the
+    // whole turn in the main flow while the overlay split it — the two doors
+    // disagreeing on the unit count, which also desyncs the shared podOrdinal.
+    const units = splitRowUnits({
+      target_text: 'Da,… imam zauzet dan danas. Nadam se… da ćeš imati lijep dan. Vidimo se kasnije.',
+      known_text: "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      target_audio_id: 'WHOLE_T',
+      sentence_audio_ids: ['t0', 't1', 't2'],
+    })
+    expect(units).toHaveLength(3)
+    expect(units[0].targetText).toBe('Da,… imam zauzet dan danas.')
+    expect(units[1].knownText).toBe('I hope you have a good day.')
+  })
+
+  it('does not split a turn whose only pauses are hesitations', () => {
+    // hrv Pod 1 SC*-S005: one sentence with two hesitations. Nothing to split,
+    // and nothing that should ever have been split.
+    const units = splitRowUnits({
+      target_text: 'Oprostite,… je li ovo mjesto… zauzeto?',
+      known_text: 'Excuse me, is this seat taken?',
+      target_audio_id: 'WHOLE_T',
+    })
+    expect(units).toHaveLength(1)
+    expect(units[0].isSplit).toBe(false)
+  })
 })
 
 describe('partitionAtomMap', () => {

@@ -20,12 +20,19 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- manifest injected by vite-plugin-pwa -->
 
-    <!-- Preconnect to fonts (loaded in style.css) -->
+    <!-- Preconnect only — a hint, never render-blocking, and free on a dead
+         network. Every font STYLESHEET is now appended from JS by
+         utils/loadWebFonts.ts with media="print" until it has actually
+         arrived, so no font can ever hold up first paint.
+
+         Do NOT put a <link rel="stylesheet"> to fonts.googleapis.com back in
+         this head. It blocks paint until it loads or fails, and on a weak
+         signal it does neither — it hangs. That was the permanent white screen
+         of 2026-08-25 (Tom, phone, airport): the document arrived, nothing
+         painted, and because this head is parsed top-down, the boot watchdog
+         below never ran either. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Schools dashboard fonts (Arsenal + Open Sans, scoped to .schools-surface) -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" />
 
     <title>SaySomethingin</title>
 

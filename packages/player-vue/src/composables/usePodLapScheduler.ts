@@ -818,12 +818,23 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         : singlePlaylist
       if (!playlist) continue
       // `alive` is the cohort's exposure count — the number of laps this
-      // sentence has been in play. Speed is uniform across the phrase's four
-      // slots and never above 1.0. `undefined` restores the historic per-role
-      // ROLE_SPEED rates, which is what BOTH fallbacks want: the escape hatch
-      // (the ladder's 1.5×/2× reps come from the roles) and speedSource:'belt'
-      // (the belt curve is keyed on a seed number, which Layer-2 pod sentences
-      // do not have — pods never rode it, so 'belt' means "as pods were").
+      // sentence has been in play. `undefined` restores the historic per-role
+      // ROLE_SPEED rates, which is what the stage-playlist path and
+      // speedSource:'belt' both want (the belt curve is keyed on a seed
+      // number, which Layer-2 pod sentences do not have — pods never rode it,
+      // so 'belt' means "as pods were").
+      //
+      // THE 1.0 CEILING IS RETIRED FOR PODS, DELIBERATELY (Tom, 2026-08-24).
+      // LISTENING_SPEED_CEILING (1.0) lives inside resolveListeningSpeed, and
+      // the stage-playlist branch below does not call it — so the fade's
+      // closing ps2x reps play at the 2.0× they are authored at. That used to
+      // be an accident of `undefined`; it is now the ruling. A pod has its own
+      // completion signal — reaching the eternal bare-target-at-2× stage IS
+      // the signal — so it needs no speed ceiling on top. The ceiling itself
+      // is UNCHANGED and still absolute for every non-pod listening path: the
+      // `else` arm here (Layer-1 seed sandwiches, speedSource:'exposure')
+      // still runs through resolveListeningSpeed and is still clamped to 1.0.
+      // Locked by podFadeSchedule.test.ts.
       const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'
         ? undefined
         : resolveListeningSpeed(alive, policy.ramp, globalSpeed, policy.ceiling, beltCeiling)
