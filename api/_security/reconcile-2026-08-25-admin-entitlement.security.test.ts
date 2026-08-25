@@ -67,17 +67,19 @@ describe('ADMIN-ENT-05: schools.teacher_seats is still not enforced on any join 
   it.todo('SECURE: gate teacher-tagging paths on current staff count vs teacher_seats, mirroring api/family/invite.ts')
 })
 
-describe('ADMIN-ENT-07: /api/entitlement/offline-lease still accepts an unbounded courses[]', () => {
-  // SECURITY FINDING ADMIN-ENT-07: no length cap and no check that a
-  // submitted string is a real course_code — every entry becomes an upsert
-  // row. Self-inflicted per-learner write amplification with no brake.
-  it('readCourses() still has no length cap on the incoming courses array', () => {
+describe('ADMIN-ENT-07: /api/entitlement/offline-lease caps and validates courses[]', () => {
+  // SECURITY FINDING ADMIN-ENT-07 — FIXED 2026-08-25: readCourses() had no length
+  // cap and no check that a submitted string was even course-code shaped, and
+  // every entry becomes an upsert row. It now drops anything that is not
+  // [a-z0-9_]{1,64} and caps the accepted set at MAX_COURSES.
+  it('SECURE: readCourses() caps the list and validates each entry against the course-code shape', () => {
     const src = read('api/entitlement/offline-lease.ts')
-    expect(src).toMatch(/if \(body && Array\.isArray\(body\.courses\)\) body\.courses\.forEach\(add\)/)
-    expect(src).not.toMatch(/courses\.slice\(0,/)
-    expect(src).not.toMatch(/MAX_COURSES/)
+    expect(src).toMatch(/const MAX_COURSES = \d+/)
+    expect(src).toMatch(/COURSE_CODE_RE\s*=\s*\/\^\[a-z0-9_\]\{1,64\}\$\//)
+    expect(src).toMatch(/COURSE_CODE_RE\.test\(code\)/)
+    expect(src).toMatch(/if \(out\.size >= MAX_COURSES\) return/)
+    expect(src).toMatch(/body\.courses\.slice\(0, MAX_COURSES \* 4\)/)
   })
-  it.todo('SECURE: cap the reported course list and intersect against courses where new_app_status in (live,beta)')
 })
 
 describe('ADMIN-ENT-08: the one-trial-per-email burn is still defeated by +tag sub-addressing', () => {
