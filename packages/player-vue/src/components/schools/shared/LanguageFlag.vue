@@ -74,6 +74,11 @@ import sinFlag from '@/assets/flags/sin.svg'
 import nepFlag from '@/assets/flags/nep.svg'
 import afrFlag from '@/assets/flags/afr.svg'
 
+// Variant flags — a course whose code carries a variant segment (deu_at_for_eng)
+// flies its own flag rather than the parent language's.
+import deuAtFlag from '@/assets/flags/deu_at.svg'
+import porBrFlag from '@/assets/flags/por_br.svg'
+
 const flagMap = {
   cym: cymFlag,
   spa: spaFlag,
@@ -148,6 +153,16 @@ const flagMap = {
   afr: afrFlag,
 }
 
+/**
+ * Variant → own flag. Keyed on the target-side segment of a course code
+ * (deu_at_for_eng → 'deu_at'). A variant with no entry here simply falls
+ * through to its parent language's flag, so nothing regresses.
+ */
+const variantFlagMap = {
+  deu_at: deuAtFlag,   // Austrian German
+  por_br: porBrFlag,   // Brazilian Portuguese
+}
+
 const props = defineProps({
   code: {
     type: String,
@@ -160,6 +175,17 @@ const props = defineProps({
 })
 
 /**
+ * Extract the variant key from a course code — the whole target side, dialect
+ * suffix included. Examples: 'deu_at_for_eng' -> 'deu_at', 'por_br' -> 'por_br',
+ * 'deu_for_eng' -> 'deu', 'deu' -> 'deu'.
+ */
+function extractVariantKey(code) {
+  if (!code) return ''
+  const forIndex = code.indexOf('_for_')
+  return forIndex === -1 ? code : code.substring(0, forIndex)
+}
+
+/**
  * Extract the language code from a course code.
  * Examples: 'cym_s_for_eng' -> 'cym', 'eng_for_spa' -> 'eng', 'fra' -> 'fra'
  */
@@ -167,26 +193,28 @@ function extractLanguageCode(code) {
   if (!code) return ''
   // If it's already a bare language code, return it
   if (flagMap[code]) return code
-  // Extract the first segment before '_for_' or '_n_for_' or '_s_for_'
-  const forIndex = code.indexOf('_for_')
-  if (forIndex === -1) return code
-  // The language code is everything before '_for_', minus any dialect suffix
-  const prefix = code.substring(0, forIndex)
-  // Strip dialect suffixes like '_n', '_s', '_north', '_south', '_latam'
-  const langCode = prefix.replace(/_(n|s|north|south|latam)$/, '')
-  return langCode
+  // The target side is everything before '_for_' (or the whole code)
+  const target = extractVariantKey(code)
+  // Drop any variant suffix — '_n', '_s', '_at', '_br', '_ch', '_latam'…
+  const base = target.split('_')[0]
+  return flagMap[base] ? base : target
 }
 
 const langCode = computed(() => extractLanguageCode(props.code))
+const variantKey = computed(() => extractVariantKey(props.code))
 
 const flagSrc = computed(() => {
-  return flagMap[langCode.value] || null
+  // Variant first, parent language second — a variant without its own flag
+  // keeps the parent's.
+  return variantFlagMap[variantKey.value] || flagMap[langCode.value] || null
 })
 
 // Emoji fallback for languages without SVG flags
 const emojiFlag = computed(() => {
   if (flagSrc.value) return null
-  const emoji = getLanguageFlag(langCode.value)
+  const emoji = getLanguageFlag(variantKey.value) !== '🌐'
+    ? getLanguageFlag(variantKey.value)
+    : getLanguageFlag(langCode.value)
   return emoji !== '🌐' ? emoji : null
 })
 

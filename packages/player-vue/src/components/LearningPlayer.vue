@@ -105,6 +105,7 @@ const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.v
 const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationOverlay.vue'))
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
+import { courseTargetName } from '../utils/courseDisplayName'
 import { hasSeenBrandWelcome, markBrandWelcomeSeen, playBrandWelcome } from '../composables/useBrandWelcome'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
@@ -841,14 +842,12 @@ const courseKnownLang = computed(() => {
   return props.course.known_lang || courseCode.value?.split('_for_')[1] || ''
 })
 
-const courseDisplayName = computed(() => {
-  if (!props.course) return ''
-  const baseName = getLanguageName(courseTargetLang.value)
-  if (props.course.variant_label) {
-    return `${baseName} (${props.course.variant_label})`
-  }
-  return baseName
-})
+// The name on the in-session identity chip. Shared with the resting screen,
+// the explorer and the course menu (utils/courseDisplayName) so a learner who
+// picked "Austrian German" is never told mid-session that they're doing
+// "German" — a variant course carries the BASE target_lang, so the language
+// name alone cannot say which variant this is.
+const courseDisplayName = computed(() => courseTargetName(props.course))
 
 // Check if launched from dashboard in QA mode
 const isQaMode = computed(() => {
@@ -16160,7 +16159,7 @@ defineExpose({
   <!-- Mode buttons moved to BottomNav for Android viewport sync -->
   <Transition name="fade">
     <div v-if="isAudioPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
-      <LanguageFlag :code="courseTargetLang" :size="32" class="course-identity-flag" />
+      <LanguageFlag :code="activeCourseCode || courseTargetLang" :size="32" class="course-identity-flag" />
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>
   </Transition>
