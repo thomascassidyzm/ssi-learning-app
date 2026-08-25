@@ -57,7 +57,7 @@ vi.mock('@supabase/supabase-js', () => ({
 let handler: typeof import('./invites').default
 
 function makeReq(groupId = 'group-1'): VercelRequest {
-  return { method: 'GET', query: { id: groupId }, headers: { authorization: 'Bearer tok', host: 'app.example.com' } } as any
+  return { method: 'GET', query: { id: groupId }, headers: { authorization: 'Bearer tok', host: 'staging.saysomethingin.app' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -86,8 +86,8 @@ describe('GET /api/groups/:id/invites', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.links).toHaveLength(2)
     expect(res.body.links).toEqual(expect.arrayContaining([
-      expect.objectContaining({ role: 'teacher', url: 'https://app.example.com/redeem/ABC123', code: 'ABC123' }),
-      expect.objectContaining({ role: 'leader', url: 'https://app.example.com/group/DEF456', code: 'DEF456' }),
+      expect.objectContaining({ role: 'teacher', url: 'https://staging.saysomethingin.app/redeem/ABC123', code: 'ABC123' }),
+      expect.objectContaining({ role: 'leader', url: 'https://staging.saysomethingin.app/group/DEF456', code: 'DEF456' }),
     ]))
   })
 
