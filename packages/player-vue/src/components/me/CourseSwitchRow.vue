@@ -47,7 +47,7 @@ function switchTo(course: CourseLike): void {
     <h2 class="title">Your languages</h2>
 
     <div v-if="activeCourse" class="current">
-      <LanguageFlag v-if="activeCourse.target_lang" :code="activeCourse.target_lang" :size="20" />
+      <LanguageFlag v-if="activeCourse.target_lang" :code="activeCourse.course_code || activeCourse.target_lang" :size="20" />
       <span class="current-name">{{ getLanguageName(activeCourse.target_lang ?? '') }}</span>
       <span class="current-tag">carrying on with this one</span>
     </div>
@@ -60,7 +60,7 @@ function switchTo(course: CourseLike): void {
         class="other"
         @click="switchTo(c)"
       >
-        <LanguageFlag v-if="c.target_lang" :code="c.target_lang" :size="18" />
+        <LanguageFlag v-if="c.target_lang" :code="c.course_code || c.target_lang" :size="18" />
         <span>{{ getLanguageName(c.target_lang ?? '') }}</span>
       </button>
     </div>

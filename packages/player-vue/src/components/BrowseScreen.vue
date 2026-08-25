@@ -674,7 +674,7 @@ onMounted(() => {
                 </div>
                 <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">Premium</div>
 
-                <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
+                <LanguageFlag :code="group.courses[0].course_code || group.courses[0].target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
                 <span class="course-for">for {{ group.forLabel }} speakers</span>
 

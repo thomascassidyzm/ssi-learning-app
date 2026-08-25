@@ -75,7 +75,7 @@ const setMode = (mode) => {
   <div class="resting-state">
     <div class="resting-content">
       <!-- Course identity -->
-      <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />
+      <LanguageFlag :code="course?.course_code || course?.target_lang || ''" :size="48" class="course-flag" />
       <h2 class="course-name course-name--tappable" @click.stop="handleChangeCourse">
         {{ courseName }}
         <svg class="course-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
