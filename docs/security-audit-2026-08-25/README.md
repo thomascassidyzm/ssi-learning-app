@@ -61,9 +61,90 @@ no area owned: the ungated `courses/[code]/round-map.ts` (SEC25-X-01, SEC25-X-02
 
 ---
 
-## 1. Findings
+## 1. Findings — ranked
 
-*(filled from the area reports — see §6 for the per-area files)*
+The audit's single most important output is not a new vulnerability. It is this:
+
+> **TENANCY-01, filed as `critical` on 2026-08-11, is still live on `dev` fourteen days later** — and
+> until this branch, `dev` carried no test that could have told anyone.
+
+| # | ID | Sev | Status | Where | Costs an attacker |
+|---|---|---|---|---|---|
+| 1 | TENANCY-01 | **critical** | **still live** | `api/groups/[id]/invites.ts:132` | a signed-in account and a duplicate org name |
+| 2 | SEC25-X-03 (esc. of SEC25-A-01 + AUTH-CORE-01/05) | **high** | still live | `api/code/redeem.ts` + `_utils/codeAttemptThrottle.ts` | patience, unmetered |
+| 3 | SEC25-D-02 | **high** | still live | `admin_practice_minutes()` — `SECURITY DEFINER`, `EXECUTE` to `anon`, no auth gate | a learner UUID |
+| 4 | TENANCY-02 | high | still live | `api/groups/[id]/rate-compare.ts:319` | the same collision as #1 |
+| 5 | SEC25-D-01 | medium | still live | 16 `SECURITY DEFINER` functions with no `SET search_path` | object-creation rights |
+| 6 | TENANCY-04/05/06/07, AUTH-CORE-03/04 | medium | still live | see `area-c-reconciliation.md` | — |
+| 7 | SEC25-D-03 | low *(cross-repo)* | still live | 5 RLS-off tables `GRANT ALL` to `anon`, incl. write | the public anon key |
+| 8 | SEC25-B-01 | low | still live | `vercel.json` CSP `connect-src` vs `usePublishedExplainers.ts` | nothing — it is a trap for the next promoter |
+| 9 | SEC25-X-01 / X-02 | low | still live | `api/courses/[code]/round-map.ts` | nothing |
+| 10 | SEC25-D-04/05/06 | low / info | still live | `.gitignore`, floating action tags, 7 dep advisories | — |
+
+### #1 — TENANCY-01, verified end to end by the coordinator
+
+Worker #469 returned this as **STILL LIVE**. Because it is the most consequential claim in the
+audit, the coordinator re-verified every link rather than relaying it. All three hold on `dev` today:
+
+1. **The resolver still keys on the slug path.** `api/groups/[id]/invites.ts:132` —
+   ``.or(`path.eq.${path},path.like.${path}/%`)``. The `/`-boundary on the `like` half is correct.
+   The `path.eq` half is the hole: two unrelated root orgs whose names slug identically have *equal*
+   paths. `_utils/groupSubtree.ts` says so in the codebase's own words, and records that it happened
+   live — two orgs both called "Deborah Testing" both got `path = 'deborah-testing'`.
+2. **The collision is attacker-creatable.** `api/groups/index.ts:58-67` — root-org creation is "open
+   to any signed-in user"; the only gate is one org per leader. The duplicate-name check at `:154-161`
+   is, in its own comment, a "WARNING (never a constraint)": re-send with `confirm_duplicate: true`
+   and it "proceeds byte-identically".
+3. **The write path trusts the same collided subtree.** The PATCH ownership check at `:173-181` tests
+   membership against `subtree` — the very object step 1 mis-resolved. So `revoke`, `reactivate`,
+   `resend` and `rotate` all reach the victim's rows.
+
+**What that yields.** `GET /api/groups/<attacker's own node>/invites?scope=subtree` returns the
+victim org's invite codes *with their ready-to-share URLs*. Those include **personal links**, which
+are bound to a specific `personal_auth_user_id` and whose sign-ins are logged to
+`possession_mint_attempts` — that is, a personal link is a credential for one named account. And
+`rotate` mints a **new** code bound to that same account, which only the attacker then knows.
+
+So the honest severity is worse than the 2026-08-11 report's "another tenant's invite codes": the
+chain reaches **account takeover of a named person in the victim organisation**. The 08-11 rating of
+`critical` stands, and nothing about it has softened in fourteen days.
+
+**Not fixed here, deliberately.** This run's rules are findings-and-tests-only. The fix the original
+report recommends is unchanged and small: resolve the subtree by `parent_id` — `descendantIds()` —
+never by path string. It is the same fix the `c2f04665` hardening pass already applied to
+`groupSubtree`, `schoolScope`, `groupRollups` and `rate-compare`; `invites.ts` was the caller that
+pass missed.
+
+Tests: `api/_security/reconcile-2026-08-25-tenancy.security.test.ts`.
+
+### #3 — SEC25-D-02, verified by the coordinator
+
+`admin_practice_minutes(p_learner_ids uuid[])` and `admin_practice_minutes_by_course()` are
+`LANGUAGE sql STABLE SECURITY DEFINER` (`schema.sql:249`, `:292`) with `GRANT ALL … TO anon`
+(`:19074`, `:19083`) and **no internal auth check** — the body goes straight to `sessions`. They pin
+`search_path`, so D-01 does not apply; the gap is authorization, not resolution. They therefore
+bypass the learner-data own-row RLS that CLAUDE.md records as live since 2026-06-10, for any caller
+holding only the public anon key. The mitigation, stated plainly: the caller must already know
+learner UUIDs, which are not enumerable through this function. Same shape as SEC22-01 — a privileged
+DB object left reachable by `anon`.
+
+### #7 — SEC25-D-03 is a cross-repo hand-off, not a learner-facing hole
+
+Five tables have RLS off and `GRANT ALL` to `anon`, INSERT/UPDATE/DELETE included: `audio_clips`,
+`audio_clip_promotions`, `audio_convergence_log`, `language_canonical`, `relink_refusals`. The
+coordinator checked before ranking it: **none of the five is referenced anywhere in this repo** —
+they are Popty/dashboard recording-pipeline tables. So the learner-facing impact from this codebase
+is nil, and it is ranked low here on that basis. It is a content-pipeline integrity exposure that
+belongs to the dashboard side, and it breaches this repo's own RLS doctrine rule 7 ("every new table
+gets an explicit posture at creation — never Supabase's grant-open default"). **The dashboard repo's
+use of these tables was not audited** — see §4.
+
+### The reconciliation, in one line
+
+Of the 2026-08-11 findings re-checked against today's `dev`: **6 FIXED · 36 STILL LIVE · 1 MOVED ·
+2 SUPERSEDED · 2 UNVERIFIABLE**. The fixes that landed are the ones that audit ranked most severe —
+both criticals it found in the money path, and the highest-confidence high. That is correct
+prioritisation happening *despite* the branch never merging. Full table: `area-c-reconciliation.md`.
 
 ---
 
@@ -191,13 +272,53 @@ Tests: `api/code/redeemPrivilegeReach.security.test.ts` — 8 passing, 1 `todo`.
 
 ## 4. Gaps (explicit)
 
-*(consolidated from the area reports)*
+Reported as gaps rather than papered over:
+
+- **`ENTITLEMENT_ENFORCE` is STILL unsettled**, three audits running. It decides whether INPUT-01
+  (audio entitlement fail-open) is live. Progress since 2026-08-22: the Vercel CLI **is now installed**
+  (`vercel 59.5.0`; it was absent then). But this session is **logged out**, and no interactive login
+  was attempted — crossing an auth boundary is outside these rules. **One command settles it:**
+  `vercel env ls production | grep ENTITLEMENT_ENFORCE`.
+- **No live database read, and no live HTTP probe.** Every schema claim rests on `supabase/schema.sql`,
+  the committed dump — which CLAUDE.md itself records as having been stale before. The DEFINER,
+  grant and RLS findings (D-01/02/03) are all subject to that caveat.
+- **SEC25-X-03 additionally requires an active `ssi_admin`-type invite code to exist.** No live check
+  was made for one; that is a production read of the invite table.
+- **The XFF-spoof exploitability is a property of the Vercel edge, not of the code**, and was not
+  tested live — the same caveat the 2026-08-18 audit attached to its own Finding 5.
+- **The dashboard/Popty repo was not audited**, so SEC25-D-03's real blast radius is unknown from here.
+- **No test was written for D-03, D-04, D-05 or D-06** — a `.gitignore` change is a fix rather than a
+  finding, and the dependency advisories could not have their call sites assessed within scope.
+- **The 2026-08-11 audit's `client-config` findings 02, 03 and 08 were carried forward unchanged**,
+  not independently re-derived — nothing in the new diff touched them.
+- **The 19→33-endpoint `verifyAdmin` re-sweep was not run.** `api/admin/` has grown and some of the
+  growth uses a different-but-consistent pattern (`resolveVadCaller`). Flagged by #468, unclaimed.
 
 ---
 
 ## 5. Production contact
 
-*(itemised; "none" if none)*
+**One request, read-only, unauthenticated:** `npx vercel whoami`, which returned "Logged out". It
+confirms the CLI's auth state and touches no project data. Nothing else. No database query, no HTTP
+request to production, no write, no mint, no email, no OTP, no spend.
+
+---
+
+## 7. The one thing that needs a human decision
+
+Everything above is a finding or a test. This is not:
+
+**These findings are on a branch, exactly like the 2026-08-11 ones.** §0 measured what that costs —
+29 of 33 tripwire tests stranded, the branch now 330 commits behind and conflicting. This audit's
+output will decay the same way unless it is merged to `dev`, and merging was outside this run's
+brief, which scoped the deliverable to a branch.
+
+The recommendation, stated as a recommendation because the call is yours: **merge
+`security/audit-2026-08-25` into `dev`.** It is findings and tests only — no production behaviour
+changes — the full `api` suite is green at 1,411 passing with 0 typecheck errors, and merging is what
+turns 44 characterization tests into CI-gated tripwires that go red the moment someone fixes or
+regresses one of these findings. Leaving it unmerged reproduces, knowingly, the exact failure this
+audit was written to document.
 
 ---
 
