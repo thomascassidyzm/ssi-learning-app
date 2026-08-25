@@ -69,18 +69,29 @@ describe('TENANCY-04 / TENANCY-05 / INPUT-05: unanchored path LIKE still crosses
   it.todo('SECURE: replace all three call sites with the segment-safe path.eq/path.like(+"/%") form')
 })
 
-describe('TENANCY-06: /api/teacher/by-code is still an unauthenticated, unthrottled join-code oracle', () => {
-  // SECURITY FINDING TENANCY-06: looks up classes.student_join_code (the same
-  // 13.8M keyspace the repo throttles elsewhere) with no auth and no rate
-  // limit — enumeration yields the tenant structure map plus working
-  // join codes that let an outsider self-enrol into a real class.
-  it('by-code.ts touches no throttle table and no 429', () => {
+describe('TENANCY-06: /api/teacher/by-code is metered — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25 by sharing the per-IP limiter (api/_utils/codeAttemptThrottle.ts),
+  // same possession_mint_attempts ledger and window as code/validate,
+  // code/redeem and try-link/validate — so a sweep spread across all four
+  // accumulates in ONE bucket rather than getting four budgets.
+  //
+  // It stays UNAUTHENTICATED on purpose, and that is not the finding being
+  // dodged: this is the public /with/{code} student gateway, and a pupil
+  // arriving on a teacher's link has no account yet, so requiring auth would
+  // break the join flow the endpoint exists for. What it must not be is
+  // unmetered. It uses the wider REDEEM_PER_IP_LIMIT because a class of pupils
+  // opening one link through one school NAT is the legitimate shape, and the
+  // narrow limit would lock out the eleventh child holding a correct link.
+  it('SECURE: by-code.ts shares the code/validate.ts per-IP throttle', () => {
     const src = read('api/teacher/by-code.ts')
-    expect(src).not.toContain('possession_mint_attempts')
-    expect(src).not.toMatch(/status\(429\)/)
-    expect(src).not.toContain('verifyAuthToken')
+    expect(src).toContain("from '../_utils/codeAttemptThrottle'")
+    expect(src).toContain('isIpOverLimit')
+    expect(src).toMatch(/status\(429\)/)
+    expect(src).toMatch(/logAttempt\([\s\S]{0,120}rate_limited_ip/)
+    expect(src).toMatch(/logAttempt\([\s\S]{0,120}class_by_code_attempt/)
+    // The throttle is decided before any class lookup.
+    expect(src.indexOf('isIpOverLimit')).toBeLessThan(src.indexOf("from('classes')"))
   })
-  it.todo('SECURE: by-code.ts should share the code/validate.ts per-IP throttle')
 })
 
 describe('TENANCY-07: govt_admin / school_admin_join invite codes still mint unbounded', () => {
