@@ -111,6 +111,25 @@ describe('SEC25-D-01: every SECURITY DEFINER function pins SET search_path', () 
     expect([...unpinned].sort()).toEqual([])
   })
 
+  // ── the second-order case the audit's roster missed ──
+  // Found by the live canary (supabase/secfix-toolkit/canary_definer_search_path.cjs),
+  // not by a source read: 25 DEFINER functions DID pin a search_path and simply
+  // left `pg_temp` out of it. Postgres searches the temporary schema FIRST for
+  // relations when pg_temp is not listed explicitly, so `SET search_path TO
+  // 'public'` still lets any caller CREATE TEMP TABLE learners (...) and have a
+  // definer body's unqualified `from learners` resolve to their own table with
+  // the owner's rights. The manual's own advice is pg_temp explicit and LAST.
+  it('SECURE: every pinned search_path names pg_temp explicitly, so it can never be implicitly first', () => {
+    const missingTemp = new Set<string>()
+    for (const { name, start } of allFunctionStarts()) {
+      const body = functionBodyAt(start)
+      if (!body.includes('SECURITY DEFINER')) continue
+      const pin = body.match(/SET\s+search_path\s+TO\s+([^\n]+)/i)
+      if (pin && !/pg_temp/i.test(pin[1])) missingTemp.add(name)
+    }
+    expect([...missingTemp].sort()).toEqual([])
+  })
+
   it('the fix ships as a migration, not only as a schema-dump edit', () => {
     // schema.sql is a dump; the migration is what actually runs against the DB.
     // Both must move together or the next dump silently reverts the fix.

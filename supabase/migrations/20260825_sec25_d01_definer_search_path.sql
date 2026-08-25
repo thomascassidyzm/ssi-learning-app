@@ -101,6 +101,55 @@ alter function public.update_daily_contributions()
 --
 -- Expected: zero rows.
 
+
+-- ── SEC25-D-01, second order: pinned, but WITHOUT pg_temp ────────────────────
+--
+-- Found by the canary (supabase/secfix-toolkit/canary_definer_search_path.cjs),
+-- not by the audit: the audit's roster was "SECURITY DEFINER functions with NO
+-- search_path", 16 of them. But a further 25 DO pin a search_path and simply
+-- omit `pg_temp` — `search_path=public`, `search_path=public, auth`, and so on.
+--
+-- That is the SAME hole, one step quieter. Postgres searches the temporary
+-- schema FIRST for relations when pg_temp is not listed explicitly, so any
+-- caller can `CREATE TEMP TABLE learners (...)` and have a definer function's
+-- unqualified `from learners` resolve to their own table, running with the
+-- owner's rights. The Postgres manual's own recommendation is to write pg_temp
+-- explicitly and LAST, which is what the 16 above already do.
+--
+-- Appending it is a no-op for every legitimate caller: pg_temp moves from
+-- implicitly-first to explicitly-last, so a real temp table can no longer
+-- shadow a real table, and nothing that resolves correctly today stops.
+-- Any other setting on the function (audit_log_prune carries a
+-- statement_timeout) is untouched — `ALTER FUNCTION ... SET search_path`
+-- rewrites only that one entry.
+do $$
+declare
+  fn record;
+  current_sp text;
+begin
+  for fn in
+    select p.oid::regprocedure as sig,
+           (select cfg from unnest(p.proconfig) cfg where cfg like 'search_path=%') as sp
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.prosecdef
+       and p.proconfig is not null
+       and not exists (
+         select 1 from unnest(p.proconfig) cfg
+          where cfg like 'search_path=%' and cfg like '%pg_temp%'
+       )
+       and exists (
+         select 1 from unnest(p.proconfig) cfg where cfg like 'search_path=%'
+       )
+  loop
+    current_sp := substring(fn.sp from length('search_path=') + 1);
+    execute format('alter function %s set search_path = %s, pg_temp', fn.sig, current_sp);
+    raise notice 'pinned pg_temp on %  (was: %)', fn.sig, current_sp;
+  end loop;
+end
+$$;
+
 commit;
 
 notify pgrst, 'reload schema';
