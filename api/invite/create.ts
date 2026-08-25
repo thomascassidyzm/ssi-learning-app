@@ -268,10 +268,15 @@ export default async function handler(
     if (grants_class_id !== undefined) insertData.grants_class_id = grants_class_id
     if (metadata !== undefined) insertData.metadata = metadata
 
-    // Privileged codes (admin / tester) are bearer tokens to elevated access —
-    // force them to be bounded (must expire, must have a use cap). Onboarding
-    // codes (school/teacher/student/govt) keep the caller's values as-is.
+    // Privileged codes (admin / tester / staff seats) are bearer tokens to
+    // elevated access — force them to be bounded (must expire, must have a use
+    // cap). govt_admin and school_admin_join joined this set on 2026-08-25
+    // (TENANCY-07): both grant tenant-level administrative authority, so an
+    // unlimited-use never-expiring one is the SSI-GOD-2026 hole at org scope.
+    // Learner-facing onboarding codes (school/teacher/student) keep the
+    // caller's values as-is.
     const isPrivileged = code_type === 'ssi_admin' || code_type === 'god' || code_type === 'tester'
+      || code_type === 'govt_admin' || code_type === 'school_admin_join'
     if (isPrivileged) {
       const bounded = boundPrivilegedCodeLimits(expires_at, max_uses)
       insertData.expires_at = bounded.expires_at
