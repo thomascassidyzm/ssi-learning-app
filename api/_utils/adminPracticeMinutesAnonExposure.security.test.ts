@@ -26,9 +26,17 @@
  * aggregated across every learner — a business metric with no PII, but with
  * no gate either.
  *
- * This is a CHARACTERISATION test: it PASSES today, recording the current
- * (insecure) state. It reads supabase/schema.sql and the calling source
- * files only — no DB or network contact.
+ * FIXED 2026-08-25 by supabase/migrations/20260825_sec25_d02_practice_minutes_gate.sql.
+ * The characterisations below have been flipped to the SECURE assertions the
+ * paired it.todo()s named:
+ *   - EXECUTE revoked from PUBLIC/anon on both. `admin_practice_minutes` is now
+ *     service_role only (its only callers are service-role server handlers
+ *     behind verifyAdmin).
+ *   - `admin_practice_minutes_by_course` keeps `authenticated` because four
+ *     browser callers depend on it, and instead gates its NULL-argument
+ *     (platform-wide aggregate) path on is_ssi_admin()/service_role.
+ * It reads supabase/schema.sql and the calling source files only — no DB or
+ * network contact.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -52,29 +60,54 @@ const AUTH_CHECK = /is_ssi_admin|is_god_user|is_school_admin_of|is_govt_admin_ov
 describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-granted, unchecked', () => {
   // ── the finding, pinned ──
 
-  it('SECURITY FINDING: admin_practice_minutes() is SECURITY DEFINER with no internal auth check', () => {
-    const body = functionBody('admin_practice_minutes')
-    expect(body).toContain('SECURITY DEFINER')
-    expect(body).not.toMatch(AUTH_CHECK)
-  })
-
-  it('SECURITY FINDING: admin_practice_minutes_by_course() is SECURITY DEFINER with no internal auth check', () => {
-    const body = functionBody('admin_practice_minutes_by_course')
-    expect(body).toContain('SECURITY DEFINER')
-    expect(body).not.toMatch(AUTH_CHECK)
-    // The optional-null shape: called with no args it aggregates EVERY learner.
-    expect(body).toContain('p_learner_ids uuid[] DEFAULT NULL')
-  })
-
-  it('SECURITY FINDING: EXECUTE on both is granted to anon (not service_role-only)', () => {
-    expect(schema).toContain('GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO anon;')
+  it('SECURE: admin_practice_minutes() is service_role only — anon and authenticated cannot execute it', () => {
     expect(schema).toContain(
-      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;',
+      'REVOKE ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) FROM PUBLIC;',
+    )
+    expect(schema).toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO service_role;',
+    )
+    expect(schema).not.toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO anon;',
+    )
+    expect(schema).not.toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO authenticated;',
     )
   })
 
-  it.todo('SECURE: admin_practice_minutes(_by_course) require is_ssi_admin() (or equivalent scope check) before returning rows')
-  it.todo('SECURE: EXECUTE on admin_practice_minutes(_by_course) is authenticated/service_role only, not anon')
+  it('SECURE: EXECUTE on admin_practice_minutes_by_course() is revoked from anon (authenticated kept for the browser callers)', () => {
+    expect(schema).toContain(
+      'REVOKE ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) FROM PUBLIC;',
+    )
+    expect(schema).not.toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;',
+    )
+    expect(schema).toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;',
+    )
+  })
+
+  it('SECURE: the platform-wide (NULL-argument) path of _by_course gates on is_ssi_admin()', () => {
+    const body = functionBody('admin_practice_minutes_by_course')
+    expect(body).toContain('SECURITY DEFINER')
+    expect(body).toMatch(AUTH_CHECK)
+    expect(body).toMatch(/IF p_learner_ids IS NULL[\s\S]*NOT public\.is_ssi_admin\(\)/)
+    expect(body).toMatch(/RAISE EXCEPTION 'Forbidden/)
+    // The optional-null shape still exists — it is now guarded, not removed.
+    expect(body).toContain('p_learner_ids uuid[] DEFAULT NULL')
+  })
+
+  it('SECURE: the fix ships as a migration that reloads the PostgREST schema cache', () => {
+    const migration = readFileSync(
+      resolve(here, '../../supabase/migrations/20260825_sec25_d02_practice_minutes_gate.sql'),
+      'utf8',
+    )
+    expect(migration).toContain('revoke all on function public.admin_practice_minutes(uuid[]) from anon;')
+    expect(migration).toContain(
+      'revoke all on function public.admin_practice_minutes_by_course(uuid[]) from anon;',
+    )
+    expect(migration).toContain("notify pgrst, 'reload schema';")
+  })
 
   // ── the control that DOES hold on the twin function ──
   // Same admin_* prefix, same DEFINER, same underlying data — proves the

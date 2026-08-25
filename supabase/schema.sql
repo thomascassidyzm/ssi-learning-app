@@ -290,9 +290,18 @@ $$;
 --
 
 CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer, is_estimated boolean)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
+BEGIN
+  -- SEC25-D-02: the no-argument call aggregates EVERY learner on the platform.
+  IF p_learner_ids IS NULL
+     AND NOT public.is_ssi_admin()
+     AND coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'Forbidden: admin required for platform-wide practice minutes';
+  END IF;
+
+  RETURN QUERY
   with logged as (
     select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
     from sessions s
@@ -320,11 +329,12 @@ CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEF
     union all
     select course_id, seconds, true as is_estimated from estimated
   )
-  select course_id as course_code,
-         round(sum(seconds) / 60.0)::int as practice_minutes,
-         bool_or(is_estimated) as is_estimated
+  select combined.course_id as course_code,
+         round(sum(combined.seconds) / 60.0)::int as practice_minutes,
+         bool_or(combined.is_estimated) as is_estimated
   from combined
-  group by course_id;
+  group by combined.course_id;
+END;
 $$;
 
 
@@ -19071,8 +19081,7 @@ GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_versio
 -- Name: FUNCTION admin_practice_minutes(p_learner_ids uuid[]); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO anon;
-GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO authenticated;
+REVOKE ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO service_role;
 
 
@@ -19080,7 +19089,7 @@ GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO ser
 -- Name: FUNCTION admin_practice_minutes_by_course(p_learner_ids uuid[]); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;
+REVOKE ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO service_role;
 
