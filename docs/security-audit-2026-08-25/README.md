@@ -304,24 +304,6 @@ request to production, no write, no mint, no email, no OTP, no spend.
 
 ---
 
-## 7. The one thing that needs a human decision
-
-Everything above is a finding or a test. This is not:
-
-**These findings are on a branch, exactly like the 2026-08-11 ones.** §0 measured what that costs —
-29 of 33 tripwire tests stranded, the branch now 330 commits behind and conflicting. This audit's
-output will decay the same way unless it is merged to `dev`, and merging was outside this run's
-brief, which scoped the deliverable to a branch.
-
-The recommendation, stated as a recommendation because the call is yours: **merge
-`security/audit-2026-08-25` into `dev`.** It is findings and tests only — no production behaviour
-changes — the full `api` suite is green at 1,411 passing with 0 typecheck errors, and merging is what
-turns 44 characterization tests into CI-gated tripwires that go red the moment someone fixes or
-regresses one of these findings. Leaving it unmerged reproduces, knowingly, the exact failure this
-audit was written to document.
-
----
-
 ## 6. Files
 
 | File | Contents |
@@ -339,3 +321,22 @@ that asserts today's insecure behaviour and therefore **passes today**, carrying
 `// SECURITY FINDING <ID>:` comment and a paired `it.todo()` naming the secure behaviour. When
 someone fixes the finding the characterization goes **red on purpose** — that is the signal the
 finding is closed, and the fixer flips it to the assertion the `it.todo()` names.
+
+
+## 7. The one thing that needs a human decision
+
+Everything above is a finding or a test. This is not:
+
+**These findings are on a branch, exactly like the 2026-08-11 ones.** §0 measured what that costs —
+29 of 33 tripwire tests stranded, the branch now 330 commits behind and conflicting. This audit's
+output will decay the same way unless it is merged to `dev`, and merging was outside this run's
+brief, which scoped the deliverable to a branch.
+
+The recommendation, stated as a recommendation because the call is yours: **merge
+`security/audit-2026-08-25` into `dev`.** It is findings and tests only — no production behaviour
+changes — the full `api` suite is green at 1,411 passing with 0 typecheck errors, and merging is what
+turns 44 characterization tests into CI-gated tripwires that go red the moment someone fixes or
+regresses one of these findings. Leaving it unmerged reproduces, knowingly, the exact failure this
+audit was written to document.
+
+---
