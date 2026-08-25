@@ -50,21 +50,35 @@ describe('ADMIN-ENT-04: both webhook idempotency ledgers fail CLOSED on a non-du
   })
 })
 
-describe('ADMIN-ENT-05: schools.teacher_seats is still not enforced on any join path', () => {
-  // SECURITY FINDING ADMIN-ENT-05: teacher_seats is written by billing and
-  // read only for DISPLAY. No join/redemption path compares the current
-  // staff count against it — unlike the family plan, which enforces its cap
-  // server-side (api/family/invite.ts) — so a school paying for one seat can
-  // onboard unlimited teachers via its join code.
-  it('the teacher-code redemption branch writes the staff tag with no seat-count comparison', () => {
+describe('ADMIN-ENT-05: schools.teacher_seats is enforced on the teacher-code join path', () => {
+  // SECURITY FINDING ADMIN-ENT-05 — FIXED 2026-08-25: teacher_seats was written
+  // by billing and read only for DISPLAY; no join path compared the current staff
+  // count against it, so a school paying for one seat could onboard unlimited
+  // teachers via its join code. The teacher branch of redeem.ts now checks the
+  // cap before writing the staff tag, mirroring api/family/invite.ts.
+  //
+  // Scope, deliberate: the cap only applies to a school with a LIVE per-seat
+  // subscription. `teacher_seats` is `integer DEFAULT 1 NOT NULL`, so enforcing
+  // on the bare column would lock the second teacher out of every trial and
+  // free-track school — a product change, not a security fix. See
+  // api/_utils/schoolSeats.ts.
+  it('SECURE: the teacher-code redemption branch checks the seat cap before tagging', () => {
     const src = read('api/code/redeem.ts')
-    expect(src).not.toMatch(/teacher_seats/)
+    expect(src).toContain('isSchoolSeatCapReached')
+    expect(src).toMatch(/if \(seatState\.full\)/)
+    // The check runs BEFORE the staff tags are written.
+    expect(src.indexOf('isSchoolSeatCapReached(supabase')).toBeLessThan(src.indexOf('for (const tag of teacherTags)'))
   })
-  it('the family plan DOES enforce its seat cap server-side (the counter-example that makes this an omission)', () => {
+  it('SECURE: the cap reads the billed quantity, and only where it is billed', () => {
+    const src = read('api/_utils/schoolSeats.ts')
+    expect(src).toMatch(/teacher_seats, platform_status, provider_subscription_id/)
+    expect(src).toMatch(/if \(!school\.provider_subscription_id\) return open/)
+    expect(src).toMatch(/used >= seats/)
+  })
+  it('the family plan enforces its seat cap server-side too (the shape this follows)', () => {
     const src = read('api/family/invite.ts')
     expect(src).toMatch(/Family is full/)
   })
-  it.todo('SECURE: gate teacher-tagging paths on current staff count vs teacher_seats, mirroring api/family/invite.ts')
 })
 
 describe('ADMIN-ENT-07: /api/entitlement/offline-lease caps and validates courses[]', () => {

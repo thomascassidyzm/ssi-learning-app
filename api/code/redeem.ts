@@ -16,6 +16,7 @@ import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
+import { isSchoolSeatCapReached, seatCapMessage } from '../_utils/schoolSeats'
 import {
   getClientIp,
   hashIp,
@@ -681,6 +682,33 @@ async function redeemInviteCode(
         res.status(200).json({ success: false, error: 'This invite is not linked to a school or class' })
         return
       }
+
+      // ADMIN-ENT-05: schools.teacher_seats is the Paddle per-seat quantity, and
+      // until now NOTHING compared against it — a school paying for one seat
+      // could onboard unlimited teachers through its join code. The dedup checks
+      // above already refused anyone who is staff here, so reaching this point
+      // means one NEW seat is about to be consumed. Mirrors the family plan's
+      // server-side cap (api/family/invite.ts). Only bites a school with a live
+      // per-seat subscription — see schoolSeats.ts on why the DEFAULT 1 is not a
+      // cap — and fails open on a read error.
+      const seatSchoolId =
+        (inviteRow.grants_school_id as string | null) ??
+        (inviteRow.grants_class_id
+          ? ((
+              await supabase
+                .from('classes')
+                .select('school_id')
+                .eq('id', inviteRow.grants_class_id as string)
+                .maybeSingle()
+            ).data as { school_id?: string | null } | null)?.school_id ?? null
+          : null)
+      const seatState = await isSchoolSeatCapReached(supabase, seatSchoolId)
+      if (seatState.full) {
+        console.warn('[CodeRedeem] Teacher seat cap reached:', seatSchoolId, seatState.used, '/', seatState.seats)
+        res.status(200).json({ success: false, error: seatCapMessage(seatState) })
+        return
+      }
+
       for (const tag of teacherTags) {
         const { error: tagError } = await supabase.from('user_tags').insert(tag)
         // 23505 → idempotent no-op (concurrent/retried redemption already
