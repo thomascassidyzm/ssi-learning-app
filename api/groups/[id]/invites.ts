@@ -46,6 +46,8 @@ import { createClient } from '@supabase/supabase-js'
 import { generateCode } from '../../_utils/codeGen'
 import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTreeAuth'
 import { ownSchoolIdForNode } from '../../_utils/schoolScope'
+import { fetchSubtree } from '../../_utils/groupSubtree'
+import { boundPrivilegedCodeLimits } from '../../_utils/codeGuard'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 import { provisionPersona } from '../../_utils/provisionPersona'
 import {
@@ -72,6 +74,13 @@ const CODE_TYPE_BY_ROLE: Record<Role, string> = {
   teacher: 'teacher',
   student: 'student',
 }
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Staff-granting roles: their codes carry tenant-level administrative
+// authority, so they mint as BOUNDED bearer tokens (must expire, must have a
+// use cap) — same rule invite/create.ts applies to ssi_admin/god/tester.
+const PRIVILEGED_ROLES = new Set<Role>(['leader', 'school_leader'])
+
 const ROLE_BY_CODE_TYPE: Record<string, Role> = {
   govt_admin: 'leader',
   school_admin_join: 'school_leader',
@@ -91,6 +100,13 @@ export default async function handler(
   const groupId = req.query.id as string
   if (!groupId) {
     res.status(400).json({ error: 'Group ID is required' })
+    return
+  }
+  // COORD-03: :id is interpolated into PostgREST `.or()` filters below, so it
+  // must be a uuid before it ever reaches a filter string — anything else is a
+  // malformed request, not a lookup.
+  if (!UUID_REGEX.test(groupId)) {
+    res.status(400).json({ error: 'Group ID must be a uuid' })
     return
   }
 
@@ -115,22 +131,20 @@ export default async function handler(
   const callerUserId = caller.userId
 
   // ─── Subtree scope resolution (shared by the ledger GET and PATCH) ───
-  // Segment-safe path prefix (path 'a/b' matches 'a/b' and 'a/b/…', never
-  // 'a/b-c'), plus the school/class bridges: schools by group_id OR
+  // Membership walks `parent_id` (groupSubtree.fetchSubtree), NEVER the slug
+  // path. `compute_group_path()` slugifies the name and nothing makes a slug
+  // unique, so two unrelated ROOT orgs sharing a name get EQUAL paths — and
+  // root-org creation is self-serve (api/groups/index.ts). The old path-
+  // equality branch therefore handed an attacker who named their own org
+  // after the victim's the victim's whole invite ledger: every link URL,
+  // including personal sign-in links bound to a named person, plus revoke /
+  // reactivate / rotate / resend over them. Fixed 2026-08-25 (TENANCY-01).
+  // The school/class bridges are unchanged: schools by group_id OR
   // node_group_id in the subtree; classes by school_id in those schools.
   async function resolveSubtree() {
-    const { data: nodeRow } = await supabase
-      .from('groups')
-      .select('id, path')
-      .eq('id', groupId)
-      .maybeSingle()
-    if (!nodeRow) return null
-    const path = (nodeRow as any).path as string
-    const { data: groupRows } = await supabase
-      .from('groups')
-      .select('id, name')
-      .or(`path.eq.${path},path.like.${path}/%`)
-    const groups = (groupRows || []) as { id: string; name: string }[]
+    const subtreeRows = await fetchSubtree(supabase, groupId)
+    if (subtreeRows.length === 0) return null
+    const groups = subtreeRows.map((g) => ({ id: g.id, name: g.name }))
     const groupIds = groups.map((g) => g.id)
     let schools: { id: string; school_name: string; group_id: string | null; node_group_id: string | null }[] = []
     if (groupIds.length) {
@@ -235,6 +249,14 @@ export default async function handler(
         res.status(500).json({ error: 'Could not generate unique code, please try again' })
         return
       }
+      // A rotated staff link is a fresh bearer token for the same seat, so it
+      // is bounded on the way out too — otherwise rotating a legacy unbounded
+      // govt_admin/school_admin_join code would mint another unbounded one
+      // (TENANCY-07).
+      const rotatedRole = ROLE_BY_CODE_TYPE[row.code_type as string]
+      const rotatedLimits = rotatedRole && PRIVILEGED_ROLES.has(rotatedRole)
+        ? boundPrivilegedCodeLimits(row.expires_at, row.max_uses)
+        : { expires_at: row.expires_at, max_uses: row.max_uses }
       const { data: minted, error: mintError } = await supabase
         .from('invite_codes')
         .insert({
@@ -245,8 +267,8 @@ export default async function handler(
           grants_group_id: row.grants_group_id,
           grants_school_id: row.grants_school_id,
           grants_class_id: row.grants_class_id,
-          max_uses: row.max_uses,
-          expires_at: row.expires_at,
+          max_uses: rotatedLimits.max_uses,
+          expires_at: rotatedLimits.expires_at,
           metadata: (row as any).metadata,
         })
         .select('code')
@@ -572,8 +594,19 @@ export default async function handler(
           }
         : {}),
     }
-    if (limits?.expires_at !== undefined) insertData.expires_at = limits.expires_at
-    if (limits?.max_uses !== undefined) insertData.max_uses = limits.max_uses
+    // TENANCY-07 (fixed 2026-08-25): a 'leader' (govt_admin) or 'school_leader'
+    // (school_admin_join) code grants tenant-level administrative authority, so
+    // it is bounded exactly like the other privileged codes — must expire (7d
+    // default, 90d cap), must have a use cap (1 default, 50 cap). Teacher and
+    // student onboarding links keep the caller's values as-is.
+    if (PRIVILEGED_ROLES.has(role)) {
+      const bounded = boundPrivilegedCodeLimits(limits?.expires_at, limits?.max_uses)
+      insertData.expires_at = bounded.expires_at
+      insertData.max_uses = bounded.max_uses
+    } else {
+      if (limits?.expires_at !== undefined) insertData.expires_at = limits.expires_at
+      if (limits?.max_uses !== undefined) insertData.max_uses = limits.max_uses
+    }
 
     const { data: created, error: insertError } = await supabase
       .from('invite_codes')

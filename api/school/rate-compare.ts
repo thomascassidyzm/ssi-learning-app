@@ -58,6 +58,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope } from '../_utils/schoolScope'
+import { descendantIds } from '../_utils/groupSubtree'
 import { isEntityCoverageExpired } from '../_utils/schoolCoverageGate'
 import {
   aggregateWindowPace,
@@ -110,14 +111,31 @@ interface CohortMember {
   classIds: string[]
 }
 
+/** The whole (small) groups forest — one read, reused across a request. */
+type ForestRow = { id: string; parent_id: string | null }
+async function loadGroupForest(svc: SupabaseClient): Promise<ForestRow[]> {
+  const { data } = await svc.from('groups').select('id, parent_id')
+  return (data ?? []) as ForestRow[]
+}
+
 /**
  * All active class ids in a group's subtree (this group + every descendant).
  * `courseCode` null means the "all courses" ecosystem-wide pool — the ONLY
  * caller allowed to omit it is the global_all_courses cohort resolution.
+ *
+ * Subtree membership walks `parent_id`, never the slug path (TENANCY-04 /
+ * INPUT-05, fixed 2026-08-25): `like('path', '<path>%')` had no '/' boundary,
+ * so 'acme' swallowed 'acme-corp', and slugs are not unique either, so two
+ * same-named root orgs shared a path outright — both fold a stranger's classes
+ * into this cohort. See _utils/groupSubtree.ts.
  */
-async function subtreeClassIdsForGroupPath(svc: SupabaseClient, path: string, courseCode: string | null): Promise<string[]> {
-  const { data: subtreeGroups } = await svc.from('groups').select('id').like('path', `${path}%`)
-  const groupIds = (subtreeGroups ?? []).map((g: any) => g.id).filter(Boolean)
+async function subtreeClassIdsForGroup(
+  svc: SupabaseClient,
+  groupId: string,
+  courseCode: string | null,
+  forest?: ForestRow[],
+): Promise<string[]> {
+  const groupIds = descendantIds(forest ?? (await loadGroupForest(svc)), groupId)
   if (groupIds.length === 0) return []
   const { data: schools } = await svc.from('schools').select('id').in('group_id', groupIds).limit(MAX_COHORT_IDS)
   const schoolIds = (schools ?? []).map((s: any) => s.id).filter(Boolean)
@@ -177,7 +195,7 @@ async function loadEntityMeta(svc: SupabaseClient, level: EntityLevel, entityId:
   // 'group'
   const { data: group } = await svc.from('groups').select('id, name, path, parent_id').eq('id', entityId).maybeSingle()
   if (!group || !(group as any).path) return null
-  const classIds = await subtreeClassIdsForGroupPath(svc, (group as any).path, courseCode)
+  const classIds = await subtreeClassIdsForGroup(svc, entityId, courseCode)
   return {
     id: entityId, label: (group as any).name || 'Your group', classIds,
     ownSchoolId: null, schoolGroupId: null, path: (group as any).path, parentGroupId: (group as any).parent_id ?? null,
@@ -203,10 +221,7 @@ async function resolveCohort(
     if (compareTo === 'group') {
       if (!entity.ownSchoolId) return { members: [], error: 'This class has no school, so there is no group to compare within.' }
       if (!entity.schoolGroupId) return { members: [], error: 'This class’s school is not part of a group yet.' }
-      const { data: group } = await svc.from('groups').select('path').eq('id', entity.schoolGroupId).maybeSingle()
-      const path = (group as any)?.path as string | undefined
-      if (!path) return { members: [], error: 'This class’s group has no resolvable scope yet.' }
-      const ids = (await subtreeClassIdsForGroupPath(svc, path, courseCode)).filter((id) => id !== entity.id)
+      const ids = (await subtreeClassIdsForGroup(svc, entity.schoolGroupId, courseCode)).filter((id) => id !== entity.id)
       return { members: ids.map((id) => ({ id, classIds: [id] })) }
     }
     if (compareTo === 'global') {
@@ -224,11 +239,9 @@ async function resolveCohort(
   if (level === 'school') {
     if (compareTo === 'group') {
       if (!entity.schoolGroupId) return { members: [], error: 'This school is not part of a group yet.' }
-      const { data: group } = await svc.from('groups').select('path').eq('id', entity.schoolGroupId).maybeSingle()
-      const path = (group as any)?.path as string | undefined
-      if (!path) return { members: [], error: 'This school’s group has no resolvable scope yet.' }
-      const { data: subtreeGroups } = await svc.from('groups').select('id').like('path', `${path}%`)
-      const groupIds = (subtreeGroups ?? []).map((g: any) => g.id).filter(Boolean)
+      // parent_id walk, not a path prefix — see subtreeClassIdsForGroup
+      // (TENANCY-05 / INPUT-05, fixed 2026-08-25).
+      const groupIds = descendantIds(await loadGroupForest(svc), entity.schoolGroupId)
       if (groupIds.length === 0) return { members: [] }
       const { data: schools } = await svc.from('schools').select('id').in('group_id', groupIds).neq('id', entity.id).limit(MAX_COHORT_IDS)
       const peerSchoolIds = (schools ?? []).map((s: any) => s.id).filter(Boolean)
@@ -261,25 +274,32 @@ async function resolveCohort(
     const { data: siblings } = await svc
       .from('groups').select('id, path').eq('parent_id', entity.parentGroupId).neq('id', entity.id)
     const rows = (siblings ?? []) as { id: string; path: string | null }[]
+    const forest = await loadGroupForest(svc)
     const members: CohortMember[] = []
     for (const s of rows) {
-      if (!s.path) continue
-      members.push({ id: s.id, classIds: await subtreeClassIdsForGroupPath(svc, s.path, courseCode) })
+      members.push({ id: s.id, classIds: await subtreeClassIdsForGroup(svc, s.id, courseCode, forest) })
     }
     return { members }
   }
   // 'global' / 'global_all_courses' — every other group whose subtree doesn't
   // overlap the entity's own (not an ancestor/descendant); the all-courses
   // variant just drops the course filter when pulling each peer's classIds.
-  const { data: allGroups } = await svc.from('groups').select('id, path').limit(MAX_COHORT_IDS)
-  const rows = (allGroups ?? []) as { id: string; path: string | null }[]
-  const entityPath = entity.path as string
+  const { data: allGroups } = await svc.from('groups').select('id, path, parent_id').limit(MAX_COHORT_IDS)
+  const rows = (allGroups ?? []) as { id: string; path: string | null; parent_id: string | null }[]
+  // Overlap is a parent_id relation, not a string prefix (TENANCY-04 /
+  // INPUT-05): 'acme' is not an ancestor of 'acme-corp', and two same-named
+  // root orgs share a path outright.
+  const parentOf = new Map(rows.map((g) => [g.id, g.parent_id]))
+  const overlapping = new Set(descendantIds(rows, entity.id))
+  for (let cursor = parentOf.get(entity.id) ?? null; cursor; cursor = parentOf.get(cursor) ?? null) {
+    if (overlapping.has(cursor)) break // cycle guard
+    overlapping.add(cursor)
+  }
   const peerCourseCode = compareTo === 'global' ? courseCode : null
   const members: CohortMember[] = []
   for (const g of rows) {
-    if (!g.path || g.id === entity.id) continue
-    if (entityPath.startsWith(g.path) || g.path.startsWith(entityPath)) continue // ancestor/descendant overlap
-    members.push({ id: g.id, classIds: await subtreeClassIdsForGroupPath(svc, g.path, peerCourseCode) })
+    if (!g.path || overlapping.has(g.id)) continue
+    members.push({ id: g.id, classIds: await subtreeClassIdsForGroup(svc, g.id, peerCourseCode, rows) })
   }
   return { members }
 }
