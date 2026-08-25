@@ -82,18 +82,31 @@ describe('ADMIN-ENT-07: /api/entitlement/offline-lease caps and validates course
   })
 })
 
-describe('ADMIN-ENT-08: the one-trial-per-email burn is still defeated by +tag sub-addressing', () => {
-  // SECURITY FINDING ADMIN-ENT-08: trial_burns is keyed on the literal
-  // (lowercased, trimmed) address. alice+1@gmail.com and alice+2@gmail.com
-  // are distinct keys delivering to the same inbox, so repeated +n aliases
-  // mint indefinite fresh platform trials.
-  it('schoolPlatformTrial.ts still keys the burn on the raw address with no +tag/dot canonicalisation', () => {
+describe('ADMIN-ENT-08: the one-trial-per-email burn canonicalises the burn key', () => {
+  // SECURITY FINDING ADMIN-ENT-08 — FIXED 2026-08-25: trial_burns was keyed on the
+  // literal (lowercased, trimmed) address, so alice+1@gmail.com and
+  // alice+2@gmail.com were distinct keys delivering to one inbox and minted
+  // indefinite fresh platform trials. The burn key is now canonicalised (+tag
+  // stripped; dots stripped on gmail/googlemail only, where they are ignored).
+  // The raw address is still what is stored for display/contact elsewhere.
+  it('SECURE: burnTrial keys on canonicaliseEmailForBurn(), not the raw address', () => {
     const src = read('api/_utils/schoolPlatformTrial.ts')
-    expect(src).toContain("from('trial_burns')")
-    expect(src).toContain('.insert({ email, track, school_id: schoolId })')
-    expect(src).not.toMatch(/replace\(\/\\\+.*\/, ''\)/)
+    expect(src).toContain('export function canonicaliseEmailForBurn')
+    expect(src).toMatch(/const email = canonicaliseEmailForBurn\(rawEmail\)/)
+    expect(src).toContain(".insert({ email, track, school_id: schoolId })")
   })
-  it.todo('SECURE: canonicalise (+tag stripped, dot-insensitive where applicable) before burning')
+
+  it('SECURE: +tag aliases and gmail dot-variants collapse to one burn key', async () => {
+    const { canonicaliseEmailForBurn } = await import('../_utils/schoolPlatformTrial')
+    expect(canonicaliseEmailForBurn('Alice+1@Gmail.com')).toBe('alice@gmail.com')
+    expect(canonicaliseEmailForBurn('a.l.i.c.e+99@googlemail.com')).toBe('alice@googlemail.com')
+    expect(canonicaliseEmailForBurn(' alice@gmail.com ')).toBe('alice@gmail.com')
+    // Dots stay significant off gmail; +tag still goes.
+    expect(canonicaliseEmailForBurn('a.b+tag@school.wales')).toBe('a.b@school.wales')
+    // Degenerate input is passed through rather than mangled into a shared key.
+    expect(canonicaliseEmailForBurn('not-an-email')).toBe('not-an-email')
+    expect(canonicaliseEmailForBurn('+tag@gmail.com')).toBe('+tag@gmail.com')
+  })
 })
 
 describe('ADMIN-ENT-09: /api/invite/create still persists grant fields the caller was not authorised for', () => {
