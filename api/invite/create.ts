@@ -256,7 +256,23 @@ export default async function handler(
       // Server-derived only — see derivedGrantsGroupId above. Ignore any
       // client-supplied grants_group_id for this code_type.
       insertData.grants_group_id = derivedGrantsGroupId ?? null
-    } else if (grants_group_id !== undefined) {
+    } else if (code_type === 'govt_admin' && grants_group_id !== undefined) {
+      // ADMIN-ENT-09 (2026-08-25): the copy used to be unconditional — ANY
+      // code_type could carry a client-supplied grants_group_id straight onto
+      // the row. The 2026-08-11 report called it inert on a "no school and no
+      // class" redemption precondition, but that argument only covers two of
+      // the four redemption branches, and it never considered the READ path:
+      // api/code/validate.ts resolves grants_group_id and returns groups.name,
+      // firing for a student code BEFORE the class branch. So a teacher minting
+      // a student code for their own class could attach any group id and read
+      // that group's name back, while losing the capture screen's class context.
+      //
+      // govt_admin is the only type for which a client-supplied group id is
+      // meaningful, and it is already server-validated above — a leader against
+      // isWithinLeaderSubtree, and an ssi_admin as the platform operator.
+      // school_admin takes derivedGrantsGroupId in the branch above. Every
+      // other type (teacher, student, tester, ssi_admin, god) has no use for it,
+      // so it is now dropped rather than trusted.
       insertData.grants_group_id = grants_group_id
     }
     if (derivedGrantsSchoolId !== undefined) {

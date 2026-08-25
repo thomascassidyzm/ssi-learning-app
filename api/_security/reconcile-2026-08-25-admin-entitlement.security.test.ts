@@ -143,17 +143,37 @@ describe('ADMIN-ENT-08: the one-trial-per-email burn canonicalises the burn key'
   })
 })
 
-describe('ADMIN-ENT-09: /api/invite/create still persists grant fields the caller was not authorised for', () => {
-  // SECURITY FINDING ADMIN-ENT-09 (confirmed inert today, latent): the insert
-  // still copies grants_region/grants_group_id/grants_class_id straight from
-  // the body for code_type branches whose validation block never checked
-  // them — inert only because redemption happens to require "no school AND
-  // no class" for a group grant to fire.
-  it('invite/create.ts still has an unconditional else-if that copies the raw grants_group_id from the body', () => {
+describe('ADMIN-ENT-09: /api/invite/create only persists grant fields its branch authorised', () => {
+  // SECURITY FINDING ADMIN-ENT-09 — FIXED 2026-08-25. The insert used to copy
+  // grants_group_id straight from the body for EVERY code_type whose validation
+  // block never checked it. The 2026-08-11 report called that inert on a
+  // "no school AND no class" redemption precondition; the 2026-08-25 re-trace
+  // found that argument covers only the teacher and student redemption
+  // branches, and — more to the point — that nobody had looked at the READ
+  // path. api/code/validate.ts resolves grants_group_id and returns
+  // groups.name, and it fires for a student code BEFORE the class branch, so a
+  // teacher minting a student code for their own class could attach any group
+  // id and read that group's name back.
+  //
+  // govt_admin is the only type for which a client-supplied group id is
+  // meaningful, and it is server-validated (isWithinLeaderSubtree for a leader;
+  // an ssi_admin is the platform operator). school_admin takes the
+  // server-derived value in the branch above. Everything else drops it.
+  it('SECURE: grants_group_id is only copied from the body for the server-validated govt_admin branch', () => {
     const src = read('api/invite/create.ts')
-    expect(src).toMatch(/\} else if \(grants_group_id !== undefined\) \{\s*insertData\.grants_group_id = grants_group_id/)
+    expect(src).toMatch(
+      /\} else if \(code_type === 'govt_admin' && grants_group_id !== undefined\) \{/,
+    )
+    // The unconditional copy must not survive.
+    expect(src).not.toMatch(/\} else if \(grants_group_id !== undefined\) \{/)
   })
-  it.todo('SECURE: assemble insertData grant fields inside each code_type branch; drop anything the branch did not authorise')
+
+  it('SECURE: the govt_admin branch that feeds it is still the server-validated one', () => {
+    const src = read('api/invite/create.ts')
+    expect(src).toContain('isWithinLeaderSubtree(supabase, ownGroupId, targetGroupId)')
+    // school_admin keeps taking the derived value, never the raw body value.
+    expect(src).toMatch(/insertData\.grants_group_id = derivedGrantsGroupId \?\? null/)
+  })
 })
 
 describe('ADMIN-ENT-12: grant/revoke-entitlement authorise via the shared verifyAdmin', () => {
