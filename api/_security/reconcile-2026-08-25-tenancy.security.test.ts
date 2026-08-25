@@ -100,22 +100,24 @@ describe('TENANCY-07: govt_admin / school_admin_join invite codes still mint unb
   it.todo('SECURE: extend isPrivileged to include govt_admin and school_admin_join on both minting paths')
 })
 
-describe('TENANCY-08: school-admin recognised under one spelling in three handlers', () => {
-  // SECURITY FINDING TENANCY-08 (fails closed — availability, not breach):
-  // three handlers hand-roll `school.admin_user_id === callerUserId` instead
-  // of the designated canTeachClass()/isSchoolAdminOf() composite, which also
-  // accepts an active SCHOOL: admin tag — so a tag-admin (every admin after
-  // the founder) is wrongly denied on her own school's classes.
-  it('three handlers still hand-roll the founder-pointer-only admin check', () => {
+describe('TENANCY-08: all three handlers authorise via canTeachClass()', () => {
+  // SECURITY FINDING TENANCY-08 — FIXED 2026-08-25 (it failed closed —
+  // availability, not breach): three handlers hand-rolled
+  // `school.admin_user_id === callerUserId` instead of the designated
+  // canTeachClass()/isSchoolAdminOf() composite, which also accepts an active
+  // SCHOOL: admin tag — so a tag-admin (every admin after the founder) was
+  // wrongly denied on her own school's classes. All three now call the shared
+  // predicate, which is a strict superset of the ladder it replaced.
+  it('SECURE: the three handlers call canTeachClass() and no longer hand-roll the founder-pointer check', () => {
     for (const file of [
       'api/school/roster.ts',
       'api/teacher/create-class-join-code.ts',
       'api/teacher/create-class-learner.ts',
     ]) {
       const src = read(file)
-      expect(src, file).toContain('admin_user_id === callerUserId')
-      expect(src, file).not.toContain('canTeachClass(')
+      expect(src, file).toContain('canTeachClass(')
+      expect(src, file).toMatch(/from '\.\.\/_utils\/classTeacherAuth'/)
+      expect(src, file).not.toContain('admin_user_id === callerUserId')
     }
   })
-  it.todo('SECURE: replace the three hand-rolled ladders with canTeachClass()')
 })
