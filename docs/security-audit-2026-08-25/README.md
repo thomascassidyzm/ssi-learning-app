@@ -101,6 +101,11 @@ identity the query runs as**, moving the endpoint's read authority from "the han
 RLS permits the read, the swap is undetectable; if it denies it, the handler reports
 `503 not yet materialised`, pointing an operator at entirely the wrong cause.
 
+On this endpoint the swap is **undetectable in practice**, which is what makes it worth recording
+rather than filing as a style note: `supabase/schema.sql:21033` grants `course_round_index` to
+`anon`, so a service key that has gone missing produces byte-identical responses. Nothing outside
+notices, and nothing inside the handler notices either.
+
 The same shape is in `_utils/audioAccess.createServiceSupabaseClient()` —
 `supabaseServiceKey || supabaseAnonKeyFallback` — which is the client behind **both**
 `audio/[audioId].ts` and `audio/batch-urls.ts`, the two endpoints that decide audio entitlement.

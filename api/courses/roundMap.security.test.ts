@@ -109,6 +109,19 @@ describe('SEC25-X: round-map — the ungated course-content sibling', () => {
     expect(roundMap).not.toContain('Server misconfigured')
   })
 
+  it('SEC25-X-02: and the swap is UNDETECTABLE here, because anon can read the view', () => {
+    // This is what makes the silent fallback a real observation rather than a
+    // style note. `anon` holds a grant on `course_round_index`, so a service
+    // key that has gone missing produces byte-identical responses — the
+    // misconfiguration cannot be noticed from outside, and nothing in the
+    // handler notices it from inside either. (The grant is `ALL` rather than
+    // `SELECT`; on a materialised view that is close to `SELECT` in practice,
+    // since REFRESH requires ownership — recorded for the grant sweep in
+    // area D rather than claimed as an exploit here.)
+    const schema = readFileSync(resolve(here, '../../supabase/schema.sql'), 'utf8')
+    expect(schema).toContain('ON TABLE public.course_round_index TO anon')
+  })
+
   it('SEC25-X-02: the same silent fallback is in the shared audio-access client', () => {
     // `_utils/audioAccess.createServiceSupabaseClient()` is the client behind
     // BOTH `audio/[audioId].ts` and `audio/batch-urls.ts` — the two endpoints
