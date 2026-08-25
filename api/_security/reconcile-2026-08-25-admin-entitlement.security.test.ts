@@ -33,64 +33,94 @@ describe('ADMIN-ENT-03: staff-granting invite codes still mint at the same 13.8M
   it.todo('SECURE: mint staff-granting code types (teacher/school_admin/govt_admin/school_admin_join) at 128 bits via generateShareCode()')
 })
 
-describe('ADMIN-ENT-04: both webhook idempotency ledgers still fail open on a non-duplicate-key error', () => {
-  // SECURITY FINDING ADMIN-ENT-04: only a 23505 (duplicate key) short-circuits;
-  // any other dedup error just warns and proceeds, silently disabling replay
-  // protection for the whole money spine on a transient DB/RLS issue.
-  it('paddle-webhook.ts still warns-and-proceeds on any dedup error other than 23505', () => {
-    const src = read('api/teacher/paddle-webhook.ts')
-    expect(src).toContain("dedupErr.code === '23505'")
-    expect(src).toMatch(/Event dedup unavailable \(proceeding\)/)
+describe('ADMIN-ENT-04: both webhook idempotency ledgers fail CLOSED on a non-duplicate-key error', () => {
+  // SECURITY FINDING ADMIN-ENT-04 — FIXED 2026-08-25: only a 23505 (duplicate key)
+  // short-circuits with a 200/deduped; every other dedup error (and a thrown
+  // client error) now returns 500 before any side effect, so the provider's
+  // at-least-once retry reprocesses instead of the handler running unprotected.
+  it('fail closed (500) on any dedup error other than 23505, so the provider retries', () => {
+    for (const file of ['api/teacher/paddle-webhook.ts', 'api/teacher/wise-webhook.ts']) {
+      const src = read(file)
+      expect(src, file).toContain("dedupErr.code === '23505'")
+      expect(src, file).toMatch(/Event dedup unavailable \(failing closed\)/)
+      expect(src, file).toMatch(/Event dedup threw \(failing closed\)/)
+      expect(src, file).not.toMatch(/Event dedup .* \(proceeding\)/)
+      expect(src, file).toMatch(/res\.status\(500\)\.json\(\{ error: 'Event dedup unavailable' \}\)/)
+    }
   })
-  it('wise-webhook.ts shares the same fail-open dedup shape', () => {
-    const src = read('api/teacher/wise-webhook.ts')
-    expect(src).toMatch(/proceeding/i)
-  })
-  it.todo('SECURE: fail closed (500) on any dedup error other than 23505, so the provider retries')
 })
 
-describe('ADMIN-ENT-05: schools.teacher_seats is still not enforced on any join path', () => {
-  // SECURITY FINDING ADMIN-ENT-05: teacher_seats is written by billing and
-  // read only for DISPLAY. No join/redemption path compares the current
-  // staff count against it — unlike the family plan, which enforces its cap
-  // server-side (api/family/invite.ts) — so a school paying for one seat can
-  // onboard unlimited teachers via its join code.
-  it('the teacher-code redemption branch writes the staff tag with no seat-count comparison', () => {
+describe('ADMIN-ENT-05: schools.teacher_seats is enforced on the teacher-code join path', () => {
+  // SECURITY FINDING ADMIN-ENT-05 — FIXED 2026-08-25: teacher_seats was written
+  // by billing and read only for DISPLAY; no join path compared the current staff
+  // count against it, so a school paying for one seat could onboard unlimited
+  // teachers via its join code. The teacher branch of redeem.ts now checks the
+  // cap before writing the staff tag, mirroring api/family/invite.ts.
+  //
+  // Scope, deliberate: the cap only applies to a school with a LIVE per-seat
+  // subscription. `teacher_seats` is `integer DEFAULT 1 NOT NULL`, so enforcing
+  // on the bare column would lock the second teacher out of every trial and
+  // free-track school — a product change, not a security fix. See
+  // api/_utils/schoolSeats.ts.
+  it('SECURE: the teacher-code redemption branch checks the seat cap before tagging', () => {
     const src = read('api/code/redeem.ts')
-    expect(src).not.toMatch(/teacher_seats/)
+    expect(src).toContain('isSchoolSeatCapReached')
+    expect(src).toMatch(/if \(seatState\.full\)/)
+    // The check runs BEFORE the staff tags are written.
+    expect(src.indexOf('isSchoolSeatCapReached(supabase')).toBeLessThan(src.indexOf('for (const tag of teacherTags)'))
   })
-  it('the family plan DOES enforce its seat cap server-side (the counter-example that makes this an omission)', () => {
+  it('SECURE: the cap reads the billed quantity, and only where it is billed', () => {
+    const src = read('api/_utils/schoolSeats.ts')
+    expect(src).toMatch(/teacher_seats, platform_status, provider_subscription_id/)
+    expect(src).toMatch(/if \(!school\.provider_subscription_id\) return open/)
+    expect(src).toMatch(/used >= seats/)
+  })
+  it('the family plan enforces its seat cap server-side too (the shape this follows)', () => {
     const src = read('api/family/invite.ts')
     expect(src).toMatch(/Family is full/)
   })
-  it.todo('SECURE: gate teacher-tagging paths on current staff count vs teacher_seats, mirroring api/family/invite.ts')
 })
 
-describe('ADMIN-ENT-07: /api/entitlement/offline-lease still accepts an unbounded courses[]', () => {
-  // SECURITY FINDING ADMIN-ENT-07: no length cap and no check that a
-  // submitted string is a real course_code — every entry becomes an upsert
-  // row. Self-inflicted per-learner write amplification with no brake.
-  it('readCourses() still has no length cap on the incoming courses array', () => {
+describe('ADMIN-ENT-07: /api/entitlement/offline-lease caps and validates courses[]', () => {
+  // SECURITY FINDING ADMIN-ENT-07 — FIXED 2026-08-25: readCourses() had no length
+  // cap and no check that a submitted string was even course-code shaped, and
+  // every entry becomes an upsert row. It now drops anything that is not
+  // [a-z0-9_]{1,64} and caps the accepted set at MAX_COURSES.
+  it('SECURE: readCourses() caps the list and validates each entry against the course-code shape', () => {
     const src = read('api/entitlement/offline-lease.ts')
-    expect(src).toMatch(/if \(body && Array\.isArray\(body\.courses\)\) body\.courses\.forEach\(add\)/)
-    expect(src).not.toMatch(/courses\.slice\(0,/)
-    expect(src).not.toMatch(/MAX_COURSES/)
+    expect(src).toMatch(/const MAX_COURSES = \d+/)
+    expect(src).toMatch(/COURSE_CODE_RE\s*=\s*\/\^\[a-z0-9_\]\{1,64\}\$\//)
+    expect(src).toMatch(/COURSE_CODE_RE\.test\(code\)/)
+    expect(src).toMatch(/if \(out\.size >= MAX_COURSES\) return/)
+    expect(src).toMatch(/body\.courses\.slice\(0, MAX_COURSES \* 4\)/)
   })
-  it.todo('SECURE: cap the reported course list and intersect against courses where new_app_status in (live,beta)')
 })
 
-describe('ADMIN-ENT-08: the one-trial-per-email burn is still defeated by +tag sub-addressing', () => {
-  // SECURITY FINDING ADMIN-ENT-08: trial_burns is keyed on the literal
-  // (lowercased, trimmed) address. alice+1@gmail.com and alice+2@gmail.com
-  // are distinct keys delivering to the same inbox, so repeated +n aliases
-  // mint indefinite fresh platform trials.
-  it('schoolPlatformTrial.ts still keys the burn on the raw address with no +tag/dot canonicalisation', () => {
+describe('ADMIN-ENT-08: the one-trial-per-email burn canonicalises the burn key', () => {
+  // SECURITY FINDING ADMIN-ENT-08 — FIXED 2026-08-25: trial_burns was keyed on the
+  // literal (lowercased, trimmed) address, so alice+1@gmail.com and
+  // alice+2@gmail.com were distinct keys delivering to one inbox and minted
+  // indefinite fresh platform trials. The burn key is now canonicalised (+tag
+  // stripped; dots stripped on gmail/googlemail only, where they are ignored).
+  // The raw address is still what is stored for display/contact elsewhere.
+  it('SECURE: burnTrial keys on canonicaliseEmailForBurn(), not the raw address', () => {
     const src = read('api/_utils/schoolPlatformTrial.ts')
-    expect(src).toContain("from('trial_burns')")
-    expect(src).toContain('.insert({ email, track, school_id: schoolId })')
-    expect(src).not.toMatch(/replace\(\/\\\+.*\/, ''\)/)
+    expect(src).toContain('export function canonicaliseEmailForBurn')
+    expect(src).toMatch(/const email = canonicaliseEmailForBurn\(rawEmail\)/)
+    expect(src).toContain(".insert({ email, track, school_id: schoolId })")
   })
-  it.todo('SECURE: canonicalise (+tag stripped, dot-insensitive where applicable) before burning')
+
+  it('SECURE: +tag aliases and gmail dot-variants collapse to one burn key', async () => {
+    const { canonicaliseEmailForBurn } = await import('../_utils/schoolPlatformTrial')
+    expect(canonicaliseEmailForBurn('Alice+1@Gmail.com')).toBe('alice@gmail.com')
+    expect(canonicaliseEmailForBurn('a.l.i.c.e+99@googlemail.com')).toBe('alice@googlemail.com')
+    expect(canonicaliseEmailForBurn(' alice@gmail.com ')).toBe('alice@gmail.com')
+    // Dots stay significant off gmail; +tag still goes.
+    expect(canonicaliseEmailForBurn('a.b+tag@school.wales')).toBe('a.b@school.wales')
+    // Degenerate input is passed through rather than mangled into a shared key.
+    expect(canonicaliseEmailForBurn('not-an-email')).toBe('not-an-email')
+    expect(canonicaliseEmailForBurn('+tag@gmail.com')).toBe('+tag@gmail.com')
+  })
 })
 
 describe('ADMIN-ENT-09: /api/invite/create still persists grant fields the caller was not authorised for', () => {
@@ -106,18 +136,18 @@ describe('ADMIN-ENT-09: /api/invite/create still persists grant fields the calle
   it.todo('SECURE: assemble insertData grant fields inside each code_type branch; drop anything the branch did not authorise')
 })
 
-describe('ADMIN-ENT-12: grant/revoke-entitlement still hand-roll a narrower admin check than verifyAdmin', () => {
-  // SECURITY FINDING ADMIN-ENT-12 (info — not a hole, a drift risk): these two
-  // endpoints check platform_role === 'ssi_admin' directly under the
-  // service-role key rather than calling the shared verifyAdmin(), which also
-  // accepts educational_role === 'god' and reads under the caller's own RLS
-  // token. Two definitions of "admin" that can silently diverge.
-  it('grant-entitlement.ts and revoke-entitlement.ts still hand-roll the check instead of calling verifyAdmin', () => {
+describe('ADMIN-ENT-12: grant/revoke-entitlement authorise via the shared verifyAdmin', () => {
+  // SECURITY FINDING ADMIN-ENT-12 — FIXED 2026-08-25: both endpoints checked
+  // platform_role === 'ssi_admin' directly under the service-role key rather than
+  // calling the shared verifyAdmin(). Two definitions of "admin" that could
+  // silently diverge; both now call the one helper, which also honours
+  // educational_role === 'god', reads under the caller's own RLS token, and
+  // separates a transient failure (500) from not-an-admin (403).
+  it('SECURE: both endpoints call verifyAdmin() and no longer hand-roll the platform_role check', () => {
     for (const file of ['api/admin/grant-entitlement.ts', 'api/admin/revoke-entitlement.ts']) {
       const src = read(file)
-      expect(src, file).toMatch(/caller\.platform_role !== 'ssi_admin'/)
-      expect(src, file).not.toContain('verifyAdmin(')
+      expect(src, file).toContain('verifyAdmin(req)')
+      expect(src, file).not.toMatch(/caller\.platform_role !== 'ssi_admin'/)
     }
   })
-  it.todo('SECURE: replace both hand-rolled checks with verifyAdmin(), or an explicit narrower option on the shared helper')
 })
