@@ -121,30 +121,41 @@ export const setLocale = async (langCode: string): Promise<void> => {
 }
 
 /**
- * Get a translation by key path (e.g., 'courseSelector.title')
+ * Walk a dot-path and return the leaf only if it is usable copy.
+ *
+ * "Usable" excludes three things that all used to reach the screen:
+ *   - a missing path (the obvious case);
+ *   - a leaf that is an object, not a string — a locale file whose nesting
+ *     has drifted from English's;
+ *   - an empty or whitespace-only string, which is a translator's blank
+ *     rather than a translation and renders as a bald gap in the UI.
+ * Returning undefined for all three lets t() try English next.
  */
-export const t = (key: string, fallback?: string): string => {
-  const parts = key.split('.')
-  let value: any = currentMessages.value
-
+const resolveMessage = (source: any, parts: string[]): string | undefined => {
+  let value: any = source
   for (const part of parts) {
     if (value && typeof value === 'object' && part in value) {
       value = value[part]
     } else {
-      // Try English fallback
-      value = eng
-      for (const p of parts) {
-        if (value && typeof value === 'object' && p in value) {
-          value = value[p]
-        } else {
-          return fallback || key
-        }
-      }
-      return typeof value === 'string' ? value : fallback || key
+      return undefined
     }
   }
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
+}
 
-  return typeof value === 'string' ? value : fallback || key
+/**
+ * Get a translation by key path (e.g., 'courseSelector.title').
+ *
+ * Current locale → English → the caller's fallback → the key itself. Every
+ * step down is silent by design: a half-translated locale must render an
+ * English word, never a blank or a raw `settings.terms`.
+ */
+export const t = (key: string, fallback?: string): string => {
+  const parts = key.split('.')
+  return resolveMessage(currentMessages.value, parts)
+    ?? resolveMessage(eng, parts)
+    ?? fallback
+    ?? key
 }
 
 /**
