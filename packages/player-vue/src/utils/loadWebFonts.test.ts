@@ -45,14 +45,18 @@ describe('web fonts never block first paint', () => {
     expect(link.media).toBe('print') // never applied, and never blocking
   })
 
-  it('requests both the app and the schools font sheets', () => {
+  it('requests the self-hosted font sheet, and nothing cross-origin', () => {
+    // 2026-08-26 (A-265): the faces are vendored into public/fonts/, so the
+    // stylesheet is same-origin and precached. A cross-origin href here would
+    // put a third party back in the font path — the thing the whole fix
+    // removes. The media="print" guard above stays regardless.
     const doc = freshDoc()
     loadWebFonts(doc)
     const hrefs = [...doc.head.querySelectorAll('link[data-ssi-webfont]')].map(l =>
       l.getAttribute('href'),
     )
     expect(hrefs).toEqual(WEBFONT_HREFS)
-    expect(hrefs.every(h => h!.startsWith('https://fonts.googleapis.com/css2?'))).toBe(true)
+    expect(hrefs.every(h => h!.startsWith('/fonts/'))).toBe(true)
   })
 
   it('never throws, whatever the document is', () => {

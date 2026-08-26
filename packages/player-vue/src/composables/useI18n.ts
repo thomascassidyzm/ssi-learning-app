@@ -14,6 +14,7 @@ import { ref, computed, type Ref } from 'vue'
 // for ~230KB of locale JSON on first paint. See setLocale() below.
 // File names use ISO 639-3 codes (3-char).
 import eng from '../locales/eng.json'
+import { variantCountryCode, extractBaseLanguage } from '@/utils/variantFlag'
 
 type LocaleLoader = () => Promise<Record<string, any>>
 
@@ -517,12 +518,6 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   est: '🇪🇪',  // Estonian
   hun: '🇭🇺',  // Hungarian
   sqi: '🇦🇱',  // Albanian
-  // Language variants that fly their own flag. Keyed on the target side of the
-  // course code (deu_at_for_eng → 'deu_at'); a variant absent from here falls
-  // back to its parent language above. SVG equivalents live in
-  // components/schools/shared/LanguageFlag.vue.
-  deu_at: '🇦🇹',  // Austrian German
-  por_br: '🇧🇷',  // Brazilian Portuguese
 }
 
 /**
@@ -545,8 +540,15 @@ function countryCodeToFlag(cc: string): string {
 
 export const getLanguageFlag = (langCode: string): string => {
   if (LANGUAGE_FLAGS[langCode]) return LANGUAGE_FLAGS[langCode]
+  // A variant course flies its own country's flag, resolved by the same rule
+  // the SVG flags use — so a new variant needs no entry here either.
+  const variantCc = variantCountryCode(langCode)
+  if (variantCc) return countryCodeToFlag(variantCc)
   const cc = LANG_TO_COUNTRY[langCode]
   if (cc) return countryCodeToFlag(cc)
+  // Fall back to the parent language of a variant we can't place.
+  const base = extractBaseLanguage(langCode)
+  if (base !== langCode && LANGUAGE_FLAGS[base]) return LANGUAGE_FLAGS[base]
   return '🌐'
 }
 

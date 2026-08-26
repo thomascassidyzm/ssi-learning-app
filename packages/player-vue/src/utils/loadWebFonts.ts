@@ -31,7 +31,21 @@
  * the MEASURED glyph coverage at risk for the sake of a problem that is really
  * about WHEN the stylesheet is fetched, not WHERE from.
  *
- * So: fetch them from JS, with media="print" until they arrive. A print
+ * 2026-08-26 — Tom's ruling A-265 overturns that last paragraph. The fonts are
+ * now SELF-HOSTED: scripts/vendor-fonts.mjs vendors the subset files into
+ * public/fonts/ and generates public/fonts/fonts.css with Google's own
+ * unicode-range splits kept verbatim, so the per-language economy is intact
+ * (it got cheaper, in fact — variable builds over the same weight ranges cut
+ * the kept subsets from 3.66MB to 1.16MB, and Noto Sans JP's 25.5MB of
+ * Japanese shards, which no course in the estate ever asked for, are gone).
+ * The UI's own Latin faces — ~204KB — are precached by the service worker, so
+ * once installed there is no network in the font path at all, weak signal or
+ * none. The rest is same-origin and runtime-cached on first use.
+ *
+ * The media="print" trick below STAYS, self-hosted or not. It is what
+ * guarantees the property, rather than merely making it likely.
+ *
+ * So: fetch it from JS, with media="print" until it arrives. A print
  * stylesheet is not applied to the screen, so the browser never blocks paint on
  * it; the load listener flips it to "all" once it is safely in hand. If it
  * never arrives — a hanging network — media stays "print", the rule never
@@ -44,25 +58,20 @@
  */
 
 /**
- * The app's own faces. DM Sans is the brand body face; Noto Sans is the
- * glyph-coverage exception applied per-language; Noto Sans JP is display/CJK;
- * JetBrains Mono and Space Mono are code and the player's known-language line.
- * styles/fontGlyphCoverage.test.ts asserts every family a token names is
- * actually requested here — keep the two in step.
+ * Every face the app owns, in one self-hosted stylesheet: DM Sans (brand body),
+ * Noto Sans (the glyph-coverage exception applied per-language), Noto Sans JP
+ * (display), JetBrains Mono and Space Mono (code and the player's known-language
+ * line), plus Arsenal + Open Sans for .schools-surface. One sheet rather than
+ * the old two: every @font-face is gated by family AND unicode-range, so a
+ * learner who never opens /schools never downloads a byte of Arsenal.
+ *
+ * GENERATED — regenerate with `node scripts/vendor-fonts.mjs` after changing a
+ * family or weight. styles/fontGlyphCoverage.test.ts asserts every family a
+ * design token names is actually declared in it; keep the two in step.
  */
-export const APP_FONTS_HREF =
-  'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700' +
-  '&family=Noto+Sans:wght@400;500;600;700' +
-  '&family=JetBrains+Mono:wght@300;400;500;600' +
-  '&family=Noto+Sans+JP:wght@300;400;500;700;900' +
-  '&family=Space+Mono:wght@400;700&display=swap'
+export const APP_FONTS_HREF = '/fonts/fonts.css'
 
-/** Arsenal + Open Sans, used only inside .schools-surface. */
-export const SCHOOLS_FONTS_HREF =
-  'https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400' +
-  '&family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap'
-
-export const WEBFONT_HREFS = [APP_FONTS_HREF, SCHOOLS_FONTS_HREF]
+export const WEBFONT_HREFS = [APP_FONTS_HREF]
 
 /** Marks the links so a second call is a no-op and tests can find them. */
 const MARKER = 'data-ssi-webfont'
