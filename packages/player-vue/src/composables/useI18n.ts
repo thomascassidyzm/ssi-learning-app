@@ -119,15 +119,6 @@ export const setLocale = async (langCode: string): Promise<void> => {
   }
 }
 
-// Boot: if the saved locale isn't English, kick off the chunk fetch
-// without blocking module evaluation. The UI mounts in English, then
-// rerenders once the locale lands (typically within ~50-200ms).
-if (savedLocale !== 'eng' && LOCALE_LOADERS[savedLocale]) {
-  setLocale(savedLocale).catch(() => {
-    /* already logged above */
-  })
-}
-
 /**
  * Get a translation by key path (e.g., 'courseSelector.title')
  */
@@ -188,7 +179,12 @@ const ISO3_TO_BCP47: Record<string, string> = {
  * BCP 47 where we have the 2-letter code, otherwise the app's own 639-3 code;
  * the CSS matches both forms.
  */
-export const syncDocumentLang = (): void => {
+// A `function` declaration, not a `const` arrow, deliberately: setLocale()
+// calls this, and the boot-time apply at the foot of the module calls
+// setLocale(). A const would sit in its temporal dead zone at that point and
+// throw ReferenceError — which is exactly the bug that shipped on 2026-08-18
+// (067b8de8) and silently left every non-English learner in English.
+export function syncDocumentLang(): void {
   if (typeof document === 'undefined') return
   const code = currentLocale.value
   document.documentElement.lang = ISO3_TO_BCP47[code] || code
@@ -558,6 +554,19 @@ export const getLanguageFlag = (langCode: string): string => {
 // it in step from here on; this runs at the foot of the module because it reads
 // the ISO3_TO_BCP47 table defined above it.
 syncDocumentLang()
+
+// Boot: APPLY the saved locale — i.e. fetch its messages — not just publish it.
+// Storing the choice was never the broken half; applying it on the next launch
+// was (tester report, 2026-08-25: "setting says Cymraeg, everything reads
+// English"). Runs at the foot of the module, after every declaration it can
+// reach, so nothing here can hit a temporal dead zone again. Fire-and-forget:
+// the UI mounts in English and rerenders when the locale chunk lands
+// (~50-200ms). A failure is LOUD — a silent catch is what hid this for a week.
+if (savedLocale !== 'eng' && LOCALE_LOADERS[savedLocale]) {
+  setLocale(savedLocale).catch((err) => {
+    console.warn('[useI18n] Failed to apply saved locale on boot', savedLocale, err)
+  })
+}
 
 /**
  * Composable for use in Vue components
