@@ -124,7 +124,29 @@
     "nuclearResetDesc": "تمام مقامی ڈیٹا، سروس ورکرز صاف کریں اور دوبارہ لوڈ کریں",
     "about": "بارے میں",
     "version": "ورژن",
-    "madeWithLove": "زبان سیکھنے والوں کے لیے محبت سے بنایا گیا"
+    "madeWithLove": "زبان سیکھنے والوں کے لیے محبت سے بنایا گیا",
+    "cancelSubscription": "سبسکرپشن منسوخ کریں",
+    "classicWelshListening": "کلاسک ویلش لسننگ ایکسرسائز",
+    "classicWelshListeningDesc": "کلاسک سائٹ کھولتا ہے",
+    "clearCacheReload": "کیشے صاف کریں اور دوبارہ لوڈ کریں",
+    "codes": "کوڈز",
+    "community": "کمیونٹی",
+    "dashboards": "ڈیش بورڈز",
+    "enterACode": "کوڈ درج کریں",
+    "forum": "فورم",
+    "goPremium": "پریمیم حاصل کریں",
+    "installApp": "ایپ انسٹال کریں",
+    "interfaceLanguage": "انٹرفیس زبان",
+    "languageSection": "زبان",
+    "legal": "قانونی",
+    "linkedEmails": "منسلک ای میلز",
+    "privacy": "پرائیویسی پالیسی",
+    "refund": "رقم کی واپسی کی پالیسی",
+    "terms": "شرائط و ضوابط",
+    "troubleshooting": "خرابیوں کا ازالہ",
+    "updateLatest": "تازہ ترین ورژن میں اپڈیٹ کریں",
+    "viewScriptLabel": "اسکرپٹ دیکھیں",
+    "whatsNew": "نیا کیا ہے"
   },
   "belt": {
     "yourProgress": "آپ کی پیش رفت",
@@ -152,12 +174,23 @@
     "youreOnARoll": "آپ کا جادو چل رہا ہے",
     "impressiveProgress": "شاندار پیش رفت",
     "nearlyThere": "تقریباً پہنچ گئے",
-    "forSpeakers": "{lang} بولنے والوں کے لیے"
+    "forSpeakers": "{lang} بولنے والوں کے لیے",
+    "furthest": "سب سے آگے",
+    "jumpForward": "جہاں چھوڑا تھا وہیں سے شروع کریں",
+    "now": "ابھی",
+    "restOfCourse": "باقی کورس",
+    "returnAfter3": "آپ کا دماغ استحکام کر رہا تھا۔ دیکھتے ہیں کیا یاد رہا!",
+    "returnAfter30": "واپسی پر خوش آمدید۔ آپ کا دماغ آپ کے خیال سے کہیں زیادہ یاد رکھتا ہے۔",
+    "returnAfter7": "گہرا استحکام مکمل ہوا۔ آپ خود کو حیران کر سکتے ہیں۔",
+    "youAreHere": "آپ یہاں ہیں",
+    "youHaveBeenFurther": "آپ اس سے آگے جا چکے ہیں",
+    "yourFurthest": "آپ کا سب سے آگے کا مقام"
   },
   "phase": {
     "getReadyToSpeak": "بولنے کے لیے تیار ہو جائیں",
     "speakNow": "اب آپ کو بولنا ہے",
-    "listenCarefully": "غور سے سنیں"
+    "listenCarefully": "غور سے سنیں",
+    "passiveAttention": "ابھی صرف سنیں — بغیر کسی کوشش کے، لیکن توجہ کے ساتھ، جیسے پرندوں کی چہچہاہٹ سنتے ہیں۔"
   },
   "onboarding": {
     "beltIsProgress": "آپ کی بیلٹ = پیش رفت",
@@ -332,6 +365,45 @@
     "yor": "یوروبا",
     "yue": "کینٹونیز",
     "zho": "چینی",
-    "zul": "زولو"
+    "zul": "زولو",
+    "afr": "افریکانز",
+    "fur": "فریولی",
+    "hak": "ہاکا",
+    "kan": "کنڑ",
+    "lmo": "لومبارڈ",
+    "mar": "مراٹھی",
+    "mlt": "مالٹی",
+    "nan": "تائیوانی ہوکین",
+    "nap": "نیاپولیٹن",
+    "nep": "نیپالی",
+    "pdc": "پنسلوانیا ڈچ",
+    "rgn": "رومانیولی",
+    "roh": "رومانش",
+    "scn": "سسلین",
+    "sme": "شمالی سامی",
+    "vec": "وینیشین",
+    "yid": "یدش"
+  },
+  "brand": {
+    "say": "بولو",
+    "something": "کچھ",
+    "in": "میں"
+  },
+  "firstBoot": {
+    "speakBeforeThem": "آپ ایک جانی پہچانی عبارت سنیں گے — اسپیکرز سے پہلے اسے {lang} میں بلند آواز سے بولیں۔"
+  },
+  "modes": {
+    "easy": "آسان",
+    "fast": "تیز",
+    "guideShown": "اسکرپٹ کے اوپر گائیڈ دکھائی گئی",
+    "hiseDesc": "ہائی انٹینسٹی اسپیکنگ ایکسرسائز",
+    "learningModeLabel": "سیکھنے کا موڈ",
+    "listening": "سننا",
+    "listeningDesc": "صرف آڈیو، بولنا نہیں",
+    "modes": "موڈز",
+    "nativeOnly": "صرف اصل رسم الخط",
+    "offline": "آف لائن موڈ",
+    "offlineDesc": "ڈاؤن لوڈ کردہ آڈیو سے چلائیں",
+    "pronunciation": "تلفظ"
   }
 }

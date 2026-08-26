@@ -124,7 +124,29 @@
     "nuclearResetDesc": "ਸਾਰਾ ਸਥਾਨਕ ਡੇਟਾ, ਸਰਵਿਸ ਵਰਕਰ ਮਿਟਾਓ ਅਤੇ ਮੁੜ ਲੋਡ ਕਰੋ",
     "about": "ਬਾਰੇ",
     "version": "ਵਰਜਨ",
-    "madeWithLove": "ਭਾਸ਼ਾ ਸਿੱਖਣ ਵਾਲਿਆਂ ਲਈ ਪਿਆਰ ਨਾਲ ਬਣਾਇਆ ਗਿਆ"
+    "madeWithLove": "ਭਾਸ਼ਾ ਸਿੱਖਣ ਵਾਲਿਆਂ ਲਈ ਪਿਆਰ ਨਾਲ ਬਣਾਇਆ ਗਿਆ",
+    "cancelSubscription": "ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਰੱਦ ਕਰੋ",
+    "classicWelshListening": "ਕਲਾਸਿਕ ਵੈਲਸ਼ ਲਿਸਨਿੰਗ ਐਕਸਰਸਾਈਜ਼",
+    "classicWelshListeningDesc": "ਕਲਾਸਿਕ ਸਾਈਟ ਖੋਲ੍ਹਦਾ ਹੈ",
+    "clearCacheReload": "ਕੈਸ਼ ਸਾਫ਼ ਕਰੋ ਅਤੇ ਰੀਲੋਡ ਕਰੋ",
+    "codes": "ਕੋਡ",
+    "community": "ਕਮਿਊਨਿਟੀ",
+    "dashboards": "ਡੈਸ਼ਬੋਰਡ",
+    "enterACode": "ਕੋਡ ਦਰਜ ਕਰੋ",
+    "forum": "ਫੋਰਮ",
+    "goPremium": "ਪ੍ਰੀਮੀਅਮ ਲਓ",
+    "installApp": "ਐਪ ਇੰਸਟਾਲ ਕਰੋ",
+    "interfaceLanguage": "ਇੰਟਰਫੇਸ ਭਾਸ਼ਾ",
+    "languageSection": "ਭਾਸ਼ਾ",
+    "legal": "ਕਾਨੂੰਨੀ",
+    "linkedEmails": "ਜੁੜੇ ਈਮੇਲ",
+    "privacy": "ਪਰਦੇਦਾਰੀ ਨੀਤੀ",
+    "refund": "ਰਿਫੰਡ ਨੀਤੀ",
+    "terms": "ਨਿਯਮ ਅਤੇ ਸ਼ਰਤਾਂ",
+    "troubleshooting": "ਸਮੱਸਿਆ ਨਿਵਾਰਨ",
+    "updateLatest": "ਨਵੀਨਤਮ ਵਰਜ਼ਨ ਵਿੱਚ ਅੱਪਡੇਟ ਕਰੋ",
+    "viewScriptLabel": "ਸਕ੍ਰਿਪਟ ਦੇਖੋ",
+    "whatsNew": "ਨਵਾਂ ਕੀ ਹੈ"
   },
   "belt": {
     "yourProgress": "ਤੁਹਾਡੀ ਤਰੱਕੀ",
@@ -152,12 +174,23 @@
     "youreOnARoll": "ਤੁਸੀਂ ਚੰਗੇ ਫਾਰਮ ਵਿੱਚ ਹੋ",
     "impressiveProgress": "ਪ੍ਰਭਾਵਸ਼ਾਲੀ ਤਰੱਕੀ",
     "nearlyThere": "ਲਗਭਗ ਪਹੁੰਚ ਗਏ",
-    "forSpeakers": "{lang} ਬੋਲਣ ਵਾਲਿਆਂ ਲਈ"
+    "forSpeakers": "{lang} ਬੋਲਣ ਵਾਲਿਆਂ ਲਈ",
+    "furthest": "ਸਭ ਤੋਂ ਅੱਗੇ",
+    "jumpForward": "ਜਿੱਥੇ ਛੱਡਿਆ ਸੀ ਉੱਥੋਂ ਸ਼ੁਰੂ ਕਰੋ",
+    "now": "ਹੁਣ",
+    "restOfCourse": "ਬਾਕੀ ਕੋਰਸ",
+    "returnAfter3": "ਤੁਹਾਡਾ ਦਿਮਾਗ ਯਾਦਾਂ ਪੱਕੀਆਂ ਕਰ ਰਿਹਾ ਸੀ। ਦੇਖੀਏ ਕੀ ਯਾਦ ਰਿਹਾ!",
+    "returnAfter30": "ਵਾਪਸੀ 'ਤੇ ਸਵਾਗਤ ਹੈ। ਤੁਹਾਡਾ ਦਿਮਾਗ ਤੁਹਾਡੇ ਸੋਚਣ ਨਾਲੋਂ ਵੱਧ ਯਾਦ ਰੱਖਦਾ ਹੈ।",
+    "returnAfter7": "ਡੂੰਘੀ ਯਾਦ-ਪੱਕਾਈ ਪੂਰੀ ਹੋਈ। ਤੁਸੀਂ ਖੁਦ ਨੂੰ ਹੈਰਾਨ ਕਰ ਸਕਦੇ ਹੋ।",
+    "youAreHere": "ਤੁਸੀਂ ਇੱਥੇ ਹੋ",
+    "youHaveBeenFurther": "ਤੁਸੀਂ ਇਸ ਤੋਂ ਅੱਗੇ ਜਾ ਚੁੱਕੇ ਹੋ",
+    "yourFurthest": "ਤੁਹਾਡਾ ਸਭ ਤੋਂ ਅੱਗੇ ਦਾ ਬਿੰਦੂ"
   },
   "phase": {
     "getReadyToSpeak": "ਬੋਲਣ ਲਈ ਤਿਆਰ ਹੋਵੋ",
     "speakNow": "ਹੁਣ ਤੁਹਾਨੂੰ ਬੋਲਣਾ ਹੈ",
-    "listenCarefully": "ਧਿਆਨ ਨਾਲ ਸੁਣੋ"
+    "listenCarefully": "ਧਿਆਨ ਨਾਲ ਸੁਣੋ",
+    "passiveAttention": "ਹੁਣੇ ਬੱਸ ਸੁਣੋ — ਬਿਨਾਂ ਕਿਸੇ ਮਿਹਨਤ ਦੇ, ਪਰ ਧਿਆਨ ਨਾਲ, ਜਿਵੇਂ ਪੰਛੀਆਂ ਦੀ ਚਹਿਚਹਾਟ ਸੁਣਦੇ ਹੋ।"
   },
   "onboarding": {
     "beltIsProgress": "ਤੁਹਾਡਾ ਬੈਲਟ = ਤਰੱਕੀ",
@@ -332,6 +365,45 @@
     "yor": "ਯੋਰੂਬਾ",
     "yue": "ਕੈਂਟੋਨੀਜ਼",
     "zho": "ਚੀਨੀ",
-    "zul": "ਜ਼ੁਲੂ"
+    "zul": "ਜ਼ੁਲੂ",
+    "afr": "ਅਫ਼ਰੀਕਾਨਸ",
+    "fur": "ਫ੍ਰਿਊਲੀਅਨ",
+    "hak": "ਹੱਕਾ",
+    "kan": "ਕੰਨੜ",
+    "lmo": "ਲੋਮਬਾਰਡ",
+    "mar": "ਮਰਾਠੀ",
+    "mlt": "ਮਾਲਟੀਜ਼",
+    "nan": "ਤਾਈਵਾਨੀ ਹੋੱਕਿਏਨ",
+    "nap": "ਨੇਪੋਲੀਟਨ",
+    "nep": "ਨੇਪਾਲੀ",
+    "pdc": "ਪੈਨਸਿਲਵੇਨੀਆ ਡੱਚ",
+    "rgn": "ਰੋਮਾਗਨੋਲ",
+    "roh": "ਰੋਮਾਂਸ਼",
+    "scn": "ਸਿਸੀਲੀਅਨ",
+    "sme": "ਉੱਤਰੀ ਸਾਮੀ",
+    "vec": "ਵੈਨੀਸ਼ੀਅਨ",
+    "yid": "ਯਿੱਦੀ"
+  },
+  "brand": {
+    "say": "ਬੋਲੋ",
+    "something": "ਕੁਝ",
+    "in": "ਵਿੱਚ"
+  },
+  "firstBoot": {
+    "speakBeforeThem": "ਤੁਸੀਂ ਇੱਕ ਜਾਣੀ-ਪਛਾਣੀ ਵਾਕ ਸੁਣੋਗੇ — ਸਪੀਕਰਾਂ ਤੋਂ ਪਹਿਲਾਂ ਇਸਨੂੰ {lang} ਵਿੱਚ ਉੱਚੀ ਆਵਾਜ਼ ਵਿੱਚ ਬੋਲੋ।"
+  },
+  "modes": {
+    "easy": "ਆਸਾਨ",
+    "fast": "ਤੇਜ਼",
+    "guideShown": "ਸਕ੍ਰਿਪਟ ਦੇ ਉੱਪਰ ਗਾਈਡ ਦਿਖਾਈ ਗਈ",
+    "hiseDesc": "ਹਾਈ ਇੰਟੈਂਸਿਟੀ ਸਪੀਕਿੰਗ ਐਕਸਰਸਾਈਜ਼",
+    "learningModeLabel": "ਸਿੱਖਣ ਦਾ ਮੋਡ",
+    "listening": "ਸੁਣਨਾ",
+    "listeningDesc": "ਸਿਰਫ਼ ਆਡੀਓ, ਬੋਲਣ ਦੀ ਲੋੜ ਨਹੀਂ",
+    "modes": "ਮੋਡ",
+    "nativeOnly": "ਸਿਰਫ਼ ਮੂਲ ਲਿਪੀ",
+    "offline": "ਆਫ਼ਲਾਈਨ ਮੋਡ",
+    "offlineDesc": "ਡਾਊਨਲੋਡ ਕੀਤੇ ਆਡੀਓ ਤੋਂ ਚਲਾਓ",
+    "pronunciation": "ਉਚਾਰਨ"
   }
 }
