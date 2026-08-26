@@ -124,7 +124,29 @@
     "nuclearResetDesc": "مسح جميع البيانات المحلية وعمّال الخدمة وإعادة التحميل",
     "about": "حول",
     "version": "الإصدار",
-    "madeWithLove": "صُنع بحب لمحبّي تعلّم اللغات"
+    "madeWithLove": "صُنع بحب لمحبّي تعلّم اللغات",
+    "cancelSubscription": "إلغاء الاشتراك",
+    "classicWelshListening": "تمارين الاستماع الويلزية الكلاسيكية",
+    "classicWelshListeningDesc": "يفتح الموقع الكلاسيكي",
+    "clearCacheReload": "مسح الذاكرة المؤقتة وإعادة التحميل",
+    "codes": "الرموز",
+    "community": "المجتمع",
+    "dashboards": "لوحات المعلومات",
+    "enterACode": "أدخل رمزًا",
+    "forum": "المنتدى",
+    "goPremium": "الترقية إلى بريميوم",
+    "installApp": "تثبيت التطبيق",
+    "interfaceLanguage": "لغة الواجهة",
+    "languageSection": "اللغة",
+    "legal": "قانوني",
+    "linkedEmails": "البريد الإلكتروني المرتبط",
+    "privacy": "سياسة الخصوصية",
+    "refund": "سياسة الاسترداد",
+    "terms": "الشروط والأحكام",
+    "troubleshooting": "استكشاف الأخطاء وإصلاحها",
+    "updateLatest": "التحديث إلى أحدث إصدار",
+    "viewScriptLabel": "عرض النص",
+    "whatsNew": "ما الجديد"
   },
   "belt": {
     "yourProgress": "تقدّمك",
@@ -152,12 +174,23 @@
     "youreOnARoll": "أنت في قمة الأداء",
     "impressiveProgress": "تقدّم مبهر",
     "nearlyThere": "أوشكت على الوصول",
-    "forSpeakers": "لمتحدثي {lang}"
+    "forSpeakers": "لمتحدثي {lang}",
+    "furthest": "الأبعد",
+    "jumpForward": "استأنف من حيث توقفت",
+    "now": "الآن",
+    "restOfCourse": "بقية الدورة",
+    "returnAfter3": "كان دماغك يعزّز ما تعلّمته. لنرَ ماذا بقي!",
+    "returnAfter30": "أهلاً بعودتك. دماغك يتذكّر أكثر مما تظن.",
+    "returnAfter7": "اكتمل التعزيز العميق. قد تفاجئ نفسك.",
+    "youAreHere": "أنت هنا",
+    "youHaveBeenFurther": "لقد وصلت إلى أبعد من هذا من قبل",
+    "yourFurthest": "أبعد نقطة وصلت إليها"
   },
   "phase": {
     "getReadyToSpeak": "استعد للتحدث",
     "speakNow": "حان دورك للتحدث",
-    "listenCarefully": "استمع بعناية"
+    "listenCarefully": "استمع بعناية",
+    "passiveAttention": "فقط استمع الآن — دون مجهود لكن بانتباه، مثل الاستماع لتغريد الطيور."
   },
   "onboarding": {
     "beltIsProgress": "حزامك = تقدّمك",
@@ -287,7 +320,26 @@
     "yor": "اليوروبا",
     "yue": "الكَنْتُونية",
     "zho": "الصينية",
-    "zul": "الزولو"
+    "zul": "الزولو",
+    "afr": "الأفريكانية",
+    "fur": "الفريولية",
+    "hak": "الهاكا",
+    "kan": "الكانادية",
+    "lmo": "اللومباردية",
+    "mar": "الماراثية",
+    "mlt": "المالطية",
+    "nan": "الهوكينية التايوانية",
+    "nap": "النابولية",
+    "nep": "النيبالية",
+    "pdc": "الألمانية البنسلفانية",
+    "rgn": "الرومانيولية",
+    "roh": "الرومانشية",
+    "scn": "الصقلية",
+    "sme": "السامية الشمالية",
+    "vec": "الفينيتية",
+    "yid": "اليديشية",
+    "cym_n_suffix": "الشمال",
+    "cym_s_suffix": "الجنوب"
   },
   "contribution": {
     "spoken": "تحدّث بـ{language}",
@@ -334,5 +386,24 @@
     "stagePreparing1": "تحضير تدفقات الصوت",
     "stagePreparing2": "معايرة أنماط الإيقاع",
     "stageReady": "جاهز"
+  },
+  "brand": {
+    "say": "قل",
+    "something": "شيئاً",
+    "in": "في"
+  },
+  "modes": {
+    "easy": "سهل",
+    "fast": "سريع",
+    "guideShown": "الدليل معروض أعلى النص",
+    "hiseDesc": "تمارين تحدث عالية الكثافة",
+    "learningModeLabel": "وضع التعلّم",
+    "listening": "الاستماع",
+    "listeningDesc": "صوت فقط، بدون تحدث",
+    "modes": "الأوضاع",
+    "nativeOnly": "الرسم الأصلي فقط",
+    "offline": "وضع عدم الاتصال",
+    "offlineDesc": "التشغيل من الصوت الذي تم تنزيله",
+    "pronunciation": "النطق"
   }
 }
