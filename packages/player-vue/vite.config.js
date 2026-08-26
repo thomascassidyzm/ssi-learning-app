@@ -245,6 +245,14 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     sourcemap: true,
+    // The vendored circle-flags country set (assets/flags/countries/) is looked
+    // up by import.meta.glob, so every one of the ~267 files is referenced at
+    // build time even though a learner ever sees one or two. Inlining them as
+    // data URIs would add ~230kB to the schools chunk for nothing — keep them
+    // as separate emitted assets, fetched only when a variant course shows one.
+    // Everything else keeps Vite's default 4kB inline behaviour.
+    assetsInlineLimit: (filePath) =>
+      filePath.includes('/assets/flags/countries/') ? false : undefined,
     rollupOptions: {
       output: {
         // Split stable vendor + engine code into their own chunks.
