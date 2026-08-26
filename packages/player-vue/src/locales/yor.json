@@ -2,6 +2,25 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "brand": {
+    "say": "Sọ̀rọ̀",
+    "something": "nǹkan",
+    "in": "ní"
+  },
+  "modes": {
+    "easy": "Rọrùn",
+    "fast": "Yára",
+    "guideShown": "Ìtọ́sọ́nà hàn lókè ìwé-akọrin",
+    "hiseDesc": "Àdáṣe Sísọ̀rọ̀ Gíga",
+    "learningModeLabel": "Ipò ìkẹ́kọ̀ọ́",
+    "listening": "Ìtẹ́tísílẹ̀",
+    "listeningDesc": "Ohùn nìkan, láìsí sísọ̀rọ̀",
+    "modes": "Àwọn ipò",
+    "nativeOnly": "Ìwé abínibí nìkan",
+    "offline": "Ipò aláìláyélujára",
+    "offlineDesc": "Ṣe ìdún láti inú ohùn tí a ti gbé sílẹ̀",
+    "pronunciation": "Bí a ṣe ń pè é"
+  },
   "courseSelector": {
     "title": "Yan Ẹ̀kọ́ Rẹ",
     "iSpeak": "Mo ń sọ",
@@ -124,7 +143,29 @@
     "nuclearResetDesc": "Pa gbogbo dátà tó wà nílẹ̀ rẹ́, àwọn òṣìṣẹ́ iṣẹ́ àti tún kó wọlé",
     "about": "Nípa",
     "version": "Ẹ̀dà",
-    "madeWithLove": "A ṣe pẹ̀lú ìfẹ́ fún àwọn akẹ́kọ̀ọ́ èdè"
+    "madeWithLove": "A ṣe pẹ̀lú ìfẹ́ fún àwọn akẹ́kọ̀ọ́ èdè",
+    "cancelSubscription": "Fagilé ìforúkọ̀ sílẹ̀",
+    "classicWelshListening": "Àdáṣe ìtẹ́tísílẹ̀ èdè Wélíìṣì àtijọ́",
+    "classicWelshListeningDesc": "Ó ń ṣí ojú-òpó wẹ́ẹ̀bù àtijọ́",
+    "clearCacheReload": "Pa àkóónú tí a fi pamọ́ rẹ́ kí o sì tún kó wọlé",
+    "codes": "Àwọn kóòdù",
+    "community": "Àwùjọ",
+    "dashboards": "Àwọn pẹpẹ",
+    "enterACode": "Tẹ Kóòdù Kan Sílẹ̀",
+    "forum": "Ìjíròrò",
+    "goPremium": "Lọ sí Premium",
+    "installApp": "Fi Ohun Èlò Sílẹ̀",
+    "interfaceLanguage": "Èdè Ìfihàn",
+    "languageSection": "Èdè",
+    "legal": "Òfin",
+    "linkedEmails": "Àwọn ímeèlì tí a so pọ̀",
+    "privacy": "Ìlànà Ìpamọ́",
+    "refund": "Ìlànà Ìpadà-owó",
+    "terms": "Àwọn Òfin àti Ìlànà",
+    "troubleshooting": "Àtúnṣe ìṣòro",
+    "updateLatest": "Mú ṣe àtúntò tuntun jùlọ",
+    "viewScriptLabel": "Wo Ìwé-akọrin",
+    "whatsNew": "Ohun tuntun"
   },
   "belt": {
     "yourProgress": "Ìtẹ̀síwájú rẹ",
@@ -152,12 +193,23 @@
     "youreOnARoll": "O ń ṣe é dáadáa",
     "impressiveProgress": "Ìtẹ̀síwájú alárinrin",
     "nearlyThere": "Ó fẹ́rẹ̀ẹ́ dé",
-    "forSpeakers": "fún àwọn agbohùn {lang}"
+    "forSpeakers": "fún àwọn agbohùn {lang}",
+    "furthest": "jíjìnnà jùlọ",
+    "jumpForward": "Tẹ̀síwájú láti ibi tí o dé",
+    "now": "báyìí",
+    "restOfCourse": "ìyókù ẹ̀kọ́",
+    "returnAfter3": "Ọpọlọ rẹ ti ń fi ìmọ̀ sí ipò. Jẹ́ kí a wo ohun tí ó dúró!",
+    "returnAfter30": "Kábọ̀ padà. Ọpọlọ rẹ rántí ju bí o ṣe rò lọ.",
+    "returnAfter7": "Ìfimúlẹ̀ jíjìn ti parí. O lè yà ara rẹ lẹ́nu.",
+    "youAreHere": "níbí ni o wà",
+    "youHaveBeenFurther": "O ti tí lọ jìn ju èyí lọ ṣáájú",
+    "yourFurthest": "ibi tí o jìnnà jùlọ dé"
   },
   "phase": {
     "getReadyToSpeak": "múra láti sọ̀rọ̀",
     "speakNow": "ó yẹ kí o máa sọ̀rọ̀ báyìí",
-    "listenCarefully": "tẹ́tí dáradára"
+    "listenCarefully": "tẹ́tí dáradára",
+    "passiveAttention": "Ǹjẹ́ kìkì tẹ́tísílẹ̀ báyìí — láìsí ìsapá ṣùgbọ́n pẹ̀lú àfiyèsí, bí ẹni tí ń tẹ́tí sí ohùn ẹyẹ."
   },
   "onboarding": {
     "beltIsProgress": "Ìgbànú rẹ = ìtẹ̀síwájú",
@@ -257,6 +309,9 @@
     "stagePreparing2": "Ń ṣatúnṣe àwọn àpẹẹrẹ ìlu",
     "stageReady": "Ti ṣetán"
   },
+  "firstBoot": {
+    "speakBeforeThem": "Ìwọ yóò gbọ́ gbólóhùn kan tí o mọ̀ tẹ́lẹ̀ — sọ ọ́ ní ohùn rara ní {lang} kí àwọn agbohùn tó kọ́kọ́ sọ ọ́."
+  },
   "languages": {
     "amh": "Amhárì",
     "ara": "Lárúbáwá",
@@ -332,6 +387,23 @@
     "yor": "Yorùbá",
     "yue": "Kàntónísì",
     "zho": "Ṣáínà",
-    "zul": "Súlù"
+    "zul": "Súlù",
+    "afr": "Èdè Afrikaans",
+    "fur": "Èdè Friulian",
+    "hak": "Èdè Hakka",
+    "kan": "Èdè Kannada",
+    "lmo": "Èdè Lombard",
+    "mar": "Èdè Marathi",
+    "mlt": "Èdè Maltese",
+    "nan": "Èdè Hokkien Táìwàn",
+    "nap": "Èdè Neapolitan",
+    "nep": "Èdè Nepali",
+    "pdc": "Èdè Dutch Pensylvania",
+    "rgn": "Èdè Romagnol",
+    "roh": "Èdè Romansh",
+    "scn": "Èdè Sicilian",
+    "sme": "Èdè Sami Àríwá",
+    "vec": "Èdè Venetian",
+    "yid": "Èdè Yiddish"
   }
 }

@@ -2,6 +2,25 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "brand": {
+    "say": "Pasakyk",
+    "something": "ką nors",
+    "in": "kalba"
+  },
+  "modes": {
+    "easy": "Lengva",
+    "fast": "Greita",
+    "guideShown": "Gidas rodomas virš scenarijaus",
+    "hiseDesc": "Didelio intensyvumo kalbėjimo pratimai",
+    "learningModeLabel": "Mokymosi režimas",
+    "listening": "Klausymas",
+    "listeningDesc": "Tik garsas, be kalbėjimo",
+    "modes": "Režimai",
+    "nativeOnly": "Tik originali rašyba",
+    "offline": "Neprisijungimo režimas",
+    "offlineDesc": "Groti iš atsisiųsto garso",
+    "pronunciation": "Tarimas"
+  },
   "courseSelector": {
     "title": "Pasirink kursą",
     "iSpeak": "Kalbu",
@@ -124,7 +143,29 @@
     "nuclearResetDesc": "Išvalyk visus vietinius duomenis, paslaugų darbuotojus ir įkelk iš naujo",
     "about": "Apie",
     "version": "Versija",
-    "madeWithLove": "Sukurta su meile kalbų mokiniams"
+    "madeWithLove": "Sukurta su meile kalbų mokiniams",
+    "cancelSubscription": "Atšaukti prenumeratą",
+    "classicWelshListening": "Klasikinės valų kalbos klausymo pratybos",
+    "classicWelshListeningDesc": "Atveria klasikinę svetainę",
+    "clearCacheReload": "Išvalyti talpyklą ir įkelti iš naujo",
+    "codes": "Kodai",
+    "community": "Bendruomenė",
+    "dashboards": "Skydeliai",
+    "enterACode": "Įvesti kodą",
+    "forum": "Forumas",
+    "goPremium": "Pereiti į Premium",
+    "installApp": "Įdiegti programėlę",
+    "interfaceLanguage": "Sąsajos kalba",
+    "languageSection": "Kalba",
+    "legal": "Teisinė informacija",
+    "linkedEmails": "Susieti el. paštai",
+    "privacy": "Privatumo politika",
+    "refund": "Grąžinimo politika",
+    "terms": "Sąlygos ir nuostatos",
+    "troubleshooting": "Trikčių šalinimas",
+    "updateLatest": "Atnaujinti į naujausią versiją",
+    "viewScriptLabel": "Peržiūrėti scenarijų",
+    "whatsNew": "Kas naujo"
   },
   "belt": {
     "yourProgress": "Tavo pažanga",
@@ -152,12 +193,23 @@
     "youreOnARoll": "Sekasi puikiai",
     "impressiveProgress": "Įspūdinga pažanga",
     "nearlyThere": "Beveik vietoje",
-    "forSpeakers": "{lang} kalbantiems"
+    "forSpeakers": "{lang} kalbantiems",
+    "furthest": "toliausiai",
+    "jumpForward": "Tęsk nuo ten, kur sustojai",
+    "now": "dabar",
+    "restOfCourse": "likusi kurso dalis",
+    "returnAfter3": "Tavo smegenys įtvirtino žinias. Pažiūrėkim, kas išliko!",
+    "returnAfter30": "Sveikas sugrįžęs. Tavo smegenys prisimena daugiau, nei manai.",
+    "returnAfter7": "Gilus įtvirtinimas baigtas. Gali nustebinti pats save.",
+    "youAreHere": "tu esi čia",
+    "youHaveBeenFurther": "Esi nuėjęs toliau nei čia",
+    "yourFurthest": "tavo toliausias taškas"
   },
   "phase": {
     "getReadyToSpeak": "pasiruošk kalbėti",
     "speakNow": "dabar tu turi kalbėti",
-    "listenCarefully": "klausyk įdėmiai"
+    "listenCarefully": "klausyk įdėmiai",
+    "passiveAttention": "Dabar tiesiog klausyk — be pastangų, bet dėmesingai, tarsi klausytum paukščių čiulbėjimo."
   },
   "onboarding": {
     "beltIsProgress": "Tavo diržas = pažanga",
@@ -257,6 +309,9 @@
     "stagePreparing2": "Kalibruojami ritmo šablonai",
     "stageReady": "Paruošta"
   },
+  "firstBoot": {
+    "speakBeforeThem": "Išgirsi tau pažįstamą frazę — pasakyk ją garsiai {lang} kalba, kol to nespėjo padaryti kalbėtojai."
+  },
   "languages": {
     "amh": "amharų",
     "ara": "arabų",
@@ -332,6 +387,23 @@
     "yor": "jorubų",
     "yue": "kantoniečių",
     "zho": "kinų",
-    "zul": "zulu"
+    "zul": "zulu",
+    "afr": "afrikanų",
+    "fur": "friulų",
+    "hak": "hakka",
+    "kan": "kannada",
+    "lmo": "lombardiečių",
+    "mar": "maratų",
+    "mlt": "maltiečių",
+    "nan": "taivanio hokjenų",
+    "nap": "neapoliečių",
+    "nep": "nepalų",
+    "pdc": "Pensilvanijos vokiečių",
+    "rgn": "romanjolų",
+    "roh": "retoromanų",
+    "scn": "sicilų",
+    "sme": "šiaurės samių",
+    "vec": "venetų",
+    "yid": "jidiš"
   }
 }
