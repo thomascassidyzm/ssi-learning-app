@@ -36,6 +36,11 @@ const styles = readFileSync(resolve(here, '../style.css'), 'utf8')
  * families are now requested from JS. See utils/loadWebFonts.ts. */
 const fontLoader = readFileSync(resolve(here, '../utils/loadWebFonts.ts'), 'utf8')
 const indexHtml = readFileSync(resolve(here, '../../index.html'), 'utf8')
+/* 2026-08-26: the faces are self-hosted, so the families are now DECLARED in a
+ * generated stylesheet rather than named in a Google query string. Reading the
+ * real @font-face blocks is a stronger check than reading a URL — it can tell
+ * whether the file a token needs actually shipped. See scripts/vendor-fonts.mjs. */
+const fontsCss = readFileSync(resolve(here, '../../public/fonts/fonts.css'), 'utf8')
 
 /**
  * Families verified to cover every letter of estate course text in the
@@ -109,14 +114,49 @@ describe('glyph coverage — the fonts behind it', () => {
     expect(KNOWN_SHORT).not.toContain(primaryFamily('font-coverage'))
   })
 
-  it('both families are actually requested, not just named', () => {
+  it('both families are actually shipped, not just named', () => {
     for (const token of ['font-brand', 'font-coverage']) {
       const family = primaryFamily(token)
-      // Google Fonts spells spaces as '+' in the css2 family param
-      expect(fontLoader, `${family} must be requested`).toContain(
-        `family=${family.replace(/ /g, '+')}:`,
+      expect(fontsCss, `${family} must be declared`).toContain(`font-family: '${family}';`)
+    }
+  })
+
+  /**
+   * The reason the fonts were left on Google for so long: it serves each family
+   * split by unicode-range, so a learner downloads only the subsets their own
+   * language uses. Self-hosting (2026-08-26) kept those splits verbatim — this
+   * is the test that says so. A vendoring pass that collapsed every subset into
+   * one file would still render correctly and would still pass every test
+   * above, while quietly making a Welsh learner download Devanagari.
+   */
+  it('the per-language subsetting survived self-hosting', () => {
+    const faces = fontsCss.match(/@font-face\s*\{[^}]*\}/g) ?? []
+    expect(faces.length, 'fonts.css must declare the subset faces').toBeGreaterThan(30)
+    for (const face of faces) {
+      expect(face, 'every face must be unicode-range gated').toMatch(/unicode-range:\s*U\+/)
+      expect(face, 'every face must load a local file').toMatch(/url\('\/fonts\/(core|ext)\//)
+    }
+    // The coverage font has to carry the scripts DM Sans cannot spell, each in
+    // its own subset file — that is what makes the :lang() rule mean anything.
+    for (const subset of ['devanagari', 'greek', 'cyrillic']) {
+      expect(fontsCss, `Noto Sans must ship a ${subset} subset`).toContain(
+        `/fonts/ext/noto-sans-${subset}-`,
       )
     }
+  })
+
+  /**
+   * The whole point of A-265: once installed, no third party is in the font
+   * path at all. A font file served from a host we do not control can hang on a
+   * weak signal exactly as the stylesheet did.
+   */
+  it('no font is fetched from a third party', () => {
+    expect(fontsCss, 'fonts.css must not reference a remote font host').not.toMatch(
+      /https?:\/\//,
+    )
+    expect(fontLoader, 'the loader must request our own stylesheet').toContain(
+      `'/fonts/fonts.css'`,
+    )
   })
 
   /**

@@ -93,6 +93,17 @@ export default defineConfig(({ mode }) => ({
           // shared modules into it, making it a static dep of boot-path chunks
           // (observed 2026-07-31: offline boot stalled loading schools-*.js).
           // ~300KB precache cost buys a boot that always completes offline.
+          // Self-hosted fonts (2026-08-26): public/fonts/core/** IS precached —
+          // ~204KB of DM Sans / JetBrains Mono / Space Mono / Noto Sans JP,
+          // latin + latin-ext, the faces every learner's UI is actually made
+          // of, so a cold offline boot is fully typeset with zero network.
+          // public/fonts/ext/** is the per-language coverage subsets (Cyrillic,
+          // Greek, Devanagari, Vietnamese) and the schools-only faces: ~954KB
+          // that most learners never render. Same doctrine as the schools and
+          // echarts chunks — vendored and same-origin, but picked up by the
+          // runtime CacheFirst route below on first use, not paid for at
+          // install. See scripts/vendor-fonts.mjs.
+          '**/fonts/ext/**',
           '**/_schools-mockups/**', // static HTML mockups
           '**/paddle-review/**',    // Paddle verification artifact
           '**/design/**',           // design-doc mockups
@@ -175,20 +186,23 @@ export default defineConfig(({ mode }) => ({
               precacheFallback: { fallbackURL: 'index.html' },
             },
           },
+          // The non-precached font subsets: per-language coverage (Cyrillic,
+          // Greek, Devanagari, Vietnamese) and the schools-only faces. Same
+          // origin now — the fonts.googleapis.com / fonts.gstatic.com routes
+          // that used to sit here were retired on 2026-08-26 when the fonts
+          // were self-hosted; nothing in the app requests a font host any more.
+          // (The standalone marketing/methodology HTML under public/ still
+          // links Google directly. Those are separate documents, not the app
+          // boot path, and the CSP in vercel.json still allows them.)
+          // maxEntries covers every file in public/fonts/ext with room to
+          // spare; the old routes' maxEntries:10 could not even hold one
+          // language's subsets.
           {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/fonts/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gstatic-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheName: 'ssi-fonts-cache',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
           // NOTE: audio is deliberately NOT cached by the service worker.
