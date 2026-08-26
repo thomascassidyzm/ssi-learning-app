@@ -2,6 +2,25 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "brand": {
+    "say": "De",
+    "something": "Nəsə",
+    "in": "dilində"
+  },
+  "modes": {
+    "easy": "Asan",
+    "fast": "Sürətli",
+    "guideShown": "Bələdçi skriptin üstündə göstərilir",
+    "hiseDesc": "Yüksək İntensivlikli Danışıq Məşqləri",
+    "learningModeLabel": "Öyrənmə rejimi",
+    "listening": "Dinləmə",
+    "listeningDesc": "Yalnız səs, danışıq yoxdur",
+    "modes": "Rejimlər",
+    "nativeOnly": "Yalnız orijinal əlifba",
+    "offline": "Oflayn rejim",
+    "offlineDesc": "Yüklənmiş səsdən oynadın",
+    "pronunciation": "Tələffüz"
+  },
   "courseSelector": {
     "title": "Kursunuzu seçin",
     "iSpeak": "Mən danışıram",
@@ -124,7 +143,29 @@
     "nuclearResetDesc": "Bütün lokal məlumatları, xidmət işçilərini təmizləyin və yenidən yükləyin",
     "about": "Haqqında",
     "version": "Versiya",
-    "madeWithLove": "Dil öyrənənlər üçün sevgi ilə hazırlanıb"
+    "madeWithLove": "Dil öyrənənlər üçün sevgi ilə hazırlanıb",
+    "cancelSubscription": "Abunəliyi ləğv edin",
+    "classicWelshListening": "Klassik Uels dinləmə məşqləri",
+    "classicWelshListeningDesc": "Klassik saytı açır",
+    "clearCacheReload": "Önbelleyi təmizlə və yenidən yüklə",
+    "codes": "Kodlar",
+    "community": "İcma",
+    "dashboards": "Panellər",
+    "enterACode": "Kod daxil edin",
+    "forum": "Forum",
+    "goPremium": "Premiuma keçin",
+    "installApp": "Tətbiqi quraşdırın",
+    "interfaceLanguage": "İnterfeys dili",
+    "languageSection": "Dil",
+    "legal": "Hüquqi",
+    "linkedEmails": "Bağlı e-poçtlar",
+    "privacy": "Məxfilik siyasəti",
+    "refund": "Geri ödəmə siyasəti",
+    "terms": "Şərtlər və qaydalar",
+    "troubleshooting": "Problemlərin həlli",
+    "updateLatest": "Ən son versiyaya yeniləyin",
+    "viewScriptLabel": "Skriptə baxın",
+    "whatsNew": "Yeniliklər"
   },
   "belt": {
     "yourProgress": "İrəliləyişiniz",
@@ -152,12 +193,23 @@
     "youreOnARoll": "Çox yaxşı gedirsiniz",
     "impressiveProgress": "Təsirli irəliləyiş",
     "nearlyThere": "Az qalıb",
-    "forSpeakers": "{lang} dilində danışanlar üçün"
+    "forSpeakers": "{lang} dilində danışanlar üçün",
+    "furthest": "ən uzaq",
+    "jumpForward": "Qaldığınız yerdən davam edin",
+    "now": "indi",
+    "restOfCourse": "kursun qalanı",
+    "returnAfter3": "Beyniniz möhkəmləndirmə aparırdı. Görək nə yadda qalıb!",
+    "returnAfter30": "Xoş gəldiniz. Beyniniz düşündüyünüzdən daha çox şey xatırlayır.",
+    "returnAfter7": "Dərin möhkəmləndirmə tamamlandı. Özünüzü təəccübləndirə bilərsiniz.",
+    "youAreHere": "siz buradasınız",
+    "youHaveBeenFurther": "Bundan da uzağa getmisiniz",
+    "yourFurthest": "ən uzaq nöqtəniz"
   },
   "phase": {
     "getReadyToSpeak": "danışmağa hazırlaşın",
     "speakNow": "indi danışmalısınız",
-    "listenCarefully": "diqqətlə qulaq asın"
+    "listenCarefully": "diqqətlə qulaq asın",
+    "passiveAttention": "İndi sadəcə qulaq asın — səy göstərmədən, amma diqqətlə, quş səsinə qulaq asan kimi."
   },
   "onboarding": {
     "beltIsProgress": "Kəməriniz = irəliləyiş",
@@ -257,6 +309,9 @@
     "stagePreparing2": "Ritm naxışları kalibrələnir",
     "stageReady": "Hazır"
   },
+  "firstBoot": {
+    "speakBeforeThem": "Tanış olduğunuz bir ifadəni eşidəcəksiniz — natiqlər deməzdən əvvəl onu {lang} dilində ucadan söyləyin."
+  },
   "languages": {
     "amh": "Amhar",
     "ara": "Ərəb",
@@ -332,6 +387,23 @@
     "yor": "Yoruba",
     "yue": "Kanton",
     "zho": "Çin",
-    "zul": "Zulu"
+    "zul": "Zulu",
+    "afr": "Afrikaans",
+    "fur": "Friul",
+    "hak": "Xakka",
+    "kan": "Kannada",
+    "lmo": "Lombard",
+    "mar": "Marathi",
+    "mlt": "Malta",
+    "nan": "Tayvan Hokkien",
+    "nap": "Neapol",
+    "nep": "Nepal",
+    "pdc": "Pensilvaniya holland",
+    "rgn": "Romanyol",
+    "roh": "Romanş",
+    "scn": "Sicilya",
+    "sme": "Şimal Sami",
+    "vec": "Venesiya",
+    "yid": "Yiddiş"
   }
 }
