@@ -385,9 +385,9 @@
     "yid": "ইদ্দিশ"
   },
   "brand": {
-    "say": "বলুন",
-    "something": "কিছু",
-    "in": "মধ্যে"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "firstBoot": {
     "speakBeforeThem": "আপনি একটি চেনা বাক্য শুনবেন — স্পিকারদের আগেই সেটা {lang} ভাষায় জোরে বলুন।"

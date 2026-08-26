@@ -385,9 +385,9 @@
     "yid": "यिडिश"
   },
   "brand": {
-    "say": "बोलो",
-    "something": "कुछ",
-    "in": "में"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "firstBoot": {
     "speakBeforeThem": "तुम एक जाना-पहचाना वाक्य सुनोगे — स्पीकर से पहले उसे {lang} में ज़ोर से बोलो।"

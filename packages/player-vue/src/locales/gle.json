@@ -3,9 +3,9 @@
     "name": "SaySomethingin"
   },
   "brand": {
-    "say": "Abair",
-    "something": "Rud Éigin",
-    "in": "i"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "modes": {
     "modes": "Móid",

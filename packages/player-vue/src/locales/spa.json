@@ -3,9 +3,9 @@
     "name": "SaySomethingin"
   },
   "brand": {
-    "say": "Di",
-    "something": "algo",
-    "in": "en"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "modes": {
     "modes": "Modos",

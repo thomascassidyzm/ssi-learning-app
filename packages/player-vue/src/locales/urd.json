@@ -385,9 +385,9 @@
     "yid": "یدش"
   },
   "brand": {
-    "say": "بولو",
-    "something": "کچھ",
-    "in": "میں"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "firstBoot": {
     "speakBeforeThem": "آپ ایک جانی پہچانی عبارت سنیں گے — اسپیکرز سے پہلے اسے {lang} میں بلند آواز سے بولیں۔"

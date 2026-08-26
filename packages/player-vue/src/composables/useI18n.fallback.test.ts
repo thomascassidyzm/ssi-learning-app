@@ -34,9 +34,13 @@ describe('t() fallback', () => {
   })
 
   it('falls back to English for a key the locale is missing', async () => {
-    await setLocale('cym')
-    // Present in eng.json, absent from cym.json as of 2026-08-26.
-    expect(t('settings.terms')).toBe(eng.settings.terms)
+    // Deliberately asserted against the stand-in locale, not a real one: as of the
+    // 2026-08-26 localisation batch every real locale carries every English key, and
+    // the parity test keeps it that way — so there is no genuine gap left to point at.
+    // Pinning this to a real file's shortfall would mean the test only passes while a
+    // locale is broken, and goes red the moment someone fixes it.
+    await setLocale('lit')
+    expect(t('settings.privacy')).toBe(eng.settings.privacy)
   })
 
   it('falls back to English for a blank translation rather than rendering a gap', async () => {

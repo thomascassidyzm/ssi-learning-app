@@ -3,8 +3,8 @@
     "name": "SaySomethingin"
   },
   "brand": {
-    "say": "Dì",
-    "something": "qualcosa",
+    "say": "Say",
+    "something": "Something",
     "in": "in"
   },
   "modes": {

@@ -121,6 +121,32 @@ describe('locale parity with eng.json', () => {
     ).toEqual([])
   })
 
+  // The wordmark is the product's NAME, not a phrase — "Say Something in Welsh" is
+  // what the thing is called. Translating it yields a different brand in every market
+  // and a recognisable one in none, so it stays English in all 22 locales (Tom's
+  // ruling, 2026-08-26; 16 locales had translated it in good faith and were reverted).
+  //
+  // A translator opening a locale file has every reason to assume all strings are
+  // theirs, so the convention is asserted rather than merely written down here and in
+  // locales/README.md. If the wordmark itself ever changes, change eng.json and this
+  // expectation together — they are the only two places it lives.
+  it.each(otherLocales)('%s leaves the brand wordmark in English', (file) => {
+    const locale = loadLocale(file)
+    const wordmark = ['brand.say', 'brand.something', 'brand.in']
+    const translated = wordmark
+      .filter((k) => locale.has(k) && locale.get(k) !== english.get(k))
+      .map((k) => `${k}: ${file} has "${locale.get(k)}", must be "${english.get(k)}"`)
+
+    expect(
+      translated,
+      report(
+        `${file} translates the "Say Something in" wordmark. It is the brand name and ` +
+          `stays English in every locale — see locales/README.md. Restore:`,
+        translated,
+      ),
+    ).toEqual([])
+  })
+
   it.each(otherLocales)('%s matches the shape of eng.json where keys are shared', (file) => {
     // A string in English that is an object in another locale (or vice versa)
     // means t() walks off the path and silently returns the key itself.

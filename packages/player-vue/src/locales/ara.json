@@ -388,9 +388,9 @@
     "stageReady": "جاهز"
   },
   "brand": {
-    "say": "قل",
-    "something": "شيئاً",
-    "in": "في"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "modes": {
     "easy": "سهل",

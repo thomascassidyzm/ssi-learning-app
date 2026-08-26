@@ -385,9 +385,9 @@
     "yid": "યિદ્દિશ"
   },
   "brand": {
-    "say": "બોલો",
-    "something": "કંઈક",
-    "in": "માં"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "firstBoot": {
     "speakBeforeThem": "તમે એક જાણીતું વાક્ય સાંભળશો — સ્પીકર્સ પહેલાં એને {lang} માં મોટેથી બોલો."

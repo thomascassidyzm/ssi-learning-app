@@ -385,9 +385,9 @@
     "yid": "ਯਿੱਦੀ"
   },
   "brand": {
-    "say": "ਬੋਲੋ",
-    "something": "ਕੁਝ",
-    "in": "ਵਿੱਚ"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "firstBoot": {
     "speakBeforeThem": "ਤੁਸੀਂ ਇੱਕ ਜਾਣੀ-ਪਛਾਣੀ ਵਾਕ ਸੁਣੋਗੇ — ਸਪੀਕਰਾਂ ਤੋਂ ਪਹਿਲਾਂ ਇਸਨੂੰ {lang} ਵਿੱਚ ਉੱਚੀ ਆਵਾਜ਼ ਵਿੱਚ ਬੋਲੋ।"

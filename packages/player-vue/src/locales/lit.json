@@ -3,9 +3,9 @@
     "name": "SaySomethingin"
   },
   "brand": {
-    "say": "Pasakyk",
-    "something": "ką nors",
-    "in": "kalba"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "modes": {
     "easy": "Lengva",

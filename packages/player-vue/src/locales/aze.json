@@ -3,9 +3,9 @@
     "name": "SaySomethingin"
   },
   "brand": {
-    "say": "De",
-    "something": "Nəsə",
-    "in": "dilində"
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
   },
   "modes": {
     "easy": "Asan",
