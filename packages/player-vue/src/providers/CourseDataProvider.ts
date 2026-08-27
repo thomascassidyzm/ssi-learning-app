@@ -610,17 +610,31 @@ export class CourseDataProvider {
       }
 
       // Fallback: no link — match a clip by the lego_id it carries.
-      const { data, error } = await this.client
+      //
+      // A LEGO can carry MORE THAN ONE presentation row: an introduction whose
+      // text changed adds its replacement beside the superseded clip and swaps
+      // the link only once the render is verified (canon C23, 2026-08-27), and
+      // 3,719 lego_ids in the estate already have two rows from older debris.
+      // So this cannot be .maybeSingle() — that errors on a second row and the
+      // learner silently loses the intro. Take the newest RENDERED one: a
+      // `pending/` key names a clip that does not exist yet, and handing one to
+      // the proxy is a 404 dressed as audio.
+      const { data: candidates, error } = await this.client
         .from('course_audio')
-        .select('id, s3_key, duration_ms, origin')
+        .select('id, s3_key, duration_ms, origin, created_at')
         .eq('course_code', this.courseId)
         .eq('role', 'presentation')
         .eq('lego_id', legoId)
-        .maybeSingle()
+        .order('created_at', { ascending: false })
+        .limit(10)
 
       if (error) {
         return null
       }
+
+      const data = (candidates || []).find(
+        (row: any) => row?.s3_key && !String(row.s3_key).startsWith('pending/')
+      )
 
       if (data?.id) {
         const ref = applyAudioRef(await this.revisedRefs(), data.id)!

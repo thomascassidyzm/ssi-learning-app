@@ -834,12 +834,17 @@ export const loadIntroAudio = async (
 
       for (let i = 0; i < missingLegoIds.length; i += BATCH_SIZE) {
         const batchIds = missingLegoIds.slice(i, i + BATCH_SIZE)
+        // Newest first, and never a `pending/` key: one lego_id can carry a
+        // superseded presentation clip AND its not-yet-rendered replacement
+        // (canon C23, 2026-08-27). Unordered row-order would pick either, and a
+        // pending key resolves to an S3 object that does not exist yet.
         const { data: presentationAudio, error: presError } = await supabase
           .from('course_audio')
-          .select('id, lego_id, s3_key')
+          .select('id, lego_id, s3_key, created_at')
           .eq('course_code', courseCode)
           .eq('role', 'presentation')
           .in('lego_id', batchIds)
+          .order('created_at', { ascending: false })
 
         if (presError) {
           console.warn('[ScriptCache] Presentation audio query error:', presError.message)
@@ -848,6 +853,7 @@ export const loadIntroAudio = async (
 
         if (presentationAudio && presentationAudio.length > 0) {
           for (const audio of presentationAudio) {
+            if (audio.s3_key && String(audio.s3_key).startsWith('pending/')) continue
             if (audio.lego_id && audio.s3_key && !audioMap.has(`intro:${audio.lego_id}`)) {
               audioMap.set(`intro:${audio.lego_id}`, { intro: audio.s3_key })
               foundLegoIds.add(audio.lego_id)
