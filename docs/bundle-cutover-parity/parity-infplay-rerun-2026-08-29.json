@@ -1,0 +1,456 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "generatedAt": "2026-08-29T20:24:28.265Z",
+  "roundLimit": 15,
+  "samples": 3,
+  "cases": [
+    {
+      "course": "hun_for_eng",
+      "fromRound": 1,
+      "mainLoopCount": {
+        "old": 665,
+        "new": 665
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 16,
+        "new": 16
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 0,
+      "generatorVariedItsOwnRoundSize": 3,
+      "roundLength": {
+        "old": [
+          22,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "hun_for_eng",
+      "fromRound": 7,
+      "mainLoopCount": {
+        "old": 665,
+        "new": 665
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 22,
+        "new": 22
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 4,
+      "generatorVariedItsOwnRoundSize": 2,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "hun_for_eng",
+      "fromRound": 95,
+      "mainLoopCount": {
+        "old": 665,
+        "new": 665
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 110,
+        "new": 110
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 2,
+      "generatorVariedItsOwnRoundSize": 0,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          22,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "gle_for_eng",
+      "fromRound": 1,
+      "mainLoopCount": {
+        "old": 786,
+        "new": 786
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 16,
+        "new": 16
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 15,
+      "generatorVariedItsOwnRoundSize": 14,
+      "roundLength": {
+        "old": [
+          2,
+          13
+        ],
+        "new": [
+          7,
+          18
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "gle_for_eng",
+      "fromRound": 7,
+      "mainLoopCount": {
+        "old": 786,
+        "new": 786
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 22,
+        "new": 22
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 15,
+      "generatorVariedItsOwnRoundSize": 15,
+      "roundLength": {
+        "old": [
+          4,
+          14
+        ],
+        "new": [
+          9,
+          17
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "gle_for_eng",
+      "fromRound": 95,
+      "mainLoopCount": {
+        "old": 786,
+        "new": 786
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 110,
+        "new": 110
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 15,
+      "generatorVariedItsOwnRoundSize": 14,
+      "roundLength": {
+        "old": [
+          5,
+          15
+        ],
+        "new": [
+          7,
+          15
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "tur_for_eng",
+      "fromRound": 1,
+      "mainLoopCount": {
+        "old": 840,
+        "new": 840
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 16,
+        "new": 16
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 7,
+      "generatorVariedItsOwnRoundSize": 6,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          20,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "tur_for_eng",
+      "fromRound": 7,
+      "mainLoopCount": {
+        "old": 840,
+        "new": 840
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 22,
+        "new": 22
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 10,
+      "generatorVariedItsOwnRoundSize": 6,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "tur_for_eng",
+      "fromRound": 95,
+      "mainLoopCount": {
+        "old": 840,
+        "new": 840
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 110,
+        "new": 110
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 8,
+      "generatorVariedItsOwnRoundSize": 8,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "nld_for_eng",
+      "fromRound": 1,
+      "mainLoopCount": {
+        "old": 563,
+        "new": 563
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 16,
+        "new": 16
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 6,
+      "generatorVariedItsOwnRoundSize": 2,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 45,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "nld_for_eng",
+      "fromRound": 7,
+      "mainLoopCount": {
+        "old": 563,
+        "new": 563
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 22,
+        "new": 22
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 4,
+      "generatorVariedItsOwnRoundSize": 3,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          20,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 45,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "nld_for_eng",
+      "fromRound": 95,
+      "mainLoopCount": {
+        "old": 563,
+        "new": 563
+      },
+      "mainLoopCountAgrees": true,
+      "nextInfRound": {
+        "old": 110,
+        "new": 110
+      },
+      "roundsChecked": 15,
+      "supersetRounds": 15,
+      "endpointVariedItsOwnRoundSize": 8,
+      "generatorVariedItsOwnRoundSize": 4,
+      "roundLength": {
+        "old": [
+          21,
+          22
+        ],
+        "new": [
+          21,
+          22
+        ]
+      },
+      "extras": {
+        "seedPhase": 60,
+        "endpointPhraseCap": 0,
+        "endpointLostToAudioDraw": 0
+      },
+      "unexplainedExtras": [],
+      "illegalDraws": 0,
+      "roundDiffs": [],
+      "roundDiffCount": 0,
+      "verdict": "SCHEDULE_SUPERSET_EXPLAINED"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "verdict": "PREVIEW_ONLY_NO_INFPLAY"
+    }
+  ]
+}
