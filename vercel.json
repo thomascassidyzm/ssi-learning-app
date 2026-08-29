@@ -54,6 +54,8 @@
   "rewrites": [
     { "source": "/schools", "destination": "/schools/index.html" },
     { "source": "/schools/(.*)", "destination": "/schools/index.html" },
+    { "source": "/gaplab", "destination": "/gaplab/index.html" },
+    { "source": "/gaplab/", "destination": "/gaplab/index.html" },
     { "source": "/methodology", "destination": "/methodology/index.html" },
     { "source": "/methodology/", "destination": "/methodology/index.html" },
     { "source": "/paddle-review", "destination": "/paddle-review/index.html" },
