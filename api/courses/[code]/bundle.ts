@@ -36,6 +36,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   CourseBundle,
   BundleLego,
@@ -50,7 +51,7 @@ import type {
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
-import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
+import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
 import { authoredGlossSegments } from '../../_utils/glossSegments'
 
 /**
@@ -201,6 +202,62 @@ interface PodSentenceRow {
 /** Build a LEGO id of the form "S0042L01". Same helper as infplay-cycles.ts. */
 function buildLegoId(seed: number, lego: number): string {
   return `S${String(seed).padStart(4, '0')}L${String(lego).padStart(2, '0')}`
+}
+
+/**
+ * Fill in `presentation_audio_id` for LEGOs whose `course_legos` row is missing
+ * it, mutating `legoRows` in place. Mirrors the walk's backfill exactly —
+ * `lego_introductions` (legacy, `presentation_audio_id` then `audio_uuid`)
+ * first, then `course_audio` role='presentation' oldest-first so the newest row
+ * wins, skipping `pending/` renders that name audio not yet made. Backfilled
+ * ids are stamped through `applyAudioRef` because they are read AFTER the bulk
+ * stamping pass and so are still bare.
+ */
+async function backfillPresentationAudio(
+  supabase: SupabaseClient,
+  code: string,
+  legoRows: LegoRow[],
+  audioRefs: Map<string, string>,
+): Promise<void> {
+  const missing = legoRows.filter((row) => !row.presentation_audio_id)
+  if (missing.length === 0) return
+  const missingIds = missing.map((row) => buildLegoId(row.seed_number, row.lego_index))
+
+  try {
+    const [courseAudioRes, introRes] = await Promise.all([
+      supabase
+        .from('course_audio')
+        .select('id, lego_id, s3_key, created_at')
+        .eq('course_code', code)
+        .eq('role', 'presentation')
+        .in('lego_id', missingIds)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('lego_introductions')
+        .select('lego_id, presentation_audio_id, audio_uuid')
+        .eq('course_code', code)
+        .in('lego_id', missingIds),
+    ])
+
+    const lookup = new Map<string, string>()
+    for (const row of (introRes.data || []) as Array<Record<string, unknown>>) {
+      const audioId = (row.presentation_audio_id || row.audio_uuid) as string | null
+      if (audioId && row.lego_id) lookup.set(String(row.lego_id), String(audioId))
+    }
+    for (const row of (courseAudioRes.data || []) as Array<Record<string, unknown>>) {
+      if (typeof row.s3_key === 'string' && row.s3_key.startsWith('pending/')) continue
+      if (row.id && row.lego_id) lookup.set(String(row.lego_id), String(row.id))
+    }
+    if (lookup.size === 0) return
+
+    for (const row of missing) {
+      const audioId = lookup.get(buildLegoId(row.seed_number, row.lego_index))
+      if (audioId) row.presentation_audio_id = applyAudioRef(audioRefs, audioId)
+    }
+    console.log(`[Bundle] ${code}: backfilled ${lookup.size}/${missing.length} missing presentation audio ids`)
+  } catch (err) {
+    console.warn('[Bundle] presentation-audio backfill failed (non-fatal):', err)
+  }
 }
 
 /** Build a Seed id of the form "S0042". */
@@ -514,6 +571,26 @@ export default async function handler(
       audioRefs,
       (legosRes.data || []) as unknown as LegoRow[]
     )
+    // PRESENTATION-AUDIO BACKFILL. `course_legos.presentation_audio_id` is not
+    // populated on every LEGO: some courses had their introduction clips
+    // rendered but never linked back onto the row. The retiring walk
+    // (`generateLearningScript.ts`, "Backfill missing presentation_audio_id")
+    // has always repaired that at read time from `course_audio` (authoritative)
+    // and `lego_introductions` (legacy); the bundle did not, so on the bundle
+    // path those LEGOs lost their introduction narration and opened with the
+    // plain known-text clip instead.
+    //
+    // Measured 2026-08-29 across the fifteen flagged courses: 174 affected
+    // LEGOs on `eus_for_eng` (159 repairable), 7 on `fra_for_eng`, 5 on
+    // `zho_for_eng`, 3 on `cym_s_for_eng`, 2 on `spa_for_eng`, 1 on
+    // `pol_for_eng`; every other flagged course has none. Found by
+    // `tools/bundle-cutover/parity-fullscript.mjs` diffing the two producers.
+    //
+    // Same precedence as the walk: legacy `lego_introductions` first, then
+    // `course_audio` role='presentation' overwriting it (newest wins, pending
+    // renders skipped). Non-fatal — a failed lookup leaves today's behaviour.
+    await backfillPresentationAudio(supabase, code, legoRows, audioRefs)
+
     const phraseRows: PhraseRow[] = stampRowAudioRefs(
       audioRefs,
       (phrasesRes.data || []) as unknown as PhraseRow[]
