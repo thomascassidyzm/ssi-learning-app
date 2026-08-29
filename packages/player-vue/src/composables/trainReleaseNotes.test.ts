@@ -102,3 +102,31 @@ describe('mergeReleaseNotes', () => {
     expect(mergeReleaseNotes([], [train, older], 1).map((n) => n.id)).toEqual(['train-2026-07-30'])
   })
 })
+
+describe('the catch-all section', () => {
+  it('reads "Other stuff and bug fixes" — the heading the generator actually writes', () => {
+    // release-notes.mjs renderFinal emits "## Other stuff and bug fixes". The parser used to
+    // look only for "## Fixes", so the whole catch-all went missing from every note.
+    const note = parseTrainNote([
+      '<!-- release-notes:header -->',
+      '# Release notes — shipped 2026-08-29',
+      '<!-- /release-notes:header -->',
+      '',
+      "## What's new",
+      '',
+      '- A big thing a learner notices.',
+      '',
+      '## Other stuff and bug fixes',
+      '',
+      '- A small thing a learner notices.',
+      '- Another small thing.',
+      '',
+    ].join('\n'))
+    expect(note).not.toBeNull()
+    expect(note!.bullets).toEqual([
+      'A big thing a learner notices.',
+      'A small thing a learner notices.',
+      'Another small thing.',
+    ])
+  })
+})
