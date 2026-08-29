@@ -18,9 +18,16 @@ const DAY = 24 * 60 * 60 * 1000
 // awaited by the caller. If a test's own explicit renewLeases(true) call lands
 // while that background renew is still holding the module's isRenewing lock,
 // maybeRenew's `if (isRenewing.value) return` guard makes the explicit call a
-// silent no-op. Flush a real macrotask so the background reconcile (which
-// itself resolves near-instantly against our mocked fetch) finishes first.
-const flush = () => new Promise((resolve) => setTimeout(resolve, 10))
+// silent no-op. So wait for the CONDITION (the lock actually clearing), not for
+// a fixed sleep: a flat `setTimeout(10)` passes on an idle box and loses the
+// race on a loaded one, which is exactly how this test went red on the 2026-08-29
+// nightly (expected false, received true — the revocation renew was swallowed).
+const settle = async (lease: { isRenewing: { value: boolean } }) => {
+  const deadline = Date.now() + 5000
+  do {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  } while (lease.isRenewing.value && Date.now() < deadline)
+}
 // vi.resetModules() re-evaluates the whole dependency graph (including
 // useScriptCache) fresh for every test, so each test gets its own in-memory
 // scriptDbPromise — but they all still share the ONE global fake-indexeddb
@@ -98,7 +105,7 @@ describe('useOfflineLease (integration)', () => {
     fetchMock.mockRejectedValue(new Error('offline'))
     const grantedAt = Date.now()
     await lease.grantLease(course, null)
-    await flush()
+    await settle(lease)
 
     const serverNow = grantedAt + 31 * DAY
     const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(serverNow)
@@ -180,7 +187,7 @@ describe('useOfflineLease (integration)', () => {
     fetchMock.mockRejectedValue(new Error('offline'))
     const grantedAt = Date.now()
     await lease.grantLease(course, null)
-    await flush()
+    await settle(lease)
     expect(await lease.isCourseLeaseValid(course)).toBe(true)
 
     fetchMock.mockResolvedValue({

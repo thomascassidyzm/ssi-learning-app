@@ -138,7 +138,13 @@ describe('SEC-AUDIT Finding 1 — govt_admin invite code entropy', () => {
     // triples (e.g. 'K7Q-3ZB'), which this pattern rejects — so this is a
     // positive check that the endpoint is on the shared generator, not merely
     // off Math.random().
-    expect(out.body.invite_code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{3}-[0-9]{3}$/)
+    // ADMIN-ENT-03 (2026-08-25): govt_admin is a PRIVILEGED code type, so the
+    // endpoint now mints via generateCodeForType() -> generateShareCode(),
+    // 128 bits of randomBytes(16) as base64url. Strictly stronger than the
+    // ABC-123 shape this line used to assert; the property under test —
+    // "the shared generator, not a private Math.random() one" — is unchanged.
+    expect(out.body.invite_code).toMatch(/^[A-Za-z0-9_-]{22}$/)
+    expect(out.body.invite_code).not.toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{3}-[0-9]{3}$/)
     expect(inserted[0].code).toBe(out.body.invite_code)
   })
 })

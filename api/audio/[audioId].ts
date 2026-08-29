@@ -208,11 +208,10 @@ export default async function handler(
         stack: s3Error?.stack,
         full: JSON.stringify(s3Error, Object.getOwnPropertyNames(s3Error || {})),
       })
-      res.status(502).json({
-        error: 'Failed to fetch audio from storage',
-        details: s3Error?.message || s3Error?.Code || s3Error?.name || 'Unknown error',
-        key: sample.s3_key,
-      })
+      // SEC25 INPUT-08: caller-safe body only. The S3 key and the raw AWS
+      // error text (which routinely carries the bucket ARN and key layout)
+      // stay in the console.error above — this endpoint is anonymous.
+      res.status(502).json({ error: 'Failed to fetch audio from storage' })
       return
     }
 

@@ -3,10 +3,11 @@
  * learning player into the player_events table.
  *
  * Frontend buffers events and POSTs in batches (every few seconds).
- * Auth is by the same `ssi-user-id` cookie that audio_plays uses; the
- * server doesn't strictly verify (anyone can spoof) but for diagnostic
- * use that's fine — nobody benefits from injecting fake logs into
- * their own row.
+ * Attribution is by VERIFIED bearer token only (SEC25 INPUT-04) — the
+ * `ssi-user-id` cookie is unsigned and is no longer an identity here.
+ * Requests without a usable token still insert, unattributed, so guest
+ * telemetry keeps flowing. See resolveIdentity() for the one authorised
+ * exception (play-as-class).
  *
  * Endpoint: POST /api/player-events
  * Body: { events: [{ event_type, payload?, course_code?, session_id?, occurred_at?, client_version? }] }
@@ -15,6 +16,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './_utils/auth'
+import { resolveVisibleScope } from './_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -72,44 +74,73 @@ const MAX_PAYLOAD_BYTES = 8 * 1024
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Resolve the learner identity to attribute events to.
+ * Resolve the learner identity to attribute events to (SEC25 INPUT-04).
  *
- * If the request carries a valid `Authorization: Bearer` token we VERIFY it and
- * map the auth uid → `learners.id` (the canonical learner pk), and use that,
- * ignoring the client-set `ssi-user-id` cookie entirely — a verified session is
- * the trusted source of identity, so an authenticated client can no longer spoof
- * attribution by setting a different cookie.
+ * Attribution comes from a VERIFIED `Authorization: Bearer` token only: the
+ * auth uid is mapped to `learners.id` (the canonical learner pk) and that is
+ * what the row carries. The client-set `ssi-user-id` cookie is NOT an
+ * identity — it is unsigned, so trusting it let anyone write telemetry
+ * against any learner's uuid through this service-role insert.
  *
- * Only when there is no usable verified identity (no bearer, invalid token, or
- * no learner row maps to the auth uid) do we fall back to the cookie path:
- * a shape-valid uuid cookie, else `null`. Guests legitimately log with a
- * `null` identity (a `guest-<uuid>` cookie is not a uuid and coerces to null).
+ * ONE exception, which is the cookie's real job: play-as-class (owner ruling
+ * 2026-07-16) deliberately flips the cookie to the CLASS's own learner id so
+ * class practice belongs to the class, not to the staff member driving it.
+ * That is honoured only when the caller ALSO presents a verified bearer whose
+ * visible scope contains that class — i.e. it is authorised, not asserted.
+ *
+ * Everything else (no bearer, stale bearer, guest, unknown cookie) attributes
+ * to `null` — an unattributed row. Guest telemetry is a legitimate product
+ * path and keeps flowing; usePlayerLog still stamps its own `learnerId` into
+ * the event payload, so guest runs stay traceable without being trusted.
  */
 async function resolveIdentity(
   req: VercelRequest,
   supabase: SupabaseClient,
 ): Promise<string | null> {
   const authHeader = req.headers.authorization
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const result = await verifyAuthToken(req)
-    if (result.valid && result.userId) {
-      // Map the auth uid to the canonical learner pk. Service role read; a
-      // learner reads only their own row here (own-row RLS would allow it too).
-      const { data, error } = await supabase
-        .from('learners')
-        .select('id')
-        .eq('user_id', result.userId)
-        .maybeSingle()
-      if (!error && data?.id) return data.id as string
-      // Verified session but no learner row — fall through to the cookie/null
-      // path rather than attributing to an id we couldn't confirm.
-    }
-    // Invalid/expired bearer: fall through to the cookie/null path (tolerant —
-    // a stale token must not drop the event, only forfeit the trusted upgrade).
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null
+
+  const result = await verifyAuthToken(req)
+  if (!result.valid || !result.userId) return null
+
+  // Map the auth uid to the canonical learner pk. Service role read; a
+  // learner reads only their own row here (own-row RLS would allow it too).
+  const { data, error } = await supabase
+    .from('learners')
+    .select('id')
+    .eq('user_id', result.userId)
+    .maybeSingle()
+  const verifiedLearnerId = !error && data?.id ? (data.id as string) : null
+
+  const cookieId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
+  if (!cookieId || !UUID_RE.test(cookieId) || cookieId === verifiedLearnerId) {
+    return verifiedLearnerId
   }
 
-  const rawUserId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
-  return rawUserId && UUID_RE.test(rawUserId) ? rawUserId : null
+  // The cookie names someone else — only a class this caller may drive.
+  const authorisedClass = await isAuthorisedClassLearner(supabase, result.userId, cookieId)
+  return authorisedClass ? cookieId : verifiedLearnerId
+}
+
+/** True iff `classLearnerId` is a class entity inside this staff member's scope. */
+async function isAuthorisedClassLearner(
+  supabase: SupabaseClient,
+  authUserId: string,
+  classLearnerId: string,
+): Promise<boolean> {
+  try {
+    const { data: cls, error } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('class_learner_id', classLearnerId)
+      .maybeSingle()
+    if (error || !cls?.id) return false
+    const scope = await resolveVisibleScope(supabase, authUserId)
+    return scope.classIds.includes(cls.id as string)
+  } catch {
+    // Never fail a telemetry batch on an authz lookup — just don't attribute.
+    return false
+  }
 }
 
 /** Serialized-size-bounded payload. Oversized payloads collapse to a marker. */
@@ -182,11 +213,13 @@ export default async function handler(
         // 20260619_player_events_learner_id_expand.sql.
         user_id: userId,
         learner_id: userId,
-        course_code: e.course_code || null,
+        // SEC25 INPUT-09: type-checked and capped, like event_type below —
+        // free text from an anonymous caller must not reach the DB unbounded.
+        course_code: typeof e.course_code === 'string' ? e.course_code.slice(0, 64) || null : null,
         session_id: sessionId,
         event_type: e.event_type.slice(0, 64),
         payload: sanitizePayload(e.payload),
-        client_version: e.client_version || null,
+        client_version: typeof e.client_version === 'string' ? e.client_version.slice(0, 64) || null : null,
         device_type: deviceType,
         ip_country: ipCountry,
         env,

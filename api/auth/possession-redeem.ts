@@ -43,8 +43,16 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { createHash, randomUUID } from 'crypto'
+import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt as logAttemptRow,
+  type AttemptFields,
+  PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -76,7 +84,11 @@ const LINK_AUTH_ELIGIBLE_CODE_TYPES = new Set(['student'])
 
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PER_CODE_LIMIT = 20
-const PER_IP_LIMIT = 10
+// PER_IP_LIMIT, the bucket-key derivation (getClientIp/hashIp) and the audit-row
+// writer now come from api/_utils/codeAttemptThrottle.ts. This file used to carry
+// byte-equivalent inline copies — the third of the three places
+// SEC-AUDIT-2026-08-18 Finding 5 lived — so they are deleted rather than fixed
+// three times over.
 
 // Placeholder email domain for link-auth (straight-in) accounts. When a
 // teacher/admin/leader clicks their invite link, the LINK itself is the
@@ -88,18 +100,6 @@ const PER_IP_LIMIT = 10
 // client-side as isPlaceholderEmail() in SettingsScreen.vue.
 const LINK_AUTH_EMAIL_DOMAIN = 'invite.saysomethingin.app'
 
-function hashIp(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex').slice(0, 16)
-}
-
-function getClientIp(req: VercelRequest): string {
-  return (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    (req.headers['x-real-ip'] as string) ||
-    'unknown'
-  )
-}
-
 function isAlreadyRegisteredError(error: any): boolean {
   if (!error) return false
   if (error.code === 'email_exists') return true
@@ -107,23 +107,9 @@ function isAlreadyRegisteredError(error: any): boolean {
   return msg.includes('already been registered') || msg.includes('already registered') || msg.includes('already exists')
 }
 
-async function logAttempt(
-  supabase: SupabaseClient,
-  fields: { inviteCodeId?: string | null; email?: string | null; ipHash: string; outcome: string; authUserId?: string | null; errorDetail?: string | null }
-): Promise<void> {
-  try {
-    const { error } = await supabase.from('possession_mint_attempts').insert({
-      invite_code_id: fields.inviteCodeId ?? null,
-      email: fields.email ?? null,
-      ip_hash: fields.ipHash,
-      outcome: fields.outcome,
-      auth_user_id: fields.authUserId ?? null,
-      error_detail: fields.errorDetail ?? null,
-    })
-    if (error) console.warn('[PossessionRedeem] Failed to log attempt:', error.message)
-  } catch (err) {
-    console.warn('[PossessionRedeem] Failed to log attempt:', err)
-  }
+/** Thin label-binding wrapper over the shared audit writer. */
+async function logAttempt(supabase: SupabaseClient, fields: AttemptFields): Promise<void> {
+  return logAttemptRow(supabase, '[PossessionRedeem]', fields)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -184,16 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     //      full forever. A limiter counts actions, not its own refusals.
     // Substantive attempts (invalid/expired/exhausted/minted/errors) all
     // still count, and the per-code limit below counts everything.
-    const { count: ipCount } = await supabase
-      .from('possession_mint_attempts')
-      .select('id', { count: 'exact', head: true })
-      .eq('ip_hash', ipHash)
-      .neq('outcome', 'personal_signin')
-      .neq('outcome', 'rate_limited_ip')
-      .neq('outcome', 'rate_limited_code')
-      .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
-
-    if ((ipCount ?? 0) >= PER_IP_LIMIT) {
+    if (await isIpOverLimit(supabase, ipHash, PER_IP_LIMIT)) {
       await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'rate_limited_ip' })
       res.status(429).json({ success: false, error: 'Too many attempts. Please try again later.' })
       return
@@ -315,7 +292,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // stopping a legitimate teacher from onboarding. Skipped in link-auth mode:
     // the placeholder address is internal and never receives mail by design.
     if (!isLinkAuth) {
-      const mxResult = await hasMxRecord(normalizedEmail)
+      // Bucketed on the same platform-attested IP hash the code throttle uses,
+      // so one caller cannot drive unbounded outbound DNS (INPUT-11).
+      const mxResult = await hasMxRecord(normalizedEmail, undefined, ipHash)
       if (mxResult === false) {
         await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'no_mx_domain' })
         res.status(400).json({ success: false, error: 'That email domain can\'t receive mail. Please check for a typo.' })

@@ -7,7 +7,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
+import { verifyAdmin } from '../_utils/auth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -21,25 +21,18 @@ export default async function handler(
     return
   }
 
-  const authResult = await verifyAuthToken(req)
-  if (!authResult.valid || !authResult.userId) {
-    res.status(401).json({ error: authResult.error || 'Unauthorized' })
+  // ADMIN-ENT-12 (fixed 2026-08-25): use the shared verifyAdmin() rather than a
+  // hand-rolled platform_role check under the service-role key. One definition of
+  // "admin" for the whole surface — it also honours educational_role 'god' and
+  // reads the caller's row under the caller's own token, and it distinguishes a
+  // transient failure (500) from genuinely-not-an-admin (403).
+  const admin = await verifyAdmin(req)
+  if ('error' in admin) {
+    res.status(admin.status).json({ error: admin.error })
     return
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-  // Verify caller is ssi_admin
-  const { data: caller } = await supabase
-    .from('learners')
-    .select('platform_role')
-    .eq('user_id', authResult.userId)
-    .single()
-
-  if (!caller || caller.platform_role !== 'ssi_admin') {
-    res.status(403).json({ error: 'Only SSi admins can grant entitlements' })
-    return
-  }
 
   const { learner_id, access_type, granted_courses, duration_type, duration_days } = req.body || {}
 
@@ -89,7 +82,7 @@ export default async function handler(
       return
     }
 
-    console.log('[GrantEntitlement] Granted:', access_type, 'to learner:', learner_id, 'by:', authResult.userId)
+    console.log('[GrantEntitlement] Granted:', access_type, 'to learner:', learner_id, 'by:', admin.userId)
     res.status(201).json({ entitlement: data })
   } catch (err) {
     console.error('[GrantEntitlement] Error:', err)

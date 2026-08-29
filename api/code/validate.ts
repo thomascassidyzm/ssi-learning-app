@@ -7,8 +7,15 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { createHash } from 'crypto'
 import { verifyAuthToken } from '../_utils/auth'
+import { redactCode } from '../_utils/codeGen'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt,
+  PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 /**
  * Already-redeemed check (founder ruling 2026-07-20: subsequent redeems of a
@@ -76,45 +83,12 @@ if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
-// Rate-limit window/limits kept CONSISTENT with api/auth/possession-redeem.ts —
-// both endpoints validate the same codes against the same throttle table, so if
-// one's window/limit changes the other must too (see plan 007 Maintenance).
-const RATE_WINDOW_MS = 15 * 60 * 1000
-const PER_IP_LIMIT = 10
-
-// Same sha256-truncated hashing as possession-redeem.ts / try-link/validate.ts —
-// IPs are only ever stored hashed, never raw. Kept identical so a single IP's
-// attempts correlate across both endpoints' rows in possession_mint_attempts.
-function hashIp(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex').slice(0, 16)
-}
-
-function getClientIp(req: VercelRequest): string {
-  return (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    (req.headers['x-real-ip'] as string) ||
-    'unknown'
-  )
-}
-
-// Audit trail for the throttle so abuse is observable (429s included). Reuses
-// the possession_mint_attempts table — its existing columns fit; no schema
-// change. Best-effort: a logging failure must never break validation.
-async function logAttempt(
-  supabase: SupabaseClient,
-  fields: { inviteCodeId?: string | null; ipHash: string; outcome: string }
-): Promise<void> {
-  try {
-    const { error } = await supabase.from('possession_mint_attempts').insert({
-      invite_code_id: fields.inviteCodeId ?? null,
-      ip_hash: fields.ipHash,
-      outcome: fields.outcome,
-    })
-    if (error) console.warn('[CodeValidate] Failed to log attempt:', error.message)
-  } catch (err) {
-    console.warn('[CodeValidate] Failed to log attempt:', err)
-  }
-}
+// Rate-limit window/limits, the bucket-key derivation and the audit-row writer
+// all come from the ONE shared module now (api/_utils/codeAttemptThrottle.ts).
+// This file used to carry byte-equivalent inline copies; they were the second
+// of three places SEC-AUDIT-2026-08-18 Finding 5 had to be fixed, so they are
+// gone rather than fixed in parallel. Window/limit stay in lockstep with
+// api/auth/possession-redeem.ts by construction, not by comment.
 
 export default async function handler(
   req: VercelRequest,
@@ -171,25 +145,16 @@ export default async function handler(
     //      actions, not its own refusals.
     // 'validate_attempt' rows — the actual enumeration signal — still count,
     // so the anti-sweep purpose above is untouched.
-    const { count: ipCount } = await supabase
-      .from('possession_mint_attempts')
-      .select('id', { count: 'exact', head: true })
-      .eq('ip_hash', ipHash)
-      .neq('outcome', 'personal_signin')
-      .neq('outcome', 'rate_limited_ip')
-      .neq('outcome', 'rate_limited_code')
-      .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
-
-    if ((ipCount ?? 0) >= PER_IP_LIMIT) {
-      await logAttempt(supabase, { ipHash, outcome: 'rate_limited_ip' })
+    if (await isIpOverLimit(supabase, ipHash, PER_IP_LIMIT)) {
+      await logAttempt(supabase, '[CodeValidate]', { ipHash, outcome: 'rate_limited_ip' })
       res.status(429).json({ valid: false, error: 'Too many attempts. Please try again later.' })
       return
     }
 
-    // Record this attempt so the per-IP window accumulates (the count above
+    // Record this attempt so the per-IP window accumulates (isIpOverLimit
     // deliberately excludes the current request) and every validation attempt
     // has an audit row. Best-effort — never blocks validation.
-    await logAttempt(supabase, { ipHash, outcome: 'validate_attempt' })
+    await logAttempt(supabase, '[CodeValidate]', { ipHash, outcome: 'validate_attempt' })
 
     // 1. Try invite_code_validation first
     const { data: inviteRow } = await supabase
@@ -347,7 +312,7 @@ export default async function handler(
         }
       }
 
-      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType, personalUserId ? '(personal)' : '')
+      console.log('[CodeValidate] Valid invite code:', redactCode(inviteRow.code), codeType, personalUserId ? '(personal)' : '')
       res.status(200).json({
         valid: true,
         codeKind: 'invite',
@@ -396,7 +361,7 @@ export default async function handler(
         durationDescription = `${entitlementRow.duration_days} days`
       }
 
-      console.log('[CodeValidate] Valid entitlement code:', entitlementRow.code, entitlementRow.label)
+      console.log('[CodeValidate] Valid entitlement code:', redactCode(entitlementRow.code), entitlementRow.label)
       res.status(200).json({
         valid: true,
         codeKind: 'entitlement',
@@ -413,7 +378,7 @@ export default async function handler(
     }
 
     // 3. Neither found
-    console.log('[CodeValidate] Code not found:', stripped)
+    console.log('[CodeValidate] Code not found:', redactCode(stripped))
     res.status(200).json({ valid: false, error: 'Invalid code' })
   } catch (error) {
     console.error('[CodeValidate] Error:', error)

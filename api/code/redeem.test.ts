@@ -42,6 +42,8 @@ function makeChainable(table: string) {
     neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
     gte(col: string, val: unknown) { calls.push(['gte', col, val]); return Promise.resolve(this.resolve()) },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
+    // `.in()` is the staff-count chain's filter (api/_utils/schoolTeachers.ts).
+    in: (col: string, vals: unknown) => { calls.push(['in', col, vals]); return builder },
     resolve: () => {
       const respond = responders[table]
       if (respond) {
@@ -1665,5 +1667,131 @@ describe('POST /api/code/redeem (entitlement codes)', () => {
     // Claim-first: NO grant was inserted (with the old grant-first order this
     // would have recorded a user_entitlements insert before the claim ran).
     expect(writes.user_entitlements).toBeUndefined()
+  })
+})
+
+// ADMIN-ENT-05 (2026-08-25): schools.teacher_seats is the Paddle per-seat
+// quantity and nothing ever compared against it, so a school paying for one
+// seat could onboard unlimited teachers through its join code. The cap is
+// deliberately scoped to schools with a LIVE per-seat subscription — the column
+// is `integer DEFAULT 1 NOT NULL`, so enforcing it bare would lock the second
+// teacher out of every trial school.
+describe('POST /api/code/redeem — teacher seat cap (ADMIN-ENT-05)', () => {
+  let handler: typeof import('./redeem').default
+
+  const teacherCode = (grants: Record<string, unknown>) => (calls: any[][]) => {
+    const isSelect = calls.some((c) => c[0] === 'select')
+    if (isSelect) {
+      return {
+        data: {
+          id: 'invite-seat-1',
+          code: 'SEAT-1',
+          code_type: 'teacher',
+          grants_region: null,
+          grants_school_id: null,
+          grants_class_id: null,
+          grants_group_id: null,
+          metadata: {},
+          max_uses: null,
+          use_count: 0,
+          expires_at: null,
+          is_active: true,
+          ...grants,
+        },
+        error: null,
+      }
+    }
+    return { data: null, error: null }
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    authUserOverride = { email: 'newteacher@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
+    handler = (await import('./redeem')).default
+    responders.learners = () => ({ data: { id: 'learner-seat-1' }, error: null })
+  })
+
+  it('refuses the redemption when a seat-billed school has used all its paid seats', async () => {
+    responders.invite_codes = teacherCode({ grants_school_id: 'school-paid' })
+    // One paid seat, already occupied by the founding admin.
+    responders.schools = () => ({
+      data: {
+        id: 'school-paid',
+        admin_user_id: 'founder-1',
+        teacher_seats: 1,
+        platform_status: 'active',
+        provider_subscription_id: 'sub_123',
+      },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SEAT-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/teacher seats/)
+    // No staff tag was written — the seat was not consumed.
+    expect(writes.user_tags).toBeUndefined()
+  })
+
+  it('lets a TRIAL school keep onboarding teachers — the DEFAULT 1 is not a purchase', async () => {
+    responders.invite_codes = teacherCode({ grants_school_id: 'school-trial' })
+    responders.schools = () => ({
+      data: {
+        id: 'school-trial',
+        admin_user_id: 'founder-2',
+        teacher_seats: 1,
+        platform_status: 'trial',
+        provider_subscription_id: null,
+      },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SEAT-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-trial',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('lets a seat-billed school with room to spare through', async () => {
+    responders.invite_codes = teacherCode({ grants_school_id: 'school-roomy' })
+    responders.schools = () => ({
+      data: {
+        id: 'school-roomy',
+        admin_user_id: 'founder-3',
+        teacher_seats: 10,
+        platform_status: 'active',
+        provider_subscription_id: 'sub_456',
+      },
+      error: null,
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SEAT-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+  })
+
+  it('leaves a group-scoped teacher code (no school) untouched by the cap', async () => {
+    responders.invite_codes = teacherCode({ grants_group_id: 'group-interior-9' })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SEAT-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags[0].payload).toMatchObject({ tag_type: 'group' })
   })
 })

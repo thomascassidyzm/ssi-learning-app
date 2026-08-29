@@ -341,8 +341,14 @@ export default async function handler(
 
   // Idempotency: record the event id before any side effect. A 23505 means we've
   // already processed this delivery → ack and skip (prevents double-accrual on
-  // Paddle retries / at-least-once redelivery). Fails OPEN if the ledger table is
-  // absent (pre-migration), preserving today's behaviour.
+  // Paddle retries / at-least-once redelivery).
+  //
+  // ADMIN-ENT-04 (fixed 2026-08-25): this used to warn-and-PROCEED on any other
+  // ledger error, so a transient DB/RLS fault silently disabled replay protection
+  // for the whole money spine. It now FAILS CLOSED with a 500: Paddle retries
+  // at-least-once, so a retry after the ledger recovers is strictly better than an
+  // unprotected double-accrual. (The old "table absent (pre-migration)" carve-out
+  // has expired — processed_webhook_events is in schema.sql.)
   if (event.eventId) {
     try {
       const { error: dedupErr } = await supabase
@@ -353,10 +359,14 @@ export default async function handler(
           res.status(200).json({ received: true, deduped: true })
           return
         }
-        console.warn('[paddle-webhook] Event dedup unavailable (proceeding):', dedupErr.code, dedupErr.message)
+        console.error('[paddle-webhook] Event dedup unavailable (failing closed):', dedupErr.code, dedupErr.message)
+        res.status(500).json({ error: 'Event dedup unavailable' })
+        return
       }
     } catch (e: any) {
-      console.warn('[paddle-webhook] Event dedup threw (proceeding):', e?.message)
+      console.error('[paddle-webhook] Event dedup threw (failing closed):', e?.message)
+      res.status(500).json({ error: 'Event dedup unavailable' })
+      return
     }
   }
 

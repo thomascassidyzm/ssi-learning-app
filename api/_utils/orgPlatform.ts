@@ -22,6 +22,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isMissingPlatformSchema } from './schoolPlatformTrial'
 import { chunk } from './schoolScope'
+import { descendantIds, type ParentLinked } from './groupSubtree'
 import { ORG_TRIAL_DAYS } from './trialPolicy'
 
 /** Founder ruling 2026-08-02: 30-day free trial covering ALL languages —
@@ -132,17 +133,13 @@ export async function countSubtreeMembers(
   svc: SupabaseClient,
   groupId: string,
 ): Promise<number> {
-  const { data: group } = await svc.from('groups').select('path').eq('id', groupId).maybeSingle()
-  const path = (group as any)?.path as string | undefined
-
-  // No path (trigger hasn't stamped it, or a bare node) → fall back to the node
-  // itself, which is still correct, just narrower.
-  let nodeIds: string[] = [groupId]
-  if (path) {
-    const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
-    const ids = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
-    if (ids.length > 0) nodeIds = ids
-  }
+  // Subtree membership walks `parent_id`, never the slug path (TENANCY-05 /
+  // INPUT-05, fixed 2026-08-25). `like('path', '<path>%')` had no '/' boundary
+  // — 'acme' matched 'acme-corp' — and slugs are not unique either, so two
+  // same-named root orgs shared a path and each counted the other's people as
+  // its own billable seats. See groupSubtree.ts.
+  const { data: forest } = await svc.from('groups').select('id, parent_id')
+  const nodeIds = descendantIds((forest ?? []) as ParentLinked[], groupId)
 
   const people = new Set<string>()
   for (const batch of chunk(nodeIds)) {

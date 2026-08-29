@@ -43,3 +43,47 @@ packages/player-vue/e2e/tutors-audit/out/
 
 # local View-as verification screenshots (regenerate via verify-viewas.mjs)
 packages/player-vue/e2e/schools-nav/viewas-*.png
+
+# ── SEC25-D-04 (2026-08-25 security audit, area D) ────────────────────────
+# Agent scratch: probes, censuses and one-off queries live as ROOT-LEVEL
+# DOTFILES in the working checkout (~50 of them observed: .aran-probe*.mjs,
+# .census-*.mjs, .vadverify-*.mjs, .q1.mjs, .fontprobe*.mjs, and their .json /
+# .md outputs). Several read SUPABASE_SERVICE_ROLE_KEY from disk at runtime and
+# their outputs carry live learner data. Nothing ignored them, so a single
+# `git add -A` / `git add .` in the main checkout would have staged the lot.
+# Ignore the whole root-dotfile class and re-admit, by name, the ones that are
+# genuinely part of the repo.
+/.*
+!/.gitignore
+!/.gitattributes
+!/.github/
+# .claude/ is ignored wholesale further up; settings.json is tracked deliberately.
+!/.claude/
+!/.claude/settings.json
+!/.npmrc
+!/.nvmrc
+!/.editorconfig
+!/.prettierrc
+!/.prettierrc.*
+!/.eslintrc
+!/.eslintrc.*
+!/.eslintignore
+!/.node-version
+!/.vercelignore
+
+# Local databases and their journals — the command surface keeps
+# `command-surface.db` at the repo root, and it is not repo content.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Belt-and-braces on the secret class: any .env variant, anywhere, and the
+# key/cert file types. `.env` and `.env.local` were already covered; these
+# catch `.env.production`, `api/.env`, stray `*.pem` and `*.key`.
+.env*
+!.env.example
+*.pem
+*.key

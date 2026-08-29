@@ -33,6 +33,10 @@ vi.mock('../../_utils/demoLeaf', () => ({
 
 vi.mock('../../_utils/codeGen', () => ({
   generateCode: vi.fn(() => 'ABC-123'),
+  // ADMIN-ENT-03: demo-mint mints a govt_admin (leader) invite, a PRIVILEGED
+  // type, so it now goes through generateCodeForType() and lands in the
+  // 128-bit keyspace rather than the read-aloud ABC-123 one.
+  generateCodeForType: vi.fn(() => 'JZ0mBmXhOl9nnRnQb7XmuQ'),
 }))
 
 const isStrictDescendantGroupMock = vi.fn(async (_svc: any, ancestorId: string, targetId: string) => {

@@ -20,133 +20,179 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const read = (relPath: string) => readFileSync(resolve(repoRoot, relPath), 'utf8')
 
-describe('INPUT-02 / INPUT-03 (gated mirror): class-progress.ts still interpolates .or() filters and spreads untyped updates', () => {
-  // SECURITY FINDING INPUT-02: `.or()` takes a PostgREST filter EXPRESSION, not
-  // a bound value — an injected comma adds a disjunct, defeating the
-  // forward-only position ratchet these two writers exist to enforce.
-  it('setLivePosition and setMode still interpolate roundIndex/legoId into .or() template literals', () => {
+describe('INPUT-02 / INPUT-03 (gated mirror): class-progress.ts constrains .or() values and allow-lists updates', () => {
+  // SECURITY FINDING INPUT-02 — FIXED 2026-08-25: `.or()` takes a PostgREST
+  // filter EXPRESSION, not a bound value, so an injected comma added a
+  // disjunct and dissolved the forward-only position ratchet these two
+  // writers exist to enforce. Both values now go through
+  // api/_utils/postgrestFilter.ts (safeInteger / safeIdToken) before they are
+  // interpolated, so the expression keeps exactly its two intended disjuncts.
+  it('setLivePosition and setMode interpolate only sanitised values into .or()', () => {
     const src = read('api/school/class-progress.ts')
-    expect(src).toMatch(/\.or\(`last_completed_round_index\.is\.null,last_completed_round_index\.lte\.\$\{roundIndex\}`\)/)
-    expect(src).toMatch(/\.or\(`last_completed_lego_id\.is\.null,last_completed_lego_id\.lt\.\$\{ratchetHighestTo\.legoId\}`\)/)
+    expect(src).toMatch(/import \{ safeIdToken, safeInteger \} from '\.\.\/_utils\/postgrestFilter'/)
+    expect(src).toMatch(/const safeRound = safeInteger\(roundIndex\)/)
+    expect(src).toMatch(/\.or\(`last_completed_round_index\.is\.null,last_completed_round_index\.lte\.\$\{safeRound\}`\)/)
+    expect(src).toMatch(/const safeLegoId = safeIdToken\(ratchetHighestTo\.legoId\)/)
+    expect(src).toMatch(/\.or\(`last_completed_lego_id\.is\.null,last_completed_lego_id\.lt\.\$\{safeLegoId\}`\)/)
+    // The raw caller values must not reach a filter expression anywhere.
+    expect(src).not.toMatch(/\.or\(`[^`]*\$\{roundIndex\}/)
+    expect(src).not.toMatch(/\.or\(`[^`]*\$\{ratchetHighestTo\.legoId\}/)
   })
-  // SECURITY FINDING INPUT-03: updateLegoProgress spreads the caller's raw
-  // `updates` object into the write — the only `...spread` into a Supabase
-  // write in api/**, unlike its sibling saveLegoProgress which allow-lists
-  // columns. A caller can re-point a progress row at another learner_id.
-  it('updateLegoProgress still spreads the untyped request body into the update payload', () => {
+  // SECURITY FINDING INPUT-03 — FIXED 2026-08-25: updateLegoProgress spread
+  // the caller's raw `updates` object into the write, so the ownership check
+  // in front of it could be undone by the write itself (learner_id/course_id
+  // were caller-writable). The five columns @ssi/core actually updates are
+  // now allow-listed, matching sibling saveLegoProgress.
+  it('updateLegoProgress allow-lists the columns it writes', () => {
     const src = read('api/school/class-progress.ts')
-    expect(src).toMatch(/\.update\(\{ \.\.\.updates, updated_at: new Date\(\)\.toISOString\(\) \}\)/)
+    expect(src).not.toMatch(/\.update\(\{ \.\.\.updates,/)
+    expect(src).toMatch(/\.update\(\{ \.\.\.pickLegoProgressUpdates\(updates\), updated_at:/)
+    const allowlist = src.slice(src.indexOf('UPDATABLE_LEGO_PROGRESS_COLUMNS = ['))
+    expect(allowlist).not.toMatch(/^[\s\S]{0,200}'learner_id'/)
+    expect(allowlist).not.toMatch(/^[\s\S]{0,200}'course_id'/)
   })
-  it.todo('SECURE: coerce/validate roundIndex and legoId before interpolation; allow-list updateLegoProgress columns')
 })
 
-describe('INPUT-04: /api/player-events still attributes unauthenticated events via a client-set cookie', () => {
-  // SECURITY FINDING INPUT-04: without a bearer, the handler trusts the
-  // `ssi-user-id` cookie (uuid-shape checked only) and inserts with the
-  // service-role key — an attacker can fabricate events against ANY learner's
-  // uuid, poisoning the analytics CLAUDE.md names as the audio-play source of
-  // truth.
-  it('the no-bearer path still resolves learner_id from the ssi-user-id cookie', () => {
+describe('INPUT-04: /api/player-events attributes events only from a verified bearer', () => {
+  // SECURITY FINDING INPUT-04 — FIXED 2026-08-25: without a bearer the
+  // handler trusted the `ssi-user-id` cookie (uuid-shape checked only) and
+  // inserted with the service-role key, so anyone could fabricate events
+  // against ANY learner's uuid. Attribution now comes from a VERIFIED bearer;
+  // the cookie is honoured only for play-as-class, and only when the verified
+  // caller's visible scope actually contains that class. Unauthenticated
+  // batches still insert (guest telemetry is a real path) — unattributed.
+  it('the no-bearer path attributes null instead of trusting the ssi-user-id cookie', () => {
     const src = read('api/player-events.ts')
-    expect(src).toMatch(/rawUserId = \(req\.cookies\?\.\['ssi-user-id'\]/)
-    expect(src).toMatch(/return rawUserId && UUID_RE\.test\(rawUserId\) \? rawUserId : null/)
+    expect(src).toMatch(/if \(!authHeader \|\| !authHeader\.startsWith\('Bearer '\)\) return null/)
+    expect(src).not.toMatch(/return rawUserId && UUID_RE\.test\(rawUserId\) \? rawUserId : null/)
+    // The one cookie path left is gated on an authorisation check.
+    expect(src).toMatch(/isAuthorisedClassLearner\(supabase, result\.userId, cookieId\)/)
+    expect(src).toMatch(/scope\.classIds\.includes\(cls\.id as string\)/)
   })
-  it.todo('SECURE: without a verified bearer, insert learner_id: null instead of trusting the cookie')
 })
 
-describe('INPUT-06 / COORD-01: admin/users.ts search param still injects into a service-role .or()', () => {
-  // SECURITY FINDING INPUT-06 / COORD-01: `search` is interpolated unescaped
-  // into an .or() filter expression evaluated with RLS bypassed (service-role
-  // client). Admin-gated, so the ceiling is a lower-trust operator widening
-  // their own read, or a %/`_` wildcard DoS lever.
-  it('users.ts still builds orParts by raw template-literal interpolation of `search`', () => {
+describe('INPUT-06 / COORD-01: admin/users.ts escapes the search param before it reaches .or()', () => {
+  // SECURITY FINDING INPUT-06 / COORD-01 — FIXED 2026-08-25: `search` was
+  // interpolated unescaped into an .or() filter expression evaluated with RLS
+  // bypassed (service-role client). It now goes through the shared
+  // quoteFilterValue() (PostgREST's own double-quote escape, so the term
+  // itself still searches exactly as before) and is length-capped.
+  it('users.ts escapes `search` with quoteFilterValue and caps its length', () => {
     const src = read('api/admin/users.ts')
-    expect(src).toMatch(/const orParts = \[`display_name\.ilike\.%\$\{search\}%`\]/)
+    expect(src).not.toMatch(/const orParts = \[`display_name\.ilike\.%\$\{search\}%`\]/)
+    expect(src).toMatch(/import \{ quoteFilterValue \} from '\.\.\/_utils\/postgrestFilter'/)
+    expect(src).toMatch(/const orParts = \[`display_name\.ilike\.\$\{quoteFilterValue\(`%\$\{search\}%`\)\}`\]/)
+    expect(src).toMatch(/req\.query\.search\.trim\(\)\.slice\(0, 100\)/)
   })
-  it.todo('SECURE: escape/reject `, ( ) .` in search before interpolation, or use a shared escapePostgrestFilterValue()')
 })
 
-describe('INPUT-07: /api/email/verify still throws an unhandled TypeError on a non-string email', () => {
-  // SECURITY FINDING INPUT-07: `email.toLowerCase()` sits outside the try
-  // block, so a shaped body ({email: {...}}) throws a raw TypeError out of
-  // the handler — an opaque 500 with a stack trace in the logs.
-  it('normalizedEmail is still computed with no typeof check, before the try block', () => {
+describe('INPUT-07: /api/email/verify guards a non-string email — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25. `email.toLowerCase()` still sits outside the try block —
+  // that placement is fine — but a shaped body ({email: {...}}) no longer
+  // reaches it: both fields are type-checked first and a non-string gets the
+  // honest 400 rather than a raw TypeError escaping as an opaque 500 with a
+  // stack trace in the logs. `token` is checked too; it is relayed to GoTrue.
+  it('SECURE: email and token are type-checked as strings, 400 otherwise', () => {
     const src = read('api/email/verify.ts')
     const normalizeIdx = src.indexOf('const normalizedEmail = email.toLowerCase().trim()')
-    const tryIdx = src.indexOf('try {')
     expect(normalizeIdx).toBeGreaterThan(-1)
-    expect(tryIdx).toBeGreaterThan(-1)
-    expect(normalizeIdx).toBeLessThan(tryIdx)
-    expect(src.slice(0, normalizeIdx)).not.toMatch(/typeof email/)
+    const guardIdx = src.indexOf("typeof email !== 'string'")
+    expect(guardIdx).toBeGreaterThan(-1)
+    // The guard runs BEFORE the normalisation, and refuses.
+    expect(guardIdx).toBeLessThan(normalizeIdx)
+    expect(src).toMatch(/typeof email !== 'string' \|\| typeof token !== 'string'/)
+    expect(src.slice(guardIdx, normalizeIdx)).toMatch(/status\(400\)/)
   })
-  it.todo('SECURE: type-check email/token as strings and 400 otherwise')
 })
 
-describe('INPUT-08: the audio proxy 502 body still leaks the S3 key and raw AWS error', () => {
-  // SECURITY FINDING INPUT-08: an anonymous caller who triggers any S3
-  // failure receives the internal object key and the AWS error text/code,
-  // which routinely carries the bucket ARN and key-prefix layout.
-  it('[audioId].ts 502 body still includes details and key fields', () => {
+describe('INPUT-08: the audio proxy 502 body is caller-safe', () => {
+  // SECURITY FINDING INPUT-08 — FIXED 2026-08-25: an anonymous caller who
+  // triggered any S3 failure received the internal object key and the AWS
+  // error text/code (which routinely carries the bucket ARN and key-prefix
+  // layout). The body is now a fixed string; the detail stays in the
+  // console.error immediately above it.
+  it('[audioId].ts 502 body carries no details or key field', () => {
     const src = read('api/audio/[audioId].ts')
-    expect(src).toMatch(/status\(502\)\.json\(\{[\s\S]{0,120}details: s3Error/)
-    expect(src).toMatch(/key: sample\.s3_key/)
+    expect(src).toMatch(/status\(502\)\.json\(\{ error: 'Failed to fetch audio from storage' \}\)/)
+    expect(src).not.toMatch(/status\(502\)\.json\(\{[\s\S]{0,200}details:/)
+    expect(src).not.toMatch(/status\(502\)\.json\(\{[\s\S]{0,200}key: sample\.s3_key/)
   })
-  it.todo('SECURE: return a generic 502 body; keep key/details in console.error only')
 })
 
-describe('INPUT-09: unbounded / untyped string writes remain', () => {
-  // SECURITY FINDING INPUT-09: course_code and client_version have no type
-  // check and no length cap (contrast event_type, correctly .slice(0, 64));
-  // class_name is type-checked but never capped anywhere it is written.
-  it('player-events.ts still writes course_code/client_version with no type check or cap', () => {
+describe('INPUT-09: free text reaching the DB is typed and length-capped', () => {
+  // SECURITY FINDING INPUT-09 — FIXED 2026-08-25: course_code and
+  // client_version had no type check and no length cap (contrast event_type,
+  // correctly .slice(0, 64)); class_name was type-checked but never capped
+  // anywhere it is written. Both now follow the
+  // typeof === 'string' ? x.slice(0, N) : null pattern.
+  it('player-events.ts type-checks and caps course_code/client_version', () => {
     const src = read('api/player-events.ts')
-    expect(src).toContain('course_code: e.course_code || null')
-    expect(src).toContain('client_version: e.client_version || null')
+    expect(src).not.toContain('course_code: e.course_code || null')
+    expect(src).not.toContain('client_version: e.client_version || null')
+    expect(src).toContain("typeof e.course_code === 'string' ? e.course_code.slice(0, 64) || null : null")
+    expect(src).toContain("typeof e.client_version === 'string' ? e.client_version.slice(0, 64) || null : null")
   })
-  it('class_name writers still have no length cap', () => {
+  it('class_name writers cap the value they persist', () => {
     for (const file of ['api/school/rename-class.ts', 'api/teacher/classes.ts']) {
       const src = read(file)
-      expect(src, file).not.toMatch(/class_name.*\.slice\(0,\s*\d+\)/)
+      expect(src, file).toMatch(/class_name.*\.slice\(0,\s*\d+\)/)
     }
   })
-  it.todo('SECURE: apply the typeof===\'string\' ? x.slice(0,N) : null pattern used by update-profile.ts/onboarding/profile.ts')
 })
 
-describe('INPUT-11: an unauthenticated request body still drives an outbound DNS lookup', () => {
-  // SECURITY FINDING INPUT-11: hasMxRecord() runs dns.resolveMx on a
-  // caller-supplied domain from possession-redeem, with no rate limit ahead
-  // of the lookup — a low-bandwidth beacon/amplification lever from the
-  // serverless egress IP.
-  it('hasMxRecord is called with no rate-limit gate ahead of it in possession-redeem.ts', () => {
+describe('INPUT-11: outbound DNS driven by an unauthenticated body — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25 with two in-process brakes ahead of dns.resolveMx: a
+  // per-bucket window keyed on the caller's platform-attested IP hash (passed
+  // in by possession-redeem, the same hash the code throttle uses), and a
+  // short-lived per-domain answer cache that collapses the ordinary case — a
+  // school onboarding fifty pupils on one domain — to a single lookup.
+  //
+  // Deliberately NOT the possession_mint_attempts ledger: a DB round-trip to
+  // decide whether to make a DNS round-trip costs more than the thing it
+  // protects. Honest limit, stated in the module: this state is per warm lambda
+  // instance, so it bounds the cheap high-volume abuse, which is the abuse that
+  // exists. Over-budget returns null — the module's existing "inconclusive" —
+  // so the fail-open semantics the paired todo asked to keep are kept, and a
+  // throttled legitimate signup proceeds rather than being blocked.
+  it('SECURE: the MX lookup is rate-limited per caller and keeps its fail-open semantics', () => {
     const emailValidation = read('api/_utils/emailValidation.ts')
     expect(emailValidation).toContain('dns.resolveMx(domain)')
+    // The gate sits BEFORE the lookup.
+    const gateIdx = emailValidation.indexOf('if (mxBucketOverLimit(bucketKey))')
+    const lookupIdx = emailValidation.indexOf('dns.resolveMx(domain)')
+    expect(gateIdx).toBeGreaterThan(-1)
+    expect(gateIdx).toBeLessThan(lookupIdx)
+    // Over budget is inconclusive (null), never "invalid" — fail open.
+    expect(emailValidation).toMatch(/if \(mxBucketOverLimit\(bucketKey\)\) \{[\s\S]{0,200}return null/)
+    // And the caller supplies its platform-attested bucket.
     const redeem = read('api/auth/possession-redeem.ts')
-    // The throttle in this file keys on invite-code attempts, not on the MX lookup itself.
-    expect(redeem).toContain('hasMxRecord')
+    expect(redeem).toContain('hasMxRecord(normalizedEmail, undefined, ipHash)')
   })
-  it.todo('SECURE: rate-limit per IP ahead of the MX lookup; keep the fail-open semantics')
 })
 
-describe('INPUT-12: cron secret comparison is still non-constant-time; the non-prod skip persists', () => {
-  // SECURITY FINDING INPUT-12: `authHeader !== \`Bearer ${cronSecret}\`` is a
-  // plain string compare, not crypto.timingSafeEqual. Separately, when
-  // CRON_SECRET is unset AND VERCEL_ENV/NODE_ENV is not exactly 'production'
-  // (e.g. an unconfigured preview deployment), the auth check is skipped
-  // entirely rather than failing closed. The production case IS now fixed
-  // (refuses to run with a 500) — only the narrower preview/self-hosted gap
-  // and the timing-safety nit remain.
-  it('both cron handlers still compare the bearer with !==, not timingSafeEqual', () => {
+describe('INPUT-12: cron secret comparison is constant-time and fails closed on every deployed env', () => {
+  // SECURITY FINDING INPUT-12 — FIXED 2026-08-25: `authHeader !== \`Bearer
+  // ${cronSecret}\`` was a plain string compare, and when CRON_SECRET was
+  // unset AND VERCEL_ENV was not exactly 'production' (an unconfigured
+  // preview, a self-hosted deploy) the auth check was skipped entirely.
+  // Both handlers now call the shared checkCronAuth(), which compares with
+  // crypto.timingSafeEqual and refuses to run un-authenticated anywhere
+  // VERCEL_ENV is set at all. Only a local run is still allowed through.
+  it('both cron handlers delegate to the shared constant-time checkCronAuth()', () => {
     for (const file of ['api/cron/expire-demo-schools.ts', 'api/cron/teacher-payouts.ts']) {
       const src = read(file)
-      expect(src, file).toMatch(/authHeader !== `Bearer \$\{cronSecret\}`/)
-      expect(src, file).not.toContain('timingSafeEqual')
+      expect(src, file).toMatch(/import \{ checkCronAuth \} from '\.\.\/_utils\/cronAuth'/)
+      expect(src, file).toMatch(/const cronAuth = checkCronAuth\(\(req\.headers\.authorization \|\| ''\)\.trim\(\), cronSecret\)/)
+      expect(src, file).toMatch(/if \(!cronAuth\.ok\)/)
+      expect(src, file).not.toMatch(/authHeader !== `Bearer \$\{cronSecret\}`/)
     }
   })
-  it('the auth check is still skipped outright when cronSecret is unset and the environment is not production', () => {
-    for (const file of ['api/cron/expire-demo-schools.ts', 'api/cron/teacher-payouts.ts']) {
-      const src = read(file)
-      expect(src, file).toMatch(/if \(cronSecret && authHeader !== `Bearer \$\{cronSecret\}`\)/)
-    }
+  it('the shared helper compares in constant time and treats any VERCEL_ENV as deployed', () => {
+    const src = read('api/_utils/cronAuth.ts')
+    expect(src).toContain("import { timingSafeEqual } from 'node:crypto'")
+    expect(src).toMatch(/return timingSafeEqual\(got, expected\)/)
+    expect(src).toMatch(/Boolean\(\(process\.env\.VERCEL_ENV \|\| ''\)\.trim\(\)\)/)
+    // Unset secret on a deployed environment is a refusal, not a skip.
+    expect(src).toMatch(/return \{ ok: false, status: 500, error: 'CRON_SECRET not configured' \}/)
   })
-  it.todo('SECURE: use crypto.timingSafeEqual; fail closed whenever VERCEL_ENV is set at all, not only when it equals production')
 })

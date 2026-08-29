@@ -33,8 +33,18 @@
  * infiltration". A per-IP window of 10 that an attacker can reset by
  * incrementing a header is not a limiter, it is a formality.
  *
- * THIS TEST FAILS ON PURPOSE against current main. It is the finding,
- * executable. No production behaviour is changed by this file.
+ * STATUS: GREEN as of 2026-08-25 — this spec now PASSES. `getClientIp` moved
+ * into the one shared module (api/_utils/codeAttemptThrottle.ts) and reads
+ * platform-attested sources only: `x-vercel-forwarded-for` first, then
+ * `req.socket.remoteAddress`, then a single shared 'unknown' bucket.
+ * `x-forwarded-for` and `x-real-ip` are not consulted at all. It was written to
+ * fail on purpose; it is a regression guard from here on, and if either
+ * client-set header comes back it goes red again.
+ *
+ * The deployment caveat above stands and is not closed by this change — whether
+ * Vercel's edge strips or overwrites a caller-supplied XFF was never verified
+ * live, and no longer needs to be, because the code stopped depending on the
+ * answer. No production behaviour beyond the bucket key is changed by this file.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 

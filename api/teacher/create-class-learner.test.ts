@@ -145,6 +145,42 @@ describe('POST /api/teacher/create-class-learner', () => {
     expect(res.statusCode).toBe(200)
   })
 
+  // TENANCY-08: an admin under the TAG spelling is the same principal as the
+  // founding pointer and must get the same verb on her own school's class.
+  it('allows a tag-spelled school admin of the class\'s school (TENANCY-08)', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'other-teacher', school_id: 'school-1' }
+    DB.schools = [{ id: 'school-1', admin_user_id: 'founder-1' }]
+    DB.user_tags = [{
+      id: 'tag-admin-1',
+      user_id: 'admin-2',
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-1',
+      role_in_context: 'admin',
+      removed_at: null,
+    }]
+    authResult = { valid: true, userId: 'admin-2' }
+    const res = makeRes()
+    await handler(makeReq({ class_id: 'class-1' }), res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('still refuses a tag-spelled admin of a DIFFERENT school', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'other-teacher', school_id: 'school-1' }
+    DB.schools = [{ id: 'school-1', admin_user_id: 'founder-1' }]
+    DB.user_tags = [{
+      id: 'tag-admin-2',
+      user_id: 'admin-3',
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-2',
+      role_in_context: 'admin',
+      removed_at: null,
+    }]
+    authResult = { valid: true, userId: 'admin-3' }
+    const res = makeRes()
+    await handler(makeReq({ class_id: 'class-1' }), res)
+    expect(res.statusCode).toBe(403)
+  })
+
   // B1 (founder report 2026-08-07): an invite-born trial school never recorded
   // the language it was trialling, so its home badge read a bare "Trial". The
   // first class carrying a course is the honest moment to record it.

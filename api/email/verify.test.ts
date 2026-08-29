@@ -41,7 +41,30 @@ function makeLearnersBuilder() {
       calls.push(['eq', ...args])
       return builder
     },
+    // AUTH-CORE-04's OTP budget counts rows in possession_mint_attempts with
+    // a .gte('created_at', …) terminator; the window is empty in these tests so
+    // every case below exercises the same path it always did.
+    gte: (...args: any[]) => {
+      calls.push(['gte', ...args])
+      return Promise.resolve({ count: 0, error: null })
+    },
+    // The attempt audit row (best-effort insert).
+    insert: (obj: any) => {
+      calls.push(['insert', obj])
+      return Promise.resolve({ error: null })
+    },
+    limit: (...args: any[]) => {
+      calls.push(['limit', ...args])
+      return builder
+    },
     single: () => {
+      const isContains = calls.some((c) => c[0] === 'contains')
+      if (isContains) return Promise.resolve({ data: crossAccountLearner, error: null })
+      return Promise.resolve({ data: learnerRow, error: null })
+    },
+    // AUTH-CORE-06 moved the cross-account collision probe from .single() to
+    // .limit(1).maybeSingle(); it resolves to the same fixture.
+    maybeSingle: () => {
       const isContains = calls.some((c) => c[0] === 'contains')
       if (isContains) return Promise.resolve({ data: crossAccountLearner, error: null })
       return Promise.resolve({ data: learnerRow, error: null })

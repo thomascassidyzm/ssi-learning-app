@@ -2,6 +2,25 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "brand": {
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
+  },
+  "modes": {
+    "modes": "模式",
+    "pronunciation": "发音",
+    "guideShown": "在脚本上方显示指南",
+    "nativeOnly": "仅显示原生文字",
+    "offline": "离线模式",
+    "offlineDesc": "从已下载的音频播放",
+    "hiseDesc": "高强度口语练习",
+    "listening": "听力",
+    "listeningDesc": "仅音频，无需说话",
+    "easy": "简单",
+    "fast": "快速",
+    "learningModeLabel": "学习模式"
+  },
   "courseSelector": {
     "title": "选择课程",
     "iSpeak": "我会说",
@@ -124,7 +143,29 @@
     "nuclearResetDesc": "清除所有本地数据、Service Worker 并重新加载",
     "about": "关于",
     "version": "版本",
-    "madeWithLove": "为语言学习者用心打造"
+    "madeWithLove": "为语言学习者用心打造",
+    "cancelSubscription": "取消订阅",
+    "classicWelshListening": "经典威尔士语听力练习",
+    "classicWelshListeningDesc": "打开经典网站",
+    "clearCacheReload": "清除缓存并重新加载",
+    "codes": "邀请码",
+    "community": "社区",
+    "dashboards": "仪表盘",
+    "enterACode": "输入邀请码",
+    "forum": "论坛",
+    "goPremium": "升级到高级版",
+    "installApp": "安装应用",
+    "interfaceLanguage": "界面语言",
+    "languageSection": "语言",
+    "legal": "法律信息",
+    "linkedEmails": "已关联邮箱",
+    "privacy": "隐私政策",
+    "refund": "退款政策",
+    "terms": "条款与条件",
+    "troubleshooting": "故障排除",
+    "updateLatest": "更新到最新版本",
+    "viewScriptLabel": "查看脚本",
+    "whatsNew": "新功能"
   },
   "belt": {
     "yourProgress": "你的进度",
@@ -152,12 +193,23 @@
     "youreOnARoll": "你正在飞速进步",
     "impressiveProgress": "进步显著",
     "nearlyThere": "快到了",
-    "forSpeakers": "面向{lang}使用者"
+    "forSpeakers": "面向{lang}使用者",
+    "furthest": "最远进度",
+    "jumpForward": "从你停下的地方继续",
+    "now": "现在",
+    "restOfCourse": "课程的其余部分",
+    "returnAfter3": "你的大脑一直在巩固记忆。来看看记住了什么吧！",
+    "returnAfter30": "欢迎回来。你的大脑记住的比你想的更多。",
+    "returnAfter7": "深度巩固已完成。你可能会惊讶于自己记住了多少。",
+    "youAreHere": "你在这里",
+    "youHaveBeenFurther": "你曾经到过比这更远的地方",
+    "yourFurthest": "你的最远进度"
   },
   "phase": {
     "getReadyToSpeak": "准备说话",
     "speakNow": "现在轮到你说了",
-    "listenCarefully": "仔细听"
+    "listenCarefully": "仔细听",
+    "passiveAttention": "现在只需放松地听——不必费力，但要保持专注，就像听鸟鸣一样。"
   },
   "onboarding": {
     "beltIsProgress": "腰带 = 进度",
@@ -287,7 +339,26 @@
     "yor": "约鲁巴语",
     "yue": "粤语",
     "zho": "中文",
-    "zul": "祖鲁语"
+    "zul": "祖鲁语",
+    "afr": "南非荷兰语",
+    "cym_n_suffix": "北部",
+    "cym_s_suffix": "南部",
+    "fur": "弗留利语",
+    "hak": "客家话",
+    "kan": "卡纳达语",
+    "lmo": "伦巴第语",
+    "mar": "马拉地语",
+    "mlt": "马耳他语",
+    "nan": "台语（闽南语）",
+    "nap": "那不勒斯语",
+    "nep": "尼泊尔语",
+    "pdc": "宾夕法尼亚德语",
+    "rgn": "罗马涅语",
+    "roh": "罗曼什语",
+    "scn": "西西里语",
+    "sme": "北萨米语",
+    "vec": "威尼托语",
+    "yid": "意第绪语"
   },
   "contribution": {
     "spoken": "{language}口语练习",

@@ -15,6 +15,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { checkCronAuth } from '../_utils/cronAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -25,20 +26,15 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  const authHeader = (req.headers.authorization || '').trim()
-  const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
-  if (isProd && !cronSecret) {
-    console.error('[cron/expire-demo-schools] CRON_SECRET not configured in production — refusing to run')
-    res.status(500).json({ error: 'CRON_SECRET not configured' })
+  // SEC25 INPUT-12: constant-time compare, and fail closed on EVERY deployed
+  // environment (preview included), not only when VERCEL_ENV === 'production'.
+  const cronAuth = checkCronAuth((req.headers.authorization || '').trim(), cronSecret)
+  if (!cronAuth.ok) {
+    console.error(`[cron/expire-demo-schools] ${cronAuth.error} — refusing to run`)
+    res.status(cronAuth.status || 401).json({ error: cronAuth.error })
     return
   }
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    if (isProd) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
-    }
-    console.warn('[cron/expire-demo-schools] missing/invalid CRON_SECRET — allowed in non-prod')
-  }
+  if (cronAuth.warning) console.warn(`[cron/expire-demo-schools] ${cronAuth.warning}`)
 
   if (!supabaseUrl || !supabaseServiceKey) {
     res.status(500).json({ error: 'Server configuration error' })

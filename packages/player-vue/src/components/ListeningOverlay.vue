@@ -1764,7 +1764,18 @@ const audioCache = getAudioCache()
 
 // Diagnostic event log — same session_id as LearningPlayer's instance
 // so a user's actions across the player + overlay land on one timeline.
-const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode) })
+// SEC25 INPUT-04: events are attributed from a verified bearer, not from the
+// ssi-user-id cookie, so hand the log this session's access token.
+const listeningLogGetToken = async () => {
+  if (!supabase?.value) return null
+  try {
+    const { data } = await supabase.value.auth.getSession()
+    return data?.session?.access_token ?? null
+  } catch {
+    return null
+  }
+}
+const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode), getToken: listeningLogGetToken })
 
 // Engaged-time heartbeat. Listening-mode PLAYBACK emits no per-clip events, so
 // without this the session span (the source of the learner's "time engaged"

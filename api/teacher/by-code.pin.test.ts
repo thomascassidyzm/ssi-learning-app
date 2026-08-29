@@ -22,6 +22,11 @@ function makeChainable(table: string) {
   const builder: any = {
     select: (cols: string) => { calls.push(['select', cols]); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    // TENANCY-06 added the shared per-IP throttle in front of this endpoint;
+    // its window query is .neq()x3 then .gte(), and it writes an audit row.
+    neq: (col: string, val: unknown) => { calls.push(['neq', col, val]); return builder },
+    gte: (col: string, val: unknown) => { calls.push(['gte', col, val]); return Promise.resolve(builder.resolve()) },
+    insert: (obj: unknown) => { calls.push(['insert', obj]); return Promise.resolve({ error: null }) },
     resolve: () => {
       const respond = responders[table]
       if (respond) {
@@ -48,7 +53,8 @@ function makeRes() {
 }
 
 function makeReq(code: string): VercelRequest {
-  return { method: 'GET', query: { code } } as any
+  // socket.remoteAddress is the platform-attested bucket key the throttle uses.
+  return { method: 'GET', query: { code }, headers: {}, socket: { remoteAddress: '203.0.113.7' } } as any
 }
 
 const SCHOOL_CLASS = {

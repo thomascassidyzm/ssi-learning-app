@@ -2,6 +2,25 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "brand": {
+    "say": "Say",
+    "something": "Something",
+    "in": "in"
+  },
+  "modes": {
+    "modes": "モード",
+    "pronunciation": "発音",
+    "guideShown": "スクリプトの上にガイドを表示",
+    "nativeOnly": "現地語表記のみ",
+    "offline": "オフラインモード",
+    "offlineDesc": "ダウンロード済み音声で再生",
+    "hiseDesc": "高強度スピーキングエクササイズ",
+    "listening": "リスニング",
+    "listeningDesc": "音声のみ、発話なし",
+    "easy": "イージー",
+    "fast": "ファスト",
+    "learningModeLabel": "学習モード"
+  },
   "courseSelector": {
     "title": "コースを選ぶ",
     "iSpeak": "話せる言語",
@@ -124,7 +143,29 @@
     "nuclearResetDesc": "すべてのローカルデータとService Workerを削除して再読込",
     "about": "このアプリについて",
     "version": "バージョン",
-    "madeWithLove": "言語学習者のために愛を込めて作りました"
+    "madeWithLove": "言語学習者のために愛を込めて作りました",
+    "cancelSubscription": "サブスクリプションを解約",
+    "classicWelshListening": "クラシック・ウェールズ語リスニング教材",
+    "classicWelshListeningDesc": "クラシックサイトを開く",
+    "clearCacheReload": "キャッシュを削除して再読み込み",
+    "codes": "コード",
+    "community": "コミュニティ",
+    "dashboards": "ダッシュボード",
+    "enterACode": "コードを入力",
+    "forum": "フォーラム",
+    "goPremium": "プレミアムにアップグレード",
+    "installApp": "アプリをインストール",
+    "interfaceLanguage": "表示言語",
+    "languageSection": "言語",
+    "legal": "法的情報",
+    "linkedEmails": "連携済みメールアドレス",
+    "privacy": "プライバシーポリシー",
+    "refund": "返金ポリシー",
+    "terms": "利用規約",
+    "troubleshooting": "トラブルシューティング",
+    "updateLatest": "最新バージョンに更新",
+    "viewScriptLabel": "スクリプトを見る",
+    "whatsNew": "新着情報"
   },
   "belt": {
     "yourProgress": "あなたの進捗",
@@ -152,12 +193,23 @@
     "youreOnARoll": "絶好調です",
     "impressiveProgress": "素晴らしい進歩",
     "nearlyThere": "あと少し",
-    "forSpeakers": "{lang}話者向け"
+    "forSpeakers": "{lang}話者向け",
+    "furthest": "最遠到達点",
+    "jumpForward": "続きから再開",
+    "now": "現在",
+    "restOfCourse": "コースの残り",
+    "returnAfter3": "脳が定着作業をしていました。何が身についたか見てみましょう！",
+    "returnAfter30": "おかえりなさい。あなたの脳は思っている以上に覚えています。",
+    "returnAfter7": "深い定着が完了しました。自分でも驚くかもしれません。",
+    "youAreHere": "現在地",
+    "youHaveBeenFurther": "ここより先まで進んだことがあります",
+    "yourFurthest": "あなたの最遠到達点"
   },
   "phase": {
     "getReadyToSpeak": "話す準備をして",
     "speakNow": "あなたの番です",
-    "listenCarefully": "よく聞いて"
+    "listenCarefully": "よく聞いて",
+    "passiveAttention": "今は努力せず、鳥のさえずりを聞くように、注意を向けて聞くだけにしましょう。"
   },
   "onboarding": {
     "beltIsProgress": "ベルト＝進捗",
@@ -287,7 +339,26 @@
     "yor": "ヨルバ語",
     "yue": "広東語",
     "zho": "中国語",
-    "zul": "ズールー語"
+    "zul": "ズールー語",
+    "afr": "アフリカーンス語",
+    "cym_n_suffix": "北部",
+    "cym_s_suffix": "南部",
+    "fur": "フリウリ語",
+    "hak": "客家語",
+    "kan": "カンナダ語",
+    "lmo": "ロンバルド語",
+    "mar": "マラーティー語",
+    "mlt": "マルタ語",
+    "nan": "台湾語（閩南語）",
+    "nap": "ナポリ語",
+    "nep": "ネパール語",
+    "pdc": "ペンシルベニア・ダッチ語",
+    "rgn": "ロマーニョロ語",
+    "roh": "ロマンシュ語",
+    "scn": "シチリア語",
+    "sme": "北部サーミ語",
+    "vec": "ヴェネト語",
+    "yid": "イディッシュ語"
   },
   "contribution": {
     "spoken": "{language}を話しました",

@@ -42,6 +42,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, schoolIdForAdmin, chunk } from '../_utils/schoolScope'
 import { SCHOOL_STAFF_ROLES } from '../_utils/schoolStaff'
+import { canTeachClass } from '../_utils/classTeacherAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -256,7 +257,7 @@ async function handleClassTeacherLookup(
 ): Promise<void> {
   const { data: cls } = await svc
     .from('classes')
-    .select('id, teacher_user_id, school_id')
+    .select('id, teacher_user_id, school_id, group_id')
     .eq('id', classId)
     .maybeSingle()
 
@@ -265,43 +266,20 @@ async function handleClassTeacherLookup(
     return
   }
 
-  // Membership authz — the pattern at api/teacher/class-teachers.ts:99-134.
-  // A caller who may not manage this class's teachers may not enumerate its
-  // candidates either.
-  let authorized = (cls as any).teacher_user_id === callerUserId
-
-  if (!authorized) {
-    const { data: callerTag } = await svc
-      .from('user_tags')
-      .select('id')
-      .eq('tag_type', 'class')
-      .eq('tag_value', `CLASS:${classId}`)
-      .eq('role_in_context', 'teacher')
-      .eq('user_id', callerUserId)
-      .is('removed_at', null)
-      .maybeSingle()
-    if (callerTag) authorized = true
-  }
-
-  if (!authorized) {
-    const { data: caller } = await svc
-      .from('learners')
-      .select('platform_role, educational_role')
-      .eq('user_id', callerUserId)
-      .maybeSingle()
-    if ((caller as any)?.platform_role === 'ssi_admin' || (caller as any)?.educational_role === 'god') {
-      authorized = true
-    }
-  }
-
-  if (!authorized && (cls as any).school_id) {
-    const { data: school } = await svc
-      .from('schools')
-      .select('admin_user_id')
-      .eq('id', (cls as any).school_id)
-      .maybeSingle()
-    if ((school as any)?.admin_user_id === callerUserId) authorized = true
-  }
+  // Membership authz: a caller who may not teach this class may not enumerate
+  // its co-teacher candidates either.
+  //
+  // TENANCY-08 (fixed 2026-08-25): this hand-rolled the four legs of
+  // canTeachClass(), but its school-admin leg read the schools.admin_user_id
+  // founding pointer ALONE — so a tag-admin of the class's own school was denied
+  // the roster. The shared predicate owns both admin spellings, making this a
+  // strict superset of the old ladder.
+  const authorized = await canTeachClass(svc, callerUserId, {
+    id: (cls as any).id,
+    teacher_user_id: (cls as any).teacher_user_id ?? null,
+    school_id: (cls as any).school_id ?? null,
+    group_id: (cls as any).group_id ?? null,
+  })
 
   if (!authorized) {
     res.status(403).json({ error: 'Not a teacher of this class' })

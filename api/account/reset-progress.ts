@@ -82,8 +82,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .eq('course_id', courseCode)
 
       if (error) {
+        // AUTH-CORE-10: the table name is ours and safe to name; the Postgres
+        // message is not — it carries constraint and relation detail. Log it,
+        // don't ship it.
         console.error(`[account/reset-progress] Failed clearing ${table}:`, error)
-        res.status(500).json({ error: `Failed to reset progress (${table})`, detail: error.message })
+        res.status(500).json({ error: `Failed to reset progress (${table})` })
         return
       }
     }

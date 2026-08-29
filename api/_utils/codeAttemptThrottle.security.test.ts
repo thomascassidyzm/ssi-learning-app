@@ -1,64 +1,82 @@
 /**
- * SEC25-A-01 — codeAttemptThrottle.ts (new 2026-08-25) carries forward the
- * SEC-AUDIT-2026-08-18 Finding 5 shape into its own bucket key.
+ * SEC25-A-01 — codeAttemptThrottle.ts's bucket key. FIXED 2026-08-25.
  *
- * This is a CHARACTERISATION test: it PASSES, and what it pins down is that
- * the new shared module did not fix Finding 5 while it had the chance — it
- * reused getClientIp()'s exact shape (leftmost X-Forwarded-For entry, or
- * X-Real-IP, both client-set) as its own bucket key, for BOTH callers that
- * adopted it: api/code/redeem.ts (this file) and, by the same construction,
- * any future caller of isIpOverLimit/logAttempt.
+ * WHAT WAS WRONG. The shared limiter derived its bucket from
+ * `x-forwarded-for.split(',')[0]` with an `x-real-ip` fallback. Both are
+ * written by the original client, so an attacker rotating a header bought a
+ * fresh window on every request and REDEEM_PER_IP_LIMIT never bound anything.
+ * That mattered more than an ordinary limiter bypass because api/code/redeem.ts
+ * — the endpoint this limiter fronts — grants `platform_role = 'ssi_admin'`
+ * (SEC25-X-03), and the limiter was the only anti-enumeration control on it.
+ * This was SEC-AUDIT-2026-08-18 Finding 5, carried forward when the shared
+ * module was written.
  *
- * The module's own docstring says this is deliberate ("Findings 1 and 2 only,
- * ... Finding 5 stays red on purpose") — so this is not reporting something
- * the author didn't know. It is the requested comparison, executable: does
- * the new throttle repeat the old mistake, or fix it? It repeats it.
+ * HOW IT WAS FIXED. `getClientIp()` now reads platform-attested sources ONLY,
+ * in order: `x-vercel-forwarded-for` (set by the Vercel edge, which overwrites
+ * rather than appends), then `req.socket.remoteAddress` (transport truth), then
+ * the literal 'unknown'. `x-forwarded-for` and `x-real-ip` are not consulted at
+ * all — not even as a last resort, since a fallback the attacker reaches by
+ * omitting the headers above is the same hole one step down. All three
+ * endpoints that used to carry byte-equivalent inline copies (api/code/validate.ts,
+ * api/auth/possession-redeem.ts, api/try-link/validate.ts) now import from here,
+ * so there is exactly one definition to get right.
  *
- * Consequence for redeem.ts specifically (the highest-value target: a hit
- * REDEEMS an elevated-role invite, not merely reports one): an attacker who
- * rotates the X-Forwarded-For value they send on every request gets a fresh
- * ip_hash bucket every time, so REDEEM_PER_IP_LIMIT (120 / 15 min) never
- * actually bounds them — the real constraint against the ~13.8M ABC-123
- * keyspace is however wide the bucket key attacker rotation can spread it,
- * which is unbounded here.
+ * These are the assertions the paired `it.todo()` named, flipped from the
+ * characterizations that recorded the vulnerable behaviour. They are regression
+ * guards now: if the client-set headers come back, these go red.
  *
- * No production behaviour is changed by this file.
+ * No network, no database — pure function under test.
  */
 import { describe, it, expect } from 'vitest'
 import { getClientIp, hashIp } from './codeAttemptThrottle'
 
-function reqWith(headers: Record<string, string>) {
-  return { headers } as any
+function reqWith(headers: Record<string, string>, socketAddr?: string) {
+  return { headers, ...(socketAddr ? { socket: { remoteAddress: socketAddr } } : {}) } as any
 }
 
-describe('SEC25-A-01 — codeAttemptThrottle bucket key is attacker-controlled', () => {
-  it('derives the bucket purely from X-Forwarded-For, which the caller writes', () => {
+describe('SEC25-A-01 — codeAttemptThrottle bucket key is platform-attested', () => {
+  it('keeps one machine in one bucket regardless of the X-Forwarded-For it declares', () => {
     // One physical machine, three different declared identities.
     const hashes = new Set(
       ['198.51.100.1', '198.51.100.2', '198.51.100.3'].map((ip) =>
-        hashIp(getClientIp(reqWith({ 'x-forwarded-for': `${ip}, 203.0.113.9` })))
+        hashIp(getClientIp(reqWith({ 'x-forwarded-for': `${ip}, 203.0.113.9` }, '203.0.113.9')))
       )
     )
-    // The insecure property, asserted as fact: each declared IP buys a fresh
-    // bucket, even though every one of these requests came from the same
-    // downstream hop (203.0.113.9, the rightmost/true entry in each case).
-    expect(hashes.size).toBe(3)
+    expect(hashes.size).toBe(1)
+    expect(getClientIp(reqWith({ 'x-forwarded-for': '198.51.100.1' }, '203.0.113.9'))).toBe('203.0.113.9')
   })
 
-  it('accepts X-Real-IP too — a second client-set header, same effect', () => {
-    const a = hashIp(getClientIp(reqWith({ 'x-real-ip': '198.51.100.10' })))
-    const b = hashIp(getClientIp(reqWith({ 'x-real-ip': '198.51.100.11' })))
-    expect(a).not.toBe(b)
+  it('does not let X-Real-IP pick the bucket either', () => {
+    const a = hashIp(getClientIp(reqWith({ 'x-real-ip': '198.51.100.10' }, '203.0.113.9')))
+    const b = hashIp(getClientIp(reqWith({ 'x-real-ip': '198.51.100.11' }, '203.0.113.9')))
+    expect(a).toBe(b)
   })
 
-  it('has no platform-attested fallback (e.g. x-vercel-forwarded-for, socket.remoteAddress)', () => {
-    // getClientIp ignores everything except the two client-set headers, even
-    // when a platform-attested value is present on the same request — proving
-    // the omission is total, not just "checked first".
-    const req = {
-      headers: { 'x-forwarded-for': '198.51.100.99', 'x-vercel-forwarded-for': '203.0.113.9' },
-      socket: { remoteAddress: '203.0.113.9' },
-    } as any
-    expect(getClientIp(req)).toBe('198.51.100.99')
+  it('prefers the platform-attested x-vercel-forwarded-for over anything the caller sent', () => {
+    const req = reqWith(
+      { 'x-forwarded-for': '198.51.100.99', 'x-vercel-forwarded-for': '203.0.113.9' },
+      '10.0.0.5'
+    )
+    expect(getClientIp(req)).toBe('203.0.113.9')
+  })
+
+  it('falls back to the socket address — transport truth — when the edge header is absent', () => {
+    expect(getClientIp(reqWith({ 'x-forwarded-for': '198.51.100.99' }, '203.0.113.9'))).toBe('203.0.113.9')
+  })
+
+  it("falls back to a single shared 'unknown' bucket, never to a client-set header", () => {
+    // The key property: with no attested source, everything lands in ONE
+    // bucket. That is strictly MORE restrictive than a per-IP window — a
+    // missing platform header must never buy an unlimited allowance.
+    const a = getClientIp(reqWith({ 'x-forwarded-for': '198.51.100.1', 'x-real-ip': '198.51.100.2' }))
+    const b = getClientIp(reqWith({ 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '203.0.113.8' }))
+    expect(a).toBe('unknown')
+    expect(b).toBe('unknown')
+  })
+
+  it('produces a bucket rather than throwing on a malformed request with no headers', () => {
+    // This runs before everything else on an unauthenticated path: a throw
+    // here would skip the throttle entirely, which is worse than no limiter.
+    expect(getClientIp({} as any)).toBe('unknown')
   })
 })

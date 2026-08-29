@@ -24,9 +24,14 @@
  * violations") has no instrument that would actually surface this gap before
  * someone promotes the policy and the feature quietly goes dark.
  *
- * This is a config/process gap, not an active vulnerability — recorded as a
- * characterization test (SEC25-B-01) plus an `it.todo` for the fix, per the
- * repo's audit convention.
+ * FIXED 2026-08-25 (origin half): `https://popty.app` is now listed in the
+ * report-only `connect-src` in vercel.json, so promoting the policy to
+ * enforced no longer silently kills the published-copy fetch. The origin is
+ * ours, exact-host, no wildcard.
+ *
+ * STILL OPEN (collector half): the policy still carries no `report-to`/
+ * `report-uri`, because a directive with no endpoint behind it reports
+ * nothing. Kept as a characterization + `it.todo` so the gap stays visible.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -53,12 +58,18 @@ describe('SEC25-B-01 — CSP origin inventory is stale against usePublishedExpla
     expect(src).toMatch(/VITE_POPTY_BASE_URL/)
   })
 
-  // SECURITY FINDING SEC25-B-01: the report-only CSP's connect-src has no
-  // popty.app entry — the origin inventory predates this feature.
-  it('the report-only connect-src does NOT list popty.app (finding SEC25-B-01)', () => {
+  // SECURITY FINDING SEC25-B-01 — FIXED 2026-08-25 by adding
+  // `https://popty.app` to the report-only CSP's connect-src (vercel.json).
+  // The origin is genuinely ours — Popty is the SSi content dashboard, the
+  // same team's product — and the fetch is a shipped, editor-facing feature,
+  // so the reconciliation goes in the CSP rather than in the fetch. Whoever
+  // promotes the policy to enforced no longer walks into a silent regression.
+  it('SEC25-B-01 FIXED: the report-only connect-src lists popty.app', () => {
     const csp = reportOnlyCsp()
     const connectSrc = csp.match(/connect-src[^;]*/)?.[0] ?? ''
-    expect(connectSrc).not.toContain('popty.app')
+    expect(connectSrc).toContain('https://popty.app')
+    // Exactly the host the composable defaults to — no wildcard.
+    expect(connectSrc).not.toContain('*.popty.app')
   })
 
   // SECURITY FINDING SEC25-B-01 (compounding): no report collector is
@@ -82,5 +93,10 @@ describe('SEC25-B-01 — CSP origin inventory is stale against usePublishedExpla
     expect(keys).toContain('content-security-policy-report-only')
   })
 
-  it.todo('SEC25-B-01 fix: add https://popty.app (and any VITE_POPTY_BASE_URL override host actually used in each environment) to connect-src before promoting the CSP to enforced, and add a report-to/report-uri collector so a future drift like this is caught by the soak rather than discovered as a silent feature regression')
+  // The origin half of SEC25-B-01 is closed. The COLLECTOR half is not, and is
+  // deliberately left as a characterization above: adding `report-to` without
+  // standing up an endpoint to receive the reports would be a directive that
+  // does nothing, and choosing/hosting that collector is a product decision,
+  // not a code fix. Left visible rather than assumed away.
+  it.todo('SEC25-B-01 remainder: stand up a CSP report collector and add report-to/report-uri, so a future origin drift is caught by the staging soak rather than discovered as a silent feature regression after promotion')
 })

@@ -24,6 +24,13 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt,
+  REDEEM_PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -47,6 +54,29 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // TENANCY-06 — per-IP throttle before the lookup.
+  //
+  // This endpoint stays UNAUTHENTICATED by design: it is the public /with/{code}
+  // student gateway, and a pupil arriving on a teacher's link has no account
+  // yet, so requiring auth would break the join flow it exists for. What it
+  // must not be is unmetered — it answers "is this a real class?" for any
+  // submitted string over the same 13.8M ABC-123 keyspace the rest of the
+  // estate throttles, and a hit returns the tenant structure plus a working
+  // join code. Same shared limiter and table as code/validate, try-link/validate
+  // and possession-redeem, so a sweep spread across all four accumulates in one
+  // bucket.
+  //
+  // The wider REDEEM_PER_IP_LIMIT for the reason it exists: a class of pupils
+  // opens one teacher link through one school NAT inside a few minutes, and the
+  // narrow limit would lock out the eleventh child holding a correct link.
+  const ipHash = hashIp(getClientIp(req))
+  if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
+    await logAttempt(supabase, '[ClassByCode]', { ipHash, outcome: 'rate_limited_ip' })
+    res.status(429).json({ error: 'Too many attempts. Please try again later.' })
+    return
+  }
+  await logAttempt(supabase, '[ClassByCode]', { ipHash, outcome: 'class_by_code_attempt' })
+
   try {
     // Look up class by join code
     const { data: classRow, error: classError } = await supabase
@@ -57,7 +87,7 @@ export default async function handler(
 
     if (classError) {
       console.error('[ClassByCode] Class lookup failed:', classError)
-      res.status(500).json({ error: classError.message })
+      res.status(500).json({ error: 'Internal server error' })
       return
     }
 
@@ -193,7 +223,7 @@ export default async function handler(
 
     if (countError) {
       console.error('[ClassByCode] Referral count failed:', countError)
-      res.status(500).json({ error: countError.message })
+      res.status(500).json({ error: 'Internal server error' })
       return
     }
 
@@ -220,6 +250,6 @@ export default async function handler(
     })
   } catch (error: any) {
     console.error('[ClassByCode] Error:', error)
-    res.status(500).json({ error: error?.message || 'Internal server error' })
+    res.status(500).json({ error: 'Internal server error' })
   }
 }

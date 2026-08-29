@@ -7,7 +7,14 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { createHash, createHmac } from 'crypto'
+import { createHmac } from 'crypto'
+import {
+  getClientIp,
+  hashIp,
+  isIpOverLimit,
+  logAttempt,
+  REDEEM_PER_IP_LIMIT,
+} from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -22,10 +29,6 @@ const IS_PROD = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV 
 // How long a try-link entitlement is good for once validated, when the link
 // itself carries no expiry. Time-boxed so a leaked token can't grant forever.
 const TRY_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
-
-function hashIp(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex').slice(0, 16)
-}
 
 function b64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -71,6 +74,31 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // AUTH-CORE-03 — per-IP throttle BEFORE the lookup. This endpoint is
+  // unauthenticated, answers "is this code good?" for any submitted string,
+  // and a hit mints a 30-day scope:'all' entitlement token. Untrottled it was
+  // the same code-enumeration oracle api/code/validate.ts already guards
+  // against, over the same ~13.8M ABC-123 keyspace, for a bigger prize.
+  // Same shared limiter, same table, same window — so a sweep that spreads
+  // itself across validate/redeem/try-link accumulates in ONE bucket rather
+  // than getting three budgets.
+  //
+  // The WIDER of the two limits (REDEEM_PER_IP_LIMIT, 120/15min) rather than
+  // validate.ts's 10, for the reason that limit exists: a try link is a
+  // marketing link handed round a room, so the legitimate shape is many
+  // distinct people arriving through one NAT inside a few minutes, and 10
+  // would lock out the eleventh prospect at a conference. 120 still makes the
+  // endpoint useless as a quiet oracle against a 13.8M keyspace — the point.
+  const ipHash = hashIp(getClientIp(req))
+  if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
+    await logAttempt(supabase, '[TryLinkValidate]', { ipHash, outcome: 'rate_limited_ip' })
+    res.status(429).json({ error: 'Too many attempts. Please try again later.' })
+    return
+  }
+  // Record this attempt so the window accumulates (isIpOverLimit excludes the
+  // current request). Best-effort — never blocks validation.
+  await logAttempt(supabase, '[TryLinkValidate]', { ipHash, outcome: 'try_link_attempt' })
+
   try {
     // Look up the try link
     const { data: link, error: lookupError } = await supabase
@@ -99,11 +127,6 @@ export default async function handler(
     }
 
     // Log the visit (non-blocking — don't fail the request if logging fails)
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-      || req.headers['x-real-ip'] as string
-      || 'unknown'
-    const ipHash = hashIp(ip)
-
     supabase
       .from('try_link_visits')
       .insert({ try_link_id: link.id, ip_hash: ipHash })
@@ -127,7 +150,10 @@ export default async function handler(
       entitlementExpiresAt: token ? expMs : null,
     })
   } catch (error: any) {
+    // AUTH-CORE-10: the caller here is anonymous, so the body carries a fixed
+    // string only — a Postgres message names relations and constraints, which
+    // is reconnaissance handed to whoever asked. The detail stays in the log.
     console.error('[TryLinkValidate] Error:', error)
-    res.status(500).json({ error: error?.message || 'Internal server error' })
+    res.status(500).json({ error: 'Internal server error' })
   }
 }

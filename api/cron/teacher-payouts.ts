@@ -44,6 +44,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { wiseApi, requireProfileId } from '../_utils/wise'
+import { checkCronAuth } from '../_utils/cronAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -88,23 +89,18 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   // Cron auth — Vercel sends Authorization: Bearer <CRON_SECRET>
-  const authHeader = (req.headers.authorization || '').trim()
-  const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
-  // Fail CLOSED in production: this job moves real money via Wise, so it must
-  // NEVER run unauthenticated. Previously an unset CRON_SECRET skipped the check
-  // entirely (the `cronSecret && …` guard below), leaving the endpoint open.
-  if (isProd && !cronSecret) {
-    console.error('[cron/teacher-payouts] CRON_SECRET not configured in production — refusing to run')
-    res.status(500).json({ error: 'CRON_SECRET not configured' })
+  // Fail CLOSED on every DEPLOYED environment: this job moves real money via
+  // Wise, so it must never run unauthenticated. Previously an unset
+  // CRON_SECRET skipped the check outright anywhere VERCEL_ENV wasn't exactly
+  // 'production' — a preview deployment was open. The compare is now
+  // constant-time too (SEC25 INPUT-12).
+  const cronAuth = checkCronAuth((req.headers.authorization || '').trim(), cronSecret)
+  if (!cronAuth.ok) {
+    console.error(`[cron/teacher-payouts] ${cronAuth.error} — refusing to run`)
+    res.status(cronAuth.status || 401).json({ error: cronAuth.error })
     return
   }
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    if (isProd) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
-    }
-    console.warn('[cron/teacher-payouts] CRON_SECRET mismatch — allowing in non-prod')
-  }
+  if (cronAuth.warning) console.warn(`[cron/teacher-payouts] ${cronAuth.warning}`)
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const todayIso = new Date().toISOString().slice(0, 10)

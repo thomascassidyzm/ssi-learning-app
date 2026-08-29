@@ -250,8 +250,10 @@ export default async function handler(
       .from('classes')
       .insert({
         teacher_user_id: authResult.userId,
-        class_name: class_name.trim(),
-        course_code: course_code.trim(),
+        // SEC25 INPUT-09: length-capped free text (class_name matches the cap
+        // in api/school/rename-class.ts; a course code is a short slug).
+        class_name: class_name.trim().slice(0, 120),
+        course_code: course_code.trim().slice(0, 64),
         school_id: null,
         is_active: true,
       })

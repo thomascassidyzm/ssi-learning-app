@@ -48,6 +48,14 @@ interface PlayerLogOptions {
   clientVersion?: string
   /** Override flush interval (ms). */
   flushIntervalMs?: number
+  /**
+   * Supabase access token getter (SEC25 INPUT-04). /api/player-events no
+   * longer trusts the `ssi-user-id` cookie as an identity — a signed-in
+   * learner's events are attributed from a VERIFIED bearer, and anything
+   * without one is stored unattributed (guest). Omit it and the log still
+   * works; the rows just carry no learner id.
+   */
+  getToken?: () => Promise<string | null>
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 5000
@@ -71,6 +79,16 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
 
   const buffer: PlayerEvent[] = []
   let flushTimer: ReturnType<typeof setInterval> | null = null
+
+  // Last known access token, refreshed on every async flush so the unload
+  // path (which cannot await) still has one to send.
+  let cachedToken: string | null = null
+  const refreshToken = async (): Promise<void> => {
+    if (!options.getToken) return
+    try {
+      cachedToken = await options.getToken()
+    } catch { /* silent — telemetry never blocks UX */ }
+  }
 
   const resolveCourseCode = (): string | null => {
     const v = options.courseCode
@@ -146,8 +164,17 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
 
     const body = JSON.stringify({ events: batch })
 
-    // sendBeacon for unmount/visibilitychange — survives page unload.
-    if (sync && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    // Attribution rides a VERIFIED bearer, never the cookie (SEC25 INPUT-04).
+    // The token is cached from the previous flush so the unload path can use
+    // it without awaiting; a background refresh keeps it current.
+    if (!sync) await refreshToken()
+    const token = cachedToken
+
+    // sendBeacon for unmount/visibilitychange — survives page unload. It can't
+    // carry a header, so it's only used when there's no token to carry (guest
+    // sessions); a signed-in learner uses keepalive fetch instead, which the
+    // same unload path supports.
+    if (sync && !token && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         const blob = new Blob([body], { type: 'application/json' })
         navigator.sendBeacon('/api/player-events', blob)
@@ -158,7 +185,10 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     try {
       await fetch('/api/player-events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body,
         keepalive: true, // best-effort survive unload even via fetch
       })

@@ -401,12 +401,12 @@ describe('paddle-webhook — ADMIN-ENT-04: idempotency ledger fails open', () =>
     expect(writes.schools?.length).toBe(1)
   })
 
-  // SECURITY FINDING ADMIN-ENT-04: any ledger error other than 23505 is logged
-  // and the handler PROCEEDS (paddle-webhook.ts:295-305), so replay protection
-  // silently vanishes whenever processed_webhook_events is unavailable. The
-  // pre-migration rationale has expired — the table exists (schema.sql:8387).
-  // SHOULD BE: fail closed with a 500 so the provider retries.
-  it('ADMIN-ENT-04: processes the event twice when the dedup ledger errors', async () => {
+  // SECURITY FINDING ADMIN-ENT-04 — FIXED 2026-08-25: any ledger error other than
+  // 23505 used to be logged with the handler PROCEEDING, so replay protection
+  // silently vanished whenever processed_webhook_events was unavailable. The
+  // handler now fails CLOSED with a 500 before any side effect, so Paddle's
+  // at-least-once retry reprocesses once the ledger recovers.
+  it('ADMIN-ENT-04: a dedup-ledger failure returns 500 (fail closed) so the provider retries, with no side effect applied', async () => {
     dedupError = { code: '42P01', message: 'relation "processed_webhook_events" does not exist' }
     payerAdminsSchool('school-1')
     currentEvent = subEvent({ kind: 'school_platform', school_id: 'school-1' })
@@ -415,13 +415,9 @@ describe('paddle-webhook — ADMIN-ENT-04: idempotency ledger fails open', () =>
     const res = makeRes()
     await handler(makeReq(), res)
 
-    expect(res._status).toBe(200)
+    expect(res._status).toBe(500)
     expect(res._json).not.toMatchObject({ deduped: true })
-    // Both deliveries applied — no replay protection at all.
-    expect(writes.schools?.length).toBe(2)
+    // Neither delivery was processed — the ledger is a precondition, not a hint.
+    expect(writes.schools).toBeUndefined()
   })
-
-  it.todo(
-    'ADMIN-ENT-04: a dedup-ledger failure should return 500 (fail closed) so the provider retries rather than the handler processing unprotected',
-  )
 })
