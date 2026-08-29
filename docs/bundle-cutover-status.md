@@ -335,10 +335,26 @@ which is shorter than the fetch because the download now starts earlier.
 
 Zero fallbacks across all nine. The control confirms the old path is intact.
 
-Two things worth reading off this table. **Time to first audio got BETTER, not
-worse**: unthrottled `spa_for_eng` was 3722–4080ms on the old code and is
-2935–3283ms now — the session no longer pays 2.5s of waiting followed by a
-round-map fetch it did not need. And the **ordering fix is doing real work**:
+Two things worth reading off this table, and one worth being careful about.
+
+**Against what learners have today, time to first audio improved**: unthrottled
+`spa_for_eng` was 3722–4080ms on the old code and is 2935–3283ms now, because
+the session no longer pays 2.5s of waiting followed by a round-map fetch it did
+not need. **Against the bundle path switched off entirely** — the `?bundle=0`
+control, 2450ms — it is ~550ms slower on a cold first play. Both comparisons
+are honest; they answer different questions. The one that matters for the
+cutover decision is the first, because the second describes a world we are
+deliberately leaving.
+
+On a slow connection the picture is different and should not be glossed: Fast-3G
+`hun_for_eng` reached first audio at 12.6–13.0s, where the old path would have
+managed a round-map plus one small cycles page in a couple of seconds. That is
+the one-time-per-course cost the owner ruled acceptable (2026-08-29), paid in
+full on the worst connection. It is a first-impression question rather than a
+correctness one, and it is the number to revisit if the fallback share and the
+`cold_start` tail say learners actually live there.
+
+And the **ordering fix is doing real work**:
 on Fast 3G the fetch itself took 10.6–11.0s but the boot path only waited
 7.7–7.9s, because the download had a ~2s head start. Without it that run would
 have fallen back.
