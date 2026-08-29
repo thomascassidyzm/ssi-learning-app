@@ -42,6 +42,7 @@ import {
   toBackendCycle,
 } from './bundleToBackendCycles'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from './backendCyclesToRounds'
+import { yieldToEventLoop } from './generateLearningScript'
 import type { TargetSpeedConfig } from './toSimpleRounds'
 import type { RepeatPhraseCyclesOptions } from './repeatPhraseCycles'
 
@@ -92,9 +93,20 @@ export function bundleFullScript(
   const repeat = opts.repeat ?? null
 
   const mainRounds = roundMap.rounds.length > 0
-    ? buildMainLoopRounds(bundle, roundMap, targetSpeed, repeat)
+    ? buildMainLoopRounds(bundle, roundMap, targetSpeed, repeat, roundMap.rounds.length)
     : []
 
+  return assembleResult(bundle, opts, mainRounds, targetSpeed)
+}
+
+/** Revival tail + totals. Shared by the sync and sliced builds so the two can
+ *  never drift in how the course ends. */
+function assembleResult(
+  bundle: CourseBundle,
+  opts: BundleFullScriptOptions,
+  mainRounds: Round[],
+  targetSpeed: TargetSpeedConfig,
+): BundleFullScriptResult {
   // The revival tail continues from the LAST main-loop round NUMBER, not from
   // the count. Round numbers come from `course_round_index` (`entry.r`), and a
   // LEGO dropped for missing audio leaves a hole — so on a course with any
@@ -123,11 +135,54 @@ export function bundleFullScript(
   }
 }
 
+/**
+ * As `bundleFullScript`, but it gives the main thread back between chunks.
+ *
+ * WHY THIS EXISTS, measured. Step 6 removed ~50 Supabase queries and all of
+ * the walk's re-derivation, and the time to a pressable play button on a cold
+ * `spa_for_eng` still went the WRONG WAY — 4.7s median with the walk against
+ * 5.7s with the bundle, over five interleaved cold runs each against the same
+ * deployment (`?fullscript=walk` is the arm that isolates it). Less total work
+ * losing to more is not a paradox: the walk is network-bound, so between its
+ * awaits the main thread is free and the boot render lands; `bundleFullScript`
+ * is pure and synchronous, so the whole course arrives as ONE un-yielded block
+ * sitting exactly where the button would otherwise go live. Split by stage on
+ * `tur_for_eng` (840 LEGOs, desktop Node): generateScript ~30ms,
+ * toBackendCycle ~25ms, backendCyclesToRounds ~175ms — a browser main thread
+ * pays several times that.
+ *
+ * So this builds the SAME script in `chunkRounds`-sized slices and yields
+ * between them. `generateScript` already pages by (`fromLegoId`, `roundLimit`)
+ * — that is exactly how the /cycles endpoint has always driven it, and how the
+ * step-5 tier-3 path drives it live — so a chunked build is the same output as
+ * one call, which `bundleFullScript.test.ts` asserts round-for-round rather
+ * than assumes.
+ */
+export async function bundleFullScriptSliced(
+  bundle: CourseBundle,
+  opts: BundleFullScriptOptions,
+  chunkRounds = 60,
+): Promise<BundleFullScriptResult> {
+  const roundMap = bundleToRoundMap(bundle)
+  const targetSpeed = opts.targetSpeed ?? {}
+  const repeat = opts.repeat ?? null
+
+  const mainRounds: Round[] = []
+  for (let i = 0; i < roundMap.rounds.length; i += chunkRounds) {
+    const slice = { ...roundMap, rounds: roundMap.rounds.slice(i, i + chunkRounds) }
+    mainRounds.push(...buildMainLoopRounds(bundle, slice, targetSpeed, repeat, slice.rounds.length))
+    await yieldToEventLoop()
+  }
+
+  return assembleResult(bundle, opts, mainRounds, targetSpeed)
+}
+
 function buildMainLoopRounds(
   bundle: CourseBundle,
   roundMap: ReturnType<typeof bundleToRoundMap>,
   targetSpeed: TargetSpeedConfig,
   repeat: RepeatPhraseCyclesOptions | null,
+  roundLimit: number,
 ): Round[] {
   const isNewByLego = new Map(bundle.legos.map((l) => [l.legoId, l.isNew]))
   const roundIndexByLego = new Map(bundle.roundMap.map((e) => [e.legoId, e.roundIndex]))
@@ -135,8 +190,9 @@ function buildMainLoopRounds(
   const { rounds: generated } = generateScript({
     bundle,
     position: { mode: 'main', fromLegoId: roundMap.rounds[0].legoId },
-    // One round per round-map entry: the whole main loop in a single pass.
-    roundLimit: roundMap.rounds.length,
+    // One round per round-map entry in this slice (the whole main loop when
+    // the caller passed the unsliced map).
+    roundLimit,
     audioUrl: ID_ONLY,
   })
 

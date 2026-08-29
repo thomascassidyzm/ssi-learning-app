@@ -125,7 +125,7 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
 import type { CourseBundle } from '@ssi/core'
 import { getCourseBundle } from '../composables/useCourseBundle'
-import { bundleFullScript } from '../providers/bundleFullScript'
+import { bundleFullScriptSliced } from '../providers/bundleFullScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import { setBundlePathTelemetrySink, reportBundlePath } from '../playback/bundlePathTelemetry'
@@ -572,7 +572,13 @@ const fullScriptFromBundle = async (
   const startedAt = Date.now()
   try {
     const bundle = await getCourseBundle(code)
-    const built = bundleFullScript(bundle, {
+    // SLICED, not the plain synchronous build. The whole course out of memory
+    // is ~250ms of pure main-thread work on a mid-size course and several times
+    // that on a phone; taken in one un-yielded block during boot it costs MORE
+    // time-to-pressable than the network-bound walk it replaces, because the
+    // walk's awaits handed the main thread back and this did not. Measured, and
+    // the reason `?fullscript=walk` exists.
+    const built = await bundleFullScriptSliced(bundle, {
       infinitePlayLookahead,
       targetSpeed: currentTargetSpeedConfig(),
       // Mode-neutral, like the walk: the player decides repetition (Tom, 2026-08-09).

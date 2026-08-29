@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { CourseBundle } from '@ssi/core'
-import { bundleFullScript } from './bundleFullScript'
+import { bundleFullScript, bundleFullScriptSliced } from './bundleFullScript'
 import { bundleToCyclesResponse, bundleToRoundMap } from './bundleToBackendCycles'
 import { backendCyclesToRounds } from './backendCyclesToRounds'
 
@@ -175,5 +175,56 @@ describe('bundleFullScript', () => {
   it('survives an empty round map rather than throwing on the boot path', () => {
     const bundle = { ...makeBundle(2), roundMap: [] } as unknown as CourseBundle
     expect(bundleFullScript(bundle, { infinitePlayLookahead: 2 }).rounds).toEqual([])
+  })
+})
+
+describe('bundleFullScriptSliced', () => {
+  // The sliced build exists to hand the main thread back during boot; it is
+  // only worth having if it is the SAME script. `generateScript` pages by
+  // (fromLegoId, roundLimit) — the /cycles endpoint has always driven it that
+  // way — so chunking must be invisible. Asserted, not assumed.
+  it.each([1, 2, 3, 5, 60])('produces the identical script at chunk size %i', async (chunk) => {
+    const bundle = makeBundle(14, 5)
+    const sync = bundleFullScript(bundle, { infinitePlayLookahead: 0 })
+    const sliced = await bundleFullScriptSliced(bundle, { infinitePlayLookahead: 0 }, chunk)
+
+    expect(sliced.roundCount).toBe(sync.roundCount)
+    expect(sliced.cycleCount).toBe(sync.cycleCount)
+    expect(sliced.mainLoopRoundCount).toBe(sync.mainLoopRoundCount)
+    expect(sliced.rounds.map((r) => r.roundNumber)).toEqual(sync.rounds.map((r) => r.roundNumber))
+    expect(sliced.rounds.map((r) => r.legoId)).toEqual(sync.rounds.map((r) => r.legoId))
+    expect(
+      sliced.rounds.map((r) =>
+        r.cycles.map((c) => `${c.type}|${c.known.text}|${c.target.text}|${c.known.audioUrl}|${c.target.voice1Url}|${c.target.voice2Url}`),
+      ),
+    ).toEqual(
+      sync.rounds.map((r) =>
+        r.cycles.map((c) => `${c.type}|${c.known.text}|${c.target.text}|${c.known.audioUrl}|${c.target.voice1Url}|${c.target.voice2Url}`),
+      ),
+    )
+  })
+
+  it('keeps the revival tail numbered from the last main-loop round', async () => {
+    const bundle = makeBundle(8, 4)
+    const sync = bundleFullScript(bundle, { infinitePlayLookahead: 3 })
+    const sliced = await bundleFullScriptSliced(bundle, { infinitePlayLookahead: 3 }, 3)
+    expect(sliced.rounds.map((r) => r.roundNumber)).toEqual(sync.rounds.map((r) => r.roundNumber))
+  })
+
+  it('yields between chunks rather than running to completion in one turn', async () => {
+    const bundle = makeBundle(12, 4)
+    let ticks = 0
+    const timer = setInterval(() => { ticks++ }, 0)
+    await bundleFullScriptSliced(bundle, { infinitePlayLookahead: 0 }, 2)
+    clearInterval(timer)
+    // Six chunks; a synchronous build would let the event loop turn zero times.
+    expect(ticks).toBeGreaterThan(0)
+  })
+
+  it('handles an empty round map exactly as the sync build does', async () => {
+    const bundle = { ...makeBundle(2), roundMap: [] } as unknown as CourseBundle
+    const sliced = await bundleFullScriptSliced(bundle, { infinitePlayLookahead: 0 })
+    expect(sliced.rounds).toEqual([])
+    expect(sliced.mainLoopRoundCount).toBe(0)
   })
 })
