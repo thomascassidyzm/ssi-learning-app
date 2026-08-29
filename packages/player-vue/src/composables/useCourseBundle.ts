@@ -30,7 +30,16 @@
 import type { CourseBundle } from '@ssi/core'
 
 const DB_NAME = 'ssi-bundle-cache'
-const DB_VERSION = 1
+/**
+ * 2 (2026-08-29) — the bundle wire gained `BundlePhrase.targetSyllableCount`,
+ * the shared selector's shortest-first sort key. The cache identity
+ * (`bundleCacheKey`) is content+shape version only and cannot see a wire-shape
+ * change, so a cached v1 bundle would keep being served WITHOUT the key and its
+ * debut order would silently differ from a freshly-fetched one. Bumping the
+ * IndexedDB version drops the store on upgrade: one refetch per learner per
+ * course (~300KB gzipped), once.
+ */
+const DB_VERSION = 2
 const STORE = 'bundles'
 
 /** Bundle fetches are boot-adjacent; never let one hang a session. */
@@ -114,7 +123,11 @@ function openDb(): Promise<IDBDatabase | null> {
     }
     req.onupgradeneeded = () => {
       const db = req.result
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'courseCode' })
+      // Drop and recreate rather than migrate: a bundle is a derived artifact
+      // the server can always re-issue, so re-fetching is strictly cheaper than
+      // carrying migration code for every wire change.
+      if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE)
+      db.createObjectStore(STORE, { keyPath: 'courseCode' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => resolve(null)

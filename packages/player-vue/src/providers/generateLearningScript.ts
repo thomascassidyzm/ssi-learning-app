@@ -14,6 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CourseBundle } from '@ssi/core'
+import { countTargetSyllables } from '@ssi/core'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { validateLearningScript } from './validateLearningScript'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
@@ -474,16 +475,9 @@ export async function generateLearningScript(
     return `${normalizeText(knownText)}|${normalizeText(targetText)}`
   }
 
-  const countTargetSyllables = (targetText: string | null | undefined): number => {
-    if (!targetText) return 0
-    const cjkRegex = /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g
-    const cjkChars = targetText.match(cjkRegex)
-    if (cjkChars && cjkChars.length > 0) return cjkChars.length
-    const vowelClusters = targetText.toLowerCase().match(/[aeiouyáéíóúàèìòùâêîôûäëïöü]+/gi)
-    return vowelClusters ? vowelClusters.length : 1
-  }
-
-  /** A phrase's target syllable count: the stored value, else derived. */
+  /** A phrase's target syllable count: the stored value, else derived.
+   *  `countTargetSyllables` is imported from `@ssi/core` — the walk and the
+   *  bundle path must rank a basket by the same key or their debuts diverge. */
   const phraseSyllables = (phrase: {
     target_syllable_count?: number
     target_text?: string | null

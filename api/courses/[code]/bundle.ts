@@ -130,6 +130,7 @@ interface PhraseRow {
   known_text: string | null
   target_text: string | null
   target_text_roman: string | null
+  target_syllable_count: number | null
   known_audio_id: string | null
   target1_audio_id: string | null
   target2_audio_id: string | null
@@ -308,6 +309,10 @@ function normaliseRole(raw: string | null | undefined): PhraseRole | null {
 const BUNDLE_PHRASE_ROLES = ['build', 'use', 'practice', 'eternal_eligible']
 const BUNDLE_PHRASE_COLUMNS =
   'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
+  // The shortest-first SORT KEY. The walk has always selected it; the bundle
+  // now does too, so `@ssi/core`'s shared selector orders a debut basket the
+  // same way the walk does instead of by DB position.
+  'target_syllable_count, ' +
   'known_audio_id, target1_audio_id, target2_audio_id, ' +
   'target1_duration_ms, target2_duration_ms, decomposition, display_tiling'
 
@@ -735,6 +740,13 @@ export default async function handler(
         audio,
       }
       if (targets.targetTextNative !== undefined) phrase.targetTextNative = targets.targetTextNative
+      // Omit-when-absent, so `targetSyllableCount ?? countTargetSyllables(...)`
+      // in the selector falls back exactly as the walk's
+      // `target_syllable_count || countTargetSyllables(...)` does. 0 is treated
+      // as absent for the same reason the walk's `||` does.
+      if (typeof row.target_syllable_count === 'number' && row.target_syllable_count > 0) {
+        phrase.targetSyllableCount = row.target_syllable_count
+      }
       // Authoritative tiling, served verbatim when present. Player renders it
       // directly (honours isSalient/isGhost); null → runtime alignment fallback.
       if (Array.isArray(row.decomposition) && row.decomposition.length > 0) {

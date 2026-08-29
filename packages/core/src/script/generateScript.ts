@@ -42,6 +42,14 @@ import {
   type CourseBundle,
 } from './courseBundle'
 import { computePauseDuration, DEFAULT_PAUSE_CONFIG, type PauseModeConfig } from './computePauseDuration'
+import {
+  countTargetSyllables,
+  drawReviewPhrases,
+  orderLegoPools,
+  phraseTextLength,
+  selectDebutPhrases,
+  type OrderedLegoPools,
+} from './phraseSelection'
 import type {
   GenerateScriptOptions,
   GenerateScriptResult,
@@ -60,7 +68,7 @@ import type {
  * assembly logic changes (e.g. a new cycle-ordering rule), not when a shape
  * parameter changes.
  */
-export const GENERATOR_VERSION = 1
+export const GENERATOR_VERSION = 2
 
 const DEFAULT_ROUND_LIMIT = 15
 
@@ -137,13 +145,72 @@ function phraseKey(knownText: string | null | undefined, targetText: string | nu
 }
 
 /**
- * Where a review's round-robin cursor sits in the reviewed LEGO's USE basket.
- * Ported verbatim from `cycles.ts`'s `reviewCursor` — the closed form of the
- * walk's per-LEGO `useIndex`. Deterministic, so main-loop reviews need no RNG.
+ * A phrase is in the pool only if all three of its clips exist. Same rule the
+ * cycle builders apply, hoisted to SELECTION time so an unplayable row can
+ * never consume one of the seven BUILD slots and then emit nothing — which is
+ * what it used to do here, and what the walk has never done (it drops such rows
+ * as it reads them).
  */
-function reviewCursor(offsetIndex: number, poolLength: number, n1PhraseCount: number): number {
-  if (offsetIndex <= 0 || poolLength <= 0) return 0
-  return Math.min(n1PhraseCount, poolLength) + (offsetIndex - 1)
+function phraseIsPlayable(p: BundlePhrase): boolean {
+  return !!(p.audio.known && p.audio.target1 && p.audio.target2)
+}
+
+/**
+ * The SORT KEY, matching the walk's
+ * `target_syllable_count || countTargetSyllables(target_text)` exactly.
+ *
+ * Note `targetTextNative ?? targetText`: on a romanised course the bundle's
+ * `targetText` is the ROMAN form and the native script lives in
+ * `targetTextNative`, whereas the walk counts `target_text` — the native one.
+ * Counting the roman form instead would reorder every debut on jpn/zho/tha/hin.
+ */
+function phraseSyllables(p: BundlePhrase): number {
+  return p.targetSyllableCount || countTargetSyllables(p.targetTextNative ?? p.targetText)
+}
+
+function phraseLength(p: BundlePhrase): number {
+  return phraseTextLength(p.targetTextNative ?? p.targetText)
+}
+
+/**
+ * A LEGO's baskets, eligible-only and shortest-first, via the SHARED selector,
+ * MEMOISED for the life of one `generateScript` call.
+ *
+ * The memo is not an optimisation detail, it is load-bearing. Ordering is
+ * needed once per LEGO for its debut and again on every one of that LEGO's
+ * later review draws — up to twelve per round across the whole course — so
+ * without the cache the same basket is filtered, syllable-counted and sorted
+ * hundreds of times. Measured on the full `spa_for_eng` bundle (1,339 LEGOs,
+ * 15,205 phrases, whole-course build): 388 ms uncached against 52 ms before
+ * the shared selector, 55 ms with the cache. That difference lands directly in
+ * the main-thread block that holds the play button.
+ *
+ * `limit: Infinity` is deliberate and is the whole of the mode story here: the
+ * length cap, the known-side pull filter and the sliding word cap are EASY
+ * levers, and mode-neutrality is a property of this path (Tom, 2026-08-09 —
+ * "the instructions for WHICH cycles get selected/played and HOW MANY TIMES
+ * belongs in the player logic, not the cached script data"). Fast, which is
+ * what every caller of this generator asks for, passes exactly this. The
+ * shared selector carries the levers so that a future mode-aware caller turns
+ * them on by passing a finite limit, not by forking the algorithm.
+ */
+function makePoolOrderer(
+  phraseIndex: Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }>,
+): (legoId: string) => OrderedLegoPools<BundlePhrase> {
+  const memo = new Map<string, OrderedLegoPools<BundlePhrase>>()
+  return (legoId: string) => {
+    const hit = memo.get(legoId)
+    if (hit) return hit
+    const phrases = phraseIndex.get(legoId)
+    const ordered = orderLegoPools(phrases?.build ?? [], phrases?.use ?? [], {
+      eligible: phraseIsPlayable,
+      syllablesOf: phraseSyllables,
+      lengthOf: phraseLength,
+      limit: Infinity,
+    })
+    memo.set(legoId, ordered)
+    return ordered
+  }
 }
 
 const INTRO_LINGER_MS = 2000
@@ -195,6 +262,7 @@ function generateMain(
   const legoIndex = legosById(bundle)
   const phraseIndex = phrasesByLegoAndRole(bundle)
   const seedIndex = seedsBySeedId(bundle)
+  const orderedPoolsFor = makePoolOrderer(phraseIndex)
 
   const rounds: Round[] = []
   let lastEmittedIdx = startIdx - 1
@@ -210,8 +278,6 @@ function generateMain(
       lastEmittedIdx = mapIdx
       continue
     }
-    const phrases = phraseIndex.get(entry.legoId) ?? { build: [], use: [] }
-
     const cycles: Cycle[] = []
 
     // --- intro / debut ---
@@ -235,15 +301,19 @@ function generateMain(
     }
 
     // --- BUILD ×≤maxBuildPhrases, USE rows filling any leftover slots ---
-    // "BUILD priority > CONSOLIDATE… filling 7 BUILD is non-negotiable" (the
-    // walk's phase 3). A USE row promoted into a build slot is emitted as a
-    // `build` cycle, exactly as the walk and cycles.ts type it.
-    const buildsSorted = [...phrases.build].sort((a, b) => a.position - b.position)
-    const usesSorted = [...phrases.use].sort((a, b) => a.position - b.position)
+    // The SHARED selector decides which phrases those are (see
+    // `phraseSelection.ts`) — shortest-first by target syllables, eligible-only,
+    // BUILD basket before USE. This used to order by DB position, which is the
+    // single rule by which this generator's debut differed from the walk's.
+    const pools = orderedPoolsFor(entry.legoId)
+    const debut = selectDebutPhrases(pools, {
+      maxBuildPhrases: shape.maxBuildPhrases,
+      useConsolidationCount: shape.useConsolidationCount,
+      claim,
+      isBareLego: (p) => phraseKey(p.knownText, p.targetText) === phraseKey(lego.knownText, lego.targetText),
+    })
     let buildOrdinal = 0
-    for (const phrase of [...buildsSorted, ...usesSorted]) {
-      if (buildOrdinal >= shape.maxBuildPhrases) break
-      if (!claim(phrase)) continue
+    for (const phrase of debut.build) {
       buildOrdinal++
       const cyc = buildPhraseCycle(phrase, lego, 'build', buildOrdinal, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)
@@ -254,7 +324,7 @@ function generateMain(
       entry.roundIndex,
       bundle,
       legoIndex,
-      phraseIndex,
+      orderedPoolsFor,
       seedIndex,
       audioUrl,
       pauseConfig,
@@ -265,26 +335,14 @@ function generateMain(
     cycles.push(...spacedRepCycles)
 
     // --- CONSOLIDATE ×≤useConsolidationCount — this LEGO's own USE phrases,
-    // last in the round. First pass takes phrases the round hasn't used; a
-    // second pass relaxes the once-per-round rule (but never the bare-LEGO
-    // rule) rather than leave the round short. ---
-    const debutKey = phraseKey(lego.knownText, lego.targetText)
+    // last in the round. Deferred until here (rather than chosen with the
+    // BUILD slots) because spaced rep runs in between and claims from the same
+    // set; the shared selector's two-pass rule is unchanged. ---
     let useOrdinal = 0
-    for (const phrase of usesSorted) {
-      if (useOrdinal >= shape.useConsolidationCount) break
-      if (!claim(phrase)) continue
+    for (const phrase of debut.selectConsolidate()) {
       useOrdinal++
       const cyc = buildPhraseCycle(phrase, lego, 'use', useOrdinal, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)
-    }
-    if (useOrdinal < shape.useConsolidationCount) {
-      for (const phrase of usesSorted) {
-        if (useOrdinal >= shape.useConsolidationCount) break
-        if (phraseKey(phrase.knownText, phrase.targetText) === debutKey) continue
-        useOrdinal++
-        const cyc = buildPhraseCycle(phrase, lego, 'use', useOrdinal, audioUrl, pauseConfig)
-        if (cyc) cycles.push(cyc)
-      }
     }
 
     if (cycles.length === 0) {
@@ -329,7 +387,7 @@ function buildSpacedRepCycles(
   currentRoundIndex: number,
   bundle: CourseBundle,
   legoIndex: Map<string, BundleLego>,
-  phraseIndex: Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }>,
+  orderedPoolsFor: (legoId: string) => OrderedLegoPools<BundlePhrase>,
   seedIndex: Map<string, BundleSeed>,
   audioUrl: (id: string) => string,
   pauseConfig: PauseModeConfig,
@@ -370,23 +428,18 @@ function buildSpacedRepCycles(
       // seed missing / lacks audio → fall through to the use-phrase review
     }
 
-    const phrases = phraseIndex.get(mapEntry.legoId)
-    const pool = phrases ? [...phrases.use].sort((a, b) => a.position - b.position) : []
+    const pool = orderedPoolsFor(mapEntry.legoId).use
     if (pool.length === 0) continue
 
-    // Deterministic round-robin into the reviewed LEGO's USE basket — the
-    // closed form of the walk's per-LEGO `useIndex`, ported from cycles.ts.
-    // Replaces the previous `sampleN(random)` draw: main-loop reviews now
-    // need no RNG at all, which is what makes an artifact id replayable.
+    // The SHARED urn (see `drawReviewPhrases`): a per-LEGO monotonic
+    // round-robin over the same shortest-first USE pool the debut drew from, so
+    // a LEGO's reviews walk its basket exhaustively with no repeat before a
+    // full cycle. Deterministic — main-loop reviews need no RNG at all, which
+    // is what makes an artifact id replayable.
     const want = offsetIndex === 0 ? shape.n1PhraseCount : 1
     const take = Math.min(want, shape.maxSpacedRepPhrases - repCount, pool.length)
-    let cursor = reviewCursor(offsetIndex, pool.length, shape.n1PhraseCount)
-    for (let i = 0; i < take; i++) {
-      const phrase = pool[cursor % pool.length]
-      // Advance even when the phrase is then skipped — the walk increments
-      // `useIndex` before its de-dup check, and rotation stays in step.
-      cursor++
-      if (!claim(phrase)) continue
+    for (const phrase of drawReviewPhrases(pool, offsetIndex, take, shape.n1PhraseCount, claim)) {
+      if (!phrase) continue // claimed by an earlier slot this round; the cursor still advanced
       repCount++
       const cyc = buildPhraseCycle(phrase, lego, 'review', repCount, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)
@@ -412,7 +465,7 @@ function generateInfPlay(
   const mainLoopCount = bundle.mainLoopCount
   const roundMap = bundle.roundMap
   const legoIndex = legosById(bundle)
-  const phraseIndex = phrasesByLegoAndRole(bundle)
+  const orderedPoolsFor = makePoolOrderer(phrasesByLegoAndRole(bundle))
   const seedIndex = seedsBySeedId(bundle)
 
   const rounds: Round[] = []
@@ -423,10 +476,11 @@ function generateInfPlay(
     const usedLegosThisRound = new Set<string>()
 
     // --- phase 1: spaced rep ---
-    type SpacedRepEntry = { lego: BundleLego; offset: number; phraseCount: number }
+    type SpacedRepEntry = { lego: BundleLego; offset: number; offsetIndex: number; phraseCount: number }
     const spacedRepEntries: SpacedRepEntry[] = []
 
-    for (const offset of shape.spacedRepOffsets) {
+    for (let offsetIndex = 0; offsetIndex < shape.spacedRepOffsets.length; offsetIndex++) {
+      const offset = shape.spacedRepOffsets[offsetIndex]
       const reviewRound = absoluteRound - offset
       if (reviewRound < 1) continue
       if (reviewRound > mainLoopCount) continue
@@ -439,6 +493,12 @@ function generateInfPlay(
       spacedRepEntries.push({
         lego,
         offset,
+        // The LEGO's position in ITS OWN review schedule, which is what the urn
+        // cursor is a function of. `offset` here IS `absoluteRound - debutRound`
+        // because the review round is looked up by that offset, so the index
+        // into the Fibonacci array is the count of reviews this LEGO has had —
+        // exactly as in the main loop.
+        offsetIndex,
         phraseCount: offset === 1 ? shape.n1PhraseCount : 1,
       })
     }
@@ -458,7 +518,7 @@ function generateInfPlay(
     let cycleSeq = 0
     const seenSeedReviews = new Set<string>()
 
-    for (const { lego, offset, phraseCount } of spacedRepEntries) {
+    for (const { lego, offset, offsetIndex, phraseCount } of spacedRepEntries) {
       if (offset >= SEED_PHASE_START_OFFSET && !seenSeedReviews.has(lego.seedId)) {
         const seed = seedIndex.get(lego.seedId)
         const seedCycle = seed
@@ -479,10 +539,18 @@ function generateInfPlay(
         // seed missing / lacks audio → fall through to the use-phrase review
       }
 
-      const phrases = phraseIndex.get(lego.legoId)
-      if (!phrases || phrases.use.length === 0) continue
-      const drawn = sampleN(phrases.use, Math.min(phraseCount, phrases.use.length), random)
-      for (const phrase of drawn) {
+      // The SAME urn the main loop uses — a per-LEGO monotonic round-robin over
+      // the shortest-first USE pool, not an independent `Math.random` sample.
+      // The old sample had no cross-draw memory at all, so a LEGO's reviews
+      // could repeat one phrase indefinitely or never reach another; INF PLAY
+      // is where a learner meets a LEGO most often, so that is where it hurt.
+      const pool = orderedPoolsFor(lego.legoId).use
+      if (pool.length === 0) continue
+      const take = Math.min(phraseCount, pool.length)
+      // No same-round claim set on this path (INF PLAY dedups by LEGO, one
+      // entry per LEGO per round), so every draw is taken.
+      for (const phrase of drawReviewPhrases(pool, offsetIndex, take, shape.n1PhraseCount, () => true)) {
+        if (!phrase) continue
         cycleSeq++
         const cyc = buildInfPlayCycle(phrase, lego, 'review', infRound, cycleSeq, audioUrl, pauseConfig)
         if (cyc) cycles.push(cyc)
@@ -510,9 +578,13 @@ function generateInfPlay(
     for (const l of randomUseLegos) usedLegosThisRound.add(l.legoId)
 
     for (const lego of randomUseLegos) {
-      const phrases = phraseIndex.get(lego.legoId)
-      if (!phrases || phrases.use.length === 0) continue
-      const phrase = phrases.use[Math.floor(random() * phrases.use.length)]
+      // Phase 3 stays a genuine random sample by design — it is the "any USE
+      // phrase from anywhere in the course" bucket, not a review urn — but it
+      // now draws from the same eligible, ordered pool so an unplayable row
+      // cannot win the draw and emit nothing.
+      const pool = orderedPoolsFor(lego.legoId).use
+      if (pool.length === 0) continue
+      const phrase = pool[Math.floor(random() * pool.length)]
       cycleSeq++
       const cyc = buildInfPlayCycle(phrase, lego, 'use', infRound, cycleSeq, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)

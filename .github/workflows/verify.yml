@@ -80,6 +80,11 @@ jobs:
       - name: API typecheck
         run: pnpm typecheck:api
 
+      - name: Core tests
+        # The shared-selector parity guard lives in @ssi/core (selectionParity.test.ts);
+        # without this step it would never run in CI, where the drift it guards would land.
+        run: pnpm --filter @ssi/core test
+
       - name: Player tests
         run: pnpm --filter player-vue test
 
