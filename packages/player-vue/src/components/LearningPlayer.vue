@@ -608,13 +608,16 @@ const fullScriptFromBundle = async (
  * ScriptItem→Round conversion. ONE fork, here, rather than eight.
  */
 const roundsOfScript = (result: LearningScriptResult): any[] =>
-  (result.rounds as any[] | undefined) ?? (toSimpleRoundsWithComponents(result.items) as any[])
+  // Copied, not aliased. `generateScript` de-dupes in flight, so two consumers
+  // can hold the same result; the walk gave each of them its own array and this
+  // keeps that true, so a splice by one is never felt by the other.
+  result.rounds ? [...(result.rounds as any[])] : (toSimpleRoundsWithComponents(result.items) as any[])
 
 /** As `scriptRounds`, but the walk's conversion yields between rounds so it
  *  cannot add a post-READY main-thread block. The bundle path has nothing to
  *  yield for. */
 const roundsOfScriptSliced = async (result: LearningScriptResult): Promise<any[]> =>
-  (result.rounds as any[] | undefined) ?? ((await toSimpleRoundsWithComponentsSliced(result.items)) as any[])
+  result.rounds ? [...(result.rounds as any[])] : ((await toSimpleRoundsWithComponentsSliced(result.items)) as any[])
 
 const runGenerateScript = async (
   listeningOverride?: ListeningConfigType,
