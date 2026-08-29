@@ -544,6 +544,23 @@ export async function prewarmInstantCaches(
   apiBase = '/api/courses',
 ): Promise<void> {
   if (!courseCode) return
+
+  // Bundle cutover: on a bundle-enabled course the thing worth warming is the
+  // BUNDLE — one fetch that then answers every round-map and cycles question
+  // locally. Warming the old endpoints here instead would leave a flagged
+  // course still calling /round-map and /cycles once each per session, which
+  // is exactly what the cutover exists to remove. Fire-and-forget, same as
+  // the rest of this function: a failure just means the next mount fetches.
+  if (isBundleBootstrapEnabled(courseCode)) {
+    try {
+      const bundle = await getCourseBundle(courseCode)
+      writeCachedRoundMap(courseCode, bundleToRoundMap(bundle))
+    } catch {
+      /* never let a prewarm escape */
+    }
+    return
+  }
+
   try {
     let map = readCachedRoundMap(courseCode)
     if (!map) {
