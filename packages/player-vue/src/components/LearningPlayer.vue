@@ -202,6 +202,23 @@ function hashStringToSeed(str: string): number {
 // critical path so it can't starve the instant bootstrap. The timeout ceiling
 // guarantees the walk still runs even on a busy main thread — it lands long
 // before the learner reaches the INF-PLAY boundary that consumes its output.
+/**
+ * Run after the browser has actually PAINTED the next frame.
+ *
+ * `resolvePlayerReady()` fires in the same tick that flips `isFirstClipReady`,
+ * which is what un-disables the play button — so anything chained straight onto
+ * the ready signal competes with the render that lights the button up. That was
+ * harmless while the ready-gated work was network-bound (the walk). Bundle
+ * cutover step 6 made it CPU-bound: ~700ms of whole-course build, measured in a
+ * Chromium CPU profile of a cold spa_for_eng load, landing exactly in the paint
+ * window and pushing the pressable moment out by ~1s versus the walk it
+ * replaced. Two frames of patience costs ~32ms and gives that back.
+ */
+function afterNextPaint(fn: () => void): void {
+  if (typeof requestAnimationFrame !== 'function') { setTimeout(fn, 0); return }
+  requestAnimationFrame(() => requestAnimationFrame(() => fn()))
+}
+
 function scheduleIdleTask(fn: () => void, timeout = 2000): void {
   if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
     ;(window as any).requestIdleCallback(fn, { timeout })
@@ -13621,7 +13638,7 @@ onMounted(async () => {
             // Ready-gated for the same reason as the main-loop handoff below:
             // the walk's course-wide queries must not compete with the switch's
             // critical path (founder ruling 2026-07-30).
-            void playerReadySignal.then(() => scheduleIdleTask(() => {
+            void playerReadySignal.then(() => afterNextPaint(() => scheduleIdleTask(() => {
               void generateScript()
                 .then(async (result) => {
                   if (currentMode.value !== 'infplay') return
@@ -13656,7 +13673,7 @@ onMounted(async () => {
                 .catch((err) => {
                   console.warn('[InstantPlayback] INF-PLAY idle full-script warm failed, belt-skip will fall back to foreground regen:', err)
                 })
-            }))
+            })))
             return
           }
 
@@ -13802,7 +13819,11 @@ onMounted(async () => {
           // fetches (measured 4–9s to READY on-device). The walk lands in the
           // background well before the learner nears the INF-PLAY boundary
           // that consumes its output.
-          void playerReadySignal.then(() => scheduleIdleTask(() => { void runFullScriptHandoff() }))
+          // afterNextPaint, not straight off the ready signal: the signal
+          // resolves in the same tick that lights the play button, and on the
+          // bundle path this handoff is ~700ms of main-thread build rather than
+          // the walk's network waits. Let the button paint first.
+          void playerReadySignal.then(() => afterNextPaint(() => scheduleIdleTask(() => { void runFullScriptHandoff() })))
 
           // Mark position + data ready and skip the legacy load
           // entirely. The flag-on branch is now the only source of
