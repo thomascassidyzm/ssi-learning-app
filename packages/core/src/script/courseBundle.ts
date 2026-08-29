@@ -104,6 +104,18 @@ export interface BundleLego {
   targetTextNative?: string
   /** M-LEGO component breakdown — empty/undefined for A-LEGOs. */
   components?: Array<{ known: string; target: string }>
+  /**
+   * The AUTHORED known-language word mapping for the tile assembler, when the
+   * course has one (Popty authors it; `known_gloss_segments` on `course_legos`).
+   * Each chunk covers `span` consecutive TARGET words. The client prefers it
+   * over `components` and falls back to componentisation, so both travel.
+   *
+   * Server-validated before it ships (`api/_utils/glossSegments.ts`): M-LEGOs
+   * only, and only when the spans still cover the target text exactly — a
+   * mapping authored against an older wording is dropped rather than rendered
+   * under the wrong words. Identical rule to `/cycles`' `gloss_segments`.
+   */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Whether the LEGO is fresh material for the learner (false = already-known carry-over). */
   isNew: boolean
 

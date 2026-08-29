@@ -144,3 +144,26 @@ describe('bundleToCyclesResponse', () => {
     expect(page.cycles.some((c) => c.lego_id === 'S0003L01')).toBe(true)
   })
 })
+
+describe('authored gloss segments on the wire', () => {
+  it('reaches the client as gloss_segments, the name /cycles uses', () => {
+    const bundle = makeBundle(2)
+    ;(bundle.legos[0] as { glossSegments?: unknown }).glossSegments = [
+      { span: 1, known: 'word' },
+      { span: 1, known: 'a' },
+    ]
+    const { cycles } = bundleToCyclesResponse(bundle, 'S0001L01', 50)
+    const carrying = cycles.filter((c) => c.gloss_segments)
+    expect(carrying.map((c) => c.type).sort()).toEqual(['debut', 'intro'])
+    expect(carrying[0].gloss_segments).toEqual([
+      { span: 1, known: 'word' },
+      { span: 1, known: 'a' },
+    ])
+  })
+
+  it('omits the key entirely when nothing is authored', () => {
+    const { cycles } = bundleToCyclesResponse(makeBundle(2), 'S0001L01', 50)
+    expect(cycles.every((c) => c.gloss_segments === undefined)).toBe(true)
+  })
+})
+

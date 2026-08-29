@@ -38,6 +38,10 @@ export interface Cycle {
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
   componentsNative?: Array<{ known: string; target: string }>
+  /** Authored known-language word mapping for the tile assembler (intro/debut
+   * only), from course_legos.known_gloss_segments via the bundle. Preferred
+   * over `components`, which stays as the fallback. Wire name: gloss_segments. */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
   /** Raw target audio durations (ms). Kept on the cycle so runtime overrides

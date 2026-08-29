@@ -78,6 +78,7 @@ function toBackendCycle(
     target_text: c.target.text,
     ...(c.target.textNative !== undefined ? { target_text_native: c.target.textNative } : {}),
     ...(c.components ? { components: c.components } : {}),
+    ...(c.glossSegments ? { gloss_segments: c.glossSegments } : {}),
     ...(c.decomposition ? { decomposition: c.decomposition } : {}),
     ...(c.displayTiling ? { display_tiling: c.displayTiling } : {}),
     audio,

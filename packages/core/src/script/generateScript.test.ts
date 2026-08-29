@@ -62,6 +62,7 @@ interface MakeLegoOpts {
   withTarget2?: boolean
   withPresentation?: boolean
   components?: Array<{ known: string; target: string }>
+  glossSegments?: Array<{ span: number; known: string }>
 }
 
 function makeLego(opts: MakeLegoOpts): BundleLego {
@@ -77,6 +78,7 @@ function makeLego(opts: MakeLegoOpts): BundleLego {
     targetText: opts.targetText ?? `target-${legoId}`,
     ...(opts.targetTextNative !== undefined ? { targetTextNative: opts.targetTextNative } : {}),
     ...(opts.components ? { components: opts.components } : {}),
+    ...(opts.glossSegments ? { glossSegments: opts.glossSegments } : {}),
     isNew: opts.isNew ?? true,
     ephemeralAudio: {
       ...(opts.withKnown !== false ? { known: audioRef(`${legoId}-known`, 1200) } : {}),
@@ -693,5 +695,64 @@ describe('generateScript — round shape', () => {
     expect(rounds[0].cycles.filter((c) => c.type === 'review').length).toBeLessThanOrEqual(
       FIXTURE_SCRIPT_SHAPE.maxSpacedRepPhrases,
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Authored gloss segments (bundle-cutover step 5b)
+// ---------------------------------------------------------------------------
+// No course in the estate carries `known_gloss_segments` today (0 rows,
+// 2026-08-29), so the live parity harness cannot see this field at all — it
+// would pass whether or not the generator carried the mapping through. This
+// test is the proof instead: the moment Popty authors the first mapping, a
+// bundle-enabled course must ship it exactly where /cycles does, on the intro
+// and the debut and nowhere else.
+describe('generateScript — authored gloss segments', () => {
+  const SEGMENTS = [
+    { span: 1, known: 'word' },
+    { span: 1, known: 'a' },
+  ]
+
+  function bundleWithSegments() {
+    const bundle = makeBundle({ legoCount: 2, buildsPerLego: 1, usesPerLego: 2 })
+    bundle.legos[0] = makeLego({
+      seedNumber: 1,
+      type: 'M',
+      targetText: 'hitz bat',
+      glossSegments: SEGMENTS,
+    })
+    return bundle
+  }
+
+  it('rides the intro and the debut of the LEGO that authored it', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithSegments(),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    const carrying = rounds[0].cycles.filter((c) => c.glossSegments)
+    expect(carrying.map((c) => c.type).sort()).toEqual(['debut', 'intro'])
+    expect(carrying.every((c) => c.legoId === 'S0001L01')).toBe(true)
+    for (const c of carrying) expect(c.glossSegments).toEqual(SEGMENTS)
+  })
+
+  it('never leaks onto build or use phrases — those tile from decomposition', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithSegments(),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    const phraseCycles = rounds[0].cycles.filter((c) => c.type === 'build' || c.type === 'use')
+    expect(phraseCycles.length).toBeGreaterThan(0)
+    expect(phraseCycles.every((c) => c.glossSegments === undefined)).toBe(true)
+  })
+
+  it('is absent, not empty, on a LEGO with no authored mapping', () => {
+    const { rounds } = generateScript({
+      bundle: makeBundle({ legoCount: 2 }),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    expect(rounds[0].cycles.every((c) => c.glossSegments === undefined)).toBe(true)
   })
 })
