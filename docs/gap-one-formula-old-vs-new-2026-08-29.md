@@ -48,6 +48,6 @@ Gap in seconds, for an answer of the given native length.
 - **Belt variation disappears.** Today a White-belt learner gets a gap up to ~10%
   longer than a Green-belt one on the same phrase, purely because the belt taper
   read belt position off the slowed playback speed. Everyone now gets the same
-  gap for the same sentence. If that turns out to be a loss, the cheap fix is a
-  White→Green endpoint pair for those same two numbers, driven by actual belt
-  rather than by speed — but that is a second knob, so I did not ship it.
+  gap for the same sentence, which is the intended behaviour: **Tom has ruled
+  there is no belt taper now or ever** (2026-08-29). Two fixed constants per
+  mode is the settled design, not a first step towards a third knob.
