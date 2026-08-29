@@ -339,7 +339,6 @@ export function toPlayerCycle(
           bc.durations.target1_ms ?? 0,
           bc.durations.target2_ms ?? 0,
           DEFAULT_FAST,
-          speed,
         ),
     // Linger after voice2 on intros so the learner can read the reveal.
     ...(isIntro ? { lingerMs: 2000 } : {}),
