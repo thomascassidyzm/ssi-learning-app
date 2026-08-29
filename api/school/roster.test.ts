@@ -250,6 +250,32 @@ describe('GET /api/school/roster', () => {
       expect(res.statusCode).toBe(200)
     })
 
+    // TENANCY-08: an admin under the TAG spelling is the same principal as the
+    // schools.admin_user_id founding pointer, and gets the same class roster.
+    it('authorises a TAG-spelled school admin of the class (TENANCY-08)', async () => {
+      DB.user_tags.push({
+        id: 'tadm', user_id: 'admin-2', added_at: '2025-04-01',
+        tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'admin', removed_at: null,
+      })
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'admin-2' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(200)
+    })
+
+    it('403s a tag-spelled admin of a DIFFERENT school', async () => {
+      DB.user_tags.push({
+        id: 'tadm2', user_id: 'admin-3', added_at: '2025-04-01',
+        tag_value: 'SCHOOL:s2', tag_type: 'school', role_in_context: 'admin', removed_at: null,
+      })
+      const { verifyAuthToken } = await import('../_utils/auth')
+      ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'admin-3' })
+      const res = makeRes()
+      await handler(makeReq({ class_id: 'c2' }), res)
+      expect(res.statusCode).toBe(403)
+    })
+
     it('403s an authenticated NON-member of the class', async () => {
       const { verifyAuthToken } = await import('../_utils/auth')
       ;(verifyAuthToken as any).mockResolvedValueOnce({ valid: true, userId: 'stranger' })

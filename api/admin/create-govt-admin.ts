@@ -19,7 +19,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
-import { generateCode } from '../_utils/codeGen'
+import { generateCodeForType } from '../_utils/codeGen'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -97,7 +97,7 @@ export default async function handler(
     // api/invite/create.ts.
     let code: string | null = null
     for (let attempt = 0; attempt < 10; attempt++) {
-      const candidate = generateCode()
+      const candidate = generateCodeForType('govt_admin')
       const { data: existing } = await supabase
         .from('invite_codes')
         .select('id')

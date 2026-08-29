@@ -20,21 +20,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { getAppOrigin } from '../_utils/appOrigin'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PER_ADMIN_LIMIT = 15
-
-/** Derive the app origin from the request — never trust a client-supplied value here. */
-function getAppOrigin(req: VercelRequest): string {
-  const host = ((req.headers['host'] as string) || '').toLowerCase().replace(/:\d+$/, '')
-  if (host === 'saysomethingin.app' || host === 'www.saysomethingin.app') return 'https://saysomethingin.app'
-  if (host === 'staging.saysomethingin.app') return 'https://staging.saysomethingin.app'
-  if (host) return `https://${host}`
-  return 'https://saysomethingin.app'
-}
 
 export default async function handler(
   req: VercelRequest,
@@ -76,7 +68,15 @@ export default async function handler(
       .contains('payload', { actor_user_id: adminResult.userId })
 
     if (rateErr) {
-      console.warn('[CreateSigninLink] rate-limit check failed (failing open):', rateErr.message)
+      // AUTH-CORE-07 — fail CLOSED. This used to warn and proceed, which meant
+      // an unreadable player_events (an RLS change, a permission regression, an
+      // outage) silently removed the ONLY volume bound on an endpoint that
+      // mints a session-granting magic link for any learner. A quota that
+      // evaporates exactly when the database is misbehaving is not a quota.
+      // 503 rather than 500: this is "try again", not "you did something wrong".
+      console.error('[CreateSigninLink] rate-limit check failed — refusing:', rateErr.message)
+      res.status(503).json({ error: 'Rate limit unavailable, please try again' })
+      return
     } else if ((recentCount ?? 0) >= PER_ADMIN_LIMIT) {
       res.status(429).json({ error: 'Too many sign-in links minted recently. Please wait a few minutes.' })
       return

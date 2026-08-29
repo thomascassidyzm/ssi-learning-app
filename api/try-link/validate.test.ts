@@ -17,6 +17,17 @@ vi.mock('@supabase/supabase-js', () => {
             }),
           }
         }
+        if (table === 'possession_mint_attempts') {
+          // AUTH-CORE-03 put this endpoint behind the shared per-IP throttle:
+          // a count query (select→eq→neq×3→gte) plus a best-effort audit row.
+          const b: any = {}
+          b.select = () => b
+          b.eq = () => b
+          b.neq = () => b
+          b.gte = () => Promise.resolve({ count: 0, error: null })
+          b.insert = () => Promise.resolve({ error: null })
+          return b
+        }
         // try_link_visits — insert(...).then(cb)
         return {
           insert: () => ({ then: (cb: (r: { error: null }) => void) => cb({ error: null }) }),

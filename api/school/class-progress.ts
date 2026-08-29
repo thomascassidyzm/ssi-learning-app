@@ -34,6 +34,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope } from '../_utils/schoolScope'
+import { safeIdToken, safeInteger } from '../_utils/postgrestFilter'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -172,6 +173,28 @@ async function saveLegoProgress(svc: SupabaseClient, learnerId: string, courseId
   return data
 }
 
+// Columns a caller may write through updateLegoProgress — exactly the five
+// @ssi/core's ProgressStore.updateLegoProgress writes. Identity columns
+// (learner_id, course_id, lego_id) and the row id are server-owned and are
+// NOT in the list, so the ownership check below cannot be undone by the very
+// write it guards (SEC25 INPUT-03: this used to spread `updates` verbatim).
+const UPDATABLE_LEGO_PROGRESS_COLUMNS = [
+  'fibonacci_position',
+  'skip_number',
+  'reps_completed',
+  'is_retired',
+  'last_practiced_at',
+] as const
+
+function pickLegoProgressUpdates(updates: Record<string, any>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (!updates || typeof updates !== 'object') return out
+  for (const col of UPDATABLE_LEGO_PROGRESS_COLUMNS) {
+    if (updates[col] !== undefined) out[col] = updates[col]
+  }
+  return out
+}
+
 // Authorization for updateLegoProgress needs an extra hop: the client only
 // has a row id (no learnerId/courseId in the call signature), so verify the
 // row actually belongs to the resolved class learner before writing it.
@@ -187,7 +210,7 @@ async function updateLegoProgress(svc: SupabaseClient, learnerId: string, id: st
   }
   const { error } = await svc
     .from('lego_progress')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...pickLegoProgressUpdates(updates), updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw new Error(`updateLegoProgress failed: ${error.message}`)
 }
@@ -210,10 +233,14 @@ async function setLivePosition(
   svc: SupabaseClient, learnerId: string, courseId: string,
   legoId: string, roundIndex: number, cycleIndex: number, opts?: { touchPracticedAt?: boolean },
 ) {
+  // SEC25 INPUT-02: `.or()` is a filter EXPRESSION, so the ratchet bound must
+  // be a plain integer before it is interpolated — a caller-supplied string
+  // could otherwise append a disjunct and dissolve the forward-only guard.
+  const safeRound = safeInteger(roundIndex)
   const updateData: Record<string, unknown> = {
-    last_completed_lego_id: legoId,
-    last_completed_round_index: roundIndex,
-    current_cycle_index: cycleIndex,
+    last_completed_lego_id: safeIdToken(legoId),
+    last_completed_round_index: safeRound,
+    current_cycle_index: safeInteger(cycleIndex),
   }
   if (opts?.touchPracticedAt !== false) updateData.last_practiced_at = new Date().toISOString()
   const { error } = await svc
@@ -221,7 +248,7 @@ async function setLivePosition(
     .update(updateData)
     .eq('learner_id', learnerId)
     .eq('course_id', courseId)
-    .or(`last_completed_round_index.is.null,last_completed_round_index.lte.${roundIndex}`)
+    .or(`last_completed_round_index.is.null,last_completed_round_index.lte.${safeRound}`)
   if (error) throw new Error(`setLivePosition failed: ${error.message}`)
 }
 
@@ -246,12 +273,16 @@ async function setMode(
     if (initErr) throw new Error(`setMode infplay init failed: ${initErr.message}`)
 
     if (ratchetHighestTo) {
+      // SEC25 INPUT-02: same filter-DSL hazard as setLivePosition — constrain
+      // the lego id to DSL-inert characters (a real id is unchanged by this)
+      // so the ratchet keeps exactly its two intended disjuncts.
+      const safeLegoId = safeIdToken(ratchetHighestTo.legoId)
       const { error: rErr } = await svc
         .from('course_enrollments')
-        .update({ last_completed_lego_id: ratchetHighestTo.legoId })
+        .update({ last_completed_lego_id: safeLegoId })
         .eq('learner_id', learnerId)
         .eq('course_id', courseId)
-        .or(`last_completed_lego_id.is.null,last_completed_lego_id.lt.${ratchetHighestTo.legoId}`)
+        .or(`last_completed_lego_id.is.null,last_completed_lego_id.lt.${safeLegoId}`)
       if (rErr) throw new Error(`setMode ratchet failed: ${rErr.message}`)
     }
   }

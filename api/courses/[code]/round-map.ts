@@ -70,12 +70,21 @@ export default async function handler(
     return
   }
 
+  // SEC25-X-02 (fixed 2026-08-25): this used to fall back to the anon key when
+  // SUPABASE_SERVICE_ROLE_KEY was missing, which silently re-identified the
+  // query rather than failing. `anon` holds a grant on `course_round_index`, so
+  // the swap produced byte-identical responses and was undetectable from
+  // outside — and from inside it surfaced as a misleading 503. Fail closed,
+  // matching the quorum (access/claim.ts, family/remove.ts, groups/tree.ts).
+  if (!supabaseServiceKey) {
+    console.error('[RoundMap] SUPABASE_SERVICE_ROLE_KEY is missing — refusing to serve')
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(500).json({ error: 'Server misconfigured' })
+    return
+  }
+
   try {
-    const supabase = createClient(
-      supabaseUrl,
-      supabaseServiceKey ||
-        (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
-    )
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // 1. Fetch course version (and confirm course exists). Two columns only —
     //    we don't need any of the heavy JSON config blobs.
@@ -117,10 +126,17 @@ export default async function handler(
       // Course exists in `courses` but no rows in the view — operator hasn't
       // refreshed it yet. Distinct from 404 so the frontend doesn't cache a
       // "this course doesn't exist" response that would survive the refresh.
+      //
+      // SEC25-X-01 (fixed 2026-08-25): the body used to name the internal
+      // relation AND hand an unauthenticated caller the exact DDL to run
+      // against it. The remedy is an operator's business, so it goes to the
+      // server log; the caller gets the fixed string every comparable handler
+      // returns (compare api/board/snapshot/[code].ts).
+      console.error(
+        `[RoundMap] course_round_index has no rows for "${code}" — run REFRESH MATERIALIZED VIEW course_round_index`
+      )
       res.setHeader('Cache-Control', 'no-store')
-      res.status(503).json({
-        error: 'round map not yet materialised, run REFRESH MATERIALIZED VIEW course_round_index',
-      })
+      res.status(503).json({ error: 'Course temporarily unavailable' })
       return
     }
 

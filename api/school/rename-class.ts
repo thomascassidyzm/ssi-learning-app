@@ -42,7 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const classId = typeof req.body?.class_id === 'string' ? req.body.class_id.trim() : ''
-  const className = typeof req.body?.class_name === 'string' ? req.body.class_name.trim() : ''
+  // SEC25 INPUT-09: capped at the display length any real class name needs —
+  // free text reaching the DB is otherwise unbounded.
+  const className = typeof req.body?.class_name === 'string' ? req.body.class_name.trim().slice(0, 120) : ''
   if (!classId) {
     res.status(400).json({ error: 'class_id is required' })
     return

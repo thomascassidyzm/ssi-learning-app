@@ -13,8 +13,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 
+// The handler authorises via the shared verifyAdmin() (ADMIN-ENT-12).
+let adminResult: any = { userId: 'admin-1' }
 vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'admin-1' })),
+  verifyAdmin: vi.fn(async () => adminResult),
 }))
 
 let rpcCalls: Array<{ name: string; params: unknown }> = []
@@ -64,6 +67,7 @@ describe('POST /api/admin/revoke-entitlement', () => {
   beforeEach(async () => {
     vi.resetModules()
     rpcCalls = []
+    adminResult = { userId: 'admin-1' }
     singleResponders = {
       learners: () => ({ data: { platform_role: 'ssi_admin' }, error: null }),
     }
@@ -97,7 +101,7 @@ describe('POST /api/admin/revoke-entitlement', () => {
   })
 
   it('rejects a non-admin caller with 403', async () => {
-    singleResponders.learners = () => ({ data: { platform_role: 'teacher' }, error: null })
+    adminResult = { error: 'Requires SSi admin access', status: 403, userId: 'teacher-1' }
 
     const res = makeRes()
     await handler(makeReq({ body: { entitlement_id: 'ent-1' } }), res)

@@ -16,6 +16,8 @@ import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
+import { isStrongCodeFormat, redactCode } from '../_utils/codeGen'
+import { isSchoolSeatCapReached, seatCapMessage } from '../_utils/schoolSeats'
 import {
   getClientIp,
   hashIp,
@@ -232,6 +234,48 @@ async function redeemInviteCode(
   }
 
   const codeType: string = inviteRow.code_type
+
+  // ── SEC25-X-03: the ssi_admin door ────────────────────────────────────────
+  //
+  // Below, `codeType === 'ssi_admin' || codeType === 'god'` sets
+  // `platform_role = 'ssi_admin'` on the redeemer — the highest privilege in
+  // the system — selected on the code type ALONE. Three facts composed into a
+  // live hole: the grant needs no second factor; a bearer token is free because
+  // sign-up is open self-service OTP; and every invite code, including this one,
+  // was minted in the ABC-123 format, a 13,824,000 keyspace. The only control
+  // in front of it was the per-IP limiter, whose bucket key the caller wrote
+  // (fixed in the same pass — see _utils/codeAttemptThrottle.ts).
+  //
+  // The fix has two halves. The mint half lives in `generateCodeForType()`
+  // (_utils/codeGen.ts): privileged types draw 128 bits. This is the redeem
+  // half, and it is the one that binds, because it also covers codes minted
+  // BEFORE that change — a guessed ABC-123 code cannot become platform
+  // privilege no matter which minter produced it.
+  //
+  // Scoped deliberately to `ssi_admin`/`god` and no wider. Those are held by a
+  // handful of staff and re-minting one is a two-minute job, so failing closed
+  // costs nothing real. The staff tiers below them — govt_admin, school_admin,
+  // teacher — are held by live schools mid-term, and refusing their existing
+  // codes would lock working users out of their own dashboards to close a hole
+  // the throttle fix already narrows. Those types get 128 bits going forward
+  // via the minter; they are not retro-invalidated here.
+  if (codeType === 'ssi_admin' || codeType === 'god') {
+    if (!isStrongCodeFormat(String(inviteRow.code || ''))) {
+      console.error(
+        '[CodeRedeem] REFUSED privileged redemption of a weak-keyspace code:',
+        redactCode(inviteRow.code),
+        'type:',
+        codeType,
+        'by user:',
+        userId
+      )
+      // Deliberately the SAME body an unknown code gets. A distinguishable
+      // "this code is real but too weak" answer would turn the refusal into
+      // the enumeration oracle the refusal exists to close.
+      res.status(200).json({ success: false, error: 'Invalid code' })
+      return
+    }
+  }
 
   // Check user hasn't already redeemed same context
   if (codeType === 'teacher' && inviteRow.grants_class_id) {
@@ -681,6 +725,33 @@ async function redeemInviteCode(
         res.status(200).json({ success: false, error: 'This invite is not linked to a school or class' })
         return
       }
+
+      // ADMIN-ENT-05: schools.teacher_seats is the Paddle per-seat quantity, and
+      // until now NOTHING compared against it — a school paying for one seat
+      // could onboard unlimited teachers through its join code. The dedup checks
+      // above already refused anyone who is staff here, so reaching this point
+      // means one NEW seat is about to be consumed. Mirrors the family plan's
+      // server-side cap (api/family/invite.ts). Only bites a school with a live
+      // per-seat subscription — see schoolSeats.ts on why the DEFAULT 1 is not a
+      // cap — and fails open on a read error.
+      const seatSchoolId =
+        (inviteRow.grants_school_id as string | null) ??
+        (inviteRow.grants_class_id
+          ? ((
+              await supabase
+                .from('classes')
+                .select('school_id')
+                .eq('id', inviteRow.grants_class_id as string)
+                .maybeSingle()
+            ).data as { school_id?: string | null } | null)?.school_id ?? null
+          : null)
+      const seatState = await isSchoolSeatCapReached(supabase, seatSchoolId)
+      if (seatState.full) {
+        console.warn('[CodeRedeem] Teacher seat cap reached:', seatSchoolId, seatState.used, '/', seatState.seats)
+        res.status(200).json({ success: false, error: seatCapMessage(seatState) })
+        return
+      }
+
       for (const tag of teacherTags) {
         const { error: tagError } = await supabase.from('user_tags').insert(tag)
         // 23505 → idempotent no-op (concurrent/retried redemption already
@@ -789,7 +860,7 @@ async function redeemInviteCode(
     : ['school_admin', 'god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
-  console.log('[CodeRedeem] Redeemed invite code:', inviteRow.code, 'for user:', userId, 'role:', codeType)
+  console.log('[CodeRedeem] Redeemed invite code:', redactCode(inviteRow.code), 'for user:', userId, 'role:', codeType)
   res.status(200).json({
     success: true,
     codeKind: 'invite',
@@ -903,12 +974,12 @@ async function redeemEntitlementCode(
     codeUsed: entitlementRow.code as string,
   })
   if (!dashboardRoleApplied) {
-    console.error('[CodeRedeem] Entitlement granted but dashboard role update failed:', entitlementRow.code, 'for user:', userId)
+    console.error('[CodeRedeem] Entitlement granted but dashboard role update failed:', redactCode(entitlementRow.code), 'for user:', userId)
   }
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 
-  console.log('[CodeRedeem] Redeemed entitlement code:', entitlementRow.code, 'for user:', userId, 'label:', entitlementRow.label)
+  console.log('[CodeRedeem] Redeemed entitlement code:', redactCode(entitlementRow.code), 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
     dashboardRoleApplied,

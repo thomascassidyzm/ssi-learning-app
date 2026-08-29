@@ -55,17 +55,29 @@ interface OfflineLeaseCourse {
   revoked: boolean
 }
 
-/** Parse the downloaded-course list from a POST body or a GET ?courses=a,b. */
+/** Course codes are `[a-z0-9_]+` everywhere in this API (see api/courses/**). */
+const COURSE_CODE_RE = /^[a-z0-9_]{1,64}$/
+/** ADMIN-ENT-07: hard cap on how many courses one call may report. The whole
+ *  catalogue is an order of magnitude below this, so it never bites a real
+ *  client — it just stops an attacker turning one request into N upserts. */
+const MAX_COURSES = 64
+
+/** Parse the downloaded-course list from a POST body or a GET ?courses=a,b.
+ *  ADMIN-ENT-07 (fixed 2026-08-25): each entry must look like a course code, and
+ *  the list is capped — every accepted entry becomes an upsert row downstream. */
 function readCourses(req: VercelRequest): string[] {
   const out = new Set<string>()
   const add = (v: unknown) => {
-    if (typeof v === 'string' && v.trim()) out.add(v.trim())
+    if (out.size >= MAX_COURSES) return
+    if (typeof v !== 'string') return
+    const code = v.trim().toLowerCase()
+    if (COURSE_CODE_RE.test(code)) out.add(code)
   }
   const body: any = req.body
-  if (body && Array.isArray(body.courses)) body.courses.forEach(add)
+  if (body && Array.isArray(body.courses)) body.courses.slice(0, MAX_COURSES * 4).forEach(add)
   const q = req.query?.courses
-  if (typeof q === 'string') q.split(',').forEach(add)
-  else if (Array.isArray(q)) q.forEach(add)
+  if (typeof q === 'string') q.split(',').slice(0, MAX_COURSES * 4).forEach(add)
+  else if (Array.isArray(q)) q.slice(0, MAX_COURSES * 4).forEach(add)
   return [...out]
 }
 

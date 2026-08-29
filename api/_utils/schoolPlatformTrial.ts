@@ -43,6 +43,32 @@ export function isMissingPlatformSchema(err: { code?: string; message?: string }
 }
 
 /**
+ * ADMIN-ENT-08 (fixed 2026-08-25): canonicalise an address before using it as a
+ * trial-BURN KEY. `a+1@gmail.com`, `a+2@gmail.com` and `a.b@gmail.com` all
+ * deliver to one inbox, so keying the burn on the literal address minted an
+ * unlimited supply of fresh platform trials to one person.
+ *
+ * Only the burn key changes — the raw address is still what gets stored for
+ * display/contact everywhere else.
+ *
+ *  - lowercase + trim (as before)
+ *  - drop a `+tag` from the local part (honoured by every major provider)
+ *  - drop dots from the local part ONLY on gmail/googlemail, where they are
+ *    genuinely ignored; elsewhere a dot is a significant character.
+ */
+export function canonicaliseEmailForBurn(email: string): string {
+  const trimmed = (email || '').trim().toLowerCase()
+  const at = trimmed.lastIndexOf('@')
+  if (at <= 0) return trimmed
+  let local = trimmed.slice(0, at)
+  const domain = trimmed.slice(at + 1)
+  const plus = local.indexOf('+')
+  if (plus > 0) local = local.slice(0, plus)
+  if (domain === 'gmail.com' || domain === 'googlemail.com') local = local.replace(/\./g, '')
+  return local ? `${local}@${domain}` : trimmed
+}
+
+/**
  * Burn one trial on (email, track). Returns:
  *   - { burned: false }                 → first time; the caller may grant.
  *   - { burned: true, ownedBy }         → already burned; ownedBy = the burn's
@@ -52,18 +78,34 @@ export function isMissingPlatformSchema(err: { code?: string; message?: string }
  */
 async function burnTrial(
   supabase: any,
-  email: string,
+  rawEmail: string,
   track: 'school' | 'tutor',
   schoolId: string | null,
 ): Promise<{ burned: boolean; ownedBy?: string | null; schemaUnavailable?: boolean }> {
-  if (!email) {
+  if (!rawEmail) {
     // No email to key the burn on — can't enforce; skip (fail open).
     return { burned: false, schemaUnavailable: true }
   }
+  const email = canonicaliseEmailForBurn(rawEmail)
   const { error } = await supabase
     .from('trial_burns')
     .insert({ email, track, school_id: schoolId })
-  if (!error) return { burned: false }
+  if (!error) {
+    // The canonical key is new — but burns written BEFORE this canonicalisation
+    // landed are keyed on the literal address. Honour those so the change of key
+    // can't hand anyone a second trial.
+    const raw = rawEmail.trim().toLowerCase()
+    if (raw !== email) {
+      const { data: legacy } = await supabase
+        .from('trial_burns')
+        .select('school_id')
+        .eq('email', raw)
+        .eq('track', track)
+        .maybeSingle()
+      if (legacy) return { burned: true, ownedBy: legacy.school_id ?? null }
+    }
+    return { burned: false }
+  }
   if (error.code === '23505') {
     // Already burned. Fetch the owning row so the caller can disambiguate a
     // legitimate retry (same school) from a farm (different/deleted school).
