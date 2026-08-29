@@ -359,3 +359,18 @@ test('the finalise gate and the learner-facing parser use the SAME header regex'
   assert.equal(m[1], FINAL_HEADER_RE.toString(),
     'trainReleaseNotes.ts SHIPPED_RE and release-notes.mjs FINAL_HEADER_RE have drifted')
 })
+
+test('promote.sh writes the notes BEFORE it pushes main, so they ship with their own build', () => {
+  // The player bundles tools/release-train/notes/*.md at BUILD time and production builds from
+  // main. Notes written after the push land on dev only and reach production one ship late —
+  // which is how Settings came to show 16 Aug on 2026-08-29. Order is the fix; lock it.
+  const sh = readFileSync(new URL('./promote.sh', import.meta.url), 'utf8')
+  const notes = sh.indexOf("${NOTES_ARGS[@]}")
+  const commit = sh.indexOf('add -- tools/release-train/notes/')
+  const push = sh.indexOf('push origin HEAD:main')
+  assert.ok(notes > 0 && commit > 0 && push > 0, 'promote.sh lost one of its three steps')
+  assert.ok(notes < commit, 'the notes must be written before they are staged')
+  assert.ok(commit < push, 'the notes must be committed onto the merge BEFORE the push to main')
+  assert.match(sh, /--worktree" "\$WT"|--worktree "\$WT"/,
+    'the finalise run must be handed the promote worktree, or the notes never reach main')
+})

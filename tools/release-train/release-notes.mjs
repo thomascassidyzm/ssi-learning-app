@@ -606,6 +606,19 @@ async function main() {
         `see these bullets. Stamp it by hand before reporting the ship.`)
     }
 
+    // Into the caller's checkout too, when it hands us one. promote.sh passes its promote
+    // worktree, which is how the notes reach MAIN: they are committed onto the merge and ride
+    // the same push. Without this they only ever land on dev, and production — which builds
+    // from main and globs these files at BUILD time — shows the PREVIOUS ship's notes forever.
+    // (2026-08-29: Tom opened Settings and saw 16 Aug, three weeks and two ships stale.)
+    const intoWt = argOf('--worktree')
+    if (intoWt) {
+      const there = join(intoWt, rel)
+      mkdirSync(dirname(there), { recursive: true })
+      writeFileSync(there, final)
+      log(`release notes written into the promote worktree: ${rel}`)
+    }
+
     if (!NO_PUSH) {
       publish([{ relPath: rel, body: final }],
         `release-train: release notes final — shipped ${shipDate} (${sha.slice(0, 7)})`)

@@ -17,7 +17,11 @@
 # actually promoted (this script passes --base/--head, the only place that knows main's sha before
 # the merge), not merely stamped from Thursday's draft — staging keeps moving after Thursday, so a
 # stamped draft can miss what shipped and claim what didn't. Hand-edited bullets are preserved.
-# Notes are committed to dev, never to main.
+#
+# The notes are written BEFORE the push and committed onto the merge, so they land on MAIN with
+# the ship they describe (and on dev too). They used to go to dev only — but the player bundles
+# these markdown files at BUILD time and production builds from main, so every ship's notes
+# arrived one ship late. On 2026-08-29 Tom opened Settings and the newest entry was 16 Aug.
 #
 # After the push: the deploy sentinel (tools/deploy-sentinel/, cron'd every 3 min on watson-1)
 # opens a 2h watch window on the new main sha automatically — deploy-live, endpoint probes and
@@ -72,21 +76,33 @@ trap cleanup EXIT
 git worktree add --quiet -B _promote_main "$WT" origin/main
 git -C "$WT" merge --no-ff origin/staging \
   -m "promote: staging→main — weekly Friday ship, $COUNT commits ($(git rev-parse --short origin/staging))"
-git -C "$WT" push origin HEAD:main
 
-NEW=$(git -C "$WT" rev-parse --short HEAD)
-git branch -D _promote_main >/dev/null 2>&1 || true
-
-# Write the release notes final, REGENERATED from the range this script just promoted
-# ($MAIN..$STAGING — captured before the merge, which is why the range is passed from here).
-# Hand-edited bullets in Thursday's draft are carried through; the draft-only coverage section
-# never reaches the final. Committed to dev, never to main. A notes failure must not read as a
-# failed promote — the promote already happened by this line.
-NOTES_ARGS=(--finalize --sha "$STAGING" --count "$COUNT" --base "$MAIN" --head "$STAGING")
+# Write the release notes final BEFORE the push, REGENERATED from the range this script is
+# promoting ($MAIN..$STAGING — captured before the merge, which is why the range is passed from
+# here). Hand-edited bullets in Thursday's draft are carried through; the draft-only coverage
+# section never reaches the final. --worktree drops the finished file into the promote worktree
+# so it is committed onto the merge and rides the SAME push to main; the run also publishes it
+# to dev as it always did.
+#
+# A notes failure must never block the ship — it is a changelog, not code. So we record the
+# failure, push the merge anyway, and refuse to report success at the end.
+NOTES_ARGS=(--finalize --sha "$STAGING" --count "$COUNT" --base "$MAIN" --head "$STAGING" --worktree "$WT")
 NOTES_OK=1
 if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}"; then
   NOTES_OK=0
 fi
+
+if [[ "$NOTES_OK" -eq 1 ]] && ! git -C "$WT" diff --quiet -- tools/release-train/notes/; then
+  git -C "$WT" add -- tools/release-train/notes/
+  git -C "$WT" commit --quiet \
+    -m "release-notes: the notes for this ship, on main where the build reads them"
+  echo "Release notes committed onto the merge — they ship WITH the build that they describe."
+fi
+
+git -C "$WT" push origin HEAD:main
+
+NEW=$(git -C "$WT" rev-parse --short HEAD)
+git branch -D _promote_main >/dev/null 2>&1 || true
 
 echo
 echo "PROMOTED: main is now $NEW ($COUNT commits shipped)."
