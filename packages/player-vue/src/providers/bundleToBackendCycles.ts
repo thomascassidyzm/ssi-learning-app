@@ -31,7 +31,7 @@ export interface InfPlayCyclesResponse {
 
 /** The generator emits audio as URLs; passing identity gives us the raw ids
  *  the wire shape carries, with no string surgery. */
-const ID_ONLY = (id: string): string => id
+export const ID_ONLY = (id: string): string => id
 
 export function bundleToRoundMap(bundle: CourseBundle): RoundMap {
   return {
@@ -54,8 +54,12 @@ function seedNumberOf(legoId: string): number {
  * One generated cycle → one wire cycle. `roundLegoId` is the LEGO whose ROUND
  * the cycle plays in; it differs from `lego_id` only on cross-LEGO spaced
  * review, and that is exactly when the endpoint sets `round_lego_id`.
+ *
+ * Exported for `bundleFullScript` (step 6), which needs the whole course in
+ * this same wire shape so the full-script rounds and the tier-3 rounds the
+ * learner is already playing are produced by ONE mapping, not two.
  */
-function toBackendCycle(
+export function toBackendCycle(
   c: GeneratedCycle,
   roundLegoId: string,
   isNewByLego: Map<string, boolean>,

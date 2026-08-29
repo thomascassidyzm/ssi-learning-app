@@ -27,8 +27,9 @@
  * swallowed: telemetry never interferes with boot.
  */
 
-/** Which consumer of the bundle is reporting. */
-export type BundlePathStage = 'round_map' | 'cycles' | 'infplay'
+/** Which consumer of the bundle is reporting. `full_script` is step 6: the
+ *  whole-course script that used to be the Supabase walk. */
+export type BundlePathStage = 'round_map' | 'cycles' | 'infplay' | 'full_script'
 
 export interface BundlePathEvent {
   /** NOTE: no courseCode — `usePlayerLog` stamps `course_code` on the row. */
