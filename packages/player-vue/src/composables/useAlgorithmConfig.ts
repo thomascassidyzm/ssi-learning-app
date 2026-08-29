@@ -12,7 +12,7 @@
 
 import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
-import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
+import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS, computePauseDuration } from '@ssi/core'
 import { countSyllables, hasSyllableCounter, syllableLangOf } from '@ssi/core/text'
 import { DEFAULT_REPEATED_CYCLE_TYPES, MAX_PHRASE_REPEAT_COUNT } from '../providers/repeatPhraseCycles'
 import {
@@ -39,32 +39,26 @@ import {
 // Type definitions for algorithm configs
 export interface ModeConfig {
   playback_speed: number      // 1.0 = normal, 1.25 = 25% faster
-  pause_base_ms: number       // Base pause before multiplier
-  pause_multiplier: number    // Multiplied by target audio duration
-  min_pause_ms: number        // Floor for pause duration
-  max_pause_ms: number        // Ceiling for pause duration
-  /** Reference duration the pause scales with (default 'sum' = legacy t1+t2).
-   *  See computePauseDuration.ts. */
+  /** Thinking multiplier on the native (1.0×) target-sentence duration.
+   *  gap = pause_k × answer + pause_reaction_ms. See computePauseDuration.ts. */
+  pause_k?: number
+  /** Fixed reaction beat (ms) added on top of the multiplied answer duration. */
+  pause_reaction_ms?: number
+  min_pause_ms: number        // Safety floor for pause duration (not tuning)
+  max_pause_ms: number        // Safety ceiling for pause duration (not tuning)
+  /** RETIRED 2026-08-29 (one-formula gap model). Live `algorithm_config` rows
+   *  still carry these; computePauseDuration IGNORES every one of them. Kept on
+   *  the type only so a stored row still parses. Do not read them. */
+  pause_base_ms?: number
+  pause_multiplier?: number
   pause_reference?: 'avg' | 'target1' | 'sum'
-  /** LEGACY knee model — reference (ms) past which the gentler tail kicks in. */
   pause_knee_ms?: number
-  /** LEGACY knee model — slope beyond the knee (default = pause_multiplier). */
   pause_tail_multiplier?: number
-  /** Boot / reaction floor (ms) — length-independent spin-up. See
-   *  computePauseDuration.ts (boot + assembly model). */
   pause_boot_ms?: number
-  /** Reference (ms) below which there is no assembly cost (short = pure boot). */
   pause_assembly_threshold_ms?: number
-  /** Linear assembly per ms of reference past the threshold. */
   pause_assembly_lin?: number
-  /** Quadratic assembly (ms per second² past the threshold) — super-linear
-   *  long-phrase cost. 0 ⇒ a straight assembly ramp. */
   pause_assembly_quad?: number
-  /** Boot multiplier at Green belt (White=1.0; interpolated). <1 shrinks
-   *  short-phrase gaps as the learner advances. */
   pause_belt_boot?: number
-  /** Assembly multiplier at Green belt (White=1.0). Keep nearer 1.0 than
-   *  belt_boot so long phrases shorten less than short ones across belts. */
   pause_belt_assembly?: number
   /**
    * Extra silence (ms) held AFTER voice2, before the next cycle's prompt —
@@ -399,28 +393,17 @@ export interface AlgorithmConfigs {
 
 // Default fallbacks (used if DB fetch fails)
 //
-// Normal-mode pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
-// The previous fallback (base 1500, mul 1.0, ceiling 8000) was the legacy too-tight curve;
-// values below match the formula deployed for SSi's generate-from-prompt loop, so when
-// the DB algorithm_config row is missing the fallback gives the same answer.
+// Pause formula: clamp(min_pause_ms, max_pause_ms, pause_k × answer + pause_reaction_ms),
+// where `answer` is the average NATIVE (1.0×) duration of the target sentence's two
+// voices. One formula, two tunables per mode — see computePauseDuration.ts.
 export const DEFAULT_FAST: ModeConfig = {
   playback_speed: 1.0,
-  // Boot + assembly model (see computePauseDuration.ts). These defaults
-  // reproduce the previous White-belt curve for medium/long phrases exactly
-  // (boot 1000 + 2.5×ref-past-1000ms ≡ the old floor-1000 / knee-1600 / tail-2.0
-  // curve at White), while the boot/knee makes the shortest phrases a touch
-  // shorter. Belt taper: short phrases (boot) belt-independent by default,
-  // long phrases (assembly) shrink ~20% by Green — matching the old speed ramp.
-  pause_reference: 'avg',
-  pause_boot_ms: 1000,
-  pause_assembly_threshold_ms: 1000,
-  pause_assembly_lin: 2.5,
-  pause_assembly_quad: 0,
-  pause_belt_boot: 1.0,
-  pause_belt_assembly: 0.8,
-  pause_base_ms: 0,
-  pause_multiplier: 1.05,
-  min_pause_ms: 700,
+  // One-formula gap (Tom, 2026-08-29): gap = k × native answer duration +
+  // reaction beat. Starting constants fitted to what the live fast_mode row
+  // produced for 1–3s answers under the old boot+assembly curve.
+  pause_k: 2.8,
+  pause_reaction_ms: 800,
+  min_pause_ms: 1000,
   max_pause_ms: 15000,
   // Fast is unchanged: the next cycle follows voice2 immediately, as it always has.
   post_voice2_gap_ms: 0,
@@ -485,16 +468,11 @@ export const DEFAULT_FAST: ModeConfig = {
  */
 export const DEFAULT_EASY: ModeConfig = {
   playback_speed: 1.0,
-  pause_reference: 'avg',
-  // DOUBLE the time, confined to boot + floor (see above).
-  pause_boot_ms: 4000,
-  pause_assembly_threshold_ms: 750,
-  pause_assembly_lin: 3.5,
-  pause_assembly_quad: 75,
-  pause_belt_boot: 0.8,
-  pause_belt_assembly: 0.95,
-  pause_base_ms: 0,
-  pause_multiplier: 1.05,
+  // One-formula gap (Tom, 2026-08-29). Easy keeps its longer gaps by carrying
+  // a bigger k, not by a separate curve; fitted to the live easy_mode row's
+  // output for 1–3s answers.
+  pause_k: 3.6,
+  pause_reaction_ms: 800,
   min_pause_ms: 2000,
   max_pause_ms: 15000,
   // A beat of silence after voice2 so the next cycle doesn't come straight in
@@ -1313,11 +1291,11 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     return configs.value[key] || null
   }
 
-  // Calculate pause duration based on config and target audio length
-  const calculatePause = (config: ModeConfig, targetDurationMs: number): number => {
-    const calculated = config.pause_base_ms + (targetDurationMs * config.pause_multiplier)
-    return Math.min(config.max_pause_ms, Math.max(config.min_pause_ms, calculated))
-  }
+  // Calculate pause duration based on config and target audio length.
+  // Delegates to the one source of truth (@ssi/core) — `targetDurationMs` is
+  // the native 1.0× duration of the target sentence.
+  const calculatePause = (config: ModeConfig, targetDurationMs: number): number =>
+    computePauseDuration(targetDurationMs, targetDurationMs, config)
 
   // Invalidate cache (call after admin updates)
   const invalidateCache = () => {

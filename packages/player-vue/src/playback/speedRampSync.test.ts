@@ -25,10 +25,9 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // 2026-08-07: it was also how Easy flattened the ramp for itself. See
 // easyFastSpeedParity.test.ts.)
 //
-// The damage is TWO-SIDED. `computePauseDuration` takes the baked speed as its
-// BELT PROXY (`beltProgress`: 0.8 → White, 1.0 → Green). An absent speed reads
-// as Green, so the same bug also handed beginners the fully-tapered green-belt
-// pause — less think-time exactly where a beginner needs most.
+// (The damage used to be two-sided: `computePauseDuration` also took the baked
+// speed as a belt proxy, so an unbaked cycle got the green-belt pause too. That
+// coupling was removed on 2026-08-29 — speed no longer touches the gap at all.)
 //
 // These tests pin the invariant that actually broke: BOTH builders must bake
 // the SAME speed for the same course config and belt band.
@@ -170,30 +169,36 @@ describe('belt speed ramp — builder parity', () => {
   })
 })
 
-describe('belt speed ramp — pause taper coupling', () => {
-  // `computePauseDuration`'s belt taper is driven ENTIRELY by the baked speed.
-  // No baked speed ⇒ beltProgress = 1 ⇒ Green ⇒ a beginner gets the shortest
-  // pause in the curve. This is the second, quieter half of the same bug.
-  it('gives a White-belt cycle a longer pause than a Green-belt one', () => {
+describe('gap model — playback speed is NOT an input', () => {
+  // FLIPPED 2026-08-29 (Tom's ruling: "playback speed must no longer influence
+  // gap length at all"). These two tests previously asserted the OPPOSITE —
+  // that the baked belt speed drove a pause taper, so a White-belt cycle got a
+  // longer gap than a Green-belt one. That coupling was accidental: the gap is
+  // the time to build and say the TARGET sentence, which does not change
+  // because the audio is played back slower. The gap is now
+  // k × native answer duration + a reaction beat, and nothing else.
+  it('gives a White-belt and a Green-belt cycle the SAME pause', () => {
     const white = instantCycleFor(1, NATIVE_COURSE)
     const green = instantCycleFor(400, NATIVE_COURSE)
-    expect(white.pauseDuration).toBeGreaterThan(green.pauseDuration!)
+    expect(white.playbackSpeed ?? 1).toBeLessThan(green.playbackSpeed ?? 1)
+    expect(white.pauseDuration).toBe(green.pauseDuration)
   })
 
-  it('the runtime pause override reads the baked speed as the belt proxy', () => {
-    // Mirrors LearningPlayer's `getPauseDuration` override exactly:
-    //   spd = cycle.playbackSpeed ?? 1
+  it('the runtime pause override ignores the baked speed entirely', () => {
+    // Mirrors LearningPlayer's `getPauseDuration` override: no speed argument.
     const white = instantCycleFor(1, NATIVE_COURSE)
-    const runtimePause = (c: typeof white) => computePauseDuration(
-      c.target1DurationMs ?? 0,
-      c.target2DurationMs ?? 0,
+    const runtimePause = computePauseDuration(
+      white.target1DurationMs ?? 0,
+      white.target2DurationMs ?? 0,
       DEFAULT_FAST,
-      c.playbackSpeed ?? 1,
     )
-    // The pre-fix behaviour is what `?? 1` collapses to — assert the fix
-    // actually moves the runtime pause off that value.
-    const asGreen = computePauseDuration(T1_MS, T2_MS, DEFAULT_FAST, 1)
-    expect(runtimePause(white)).toBeGreaterThan(asGreen)
+    expect(runtimePause).toBe(computePauseDuration(T1_MS, T2_MS, DEFAULT_FAST))
+  })
+
+  it('is k × the average native duration + the reaction beat', () => {
+    const answer = (T1_MS + T2_MS) / 2
+    expect(computePauseDuration(T1_MS, T2_MS, DEFAULT_FAST))
+      .toBe(Math.round(DEFAULT_FAST.pause_k! * answer + DEFAULT_FAST.pause_reaction_ms!))
   })
 })
 
