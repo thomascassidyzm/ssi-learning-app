@@ -529,6 +529,12 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   est: '🇪🇪',  // Estonian
   hun: '🇭🇺',  // Hungarian
   sqi: '🇦🇱',  // Albanian
+  // Language variants that fly their own flag. Keyed on the target side of the
+  // course code (deu_at_for_eng → 'deu_at'); a variant absent from here falls
+  // back to its parent language above. SVG equivalents live in
+  // components/schools/shared/LanguageFlag.vue.
+  deu_at: '🇦🇹',  // Austrian German
+  por_br: '🇧🇷',  // Brazilian Portuguese
 }
 
 /**
