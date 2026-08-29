@@ -172,6 +172,7 @@ $$;
 
 CREATE FUNCTION public.activate_brief_version(p_known_code text, p_target_code text, p_version text) RETURNS TABLE(success boolean, previous_active_version text, new_active_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_previous_version TEXT;
@@ -212,6 +213,7 @@ $$;
 
 CREATE FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) RETURNS TABLE(success boolean, previous_active_version text, new_active_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_previous_version TEXT;
@@ -248,7 +250,7 @@ $$;
 
 CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer, is_estimated boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   with logged as (
     select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
@@ -459,7 +461,7 @@ $$;
 
 CREATE FUNCTION public.analytics_class_coverage(p_days integer DEFAULT 90) RETURNS TABLE(class_id uuid, class_name text, course_code text, furthest_lego_id text, legos_advanced integer, active_minutes numeric, active_weeks numeric)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NOT public.is_god_user() THEN
@@ -549,7 +551,7 @@ $$;
 
 CREATE FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer DEFAULT 90, p_include_demo boolean DEFAULT false) RETURNS TABLE(class_id uuid, course_code text, start_lego_id text, end_lego_id text, start_ord integer, end_ord integer, duration_seconds integer, started_at timestamp with time zone)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   RETURN QUERY
@@ -606,6 +608,7 @@ $$;
 
 CREATE FUNCTION public.analytics_course_comparison() RETURNS TABLE(course_id text, enrolled integer, active_30d integer, avg_seeds numeric, avg_belt text, completion_pct numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -659,7 +662,7 @@ $$;
 
 CREATE FUNCTION public.analytics_course_value() RETURNS TABLE(course_code text, reach bigint, enrolled bigint, stickiness_hours numeric, retention_pct numeric, ltv_proxy numeric)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -804,7 +807,7 @@ $$;
 
 CREATE FUNCTION public.analytics_difficulty_turns(p_days integer DEFAULT 30, p_min_samples integer DEFAULT 5) RETURNS TABLE(learner_id uuid, learner_name text, lego_id text, course_code text, recent_latency_samples jsonb, last_seen_at timestamp with time zone)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NOT public.is_god_user() THEN
@@ -835,6 +838,7 @@ $$;
 
 CREATE FUNCTION public.analytics_engagement() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_dau   BIGINT;
@@ -960,6 +964,7 @@ $$;
 
 CREATE FUNCTION public.analytics_entitlement_funnel() RETURNS TABLE(code text, label text, redemptions integer, started_session integer, retained_30d integer)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -1002,7 +1007,7 @@ $$;
 
 CREATE FUNCTION public.analytics_friction_extended(p_course_id text) RETURNS TABLE(seed_band text, band_min integer, band_max integer, skip_back_count bigint, audio_failed_count bigint)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $_$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -1106,6 +1111,7 @@ $_$;
 
 CREATE FUNCTION public.analytics_friction_map(p_course_id text) RETURNS TABLE(seed_number integer, stopped_here_count integer, spike_rate numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_max_seed INT;
@@ -1174,6 +1180,7 @@ $$;
 
 CREATE FUNCTION public.analytics_growth(p_period text DEFAULT 'week'::text, p_count integer DEFAULT 12) RETURNS TABLE(period_start timestamp with time zone, new_users integer, enrollments_by_course jsonb)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                 -- demo: id set
@@ -1248,6 +1255,7 @@ $$;
 
 CREATE FUNCTION public.analytics_health(p_days integer DEFAULT 30) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_since           TIMESTAMPTZ := NOW() - (p_days || ' days')::INTERVAL;
@@ -1451,7 +1459,7 @@ $$;
 
 CREATE FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text DEFAULT NULL::text) RETURNS TABLE(course_code text, entity_value numeric, entity_legos integer, furthest_lego_id text, course_avg numeric, course_n integer, course_values numeric[], course_percentile integer, all_avg numeric, all_n integer)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids   uuid[];                                       -- demo: id set
@@ -1571,6 +1579,7 @@ COMMENT ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_
 
 CREATE FUNCTION public.analytics_overview() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_total_learners   BIGINT;
@@ -1631,6 +1640,7 @@ $$;
 
 CREATE FUNCTION public.analytics_retention_cohorts(p_weeks integer DEFAULT 12) RETURNS TABLE(cohort_week text, cohort_size integer, w1_pct numeric, w2_pct numeric, w4_pct numeric, w8_pct numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NOT is_ssi_admin() THEN
@@ -1705,6 +1715,7 @@ $$;
 
 CREATE FUNCTION public.analytics_retention_days_active(p_weeks integer DEFAULT 12) RETURNS TABLE(week_start date, avg_days_active numeric, w7_return_rate numeric, w30_return_rate numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_demo_ids UUID[];                                                -- demo: id set
@@ -1794,6 +1805,7 @@ COMMENT ON FUNCTION public.analytics_retention_days_active(p_weeks integer) IS '
 
 CREATE FUNCTION public.analytics_trial_conversion() RETURNS TABLE(stage text, label text, learner_count bigint)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   -- learner-to-first-event lookup reused across all stages
@@ -2067,7 +2079,7 @@ $$;
 
 CREATE FUNCTION public.audit_content_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   pk_val TEXT;
@@ -2123,7 +2135,7 @@ $$;
 
 CREATE FUNCTION public.audit_log_prune(retention_days integer DEFAULT 7) RETURNS TABLE(deleted_count bigint, deleted_through timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'pg_catalog'
+    SET search_path TO 'public', 'pg_catalog', 'pg_temp'
     SET statement_timeout TO '5min'
     AS $$
 DECLARE
@@ -2384,7 +2396,7 @@ $$;
 
 CREATE FUNCTION public.can_view_learner_data(p_learner_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   SELECT p_learner_id = public.current_learner_id()
       OR public.is_god_user()
@@ -2548,7 +2560,7 @@ $$;
 
 CREATE FUNCTION public.claim_learner(p_learner_id uuid) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE old_uid text; my_email text;
 BEGIN
@@ -2854,7 +2866,7 @@ COMMENT ON FUNCTION public.course_voice_census(p_course text) IS 'VOICELAB job 4
 
 CREATE FUNCTION public.current_learner_id() RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select id from public.learners where user_id = auth.uid()::text limit 1
 $$;
@@ -3316,6 +3328,7 @@ COMMENT ON FUNCTION public.generate_join_code() IS 'Mints an XXX-NNN join code f
 
 CREATE FUNCTION public.get_active_brief(p_known_code text, p_target_code text) RETURNS TABLE(id uuid, known_code text, target_code text, version text, brief_content jsonb, updated_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   RETURN QUERY
@@ -3340,6 +3353,7 @@ $$;
 
 CREATE FUNCTION public.get_active_prompt(p_phase_code text) RETURNS TABLE(id uuid, phase_code text, version text, title text, prompt_content text, metadata jsonb, updated_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   RETURN QUERY
@@ -3575,7 +3589,7 @@ COMMENT ON FUNCTION public.get_cascade_courses(p_user_id text) IS 'Returns effec
 
 CREATE FUNCTION public.get_community_contribution(p_target_lang text) RETURNS TABLE(window_key text, minutes bigint, phrases bigint, speakers bigint)
     LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   with rows as (
     select o.day, o.play_seconds, o.opportunities, o.learner_id
@@ -3899,7 +3913,7 @@ CREATE TABLE public.insight_discoveries (
 
 CREATE FUNCTION public.get_latest_insight_discovery(p_source text DEFAULT 'real'::text) RETURNS SETOF public.insight_discoveries
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NOT is_god_user() THEN
@@ -3947,6 +3961,7 @@ $$;
 
 CREATE FUNCTION public.get_my_verified_emails() RETURNS text[]
     LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
     SELECT COALESCE(verified_emails,
   ARRAY[]::TEXT[])
@@ -4246,7 +4261,7 @@ $$;
 
 CREATE FUNCTION public.is_class_teacher(p_class_id uuid, p_uid text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_tags ut
@@ -4953,7 +4968,7 @@ $$;
 
 CREATE FUNCTION public.null_lego_audio_on_text_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $_$
 DECLARE
   v_prev            course_audio%ROWTYPE;
@@ -5130,7 +5145,7 @@ COMMENT ON FUNCTION public.null_lego_audio_on_text_change() IS 'MISNAMED, and de
 
 CREATE FUNCTION public.null_phrase_audio_on_text_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_prev      course_audio%ROWTYPE;
@@ -5224,7 +5239,7 @@ COMMENT ON FUNCTION public.null_phrase_audio_on_text_change() IS 'MISNAMED, and 
 
 CREATE FUNCTION public.null_seed_audio_on_text_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_prev      course_audio%ROWTYPE;
@@ -5495,7 +5510,7 @@ $$;
 
 CREATE FUNCTION public.relink_user_tags(old_user_id text) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE n integer;
 BEGIN
@@ -5561,7 +5576,7 @@ $$;
 
 CREATE FUNCTION public.rls_status(table_names text[] DEFAULT NULL::text[]) RETURNS TABLE(table_name text, rls_enabled boolean, force_rls boolean, num_policies integer, policies jsonb)
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public', 'pg_catalog'
+    SET search_path TO 'public', 'pg_catalog', 'pg_temp'
     AS $$
   SELECT
     c.relname::text AS table_name,
@@ -5765,7 +5780,7 @@ COMMENT ON FUNCTION public.sync_audio_duration_to_dependents() IS 'When course_a
 
 CREATE FUNCTION public.sync_learner_email_from_auth_user() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'auth'
+    SET search_path TO 'public', 'auth', 'pg_temp'
     AS $$
 DECLARE
   l_id UUID;
@@ -5803,7 +5818,7 @@ $$;
 
 CREATE FUNCTION public.sync_learner_email_from_identity() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'auth'
+    SET search_path TO 'public', 'auth', 'pg_temp'
     AS $$
 DECLARE
   l_id UUID;
@@ -5837,7 +5852,7 @@ $$;
 
 CREATE FUNCTION public.sync_learner_emails_on_learner_insert() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'auth'
+    SET search_path TO 'public', 'auth', 'pg_temp'
     AS $$
 BEGIN
   -- Pull primary email from auth.users
@@ -5981,7 +5996,7 @@ BEGIN NEW.updated_at := now(); RETURN NEW; END $$;
 
 CREATE FUNCTION public.touch_course_audio_stamp() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NEW.course_code IS NOT NULL AND NEW.course_code <> '' THEN
@@ -6004,7 +6019,7 @@ END $$;
 
 CREATE FUNCTION public.touch_course_content_stamp() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_course text;
@@ -6085,6 +6100,7 @@ BEGIN RETURN canonical_voice_id(v); EXCEPTION WHEN OTHERS THEN RETURN NULL; END 
 
 CREATE FUNCTION public.update_daily_contributions() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_target_lang TEXT;

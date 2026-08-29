@@ -15,6 +15,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { quoteFilterValue } from '../_utils/postgrestFilter'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -288,7 +289,9 @@ export default async function handler(
     // Mode B: paginated list with hero stats ────────────────────────────
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1)
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(String(req.query.limit || DEFAULT_LIMIT), 10) || DEFAULT_LIMIT))
-    const search = typeof req.query.search === 'string' ? req.query.search.trim() : ''
+    // Capped: a 100-char search term is beyond any real admin lookup, and an
+    // unbounded one is a cheap way to make Postgres scan with a huge pattern.
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : ''
     const offset = (page - 1) * limit
 
     let learnerIdsMatchingEmail: string[] = []
@@ -311,7 +314,12 @@ export default async function handler(
       .order('created_at', { ascending: false })
 
     if (search) {
-      const orParts = [`display_name.ilike.%${search}%`]
+      // SEC25 INPUT-06 / COORD-01: `.or()` takes a filter EXPRESSION, so the
+      // raw search term would otherwise let an operator add disjuncts to a
+      // service-role (RLS-bypassing) read. Double-quoting is PostgREST's own
+      // escape and keeps the term itself intact, so search behaviour is
+      // unchanged for every legitimate query.
+      const orParts = [`display_name.ilike.${quoteFilterValue(`%${search}%`)}`]
       if (learnerIdsMatchingEmail.length > 0) {
         orParts.push(`id.in.(${learnerIdsMatchingEmail.join(',')})`)
       }

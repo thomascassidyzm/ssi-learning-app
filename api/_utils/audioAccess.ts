@@ -20,15 +20,36 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 export const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
-const supabaseAnonKeyFallback = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
 
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
-/** Service-role Supabase client (falls back to anon key, matching the pre-extraction behaviour). */
+/**
+ * Service-role Supabase client.
+ *
+ * SEC25-X-02 (fixed 2026-08-25): the service key used to be OR-ed with an
+ * anon-key fallback when the client was built.
+ * A missing or mistyped SUPABASE_SERVICE_ROLE_KEY did not fail — it silently
+ * SWAPPED the identity every audio query ran as, moving entitlement decisions
+ * from "the handler decided" to "whatever RLS happens to be". This client is
+ * the one behind BOTH `audio/[audioId].ts` and `audio/batch-urls.ts`, the two
+ * endpoints that decide audio entitlement, so the swap is exactly where it
+ * matters most.
+ *
+ * It now fails CLOSED, matching the ~20-handler quorum
+ * (`access/claim.ts`, `family/remove.ts`, `groups/tree.ts`, …) that returns
+ * 500 "Server misconfigured" on a missing key. The throw is deliberately
+ * inside the function rather than at module load: both call sites already
+ * construct the client inside a `try` whose `catch` returns 500, so a missing
+ * key becomes a loud server error on the request instead of an import-time
+ * crash that would take unrelated routes down with it.
+ */
 export function createServiceSupabaseClient(): SupabaseClient {
-  return createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKeyFallback)
+  if (!supabaseServiceKey) {
+    throw new Error('Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY')
+  }
+  return createClient(supabaseUrl, supabaseServiceKey)
 }
 
 // ── S3 ───────────────────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ vi.mock('../../_utils/auth', () => ({
 }))
 
 let govtAdminRow: any
-let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+let groupPaths: Record<string, string> = { '11111111-1111-4111-8111-111111111111': '1', '22222222-2222-4222-8222-222222222222': '1.2', '33333333-3333-4333-8333-333333333333': '9' }
 let inviteRows: any[] = []
 
 function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): any[] {
@@ -56,8 +56,11 @@ vi.mock('@supabase/supabase-js', () => ({
 
 let handler: typeof import('./invites').default
 
-function makeReq(groupId = 'group-1'): VercelRequest {
-  return { method: 'GET', query: { id: groupId }, headers: { authorization: 'Bearer tok', host: 'app.example.com' } } as any
+// COORD-03: the :id must be uuid-shaped or the handler 400s before any query.
+// AUTH-CORE-08/INPUT-10: the host must be an allow-listed app origin, or
+// getAppOrigin() falls back to production rather than echoing it.
+function makeReq(groupId = '11111111-1111-4111-8111-111111111111'): VercelRequest {
+  return { method: 'GET', query: { id: groupId }, headers: { authorization: 'Bearer tok', host: 'staging.saysomethingin.app' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -68,13 +71,13 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 }
 
 beforeEach(async () => {
-  groupPaths = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
+  groupPaths = { '11111111-1111-4111-8111-111111111111': '1', '22222222-2222-4222-8222-222222222222': '1.2', '33333333-3333-4333-8333-333333333333': '9' }
   govtAdminRow = null
   verifyAdminResult = { userId: 'admin-1' }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   inviteRows = [
-    { code: 'ABC123', code_type: 'teacher', is_active: true, grants_group_id: 'group-1', max_uses: null, use_count: 2, expires_at: null, created_at: '2026-07-18T00:00:00Z' },
-    { code: 'DEF456', code_type: 'govt_admin', is_active: true, grants_group_id: 'group-1', max_uses: 1, use_count: 0, expires_at: null, created_at: '2026-07-17T00:00:00Z' },
+    { code: 'ABC123', code_type: 'teacher', is_active: true, grants_group_id: '11111111-1111-4111-8111-111111111111', max_uses: null, use_count: 2, expires_at: null, created_at: '2026-07-18T00:00:00Z' },
+    { code: 'DEF456', code_type: 'govt_admin', is_active: true, grants_group_id: '11111111-1111-4111-8111-111111111111', max_uses: 1, use_count: 0, expires_at: null, created_at: '2026-07-17T00:00:00Z' },
   ]
   handler = (await import('./invites')).default
 })
@@ -86,8 +89,8 @@ describe('GET /api/groups/:id/invites', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.links).toHaveLength(2)
     expect(res.body.links).toEqual(expect.arrayContaining([
-      expect.objectContaining({ role: 'teacher', url: 'https://app.example.com/redeem/ABC123', code: 'ABC123' }),
-      expect.objectContaining({ role: 'leader', url: 'https://app.example.com/group/DEF456', code: 'DEF456' }),
+      expect.objectContaining({ role: 'teacher', url: 'https://staging.saysomethingin.app/redeem/ABC123', code: 'ABC123' }),
+      expect.objectContaining({ role: 'leader', url: 'https://staging.saysomethingin.app/group/DEF456', code: 'DEF456' }),
     ]))
   })
 
@@ -101,9 +104,9 @@ describe('GET /api/groups/:id/invites', () => {
 
   it('a govt_admin outside the node/ancestor chain is rejected', async () => {
     verifyAdminResult = { error: 'Not admin', status: 403 }
-    govtAdminRow = { group_id: 'group-3' }
+    govtAdminRow = { group_id: '33333333-3333-4333-8333-333333333333' }
     const res = makeRes()
-    await handler(makeReq('group-1'), res)
+    await handler(makeReq('11111111-1111-4111-8111-111111111111'), res)
     expect(res.statusCode).toBe(403)
   })
 })

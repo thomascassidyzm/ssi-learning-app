@@ -33,8 +33,8 @@ function makeChainable(table: string) {
     eq(col: string, val: unknown) { rows = rows.filter((r) => r[col] === val); return builder },
     is(col: string, val: unknown) { rows = rows.filter((r) => (r[col] ?? null) === val); return builder },
     in(col: string, vals: unknown[]) { rows = rows.filter((r) => vals.includes(r[col])); return builder },
-    // countSubtreeMembers walks the tree by path prefix (`like 'path%'`), the
-    // same subtree rule schoolsForGroupSubtree uses.
+    // countSubtreeMembers walks the forest by parent_id (groupSubtree), never
+    // by path prefix — `like` survives here only for any other caller's use.
     like(col: string, pattern: string) {
       const prefix = pattern.replace(/%$/, '')
       rows = rows.filter((r) => typeof r[col] === 'string' && r[col].startsWith(prefix))
@@ -112,8 +112,9 @@ describe('GET /api/org/subscription', () => {
     authUserId = 'leader-sub'
     DB.govt_admins.push({ user_id: 'leader-sub', group_id: 'org-sub' })
     DB.groups.push(
-      { id: 'org-sub', name: 'Gwynedd Council', platform_status: 'active', platform_expires_at: null, seats: 5, path: 'org-sub' } as any,
-      { id: 'dept-1', name: 'Finance Dept', platform_status: null, platform_expires_at: null, seats: null, path: 'org-sub.dept-1' } as any,
+      // Membership is the parent_id relation, not the slug path (TENANCY-05).
+      { id: 'org-sub', name: 'Gwynedd Council', platform_status: 'active', platform_expires_at: null, seats: 5, path: 'org-sub', parent_id: null } as any,
+      { id: 'dept-1', name: 'Finance Dept', platform_status: null, platform_expires_at: null, seats: null, path: 'org-sub.dept-1', parent_id: 'org-sub' } as any,
     )
     DB.user_tags.push(
       { user_id: 'person-1', tag_type: 'group', tag_value: 'GROUP:org-sub', removed_at: null },

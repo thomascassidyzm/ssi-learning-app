@@ -15,7 +15,8 @@
  *     (user_tags CLASS:<id>/teacher) OR the demoted lead pointer
  *     classes.teacher_user_id. Co-teachers count.
  *   - an ssi_admin / god (platform admin)
- *   - the school_admin of the class's school (admin_user_id on schools row)
+ *   - the school_admin of the class's school, under EITHER spelling (the
+ *     schools.admin_user_id founding pointer or an active SCHOOL: admin tag)
  * (same authorization shape as create-class-join-code.ts)
  */
 
@@ -25,6 +26,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { ensureSchoolTrialCourse } from '../_utils/schoolPlatformTrial'
 import { rejectIfViewAs } from '../_utils/actAsGuard'
+import { canTeachClass } from '../_utils/classTeacherAuth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -74,7 +76,7 @@ export default async function handler(
   try {
     const { data: cls, error: classError } = await supabase
       .from('classes')
-      .select('id, teacher_user_id, school_id, course_code')
+      .select('id, teacher_user_id, school_id, group_id, course_code')
       .eq('id', classId)
       .single()
 
@@ -83,42 +85,20 @@ export default async function handler(
       return
     }
 
-    // Teacher of the class = the class_teachers relationship OR the demoted
-    // lead pointer. Canonical membership pattern: class-teachers.ts:104-113.
-    let authorized = cls.teacher_user_id === callerUserId
-
-    if (!authorized) {
-      const { data: callerTag } = await supabase
-        .from('user_tags')
-        .select('id')
-        .eq('tag_type', 'class')
-        .eq('tag_value', `CLASS:${cls.id}`)
-        .eq('role_in_context', 'teacher')
-        .eq('user_id', callerUserId)
-        .is('removed_at', null)
-        .maybeSingle()
-      if (callerTag) authorized = true
-    }
-
-    if (!authorized) {
-      const { data: caller } = await supabase
-        .from('learners')
-        .select('platform_role, educational_role')
-        .eq('user_id', callerUserId)
-        .maybeSingle()
-      if (caller?.platform_role === 'ssi_admin' || caller?.educational_role === 'god') {
-        authorized = true
-      }
-    }
-
-    if (!authorized && cls.school_id) {
-      const { data: school } = await supabase
-        .from('schools')
-        .select('admin_user_id')
-        .eq('id', cls.school_id)
-        .maybeSingle()
-      if (school?.admin_user_id === callerUserId) authorized = true
-    }
+    // May the caller TEACH this class? One predicate owns that question — lead
+    // pointer, active co-teacher tag, platform admin, or admin of the class's
+    // school under EITHER spelling.
+    //
+    // TENANCY-08 (fixed 2026-08-25): the hand-rolled ladder this replaces read
+    // the schools.admin_user_id founding pointer alone on its school-admin leg,
+    // wrongly denying a tag-admin a learner entity for her own school's class.
+    // canTeachClass() is a strict superset — nobody authorised today loses out.
+    const authorized = await canTeachClass(supabase, callerUserId, {
+      id: cls.id,
+      teacher_user_id: cls.teacher_user_id,
+      school_id: cls.school_id,
+      group_id: (cls as { group_id?: string | null }).group_id ?? null,
+    })
 
     if (!authorized) {
       res.status(403).json({ error: 'Not authorized to create a learner entity for this class' })

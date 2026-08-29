@@ -19,103 +19,128 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const read = (relPath: string) => readFileSync(resolve(repoRoot, relPath), 'utf8')
 
-describe('TENANCY-01 (critical): groups/[id]/invites.ts still resolves subtree by slug path equality', () => {
-  // SECURITY FINDING TENANCY-01: `path.eq.${path}` grants membership to any
-  // OTHER root org whose name slugifies identically — an attacker can
-  // self-serve-create the collision (groups/index.ts root-org creation is
-  // open to any signed-in user, confirm_duplicate:true bypasses the warning),
-  // then read that tenant's invite codes (names, emails, redeemable sign-in
-  // URLs) and revoke/rotate/resend them.
-  it('resolveSubtree() still ORs an exact path.eq alongside the segment-safe path.like', () => {
+describe('TENANCY-01 (critical): groups/[id]/invites.ts resolves its subtree by parent_id', () => {
+  // SECURITY FINDING TENANCY-01 — FIXED 2026-08-25: `resolveSubtree()` now
+  // calls fetchSubtree() (the parent_id walk in _utils/groupSubtree.ts)
+  // instead of `.or(path.eq.${path},path.like.${path}/%)`. The old equality
+  // branch granted membership to any OTHER root org whose name slugified
+  // identically — self-serve creatable (groups/index.ts root-org creation is
+  // open to any signed-in user, confirm_duplicate:true bypasses the warning)
+  // — which exposed that tenant's invite codes (names, emails, redeemable
+  // sign-in URLs) to read and to revoke/rotate/resend.
+  it('SECURE: resolveSubtree() uses the parent_id walk (fetchSubtree/descendantIds from groupSubtree.ts), never path equality', () => {
     const src = read('api/groups/[id]/invites.ts')
-    expect(src).toMatch(/\.or\(`path\.eq\.\$\{path\},path\.like\.\$\{path\}\/%`\)/)
+    expect(src).toContain('fetchSubtree(supabase, groupId)')
+    expect(src).not.toMatch(/path\.eq\.\$\{path\}/)
+    expect(src).not.toMatch(/\.like\('path'/)
   })
   it('root-org creation is still open to any signed-in user, and confirm_duplicate still bypasses the name-collision warning', () => {
+    // Unchanged by design — the collision is now harmless because nothing
+    // resolves tenancy from the slug.
     const groupsIndex = read('api/groups/index.ts')
     expect(groupsIndex).toMatch(/Root org creation[\s\S]{0,120}open to any signed-in/)
     expect(groupsIndex).toContain('confirm_duplicate')
   })
-  it.todo('SECURE: resolveSubtree() should use the parent_id walk (fetchSubtree/descendantIds from groupSubtree.ts), never path equality')
 })
 
-describe('TENANCY-02 (high): groups/[id]/rate-compare.ts still authorizes on slug path equality', () => {
-  // SECURITY FINDING TENANCY-02: the fast path grants access when
-  // `nodePath === ownPath` (a collision, not a relationship) and propagates
-  // via startsWith(ownPath + '/') to the colliding root's ENTIRE subtree,
-  // even though the correct parent_id walk is imported in the same file.
-  it('the non-admin authz branch still compares path strings before falling back to isStrictDescendantGroup', () => {
+describe('TENANCY-02 (high): groups/[id]/rate-compare.ts authorizes by parent_id', () => {
+  // SECURITY FINDING TENANCY-02 — FIXED 2026-08-25: the non-admin authz branch
+  // now resolves with descendantIds(allGroups, scope.groupId). The old fast
+  // path granted access on `nodePath === ownPath` (a slug collision, not a
+  // relationship) and propagated it via startsWith(ownPath + '/') across the
+  // colliding root's entire subtree.
+  it('SECURE: the path comparison is gone; access resolves via descendantIds(allGroups, scope.groupId)', () => {
     const src = read('api/groups/[id]/rate-compare.ts')
-    expect(src).toMatch(/nodePath === ownPath \|\| nodePath\.startsWith\(ownPath \+ '\/'\)/)
-    expect(src).toContain('isStrictDescendantGroup')
+    expect(src).not.toMatch(/nodePath === ownPath/)
+    expect(src).not.toContain('groupPathById')
+    expect(src).toContain('descendantIds(allGroups, scope.groupId).includes(nodeId)')
   })
-  it.todo('SECURE: delete the path comparison; always resolve via descendantIds(allGroups, scope.groupId)')
 })
 
-describe('TENANCY-04 / TENANCY-05 / INPUT-05: unanchored path LIKE still crosses tenants', () => {
-  // SECURITY FINDING TENANCY-04/05/INPUT-05: `.like('path', \`${path}%\`)` with
-  // no '/' boundary matches a sibling org whose name is a prefix collision
-  // ("acme" matches "acme-group"), folding another tenant's classes into a
-  // leader's own rate-compare cohort and org billing seat count. The
-  // segment-safe idiom (`path.eq.${path},path.like.${path}/%`) already exists
-  // in the same codebase (groups/[id]/invites.ts) and is not used here.
-  it('school/rate-compare.ts subtreeClassIdsForGroupPath still uses an unbounded like(path, `${path}%`)', () => {
+describe('TENANCY-04 / TENANCY-05 / INPUT-05: subtree scope no longer resolves from path strings', () => {
+  // SECURITY FINDING TENANCY-04/05/INPUT-05 — FIXED 2026-08-25: all three call
+  // sites now walk parent_id (descendantIds) instead of `.like('path',
+  // \`${path}%\`)`. The unbounded LIKE had no '/' boundary ("acme" matched
+  // "acme-group"), and slug paths are not unique either, so a same-named root
+  // org shared the path outright — both folded another tenant's classes into a
+  // leader's rate-compare cohort and into an org's billable seat count. The
+  // parent_id walk closes both, which the segment-safe LIKE form could not.
+  it('SECURE: school/rate-compare.ts resolves group subtrees with descendantIds, not a path LIKE', () => {
     const src = read('api/school/rate-compare.ts')
-    expect(src).toMatch(/\.like\('path', `\$\{path\}%`\)/)
+    expect(src).not.toMatch(/\.like\('path'/)
+    expect(src).toContain("import { descendantIds } from '../_utils/groupSubtree'")
+    expect(src).toContain('descendantIds(forest ?? (await loadGroupForest(svc)), groupId)')
   })
-  it('_utils/orgPlatform.ts still uses the same unbounded pattern for org seat counting', () => {
+  it('SECURE: _utils/orgPlatform.ts counts org seats over the parent_id subtree', () => {
     const src = read('api/_utils/orgPlatform.ts')
-    expect(src).toMatch(/\.like\('path', `\$\{path\}%`\)/)
+    expect(src).not.toMatch(/\.like\('path'/)
+    expect(src).toContain('descendantIds((forest ?? []) as ParentLinked[], groupId)')
   })
-  it.todo('SECURE: replace all three call sites with the segment-safe path.eq/path.like(+"/%") form')
 })
 
-describe('TENANCY-06: /api/teacher/by-code is still an unauthenticated, unthrottled join-code oracle', () => {
-  // SECURITY FINDING TENANCY-06: looks up classes.student_join_code (the same
-  // 13.8M keyspace the repo throttles elsewhere) with no auth and no rate
-  // limit — enumeration yields the tenant structure map plus working
-  // join codes that let an outsider self-enrol into a real class.
-  it('by-code.ts touches no throttle table and no 429', () => {
+describe('TENANCY-06: /api/teacher/by-code is metered — FIXED 2026-08-25', () => {
+  // FIXED 2026-08-25 by sharing the per-IP limiter (api/_utils/codeAttemptThrottle.ts),
+  // same possession_mint_attempts ledger and window as code/validate,
+  // code/redeem and try-link/validate — so a sweep spread across all four
+  // accumulates in ONE bucket rather than getting four budgets.
+  //
+  // It stays UNAUTHENTICATED on purpose, and that is not the finding being
+  // dodged: this is the public /with/{code} student gateway, and a pupil
+  // arriving on a teacher's link has no account yet, so requiring auth would
+  // break the join flow the endpoint exists for. What it must not be is
+  // unmetered. It uses the wider REDEEM_PER_IP_LIMIT because a class of pupils
+  // opening one link through one school NAT is the legitimate shape, and the
+  // narrow limit would lock out the eleventh child holding a correct link.
+  it('SECURE: by-code.ts shares the code/validate.ts per-IP throttle', () => {
     const src = read('api/teacher/by-code.ts')
-    expect(src).not.toContain('possession_mint_attempts')
-    expect(src).not.toMatch(/status\(429\)/)
-    expect(src).not.toContain('verifyAuthToken')
+    expect(src).toContain("from '../_utils/codeAttemptThrottle'")
+    expect(src).toContain('isIpOverLimit')
+    expect(src).toMatch(/status\(429\)/)
+    expect(src).toMatch(/logAttempt\([\s\S]{0,120}rate_limited_ip/)
+    expect(src).toMatch(/logAttempt\([\s\S]{0,120}class_by_code_attempt/)
+    // The throttle is decided before any class lookup.
+    expect(src.indexOf('isIpOverLimit')).toBeLessThan(src.indexOf("from('classes')"))
   })
-  it.todo('SECURE: by-code.ts should share the code/validate.ts per-IP throttle')
 })
 
-describe('TENANCY-07: govt_admin / school_admin_join invite codes still mint unbounded', () => {
-  // SECURITY FINDING TENANCY-07: boundPrivilegedCodeLimits only clamps
-  // ssi_admin/god/tester, so a govt_admin or school_admin_join code — both of
-  // which grant tenant-level administrative authority — can be minted with no
-  // expiry and unlimited uses on both minting paths.
-  it('invite/create.ts isPrivileged still excludes govt_admin and school_admin_join', () => {
+describe('TENANCY-07: govt_admin / school_admin_join invite codes mint bounded', () => {
+  // SECURITY FINDING TENANCY-07 — FIXED 2026-08-25: both staff-granting code
+  // types now run through boundPrivilegedCodeLimits on BOTH minting paths
+  // (and on the group ledger's `rotate`), so they must expire and must carry a
+  // use cap. Previously only ssi_admin/god/tester were clamped, leaving codes
+  // that grant tenant-level administrative authority unlimited-use and
+  // never-expiring.
+  it('SECURE: invite/create.ts isPrivileged includes govt_admin and school_admin_join', () => {
     const src = read('api/invite/create.ts')
-    expect(src).toMatch(/isPrivileged = code_type === 'ssi_admin' \|\| code_type === 'god' \|\| code_type === 'tester'/)
+    expect(src).toMatch(/code_type === 'govt_admin' \|\| code_type === 'school_admin_join'/)
+    expect(src).toContain('boundPrivilegedCodeLimits')
   })
-  it('groups/[id]/invites.ts mints govt_admin/school_admin_join codes with no boundPrivilegedCodeLimits call', () => {
+  it('SECURE: groups/[id]/invites.ts bounds leader / school_leader mints and rotations', () => {
     const src = read('api/groups/[id]/invites.ts')
-    expect(src).toMatch(/if \(limits\?\.expires_at !== undefined\) insertData\.expires_at = limits\.expires_at/)
-    expect(src).not.toContain('boundPrivilegedCodeLimits')
+    expect(src).toContain('boundPrivilegedCodeLimits')
+    expect(src).toContain("PRIVILEGED_ROLES = new Set<Role>(['leader', 'school_leader'])")
+    expect(src).toContain('if (PRIVILEGED_ROLES.has(role))')
   })
-  it.todo('SECURE: extend isPrivileged to include govt_admin and school_admin_join on both minting paths')
 })
 
-describe('TENANCY-08: school-admin recognised under one spelling in three handlers', () => {
-  // SECURITY FINDING TENANCY-08 (fails closed — availability, not breach):
-  // three handlers hand-roll `school.admin_user_id === callerUserId` instead
-  // of the designated canTeachClass()/isSchoolAdminOf() composite, which also
-  // accepts an active SCHOOL: admin tag — so a tag-admin (every admin after
-  // the founder) is wrongly denied on her own school's classes.
-  it('three handlers still hand-roll the founder-pointer-only admin check', () => {
+describe('TENANCY-08: all three handlers authorise via canTeachClass()', () => {
+  // SECURITY FINDING TENANCY-08 — FIXED 2026-08-25 (it failed closed —
+  // availability, not breach): three handlers hand-rolled
+  // `school.admin_user_id === callerUserId` instead of the designated
+  // canTeachClass()/isSchoolAdminOf() composite, which also accepts an active
+  // SCHOOL: admin tag — so a tag-admin (every admin after the founder) was
+  // wrongly denied on her own school's classes. All three now call the shared
+  // predicate, which is a strict superset of the ladder it replaced.
+  it('SECURE: the three handlers call canTeachClass() and no longer hand-roll the founder-pointer check', () => {
     for (const file of [
       'api/school/roster.ts',
       'api/teacher/create-class-join-code.ts',
       'api/teacher/create-class-learner.ts',
     ]) {
       const src = read(file)
-      expect(src, file).toContain('admin_user_id === callerUserId')
-      expect(src, file).not.toContain('canTeachClass(')
+      expect(src, file).toContain('canTeachClass(')
+      expect(src, file).toMatch(/from '\.\.\/_utils\/classTeacherAuth'/)
+      expect(src, file).not.toContain('admin_user_id === callerUserId')
     }
   })
-  it.todo('SECURE: replace the three hand-rolled ladders with canTeachClass()')
 })

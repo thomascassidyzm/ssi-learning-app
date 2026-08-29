@@ -72,7 +72,11 @@ beforeEach(async () => {
 })
 
 describe('POST /api/player-events', () => {
-  it('accepts a genuine uuid learner_id and stores it on user_id/learner_id', async () => {
+  // SEC25 INPUT-04 (FIXED 2026-08-25): a uuid-shaped `ssi-user-id` cookie is
+  // no longer an identity — it is unsigned, so trusting it let anyone write
+  // telemetry against any learner. The event is still accepted (guest
+  // telemetry is a real product path), just unattributed.
+  it('accepts a uuid cookie with NO bearer but stores it unattributed', async () => {
     const res = makeRes()
     await handler(
       makeReq('11111111-1111-4111-8111-111111111111', { events: [{ event_type: 'course_load' }] }),
@@ -80,8 +84,8 @@ describe('POST /api/player-events', () => {
     )
     expect(res.statusCode).toBe(200)
     expect(insertedRows).toHaveLength(1)
-    expect(insertedRows[0].user_id).toBe('11111111-1111-4111-8111-111111111111')
-    expect(insertedRows[0].learner_id).toBe('11111111-1111-4111-8111-111111111111')
+    expect(insertedRows[0].user_id).toBeNull()
+    expect(insertedRows[0].learner_id).toBeNull()
   })
 
   it('accepts a guest-shaped cookie and logs with null learner attribution instead of 500ing', async () => {
@@ -139,7 +143,7 @@ describe('POST /api/player-events', () => {
     expect(insertedRows[0].learner_id).toBe('22222222-2222-4222-8222-222222222222')
   })
 
-  it('falls back to the cookie identity when a bearer is present but invalid', async () => {
+  it('falls back to NULL attribution when a bearer is present but invalid', async () => {
     authResult = { valid: false, error: 'expired' }
     const res = makeRes()
     await handler(
@@ -147,8 +151,10 @@ describe('POST /api/player-events', () => {
       res,
     )
     expect(res.statusCode).toBe(200)
-    // Stale token forfeits the trusted upgrade but does not drop the event.
-    expect(insertedRows[0].user_id).toBe('11111111-1111-4111-8111-111111111111')
+    // Stale token forfeits attribution but does not drop the event, and the
+    // cookie does not get to stand in for the identity it failed to prove.
+    expect(insertedRows[0].user_id).toBeNull()
+    expect(insertedRows[0].learner_id).toBeNull()
   })
 
   it('falls back to null when a bearer verifies but no learner row maps to the auth uid', async () => {
