@@ -40,6 +40,7 @@ import {
   clearNetworkStalled,
 } from '../config/networkGate'
 import { getCourseBundle } from './useCourseBundle'
+import type { CourseBundle } from '@ssi/core'
 import {
   bundleToCyclesResponse,
   bundleToInfPlayCyclesResponse,
@@ -182,10 +183,45 @@ export interface UseInstantPlaybackOptions {
 // `?bundle=1` / `?bundle=0` override per session for dev testing, alongside
 // the existing `?fc=1` / `?stream` / `?reset=1` cheats.
 const BUNDLE_BOOTSTRAP_ALL = false
-/** Consulted only when BUNDLE_BOOTSTRAP_ALL is false. hun_for_eng first: a
- *  full 665-round free course whose parity is byte-identical at every tested
- *  position, and which sees ~19 player events a month. */
-const BUNDLE_BOOTSTRAP_COURSES = new Set<string>(['hun_for_eng'])
+/**
+ * Consulted only when BUNDLE_BOOTSTRAP_ALL is false.
+ *
+ * A course is added ONLY after it has passed both harnesses against the live
+ * endpoints — `parity-cycles.mjs` (generator and wire modes, three positions,
+ * walked through the client's own paging loop) and `parity-infplay.mjs`
+ * (three entry rounds, both producers sampled). Results are committed under
+ * `docs/bundle-cutover-parity/`. A course that has not been walked is not on
+ * this list, whatever it resembles.
+ *
+ * Batch 1 (2026-08-29, free) — hun_for_eng had already shipped; the other
+ * eight joined it on the same evidence run.
+ * Batch 2 (2026-08-29, premium) — walked twice: once with an entitled session
+ * for the full course, and once anonymously for the 19-seed free preview an
+ * unsubscribed visitor actually gets. Both byte-identical.
+ *
+ * NOT on the list, and why: fin_for_eng. It has 1,394 rounds and no rendered
+ * audio at all, so both paths emit nothing and parity proves nothing about it.
+ * A vacuous pass is not a pass.
+ */
+const BUNDLE_BOOTSTRAP_COURSES = new Set<string>([
+  // batch 1 — free
+  'hun_for_eng',
+  'gle_for_eng',
+  'nld_for_eng',
+  'tur_for_eng',
+  'eus_for_eng',
+  'pol_for_eng',
+  'heb_for_eng',
+  'tha_for_eng',
+  'hin_for_eng',
+  // batch 2 — premium
+  'spa_for_eng',
+  'fra_for_eng',
+  'jpn_for_eng',
+  'zho_for_eng',
+  'cym_s_for_eng',
+  'zho_for_gle',
+])
 
 export function isBundleBootstrapEnabled(courseCode: string): boolean {
   try {
@@ -698,6 +734,37 @@ export function useInstantPlayback(
     }
   }
 
+  /**
+   * The bundle, but never for longer than the cold-start budget.
+   *
+   * `getCourseBundle` gives its own fetch 20 seconds — right for a one-time
+   * multi-megabyte download, wrong for the boot path, which promises the
+   * learner a first play in about two. Without this a flagged course on a
+   * stalled connection would sit for 20s and only THEN fall through to
+   * /round-map for another 2.5, which is not "the worst case is today's
+   * behaviour" — it is four times worse than today.
+   *
+   * The download is not cancelled, and `getCourseBundle` de-dupes in flight,
+   * so the very next page joins the same fetch and the session cuts over the
+   * moment it lands. This bootstrap just refuses to wait for it.
+   */
+  async function bundleWithinBootBudget(code: string): Promise<CourseBundle> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        getCourseBundle(code),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('[InstantPlayback] bundle not ready inside the boot budget')),
+            CRITICAL_PATH_TIMEOUT_MS,
+          )
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   async function fetchRoundMap(): Promise<RoundMap> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
@@ -707,7 +774,7 @@ export function useInstantPlayback(
     // falls through to the network path below.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        const map = bundleToRoundMap(await getCourseBundle(code))
+        const map = bundleToRoundMap(await bundleWithinBootBudget(code))
         writeCachedRoundMap(code, map)
         return map
       } catch (err) {
@@ -799,7 +866,7 @@ export function useInstantPlayback(
     // through to the network path below.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        return bundleToCyclesResponse(await getCourseBundle(code), fromLegoId, limit)
+        return bundleToCyclesResponse(await bundleWithinBootBudget(code), fromLegoId, limit)
       } catch (err) {
         console.warn('[InstantPlayback] bundle cycles failed, falling back to /cycles:', err)
       }
@@ -1025,7 +1092,7 @@ export function useInstantPlayback(
     // through to the network, which denies it, exactly as today.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        const bundle = await getCourseBundle(code)
+        const bundle = await bundleWithinBootBudget(code)
         if (!bundle.previewOnly) {
           const json = bundleToInfPlayCyclesResponse(bundle, fromRound, limit)
           const batch: InfPlayBatch = {
