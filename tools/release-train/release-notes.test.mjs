@@ -60,6 +60,16 @@ test('docs, tests and refactors are dropped as internal', () => {
   ]) assert.deepEqual(headlines([s]), [], s)
 })
 
+test('audit and security commits are dropped as internal, never surfaced verbatim', () => {
+  // Real specimen (2026-08-29): this one slipped through as a generic bullet because its subject
+  // happened to contain "round" (a USER_FACING word) with no JARGON_VETO hit — internal audit
+  // jargon reached the learner-facing notes. audit(...) / security(...) must gate at kind-veto.
+  for (const s of [
+    'audit(security): handler map for 2026-08-25 + SEC25-X-01/02 on the ungated round-map',
+    'security(audit-0825-d): DB posture + repo hygiene + test-machinery integrity (Area D)',
+  ]) assert.deepEqual(headlines([s]), [], s)
+})
+
 test('shipped-but-dark work is never announced', () => {
   for (const s of [
     'family: UI — Settings family page, paywall option, covered-by-family branch',

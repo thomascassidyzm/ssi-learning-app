@@ -67,7 +67,7 @@ const DRAFT_CLOSE = '<!-- /release-notes:draft-only -->'
 
 // ── gate 1: kinds that are internal by construction ─────────────────────────
 
-const KIND_VETO = /^(docs?|apml|test|e2e|chore|build|ci|refactor|style)[:(]/i
+const KIND_VETO = /^(docs?|apml|test|e2e|chore|build|ci|refactor|style|audit|security)[:(]/i
 
 // ── gate 2: shipped-but-not-switched-on ─────────────────────────────────────
 // Code can be on main and invisible: dark behind a flag, stage/phase 1 of a series, shadow-mode
