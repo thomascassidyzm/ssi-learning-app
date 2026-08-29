@@ -534,6 +534,15 @@ const generateScript = (
   return promise
 }
 
+/** `?fullscript=walk|bundle` — dev A/B lever, see fullScriptFromBundle. */
+const fullScriptOverride = (): string | null => {
+  try {
+    return new URLSearchParams(window.location.search).get('fullscript')
+  } catch {
+    return null
+  }
+}
+
 /**
  * The whole course from the bundle already in memory — the step-6 replacement
  * for the Supabase walk. Returns null when this course is not flagged, or when
@@ -555,6 +564,11 @@ const fullScriptFromBundle = async (
   infinitePlayLookahead: number,
 ): Promise<LearningScriptResult | null> => {
   if (!code || !isBundleBootstrapEnabled(code)) return null
+  // `?fullscript=walk` forces the retiring walk while leaving the bundle
+  // bootstrap on — the ONE arm that isolates step 6 from the rest of the
+  // cutover, so before/after can be measured on a single deployment instead of
+  // two. `?bundle=0` is the wider lever: it turns the whole bundle path off.
+  if (fullScriptOverride() === 'walk') return null
   const startedAt = Date.now()
   try {
     const bundle = await getCourseBundle(code)
