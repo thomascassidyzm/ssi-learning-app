@@ -248,6 +248,40 @@ const supabaseClient = ref(null)
 // tripping over the temporal dead zone.
 const LAST_COURSE_KEY = 'ssi-last-course'
 
+/**
+ * Start the bundle download the moment a course can be NAMED — the intent
+ * signal, not the Start press (Tom, 2026-08-29: "by the time you get to the
+ * play button ... it has already anticipated you would play that song").
+ *
+ * There are two moments at which the app first learns which course the
+ * learner is heading for, and they are seconds apart:
+ *
+ *  1. Synchronously at boot, from the `?course=` param or the last-played
+ *     course in storage. This is the common case and it fires at ~250ms.
+ *  2. From the learner's OWN saved preference (`preferences.last_course_code`)
+ *     once auth resolves — which is the only signal available on a fresh
+ *     device, a fresh PWA install, or after a storage wipe, because there is
+ *     nothing in localStorage to read. Measured on dev 2026-08-29, that path
+ *     started the bundle at ~1.2s instead of ~0.25s: a second of overlap with
+ *     app boot thrown away for want of a name.
+ *
+ * Both call here. `getCourseBundle` coalesces in flight and caches per
+ * session, so calling it twice costs one fetch, and every later consumer
+ * (`prewarmInstantCaches`, the player's own bootstrap) JOINS this one rather
+ * than starting a second. A wrong guess costs one unused request, which is
+ * why it is gated on the bundle flag and only ever fired for a course the
+ * learner has actually pointed at.
+ */
+function warmBundleForIntent(courseCode) {
+  if (!courseCode) return
+  try {
+    if (!isBundleBootstrapEnabled(courseCode)) return
+    void getCourseBundle(courseCode).catch(() => {})
+  } catch {
+    /* no window (tests / SSR) — the player fetches it later exactly as before */
+  }
+}
+
 if (config.features.useDatabase && isSupabaseConfigured(config)) {
   try {
     supabaseClient.value = createClient(
@@ -294,9 +328,7 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
         new URLSearchParams(window.location.search).get('course') ||
         sessionStorage.getItem('ssi-demo-last-course') ||
         localStorage.getItem(LAST_COURSE_KEY)
-      if (remembered && isBundleBootstrapEnabled(remembered)) {
-        void getCourseBundle(remembered).catch(() => {})
-      }
+      warmBundleForIntent(remembered)
     } catch {
       /* no storage, no window — the player fetches it later exactly as before */
     }
@@ -717,6 +749,13 @@ onMounted(async () => {
           }
         })()
       }
+
+      // INTENT, second signal: the learner's own saved course. On a fresh
+      // device there is nothing in localStorage, so the synchronous warm-up
+      // above had no name to work with and the download otherwise waits for
+      // the course list and enrollment reads to finish. De-duped — if the
+      // boot warm-up already started this course, this joins that fetch.
+      warmBundleForIntent(auth.learner.value?.preferences?.last_course_code)
 
       // Handle ?code= URL parameter for invite codes
       try {

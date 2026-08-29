@@ -600,7 +600,27 @@ export async function prewarmInstantCaches(
   if (isBundleBootstrapEnabled(courseCode)) {
     try {
       const bundle = await getCourseBundle(courseCode)
-      writeCachedRoundMap(courseCode, bundleToRoundMap(bundle))
+      const map = bundleToRoundMap(bundle)
+      writeCachedRoundMap(courseCode, map)
+      // ...and warm the FIRST CYCLE'S AUDIO, exactly as the legacy branch
+      // below does. The cutover quietly dropped this: a flagged course took
+      // the early `return` above and never pre-fetched the clips the learner
+      // actually hears, so a course switch paid a cold audio round-trip at
+      // the moment of the tap that the old path had already paid ahead of
+      // the remount. The cycles come out of the bundle in memory — no extra
+      // network for the metadata, only the clips.
+      const first = map.rounds?.[0]
+      if (first) {
+        const c0 = bundleToCyclesResponse(bundle, first.legoId, BOOTSTRAP_LIMIT).cycles?.[0]
+        for (const id of [
+          c0?.audio?.presentation_id,
+          c0?.audio?.known_id,
+          c0?.audio?.target1_id,
+          c0?.audio?.target2_id,
+        ]) {
+          if (id) void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
+        }
+      }
     } catch {
       /* never let a prewarm escape */
     }
