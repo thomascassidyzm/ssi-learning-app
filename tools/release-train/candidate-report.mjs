@@ -12,10 +12,11 @@
  *   2. Condenses the commits to human headlines: process noise (merges, worklist bookkeeping,
  *      promote records) is separated out, and the substantive commits are clustered by AREA
  *      (schools, player, family/billing, ...) from their conventional-commit scope.
- *   3. CI health: builds a headSha -> conclusion map from the Verify workflow's run history
- *      (check runs are SHA-keyed, so a commit tested on its claude/** branch keeps its verdict
- *      after the merge into dev and the promote to staging), plus the staging head's own
- *      combined status (Vercel).
+ *   3. CI health: builds a headSha -> verdict map from the watson-1 nightly's own history file
+ *      (ops/ci-history.tsv on the command surface — SHA-keyed, so a verdict follows a commit
+ *      through a merge and a promote), plus whatever that nightly knows about the staging head.
+ *      Coverage is HEAD-OF-BRANCH NIGHTLY, not per-commit: most candidates are legitimately
+ *      untested and the report says so rather than rounding them green.
  *   4. Open regressions / ship-gates read out of WORKLIST.md by keyword heuristic — see
  *      SIGNALS below; the report always states the heuristic it used.
  *   5. Drafts the RELEASE NOTES for this candidate (release-notes.mjs — headlines only, in
@@ -40,7 +41,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -58,61 +59,93 @@ const NO_POST = DRY || argv.includes('--no-post')
 const NO_PUSH = DRY || argv.includes('--no-push')
 
 // ── 3. CI health ────────────────────────────────────────────────────────────
-// verify.yml runs on dev, staging, main and PRs; auto-merge-claude.yml runs a byte-identical
-// verify job on claude/** pushes. Both are SHA-keyed, so scanning BOTH lets us ask, for any
-// candidate commit, "did the gate ever go green on exactly this tree?" regardless of which
-// branch it was on when tested. (Before 2026-08-07 verify.yml also ran on claude/**; that
-// duplicate was removed for cost, so auto-merge-claude.yml is now the only record for
-// commits that were only ever pushed to a claude branch.)
+// WHERE THE VERDICTS COME FROM (rewired 2026-08-29). GitHub Actions has been dormant on this
+// repo since 2026-08-14 — verify.yml and auto-merge-claude.yml have not run since, so the old
+// `gh run list` map came back EMPTY and every candidate commit read UNTESTED. The gate now is the
+// nightly CI on watson-1 (03:00, ssi-ci.timer), which runs the checks out of this repo's own
+// workflow file and appends one row per target per run to:
 //
-// auto-merge-claude.yml's conclusion covers verify AND the merge step, so a failure there
-// cannot be attributed to the gate — only its successes are counted, and a failure leaves the
-// commit UNTESTED rather than RED. Commits with no run at all are reported as UNTESTED rather
-// than silently counted green — most of those are merge commits, which is why the
-// substantive/process split matters here too.
+//     /home/tomcassidy/command-surface/ops/ci-history.tsv
+//     # ts  target  sha  verdict  run          — tab-separated, append-only, FULL sha in col 3
+//
+// It is SHA-keyed exactly as the check-run history was, so a verdict still follows a commit
+// across a merge into dev and a promote to staging.
+//
+// AND IT IS SPARSE, WHICH IS THE WHOLE HONESTY PROBLEM HERE. The nightly records the head SHA of
+// four refs (dashboard@main, learning-app@dev/staging/main) on the nights it ran — NOT every
+// commit that was ever pushed, which is what the per-push check runs used to give. So most
+// candidate commits will legitimately have no verdict, and "untested" has to stay a first-class
+// third answer rather than being rounded to green or to red. Present with `green` is green;
+// present with `red` is red; ABSENT IS UNTESTED, and so is a SHA the runner could only ever
+// record as `cannot-run` — a check that could not run is never a pass (Tom, 2026-08-28).
+//
+// Rows are newest-LAST in this file (the inverse of `gh run list`, which was newest-first), so a
+// repeated SHA takes its LAST row. One refinement: a definitive verdict is never overwritten by a
+// later `cannot-run`. A green or red is a fact about that tree; a night the runner itself broke
+// says nothing about it, and must not erase what we already knew.
+//
+// auto-merge-claude.yml is dead too and was not replaced, so commits that were only ever tested
+// on a claude/** branch have no verdict at all here. They are untested, and that is the truth.
 
-function gh(args) {
-  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', timeout: 90000, cwd: REPO }))
+const CI_HISTORY = process.env.CI_HISTORY_TSV
+  || '/home/tomcassidy/command-surface/ops/ci-history.tsv'
+
+/** the SHA -> verdict map, built from the nightly's own history file */
+export function ciVerdictMap(file = CI_HISTORY) {
+  const raw = readFileSync(file, 'utf8')
+  const verdict = new Map()
+  let rows = 0, first = null, last = null
+  for (const line of raw.split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue
+    const [ts, target, sha, v] = line.split('\t')
+    if (!sha || !v) continue
+    rows++
+    if (!first) first = ts
+    last = ts
+    // last row wins, EXCEPT that cannot-run never displaces a definitive verdict
+    if (v === 'cannot-run' && verdict.has(sha) && verdict.get(sha).verdict !== 'cannot-run') continue
+    verdict.set(sha, { verdict: v, target, ts })
+  }
+  return { verdict, rows, first, last }
 }
 
 function ciHealth(cand) {
   const out = { verify: null, stagingHead: null, error: null }
+  let map
   try {
-    // gh paginates internally up to --limit; 400 covers well over a month of pushes here.
-    const runs = gh(['run', 'list', '--workflow', 'verify.yml', '--limit', '400',
-      '--json', 'headSha,conclusion,status,displayTitle'])
-    const verdict = new Map()
-    for (const r of runs) {
-      // run list is newest-first; keep the newest verdict per sha
-      if (!verdict.has(r.headSha)) verdict.set(r.headSha, r.conclusion || r.status)
-    }
-    // Fill the gap for commits that only ever ran the gate on a claude branch. Successes only:
-    // a failed auto-merge run may have failed at the merge step, not the gate.
-    const claudeRuns = gh(['run', 'list', '--workflow', 'auto-merge-claude.yml', '--limit', '400',
-      '--json', 'headSha,conclusion,status,displayTitle'])
-    for (const r of claudeRuns) {
-      if (r.conclusion === 'success' && !verdict.has(r.headSha)) verdict.set(r.headSha, 'success')
-    }
-    const green = [], red = [], untested = []
-    for (const c of cand.commits) {
-      const v = verdict.get(c.sha)
-      if (v === 'success') green.push(c)
-      else if (v === undefined) untested.push(c)
-      else red.push({ ...c, conclusion: v })
-    }
-    out.verify = { green, red, untested, runsScanned: runs.length + claudeRuns.length }
+    map = ciVerdictMap()
   } catch (e) {
-    out.error = String(e.message || e).slice(0, 200)
+    // A missing or unreadable history file is an ERROR, never an empty map: an empty map would
+    // read as "everything untested", which is indistinguishable from a healthy sparse night.
+    out.error = `${CI_HISTORY}: ${String(e.message || e).slice(0, 160)}`
+    return out
   }
-  try {
-    const st = gh(['api', `repos/${GH_REPO}/commits/${cand.stagingSha}/status`])
-    out.stagingHead = {
-      state: st.state,
-      contexts: (st.statuses || []).map((s) => `${s.context}: ${s.state}`),
-    }
-  } catch (e) {
-    out.stagingHead = { state: 'unreadable', contexts: [String(e.message || e).slice(0, 120)] }
+  const { verdict, rows, first, last } = map
+  const green = [], red = [], untested = []
+  for (const c of cand.commits) {
+    const v = verdict.get(c.sha)
+    if (v && v.verdict === 'green') green.push(c)
+    else if (v && v.verdict === 'red') red.push({ ...c, conclusion: 'red' })
+    else untested.push(c)
   }
+  out.verify = {
+    green,
+    red,
+    untested,
+    rowsScanned: rows,
+    shasKnown: verdict.size,
+    since: (first || '').slice(0, 10),
+    until: (last || '').slice(0, 10),
+  }
+  // The staging head used to be read with `gh api repos/<r>/commits/<sha>/status` — the combined
+  // commit status. That call is on the same dead signal as the rest of this function, so rather
+  // than leave it failing silently into an "unreadable" string every week it is answered from the
+  // SAME history file: the nightly tests learning-app@staging by name, so where it has a verdict
+  // for this exact SHA we can state it, and where it has none we say so plainly.
+  const st = verdict.get(cand.stagingSha)
+  out.stagingHead = st
+    ? { state: st.verdict, source: `watson-1 nightly (${st.target}, ${st.ts.slice(0, 16)}Z)` }
+    : { state: 'not tested at this SHA', source: 'watson-1 nightly — no row for this commit' }
   return out
 }
 
@@ -219,14 +252,16 @@ function render(cand, cond, ci, signals, dateStr, extraNotes, notes) {
   L.push('## CI health')
   L.push('')
   if (ci.error) {
-    L.push(`Verify-workflow history unreadable: \`${ci.error}\` — **treat CI as unknown**.`)
+    L.push(`Nightly CI history unreadable: \`${ci.error}\` — **treat CI as unknown**. Nothing here has been tested as far as this report can tell.`)
   } else {
     const { green, red, untested } = ci.verify
-    L.push(`Verify (lint · player typecheck · api typecheck · player tests · api tests), matched per commit SHA across ${ci.verify.runsScanned} recent runs:`)
+    L.push(`Source: the **watson-1 nightly** (03:00, \`ssi-ci.timer\`) — lint · player typecheck · api typecheck · player tests · api tests, out of this repo's own workflow file. GitHub Actions has been dormant since 2026-08-14 and is not consulted.`)
+    L.push('')
+    L.push(`Matched per commit SHA against ${ci.verify.rowsScanned} rows covering ${ci.verify.shasKnown} distinct commits, ${ci.verify.since} → ${ci.verify.until}. **Coverage is head-of-branch nightly, not per-commit**: the nightly tests the head of dev, staging and main on the nights it runs, so a commit in the middle of a batch has no verdict of its own. A large "no verdict" count is normal and does NOT mean anything broke.`)
     L.push('')
     L.push(`- ✅ green: ${green.length}`)
     L.push(`- ${red.length ? '❌' : '✅'} red: ${red.length}`)
-    L.push(`- ⬜ no run recorded: ${untested.length} (mostly merge commits, which CI does not run on individually)`)
+    L.push(`- ⬜ no verdict recorded: ${untested.length} (never the head of a branch on a night the nightly ran — untested, which is not the same as failing)`)
     if (red.length) {
       L.push('')
       L.push('**Red commits:**')
@@ -235,7 +270,7 @@ function render(cand, cond, ci, signals, dateStr, extraNotes, notes) {
   }
   L.push('')
   if (ci.stagingHead) {
-    L.push(`Staging head \`${cand.stagingSha.slice(0, 7)}\` combined status: **${ci.stagingHead.state}** — ${ci.stagingHead.contexts.join('; ') || 'no contexts'}.`)
+    L.push(`Staging head \`${cand.stagingSha.slice(0, 7)}\`: **${ci.stagingHead.state}** — ${ci.stagingHead.source}.`)
   }
   L.push('')
 
@@ -322,8 +357,9 @@ async function main() {
   const areaBits = cond.areas.filter((a) => a.code > 0).slice(0, 4)
     .map((a) => `${a.name.split(' ')[0].toLowerCase()} ${a.code}`).join(', ')
   const ciBit = ci.error ? 'CI unknown'
-    : ci.verify.red.length ? `${ci.verify.red.length} RED in CI`
-      : 'CI green'
+    : ci.verify.red.length ? `${ci.verify.red.length} RED in nightly CI`
+      : ci.verify.green.length ? 'nightly CI green'
+        : 'nightly CI has no verdict on this candidate'
   const riskBit = signals?.find((s) => s.name.startsWith('Named regression'))?.hits.length
   const headline = `Friday ship: ${n} commits ready — GO / HOLD. ${ciBit}. ${areaBits}.` +
     `${riskBit ? ` ${riskBit} open regression flag(s).` : ''} Tap for the candidate report.`
