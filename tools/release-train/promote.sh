@@ -83,13 +83,32 @@ git branch -D _promote_main >/dev/null 2>&1 || true
 # never reaches the final. Committed to dev, never to main. A notes failure must not read as a
 # failed promote — the promote already happened by this line.
 NOTES_ARGS=(--finalize --sha "$STAGING" --count "$COUNT" --base "$MAIN" --head "$STAGING")
+NOTES_OK=1
 if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}"; then
-  echo "WARN: release notes were not written — run this by hand:"
-  echo "  node tools/release-train/release-notes.mjs ${NOTES_ARGS[*]}"
+  NOTES_OK=0
 fi
 
 echo
 echo "PROMOTED: main is now $NEW ($COUNT commits shipped)."
 echo "The deploy sentinel opens its 2h watch window within 3 minutes — nothing else to run."
+
+# FOUNDER RULING 2026-08-29: "a promote must not be able to complete leaving its notes as a draft
+# — fail loudly instead." The merge is already pushed by this line, so we cannot abort the ship;
+# what we CAN refuse to do is report success. Unfinalised notes reach no learner at all (the
+# player's parser shows finals only), so this exits non-zero and says the ship landed but the
+# notes did not.
+if [[ "$NOTES_OK" -ne 1 ]]; then
+  echo
+  echo "########################################################################"
+  echo "# THE PROMOTE LANDED. THE RELEASE NOTES DID NOT.                       #"
+  echo "########################################################################"
+  echo "main is $NEW and deploying. But the notes are still a DRAFT, and a draft"
+  echo "is invisible to learners — the app's 'What's new' will show the PREVIOUS"
+  echo "ship's date until this is fixed. Finish it by hand, now:"
+  echo "  node tools/release-train/release-notes.mjs ${NOTES_ARGS[*]}"
+  echo "Then post the done-board card. Do NOT report this ship as done first."
+  exit 1
+fi
+
 echo "Release notes are stamped final in tools/release-train/notes/ — use them for the done-board card."
 echo "Now post the done-board card (docs/RELEASE-TRAIN.md, 'Report the ship')."

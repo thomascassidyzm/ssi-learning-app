@@ -8,7 +8,10 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNotes, finalizeBody, reconcile, render, renderFinal } from './release-notes.mjs'
+import { readFileSync } from 'node:fs'
+import {
+  buildNotes, finalizeBody, isDraftBody, reconcile, render, renderFinal, FINAL_HEADER_RE,
+} from './release-notes.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -319,4 +322,40 @@ test('a fix that already went live on the fix lane is out of range, so out of th
   // never contains it. This locks the property that the range IS the policy.
   const promoted = notesFor([])
   assert.equal(promoted.features.length + promoted.fixes.length, 0)
+})
+
+// ── the finalise gate (founder ruling 2026-08-29) ────────────────────────────
+// "A promote must not be able to complete leaving its notes as a draft — fail loudly instead."
+// A draft reaches NO learner: the player's parser shows finals only. These lock the check that
+// promote.sh leans on when it decides whether to report the ship as done.
+
+test('a drafted body is recognised as a draft, and its finalised form is not', () => {
+  const draft = renderedDraft(['- A thing a learner can see.'], [])
+  assert.match(draft, /DRAFT for the next ship/)
+  assert.equal(isDraftBody(draft), true, 'a freshly rendered draft must read as a draft')
+
+  const final = finalizeBody(draft, { shipDate: '2026-08-29', sha: 'c'.repeat(40), count: 35 })
+  assert.equal(isDraftBody(final), false, 'a stamped final must not read as a draft')
+  assert.match(final, /shipped 2026-08-29/)
+})
+
+test('nothing is a final by accident — empty, truncated and near-miss headers all read as drafts', () => {
+  assert.equal(isDraftBody(''), true)
+  assert.equal(isDraftBody(null), true)
+  assert.equal(isDraftBody('# Release notes — shipped soon'), true)
+  assert.equal(isDraftBody('# Release notes shipped 2026-08-29'), true, 'the em-dash is required')
+  assert.equal(isDraftBody('# Release notes — shipped 2026-08-29'), false)
+})
+
+test('the finalise gate and the learner-facing parser use the SAME header regex', () => {
+  // If these two drift, a promote can "succeed" into silence: the script believes it stamped a
+  // final, the app refuses to render it, and Settings keeps showing the previous ship's date —
+  // which is exactly what happened on 2026-08-29.
+  const player = readFileSync(
+    new URL('../../packages/player-vue/src/composables/trainReleaseNotes.ts', import.meta.url),
+    'utf8')
+  const m = /const SHIPPED_RE = (\/.*\/m)\n/.exec(player)
+  assert.ok(m, 'could not find SHIPPED_RE in trainReleaseNotes.ts')
+  assert.equal(m[1], FINAL_HEADER_RE.toString(),
+    'trainReleaseNotes.ts SHIPPED_RE and release-notes.mjs FINAL_HEADER_RE have drifted')
 })

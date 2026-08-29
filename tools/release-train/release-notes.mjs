@@ -497,16 +497,47 @@ const argOf = (name) => {
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
-// Which draft does today's ship belong to? The newest notes file at or before today — the
-// Thursday draft for a Friday ship, without needing the two dates to match.
-function latestDraftOnDev(upto) {
-  let names
+// The canonical shape of a FINALISED header. Must stay in lockstep with SHIPPED_RE in
+// packages/player-vue/src/composables/trainReleaseNotes.ts — that regex is what decides whether a
+// learner ever sees these bullets, so if the two drift, a promote can "succeed" into silence.
+export const FINAL_HEADER_RE = /^#\s*Release notes\s*—\s*shipped\s+(\d{4}-\d{2}-\d{2})\s*$/m
+
+/** Is this notes body still an un-shipped draft? (Anything not stamped final counts as one.) */
+export function isDraftBody(body) {
+  return !(body && FINAL_HEADER_RE.test(body))
+}
+
+/** Every notes date on origin/dev, oldest first. */
+function notesDatesOnDev() {
   try {
-    names = sh('git', ['ls-tree', '--name-only', 'origin/dev', 'tools/release-train/notes/'])
-      .split('\n').filter(Boolean).map((p) => p.split('/').pop().replace('.md', '')).sort()
-  } catch { return null }
-  const candidates = names.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= upto)
-  return candidates.length ? candidates[candidates.length - 1] : null
+    return sh('git', ['ls-tree', '--name-only', 'origin/dev', 'tools/release-train/notes/'])
+      .split('\n').filter(Boolean).map((p) => p.split('/').pop().replace('.md', ''))
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()
+  } catch { return [] }
+}
+
+/**
+ * Which draft does today's ship belong to? The newest STILL-DRAFT notes file at or before today —
+ * the Thursday draft for a Friday ship, without needing the two dates to match.
+ *
+ * The "still-draft" filter is the fix for a silent orphaning bug (2026-08-29): this used to take
+ * the newest file full stop, so once a newer file existed, an older un-finalised draft could never
+ * be picked again and was skipped forever with nothing said. 2026-08-06 and 2026-08-27 both died
+ * that way. Null means "no open draft" — the caller then writes a fresh file for the ship date.
+ */
+export function latestDraftOnDev(upto) {
+  const open = notesDatesOnDev().filter((d) => d <= upto && isDraftBody(readOnDev(NOTES_REL(d))))
+  return open.length ? open[open.length - 1] : null
+}
+
+/**
+ * Any OTHER notes file at or before the ship date that is still a draft. A promote must not be
+ * able to complete leaving notes as a draft (founder ruling 2026-08-29), so these get named out
+ * loud rather than rotting silently.
+ */
+export function orphanDrafts(upto, exclude) {
+  return notesDatesOnDev()
+    .filter((d) => d <= upto && d !== exclude && isDraftBody(readOnDev(NOTES_REL(d))))
 }
 
 /**
@@ -562,13 +593,34 @@ async function main() {
     }
     if (DRY) { process.stdout.write(final); return 0 }
     mkdirSync(NOTES_DIR, { recursive: true })
-    writeFileSync(join(NOTES_DIR, `${draftDate}.md`), final)
+    const abs = join(NOTES_DIR, `${draftDate}.md`)
+    writeFileSync(abs, final)
+
+    // The gate (founder ruling 2026-08-29): a promote must not be able to complete leaving its
+    // notes as a draft. Re-READ what we just wrote and check it against the same shape the
+    // learner-facing parser demands. A draft header here means the panel stays silent.
+    const written = readFileSync(abs, 'utf8')
+    if (isDraftBody(written)) {
+      throw new Error(
+        `finalise did not stamp ${rel} — its header is still a DRAFT, so no learner will ever ` +
+        `see these bullets. Stamp it by hand before reporting the ship.`)
+    }
+
     if (!NO_PUSH) {
       publish([{ relPath: rel, body: final }],
         `release-train: release notes final — shipped ${shipDate} (${sha.slice(0, 7)})`)
     }
     log(`release notes finalised: ${rel} (ship ${shipDate}, ${sha.slice(0, 7)})`)
     console.log(`Release notes: https://github.com/${GH_REPO}/blob/dev/${rel}`)
+
+    // Older drafts that no ship will ever pick up again. Named, never silent.
+    const orphans = orphanDrafts(shipDate, draftDate)
+    if (orphans.length) {
+      console.log('')
+      console.log(`ORPHANED DRAFTS (${orphans.length}) — still unstamped, no ship will claim them:`)
+      for (const d of orphans) console.log(`  ${NOTES_REL(d)}`)
+      console.log('Finalise them or delete them — a draft reaches no learner, silently, forever.')
+    }
     return 0
   }
 
