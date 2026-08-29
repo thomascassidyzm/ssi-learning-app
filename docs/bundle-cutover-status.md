@@ -92,8 +92,12 @@ today's behaviour.
    course would silently lose it. Additive fix: one column in bundle.ts's
    `course_legos` select, one field on `BundleLego`, pass-through in the
    generator's intro/debut builders.
-2. **Bundle weight on the biggest courses** is still unmeasured at Irish /
-   Estonian scale (design §8 risk 1).
+2. **Bundle weight.** Measured on the flagged course 2026-08-29:
+   `hun_for_eng` (665 rounds) is **3.8 MB raw, 654 KB brotli / 696 KB gzip**
+   over the wire — one cacheable fetch replacing round-map + N×cycles. That is
+   comfortably inside the design's ~2 MB gz threshold, but the biggest courses
+   (Irish 786 rounds, Turkish 840, French 1,530) are still unmeasured and
+   French is premium, so its full bundle needs an entitled fetch to measure.
 3. **INF PLAY is NOT cut over.** `bootstrapInfPlay` still uses
    `/infplay-cycles`; the generator's infplay mode is untested against it.
    Flagging a course only changes its main-loop bootstrap.
