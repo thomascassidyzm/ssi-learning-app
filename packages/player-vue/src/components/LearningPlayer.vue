@@ -5777,15 +5777,12 @@ const clearSkipPrepDialog = () => {
 const startSpeakCountdown = () => {
   const cycle = simplePlayer.currentCycle.value
   const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-  // Belt proxy for the pause curve — must match getPauseDuration exactly, so
-  // the ring and the real gap stay in lockstep. See the note there on why
-  // Easy pins it at 1.0 rather than reading the baked belt speed.
-  const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle?.playbackSpeed ?? 1)
+  // Same helper as getPauseDuration, so the ring and the real gap stay in
+  // lockstep. Playback speed is NOT an input to the gap (Tom, 2026-08-29).
   const duration = computePauseDuration(
     cycle?.target1DurationMs ?? 0,
     cycle?.target2DurationMs ?? 0,
     cfg,
-    spd,
   )
   startRingAnimation(duration)
 }
@@ -9940,25 +9937,15 @@ simplePlayer.setRuntimeOverrides({
     // Recompute pause from raw target durations using the active mode's config.
     // Single source of truth — same helper drives the visible countdown.
     const cfg = isEasyMode.value ? easyConfig.value : fastConfig.value
-    // 4th arg is the BELT PROXY for the pause curve (computePauseDuration:
-    // beltProgress 0.8→White … 1.0→Green), not a speed knob.
-    //
-    // Fast reads the baked belt speed, so its pause tapers across belts. Easy
-    // deliberately pins 1.0 — i.e. it takes the Green-belt taper at every belt.
-    // That is EXACTLY today's Easy timing and it stays that way: Tom's ruling
-    // (2026-08-07) was that Easy's pauses and repetitions "are already correct
-    // and must NOT be touched"; only the target-voice SPEED override was the
-    // bug, and that has been removed (see the note where the overrides object
-    // ends). Easy's own belt knobs (pause_belt_boot 0.8 / _assembly 0.95) were
-    // tuned against this pinned reading, so switching Easy to the baked speed
-    // here would silently lengthen every early-belt Easy pause. If Easy's pause
-    // curve is ever retuned, revisit this line at the same time.
-    const spd = isEasyMode.value ? Math.min(easyConfig.value.playback_speed, 1.0) : (cycle.playbackSpeed ?? 1)
+    // The gap is k × the native target-sentence duration + a reaction beat, and
+    // NOTHING else — no belt taper, no playback speed (Tom's ruling,
+    // 2026-08-29: "playback speed must no longer influence gap length at all").
+    // Each mode carries its own k / reaction constant, which is where the
+    // Fast-vs-Easy difference now lives.
     const base = computePauseDuration(
       cycle.target1DurationMs ?? 0,
       cycle.target2DurationMs ?? 0,
       cfg,
-      spd,
     )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before

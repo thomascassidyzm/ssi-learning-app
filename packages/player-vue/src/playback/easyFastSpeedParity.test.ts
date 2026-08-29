@@ -83,7 +83,7 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     // The guardrail against over-correcting: this fix must not have flattened
     // Easy into Fast. Easy keeps its longer pauses, its post-voice2 beat and
     // its extra repetitions / shorter phrases.
-    expect(DEFAULT_EASY.pause_boot_ms!).toBeGreaterThan(DEFAULT_FAST.pause_boot_ms!)
+    expect(DEFAULT_EASY.pause_k!).toBeGreaterThan(DEFAULT_FAST.pause_k!)
     expect(DEFAULT_EASY.min_pause_ms).toBeGreaterThan(DEFAULT_FAST.min_pause_ms)
     expect(DEFAULT_EASY.post_voice2_gap_ms!).toBeGreaterThan(DEFAULT_FAST.post_voice2_gap_ms!)
     expect(DEFAULT_EASY.maxPhraseLengthFraction!).toBeLessThan(DEFAULT_FAST.maxPhraseLengthFraction!)
