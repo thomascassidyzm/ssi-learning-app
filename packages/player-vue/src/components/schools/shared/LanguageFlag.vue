@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getLanguageFlag } from '@/composables/useI18n'
+import { extractVariantKey, extractBaseLanguage, variantFlagKey } from '@/utils/variantFlag'
 
 // Circle-flags (MIT licensed, https://github.com/HatScripts/circle-flags)
 import cymFlag from '@/assets/flags/cym.svg'
@@ -75,15 +76,22 @@ import nepFlag from '@/assets/flags/nep.svg'
 import afrFlag from '@/assets/flags/afr.svg'
 
 // Variant flags — a course whose code carries a variant segment (deu_at_for_eng)
-// flies its own flag rather than the parent language's.
-import deuAtFlag from '@/assets/flags/deu_at.svg'
-import deuChFlag from '@/assets/flags/deu_ch.svg'
-import porBrFlag from '@/assets/flags/por_br.svg'
-import spaMxFlag from '@/assets/flags/spa_mx.svg'
-import araEgFlag from '@/assets/flags/ara_eg.svg'
-import araLbFlag from '@/assets/flags/ara_lb.svg'
-import araSyFlag from '@/assets/flags/ara_sy.svg'
-import fraCaFlag from '@/assets/flags/fra_ca.svg'
+// flies its own flag rather than the parent language's. Resolved automatically
+// against the vendored circle-flags country set, so a NEW variant course needs
+// no code change here: see utils/variantFlag.ts for the rule.
+const countryFlags = import.meta.glob('@/assets/flags/countries/*.svg', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+/** 'ca-qc' → the module URL for assets/flags/countries/ca-qc.svg */
+const countryFlagByKey = Object.fromEntries(
+  Object.entries(countryFlags).map(([path, url]) => [
+    path.slice(path.lastIndexOf('/') + 1, -'.svg'.length),
+    url,
+  ])
+)
 
 const flagMap = {
   cym: cymFlag,
@@ -159,27 +167,6 @@ const flagMap = {
   afr: afrFlag,
 }
 
-/**
- * Variant → own flag. Keyed on the target-side segment of a course code
- * (deu_at_for_eng → 'deu_at'). A variant with no entry here simply falls
- * through to its parent language's flag, so nothing regresses.
- *
- * Only variants whose home has one unambiguous flag of its own get an entry.
- * The Welsh and Irish dialects (cym_n, cym_s, gle_cn, gle_mu, gle_ul) do NOT:
- * they are regions within one flag's country, and they carry a variant_label
- * instead — they stay on the parent flag deliberately.
- */
-const variantFlagMap = {
-  deu_at: deuAtFlag,   // Austrian German
-  deu_ch: deuChFlag,   // Swiss German
-  por_br: porBrFlag,   // Brazilian Portuguese
-  spa_mx: spaMxFlag,   // Mexican Spanish
-  ara_eg: araEgFlag,   // Egyptian Arabic
-  ara_lb: araLbFlag,   // Lebanese Arabic
-  ara_sy: araSyFlag,   // Syrian Arabic
-  fra_ca: fraCaFlag,   // Quebec French — the Québec fleurdelisé
-}
-
 const props = defineProps({
   code: {
     type: String,
@@ -191,47 +178,27 @@ const props = defineProps({
   }
 })
 
-/**
- * Extract the variant key from a course code — the whole target side, dialect
- * suffix included. Examples: 'deu_at_for_eng' -> 'deu_at', 'por_br' -> 'por_br',
- * 'deu_for_eng' -> 'deu', 'deu' -> 'deu'.
- */
-function extractVariantKey(code) {
-  if (!code) return ''
-  const forIndex = code.indexOf('_for_')
-  return forIndex === -1 ? code : code.substring(0, forIndex)
-}
-
-/**
- * Extract the language code from a course code.
- * Examples: 'cym_s_for_eng' -> 'cym', 'eng_for_spa' -> 'eng', 'fra' -> 'fra'
- */
-function extractLanguageCode(code) {
-  if (!code) return ''
-  // If it's already a bare language code, return it
-  if (flagMap[code]) return code
-  // The target side is everything before '_for_' (or the whole code)
-  const target = extractVariantKey(code)
-  // Drop any variant suffix — '_n', '_s', '_at', '_br', '_ch', '_latam'…
-  const base = target.split('_')[0]
-  return flagMap[base] ? base : target
-}
-
-const langCode = computed(() => extractLanguageCode(props.code))
-const variantKey = computed(() => extractVariantKey(props.code))
+const langCode = computed(() => {
+  // A bare code that is already a flagMap key wins outright ('fra', 'eng').
+  if (flagMap[props.code]) return props.code
+  const base = extractBaseLanguage(props.code)
+  return flagMap[base] ? base : extractVariantKey(props.code)
+})
 
 const flagSrc = computed(() => {
-  // Variant first, parent language second — a variant without its own flag
-  // keeps the parent's.
-  return variantFlagMap[variantKey.value] || flagMap[langCode.value] || null
+  // Variant first, parent language second — a variant with no country flag of
+  // its own keeps the parent's, so nothing can ever blank out.
+  const variantKey = variantFlagKey(props.code)
+  const variantSrc = variantKey ? countryFlagByKey[variantKey] : null
+  return variantSrc || flagMap[langCode.value] || null
 })
 
 // Emoji fallback for languages without SVG flags
 const emojiFlag = computed(() => {
   if (flagSrc.value) return null
-  const emoji = getLanguageFlag(variantKey.value) !== '🌐'
-    ? getLanguageFlag(variantKey.value)
-    : getLanguageFlag(langCode.value)
+  // getLanguageFlag resolves variants by the same rule as the SVG path above.
+  const variantEmoji = getLanguageFlag(extractVariantKey(props.code))
+  const emoji = variantEmoji !== '🌐' ? variantEmoji : getLanguageFlag(langCode.value)
   return emoji !== '🌐' ? emoji : null
 })
 

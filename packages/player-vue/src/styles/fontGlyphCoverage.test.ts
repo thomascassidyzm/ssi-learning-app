@@ -32,6 +32,15 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const tokens = readFileSync(resolve(here, './design-tokens.css'), 'utf8')
 const styles = readFileSync(resolve(here, '../style.css'), 'utf8')
+/* The font stylesheets moved off the render-blocking path on 2026-08-25 — the
+ * families are now requested from JS. See utils/loadWebFonts.ts. */
+const fontLoader = readFileSync(resolve(here, '../utils/loadWebFonts.ts'), 'utf8')
+const indexHtml = readFileSync(resolve(here, '../../index.html'), 'utf8')
+/* 2026-08-26: the faces are self-hosted, so the families are now DECLARED in a
+ * generated stylesheet rather than named in a Google query string. Reading the
+ * real @font-face blocks is a stronger check than reading a URL — it can tell
+ * whether the file a token needs actually shipped. See scripts/vendor-fonts.mjs. */
+const fontsCss = readFileSync(resolve(here, '../../public/fonts/fonts.css'), 'utf8')
 
 /**
  * Families verified to cover every letter of estate course text in the
@@ -105,12 +114,72 @@ describe('glyph coverage — the fonts behind it', () => {
     expect(KNOWN_SHORT).not.toContain(primaryFamily('font-coverage'))
   })
 
-  it('both families are actually imported, not just named', () => {
+  it('both families are actually shipped, not just named', () => {
     for (const token of ['font-brand', 'font-coverage']) {
       const family = primaryFamily(token)
-      // Google Fonts spells spaces as '+' in the css2 family param
-      expect(styles, `${family} must be imported`).toContain(`family=${family.replace(/ /g, '+')}:`)
+      expect(fontsCss, `${family} must be declared`).toContain(`font-family: '${family}';`)
     }
+  })
+
+  /**
+   * The reason the fonts were left on Google for so long: it serves each family
+   * split by unicode-range, so a learner downloads only the subsets their own
+   * language uses. Self-hosting (2026-08-26) kept those splits verbatim — this
+   * is the test that says so. A vendoring pass that collapsed every subset into
+   * one file would still render correctly and would still pass every test
+   * above, while quietly making a Welsh learner download Devanagari.
+   */
+  it('the per-language subsetting survived self-hosting', () => {
+    const faces = fontsCss.match(/@font-face\s*\{[^}]*\}/g) ?? []
+    expect(faces.length, 'fonts.css must declare the subset faces').toBeGreaterThan(30)
+    for (const face of faces) {
+      expect(face, 'every face must be unicode-range gated').toMatch(/unicode-range:\s*U\+/)
+      expect(face, 'every face must load a local file').toMatch(/url\('\/fonts\/(core|ext)\//)
+    }
+    // The coverage font has to carry the scripts DM Sans cannot spell, each in
+    // its own subset file — that is what makes the :lang() rule mean anything.
+    for (const subset of ['devanagari', 'greek', 'cyrillic']) {
+      expect(fontsCss, `Noto Sans must ship a ${subset} subset`).toContain(
+        `/fonts/ext/noto-sans-${subset}-`,
+      )
+    }
+  })
+
+  /**
+   * The whole point of A-265: once installed, no third party is in the font
+   * path at all. A font file served from a host we do not control can hang on a
+   * weak signal exactly as the stylesheet did.
+   */
+  it('no font is fetched from a third party', () => {
+    expect(fontsCss, 'fonts.css must not reference a remote font host').not.toMatch(
+      /https?:\/\//,
+    )
+    expect(fontLoader, 'the loader must request our own stylesheet').toContain(
+      `'/fonts/fonts.css'`,
+    )
+  })
+
+  /**
+   * 2026-08-25. The font stylesheets used to be a remote @import at the top of
+   * style.css and a <link> in index.html's head. Both are RENDER-BLOCKING, and
+   * on a weak signal a blocking cross-origin stylesheet neither loads nor
+   * fails — it hangs, and the app never paints at all. Fonts are decoration;
+   * they may never gate first paint. See utils/loadWebFonts.ts.
+   */
+  it('no font stylesheet sits on the render-blocking path', () => {
+    expect(styles, 'style.css must not @import a remote stylesheet').not.toMatch(
+      /@import\s+url\(\s*['"]?https?:/i,
+    )
+    expect(indexHtml, 'index.html must not <link rel=stylesheet> a font host').not.toMatch(
+      /<link[^>]+rel=["']?stylesheet["']?[^>]*fonts\.googleapis\.com/i,
+    )
+  })
+
+  it('the loader cannot apply a font before it has arrived', () => {
+    // media="print" is what makes the link non-render-blocking; the load
+    // listener is what makes the font eventually apply. Both or neither.
+    expect(fontLoader).toContain(`link.media = 'print'`)
+    expect(fontLoader).toMatch(/addEventListener\(\s*['"]load['"]/)
   })
 
   it('every coverage language carries the evidence for why it is on the list', () => {
