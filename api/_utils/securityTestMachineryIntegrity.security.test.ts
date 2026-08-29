@@ -78,7 +78,7 @@ const securityTestFiles = allApiFiles.filter((f) => f.endsWith('.security.test.t
 // — the guard went red on the merge and named all seven added files, which is
 // exactly the behaviour it was written for. Do not replace it with a glob.
 describe('security-test machinery integrity — pinned roster', () => {
-  // Pinned as of 2026-08-25. A file dropping off either list — deleted,
+  // Pinned as of 2026-08-29 (grown by the 2026-08-29 audit's four SEC29 files). A file dropping off either list — deleted,
   // renamed to a non-matching suffix, or moved out of api/ — fails here.
   // Growing the list is fine (update the pin); shrinking it without a
   // corresponding entry in the area-d/area-audit report is the bug this test
@@ -89,6 +89,10 @@ describe('security-test machinery integrity — pinned roster', () => {
   ].sort()
 
   const KNOWN_SECURITY_TEST_FILES = [
+    'api/_security/sec29-a-filter-injection.security.test.ts',
+    'api/_security/sec29-b-privileged-gates.security.test.ts',
+    'api/_security/sec29-c-webhooks-cron.security.test.ts',
+    'api/_security/sec29-x-enforcement.security.test.ts',
     'api/_security/reconcile-2026-08-25-admin-entitlement.security.test.ts',
     'api/_security/reconcile-2026-08-25-auth-core.security.test.ts',
     'api/_security/reconcile-2026-08-25-input.security.test.ts',
