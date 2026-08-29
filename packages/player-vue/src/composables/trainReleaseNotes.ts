@@ -69,7 +69,15 @@ export function parseTrainNote(source: string): TrainReleaseNote | null {
     body = body.slice(0, a) + body.slice(b + DRAFT_CLOSE.length)
   }
 
-  const bullets = [...sectionBullets(body, "What's new"), ...sectionBullets(body, 'Fixes')]
+  // Both catch-all headings. The generator writes "## Other stuff and bug fixes"
+  // (release-notes.mjs renderFinal) and has done since July; this parser only looked for
+  // "## Fixes", so every catch-all bullet the train has ever written was silently dropped and
+  // learners saw the three headlines alone. Found live on 2026-08-29.
+  const bullets = [
+    ...sectionBullets(body, "What's new"),
+    ...sectionBullets(body, 'Other stuff and bug fixes'),
+    ...sectionBullets(body, 'Fixes'),
+  ]
   if (bullets.length === 0) return null
 
   return {
