@@ -65,14 +65,20 @@ export const CRITICAL_PATH_TIMEOUT_MS = 2500
  *   cym_s_for_eng 0.80 MB                 TTFB 0.63-0.68s  total 0.90-0.96s
  *   hun_for_eng  0.67 MB                  TTFB 0.44-0.46s  total 0.69-0.84s
  *
- * Those are on a fast wired link — so the WORST course already spent ~78% of
- * the old 2500ms budget under the best conditions any learner will ever have.
- * On a 4G-ish link (~9 Mbit/s) the same download is ~1.4s of server time plus
- * ~2.0s of transfer plus mobile JSON parse: ~4s. 8000ms clears that with
- * roughly 2x headroom for a cold serverless spike, and still bounds the wait
- * on a genuinely bad link, where falling through to the small /round-map is
- * the right answer and the bundle takes over as soon as it lands (the fetch is
- * never cancelled and `getCourseBundle` de-dupes it).
+ * Those are on a fast wired link with a WARM function — so the worst course
+ * already spent ~78% of the old 2500ms budget under the best conditions any
+ * learner will ever have. Two things make the real case worse. On a 4G-ish
+ * link (~9 Mbit/s) the same download is ~1.4s of server time plus ~2.0s of
+ * transfer plus mobile JSON parse: ~4s. And a COLD function costs more again:
+ * a sweep of all fifteen courses the same day measured first-hit TTFB of
+ * 3379ms for fra_for_eng — on a 74 KB preview payload, so that is pure
+ * cold-start latency, not download.
+ *
+ * 8000ms therefore leaves roughly 1.5x headroom over a realistic worst cold
+ * case, and still bounds the wait on a genuinely bad link, where falling
+ * through to the small /round-map is the right answer and the bundle takes
+ * over as soon as it lands (the fetch is never cancelled and
+ * `getCourseBundle` de-dupes it).
  *
  * This cost is paid ONCE per course: afterwards the bundle is in IndexedDB and
  * resolves in milliseconds (owner ruling 2026-08-29 — first-play cost is

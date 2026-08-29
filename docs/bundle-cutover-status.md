@@ -244,12 +244,34 @@ deployment, entitled session, brotli on the wire, two runs each:
 | `cym_s_for_eng` | 0.80 MB | | 0.63–0.68s | 0.90–0.96s |
 | `hun_for_eng` | 0.67 MB | | 0.44–0.46s | 0.69–0.84s |
 
-Those are from a fast wired link. The worst course spent ~78% of the 2500ms
-budget under the best conditions any learner will ever have, and `fra_for_eng`
-crossed 2.2s on one of two runs. On a 4G-ish link the same download is roughly
-1.4s of server generation plus ~2.0s of transfer plus mobile JSON parse — about
-4s. The budget was `CRITICAL_PATH_TIMEOUT_MS`, which exists to bound a ~20 KB
-round-map fetch; it was never sized for a whole-course download.
+Those are from a fast wired link with a warm serverless function. The worst
+course spent ~78% of the 2500ms budget under the best conditions any learner
+will ever have, and `fra_for_eng` crossed 2.2s on one of two runs. On a 4G-ish
+link the same download is roughly 1.4s of server generation plus ~2.0s of
+transfer plus mobile JSON parse — about 4s. The budget was
+`CRITICAL_PATH_TIMEOUT_MS`, which exists to bound a ~20 KB round-map fetch; it
+was never sized for a whole-course download.
+
+A separate anonymous sweep of all fifteen courses (same day, first-hit vs
+second-hit) shows the **cold serverless** case is worse again — server time
+alone, before a byte of payload moves:
+
+| course | cold TTFB | warm TTFB | wire | JSON | legos / phrases |
+|---|---|---|---|---|---|
+| `fra_for_eng` (preview) | 3379ms | 1086ms | 74 KB | 0.53 MB | 62 / 641 |
+| `eus_for_eng` | 2843ms | 564ms | 662 KB | 4.0 MB | 713 / 6,011 |
+| `hin_for_eng` | 1725ms | 650ms | 912 KB | 5.8 MB | 716 / 5,760 |
+| `heb_for_eng` | 1706ms | 536ms | 758 KB | 4.6 MB | 602 / 4,701 |
+| `pol_for_eng` | 1500ms | 679ms | 751 KB | 4.5 MB | 666 / 5,049 |
+| `tur_for_eng` | 1313ms | 780ms | 1.18 MB | 7.5 MB | 840 / 9,046 |
+| `gle_for_eng` | 1043ms | 668ms | 916 KB | 6.2 MB | 786 / 5,431 |
+
+`fra_for_eng`'s 3379ms is a 74 KB preview — that is cold-start latency, not
+payload. So the realistic worst cold case for a learner is roughly 3.4s of
+server time plus a multi-megabyte download on whatever connection they have.
+8000ms leaves about 1.5x headroom over that, not 2x; it is a budget that wins
+on any workable connection rather than one that can never lose. The
+`bundle_boot_path` fallback share is what tells us whether it was set right.
 
 Note the anonymous numbers are not the real ones for premium courses:
 anonymous `spa_for_eng` is 64 KB, the 19-seed preview slice — 34x smaller than
