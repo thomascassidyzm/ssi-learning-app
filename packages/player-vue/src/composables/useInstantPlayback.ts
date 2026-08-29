@@ -40,7 +40,11 @@ import {
   clearNetworkStalled,
 } from '../config/networkGate'
 import { getCourseBundle } from './useCourseBundle'
-import { bundleToCyclesResponse, bundleToRoundMap } from '../providers/bundleToBackendCycles'
+import {
+  bundleToCyclesResponse,
+  bundleToInfPlayCyclesResponse,
+  bundleToRoundMap,
+} from '../providers/bundleToBackendCycles'
 
 // ============================================================================
 // TYPES
@@ -76,6 +80,10 @@ export interface BackendCycle {
   fib_position?: number
   /** Round number of the LEGO being reviewed. spaced_rep only. */
   review_of?: number
+  /** INF PLAY round this cycle belongs to (1-based past the main loop).
+   *  Set by /infplay-cycles and by the bundle path's infplay adapter;
+   *  `bootstrapInfPlay` groups on it to synthesise a round map. */
+  inf_round?: number
   seed_number: number
   known_text: string
   target_text: string
@@ -1006,6 +1014,34 @@ export function useInstantPlayback(
       }
       return stale
     }
+    // Bundle cutover step 5b: INF PLAY rounds come out of the in-memory
+    // bundle instead of /infplay-cycles on a flagged course.
+    //
+    // A PREVIEW bundle is never used here. /infplay-cycles is the one content
+    // endpoint with no preview slice — it hard-403s a non-entitled caller,
+    // because INF PLAY is by definition past the free window — and generating
+    // locally from a 19-seed preview bundle would hand that caller an INF PLAY
+    // session the server just refused. So a previewOnly bundle falls straight
+    // through to the network, which denies it, exactly as today.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        const bundle = await getCourseBundle(code)
+        if (!bundle.previewOnly) {
+          const json = bundleToInfPlayCyclesResponse(bundle, fromRound, limit)
+          const batch: InfPlayBatch = {
+            cycles: json.cycles,
+            nextInfRound: json.next_inf_round,
+            mainLoopCount: json.main_loop_count,
+            version: json.version,
+          }
+          writeCachedInfPlay(code, fromRound, batch)
+          return batch
+        }
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle INF PLAY failed, falling back to /infplay-cycles:', err)
+      }
+    }
+
     try {
       return await fetchInfPlayCyclesLive(url, code, fromRound, signal)
     } catch (err) {
@@ -1091,7 +1127,7 @@ export function useInstantPlayback(
       // adapter happy; cursor logic uses lastMainLoopLegoId anyway).
       const seenRounds = new Map<number, BackendCycle>()
       for (const c of result.cycles) {
-        const r = (c as any).inf_round as number
+        const r = c.inf_round
         if (typeof r === 'number' && !seenRounds.has(r)) seenRounds.set(r, c)
       }
       roundMap.value = {

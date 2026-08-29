@@ -443,34 +443,17 @@ function generateInfPlay(
       })
     }
 
-    // --- phase 2: random USE — fill to TARGET_CYCLES_PER_ROUND ---
-    const projectedSpacedRepCount = spacedRepEntries.reduce(
-      (sum, e) => sum + e.phraseCount,
-      0,
-    )
-    const targetRandomUse = Math.max(
-      MIN_RANDOM_USE_PER_ROUND,
-      Math.min(
-        MAX_RANDOM_USE_PER_ROUND,
-        TARGET_CYCLES_PER_ROUND - projectedSpacedRepCount,
-      ),
-    )
-
-    // Pool = all main-loop LEGOs we haven't already used this round.
-    // Walk the round-map (script order) so the pool is bounded to the
-    // main loop, not the bundle.legos array (which could include extras).
-    const availableLegos: BundleLego[] = []
-    for (let i = 0; i < roundMap.length; i++) {
-      const entry = roundMap[i]
-      if (usedLegosThisRound.has(entry.legoId)) continue
-      const lego = legoIndex.get(entry.legoId)
-      if (!lego) continue
-      availableLegos.push(lego)
-    }
-    const randomUseLegos = sampleN(availableLegos, targetRandomUse, random)
-    for (const l of randomUseLegos) usedLegosThisRound.add(l.legoId)
-
-    // --- emit cycles ---
+    // --- phase 2: emit the spaced-rep cycles ---
+    // Emitted BEFORE the random-USE bucket is sized, because the bucket is
+    // sized from what spaced rep actually produced, not from what it hoped to.
+    // A reviewed LEGO whose USE basket has no playable phrase emits nothing,
+    // and on a course with patchy audio that is most of them: eus_for_eng
+    // projected 16 review cycles, emitted 6, and then only allowed itself the
+    // 6-cycle random-USE floor — a 10-cycle round where the round target is
+    // 22. Counting first and sizing second holds the round at its intended
+    // length, which is what TARGET_CYCLES_PER_ROUND is for (Tom, 2026-05-20:
+    // "it then keeps ROUND length approx the same for inserting
+    // encouragements, listening exercises and so on").
     const cycles: Cycle[] = []
     let cycleSeq = 0
     const seenSeedReviews = new Set<string>()
@@ -505,6 +488,26 @@ function generateInfPlay(
         if (cyc) cycles.push(cyc)
       }
     }
+
+    // --- phase 3: random USE — fill to TARGET_CYCLES_PER_ROUND ---
+    const targetRandomUse = Math.max(
+      MIN_RANDOM_USE_PER_ROUND,
+      Math.min(MAX_RANDOM_USE_PER_ROUND, TARGET_CYCLES_PER_ROUND - cycles.length),
+    )
+
+    // Pool = all main-loop LEGOs we haven't already used this round.
+    // Walk the round-map (script order) so the pool is bounded to the
+    // main loop, not the bundle.legos array (which could include extras).
+    const availableLegos: BundleLego[] = []
+    for (let i = 0; i < roundMap.length; i++) {
+      const entry = roundMap[i]
+      if (usedLegosThisRound.has(entry.legoId)) continue
+      const lego = legoIndex.get(entry.legoId)
+      if (!lego) continue
+      availableLegos.push(lego)
+    }
+    const randomUseLegos = sampleN(availableLegos, targetRandomUse, random)
+    for (const l of randomUseLegos) usedLegosThisRound.add(l.legoId)
 
     for (const lego of randomUseLegos) {
       const phrases = phraseIndex.get(lego.legoId)

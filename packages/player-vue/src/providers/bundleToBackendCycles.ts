@@ -20,6 +20,15 @@
 import { generateScript, type Cycle as GeneratedCycle, type CourseBundle } from '@ssi/core'
 import type { BackendCycle, CyclesResponse, RoundMap } from '../composables/useInstantPlayback'
 
+/** The wire shape of `GET /infplay-cycles`, as `fetchInfPlayCyclesLive` reads it. */
+export interface InfPlayCyclesResponse {
+  course_code: string
+  version: number
+  cycles: BackendCycle[]
+  next_inf_round: number
+  main_loop_count: number
+}
+
 /** The generator emits audio as URLs; passing identity gives us the raw ids
  *  the wire shape carries, with no string surgery. */
 const ID_ONLY = (id: string): string => id
@@ -135,5 +144,64 @@ export function bundleToCyclesResponse(
     version: Number(bundle.contentVersion ?? bundle.version) || 0,
     cycles,
     next_lego_id: nextLegoId,
+  }
+}
+
+/**
+ * Bundle + INF PLAY round → the same payload `GET /infplay-cycles` returns.
+ *
+ * INF PLAY has no round map and no pagination cursor: `limit` counts ROUNDS,
+ * and the caller synthesises its own round map from the `inf_round` stamps.
+ * So this is a straight projection of the generator's infplay rounds.
+ *
+ * WHAT PARITY CAN AND CANNOT MEAN HERE. The endpoint is explicitly
+ * non-deterministic — "subsequent requests with the SAME from_round may return
+ * DIFFERENT cycles ... that's expected for INF PLAY where variety >
+ * determinism" — because both the random-USE LEGO sample and the spaced-rep
+ * phrase draw are RNG. Two identical calls to the endpoint do not agree with
+ * each other, so cycle-for-cycle equality with the generator is not a
+ * property either side has. What must match is the SCHEDULE: which LEGOs are
+ * reviewed at which offsets, how many cycles a round carries, and that every
+ * phrase drawn is a USE phrase of the LEGO it is filed under. That is what
+ * `tools/bundle-cutover/parity-infplay.mjs` checks, and it is checked over
+ * repeated endpoint samples so the RNG cannot flatter either side.
+ */
+export function bundleToInfPlayCyclesResponse(
+  bundle: CourseBundle,
+  fromRound: number,
+  roundLimit: number,
+): InfPlayCyclesResponse {
+  const isNewByLego = new Map(bundle.legos.map((l) => [l.legoId, l.isNew]))
+  const roundIndexByLego = new Map(bundle.roundMap.map((e) => [e.legoId, e.roundIndex]))
+
+  const { rounds } = generateScript({
+    bundle,
+    position: { mode: 'infplay', fromInfRound: fromRound },
+    roundLimit,
+    audioUrl: ID_ONLY,
+  })
+
+  const cycles: BackendCycle[] = []
+  for (const round of rounds) {
+    // The generator numbers an infplay round absolutely (mainLoopCount +
+    // infRound); the wire carries the infplay-relative number, which is what
+    // `bootstrapInfPlay` reads to build its synthetic round map.
+    const infRound = round.roundNumber - bundle.mainLoopCount
+    for (const c of round.cycles) {
+      const wire = toBackendCycle(c, round.legoId, isNewByLego, roundIndexByLego)
+      // `review_of` is a MAIN-LOOP round pointer; infplay reviews reach back
+      // into the main loop by offset and the endpoint sets no such field.
+      delete (wire as { review_of?: number }).review_of
+      delete (wire as { round_lego_id?: string }).round_lego_id
+      cycles.push({ ...wire, inf_round: infRound })
+    }
+  }
+
+  return {
+    course_code: bundle.courseCode,
+    version: Number(bundle.contentVersion ?? bundle.version) || 0,
+    cycles,
+    next_inf_round: fromRound + roundLimit,
+    main_loop_count: bundle.mainLoopCount,
   }
 }

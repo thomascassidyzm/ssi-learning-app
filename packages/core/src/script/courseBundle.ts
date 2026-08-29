@@ -392,6 +392,18 @@ export function phrasesByLegoAndRole(
 ): Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }> {
   const map = new Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }>()
   for (const phrase of bundle.phrases) {
+    // A phrase missing any of its three clips never enters a pool. Both older
+    // producers do this at load time — the walk ("the walk drops any phrase
+    // without them rather than schedule a cycle the player would only skip")
+    // and cycles.ts's `phraseHasFullAudio` — and the pools are not just lists,
+    // they are what the schedulers COUNT and INDEX into. Leaving an unplayable
+    // row in one does not merely emit nothing: it consumes a BUILD slot, it
+    // shifts the review cursor onto a different phrase, and in INF PLAY, where
+    // the draw is random, it silently deletes a whole scheduled review — the
+    // learner loses the review, not just one clip. Caught 2026-08-29 by the
+    // INF PLAY parity harness on zho_for_eng S0668L01, whose 21 USE phrases
+    // carry audio on only 5: the review appeared or vanished per run.
+    if (!phrase.audio.known || !phrase.audio.target1 || !phrase.audio.target2) continue
     let bucket = map.get(phrase.legoId)
     if (!bucket) {
       bucket = { build: [], use: [] }

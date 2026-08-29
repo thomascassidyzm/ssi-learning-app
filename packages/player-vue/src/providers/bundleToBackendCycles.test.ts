@@ -8,7 +8,11 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { CourseBundle } from '@ssi/core'
-import { bundleToCyclesResponse, bundleToRoundMap } from './bundleToBackendCycles'
+import {
+  bundleToCyclesResponse,
+  bundleToInfPlayCyclesResponse,
+  bundleToRoundMap,
+} from './bundleToBackendCycles'
 
 function audio(id: string, ms = 1500) {
   return { id, durationMs: ms, tier: 'ephemeral' as const }
@@ -164,6 +168,32 @@ describe('authored gloss segments on the wire', () => {
   it('omits the key entirely when nothing is authored', () => {
     const { cycles } = bundleToCyclesResponse(makeBundle(2), 'S0001L01', 50)
     expect(cycles.every((c) => c.gloss_segments === undefined)).toBe(true)
+  })
+})
+
+describe('bundleToInfPlayCyclesResponse', () => {
+  it('stamps every cycle with its INF PLAY round, counted past the main loop', () => {
+    const bundle = makeBundle(40)
+    const res = bundleToInfPlayCyclesResponse(bundle, 1, 3)
+    expect(res.main_loop_count).toBe(40)
+    expect(res.next_inf_round).toBe(4)
+    const rounds = [...new Set(res.cycles.map((c) => c.inf_round))]
+    expect(rounds).toEqual([1, 2, 3])
+    // The generator numbers rounds absolutely; the wire is infplay-relative,
+    // and bootstrapInfPlay adds main_loop_count back to build its round map.
+    expect(res.cycles.every((c) => typeof c.inf_round === 'number')).toBe(true)
+  })
+
+  it('carries no main-loop round pointers — an infplay review reaches back by offset', () => {
+    const res = bundleToInfPlayCyclesResponse(makeBundle(40), 1, 2)
+    expect(res.cycles.some((c) => c.type === 'spaced_rep')).toBe(true)
+    expect(res.cycles.every((c) => c.review_of === undefined && c.round_lego_id === undefined)).toBe(true)
+  })
+
+  it('starts where it is asked to, not at round 1', () => {
+    const res = bundleToInfPlayCyclesResponse(makeBundle(40), 95, 2)
+    expect([...new Set(res.cycles.map((c) => c.inf_round))]).toEqual([95, 96])
+    expect(res.next_inf_round).toBe(97)
   })
 })
 

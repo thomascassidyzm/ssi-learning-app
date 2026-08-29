@@ -756,3 +756,51 @@ describe('generateScript — authored gloss segments', () => {
     expect(rounds[0].cycles.every((c) => c.glossSegments === undefined)).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Phrase pools carry only playable phrases (bundle-cutover step 5b)
+// ---------------------------------------------------------------------------
+describe('generateScript — a phrase missing audio never enters a pool', () => {
+  /** One LEGO whose USE basket is mostly unplayable — zho_for_eng S0668L01 in
+   *  miniature: 21 USE rows, 5 with audio. */
+  function bundleWithPatchyAudio() {
+    const bundle = makeBundle({ legoCount: 3, buildsPerLego: 0, usesPerLego: 0 })
+    for (let i = 1; i <= 6; i++) {
+      bundle.phrases.push({
+        ...makePhrase('S0001L01', 'use', i),
+        ...(i > 1 ? { audio: {} } : {}),
+      })
+    }
+    return bundle
+  }
+
+  it('an unplayable USE row cannot be drawn, so the review always fires', () => {
+    // Unfiltered, a random draw over six rows would emit a review one time in
+    // six and silently drop it the other five.
+    const bundle = bundleWithPatchyAudio()
+    for (let run = 0; run < 20; run++) {
+      const { rounds } = generateScript({
+        bundle,
+        position: { mode: 'infplay', fromInfRound: 1 },
+        roundLimit: 1,
+      })
+      const reviews = rounds[0].cycles.filter((c) => c.type === 'review' && c.legoId === 'S0001L01')
+      expect(reviews.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('never emits a cycle for a phrase with no audio', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithPatchyAudio(),
+      position: { mode: 'infplay', fromInfRound: 1 },
+      roundLimit: 3,
+    })
+    for (const r of rounds) {
+      for (const c of r.cycles) {
+        expect(c.target.voice1Url).not.toBe('')
+        expect(c.target.voice2Url).not.toBe('')
+      }
+    }
+  })
+})
+
