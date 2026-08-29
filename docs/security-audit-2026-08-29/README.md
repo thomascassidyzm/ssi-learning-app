@@ -273,3 +273,184 @@ maintainers, inside a job holding a write-scoped token. `verify.yml` runs the sa
 
 Two dead CSP allowances to prune next time `vercel.json` is touched: `fonts.googleapis.com` and
 `fonts.gstatic.com` are still allowlisted and nothing fetches from either any more.
+
+## 5. Area D — the client, second pass · [`area-d-client.md`](./area-d-client.md)
+
+The least-audited surface, given a full sweep rather than a diff review.
+
+### SEC29-D-01 — `admin_practice_minutes_by_course` has no internal role gate · **MEDIUM (residual)**
+
+A `SECURITY DEFINER` RPC granted to `authenticated` — every signed-in learner — whose body performs
+**no caller check at all**. Every sibling in the `analytics_*` family opens with
+`IF NOT is_god_user() THEN RAISE EXCEPTION`; area D checked all twelve of them against `schema.sql`
+and every one gates. This function was written and re-shipped three times (2026-06-19, 2026-07-17 ×2)
+without ever picking one up. That comparison is the new evidence, and it is the strongest argument
+for the fix: this is not a design choice, it is one function that fell out of a family.
+
+**This finding must be read together with SEC29-X-02, and the interaction is instructive.** Area D
+read the migrations as committed on `dev`, where there is no gate at all — and so first reported the
+no-argument, platform-wide call as live. **It is not: the 2026-08-25 remediation closed exactly that
+path in production**, canary-verified, and the reason area D could not see that is that the migration
+is stranded on an unmerged branch. **This audit is the first instance of the hazard SEC29-X-02
+predicts, and it caught itself.**
+
+**What genuinely remains live**, and is the finding as it stands: the `authenticated` grant, the
+absent internal gate for any *non-null* argument, and therefore the ability of any signed-in account
+to read a specific learner's per-course practice minutes given that learner's UUID. The 2026-08-25
+remediation notes name this residual themselves — *"a signed-in user can still call `_by_course` with
+a learner UUID they already know"* — and area D adds the sibling-gate comparison and the four browser
+call sites that make the fix shape concrete.
+
+### SEC29-D-02 — sign-out leaves paid audio playable in IndexedDB · **LOW** · new
+
+`useAuth.signOut()` clears auth storage, the role cache and the subscription/entitlement caches, but
+never touches `ssi-audio-cache-v2`. `resolveCachedPlaybackUrl` → `AudioCache.getWavBlobUrl` serves
+bytes keyed only by content id, with no entitlement re-check. So a paying learner's downloaded
+premium clips stay playable, from cache, to whoever uses that browser profile next. A paywall/
+content leak on a shared device — not an account or credential compromise.
+
+### SEC29-D-03 — the RLS-tightening precondition has not moved · **the number to carry**
+
+CLAUDE.md's condition #2 for tightening org-table RLS is "client org-table reads repointed to server
+endpoints on the `resolveVisibleScope` pattern". Measured exhaustively for the first time:
+
+| `schools` | `classes` | `groups` | `govt_admins` | `invite_codes` | `entitlement_grants` | `user_tags` | **total** |
+|---|---|---|---|---|---|---|---|
+| 12 | 13 | 5 | 1 | 0 | 2 | 6 | **39** |
+
+Plus 15 direct `learners` reads. Two of the `entitlement_grants` reads are **dead code**
+(`useCourseAccess.ts` has no live call site and its successor's header calls it "the SUPERSEDED
+per-course-grant model") — deleting that file is a free reduction to 37.
+
+These reads compute `allowedSchoolIds`/`allowedClassIds` from `useUserRole.ts`, which the file's own
+comment describes as a cache — *"DB is source of truth, localStorage is a fast cache"* — i.e. it is
+**spoofable client-side by construction**. That is fine *only if* the six tables' RLS predicates
+genuinely enforce the caller's hierarchy rather than own-row. CLAUDE.md records them as RLS-on with
+real policies (verified live 2026-08-06); **verifying the predicates needs a live DB read this audit
+did not have.** Area D calls that the single biggest open question it raises, and this report agrees.
+
+**Controls that hold, now locked by test:** only two `v-html` sinks in the entire client, both
+escaping `& < >` before a bounded `**bold**` rewrite and both sourced from compiled repo-authored
+`pack.json` — never a DB row, never a route param. **Zero** `innerHTML`, `document.write`, `eval`,
+`new Function`, string-`setTimeout`, dynamic `<script>` injection, or `message` listeners anywhere.
+All 12 `window.location`/`window.open` sites take a literal, a same-origin URL mutation, or a value
+from this app's own API; both `window.open`s pass `noopener,noreferrer`. All 22 `VITE_*` vars are
+legitimately public (Supabase anon key, Paddle client token and price ids, a public CDN bucket, two
+feature flags), and the only `service_role`/`RESEND_API_KEY` mentions in client source are comments
+explaining why a path must stay server-side. The service worker's `runtimeCaching` covers navigations
+and `/fonts/*` only — **no `/api/*` pattern**, so no per-user response can be replayed cross-user
+from the shared CacheStorage.
+
+---
+
+## 6. Findings — ranked
+
+| # | ID | Sev | Status | Where | Costs an attacker |
+|---|---|---|---|---|---|
+| 1 | **SEC29-X-01** | **high** *(enforcement)* | **new, live-verified** | GitHub Actions — no job executed since 2026-08-14 | nothing; it is the loss of the mechanism that would notice everything below |
+| 2 | TENANCY-01 | **critical** | still live, **day 18** | `api/groups/[id]/invites.ts:132` | a signed-in account and a duplicate org name → another tenant's personal invite links → named-account takeover |
+| 3 | **SEC29-C-01** | medium | **new** | `api/_utils/paddle.ts` — no `PADDLE_WEBHOOK_SECRET` presence check | *if the var is unset in a deployed env:* nothing at all — the signing key is then the empty string |
+| 4 | **SEC29-A-02 / A-06** | medium | **new** | `_utils/orgPlatform.ts`, `api/school/rate-compare.ts` | the same slug collision as #2 → cross-tenant headcounts and pooled comparison averages |
+| 5 | **SEC29-X-02** | medium | **new** | `supabase/schema.sql` on `dev` vs production | nothing; it makes every future audit's DB reading unreliable — and misled this one (§5) |
+| 6 | SEC29-D-01 | medium *(residual)* | still live | `admin_practice_minutes_by_course` — `authenticated` grant, no internal gate | one free account and a learner UUID |
+| 7 | SEC25-X-03 / AUTH-CORE-01 | high | still live | `api/code/redeem.ts` + `_utils/codeAttemptThrottle.ts` | patience, unmetered, against the `ssi_admin` grant path |
+| 8 | **SEC29-A-03** | low/med | **new** | `_utils/demoSchoolGraph.ts` | admin-only; collateral damage in demo expire/purge sweeps |
+| 9 | **SEC29-X-01b** | medium *(enforcement)* | **new** | `test:security-audit` on no gate; its 5 specs all still fail | 2026-08-18 findings 3/4/5 live, 11 days, unwatched |
+| 10 | **SEC29-X-04** | low | **new** *(widens SEC25-X-02)* | 5 sites incl. all four paid-course endpoints | a missing env var silently swaps the query identity |
+| 11 | **SEC29-D-02** | low | **new** | `useAuth.signOut()` + `AudioCache` | shared device; paid audio survives sign-out |
+| 12 | **SEC29-B-01 / B-02** | low | **new** | `admin/create-signin-link.ts`; 4 handlers echoing DB error text | an admin account first |
+| 13 | supply chain | low | **new** | `auto-merge-claude.yml`: `contents: write` + floating action tags | compromising a third-party action release |
+| — | TENANCY-02/04/05/06/07, AUTH-CORE-03/04, SEC25-D-01/03, SEC22-03, SEC25-X-01/02, SEC25-B-01 | var. | **all still live** | see `area-c-reconciliation.md` (2026-08-25) | — |
+
+**Mechanically established, and it is the shape of the whole problem: not one 2026-08-25 finding has
+been closed.** All 37 reconciliation characterizations still pass; 29 `it.todo` fixes remain unwritten.
+
+## 7. What HOLDS — the other half of the audit
+
+Five audits of bad news makes it easy to lose the shape of what is actually well built. On today's
+`dev`, verified by test:
+
+- **Every privileged gate in the 36-endpoint sweep binds.** No method asymmetry, no `verifyAdmin`
+  403-shape misread across 26 call sites, every `ssi_admin` support bypass paired with
+  `rejectIfViewAs`, no admin identity taken from client input.
+- **No PostgREST metacharacter injection is reachable anywhere**, no dynamic RPC name, no dynamic
+  `order()` column, no request-built `select()` list.
+- **Wise's webhook fails closed**; Paddle's ordering, raw-body handling and idempotency insert are
+  right; both cron endpoints refuse in production without their secret.
+- **The client has two `v-html` sinks, both safe, and no other HTML/script sink at all.** No secret
+  in the bundle. The service worker never caches `/api/*`.
+- **Zero of 55 HIGH/CRITICAL dependency advisories is reachable from a live request.**
+- The API suite runs **1,474 passing / 53 todo** across 133 files, and `typecheck:api` is clean.
+
+## 8. Gaps — explicit
+
+- **`ENTITLEMENT_ENFORCE` is unsettled for the fourth audit running.** `vercel` CLI is installed
+  (59.10.0) and this session is **logged out**; no login was attempted — crossing an auth boundary is
+  outside these rules. **One command settles it:** `vercel env ls production | grep ENTITLEMENT_ENFORCE`.
+- **SEC29-C-01's real-world exposure is unverified** for the same reason: whether
+  `PADDLE_WEBHOOK_SECRET` is actually set in a deployed environment could not be checked. The finding
+  is a missing fail-safe, verified against the real SDK — not a confirmed live hole.
+- **No live database read and no live HTTP probe.** Every schema claim rests on `supabase/schema.sql`,
+  which SEC29-X-02 now proves is stale. The RLS predicates behind area D's 39 browser reads are the
+  single biggest question this audit raises and cannot close.
+- **The dashboard/Popty repo was not audited** (SEC25-D-03's other side; already handed over with
+  call-site evidence by the 08-25 remediation).
+- **`.security-audit.ts` specs' subjects were not independently re-derived** beyond confirming all
+  five still fail and that area A rediscovered Finding 4 from the code side.
+- **24 moderate + 4 low dependency advisories** were not individually triaged for reachability.
+- **SEC29-A-06 is verified by code reading, not by a hermetic handler test** — its handler's upstream
+  dependencies made a faithful test mostly plumbing; the identical bug shape is test-characterized in
+  `orgPlatform.ts` and `demoSchoolGraph.ts`.
+
+## 9. Production contact
+
+**One request, read-only, unauthenticated:** `npx vercel whoami`, which returned "Logged out".
+Plus **read-only GitHub API reads** via `gh run list` / `gh run view` / `gh workflow list` — the CI
+evidence for SEC29-X-01. Nothing else. No database query, no HTTP request to the app, no write, no
+mint, no email, no OTP, no spend, no deploy, no promotion.
+
+## 10. Files
+
+| File | Contents |
+|---|---|
+| `README.md` (this file) | Synthesis, coordinator findings, ranked table, gaps |
+| `area-a-filter-injection.md` | The interpolation census and the four path-collision callers |
+| `area-b-privileged-gates.md` | The 36-endpoint gate sweep table |
+| `area-c-webhooks-cron-supplychain.md` | Webhook signature layer, cron auth, CI + dependency supply chain |
+| `area-d-client.md` | Sink table, storage/`VITE_*` inventory, the 39 browser org-reads, SW/cache |
+| `api/_security/sec29-x-enforcement.security.test.ts` | 9 passing, 4 todo |
+| `api/_security/sec29-a-filter-injection.security.test.ts` | 7 passing, 2 todo |
+| `api/_security/sec29-b-privileged-gates.security.test.ts` | 39 passing, 2 todo |
+| `api/_security/sec29-c-webhooks-cron.security.test.ts` | 12 passing, 1 todo |
+| `packages/player-vue/src/__security__/sec29-d-client.security.test.ts` | 26 passing, 2 todo |
+
+**Test convention** (inherited unchanged from 2026-08-11/18/22/25): a control that holds is an
+ordinary passing test; a real vulnerability is a **characterization** test that asserts today's
+insecure behaviour, carries a `// SECURITY FINDING <ID>:` comment and a paired `it.todo()` naming the
+secure behaviour, and goes **red on purpose** when someone fixes it.
+
+---
+
+## 11. The two things that need a human
+
+Everything above is a finding or a test. These are not.
+
+**1. Restore GitHub Actions billing.** This is the whole audit in one line. Five audits have written
+tripwires into a gate that has not fired since 2026-08-14, and 225 commits have landed on `dev` and
+198 on `main` with no lint, no typecheck and no test run. Until this is fixed, every finding in every
+one of these reports is a document rather than a control, and no fix anyone applies will ever announce
+itself. GitHub → Billing & plans.
+
+**2. Merge the security branches, oldest first.** The 2026-08-25 audit recommended this and said
+plainly that its own output would decay the same way if it were not done. It was right, and the decay
+is now measurable in three places: 29 of the 2026-08-11 audit's 33 tripwire tests are still stranded
+on a branch ~370 commits behind; the 2026-08-25 **remediation** — the only *fixes* anyone has written
+— is unmerged, so a hole closed in production is still recorded as open in the repo; and this audit's
+area D was misled by exactly that divergence before the coordinator caught it.
+
+The order that unwinds it cheapest: `security/remediation-2026-08-25` first (it is small, it is
+already live in the database, and merging it stops the schema dump lying), then this branch, then a
+decision on what is still salvageable from `sec/audit-2026-08-11`.
+
+Both are outward-facing or promotion-shaped, and therefore Tom's — which is why they are here rather
+than done.
