@@ -7,8 +7,12 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
-import { prewarmInstantCaches, setInstantPlaybackAuthProvider } from './composables/useInstantPlayback'
-import { setCourseBundleAuthProvider } from './composables/useCourseBundle'
+import {
+  prewarmInstantCaches,
+  setInstantPlaybackAuthProvider,
+  isBundleBootstrapEnabled,
+} from './composables/useInstantPlayback'
+import { setCourseBundleAuthProvider, getCourseBundle } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -239,6 +243,11 @@ const supabaseClient = ref(null)
 // the child's onMounted (which fires first in Vue 3) saw a missing client,
 // getSchoolsClient() threw, the error was swallowed, and GOD mode never
 // surfaced on non-/schools routes.
+// Declared here (rather than beside the course-selection helpers below) so
+// the early bundle warm-up in the block that follows can read it without
+// tripping over the temporal dead zone.
+const LAST_COURSE_KEY = 'ssi-last-course'
+
 if (config.features.useDatabase && isSupabaseConfigured(config)) {
   try {
     supabaseClient.value = createClient(
@@ -268,6 +277,29 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
     // the same reason: an anonymous fetch hands a signed-in paid learner the
     // sliced preview bundle instead of the course.
     setCourseBundleAuthProvider(accessToken)
+
+    // Start the bundle download at the EARLIEST moment we can name a course.
+    // Everything that used to kick it off — course-list resolution, the
+    // enrollment lookup, the player's own mount — happens well into boot, so
+    // on a cold first play the learner waited for the whole multi-megabyte
+    // download from THERE. The remembered course (URL param, else last
+    // played) is the course the learner lands on nearly every time, so
+    // warming it here overlaps the download with the rest of app boot rather
+    // than queueing behind it. Fire-and-forget; `getCourseBundle` de-dupes in
+    // flight, so `prewarmInstantCaches` and the player's own bootstrap join
+    // THIS fetch instead of starting another. A wrong guess costs one unused
+    // request, which is why it is gated on the bundle flag.
+    try {
+      const remembered =
+        new URLSearchParams(window.location.search).get('course') ||
+        sessionStorage.getItem('ssi-demo-last-course') ||
+        localStorage.getItem(LAST_COURSE_KEY)
+      if (remembered && isBundleBootstrapEnabled(remembered)) {
+        void getCourseBundle(remembered).catch(() => {})
+      }
+    } catch {
+      /* no storage, no window — the player fetches it later exactly as before */
+    }
   } catch (err) {
     console.error('[App] Failed to initialize Supabase client synchronously:', err)
   }
@@ -339,7 +371,6 @@ watch(() => auth.learner.value?.id, fetchLearnerEnrollments, { immediate: true }
 const noPriorCourseSelection = ref(false)
 
 // Course persistence key
-const LAST_COURSE_KEY = 'ssi-last-course'
 
 // Handle course selection from CourseSelector
 const handleCourseSelect = async (course) => {

@@ -35,11 +35,13 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import {
   CRITICAL_PATH_TIMEOUT_MS,
+  BUNDLE_BOOT_BUDGET_MS,
   BACKGROUND_FETCH_TIMEOUT_MS,
   markNetworkStalled,
   clearNetworkStalled,
 } from '../config/networkGate'
 import { getCourseBundle } from './useCourseBundle'
+import { reportBundlePath, type BundlePathStage } from '../playback/bundlePathTelemetry'
 import type { CourseBundle } from '@ssi/core'
 import {
   bundleToCyclesResponse,
@@ -755,13 +757,59 @@ export function useInstantPlayback(
         getCourseBundle(code),
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(
-            () => reject(new Error('[InstantPlayback] bundle not ready inside the boot budget')),
-            CRITICAL_PATH_TIMEOUT_MS,
+            () =>
+              reject(
+                Object.assign(
+                  new Error(
+                    `[InstantPlayback] bundle not ready inside the ${BUNDLE_BOOT_BUDGET_MS}ms boot budget`,
+                  ),
+                  { bundleBudgetExceeded: true },
+                ),
+              ),
+            BUNDLE_BOOT_BUDGET_MS,
           )
         }),
       ])
     } finally {
       if (timer) clearTimeout(timer)
+    }
+  }
+
+  /**
+   * Every bundle consumer goes through here so that "did this session use the
+   * bundle or fall back?" is a telemetry fact rather than a console line. The
+   * fallback itself is unchanged and deliberate — the caller still catches and
+   * takes the old network path — this only makes the choice observable.
+   */
+  async function fromBundle<T>(
+    stage: BundlePathStage,
+    code: string,
+    project: (bundle: CourseBundle) => T,
+  ): Promise<T> {
+    const startedAt = Date.now()
+    try {
+      const out = project(await bundleWithinBootBudget(code))
+      reportBundlePath({
+        stage,
+        outcome: 'bundle',
+        waitedMs: Date.now() - startedAt,
+        budgetMs: BUNDLE_BOOT_BUDGET_MS,
+      })
+      return out
+    } catch (err) {
+      reportBundlePath({
+        stage,
+        outcome: 'fallback',
+        waitedMs: Date.now() - startedAt,
+        budgetMs: BUNDLE_BOOT_BUDGET_MS,
+        reason: (err as { bundleBudgetExceeded?: boolean })?.bundleBudgetExceeded
+          ? 'budget'
+          : (err as { bundlePreviewOnly?: boolean })?.bundlePreviewOnly
+            ? 'preview'
+            : 'error',
+        detail: String((err as Error)?.message ?? err).slice(0, 200),
+      })
+      throw err
     }
   }
 
@@ -774,7 +822,7 @@ export function useInstantPlayback(
     // falls through to the network path below.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        const map = bundleToRoundMap(await bundleWithinBootBudget(code))
+        const map = await fromBundle('round_map', code, bundleToRoundMap)
         writeCachedRoundMap(code, map)
         return map
       } catch (err) {
@@ -866,7 +914,9 @@ export function useInstantPlayback(
     // through to the network path below.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        return bundleToCyclesResponse(await bundleWithinBootBudget(code), fromLegoId, limit)
+        return await fromBundle('cycles', code, (bundle) =>
+          bundleToCyclesResponse(bundle, fromLegoId, limit),
+        )
       } catch (err) {
         console.warn('[InstantPlayback] bundle cycles failed, falling back to /cycles:', err)
       }
@@ -1092,18 +1142,25 @@ export function useInstantPlayback(
     // through to the network, which denies it, exactly as today.
     if (isBundleBootstrapEnabled(code)) {
       try {
-        const bundle = await bundleWithinBootBudget(code)
-        if (!bundle.previewOnly) {
+        const batch = await fromBundle('infplay', code, (bundle): InfPlayBatch => {
+          if (bundle.previewOnly) {
+            // Deliberate pass-through to the network, which will deny it.
+            // Thrown (not returned null) so it lands on fromBundle's fallback
+            // report rather than being counted as a bundle-served round.
+            throw Object.assign(new Error('preview bundle — INF PLAY not generated locally'), {
+              bundlePreviewOnly: true,
+            })
+          }
           const json = bundleToInfPlayCyclesResponse(bundle, fromRound, limit)
-          const batch: InfPlayBatch = {
+          return {
             cycles: json.cycles,
             nextInfRound: json.next_inf_round,
             mainLoopCount: json.main_loop_count,
             version: json.version,
           }
-          writeCachedInfPlay(code, fromRound, batch)
-          return batch
-        }
+        })
+        writeCachedInfPlay(code, fromRound, batch)
+        return batch
       } catch (err) {
         console.warn('[InstantPlayback] bundle INF PLAY failed, falling back to /infplay-cycles:', err)
       }

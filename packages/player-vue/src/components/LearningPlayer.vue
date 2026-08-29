@@ -125,6 +125,7 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
+import { setBundlePathTelemetrySink } from '../playback/bundlePathTelemetry'
 import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
@@ -1420,6 +1421,30 @@ setIntroAudioTelemetrySink((e) => {
   })
 })
 onUnmounted(() => setIntroAudioTelemetrySink(null))
+
+// Bundle cutover observability (2026-08-29). The flagged courses are supposed
+// to boot off one course bundle; when it isn't in hand inside the boot budget
+// the session quietly takes the old /round-map + /cycles path instead. That
+// fallback is correct — the learner still plays — but until now it announced
+// itself only in the console, so a cutover that was falling back on most cold
+// first plays would have looked exactly like one that worked. One event per
+// stage per session: the round map, the first cycles page and INF PLAY each
+// decide once, and repeats after that are cache hits with nothing to say.
+const bundlePathReported = new Set<string>()
+setBundlePathTelemetrySink((e) => {
+  const key = `${e.stage}:${e.outcome}`
+  if (bundlePathReported.has(key)) return
+  bundlePathReported.add(key)
+  logEvent('bundle_boot_path', {
+    stage: e.stage,
+    outcome: e.outcome,
+    waitedMs: e.waitedMs,
+    budgetMs: e.budgetMs ?? null,
+    reason: e.reason ?? null,
+    detail: e.detail ?? null,
+  })
+})
+onUnmounted(() => setBundlePathTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed

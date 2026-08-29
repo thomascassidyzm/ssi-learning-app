@@ -45,6 +45,43 @@
 export const CRITICAL_PATH_TIMEOUT_MS = 2500
 
 /**
+ * How long the boot path waits for the COURSE BUNDLE specifically.
+ *
+ * CRITICAL_PATH_TIMEOUT_MS above is sized for a ~20 KB round-map and a tiny
+ * cycles page. The bundle is a different animal: one deliberate, one-time,
+ * whole-course download that then answers every round-map, cycles and INF
+ * PLAY question locally with no further network. Racing it against a budget
+ * written for a 20 KB fetch meant the flagged courses fell back to the old
+ * endpoints on essentially every cold first play — the cutover looked live and
+ * was not (found on staging, 2026-08-29).
+ *
+ * Measured on the staging deployment, 2026-08-29, entitled session, brotli on
+ * the wire:
+ *
+ *   spa_for_eng  2.19 MB  (13.9 MB JSON)  TTFB 1.42-1.55s  total 1.91-1.94s
+ *   fra_for_eng  1.91 MB                  TTFB 1.30-1.31s  total 1.68-2.20s
+ *   jpn_for_eng  1.46 MB                  TTFB 1.08-1.12s  total 1.46-1.66s
+ *   zho_for_eng  1.46 MB                  TTFB 0.91-0.94s  total 1.33-1.37s
+ *   cym_s_for_eng 0.80 MB                 TTFB 0.63-0.68s  total 0.90-0.96s
+ *   hun_for_eng  0.67 MB                  TTFB 0.44-0.46s  total 0.69-0.84s
+ *
+ * Those are on a fast wired link — so the WORST course already spent ~78% of
+ * the old 2500ms budget under the best conditions any learner will ever have.
+ * On a 4G-ish link (~9 Mbit/s) the same download is ~1.4s of server time plus
+ * ~2.0s of transfer plus mobile JSON parse: ~4s. 8000ms clears that with
+ * roughly 2x headroom for a cold serverless spike, and still bounds the wait
+ * on a genuinely bad link, where falling through to the small /round-map is
+ * the right answer and the bundle takes over as soon as it lands (the fetch is
+ * never cancelled and `getCourseBundle` de-dupes it).
+ *
+ * This cost is paid ONCE per course: afterwards the bundle is in IndexedDB and
+ * resolves in milliseconds (owner ruling 2026-08-29 — first-play cost is
+ * acceptable, payload size is not a design constraint, keep the single fetch).
+ * Watch `bundle_boot_path` telemetry for the fallback share before changing it.
+ */
+export const BUNDLE_BOOT_BUDGET_MS = 8000
+
+/**
  * Background work — prefetch tiers, revalidation, telemetry — is NOT on the
  * critical path and gets a longer leash, because nothing is waiting on it.
  * It still needs a bound so a fire-and-forget fetch can't leak forever.

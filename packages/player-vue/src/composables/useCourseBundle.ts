@@ -63,6 +63,16 @@ export function setCourseBundleAuthProvider(fn: (() => Promise<string | null>) |
   authTokenProvider = fn
 }
 
+/** True when a signed-in session token is available for this fetch. */
+async function hasAuthToken(): Promise<boolean> {
+  if (!authTokenProvider) return false
+  try {
+    return !!(await authTokenProvider())
+  } catch {
+    return false
+  }
+}
+
 async function authHeaders(): Promise<Record<string, string> | undefined> {
   if (!authTokenProvider) return undefined
   try {
@@ -234,7 +244,15 @@ export async function getCourseBundle(
   const run = (async (): Promise<CourseBundle> => {
     const cached = opts.forceRefresh ? null : await readCached(courseCode)
 
-    if (cached?.bundle) {
+    // A cached PREVIEW bundle is only valid for a caller who is still
+    // unentitled. Cache identity carries `previewOnly` (bundleCacheKey) but
+    // the IndexedDB store is keyed by course alone, so without this check a
+    // learner who cached the 19-seed preview as a guest keeps being served it
+    // after signing in — the head probe compares versions only and would
+    // happily agree. If we now have a token, re-fetch and let the server say.
+    if (cached?.bundle?.previewOnly && (await hasAuthToken())) {
+      // fall through to the network fetch below
+    } else if (cached?.bundle) {
       if (opts.skipVersionCheck) return cached.bundle
       const head = await probeBundleVersion(courseCode, apiBase)
       if (!head) return cached.bundle // offline / probe failed — trust the cache
@@ -249,7 +267,14 @@ export async function getCourseBundle(
       `${apiBase}/${encodeURIComponent(courseCode)}/bundle`,
       FETCH_TIMEOUT_MS,
     )
-    await writeCached({
+    // Persist in the BACKGROUND, never in front of the caller. Writing a
+    // bundle to IndexedDB structured-clones the whole object graph — 13.9 MB
+    // of JSON and ~15,000 phrase objects for spa_for_eng — and awaiting that
+    // put the persist inside the boot budget the player races on a cold first
+    // play. The caller already holds the bundle in memory; whether it also
+    // reached disk yet changes nothing for this session, only for the next
+    // one. (Measured 2026-08-29 during the boot-budget diagnosis.)
+    void writeCached({
       courseCode,
       cacheKey: bundleCacheKey(identityOf(bundle)),
       cachedAt: Date.now(),
