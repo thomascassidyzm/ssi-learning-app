@@ -39,6 +39,8 @@ import {
   markNetworkStalled,
   clearNetworkStalled,
 } from '../config/networkGate'
+import { getCourseBundle } from './useCourseBundle'
+import { bundleToCyclesResponse, bundleToRoundMap } from '../providers/bundleToBackendCycles'
 
 // ============================================================================
 // TYPES
@@ -153,6 +155,40 @@ export interface UseInstantPlaybackOptions {
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+// ============================================================================
+// BUNDLE CUTOVER (design step 5) — per-course flag
+// ============================================================================
+//
+// When a course is bundle-enabled, `fetchRoundMap` and `fetchCycles` stop
+// hitting `/round-map` and `/cycles` and compute the SAME wire payloads from
+// one cached `/bundle` fetch via the unified generator
+// (`providers/bundleToBackendCycles`). Everything downstream — the cycle
+// buffer, partial-LEGO bookkeeping, pagination, `backendCyclesToRounds` — is
+// untouched, because the shapes are identical. Proven cycle-by-cycle against
+// the live endpoint by `tools/bundle-cutover/parity-cycles.mjs --wire`.
+//
+// Reverts by flag, not by revert commit; and ANY failure on the bundle path
+// falls through to the network path, so the worst case is today's behaviour.
+//
+// `?bundle=1` / `?bundle=0` override per session for dev testing, alongside
+// the existing `?fc=1` / `?stream` / `?reset=1` cheats.
+const BUNDLE_BOOTSTRAP_ALL = false
+/** Consulted only when BUNDLE_BOOTSTRAP_ALL is false. hun_for_eng first: a
+ *  full 665-round free course whose parity is byte-identical at every tested
+ *  position, and which sees ~19 player events a month. */
+const BUNDLE_BOOTSTRAP_COURSES = new Set<string>(['hun_for_eng'])
+
+export function isBundleBootstrapEnabled(courseCode: string): boolean {
+  try {
+    const override = new URLSearchParams(window.location.search).get('bundle')
+    if (override === '1') return true
+    if (override === '0') return false
+  } catch {
+    /* no window (tests / SSR) — fall through to the static flags */
+  }
+  return BUNDLE_BOOTSTRAP_ALL || BUNDLE_BOOTSTRAP_COURSES.has(courseCode)
+}
 
 const ROUND_MAP_STORAGE_PREFIX = 'ssi-instant-playback-roundmap-'
 const CYCLES_STORAGE_PREFIX = 'ssi-instant-playback-cycles-'
@@ -641,6 +677,19 @@ export function useInstantPlayback(
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
 
+    // Bundle cutover: the round map is a field of the bundle, so a
+    // bundle-enabled course never fetches /round-map at all. Any failure
+    // falls through to the network path below.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        const map = bundleToRoundMap(await getCourseBundle(code))
+        writeCachedRoundMap(code, map)
+        return map
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle round-map failed, falling back to /round-map:', err)
+      }
+    }
+
     // Cache hit — instant
     const cached = readCachedRoundMap(code)
     if (cached) {
@@ -718,6 +767,18 @@ export function useInstantPlayback(
   ): Promise<CyclesResponse> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
+
+    // Bundle cutover: generate this page of cycles from the in-memory bundle
+    // instead of fetching /cycles. Synchronous once the bundle is cached, so
+    // resume on a bundle-enabled course is zero-network. Any failure falls
+    // through to the network path below.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        return bundleToCyclesResponse(await getCourseBundle(code), fromLegoId, limit)
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle cycles failed, falling back to /cycles:', err)
+      }
+    }
 
     // Cache-first: if we know the expected version (i.e. the caller already
     // has the round-map and can validate), serve the cached cycles response

@@ -617,7 +617,12 @@ function buildDebutCycle(
 /**
  * Phrase cycle — used for build / use / review (spaced rep). Same
  * audio-completeness gate as debut. The `cycleType` becomes `Cycle.type`
- * for telemetry; `id` carries the ordinal so repeated phrases stay unique.
+ * for telemetry; `id` carries BOTH the cycle type and the ordinal so repeated
+ * phrases stay unique. The type is load-bearing, not decoration: one USE row
+ * can legitimately play twice in a round — promoted into a BUILD slot and
+ * again in the consolidation tail — and with a type-less id those two cycles
+ * collide, so the client's de-dupe-by-cycle-id (`bufferCycles`) silently eats
+ * the consolidation cycle. Caught by the wire-level parity harness.
  */
 function buildPhraseCycle(
   phrase: BundlePhrase,
@@ -633,7 +638,7 @@ function buildPhraseCycle(
   if (!known || !target1 || !target2) return null
 
   return baseCycle({
-    id: `${phrase.phraseId}_${ordinal}`,
+    id: `${phrase.phraseId}_${cycleType}_${ordinal}`,
     type: cycleType,
     legoId: lego.legoId,
     seedId: lego.seedId,
