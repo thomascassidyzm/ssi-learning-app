@@ -1002,10 +1002,15 @@ export async function generateLearningScript(
     const [courseAudioResult, introResult] = await Promise.all([
       supabase
         .from('course_audio')
-        .select('id, lego_id')
+        .select('id, lego_id, s3_key, created_at')
         .eq('course_code', courseCode)
         .eq('role', 'presentation')
-        .in('lego_id', missingLegoIds),
+        .in('lego_id', missingLegoIds)
+        // Oldest first, so the loop below (which overwrites) lands on the
+        // NEWEST row. One lego_id can carry a superseded presentation clip and
+        // its replacement (canon C23, 2026-08-27); pending rows are skipped
+        // outright because they name audio that has not been rendered yet.
+        .order('created_at', { ascending: true }),
       supabase
         .from('lego_introductions')
         .select('lego_id, presentation_audio_id, audio_uuid')
@@ -1020,7 +1025,8 @@ export async function generateLearningScript(
       if (audioId) presLookup.set(row.lego_id, String(audioId))
     }
     for (const row of (courseAudioResult.data || []) as any[]) {
-      if (row.id && row.lego_id) presLookup.set(row.lego_id, row.id)  // overwrites legacy
+      if (row.s3_key && String(row.s3_key).startsWith('pending/')) continue
+      if (row.id && row.lego_id) presLookup.set(row.lego_id, row.id)  // overwrites legacy, newest wins
     }
 
     if (presLookup.size > 0) {
