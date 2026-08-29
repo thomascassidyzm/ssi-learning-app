@@ -318,6 +318,38 @@ fetch finishing right on the budget line.
   and the head probe compares versions only — so a guest who cached the 19-seed
   preview kept being served it after signing in.
 
+**Verified on dev, cold cache, real headless browser**
+
+Nine cold runs (fresh profile each: no service worker, no IndexedDB, no
+localStorage beyond the injected session), plus one control. `waited` is the
+figure the new telemetry reports — how long the boot path actually waited,
+which is shorter than the fetch because the download now starts earlier.
+
+| run | condition | /round-map called? | bundle starts | bundle takes | waited | outcome | first audio |
+|---|---|---|---|---|---|---|---|
+| `spa` signed in | unthrottled | **no** | 219–434ms | 2.5–2.8s | 1170–1495ms | bundle | 2.9–3.3s |
+| `spa` signed in | 4G (9 Mbit/60ms) | **no** | 557–566ms | 4.8–4.9s | 3506–3511ms | bundle | 5.5s |
+| `hun` anon | unthrottled | **no** | 330–605ms | 0.86–1.3s | 206–615ms | bundle | 1.3–1.7s |
+| `hun` anon | Fast 3G (1.6 Mbit/150ms) | **no** | ~1980ms | 10.6–11.0s | 7672–7901ms | bundle | 12.6–13.0s |
+| `spa` signed in, `?bundle=0` | unthrottled | yes (control) | — | — | — | old path | 2.5s |
+
+Zero fallbacks across all nine. The control confirms the old path is intact.
+
+Two things worth reading off this table. **Time to first audio got BETTER, not
+worse**: unthrottled `spa_for_eng` was 3722–4080ms on the old code and is
+2935–3283ms now — the session no longer pays 2.5s of waiting followed by a
+round-map fetch it did not need. And the **ordering fix is doing real work**:
+on Fast 3G the fetch itself took 10.6–11.0s but the boot path only waited
+7.7–7.9s, because the download had a ~2s head start. Without it that run would
+have fallen back.
+
+**The honest limit.** That Fast-3G run cleared 8000ms by 99–328ms — thin. A
+2.19 MB premium bundle on Fast 3G will not clear it and will fall back, which
+is deliberate: holding a learner on a bad connection for twenty-plus seconds is
+worse than playing from the old path in three and cutting over when the bundle
+lands moments later. `bundle_boot_path`'s fallback share is how we find out
+whether real learners sit in that band.
+
 **How anyone can now tell**
 
 `bundle_boot_path` on `player_events`, one row per stage per session, carrying
