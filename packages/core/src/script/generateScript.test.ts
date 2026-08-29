@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { generateScript, GENERATOR_VERSION } from './generateScript'
+import { DEFAULT_SCRIPT_SHAPE, generateScript, GENERATOR_VERSION } from './generateScript'
 import type {
   BundleAudioRef,
   BundleLego,
@@ -62,6 +62,7 @@ interface MakeLegoOpts {
   withTarget2?: boolean
   withPresentation?: boolean
   components?: Array<{ known: string; target: string }>
+  glossSegments?: Array<{ span: number; known: string }>
 }
 
 function makeLego(opts: MakeLegoOpts): BundleLego {
@@ -77,6 +78,7 @@ function makeLego(opts: MakeLegoOpts): BundleLego {
     targetText: opts.targetText ?? `target-${legoId}`,
     ...(opts.targetTextNative !== undefined ? { targetTextNative: opts.targetTextNative } : {}),
     ...(opts.components ? { components: opts.components } : {}),
+    ...(opts.glossSegments ? { glossSegments: opts.glossSegments } : {}),
     isNew: opts.isNew ?? true,
     ephemeralAudio: {
       ...(opts.withKnown !== false ? { known: audioRef(`${legoId}-known`, 1200) } : {}),
@@ -192,7 +194,7 @@ function makeBundle(opts: FixtureOpts = {}): CourseBundle {
 // MAIN MODE
 // ===========================================================================
 describe('generateScript — main mode', () => {
-  it('happy path: emits intro + debut + builds + uses for each LEGO', () => {
+  it('happy path: intro + debut + BUILD (USE-filled) + CONSOLIDATE, per the round shape', () => {
     const bundle = makeBundle({ legoCount: 5, buildsPerLego: 2, usesPerLego: 3 })
     const { rounds, next } = generateScript({
       bundle,
@@ -200,15 +202,21 @@ describe('generateScript — main mode', () => {
     })
 
     expect(rounds).toHaveLength(5)
-    // Round 1: intro + debut + 2 builds + 3 uses = 7 (no spaced rep at round 1).
+    // Round 1 (no spaced rep yet): intro + debut + BUILD ×≤7 + CONSOLIDATE ×≤2.
+    // The 2 build rows fill build slots first, then USE rows are PROMOTED into
+    // the 5 remaining build slots ("BUILD priority > CONSOLIDATE… filling 7
+    // BUILD is non-negotiable") — with only 3 uses that is 2 + 3 = 5 build
+    // cycles. The consolidation tail then takes 2 USE phrases, reusing rows
+    // the round already played rather than leaving the round short.
+    // = 1 + 1 + 5 + 2 = 9.
     const r1 = rounds[0]
     expect(r1.roundNumber).toBe(1)
     expect(r1.legoId).toBe('S0001L01')
-    expect(r1.cycles).toHaveLength(7)
+    expect(r1.cycles).toHaveLength(9)
     expect(r1.cycles[0].type).toBe('intro')
     expect(r1.cycles[1].type).toBe('debut')
-    expect(r1.cycles.slice(2, 4).every((c) => c.type === 'build')).toBe(true)
-    expect(r1.cycles.slice(4, 7).every((c) => c.type === 'use')).toBe(true)
+    expect(r1.cycles.slice(2, 7).every((c) => c.type === 'build')).toBe(true)
+    expect(r1.cycles.slice(7, 9).every((c) => c.type === 'use')).toBe(true)
 
     // Cycle 1 (intro) has pauseDuration 0 + lingerMs 2000.
     expect(r1.cycles[0].pauseDuration).toBe(0)
@@ -268,11 +276,12 @@ describe('generateScript — main mode', () => {
     expect(r2.legoId).toBe('S0002L01')
     expect(r2.cycles.some((c) => c.type === 'intro')).toBe(false)
     expect(r2.cycles.some((c) => c.type === 'debut')).toBe(false)
-    // Builds (1) + Uses (3) + spaced rep from round 1's lego (offset 1 → 3 phrases).
-    // = 1 + 3 + 3 = 7
-    expect(r2.cycles.filter((c) => c.type === 'build')).toHaveLength(1)
-    expect(r2.cycles.filter((c) => c.type === 'use')).toHaveLength(3)
+    // 1 build row + 3 USE rows promoted into build slots = 4 `build` cycles;
+    // spaced rep from round 1's lego (offset 1 → 3 phrases); then the
+    // consolidation tail's reuse pass supplies 2 `use` cycles.
+    expect(r2.cycles.filter((c) => c.type === 'build')).toHaveLength(4)
     expect(r2.cycles.filter((c) => c.type === 'review')).toHaveLength(3)
+    expect(r2.cycles.filter((c) => c.type === 'use')).toHaveLength(2)
   })
 
   it('spaced rep: round 2 reviews round 1 lego; round 4 reviews rounds 1/2/3; N-1 emits 3 cycles', () => {
@@ -621,3 +630,177 @@ describe('generateScript — SEED-PHASE spaced-rep reviews (offset ≥ 144)', ()
 // Local constants mirroring the impl — keep visible for assertion readability.
 const TARGET_CYCLES_PER_ROUND = 22
 const MIN_RANDOM_USE_PER_ROUND = 6
+
+// ===========================================================================
+// ROUND SHAPE — script-shape injection, caps, and the bare-LEGO guard
+// (bundle-cutover design §3 parity item 1; golden-mastered against the live
+// /cycles endpoint by tools/bundle-cutover/parity-cycles.mjs)
+// ===========================================================================
+describe('generateScript — round shape', () => {
+  it('takes the shape from the BUNDLE, not from generator constants', () => {
+    const bundle = makeBundle({ legoCount: 4, buildsPerLego: 6, usesPerLego: 4 })
+    bundle.scriptShape = { ...FIXTURE_SCRIPT_SHAPE, maxBuildPhrases: 2, useConsolidationCount: 1 }
+
+    const { rounds } = generateScript({ bundle, position: { mode: 'main', fromLegoId: 'S0001L01' } })
+    const r1 = rounds[0]
+    expect(r1.cycles.filter((c) => c.type === 'build')).toHaveLength(2)
+    expect(r1.cycles.filter((c) => c.type === 'use')).toHaveLength(1)
+  })
+
+  it('opts.shape overrides the bundle shape', () => {
+    const bundle = makeBundle({ legoCount: 4, buildsPerLego: 6, usesPerLego: 4 })
+    const { rounds } = generateScript({
+      bundle,
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      shape: { maxBuildPhrases: 1 },
+    })
+    expect(rounds[0].cycles.filter((c) => c.type === 'build')).toHaveLength(1)
+  })
+
+  it('falls back to DEFAULT_SCRIPT_SHAPE when the bundle predates shape enrichment', () => {
+    const bundle = makeBundle({ legoCount: 4, buildsPerLego: 9, usesPerLego: 4 })
+    delete (bundle as unknown as { scriptShape?: unknown }).scriptShape
+    const { rounds } = generateScript({ bundle, position: { mode: 'main', fromLegoId: 'S0001L01' } })
+    expect(rounds[0].cycles.filter((c) => c.type === 'build')).toHaveLength(
+      DEFAULT_SCRIPT_SHAPE.maxBuildPhrases,
+    )
+  })
+
+  it('never replays the bare LEGO: a build row equal to its own LEGO is skipped', () => {
+    const bundle = makeBundle({ legoCount: 3, buildsPerLego: 2, usesPerLego: 3 })
+    const lego = bundle.legos[0]
+    const twin = bundle.phrases.find((p) => p.legoId === lego.legoId && p.role === 'build')!
+    twin.knownText = lego.knownText
+    twin.targetText = lego.targetText
+
+    const { rounds } = generateScript({ bundle, position: { mode: 'main', fromLegoId: 'S0001L01' } })
+    const played = rounds[0].cycles.filter((c) => c.type !== 'intro' && c.type !== 'debut')
+    expect(played.some((c) => c.known.text === lego.knownText && c.target.text === lego.targetText)).toBe(false)
+  })
+
+  it('main-mode output is RNG-independent — reviews use the closed-form cursor', () => {
+    const bundle = makeBundle({ legoCount: 8, buildsPerLego: 1, usesPerLego: 5 })
+    const a = generateScript({ bundle, position: { mode: 'main', fromLegoId: 'S0001L01' }, random: () => 0 })
+    const b = generateScript({ bundle, position: { mode: 'main', fromLegoId: 'S0001L01' }, random: () => 0.999 })
+    expect(JSON.stringify(a.rounds)).toBe(JSON.stringify(b.rounds))
+  })
+
+  it('caps spaced rep at maxSpacedRepPhrases', () => {
+    const bundle = makeBundle({ legoCount: 120, buildsPerLego: 0, usesPerLego: 5 })
+    const { rounds } = generateScript({
+      bundle,
+      position: { mode: 'main', fromLegoId: 'S0100L01' },
+      roundLimit: 1,
+    })
+    expect(rounds[0].cycles.filter((c) => c.type === 'review').length).toBeLessThanOrEqual(
+      FIXTURE_SCRIPT_SHAPE.maxSpacedRepPhrases,
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Authored gloss segments (bundle-cutover step 5b)
+// ---------------------------------------------------------------------------
+// No course in the estate carries `known_gloss_segments` today (0 rows,
+// 2026-08-29), so the live parity harness cannot see this field at all — it
+// would pass whether or not the generator carried the mapping through. This
+// test is the proof instead: the moment Popty authors the first mapping, a
+// bundle-enabled course must ship it exactly where /cycles does, on the intro
+// and the debut and nowhere else.
+describe('generateScript — authored gloss segments', () => {
+  const SEGMENTS = [
+    { span: 1, known: 'word' },
+    { span: 1, known: 'a' },
+  ]
+
+  function bundleWithSegments() {
+    const bundle = makeBundle({ legoCount: 2, buildsPerLego: 1, usesPerLego: 2 })
+    bundle.legos[0] = makeLego({
+      seedNumber: 1,
+      type: 'M',
+      targetText: 'hitz bat',
+      glossSegments: SEGMENTS,
+    })
+    return bundle
+  }
+
+  it('rides the intro and the debut of the LEGO that authored it', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithSegments(),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    const carrying = rounds[0].cycles.filter((c) => c.glossSegments)
+    expect(carrying.map((c) => c.type).sort()).toEqual(['debut', 'intro'])
+    expect(carrying.every((c) => c.legoId === 'S0001L01')).toBe(true)
+    for (const c of carrying) expect(c.glossSegments).toEqual(SEGMENTS)
+  })
+
+  it('never leaks onto build or use phrases — those tile from decomposition', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithSegments(),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    const phraseCycles = rounds[0].cycles.filter((c) => c.type === 'build' || c.type === 'use')
+    expect(phraseCycles.length).toBeGreaterThan(0)
+    expect(phraseCycles.every((c) => c.glossSegments === undefined)).toBe(true)
+  })
+
+  it('is absent, not empty, on a LEGO with no authored mapping', () => {
+    const { rounds } = generateScript({
+      bundle: makeBundle({ legoCount: 2 }),
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+      roundLimit: 1,
+    })
+    expect(rounds[0].cycles.every((c) => c.glossSegments === undefined)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phrase pools carry only playable phrases (bundle-cutover step 5b)
+// ---------------------------------------------------------------------------
+describe('generateScript — a phrase missing audio never enters a pool', () => {
+  /** One LEGO whose USE basket is mostly unplayable — zho_for_eng S0668L01 in
+   *  miniature: 21 USE rows, 5 with audio. */
+  function bundleWithPatchyAudio() {
+    const bundle = makeBundle({ legoCount: 3, buildsPerLego: 0, usesPerLego: 0 })
+    for (let i = 1; i <= 6; i++) {
+      bundle.phrases.push({
+        ...makePhrase('S0001L01', 'use', i),
+        ...(i > 1 ? { audio: {} } : {}),
+      })
+    }
+    return bundle
+  }
+
+  it('an unplayable USE row cannot be drawn, so the review always fires', () => {
+    // Unfiltered, a random draw over six rows would emit a review one time in
+    // six and silently drop it the other five.
+    const bundle = bundleWithPatchyAudio()
+    for (let run = 0; run < 20; run++) {
+      const { rounds } = generateScript({
+        bundle,
+        position: { mode: 'infplay', fromInfRound: 1 },
+        roundLimit: 1,
+      })
+      const reviews = rounds[0].cycles.filter((c) => c.type === 'review' && c.legoId === 'S0001L01')
+      expect(reviews.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('never emits a cycle for a phrase with no audio', () => {
+    const { rounds } = generateScript({
+      bundle: bundleWithPatchyAudio(),
+      position: { mode: 'infplay', fromInfRound: 1 },
+      roundLimit: 3,
+    })
+    for (const r of rounds) {
+      for (const c of r.cycles) {
+        expect(c.target.voice1Url).not.toBe('')
+        expect(c.target.voice2Url).not.toBe('')
+      }
+    }
+  })
+})
+

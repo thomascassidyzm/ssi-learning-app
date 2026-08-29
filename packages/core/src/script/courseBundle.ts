@@ -104,6 +104,18 @@ export interface BundleLego {
   targetTextNative?: string
   /** M-LEGO component breakdown — empty/undefined for A-LEGOs. */
   components?: Array<{ known: string; target: string }>
+  /**
+   * The AUTHORED known-language word mapping for the tile assembler, when the
+   * course has one (Popty authors it; `known_gloss_segments` on `course_legos`).
+   * Each chunk covers `span` consecutive TARGET words. The client prefers it
+   * over `components` and falls back to componentisation, so both travel.
+   *
+   * Server-validated before it ships (`api/_utils/glossSegments.ts`): M-LEGOs
+   * only, and only when the spans still cover the target text exactly — a
+   * mapping authored against an older wording is dropped rather than rendered
+   * under the wrong words. Identical rule to `/cycles`' `gloss_segments`.
+   */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Whether the LEGO is fresh material for the learner (false = already-known carry-over). */
   isNew: boolean
 
@@ -380,6 +392,18 @@ export function phrasesByLegoAndRole(
 ): Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }> {
   const map = new Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }>()
   for (const phrase of bundle.phrases) {
+    // A phrase missing any of its three clips never enters a pool. Both older
+    // producers do this at load time — the walk ("the walk drops any phrase
+    // without them rather than schedule a cycle the player would only skip")
+    // and cycles.ts's `phraseHasFullAudio` — and the pools are not just lists,
+    // they are what the schedulers COUNT and INDEX into. Leaving an unplayable
+    // row in one does not merely emit nothing: it consumes a BUILD slot, it
+    // shifts the review cursor onto a different phrase, and in INF PLAY, where
+    // the draw is random, it silently deletes a whole scheduled review — the
+    // learner loses the review, not just one clip. Caught 2026-08-29 by the
+    // INF PLAY parity harness on zho_for_eng S0668L01, whose 21 USE phrases
+    // carry audio on only 5: the review appeared or vanished per run.
+    if (!phrase.audio.known || !phrase.audio.target1 || !phrase.audio.target2) continue
     let bucket = map.get(phrase.legoId)
     if (!bucket) {
       bucket = { build: [], use: [] }

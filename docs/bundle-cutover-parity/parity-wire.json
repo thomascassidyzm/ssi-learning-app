@@ -1,0 +1,1811 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "mode": "wire",
+  "generatedAt": "2026-08-29T17:10:42.753Z",
+  "cases": [
+    {
+      "course": "eus_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 46,
+      "oldCyclesOnWire": 46,
+      "newCycles": 46,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 14,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 14,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "eus_for_eng",
+      "previewOnly": false,
+      "from": "S0065L01",
+      "roundIndex": 179,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 133,
+      "oldCyclesOnWire": 133,
+      "newCycles": 133,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "eus_for_eng",
+      "previewOnly": false,
+      "from": "S0169L02",
+      "roundIndex": 428,
+      "roundLimit": 6,
+      "newPages": 4,
+      "oldDroppedUnplayable": 44,
+      "oldCycles": 50,
+      "oldCyclesOnWire": 94,
+      "newCycles": 68,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "spaced_rep": 29,
+          "intro": 2,
+          "debut": 2,
+          "build": 13,
+          "use": 4
+        },
+        "new": {
+          "spaced_rep": 47,
+          "intro": 2,
+          "debut": 2,
+          "build": 13,
+          "use": 4
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0108L02|we didn't hope to wake in the middle of the night.|ez genuen espero gauaren erdian esna izatea.|80b4b5aa-9942-4adb-8821-894a324c7d6b|77e32d1e-0e48-4422-abf5-75655aebad69|98a35467-b7e3-4a60-b794-8d77f5463d98",
+        "spaced_rep|S0072L01|i think that you're doing very well.|oso ondo egiten ari zarela uste dut.|89cd2014-71f2-480e-ba8d-1f07ec0134ee.v2|83657914-bef2-46d7-b8fc-709e412d6c03|bbc18e40-ddb2-492c-9d5d-6cd6c4624420",
+        "spaced_rep|S0018L01|we want to meet at six o'clock this evening.|gaur arratsaldeko seietan elkartu nahi dugu.|317fe78a-d9bd-4f64-ba89-e7be4006363e.v2|2c820b83-6277-46a5-b321-6c41d197f78e|6df922a5-e492-41c9-8e72-8dffccea80ba",
+        "spaced_rep|S0109L01|we must work hard to learn a lot of new words.|hitz berri asko ikasteko gogor lan egin behar dugu.|cb6f10d3-de76-416a-9044-3da3feeb20e2.v2|26000567-908c-43a5-972e-be249eff0c5f|d0a29802-6715-4541-a3e1-f79a232b36c2",
+        "spaced_rep|S0072L02|i think that you're doing very well.|oso ondo egiten ari zarela uste dut.|89cd2014-71f2-480e-ba8d-1f07ec0134ee.v2|83657914-bef2-46d7-b8fc-709e412d6c03|bbc18e40-ddb2-492c-9d5d-6cd6c4624420",
+        "spaced_rep|S0018L02|we want to meet at six o'clock this evening.|gaur arratsaldeko seietan elkartu nahi dugu.|317fe78a-d9bd-4f64-ba89-e7be4006363e.v2|2c820b83-6277-46a5-b321-6c41d197f78e|6df922a5-e492-41c9-8e72-8dffccea80ba",
+        "spaced_rep|S0109L02|we must work hard to learn a lot of new words.|hitz berri asko ikasteko gogor lan egin behar dugu.|cb6f10d3-de76-416a-9044-3da3feeb20e2.v2|26000567-908c-43a5-972e-be249eff0c5f|d0a29802-6715-4541-a3e1-f79a232b36c2",
+        "spaced_rep|S0072L03|i think that you're doing very well.|oso ondo egiten ari zarela uste dut.|89cd2014-71f2-480e-ba8d-1f07ec0134ee.v2|83657914-bef2-46d7-b8fc-709e412d6c03|bbc18e40-ddb2-492c-9d5d-6cd6c4624420",
+        "spaced_rep|S0018L03|we want to meet at six o'clock this evening.|gaur arratsaldeko seietan elkartu nahi dugu.|317fe78a-d9bd-4f64-ba89-e7be4006363e.v2|2c820b83-6277-46a5-b321-6c41d197f78e|6df922a5-e492-41c9-8e72-8dffccea80ba",
+        "spaced_rep|S0110L01|we're friends, and after we finish i'd like to relax.|lagunak gara, eta amaitu ondoren erlaxatu nahi nuke.|f5528050-a4c9-4668-8eab-f6d304bab2f5.v2|ef3ea82d-969b-40ae-87c5-e447b15494c0|e3eacc14-89b2-4920-b8c4-4f700c6951e1",
+        "spaced_rep|S0073L01|thank you very much, but i've got more to learn.|mila esker, baina ikasteko gehiago daukat.|b51ad9da-0c79-4b4b-a98a-de167b69d4a5.v2|283c346d-304b-4e3e-b733-e2506d8e9cc1|99c691c8-d183-414d-8192-1197177fd259",
+        "spaced_rep|S0019L01|but i don't want to stop talking.|baina ez dut hitz egiteari utzi nahi.|b43fa9ef-ab9b-4e02-8d96-45ff4d56d07a.v2|b5dc6bb4-c949-4909-81cd-c1477c463775|253a5fa2-38a9-493a-8d23-fb8d6e32fb2c"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 18,
+      "firstOrderDiff": {
+        "index": 4,
+        "old": "spaced_rep|S0166L01|that book is not very unusual|liburu hori ez da oso berezia|b9d4fee3-6060-40b9-b781-5b22bad9d7fc|4a4f2893-30d0-4e11-ac5c-8c30a2089625|e0f25e50-620a-4425-b3ba-fed1d1f3a68c",
+        "new": "spaced_rep|S0108L02|we didn't hope to wake in the middle of the night.|ez genuen espero gauaren erdian esna izatea.|80b4b5aa-9942-4adb-8821-894a324c7d6b|77e32d1e-0e48-4422-abf5-75655aebad69|98a35467-b7e3-4a60-b794-8d77f5463d98"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "pol_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 40,
+      "oldCyclesOnWire": 40,
+      "newCycles": 40,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 5,
+          "spaced_rep": 8
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 5,
+          "spaced_rep": 8
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "pol_for_eng",
+      "previewOnly": false,
+      "from": "S0054L06",
+      "roundIndex": 167,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 137,
+      "oldCyclesOnWire": 137,
+      "newCycles": 137,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "pol_for_eng",
+      "previewOnly": false,
+      "from": "S0167L01",
+      "roundIndex": 400,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 137,
+      "oldCyclesOnWire": 137,
+      "newCycles": 137,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "heb_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 46,
+      "oldCyclesOnWire": 46,
+      "newCycles": 46,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 14,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 14,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "heb_for_eng",
+      "previewOnly": false,
+      "from": "S0058L03",
+      "roundIndex": 151,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 137,
+      "oldCyclesOnWire": 137,
+      "newCycles": 137,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "heb_for_eng",
+      "previewOnly": false,
+      "from": "S0152L01",
+      "roundIndex": 362,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tha_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 47,
+      "oldCyclesOnWire": 47,
+      "newCycles": 47,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tha_for_eng",
+      "previewOnly": false,
+      "from": "S0052L01",
+      "roundIndex": 133,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tha_for_eng",
+      "previewOnly": false,
+      "from": "S0136L01",
+      "roundIndex": 319,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hin_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 42,
+      "oldCyclesOnWire": 42,
+      "newCycles": 42,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 13,
+          "use": 7,
+          "spaced_rep": 10
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 13,
+          "use": 7,
+          "spaced_rep": 10
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hin_for_eng",
+      "previewOnly": false,
+      "from": "S0057L03",
+      "roundIndex": 180,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hin_for_eng",
+      "previewOnly": false,
+      "from": "S0151L02",
+      "roundIndex": 430,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 70,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0094L05|this is the only way it will work.|yahee ekmaatra tariika hai jisse yeh kaam karega.|af814ae3-a6de-4453-9117-eb1632ff5a16|ed5a4739-d9c8-4a81-9f14-1f46ee35ba16|8e15ba8e-9905-4c39-b950-20a96190ebed",
+        "spaced_rep|S0095L03|are you ready to go home on the next bus?|kya aap agli bus se ghar jaane ke liye taiyaar hain?|71a32b05-3200-4562-a656-2bfeefa87e16.v2|bf912e78-20e6-4def-ba97-97fdca1da327|5e91800b-a463-455b-b78c-6f897924f9fe"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 2,
+      "firstOrderDiff": {
+        "index": 20,
+        "old": "use|S0151L02|that wasn't what i was hoping would happen|yah vo naheen tha jiskee mujhe ummeed thee.|f14958f2-8288-4e7b-9162-05e09630a932|f7919faa-dd4b-4cf6-801c-116fd21a2c04|4dc31c8c-4068-434d-99e1-fa70f9758b26",
+        "new": "spaced_rep|S0094L05|this is the only way it will work.|yahee ekmaatra tariika hai jisse yeh kaam karega.|af814ae3-a6de-4453-9117-eb1632ff5a16|ed5a4739-d9c8-4a81-9f14-1f46ee35ba16|8e15ba8e-9905-4c39-b950-20a96190ebed"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "fin_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 1,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 0,
+      "oldCyclesOnWire": 0,
+      "newCycles": 0,
+      "oldPages": 1,
+      "byType": {
+        "old": {},
+        "new": {}
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "NO_AUDIO"
+    },
+    {
+      "course": "fin_for_eng",
+      "previewOnly": false,
+      "from": "S0121L02",
+      "roundIndex": 349,
+      "roundLimit": 6,
+      "newPages": 1,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 0,
+      "oldCyclesOnWire": 0,
+      "newCycles": 0,
+      "oldPages": 1,
+      "byType": {
+        "old": {},
+        "new": {}
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "NO_AUDIO"
+    },
+    {
+      "course": "fin_for_eng",
+      "previewOnly": false,
+      "from": "S0375L02",
+      "roundIndex": 837,
+      "roundLimit": 6,
+      "newPages": 1,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 0,
+      "oldCyclesOnWire": 0,
+      "newCycles": 0,
+      "oldPages": 1,
+      "byType": {
+        "old": {},
+        "new": {}
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "NO_AUDIO"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": false,
+      "from": "S0001L04",
+      "roundIndex": 4,
+      "roundLimit": 6,
+      "newPages": 5,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 88,
+      "oldCyclesOnWire": 88,
+      "newCycles": 88,
+      "oldPages": 5,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 26,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 26,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": false,
+      "from": "S0003L03",
+      "roundIndex": 10,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 107,
+      "oldCyclesOnWire": 107,
+      "newCycles": 107,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 41,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 41,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 30,
+      "oldCyclesOnWire": 30,
+      "newCycles": 30,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 2
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 2
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": false,
+      "from": "S0107L01",
+      "roundIndex": 170,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 102,
+      "oldCyclesOnWire": 102,
+      "newCycles": 103,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 36,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 37,
+          "use": 12
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0016L01|but i’ve just started to speak|ond dw i newydd ddechrau siarad|75e02c37-e95d-4919-aac2-05fcae946c34|b40aff16-2d68-4422-aaf2-017f3c696107|8d07986f-6e4f-4911-89af-1915f2e78ba2"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 1,
+      "firstOrderDiff": {
+        "index": 46,
+        "old": "use|S0108L02|did you watch anything on friday night?|wyliest ti unrhywbeth nos wener?|55b83c79-cc49-494b-b9c6-9fa912ed92bf|0acc8874-1376-4949-8e0c-fbc11bf7b2fc|0b942be4-3f16-4903-999f-8f01b4f25439",
+        "new": "spaced_rep|S0016L01|but i’ve just started to speak|ond dw i newydd ddechrau siarad|75e02c37-e95d-4919-aac2-05fcae946c34|b40aff16-2d68-4422-aaf2-017f3c696107|8d07986f-6e4f-4911-89af-1915f2e78ba2"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": false,
+      "from": "S0272L02",
+      "roundIndex": 407,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 3,
+      "oldCycles": 125,
+      "oldCyclesOnWire": 128,
+      "newCycles": 132,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 3,
+          "build": 42,
+          "spaced_rep": 62,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 3,
+          "build": 42,
+          "spaced_rep": 69,
+          "use": 12
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0172L01|the oldest works for the council|mae’r hynaf yn gweithio i’r cyngor|7dc76e9e-9822-4898-935d-378718c137af|35236871-38d8-46ad-a68f-70ab1e978278|df480756-1603-45e5-9b26-14ab29fbdc36",
+        "spaced_rep|S0109L02|i saw that film on the television on friday night|weles i’r ffilm ’na ar y teledu nos wener|787d4311-726e-4d06-9f7d-42c5cf9991bc|cb206af4-33aa-4b14-891e-2a7935840c5e|05688b6a-eb39-42aa-80ad-a1719660b16c",
+        "spaced_rep|S0173L01|i’ve got a friend who likes the latest idea|mae ffrind gyda fi sydd yn hoffi’r syniad diweddara|6e9f537a-18cd-4095-b329-3b8a94574de0|924fee0c-8249-4e8a-8d53-87f8bdcb7dd5|40357ae0-ce03-40fb-bb79-992a1c56c5fd",
+        "spaced_rep|S0110L01|i didn’t do a lot at the weekend|wnes i ddim gwneud llawer ar y penwythnos|cf58a8f4-7959-4078-a7fc-e1e28a0f7e70|38718e85-74df-4afe-b8ce-891c58eff782|51fdea52-a923-4f11-85a3-41e74a201c19",
+        "spaced_rep|S0173L02|have you heard what he’s going to do?|ŷch chi ’di clywed beth ma fe’n mynd i wneud?|aaf417ed-caeb-4784-aa35-b293eb1ec089|ce1704c5-0133-48ad-9c83-cd186649dd34|2ef7db60-b739-4c89-a9c5-01e48ad2e723",
+        "spaced_rep|S0019L01|i was trying to say something in welsh|o’n i’n trio dweud rhywbeth yn gymraeg|da5d5e83-18a5-4149-8b6d-203121b29b51|ab5865af-cbdb-4968-8f49-3e2fa066b8c2|9b12e8f1-b547-46a6-8421-bc3c8fc28cea",
+        "spaced_rep|S0174L02|what do they want to do now?|beth maen nhw’n moyn gwneud nawr?|a6a2b9dd-c7d5-4894-a794-ea8fecd6a7e6|968f3027-6c59-49eb-aeb1-759af458a0ab|bf9dbb97-9829-4207-9183-a88143fe268d"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 7,
+      "firstOrderDiff": {
+        "index": 41,
+        "old": "use|S0272L03|you’d tell me the question, wouldn’t you?|byddet ti’n dweud y cwestiwn wrtha i, yn fyddet?|d2059c67-f4db-49b5-8d3a-97d3c5a8c5e9|3c3cfd77-16fe-4591-9f13-82223d3662aa|67debf53-4409-47be-9fc4-1545bc5dad39",
+        "new": "spaced_rep|S0172L01|the oldest works for the council|mae’r hynaf yn gweithio i’r cyngor|7dc76e9e-9822-4898-935d-378718c137af|35236871-38d8-46ad-a68f-70ab1e978278|df480756-1603-45e5-9b26-14ab29fbdc36"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "spa_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 53,
+      "oldCyclesOnWire": 53,
+      "newCycles": 53,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 21,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 21,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "spa_for_eng",
+      "previewOnly": false,
+      "from": "S0139L01",
+      "roundIndex": 335,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 135,
+      "oldCyclesOnWire": 135,
+      "newCycles": 135,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 39,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 39,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "spa_for_eng",
+      "previewOnly": false,
+      "from": "S0390L01",
+      "roundIndex": 804,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": false,
+      "from": "S0148L03",
+      "roundIndex": 383,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": false,
+      "from": "S0411L05",
+      "roundIndex": 919,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 137,
+      "oldCyclesOnWire": 137,
+      "newCycles": 137,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 41,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 4,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 63,
+      "oldCyclesOnWire": 63,
+      "newCycles": 63,
+      "oldPages": 4,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 28,
+          "use": 9,
+          "spaced_rep": 14
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 28,
+          "use": 9,
+          "spaced_rep": 14
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": false,
+      "from": "S0167L01",
+      "roundIndex": 319,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": false,
+      "from": "S0416L02",
+      "roundIndex": 764,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": false,
+      "from": "S0132L01",
+      "roundIndex": 276,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": false,
+      "from": "S0421L02",
+      "roundIndex": 662,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 44,
+      "oldCyclesOnWire": 44,
+      "newCycles": 44,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0069L03",
+      "roundIndex": 197,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 117,
+      "oldCyclesOnWire": 117,
+      "newCycles": 123,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 35,
+          "spaced_rep": 60,
+          "use": 10
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 35,
+          "spaced_rep": 66,
+          "use": 10
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0019L02|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f",
+        "spaced_rep|S0019L03|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f",
+        "spaced_rep|S0020L01|you want to learn his name quickly|tá tú ag iarraidh a ainm a fhoghlaim go tapa|6dded7e9-7bb3-4aba-827f-81d1a1cd65fc.v2|9385d2c3-054a-44f1-8913-6859fe5623e0|5a949afb-026e-43cc-a946-8af93e6a75d5",
+        "spaced_rep|S0020L02|you want to learn his name quickly|tá tú ag iarraidh a ainm a fhoghlaim go tapa|6dded7e9-7bb3-4aba-827f-81d1a1cd65fc.v2|9385d2c3-054a-44f1-8913-6859fe5623e0|5a949afb-026e-43cc-a946-8af93e6a75d5",
+        "spaced_rep|S0020L03|you want to learn his name quickly|tá tú ag iarraidh a ainm a fhoghlaim go tapa|6dded7e9-7bb3-4aba-827f-81d1a1cd65fc.v2|9385d2c3-054a-44f1-8913-6859fe5623e0|5a949afb-026e-43cc-a946-8af93e6a75d5",
+        "spaced_rep|S0020L04|you want to learn his name quickly|tá tú ag iarraidh a ainm a fhoghlaim go tapa|6dded7e9-7bb3-4aba-827f-81d1a1cd65fc.v2|9385d2c3-054a-44f1-8913-6859fe5623e0|5a949afb-026e-43cc-a946-8af93e6a75d5"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 6,
+      "firstOrderDiff": {
+        "index": 20,
+        "old": "use|S0069L03|i want to look after the young dog before i have to leave|tá mé ag iarraidh aire a thabhairt don mhadra óg sula gcaithfidh mé imeacht|fc8a6b0a-4bf5-4b04-ae1c-7a824e6d2285|943e3f3e-077b-49ad-820f-16cae267194b|1c4add75-26f0-4445-b912-9555dad9a34f",
+        "new": "spaced_rep|S0019L02|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0161L01",
+      "roundIndex": 472,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 39,
+      "oldCyclesOnWire": 39,
+      "newCycles": 57,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "spaced_rep": 27
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "spaced_rep": 45
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0112L01|that was very interesting, and i wasn't expecting it|bhí sé sin an-suimiúil, agus ní raibh mé ag súil leis|f7da7268-26a3-4296-8095-46dc166ed278|32ebcfe4-29fe-4003-83c9-3bfa051ac239|1e7aa9ab-0664-4e16-a36f-ef4c2c0d307e",
+        "spaced_rep|S0083L05|i agree with what you said about your friend|aontaím leis an méid a dúirt tú faoi do chara|5b7cecd3-b8bf-4595-9a5c-c898589eb295|3fe0d78f-afbb-436c-872a-3834d38d6933|f77adc2c-9af3-4d44-a6b1-975c94b8e89e",
+        "spaced_rep|S0035L03|she doesn't want to read anything this afternoon|níl sí ag iarraidh aon rud a léamh tráthnóna inniu|62a6c805-0a88-48e0-b5a7-ac8bcae45650|5dec49b6-c873-47a5-8a4e-a299b5e8df4b|8dcbab68-3468-44e3-95c4-bc90651a23ce",
+        "spaced_rep|S0112L02|that was very interesting, and i wasn't expecting it|bhí sé sin an-suimiúil, agus ní raibh mé ag súil leis|f7da7268-26a3-4296-8095-46dc166ed278|32ebcfe4-29fe-4003-83c9-3bfa051ac239|1e7aa9ab-0664-4e16-a36f-ef4c2c0d307e",
+        "spaced_rep|S0084L01|i don't agree with what he said about my friend|ní aontaím leis an méid a dúirt sé faoi mo chara|56cca856-009a-4b32-bfad-63016275c7a9|67357ea3-cb2e-4a07-a225-96809368baf9|72828b15-ab74-4f7e-a641-6ffba570562e",
+        "spaced_rep|S0036L01|we don't want to interrupt the story|níl muid ag iarraidh an scéal a bhriseadh isteach air|d4447f2f-c087-4626-8756-870154637cab|b17cffba-c03c-45da-944f-676f1626cae5|23f0c0a7-5696-488d-a99f-bfc8eabf1923",
+        "spaced_rep|S0112L04|that was very interesting, and i wasn't expecting it|bhí sé sin an-suimiúil, agus ní raibh mé ag súil leis|f7da7268-26a3-4296-8095-46dc166ed278|32ebcfe4-29fe-4003-83c9-3bfa051ac239|1e7aa9ab-0664-4e16-a36f-ef4c2c0d307e",
+        "spaced_rep|S0085L01|i don't know those people|ní aithním na daoine sin|8f9664a0-5649-48f9-bf19-a572f7115115|dc82a79f-6ab5-477c-8c32-d6ef2a49f8ef|35f11a16-88cc-4c9c-a4cd-10fe0abceab4",
+        "spaced_rep|S0036L02|we don't want to interrupt the story|níl muid ag iarraidh an scéal a bhriseadh isteach air|d4447f2f-c087-4626-8756-870154637cab|b17cffba-c03c-45da-944f-676f1626cae5|23f0c0a7-5696-488d-a99f-bfc8eabf1923",
+        "spaced_rep|S0112L05|that was very interesting, and i wasn't expecting it|bhí sé sin an-suimiúil, agus ní raibh mé ag súil leis|f7da7268-26a3-4296-8095-46dc166ed278|32ebcfe4-29fe-4003-83c9-3bfa051ac239|1e7aa9ab-0664-4e16-a36f-ef4c2c0d307e",
+        "spaced_rep|S0085L02|i don't know those people|ní aithním na daoine sin|8f9664a0-5649-48f9-bf19-a572f7115115|dc82a79f-6ab5-477c-8c32-d6ef2a49f8ef|35f11a16-88cc-4c9c-a4cd-10fe0abceab4",
+        "spaced_rep|S0036L03|we don't want to interrupt the story|níl muid ag iarraidh an scéal a bhriseadh isteach air|d4447f2f-c087-4626-8756-870154637cab|b17cffba-c03c-45da-944f-676f1626cae5|23f0c0a7-5696-488d-a99f-bfc8eabf1923"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 18,
+      "firstOrderDiff": {
+        "index": 9,
+        "old": "intro|S0161L02|give me|a thabhairt dom|94bdc499-ec0a-4fda-b55e-4be8ae609ebe|024ad730-93f7-4487-a7ee-da948c7460a8|adb2be87-6e3a-4ece-a214-aadccf522d7e",
+        "new": "spaced_rep|S0112L01|that was very interesting, and i wasn't expecting it|bhí sé sin an-suimiúil, agus ní raibh mé ag súil leis|f7da7268-26a3-4296-8095-46dc166ed278|32ebcfe4-29fe-4003-83c9-3bfa051ac239|1e7aa9ab-0664-4e16-a36f-ef4c2c0d307e"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 42,
+      "oldCyclesOnWire": 42,
+      "newCycles": 42,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0052L01",
+      "roundIndex": 141,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 133,
+      "oldCyclesOnWire": 133,
+      "newCycles": 133,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0146L01",
+      "roundIndex": 338,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 47,
+      "oldCyclesOnWire": 47,
+      "newCycles": 47,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0054L04",
+      "roundIndex": 167,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 134,
+      "oldCyclesOnWire": 134,
+      "newCycles": 134,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0146L04",
+      "roundIndex": 400,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 49,
+      "oldCyclesOnWire": 49,
+      "newCycles": 49,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0072L01",
+      "roundIndex": 211,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0167L01",
+      "roundIndex": 505,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    }
+  ]
+}

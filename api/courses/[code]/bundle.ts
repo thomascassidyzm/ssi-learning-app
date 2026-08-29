@@ -23,7 +23,7 @@
  * additive `algorithm_config.version` column:
  *   - `courses`                (content_version + 404 probe)
  *   - `algorithm_config`       (script_shape row — values + version)
- *   - `course_legos`           (is_new = true, ordered)
+ *   - `course_legos`           (is_new = true, ordered; incl. authored gloss segments)
  *   - `course_practice_phrases` (build/use, including legacy roles)
  *   - `course_round_index`     (main-loop ordering)
  *   - `course_seeds`           (seed text+audio — feeds SEED-PHASE spaced-rep reviews)
@@ -51,6 +51,7 @@ import type {
 } from '../../../packages/player-vue/src/types/courseBundle'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
+import { authoredGlossSegments } from '../../_utils/glossSegments'
 
 /**
  * Identifies the shared generator's assembly-algorithm CODE version, echoed
@@ -102,6 +103,9 @@ interface LegoRow {
   target_text: string | null
   target_text_roman: string | null
   components: Array<{ known: string; target: string }> | null
+  /** Authored known-language word mapping (Popty). Validated by
+   *  `authoredGlossSegments` before it reaches the bundle. */
+  known_gloss_segments: Array<{ span: number; known: string }> | null
   is_new: boolean | null
   known_audio_id: string | null
   target1_audio_id: string | null
@@ -356,7 +360,8 @@ export default async function handler(
       supabase
         .from('course_legos')
         .select(
-          'seed_number, lego_index, type, known_text, target_text, target_text_roman, components, is_new, ' +
+          'seed_number, lego_index, type, known_text, target_text, target_text_roman, components, ' +
+            'known_gloss_segments, is_new, ' +
             'known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, ' +
             'target1_duration_ms, target2_duration_ms',
         )
@@ -608,6 +613,13 @@ export default async function handler(
       }
       if (targets.targetTextNative !== undefined) lego.targetTextNative = targets.targetTextNative
       if (components) lego.components = components
+      // Same validator, same rule as /cycles — an M-LEGO whose authored spans
+      // still cover its target text. Nothing in the estate carries one today
+      // (0 rows, 2026-08-29), so this is a hole being closed before Popty
+      // authors the first: without it a bundle-enabled course would silently
+      // lose an authored mapping the JIT path would have shipped.
+      const glossSegments = authoredGlossSegments(row)
+      if (glossSegments) lego.glossSegments = glossSegments
       return lego
     })
 

@@ -23,7 +23,7 @@
  */
 
 import type { Round } from './playerTypes'
-import type { CourseBundle } from './courseBundle'
+import type { BundleScriptShape, CourseBundle } from './courseBundle'
 import type { PauseModeConfig } from './computePauseDuration'
 
 // ============================================================================
@@ -102,6 +102,17 @@ export interface GenerateScriptOptions {
    * `scriptShape`/config carry this instead of a generator-side default.
    */
   pauseConfig?: PauseModeConfig
+
+  /**
+   * Round-shape override (design §3 parity item 1). Normally omitted: the
+   * shape comes from `bundle.scriptShape`, which the bundle endpoint resolves
+   * from `algorithm_config` key='script_shape' and stamps with
+   * `scriptShapeVersion`. Provided here so tests and the server script-view
+   * can pin a shape, and so a caller can still generate over an OLD cached
+   * bundle that predates the enrichment (missing keys fall back to
+   * `DEFAULT_SCRIPT_SHAPE`).
+   */
+  shape?: Partial<BundleScriptShape>
 }
 
 // ============================================================================

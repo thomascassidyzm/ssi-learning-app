@@ -8,6 +8,7 @@ import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
 import { prewarmInstantCaches, setInstantPlaybackAuthProvider } from './composables/useInstantPlayback'
+import { setCourseBundleAuthProvider } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -252,7 +253,7 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
     // paid learner past the free-preview window (seed <=19) is treated as
     // anonymous and 403'd onto the slow legacy walk. getSession() is a local
     // read (no network), so resolving it per fetch is cheap.
-    setInstantPlaybackAuthProvider(async () => {
+    const accessToken = async () => {
       const client = supabaseClient.value
       if (!client) return null
       try {
@@ -261,7 +262,12 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
       } catch {
         return null
       }
-    })
+    }
+    setInstantPlaybackAuthProvider(accessToken)
+    // /bundle is gated by the same server-side entitlement resolver, and for
+    // the same reason: an anonymous fetch hands a signed-in paid learner the
+    // sliced preview bundle instead of the course.
+    setCourseBundleAuthProvider(accessToken)
   } catch (err) {
     console.error('[App] Failed to initialize Supabase client synchronously:', err)
   }

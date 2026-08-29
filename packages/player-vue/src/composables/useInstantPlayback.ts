@@ -39,6 +39,13 @@ import {
   markNetworkStalled,
   clearNetworkStalled,
 } from '../config/networkGate'
+import { getCourseBundle } from './useCourseBundle'
+import type { CourseBundle } from '@ssi/core'
+import {
+  bundleToCyclesResponse,
+  bundleToInfPlayCyclesResponse,
+  bundleToRoundMap,
+} from '../providers/bundleToBackendCycles'
 
 // ============================================================================
 // TYPES
@@ -74,6 +81,10 @@ export interface BackendCycle {
   fib_position?: number
   /** Round number of the LEGO being reviewed. spaced_rep only. */
   review_of?: number
+  /** INF PLAY round this cycle belongs to (1-based past the main loop).
+   *  Set by /infplay-cycles and by the bundle path's infplay adapter;
+   *  `bootstrapInfPlay` groups on it to synthesise a round map. */
+  inf_round?: number
   seed_number: number
   known_text: string
   target_text: string
@@ -153,6 +164,75 @@ export interface UseInstantPlaybackOptions {
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+// ============================================================================
+// BUNDLE CUTOVER (design step 5) — per-course flag
+// ============================================================================
+//
+// When a course is bundle-enabled, `fetchRoundMap` and `fetchCycles` stop
+// hitting `/round-map` and `/cycles` and compute the SAME wire payloads from
+// one cached `/bundle` fetch via the unified generator
+// (`providers/bundleToBackendCycles`). Everything downstream — the cycle
+// buffer, partial-LEGO bookkeeping, pagination, `backendCyclesToRounds` — is
+// untouched, because the shapes are identical. Proven cycle-by-cycle against
+// the live endpoint by `tools/bundle-cutover/parity-cycles.mjs --wire`.
+//
+// Reverts by flag, not by revert commit; and ANY failure on the bundle path
+// falls through to the network path, so the worst case is today's behaviour.
+//
+// `?bundle=1` / `?bundle=0` override per session for dev testing, alongside
+// the existing `?fc=1` / `?stream` / `?reset=1` cheats.
+const BUNDLE_BOOTSTRAP_ALL = false
+/**
+ * Consulted only when BUNDLE_BOOTSTRAP_ALL is false.
+ *
+ * A course is added ONLY after it has passed both harnesses against the live
+ * endpoints — `parity-cycles.mjs` (generator and wire modes, three positions,
+ * walked through the client's own paging loop) and `parity-infplay.mjs`
+ * (three entry rounds, both producers sampled). Results are committed under
+ * `docs/bundle-cutover-parity/`. A course that has not been walked is not on
+ * this list, whatever it resembles.
+ *
+ * Batch 1 (2026-08-29, free) — hun_for_eng had already shipped; the other
+ * eight joined it on the same evidence run.
+ * Batch 2 (2026-08-29, premium) — walked twice: once with an entitled session
+ * for the full course, and once anonymously for the 19-seed free preview an
+ * unsubscribed visitor actually gets. Both byte-identical.
+ *
+ * NOT on the list, and why: fin_for_eng. It has 1,394 rounds and no rendered
+ * audio at all, so both paths emit nothing and parity proves nothing about it.
+ * A vacuous pass is not a pass.
+ */
+const BUNDLE_BOOTSTRAP_COURSES = new Set<string>([
+  // batch 1 — free
+  'hun_for_eng',
+  'gle_for_eng',
+  'nld_for_eng',
+  'tur_for_eng',
+  'eus_for_eng',
+  'pol_for_eng',
+  'heb_for_eng',
+  'tha_for_eng',
+  'hin_for_eng',
+  // batch 2 — premium
+  'spa_for_eng',
+  'fra_for_eng',
+  'jpn_for_eng',
+  'zho_for_eng',
+  'cym_s_for_eng',
+  'zho_for_gle',
+])
+
+export function isBundleBootstrapEnabled(courseCode: string): boolean {
+  try {
+    const override = new URLSearchParams(window.location.search).get('bundle')
+    if (override === '1') return true
+    if (override === '0') return false
+  } catch {
+    /* no window (tests / SSR) — fall through to the static flags */
+  }
+  return BUNDLE_BOOTSTRAP_ALL || BUNDLE_BOOTSTRAP_COURSES.has(courseCode)
+}
 
 const ROUND_MAP_STORAGE_PREFIX = 'ssi-instant-playback-roundmap-'
 const CYCLES_STORAGE_PREFIX = 'ssi-instant-playback-cycles-'
@@ -508,6 +588,23 @@ export async function prewarmInstantCaches(
   apiBase = '/api/courses',
 ): Promise<void> {
   if (!courseCode) return
+
+  // Bundle cutover: on a bundle-enabled course the thing worth warming is the
+  // BUNDLE — one fetch that then answers every round-map and cycles question
+  // locally. Warming the old endpoints here instead would leave a flagged
+  // course still calling /round-map and /cycles once each per session, which
+  // is exactly what the cutover exists to remove. Fire-and-forget, same as
+  // the rest of this function: a failure just means the next mount fetches.
+  if (isBundleBootstrapEnabled(courseCode)) {
+    try {
+      const bundle = await getCourseBundle(courseCode)
+      writeCachedRoundMap(courseCode, bundleToRoundMap(bundle))
+    } catch {
+      /* never let a prewarm escape */
+    }
+    return
+  }
+
   try {
     let map = readCachedRoundMap(courseCode)
     if (!map) {
@@ -637,9 +734,53 @@ export function useInstantPlayback(
     }
   }
 
+  /**
+   * The bundle, but never for longer than the cold-start budget.
+   *
+   * `getCourseBundle` gives its own fetch 20 seconds — right for a one-time
+   * multi-megabyte download, wrong for the boot path, which promises the
+   * learner a first play in about two. Without this a flagged course on a
+   * stalled connection would sit for 20s and only THEN fall through to
+   * /round-map for another 2.5, which is not "the worst case is today's
+   * behaviour" — it is four times worse than today.
+   *
+   * The download is not cancelled, and `getCourseBundle` de-dupes in flight,
+   * so the very next page joins the same fetch and the session cuts over the
+   * moment it lands. This bootstrap just refuses to wait for it.
+   */
+  async function bundleWithinBootBudget(code: string): Promise<CourseBundle> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        getCourseBundle(code),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('[InstantPlayback] bundle not ready inside the boot budget')),
+            CRITICAL_PATH_TIMEOUT_MS,
+          )
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   async function fetchRoundMap(): Promise<RoundMap> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
+
+    // Bundle cutover: the round map is a field of the bundle, so a
+    // bundle-enabled course never fetches /round-map at all. Any failure
+    // falls through to the network path below.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        const map = bundleToRoundMap(await bundleWithinBootBudget(code))
+        writeCachedRoundMap(code, map)
+        return map
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle round-map failed, falling back to /round-map:', err)
+      }
+    }
 
     // Cache hit — instant
     const cached = readCachedRoundMap(code)
@@ -718,6 +859,18 @@ export function useInstantPlayback(
   ): Promise<CyclesResponse> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
+
+    // Bundle cutover: generate this page of cycles from the in-memory bundle
+    // instead of fetching /cycles. Synchronous once the bundle is cached, so
+    // resume on a bundle-enabled course is zero-network. Any failure falls
+    // through to the network path below.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        return bundleToCyclesResponse(await bundleWithinBootBudget(code), fromLegoId, limit)
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle cycles failed, falling back to /cycles:', err)
+      }
+    }
 
     // Cache-first: if we know the expected version (i.e. the caller already
     // has the round-map and can validate), serve the cached cycles response
@@ -928,6 +1081,34 @@ export function useInstantPlayback(
       }
       return stale
     }
+    // Bundle cutover step 5b: INF PLAY rounds come out of the in-memory
+    // bundle instead of /infplay-cycles on a flagged course.
+    //
+    // A PREVIEW bundle is never used here. /infplay-cycles is the one content
+    // endpoint with no preview slice — it hard-403s a non-entitled caller,
+    // because INF PLAY is by definition past the free window — and generating
+    // locally from a 19-seed preview bundle would hand that caller an INF PLAY
+    // session the server just refused. So a previewOnly bundle falls straight
+    // through to the network, which denies it, exactly as today.
+    if (isBundleBootstrapEnabled(code)) {
+      try {
+        const bundle = await bundleWithinBootBudget(code)
+        if (!bundle.previewOnly) {
+          const json = bundleToInfPlayCyclesResponse(bundle, fromRound, limit)
+          const batch: InfPlayBatch = {
+            cycles: json.cycles,
+            nextInfRound: json.next_inf_round,
+            mainLoopCount: json.main_loop_count,
+            version: json.version,
+          }
+          writeCachedInfPlay(code, fromRound, batch)
+          return batch
+        }
+      } catch (err) {
+        console.warn('[InstantPlayback] bundle INF PLAY failed, falling back to /infplay-cycles:', err)
+      }
+    }
+
     try {
       return await fetchInfPlayCyclesLive(url, code, fromRound, signal)
     } catch (err) {
@@ -1013,7 +1194,7 @@ export function useInstantPlayback(
       // adapter happy; cursor logic uses lastMainLoopLegoId anyway).
       const seenRounds = new Map<number, BackendCycle>()
       for (const c of result.cycles) {
-        const r = (c as any).inf_round as number
+        const r = c.inf_round
         if (typeof r === 'number' && !seenRounds.has(r)) seenRounds.set(r, c)
       }
       roundMap.value = {

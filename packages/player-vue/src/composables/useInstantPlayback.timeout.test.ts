@@ -13,6 +13,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { useInstantPlayback } from './useInstantPlayback'
 
+/**
+ * A course that is NOT in BUNDLE_BOOTSTRAP_COURSES. These tests are about the
+ * NETWORK boot path's abort wiring, so they must not be silently rerouted onto
+ * the bundle path the day their course joins the cutover — which is exactly
+ * what happened on 2026-08-29 when fra_for_eng was flagged.
+ */
+const NETWORK_PATH_COURSE = 'ita_for_eng'
+
 describe('useInstantPlayback — boot fetch timeout', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
@@ -39,7 +47,7 @@ describe('useInstantPlayback — boot fetch timeout', () => {
         ),
       )
 
-      const instant = useInstantPlayback(ref('fra_for_eng'), {
+      const instant = useInstantPlayback(ref(NETWORK_PATH_COURSE), {
         resolveStartLegoId: () => null,
       })
 
@@ -66,7 +74,7 @@ describe('useInstantPlayback — boot fetch timeout', () => {
             ok: true,
             json: () =>
               Promise.resolve({
-                course_code: 'fra_for_eng',
+                course_code: NETWORK_PATH_COURSE,
                 version: 1,
                 rounds: [{ r: 1, legoId: 'S0001L01', seed: 1 }],
               }),
@@ -76,7 +84,7 @@ describe('useInstantPlayback — boot fetch timeout', () => {
           ok: true,
           json: () =>
             Promise.resolve({
-              course_code: 'fra_for_eng',
+              course_code: NETWORK_PATH_COURSE,
               version: 1,
               next_lego_id: null,
               cycles: [
@@ -97,7 +105,7 @@ describe('useInstantPlayback — boot fetch timeout', () => {
       }),
     )
 
-    const instant = useInstantPlayback(ref('fra_for_eng'), {
+    const instant = useInstantPlayback(ref(NETWORK_PATH_COURSE), {
       resolveStartLegoId: () => null,
     })
 

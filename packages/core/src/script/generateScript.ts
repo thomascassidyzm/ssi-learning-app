@@ -72,9 +72,9 @@ const DEFAULT_ROUND_LIMIT = 15
  * except offsets ≥ `SEED_PHASE_START_OFFSET`, which review the full parent
  * seed sentence instead of a use-phrase (see `buildSeedReviewCycle`).
  */
-const SPACED_REP_OFFSETS = [
+const DEFAULT_SPACED_REP_OFFSETS = [
   1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584,
-] as const
+]
 
 /**
  * First offset at which a spaced-rep review switches from a use-phrase
@@ -83,7 +83,68 @@ const SPACED_REP_OFFSETS = [
  */
 const SEED_PHASE_START_OFFSET = 144
 
-const N1_PHRASE_COUNT = 3
+/**
+ * Fallback round shape — used only when neither `opts.shape` nor
+ * `bundle.scriptShape` is present (old cached bundles). Numerically identical
+ * to `generateLearningScript.ts`'s `DEFAULT_SCRIPT_SHAPE` and to cycles.ts's
+ * module constants; the live values come from `algorithm_config.script_shape`
+ * via the bundle, which is the whole point of shape injection (design §3
+ * parity item 1).
+ */
+export const DEFAULT_SCRIPT_SHAPE: ResolvedScriptShape = {
+  spacedRepOffsets: DEFAULT_SPACED_REP_OFFSETS,
+  maxBuildPhrases: 7,
+  useConsolidationCount: 2,
+  maxSpacedRepPhrases: 12,
+  n1PhraseCount: 3,
+}
+
+interface ResolvedScriptShape {
+  spacedRepOffsets: number[]
+  maxBuildPhrases: number
+  useConsolidationCount: number
+  maxSpacedRepPhrases: number
+  n1PhraseCount: number
+}
+
+function resolveShape(bundle: CourseBundle, override?: Partial<ResolvedScriptShape>): ResolvedScriptShape {
+  const fromBundle = (bundle as { scriptShape?: Partial<ResolvedScriptShape> }).scriptShape
+  return {
+    ...DEFAULT_SCRIPT_SHAPE,
+    ...(fromBundle ?? {}),
+    ...(override ?? {}),
+  }
+}
+
+/**
+ * Within-round identity of a phrase — character-for-character the same notion
+ * as `cycles.ts`'s `phraseKey`/`normalizeForKey` and the walk's `getPhraseId`,
+ * so all three builders claim and skip exactly the same rows.
+ */
+function normalizeForKey(text: string | null | undefined): string {
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(
+      /[.,!?;:\u00a1\u00bf'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g,
+      '',
+    )
+}
+
+function phraseKey(knownText: string | null | undefined, targetText: string | null | undefined): string {
+  return `${normalizeForKey(knownText)}|${normalizeForKey(targetText)}`
+}
+
+/**
+ * Where a review's round-robin cursor sits in the reviewed LEGO's USE basket.
+ * Ported verbatim from `cycles.ts`'s `reviewCursor` — the closed form of the
+ * walk's per-LEGO `useIndex`. Deterministic, so main-loop reviews need no RNG.
+ */
+function reviewCursor(offsetIndex: number, poolLength: number, n1PhraseCount: number): number {
+  if (offsetIndex <= 0 || poolLength <= 0) return 0
+  return Math.min(n1PhraseCount, poolLength) + (offsetIndex - 1)
+}
 
 const INTRO_LINGER_MS = 2000
 
@@ -103,10 +164,14 @@ export function generateScript(opts: GenerateScriptOptions): GenerateScriptResul
   const random = opts.random ?? Math.random
   const pauseConfig = opts.pauseConfig ?? DEFAULT_PAUSE_CONFIG
 
+  const shape = resolveShape(opts.bundle, opts.shape)
+
   if (opts.position.mode === 'main') {
-    return generateMain(opts.bundle, opts.position, roundLimit, audioUrl, random, pauseConfig)
+    // NOTE: main-loop generation is fully deterministic — reviews use the
+    // closed-form round-robin cursor, not a draw — so `random` is INF-PLAY-only.
+    return generateMain(opts.bundle, opts.position, roundLimit, audioUrl, pauseConfig, shape)
   }
-  return generateInfPlay(opts.bundle, opts.position, roundLimit, audioUrl, random, pauseConfig)
+  return generateInfPlay(opts.bundle, opts.position, roundLimit, audioUrl, random, pauseConfig, shape)
 }
 
 // ============================================================================
@@ -118,8 +183,8 @@ function generateMain(
   position: MainPosition,
   roundLimit: number,
   audioUrl: (id: string) => string,
-  random: () => number,
   pauseConfig: PauseModeConfig,
+  shape: ResolvedScriptShape,
 ): GenerateScriptResult {
   const roundMap = bundle.roundMap
   const startIdx = roundMap.findIndex((e) => e.legoId === position.fromLegoId)
@@ -155,19 +220,32 @@ function generateMain(
     const debutCycle = buildDebutCycle(lego, audioUrl, pauseConfig)
     if (debutCycle) cycles.push(debutCycle)
 
-    // --- builds, then uses (position-ordered) ---
+    // The debut IS the bare LEGO — claim it so no later phase replays it, and
+    // claim each phrase as it is emitted so a duplicated row cannot play
+    // twice in one round. Same guard, same key, as `cycles.ts`'s `claimed`
+    // set and the walk's `usedPhrasesThisRound`; without it a course whose
+    // build basket contains its own LEGO text (fra S0009L01 'I speak / je
+    // parle') says the LEGO twice in a row.
+    const claimed = new Set<string>([phraseKey(lego.knownText, lego.targetText)])
+    const claim = (p: BundlePhrase): boolean => {
+      const key = phraseKey(p.knownText, p.targetText)
+      if (claimed.has(key)) return false
+      claimed.add(key)
+      return true
+    }
+
+    // --- BUILD ×≤maxBuildPhrases, USE rows filling any leftover slots ---
+    // "BUILD priority > CONSOLIDATE… filling 7 BUILD is non-negotiable" (the
+    // walk's phase 3). A USE row promoted into a build slot is emitted as a
+    // `build` cycle, exactly as the walk and cycles.ts type it.
     const buildsSorted = [...phrases.build].sort((a, b) => a.position - b.position)
+    const usesSorted = [...phrases.use].sort((a, b) => a.position - b.position)
     let buildOrdinal = 0
-    for (const phrase of buildsSorted) {
+    for (const phrase of [...buildsSorted, ...usesSorted]) {
+      if (buildOrdinal >= shape.maxBuildPhrases) break
+      if (!claim(phrase)) continue
       buildOrdinal++
       const cyc = buildPhraseCycle(phrase, lego, 'build', buildOrdinal, audioUrl, pauseConfig)
-      if (cyc) cycles.push(cyc)
-    }
-    const usesSorted = [...phrases.use].sort((a, b) => a.position - b.position)
-    let useOrdinal = 0
-    for (const phrase of usesSorted) {
-      useOrdinal++
-      const cyc = buildPhraseCycle(phrase, lego, 'use', useOrdinal, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)
     }
 
@@ -179,10 +257,35 @@ function generateMain(
       phraseIndex,
       seedIndex,
       audioUrl,
-      random,
       pauseConfig,
+      shape,
+      entry.legoId,
+      claim,
     )
     cycles.push(...spacedRepCycles)
+
+    // --- CONSOLIDATE ×≤useConsolidationCount — this LEGO's own USE phrases,
+    // last in the round. First pass takes phrases the round hasn't used; a
+    // second pass relaxes the once-per-round rule (but never the bare-LEGO
+    // rule) rather than leave the round short. ---
+    const debutKey = phraseKey(lego.knownText, lego.targetText)
+    let useOrdinal = 0
+    for (const phrase of usesSorted) {
+      if (useOrdinal >= shape.useConsolidationCount) break
+      if (!claim(phrase)) continue
+      useOrdinal++
+      const cyc = buildPhraseCycle(phrase, lego, 'use', useOrdinal, audioUrl, pauseConfig)
+      if (cyc) cycles.push(cyc)
+    }
+    if (useOrdinal < shape.useConsolidationCount) {
+      for (const phrase of usesSorted) {
+        if (useOrdinal >= shape.useConsolidationCount) break
+        if (phraseKey(phrase.knownText, phrase.targetText) === debutKey) continue
+        useOrdinal++
+        const cyc = buildPhraseCycle(phrase, lego, 'use', useOrdinal, audioUrl, pauseConfig)
+        if (cyc) cycles.push(cyc)
+      }
+    }
 
     if (cycles.length === 0) {
       lastEmittedIdx = mapIdx
@@ -229,18 +332,24 @@ function buildSpacedRepCycles(
   phraseIndex: Map<string, { build: BundlePhrase[]; use: BundlePhrase[] }>,
   seedIndex: Map<string, BundleSeed>,
   audioUrl: (id: string) => string,
-  random: () => number,
   pauseConfig: PauseModeConfig,
+  shape: ResolvedScriptShape,
+  currentLegoId: string,
+  claim: (p: BundlePhrase) => boolean,
 ): Cycle[] {
   const cycles: Cycle[] = []
   const seenLegos = new Set<string>()
   const seenSeedReviews = new Set<string>()
+  let repCount = 0
 
-  for (const offset of SPACED_REP_OFFSETS) {
+  for (let offsetIndex = 0; offsetIndex < shape.spacedRepOffsets.length; offsetIndex++) {
+    if (repCount >= shape.maxSpacedRepPhrases) break
+    const offset = shape.spacedRepOffsets[offsetIndex]
     const reviewRoundIndex = currentRoundIndex - offset
-    if (reviewRoundIndex < 1) continue
+    if (reviewRoundIndex < 1) break
     const mapEntry = bundle.roundMap[reviewRoundIndex - 1]
     if (!mapEntry) continue
+    if (mapEntry.legoId === currentLegoId) continue
     if (seenLegos.has(mapEntry.legoId)) continue
     seenLegos.add(mapEntry.legoId)
 
@@ -254,6 +363,7 @@ function buildSpacedRepCycles(
         : null
       if (seedCycle) {
         seenSeedReviews.add(lego.seedId)
+        repCount++
         cycles.push(seedCycle)
         continue
       }
@@ -261,14 +371,24 @@ function buildSpacedRepCycles(
     }
 
     const phrases = phraseIndex.get(mapEntry.legoId)
-    if (!phrases || phrases.use.length === 0) continue
+    const pool = phrases ? [...phrases.use].sort((a, b) => a.position - b.position) : []
+    if (pool.length === 0) continue
 
-    const count = offset === 1 ? N1_PHRASE_COUNT : 1
-    const drawn = sampleN(phrases.use, Math.min(count, phrases.use.length), random)
-    let seq = 0
-    for (const phrase of drawn) {
-      seq++
-      const cyc = buildPhraseCycle(phrase, lego, 'review', seq, audioUrl, pauseConfig)
+    // Deterministic round-robin into the reviewed LEGO's USE basket — the
+    // closed form of the walk's per-LEGO `useIndex`, ported from cycles.ts.
+    // Replaces the previous `sampleN(random)` draw: main-loop reviews now
+    // need no RNG at all, which is what makes an artifact id replayable.
+    const want = offsetIndex === 0 ? shape.n1PhraseCount : 1
+    const take = Math.min(want, shape.maxSpacedRepPhrases - repCount, pool.length)
+    let cursor = reviewCursor(offsetIndex, pool.length, shape.n1PhraseCount)
+    for (let i = 0; i < take; i++) {
+      const phrase = pool[cursor % pool.length]
+      // Advance even when the phrase is then skipped — the walk increments
+      // `useIndex` before its de-dup check, and rotation stays in step.
+      cursor++
+      if (!claim(phrase)) continue
+      repCount++
+      const cyc = buildPhraseCycle(phrase, lego, 'review', repCount, audioUrl, pauseConfig)
       if (cyc) cycles.push(cyc)
     }
   }
@@ -287,6 +407,7 @@ function generateInfPlay(
   audioUrl: (id: string) => string,
   random: () => number,
   pauseConfig: PauseModeConfig,
+  shape: ResolvedScriptShape,
 ): GenerateScriptResult {
   const mainLoopCount = bundle.mainLoopCount
   const roundMap = bundle.roundMap
@@ -305,7 +426,7 @@ function generateInfPlay(
     type SpacedRepEntry = { lego: BundleLego; offset: number; phraseCount: number }
     const spacedRepEntries: SpacedRepEntry[] = []
 
-    for (const offset of SPACED_REP_OFFSETS) {
+    for (const offset of shape.spacedRepOffsets) {
       const reviewRound = absoluteRound - offset
       if (reviewRound < 1) continue
       if (reviewRound > mainLoopCount) continue
@@ -318,38 +439,21 @@ function generateInfPlay(
       spacedRepEntries.push({
         lego,
         offset,
-        phraseCount: offset === 1 ? N1_PHRASE_COUNT : 1,
+        phraseCount: offset === 1 ? shape.n1PhraseCount : 1,
       })
     }
 
-    // --- phase 2: random USE — fill to TARGET_CYCLES_PER_ROUND ---
-    const projectedSpacedRepCount = spacedRepEntries.reduce(
-      (sum, e) => sum + e.phraseCount,
-      0,
-    )
-    const targetRandomUse = Math.max(
-      MIN_RANDOM_USE_PER_ROUND,
-      Math.min(
-        MAX_RANDOM_USE_PER_ROUND,
-        TARGET_CYCLES_PER_ROUND - projectedSpacedRepCount,
-      ),
-    )
-
-    // Pool = all main-loop LEGOs we haven't already used this round.
-    // Walk the round-map (script order) so the pool is bounded to the
-    // main loop, not the bundle.legos array (which could include extras).
-    const availableLegos: BundleLego[] = []
-    for (let i = 0; i < roundMap.length; i++) {
-      const entry = roundMap[i]
-      if (usedLegosThisRound.has(entry.legoId)) continue
-      const lego = legoIndex.get(entry.legoId)
-      if (!lego) continue
-      availableLegos.push(lego)
-    }
-    const randomUseLegos = sampleN(availableLegos, targetRandomUse, random)
-    for (const l of randomUseLegos) usedLegosThisRound.add(l.legoId)
-
-    // --- emit cycles ---
+    // --- phase 2: emit the spaced-rep cycles ---
+    // Emitted BEFORE the random-USE bucket is sized, because the bucket is
+    // sized from what spaced rep actually produced, not from what it hoped to.
+    // A reviewed LEGO whose USE basket has no playable phrase emits nothing,
+    // and on a course with patchy audio that is most of them: eus_for_eng
+    // projected 16 review cycles, emitted 6, and then only allowed itself the
+    // 6-cycle random-USE floor — a 10-cycle round where the round target is
+    // 22. Counting first and sizing second holds the round at its intended
+    // length, which is what TARGET_CYCLES_PER_ROUND is for (Tom, 2026-05-20:
+    // "it then keeps ROUND length approx the same for inserting
+    // encouragements, listening exercises and so on").
     const cycles: Cycle[] = []
     let cycleSeq = 0
     const seenSeedReviews = new Set<string>()
@@ -384,6 +488,26 @@ function generateInfPlay(
         if (cyc) cycles.push(cyc)
       }
     }
+
+    // --- phase 3: random USE — fill to TARGET_CYCLES_PER_ROUND ---
+    const targetRandomUse = Math.max(
+      MIN_RANDOM_USE_PER_ROUND,
+      Math.min(MAX_RANDOM_USE_PER_ROUND, TARGET_CYCLES_PER_ROUND - cycles.length),
+    )
+
+    // Pool = all main-loop LEGOs we haven't already used this round.
+    // Walk the round-map (script order) so the pool is bounded to the
+    // main loop, not the bundle.legos array (which could include extras).
+    const availableLegos: BundleLego[] = []
+    for (let i = 0; i < roundMap.length; i++) {
+      const entry = roundMap[i]
+      if (usedLegosThisRound.has(entry.legoId)) continue
+      const lego = legoIndex.get(entry.legoId)
+      if (!lego) continue
+      availableLegos.push(lego)
+    }
+    const randomUseLegos = sampleN(availableLegos, targetRandomUse, random)
+    for (const l of randomUseLegos) usedLegosThisRound.add(l.legoId)
 
     for (const lego of randomUseLegos) {
       const phrases = phraseIndex.get(lego.legoId)
@@ -455,6 +579,7 @@ function buildIntroCycle(lego: BundleLego, audioUrl: (id: string) => string): Cy
     pauseDuration: 0,
     lingerMs: INTRO_LINGER_MS,
     components: lego.components,
+    glossSegments: lego.glossSegments,
   })
 }
 
@@ -490,13 +615,19 @@ function buildDebutCycle(
       pauseConfig,
     ),
     components: lego.components,
+    glossSegments: lego.glossSegments,
   })
 }
 
 /**
  * Phrase cycle — used for build / use / review (spaced rep). Same
  * audio-completeness gate as debut. The `cycleType` becomes `Cycle.type`
- * for telemetry; `id` carries the ordinal so repeated phrases stay unique.
+ * for telemetry; `id` carries BOTH the cycle type and the ordinal so repeated
+ * phrases stay unique. The type is load-bearing, not decoration: one USE row
+ * can legitimately play twice in a round — promoted into a BUILD slot and
+ * again in the consolidation tail — and with a type-less id those two cycles
+ * collide, so the client's de-dupe-by-cycle-id (`bufferCycles`) silently eats
+ * the consolidation cycle. Caught by the wire-level parity harness.
  */
 function buildPhraseCycle(
   phrase: BundlePhrase,
@@ -512,7 +643,7 @@ function buildPhraseCycle(
   if (!known || !target1 || !target2) return null
 
   return baseCycle({
-    id: `${phrase.phraseId}_${ordinal}`,
+    id: `${phrase.phraseId}_${cycleType}_${ordinal}`,
     type: cycleType,
     legoId: lego.legoId,
     seedId: lego.seedId,
@@ -635,6 +766,8 @@ interface BaseCycleOpts {
   pauseDuration: number
   lingerMs?: number
   components?: Array<{ known: string; target: string }>
+  /** Authored known-language word mapping — LEGO-sourced cycles only. */
+  glossSegments?: Array<{ span: number; known: string }>
   /** Authored display tiles — phrase-sourced cycles only. */
   displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
 }
@@ -659,6 +792,7 @@ function baseCycle(o: BaseCycleOpts): Cycle {
     ...(o.target1.durationMs ? { target1DurationMs: o.target1.durationMs } : {}),
     ...(o.target2.durationMs ? { target2DurationMs: o.target2.durationMs } : {}),
     ...(o.components && o.components.length > 0 ? { components: o.components } : {}),
+    ...(o.glossSegments && o.glossSegments.length > 0 ? { glossSegments: o.glossSegments } : {}),
     ...(o.displayTiling && o.displayTiling.length > 0 ? { displayTiling: o.displayTiling } : {}),
   }
   // `seedId` lives on Round, not Cycle — but the round consumer reads

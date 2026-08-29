@@ -1,0 +1,671 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "mode": "wire",
+  "generatedAt": "2026-08-29T17:16:46.627Z",
+  "cases": [
+    {
+      "course": "spa_for_eng",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 53,
+      "oldCyclesOnWire": 53,
+      "newCycles": 53,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 21,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 21,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "spa_for_eng",
+      "previewOnly": true,
+      "from": "S0005L02",
+      "roundIndex": 15,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 114,
+      "oldCyclesOnWire": 114,
+      "newCycles": 114,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 48,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 48,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "spa_for_eng",
+      "previewOnly": true,
+      "from": "S0012L02",
+      "roundIndex": 35,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 125,
+      "oldCyclesOnWire": 125,
+      "newCycles": 125,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 59,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 59,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": true,
+      "from": "S0005L02",
+      "roundIndex": 16,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 114,
+      "oldCyclesOnWire": 114,
+      "newCycles": 114,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 48,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 48,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "fra_for_eng",
+      "previewOnly": true,
+      "from": "S0011L03",
+      "roundIndex": 38,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 126,
+      "oldCyclesOnWire": 126,
+      "newCycles": 126,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 60,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 60,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 4,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 63,
+      "oldCyclesOnWire": 63,
+      "newCycles": 63,
+      "oldPages": 4,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 28,
+          "use": 9,
+          "spaced_rep": 14
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 28,
+          "use": 9,
+          "spaced_rep": 14
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": true,
+      "from": "S0005L02",
+      "roundIndex": 13,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 112,
+      "oldCyclesOnWire": 112,
+      "newCycles": 112,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 46,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 46,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "jpn_for_eng",
+      "previewOnly": true,
+      "from": "S0012L01",
+      "roundIndex": 29,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 120,
+      "oldCyclesOnWire": 120,
+      "newCycles": 120,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 54,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 54,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": true,
+      "from": "S0005L03",
+      "roundIndex": 15,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 113,
+      "oldCyclesOnWire": 113,
+      "newCycles": 113,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 47,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 47,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_eng",
+      "previewOnly": true,
+      "from": "S0012L02",
+      "roundIndex": 35,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 124,
+      "oldCyclesOnWire": 124,
+      "newCycles": 124,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 58,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 58,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 2,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 30,
+      "oldCyclesOnWire": 30,
+      "newCycles": 30,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 2
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 2
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": true,
+      "from": "S0006L01",
+      "roundIndex": 9,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 70,
+      "oldCyclesOnWire": 70,
+      "newCycles": 70,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 39,
+          "spaced_rep": 13,
+          "use": 6
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 39,
+          "spaced_rep": 13,
+          "use": 6
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "previewOnly": true,
+      "from": "S0011L01",
+      "roundIndex": 20,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 92,
+      "oldCyclesOnWire": 92,
+      "newCycles": 92,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 28,
+          "use": 10
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 28,
+          "use": 10
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": true,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "newPages": 3,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 48,
+      "oldCyclesOnWire": 48,
+      "newCycles": 48,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 20,
+          "use": 7,
+          "spaced_rep": 9
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": true,
+      "from": "S0001L04",
+      "roundIndex": 4,
+      "roundLimit": 6,
+      "newPages": 5,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 88,
+      "oldCyclesOnWire": 88,
+      "newCycles": 88,
+      "oldPages": 5,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 26,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 26,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "zho_for_gle",
+      "previewOnly": true,
+      "from": "S0003L03",
+      "roundIndex": 10,
+      "roundLimit": 6,
+      "newPages": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 107,
+      "oldCyclesOnWire": 107,
+      "newCycles": 107,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 41,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 41,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    }
+  ]
+}
