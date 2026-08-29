@@ -154,6 +154,42 @@ Neither splits the bundle, changes the 8000 ms budget, or removes the fallback.
 - **No change to the boot path.** That is where the seconds are, and it is a
   scope change the brief explicitly fenced off.
 
+## 5a. After the change — deployed dev `fa1c9b06`, same harness
+
+Nine cold runs plus three on the fresh-device path. The two changes do what
+they claim and nothing else moves, which is the expected result given §3.
+
+| run | link | bundle starts | bundle done | pressable | press→sound | fell back? |
+|---|---|---|---|---|---|---|
+| `spa_for_eng` signed in | unthrottled | 198–914 ms | 1837–3010 ms | 8709–9707 ms | 203–230 ms | no |
+| `spa_for_eng` signed in | 4G | 521–535 ms | 1991–2033 ms | 5745–5764 ms | 57–65 ms | no |
+| `hun_for_eng` anon | unthrottled | 216–230 ms | 767–807 ms | 3966–4674 ms | 114–205 ms | no |
+| fresh, no `?course` (fra) | unthrottled | **638–816 ms** (was 1120–1296) | 2144–2348 ms | 4205–9127 ms | 77–266 ms | no |
+| `hun_for_eng` anon | Fast 3G | 1931 ms | 2468 ms | **never (90 s)** | — | no |
+
+The measurable win is the fresh-device path: the bundle download starts about
+**350–500 ms earlier**. That is less than the ~900 ms the gap suggested,
+because auth resolution itself costs ~600 ms — the new signal fires as early as
+it honestly can, not as early as one would like.
+
+Time to a pressable button is unchanged, and is dominated by the §3 block. Its
+run-to-run spread (4.2 s to 9.7 s on identical inputs) is itself worth noting:
+that is CPU contention, not network.
+
+**Fixture note, reported because it briefly produced a false regression.** The
+course-switch probe run earlier in this session *wrote* `spa_mx_for_eng` into
+the test account's `preferences.last_course_code` — the app persists course
+selection to the DB. The first "after" pass therefore resolved the fresh-device
+run to a course that is not on the bundle flag list, showed no bundle fetch at
+all, and looked like a regression. The preference was restored to
+`fra_for_eng` and that row re-measured. Any future run of this harness that
+touches the course picker will move that value again.
+
+**The Fast-3G `hun_for_eng` failure reproduced** — twice now, once before the
+change and once after, never reaching a pressable play button inside 90 s with
+the bundle in hand at 2.4 s. Two runs is enough to stop calling it noise. It is
+logged, not diagnosed.
+
 ## 6. The recommendation
 
 The prefetch-on-intent question is closed: the fetch starts at ~250 ms, ends at
