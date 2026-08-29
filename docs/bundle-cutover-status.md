@@ -216,6 +216,79 @@ a stalled connection would have waited 20s and only then fallen through to
 budget; the download is not cancelled and `getCourseBundle` de-dupes in flight,
 so the next page joins it and the session cuts over the moment it lands.
 
+## The boot budget, and why the cutover was largely cosmetic (2026-08-29)
+
+Tom hit this in the console on a real first play on staging, with all fifteen
+courses flagged:
+
+```
+[InstantPlayback] bundle round-map failed, falling back to /round-map:
+  Error: [InstantPlayback] bundle not ready inside the boot budget
+```
+
+The fallback is the right safety behaviour — the learner still plays, on the
+old endpoints — but it meant the cutover had not happened for that session, and
+it said so only in the console. Two hypotheses were separated by measurement:
+the budget was too tight, or the fetch started too late and the budget was a
+red herring.
+
+**It was the budget, and not marginally.** Measured against the staging
+deployment, entitled session, brotli on the wire, two runs each:
+
+| course | wire | JSON | TTFB | total |
+|---|---|---|---|---|
+| `spa_for_eng` | 2.19 MB | 13.9 MB | 1.42–1.55s | 1.91–1.94s |
+| `fra_for_eng` | 1.91 MB | | 1.30–1.31s | 1.68–2.20s |
+| `jpn_for_eng` | 1.46 MB | | 1.08–1.12s | 1.46–1.66s |
+| `zho_for_eng` | 1.46 MB | | 0.91–0.94s | 1.33–1.37s |
+| `cym_s_for_eng` | 0.80 MB | | 0.63–0.68s | 0.90–0.96s |
+| `hun_for_eng` | 0.67 MB | | 0.44–0.46s | 0.69–0.84s |
+
+Those are from a fast wired link. The worst course spent ~78% of the 2500ms
+budget under the best conditions any learner will ever have, and `fra_for_eng`
+crossed 2.2s on one of two runs. On a 4G-ish link the same download is roughly
+1.4s of server generation plus ~2.0s of transfer plus mobile JSON parse — about
+4s. The budget was `CRITICAL_PATH_TIMEOUT_MS`, which exists to bound a ~20 KB
+round-map fetch; it was never sized for a whole-course download.
+
+Note the anonymous numbers are not the real ones for premium courses:
+anonymous `spa_for_eng` is 64 KB, the 19-seed preview slice — 34x smaller than
+what an entitled learner downloads. Any measurement of a premium bundle taken
+without a session understates it by that factor.
+
+**What changed**
+
+- `BUNDLE_BOOT_BUDGET_MS = 8000` in `config/networkGate.ts`, used by every
+  bundle consumer on the boot path instead of the round-map budget. Sized off
+  the table above with ~2x headroom over the 4G worst case, and still bounded
+  so a genuinely bad link falls through to the small `/round-map` rather than
+  staring at a blank player.
+- The IndexedDB persist left the budget. `getCourseBundle` returned only after
+  `await writeCached(...)`, so structured-cloning a 13.9 MB object graph with
+  ~15,000 phrase objects was time the boot path paid for a write it does not
+  need this session. It now returns the bundle and persists in the background.
+- The download starts at the earliest moment a course can be named — the URL
+  param, else the last-played course — from `App.vue`'s synchronous Supabase
+  block, rather than after course-list and enrollment resolution. It overlaps
+  the download with app boot; `getCourseBundle` de-dupes in flight, so
+  `prewarmInstantCaches` and the player's own bootstrap join that one fetch.
+- A cached PREVIEW bundle is re-fetched once a token exists. The IndexedDB
+  store is keyed by course alone while cache identity includes `previewOnly`,
+  and the head probe compares versions only — so a guest who cached the 19-seed
+  preview kept being served it after signing in.
+
+**How anyone can now tell**
+
+`bundle_boot_path` on `player_events`, one row per stage per session, carrying
+`stage` (`round_map` | `cycles` | `infplay`), `outcome` (`bundle` |
+`fallback`), `reason` (`budget` | `error` | `preview`), `waitedMs` and
+`budgetMs`. The fallback share per course is the health number: if it climbs,
+the cutover is drifting back to cosmetic, and that is now a query rather than
+a console line somebody happened to have open. Wired through a module-level
+sink (`playback/bundlePathTelemetry.ts`) exactly like `introAudioTelemetry`,
+because `useInstantPlayback` is a plain module with no access to the Vue
+telemetry composable.
+
 ## Still open
 
 1. **Bundle weight is not a gate** (Tom, 2026-08-29): "it is a one-time
