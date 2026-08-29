@@ -83,6 +83,24 @@ and every scheduler in `LearningPlayer.vue` are untouched. Any failure on the
 bundle path logs and falls through to the network path, so the worst case is
 today's behaviour.
 
+## Verified live on dev (2026-08-29)
+
+A headless browser session on the dev alias, same course, flag on vs flag off:
+
+| | `/bundle` | `/cycles` | `/round-map` | audio clips fetched |
+|---|---|---|---|---|
+| `?course=hun_for_eng` (flag on) | 1 | **0** | **0** | 71 |
+| `?course=hun_for_eng&bundle=0` | 0 | 2 | 2 | 75 |
+
+Both reach the same player screen and both stream audio. Zero calls on the two
+retired endpoints is the cutover actually working, not just compiling. Getting
+there needed one extra fix: `prewarmInstantCaches` is a module-level function
+that hits those endpoints directly, bypassing the composable's branch, so a
+flagged course was still paying one of each per session (`135ae9f4`).
+
+**Try it:** https://ssi-learning-app-git-dev-zenjin.vercel.app/?course=hun_for_eng
+— and the same URL with `&bundle=0` for the old path, side by side.
+
 ## Before this flag goes wide — named prerequisites
 
 1. **`gloss_segments` are not in the bundle.** `cycles.ts` ships authored
