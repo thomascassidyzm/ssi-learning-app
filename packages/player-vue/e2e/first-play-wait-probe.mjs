@@ -92,10 +92,17 @@ async function oneRun(spec, runNum) {
   if (spec.throttle && THROTTLE[spec.throttle]) await cdp.send('Network.emulateNetworkConditions', THROTTLE[spec.throttle])
 
   const t0 = Date.now(); const rel = () => Date.now() - t0
-  const net = { bundleReqs: [], bundleEnd: {}, roundMap: false, fallbacks: [], audioReqs: [] }
+  const net = {
+    bundleReqs: [], bundleEnd: {}, roundMap: false, fallbacks: [], audioReqs: [],
+    // Step 6 asks a second question of every run: did the session stop reading
+    // the course out of Supabase? Counted per table, because the walk's
+    // signature is one course_practice_phrases read per seed.
+    supabase: {}, supabaseTotal: 0, producer: [],
+  }
   page.on('console', (m) => {
     const t = m.text()
     if (/falling back to \/round-map|falling back to \/cycles|falling back to \/infplay-cycles|bundle not ready/i.test(t)) net.fallbacks.push(`t+${rel()}ms :: ${t.slice(0, 220)}`)
+    if (/\[BundleScript\]|\[eagerScriptPreload\]|\[generateLearningScript\]|Skipped \d+ practice phrases/.test(t)) net.producer.push(`t+${rel()}ms :: ${t.slice(0, 200)}`)
   })
   page.on('request', (req) => {
     const u = req.url()
@@ -103,6 +110,11 @@ async function oneRun(spec, runNum) {
     if (m && !u.includes('head=1')) net.bundleReqs.push({ course: m[1], atMs: rel() })
     else if (/\/api\/courses\/[^/]+\/round-map/.test(u)) net.roundMap = true
     else if (u.includes('/api/audio/') && net.audioReqs.length < 12) net.audioReqs.push(rel())
+    const rest = u.match(/\/rest\/v1\/([a-z_]+)/)
+    if (rest) {
+      net.supabase[rest[1]] = (net.supabase[rest[1]] || 0) + 1
+      net.supabaseTotal++
+    }
   })
   page.on('response', (res) => {
     const m = res.url().match(/\/api\/courses\/([^/]+)\/bundle/)
@@ -158,6 +170,7 @@ async function oneRun(spec, runNum) {
     playsBeforeClick: realPlays.filter(p => clickT != null && p.t <= clickT).length,
     bundleReqs: net.bundleReqs, bundleEnd: net.bundleEnd, firstAudioReqMs: net.audioReqs[0] ?? null,
     roundMapRequested: net.roundMap, fallbacks: net.fallbacks,
+    supabaseTotal: net.supabaseTotal, supabaseByTable: net.supabase, producer: net.producer,
   }
 }
 
