@@ -278,6 +278,25 @@ anonymous `spa_for_eng` is 64 KB, the 19-seed preview slice — 34x smaller than
 what an entitled learner downloads. Any measurement of a premium bundle taken
 without a session understates it by that factor.
 
+A cold-cache browser trace on staging (old code) caught the failure directly.
+Four runs survived before the run's browser died; they are enough:
+
+| course | condition | bundle starts | bundle TTFB | bundle takes | fell back? | first audio |
+|---|---|---|---|---|---|---|
+| `spa_for_eng` anon | unthrottled | 1282ms | 1700ms | 2338ms | yes | 3848ms |
+| `spa_for_eng` anon | unthrottled | 1078ms | 1839ms | 2429ms | yes | 3722ms |
+| `spa_for_eng` anon | unthrottled | 1311ms | 1784ms | 2549ms | yes | 4080ms |
+| `spa_for_eng` anon | Fast 3G | 5299ms | 1593ms | — | yes (t+7811ms) | 35607ms |
+
+Two things to take from it. First, that is the **64 KB preview** bundle — the
+smallest payload in the estate — and it still took 2.3–2.5s in the browser and
+lost the 2500ms race every time, because the cost is server time plus
+contention with the rest of app boot, not bytes. The 2.19 MB entitled bundle
+never stood a chance. Second, the fetch did not begin until 1.1–1.3s after
+navigation, which is the ordering contribution: real, worth removing, but not
+on its own the cause — closing that gap entirely would still have left the
+fetch finishing right on the budget line.
+
 **What changed**
 
 - `BUNDLE_BOOT_BUDGET_MS = 8000` in `config/networkGate.ts`, used by every
