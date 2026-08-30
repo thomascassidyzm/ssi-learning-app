@@ -56,10 +56,20 @@
  *   - SEED-PHASE reviews (offsets ≥144, the drained target→known→target→target
  *     sandwich) are not emitted: they need course_seeds rows and the walk's
  *     graduation bookkeeping. Offsets [1..89] — every use-phrase review — are.
- *   - The walk's algorithm_config-driven pools (shortest-first syllable sort,
- *     phrase-length cap, known-side review pull filter, sliding word cap) are
- *     not applied here; this endpoint keeps DB position order. It changes WHICH
- *     phrase a review pulls, not whether the review exists.
+ *   - The walk's algorithm_config-driven pools (phrase-length cap, known-side
+ *     review pull filter, sliding word cap) are not applied here: they need the
+ *     course's algorithm_config, which this single-RPC path deliberately does
+ *     not fetch. They change WHICH phrase a review pulls, not whether the
+ *     review exists.
+ *     The SHORTEST-FIRST SYLLABLE SORT is no longer among them — since A-307
+ *     (2026-08-30) this endpoint sorts every BUILD and USE pool shortest-first
+ *     by target syllables, using `capPhrasesByLength` imported from `@ssi/core`
+ *     rather than a second copy of the rule. It no longer serves DB `position`
+ *     order; `position` is a submission-order array index, not an authored
+ *     sequence. Equal-syllable phrases keep position order (the sort is
+ *     stable). The one remaining difference from the walk: the walk prefers an
+ *     authored `target_syllable_count` where a row carries one, and the window
+ *     RPC does not project that column.
  *
  * Cache-Control: private, max-age=60 — frontend may re-fetch cheaply,
  * other learners aren't sharing this (per-session walk).
@@ -72,6 +82,19 @@ import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 import { courseMaxSeed } from '../../_utils/courseBoundary'
 import { fetchRevisedAudioRefs, stampRowAudioRefs, PREMIUM_PREVIEW_MAX_SEED } from '../../_utils/audioAccess'
+// Phrase ORDERING is pedagogy, not plumbing, so it is imported from the one
+// place it lives rather than reimplemented here. These four are pure and
+// dependency-free (`packages/core/src/script/phraseSelection.ts` has no imports
+// at all), so pulling them in costs the serverless bundle nothing and pulls in
+// no Vue — the same relative-source pattern api/entitlement/grant.ts and
+// api/onboarding/provision.ts already use for `@ssi/core`'s pricing module.
+import {
+  capPhrasesByLength,
+  countTargetSyllables,
+  phraseTextLength,
+  MIN_BUILD_PHRASES_AFTER_CAP,
+  MIN_USE_PHRASES_AFTER_CAP,
+} from '../../../packages/core/src/script/phraseSelection'
 import { authoredGlossSegments } from '../../_utils/glossSegments'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -490,7 +513,9 @@ export default async function handler(
     for (const l of legoRows) {
       legoByKey.set(`${l.seed_number}:${l.lego_index}`, l)
     }
-    // Group phrases by (seed,lego), preserving position-order from the query.
+    // Group phrases by (seed,lego). Position order from the query is only the
+    // input order here — each pool is re-sorted shortest-first below, and the
+    // stable sort leaves equal-syllable phrases in the position order set here.
     const phrasesByKey = new Map<string, CoursePhraseRow[]>()
     for (const p of phraseRows) {
       const key = `${p.seed_number}:${p.lego_index}`
@@ -596,6 +621,61 @@ export default async function handler(
           list.push(p)
         }
       }
+    }
+
+    // --- Shortest-first ordering (A-307, 2026-08-30) -------------------------
+    //
+    // Every phrase pool this endpoint serves is ordered shortest-first by
+    // TARGET syllables, exactly as the walk orders its own — "choose easy": the
+    // learner meets the short form of a pattern before the long one, and the
+    // opening seconds of a course are where that matters most. Until now this
+    // endpoint served raw DB `position` order, and `position` is not authored:
+    // Popty computes it as a plain array index over whatever order phrases
+    // arrive in on submission (services/course-builder/routes/seed-complete.cjs),
+    // so there was no author's hand here to preserve.
+    //
+    // The sort is `capPhrasesByLength` from `@ssi/core` — THE single place this
+    // rule lives, imported rather than reimplemented so this endpoint cannot
+    // drift from the walk again. `limit: Infinity` short-circuits it to the
+    // plain shortest-first sort with no length cap; the mode-driven cap, the
+    // known-side pull filter and the sliding word cap deliberately stay out of
+    // this path (they need `algorithm_config`, which this latency-critical
+    // single-RPC path does not fetch). `minKeep` cannot bite under Infinity —
+    // the methodology floors (4 BUILD / 5 USE) are passed anyway rather than a
+    // magic number, so the call reads the same as the walk's.
+    //
+    // The sort is STABLE, so equal-syllable phrases keep their DB position
+    // order — which is why the practical difference is tiny (one 8-vs-9
+    // syllable BUILD pair in spa_for_eng; none in fra_for_eng).
+    //
+    // Done here, after the review-basket top-up above, so every phrase this
+    // request holds is ordered once: the debut round's BUILD and USE pools and
+    // the spaced-review USE baskets all draw from the sorted list.
+    //
+    // KNOWN GAP: the walk prefers an authored `target_syllable_count` when the
+    // row has one and falls back to the heuristic otherwise. This endpoint gets
+    // its phrases from `get_course_cycles_window`, which does not project that
+    // column, so it always uses the heuristic. Live today that is 20 rows of
+    // 32k across spa+fra, and none of them reorder — but it is a real
+    // difference, and closing it needs a change to the RPC's SELECT.
+    const phraseSyllables = (p: CoursePhraseRow): number => countTargetSyllables(p.target_text)
+    const phraseLength = (p: CoursePhraseRow): number => phraseTextLength(p.target_text)
+    for (const [key, list] of phrasesByKey.entries()) {
+      const builds: CoursePhraseRow[] = []
+      const uses: CoursePhraseRow[] = []
+      const others: CoursePhraseRow[] = []
+      for (const p of list) {
+        if (p.phrase_role === 'build' || p.phrase_role === 'practice') builds.push(p)
+        else if (p.phrase_role === 'use') uses.push(p)
+        else others.push(p)
+      }
+      phrasesByKey.set(key, [
+        ...capPhrasesByLength(builds, phraseSyllables, phraseLength, Infinity, MIN_BUILD_PHRASES_AFTER_CAP),
+        ...capPhrasesByLength(uses, phraseSyllables, phraseLength, Infinity, MIN_USE_PHRASES_AFTER_CAP),
+        // Components and any unknown role never produce a cycle; carried
+        // through untouched so nothing is silently dropped.
+        ...others,
+      ])
     }
 
     // Fill each due LEGO's basket. ONLY use phrases enter spaced repetition —
@@ -719,7 +799,9 @@ export default async function handler(
 
 /**
  * Emit the cycle sequence for one LEGO: intro -> debut -> BUILD phrases ->
- * USE phrases. Phrases honour their `position` order from the DB.
+ * USE phrases. Phrases arrive already sorted shortest-first by target
+ * syllables (see the ordering block in the handler); this function preserves
+ * whatever order it is given.
  *
  * No filtering by audio completeness here — the spec says return everything
  * in script order and let the frontend decide. The audio.* keys are simply
@@ -819,8 +901,8 @@ export function buildLegoCycles(
     is_new: isNew,
   })
 
-  // BUILDs then USEs. Split by phrase_role, preserving the position order
-  // already applied at query time. We deliberately do NOT collapse 'practice'
+  // BUILDs then USEs. Split by phrase_role, preserving the shortest-first
+  // order already applied to each pool by the handler. We deliberately do NOT collapse 'practice'
   // (legacy) to 'build' here — the dashboard renamed practice -> build in
   // Feb 2026 and any straggler 'practice' rows belong to old courses; treat
   // them as builds for cycle-type purposes.
