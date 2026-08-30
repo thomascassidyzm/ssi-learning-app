@@ -63,7 +63,18 @@ wireNetworkRecovery()
 // Critical in the installed PWA, which has no browser back button.
 const route = useRoute()
 const router = useRouter()
-const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
+// Until the matched route's component chunk has ARRIVED, router-view renders
+// nothing at all — `route.matched` is empty and the screen is bare. On Fast 3G
+// that is a five-second blank, and it is exactly the window the no-fallback
+// boot wait extends. Two things follow from it, both below: paint the same
+// spinner index.html shows before mount, so the cue is continuous from first
+// paint to the first frame of real UI; and don't offer a "Back" escape out of
+// a screen that hasn't rendered yet, which is what used to sit alone on that
+// blank.
+const isBootingRoute = computed(() => route.matched.length === 0)
+const showAppEscape = computed(
+  () => !isBootingRoute.value && !route.matched.some((r) => r.meta?.hideAppEscape),
+)
 
 // The immersive player opts out of AppEscape above — a plain learner sees no
 // chrome at all, which is the point. But since the owner ruling of 2026-08-06
@@ -572,13 +583,18 @@ const applyCatalogue = (fetched) => {
   let data = fetched
   if (data && data.length > 0) {
     writeCatalogueCache(data)
-    slowConnection.value = false
   } else {
     // Offline / query failed — serve the last known catalogue so the saved
     // course resolves and the player boots into its cached-content paths.
     data = readCatalogueCache()
     if (data) console.log('[App] Courses catalogue hydrated from offline mirror:', data.length, 'courses')
   }
+
+  // Anything at all to show clears the notice. The long wait can expire on a
+  // course with no cached script while the mirror still carries its row — that
+  // boots, so it must not also raise "your connection looks slow" over a
+  // working player. The notice is for having nothing, not for having waited.
+  if (data && data.length > 0) slowConnection.value = false
 
   try {
     // Set active course from: 1) localStorage, 2) first available
@@ -873,6 +889,12 @@ onMounted(async () => {
     <WalkOverlay />
     <CheckoutOverlay />
     <InAppBrowser />
+    <div
+      v-if="isBootingRoute && !slowConnection"
+      class="app-boot-loading"
+      role="status"
+      aria-label="Loading"
+    ></div>
     <SlowConnectionNotice v-if="slowConnection" @retry="retryCatalogueFetch" />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
@@ -893,6 +915,31 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+/* Same spinner index.html paints before mount, continued here for the window
+   between mount and the route component's chunk arriving. */
+.app-boot-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.app-boot-loading::after {
+  content: '';
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(194, 58, 58, 0.2);
+  border-top-color: var(--ssi-red);
+  border-radius: 50%;
+  animation: app-boot-spin 1s linear infinite;
+}
+
+@keyframes app-boot-spin {
+  to { transform: rotate(360deg); }
 }
 
 .kill-switch-overlay {
