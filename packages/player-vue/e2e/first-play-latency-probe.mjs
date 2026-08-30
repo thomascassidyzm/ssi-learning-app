@@ -92,6 +92,9 @@ const RUNS = Number(process.env.RUNS || 5)
 const THROTTLE = process.env.THROTTLE || 'fast3g'
 const BUDGET_MS = Number(process.env.BUDGET_MS || 90000)
 const EXPECT_COURSE = process.env.EXPECT_COURSE || 'zho_for_eng'
+// NAV_PATH targets a specific course via ?course=, for the Hungarian boot
+// verification. Default '/' keeps the untouched fresh-guest default path.
+const NAV_PATH = process.env.NAV_PATH || '/'
 
 mkdirSync(OUT, { recursive: true })
 
@@ -236,7 +239,7 @@ async function runOnce(index) {
   const wallStart = Date.now()
   navAt = wallStart
   // t0 = "course selection" for this cohort — see METHOD NOTE above.
-  await page.goto(BASE + '/', { waitUntil: 'commit' })
+  await page.goto(BASE + NAV_PATH, { waitUntil: 'commit' })
 
   const emptiness = await page.evaluate(async () => {
     const regs = await navigator.serviceWorker.getRegistrations().catch(() => [])
