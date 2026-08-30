@@ -7,8 +7,12 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
-import { prewarmInstantCaches, setInstantPlaybackAuthProvider } from './composables/useInstantPlayback'
-import { setCourseBundleAuthProvider } from './composables/useCourseBundle'
+import {
+  prewarmInstantCaches,
+  setInstantPlaybackAuthProvider,
+  isBundleBootstrapEnabled,
+} from './composables/useInstantPlayback'
+import { setCourseBundleAuthProvider, getCourseBundle } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -25,6 +29,7 @@ import {
   NETWORK_TIMEOUT,
   wireNetworkRecovery,
 } from './config/networkGate'
+import { waitForCatalogue, usableCatalogue } from './config/catalogueWait'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
@@ -239,6 +244,45 @@ const supabaseClient = ref(null)
 // the child's onMounted (which fires first in Vue 3) saw a missing client,
 // getSchoolsClient() threw, the error was swallowed, and GOD mode never
 // surfaced on non-/schools routes.
+// Declared here (rather than beside the course-selection helpers below) so
+// the early bundle warm-up in the block that follows can read it without
+// tripping over the temporal dead zone.
+const LAST_COURSE_KEY = 'ssi-last-course'
+
+/**
+ * Start the bundle download the moment a course can be NAMED — the intent
+ * signal, not the Start press (Tom, 2026-08-29: "by the time you get to the
+ * play button ... it has already anticipated you would play that song").
+ *
+ * There are two moments at which the app first learns which course the
+ * learner is heading for, and they are seconds apart:
+ *
+ *  1. Synchronously at boot, from the `?course=` param or the last-played
+ *     course in storage. This is the common case and it fires at ~250ms.
+ *  2. From the learner's OWN saved preference (`preferences.last_course_code`)
+ *     once auth resolves — which is the only signal available on a fresh
+ *     device, a fresh PWA install, or after a storage wipe, because there is
+ *     nothing in localStorage to read. Measured on dev 2026-08-29, that path
+ *     started the bundle at ~1.2s instead of ~0.25s: a second of overlap with
+ *     app boot thrown away for want of a name.
+ *
+ * Both call here. `getCourseBundle` coalesces in flight and caches per
+ * session, so calling it twice costs one fetch, and every later consumer
+ * (`prewarmInstantCaches`, the player's own bootstrap) JOINS this one rather
+ * than starting a second. A wrong guess costs one unused request, which is
+ * why it is gated on the bundle flag and only ever fired for a course the
+ * learner has actually pointed at.
+ */
+function warmBundleForIntent(courseCode) {
+  if (!courseCode) return
+  try {
+    if (!isBundleBootstrapEnabled(courseCode)) return
+    void getCourseBundle(courseCode).catch(() => {})
+  } catch {
+    /* no window (tests / SSR) — the player fetches it later exactly as before */
+  }
+}
+
 if (config.features.useDatabase && isSupabaseConfigured(config)) {
   try {
     supabaseClient.value = createClient(
@@ -268,6 +312,27 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
     // the same reason: an anonymous fetch hands a signed-in paid learner the
     // sliced preview bundle instead of the course.
     setCourseBundleAuthProvider(accessToken)
+
+    // Start the bundle download at the EARLIEST moment we can name a course.
+    // Everything that used to kick it off — course-list resolution, the
+    // enrollment lookup, the player's own mount — happens well into boot, so
+    // on a cold first play the learner waited for the whole multi-megabyte
+    // download from THERE. The remembered course (URL param, else last
+    // played) is the course the learner lands on nearly every time, so
+    // warming it here overlaps the download with the rest of app boot rather
+    // than queueing behind it. Fire-and-forget; `getCourseBundle` de-dupes in
+    // flight, so `prewarmInstantCaches` and the player's own bootstrap join
+    // THIS fetch instead of starting another. A wrong guess costs one unused
+    // request, which is why it is gated on the bundle flag.
+    try {
+      const remembered =
+        new URLSearchParams(window.location.search).get('course') ||
+        sessionStorage.getItem('ssi-demo-last-course') ||
+        localStorage.getItem(LAST_COURSE_KEY)
+      warmBundleForIntent(remembered)
+    } catch {
+      /* no storage, no window — the player fetches it later exactly as before */
+    }
   } catch (err) {
     console.error('[App] Failed to initialize Supabase client synchronously:', err)
   }
@@ -339,7 +404,6 @@ watch(() => auth.learner.value?.id, fetchLearnerEnrollments, { immediate: true }
 const noPriorCourseSelection = ref(false)
 
 // Course persistence key
-const LAST_COURSE_KEY = 'ssi-last-course'
 
 // Handle course selection from CourseSelector
 const handleCourseSelect = async (course) => {
@@ -437,6 +501,81 @@ const writeCatalogueCache = (rows) => {
 }
 
 // Fetch enrolled courses from Supabase
+/**
+ * Every column of `courses` EXCEPT the two that boot never reads.
+ *
+ * This query used to be `select('*')`, and `*` on this table is 1.74 MB of
+ * JSON for 83 rows — because Popty stores its content-authoring working notes
+ * on the same row. Measured live 2026-08-30:
+ *
+ *   quality_rules         1,364,495 bytes   78% of the payload   0 references in this repo
+ *   translation_analysis    248,931 bytes   14% of the payload   0 references in this repo
+ *   everything else         128,084 bytes    7%
+ *
+ * So 93% of the FIRST network dependency of every boot was authoring metadata
+ * the player has never once looked at. On Fast 3G, with the JS bundle still
+ * coming down the same pipe, its body took ~7s to arrive — the response
+ * HEADERS landed at 2.28s, comfortably inside the 2500ms budget, and then the
+ * body streamed past it. That is why a FIRST load hung and a REFRESH was fine:
+ * on the second load the bundle is cached, the pipe is free, and the same
+ * 1.5 MB lands in a few hundred ms. Measured against staging (no leash):
+ * 5/5 first cold loads never rendered anything at all.
+ *
+ * Stated as an EXCLUSION rather than an allowlist on purpose. `enrolledCourses`
+ * flows into the browse screen, the course switcher and LearningPlayer, and an
+ * allowlist that missed a field would fail silently somewhere far from here.
+ * Excluding two provably-unread columns cannot. A column added in Popty later
+ * will need adding here — that is the accepted cost, and it is why the list is
+ * next to the query rather than in a config file.
+ */
+const CATALOGUE_COLUMNS = [
+  'audio_stamp', 'content_stamp', 'content_version', 'course_code', 'course_type',
+  'created_at', 'creator_email', 'dialect', 'display_name', 'export_ready',
+  'featured_order', 'gender_prep_check_notes', 'gender_prep_checked_at', 'is_community',
+  'known_lang', 'learner_display_name', 'legacy_app_beta_started_at', 'legacy_app_status',
+  'needs_gender_prep', 'new_app_beta_started_at', 'new_app_status', 'pricing_tier',
+  'record_full_max_seed', 'released_at', 'seed_count', 'status', 'target_lang',
+  'updated_at', 'variant_label', 'version', 'visibility', 'voice_config', 'voice_pool_key',
+].join(',')
+
+/**
+ * The course catalogue read, as a real promise.
+ *
+ * Deliberately NOT session-scoped: the filter is `new_app_status`, and the
+ * row set is identical for an anonymous and a service-role reader (verified
+ * live 2026-08-30, 83 courses either way). Which is what makes it safe to
+ * start before auth has resolved — only the SELECTION below needs the
+ * learner, not the fetch.
+ */
+const startCoursesQuery = (signal) => {
+  let q = supabaseClient.value
+    .from('courses')
+    .select(CATALOGUE_COLUMNS)
+    .in('new_app_status', ['live', 'beta'])
+    .order('display_name')
+  // Superseded attempts are aborted rather than left to hang, so a long wait
+  // on a bad network cannot quietly accumulate dead sockets.
+  if (signal) q = q.abortSignal(signal)
+  return Promise.resolve(q)
+}
+
+/**
+ * Boot's head start on that read. `await auth.initialize()` costs ~600ms on a
+ * cold boot and the catalogue fetch used to queue behind it, one after the
+ * other, before any course could be named. Started alongside instead, claimed
+ * once by the first fetchEnrolledCourses.
+ */
+let prefetchedCoursesQuery = null
+
+/**
+ * Is the learner watching a blank screen because the catalogue has not landed?
+ *
+ * Only ever true on a FIRST cold visit — a returning learner has the offline
+ * mirror and never gets here. Drives the one visible thing in the template.
+ * Waiting visibly is a state; waiting blankly is the bug this closes.
+ */
+const catalogueSlow = ref(false)
+
 const fetchEnrolledCourses = async () => {
   let data = null
   if (supabaseClient.value) {
@@ -448,19 +587,47 @@ const fetchEnrolledCourses = async () => {
       // no course, no player, nothing plays, even with a full cache sitting
       // on the device. The offline catalogue mirror below is exactly the
       // fallback we want; it just has to be REACHED. (Tom 2026-08-15.)
-      const res = await withNetworkTimeout(
-        supabaseClient.value
-          .from('courses')
-          .select('*')
-          .in('new_app_status', ['live', 'beta'])
-          .order('display_name'),
-      )
+      // ONE shared promise. It is awaited up to twice below, so it must be a
+      // real promise rather than the Supabase thenable, which re-runs the
+      // request every time it is awaited.
+      //
+      // Boot may already have this in flight (see startCoursesQuery) — claim
+      // it once. Every later caller (PlayerContainer's refresh) finds the slot
+      // empty and issues its own, so a refresh is never served stale.
+      const coursesQuery = prefetchedCoursesQuery || startCoursesQuery()
+      prefetchedCoursesQuery = null
+      // supabase-js reports transport failures as `res.error` rather than
+      // rejecting — but if it ever does reject, a first-time visitor must
+      // still reach the waiter below instead of falling out to the catch and
+      // dead-ending on a blank screen, which is the whole bug being closed.
+      let res = await withNetworkTimeout(coursesQuery).catch((err) => {
+        console.error('[App] Courses fetch threw:', err)
+        return null
+      })
+      if (!usableCatalogue(res) && !readCatalogueCache()) {
+        // The offline mirror is the right fallback for a RETURNING learner.
+        // A FIRST-TIME visitor has never written one, so there is nothing here
+        // to fall back TO — and giving up at a deadline would just trade a
+        // blank screen that might still resolve for a blank screen that never
+        // will. Neither is any use to the learner. So: say so on screen, and
+        // keep trying until it lands. (Tom's ruling, 2026-08-30.)
+        if (res === NETWORK_TIMEOUT) {
+          console.warn('[App] Courses fetch exceeded its budget and there is no offline mirror to serve — telling the learner and staying on it.')
+        } else if (res?.error) {
+          console.error('[App] Failed to fetch courses:', res.error)
+        }
+        catalogueSlow.value = true
+        res = await waitForCatalogue(coursesQuery, {
+          startQuery: (signal) => startCoursesQuery(signal),
+          onRetry: (n) => console.warn(`[App] No catalogue and no offline mirror — still trying (attempt ${n}).`),
+        })
+      }
       if (res === NETWORK_TIMEOUT) {
         console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
-      } else if (res.error) {
+      } else if (res?.error) {
         console.error('[App] Failed to fetch courses:', res.error)
       } else {
-        data = res.data
+        data = res?.data ?? null
       }
     } catch (err) {
       console.error('[App] Error fetching enrolled courses:', err)
@@ -475,6 +642,8 @@ const fetchEnrolledCourses = async () => {
     data = readCatalogueCache()
     if (data) console.log('[App] Courses catalogue hydrated from offline mirror:', data.length, 'courses')
   }
+  // Either way the wait is over — the notice comes down.
+  catalogueSlow.value = false
 
   try {
     // Set active course from: 1) localStorage, 2) first available
@@ -620,6 +789,11 @@ onMounted(async () => {
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
 
+      // Catalogue read goes out NOW, in parallel with auth init, rather than
+      // waiting its turn behind it. Errors are handled where it is awaited.
+      prefetchedCoursesQuery = startCoursesQuery()
+      void prefetchedCoursesQuery.catch(() => {})
+
       // Initialize auth with Supabase client (for learner management). Its
       // completion — including the "staff on a fresh browser lands on the
       // dashboard, not the bare player" redirect that used to live here — is
@@ -686,6 +860,13 @@ onMounted(async () => {
           }
         })()
       }
+
+      // INTENT, second signal: the learner's own saved course. On a fresh
+      // device there is nothing in localStorage, so the synchronous warm-up
+      // above had no name to work with and the download otherwise waits for
+      // the course list and enrollment reads to finish. De-duped — if the
+      // boot warm-up already started this course, this joins that fetch.
+      warmBundleForIntent(auth.learner.value?.preferences?.last_course_code)
 
       // Handle ?code= URL parameter for invite codes
       try {
@@ -769,6 +950,22 @@ onMounted(async () => {
     <WalkOverlay />
     <CheckoutOverlay />
     <InAppBrowser />
+    <!--
+      Shown only on a FIRST cold visit whose catalogue has not arrived yet.
+      A returning learner has the offline mirror and never sees this. It is not
+      an error state and offers nothing to tap: the app is still trying, and
+      the one useful thing it can do is say so rather than sit blank.
+    -->
+    <div v-if="catalogueSlow" class="slow-network-notice">
+      <div class="slow-network-card">
+        <div class="slow-network-pulse" aria-hidden="true"></div>
+        <p class="slow-network-title">Still loading</p>
+        <p class="slow-network-body">
+          Your connection looks slow. This will start on its own as soon as it
+          comes through, so there's no need to reload.
+        </p>
+      </div>
+    </div>
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>
@@ -788,6 +985,61 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+/*
+ * The slow-network notice. Mist tokens, no belt accent — this is the shell
+ * speaking before any course exists, so there is no belt colour to carry yet.
+ * Edge-anchored and full-bleed, so it pads itself out of the notch and the
+ * home indicator per the standing safe-area rule.
+ */
+.slow-network-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  background: var(--bg-primary);
+}
+
+.slow-network-card {
+  max-width: 320px;
+  text-align: center;
+}
+
+.slow-network-pulse {
+  width: 10px;
+  height: 10px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: var(--text-secondary, #6b6560);
+  animation: slow-network-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes slow-network-breathe {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slow-network-pulse { animation: none; opacity: 0.6; }
+}
+
+.slow-network-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary, #2b2724);
+}
+
+.slow-network-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary, #6b6560);
 }
 
 .kill-switch-overlay {

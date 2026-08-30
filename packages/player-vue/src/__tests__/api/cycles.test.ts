@@ -209,6 +209,64 @@ describe('GET /api/courses/:code/cycles', () => {
     })
   })
 
+  describe('edge cacheability of the R1 window', () => {
+    // R1 of a fresh course is a pure function of the course — no progress, no
+    // review history, nothing personal — so it is shareable from the CDN edge.
+    // These tests pin the two conditions that keep that safe.
+
+    it('marks an anonymous request inside the preview window as publicly cacheable', async () => {
+      setupRpcFixture([1, 2])
+      tableResponses.courses = {
+        data: { target_lang: 'spa', pricing_tier: 'premium', is_community: false },
+        error: null,
+      }
+
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0001L01' }), res as any)
+
+      expect(res._status).toBe(200)
+      expect(res._headers['Cache-Control']).toBe(
+        'public, s-maxage=300, stale-while-revalidate=3600',
+      )
+    })
+
+    it('keeps a request carrying an Authorization header private', async () => {
+      // An entitled deep-window body must never be able to enter a shared
+      // cache an anonymous caller could then read.
+      setupRpcFixture([1, 2])
+      tableResponses.courses = {
+        data: { target_lang: 'spa', pricing_tier: 'premium', is_community: false },
+        error: null,
+      }
+
+      const res = makeRes()
+      await handler(
+        makeReq({ code: 'test_course', from: 'S0001L01' }, 'GET', {
+          authorization: 'Bearer token',
+        }),
+        res as any,
+      )
+
+      expect(res._headers['Cache-Control']).toBe('private, max-age=60')
+    })
+
+    it('keeps a window past the preview ceiling private even when anonymous', async () => {
+      // Past the ceiling the response genuinely differs by entitlement, so it
+      // is per-learner and must not be shared.
+      setupRpcFixture([100, 101])
+      tableResponses.courses = {
+        data: { target_lang: 'brz', pricing_tier: 'free', is_community: false },
+        error: null,
+      }
+
+      const res = makeRes()
+      await handler(makeReq({ code: 'test_course', from: 'S0100L01' }), res as any)
+
+      expect(res._status).toBe(200)
+      expect(res._headers['Cache-Control']).toBe('private, max-age=60')
+    })
+  })
+
   it('denies an unauthenticated caller requesting cycles beyond the free-preview window on a premium course', async () => {
     setupRpcFixture([25])
     tableResponses.courses = {

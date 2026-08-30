@@ -384,6 +384,7 @@ describe('GET /api/courses/:code/bundle', () => {
         'course_seeds',
         'listening_pods',
         'course_audio',
+        'lego_introductions',
         'listening_pod_sentences',
       ].sort(),
     )
@@ -948,5 +949,78 @@ describe('GET /api/courses/:code/bundle — entitlement gating', () => {
     const bundle = res._body as any
     expect(bundle.previewOnly).toBeUndefined()
     expect(bundle.legos).toHaveLength(2)
+  })
+})
+
+// --- presentation-audio backfill -----------------------------------------
+// `course_legos.presentation_audio_id` is not populated on every LEGO. The
+// retiring walk repaired that at read time; the bundle did not, so on the
+// bundle path those LEGOs opened with the plain known-text clip instead of
+// their introduction narration (174 LEGOs on eus_for_eng alone, measured
+// 2026-08-29). These lock in the repair and its precedence.
+describe('GET /api/courses/:code/bundle — presentation-audio backfill', () => {
+  it('fills a missing presentation id from lego_introductions', async () => {
+    setupHappyFixture()
+    tableResponses.lego_introductions = {
+      data: [{ lego_id: 'S0002L01', presentation_audio_id: null, audio_uuid: 'intro-legacy-2' }],
+      error: null,
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.legos[1].legoId).toBe('S0002L01')
+    expect(bundle.legos[1].ephemeralAudio.presentation).toEqual({
+      id: 'intro-legacy-2',
+      lifecycle: 'ephemeral',
+    })
+    // The LEGO that already had one is untouched.
+    expect(bundle.legos[0].ephemeralAudio.presentation.id).toBe('aud-pres-1')
+  })
+
+  it('prefers a rendered course_audio presentation row over the legacy one', async () => {
+    setupHappyFixture()
+    tableResponses.lego_introductions = {
+      data: [{ lego_id: 'S0002L01', presentation_audio_id: null, audio_uuid: 'intro-legacy-2' }],
+      error: null,
+    }
+    tableResponses.course_audio = {
+      data: [{ id: 'pres-rendered-2', lego_id: 'S0002L01', s3_key: 'mastered/x.mp3', created_at: '2026-01-01' }],
+      error: null,
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    expect((res._body as any).legos[1].ephemeralAudio.presentation.id).toBe('pres-rendered-2')
+  })
+
+  it('skips a pending render and keeps the legacy clip', async () => {
+    setupHappyFixture()
+    tableResponses.lego_introductions = {
+      data: [{ lego_id: 'S0002L01', presentation_audio_id: null, audio_uuid: 'intro-legacy-2' }],
+      error: null,
+    }
+    tableResponses.course_audio = {
+      data: [{ id: 'pres-pending-2', lego_id: 'S0002L01', s3_key: 'pending/x.mp3', created_at: '2026-01-01' }],
+      error: null,
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    expect((res._body as any).legos[1].ephemeralAudio.presentation.id).toBe('intro-legacy-2')
+  })
+
+  it('leaves the LEGO without presentation audio when nothing is found', async () => {
+    setupHappyFixture()
+    tableResponses.lego_introductions = { data: [], error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    expect((res._body as any).legos[1].ephemeralAudio.presentation).toBeUndefined()
   })
 })

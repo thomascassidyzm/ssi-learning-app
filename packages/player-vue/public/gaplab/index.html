@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Speaking gap lab</title>
+<style>
+/* Throwaway instrument for Tom's ear. Tap is the only affordance: every control is a button.
+   No sliders, no drag, no swipe, no long-press. Phone width first. */
+*{box-sizing:border-box}
+html,body{margin:0;background:#e8e3dd;color:#20242b;
+  font:16px/1.45 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;-webkit-font-smoothing:antialiased}
+body{padding:calc(14px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-left)) calc(28px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-right))}
+.wrap{max-width:560px;margin:0 auto}
+h1{font-size:19px;margin:0 0 2px}
+.sub{color:#6b7280;font-size:13px;margin:0 0 14px}
+.card{background:#fff;border:1px solid #d8d2ca;border-radius:14px;padding:12px;margin-bottom:12px}
+button{font:inherit;border-radius:11px;border:1px solid #cfc8bf;background:#f4f1ec;color:#20242b;
+  padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button:active{background:#e6e1d9}
+button[disabled]{opacity:.4}
+.seg{display:flex;gap:8px}
+.seg button{flex:1;font-weight:600}
+.seg button.on{background:#20242b;color:#fff;border-color:#20242b}
+.abtn{width:100%;font-weight:700;padding:14px;font-size:16px}
+.abtn.shipped{background:#3a4a63;color:#fff;border-color:#3a4a63}
+.abtn.yours{background:#7a5c17;color:#fff;border-color:#7a5c17}
+.krow{display:flex;align-items:center;gap:10px;margin:10px 0}
+.klab{flex:1;min-width:0}
+.klab b{display:block;font-size:14px}
+.klab span{display:block;font-size:11.5px;color:#6b7280}
+.kval{width:86px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:17px}
+.kval.diff{color:#7a5c17}
+.step{width:46px;padding:11px 0;text-align:center;font-size:19px;line-height:1}
+.ph{background:#fff;border:1px solid #d8d2ca;border-radius:14px;padding:12px;margin-bottom:10px}
+.ph.playing{border-color:#7a5c17;box-shadow:0 0 0 2px rgba(122,92,23,.18)}
+.tag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8a8378;font-weight:700}
+.kn{font-size:15px;margin:3px 0 1px}
+.tg{font-size:14px;color:#5c6470;margin:0 0 8px}
+.gaprow{display:flex;align-items:flex-end;gap:10px}
+.gap{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;transition:color .15s}
+.gap.shipped{color:#3a4a63}
+.gap.yours{color:#7a5c17}
+.gapsub{font-size:12px;color:#8a8378;flex:1;padding-bottom:3px}
+.play{padding:11px 16px;font-weight:700;min-width:96px}
+.bar{height:6px;border-radius:4px;background:#e6e1d9;margin-top:9px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:#7a5c17}
+.stat{font-size:12.5px;color:#6b7280;min-height:16px;margin-top:6px}
+.foot{font-size:12.5px;color:#6b7280;margin-top:4px}
+.sum{font-variant-numeric:tabular-nums;background:#fff;border:1px solid #d8d2ca;border-radius:11px;padding:10px 12px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Speaking gap lab</h1>
+  <p class="sub">gap = k × answer length + reaction beat, clamped. Real Spanish audio, real gap.</p>
+
+  <div class="card">
+    <div class="seg" id="modeseg">
+      <button data-mode="fast" class="on">Fast</button>
+      <button data-mode="easy">Easy</button>
+    </div>
+    <div class="krow" style="margin:12px 0 2px">
+      <button class="abtn yours" id="ab">Hearing: YOUR VALUES — tap for shipped</button>
+    </div>
+  </div>
+
+  <div class="card" id="knobs">
+    <div class="krow">
+      <button class="step" data-k="pause_k" data-d="-1">−</button>
+      <div class="klab"><b>k — thinking multiplier</b><span id="s_k"></span></div>
+      <div class="kval" id="v_k">2.8</div>
+      <button class="step" data-k="pause_k" data-d="1">+</button>
+    </div>
+    <div class="krow">
+      <button class="step" data-k="pause_reaction_ms" data-d="-1">−</button>
+      <div class="klab"><b>reaction beat</b><span id="s_reaction"></span></div>
+      <div class="kval" id="v_reaction">800</div>
+      <button class="step" data-k="pause_reaction_ms" data-d="1">+</button>
+    </div>
+    <div class="krow">
+      <button class="step" data-k="min_pause_ms" data-d="-1">−</button>
+      <div class="klab"><b>floor</b><span id="s_min"></span></div>
+      <div class="kval" id="v_min">1000</div>
+      <button class="step" data-k="min_pause_ms" data-d="1">+</button>
+    </div>
+    <div class="krow">
+      <button class="step" data-k="max_pause_ms" data-d="-1">−</button>
+      <div class="klab"><b>ceiling</b><span id="s_max"></span></div>
+      <div class="kval" id="v_max">15000</div>
+      <button class="step" data-k="max_pause_ms" data-d="1">+</button>
+    </div>
+    <button id="reset" style="width:100%;margin-top:6px">Reset to shipped</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="card">
+    <button id="playall" style="width:100%;font-weight:700">Play all four, back to back</button>
+    <div class="stat" id="stat"></div>
+  </div>
+
+  <div class="sum" id="sum"></div>
+  <p class="foot">Audio plays here in the page. Tap a playing card's button again to stop.</p>
+</div>
+
+<script>
+// ---- the shipped constants, live in algorithm_config on 2026-08-29 ----
+var SHIPPED = {
+  fast: { pause_k:2.8, pause_reaction_ms:800, min_pause_ms:1000, max_pause_ms:15000 },
+  easy: { pause_k:3.6, pause_reaction_ms:800, min_pause_ms:2000, max_pause_ms:15000 }
+};
+var STEPS = { pause_k:0.1, pause_reaction_ms:100, min_pause_ms:250, max_pause_ms:500 };
+var LIMITS = { pause_k:[0.5,8], pause_reaction_ms:[0,3000], min_pause_ms:[0,8000], max_pause_ms:[3000,30000] };
+
+// ---- four real spa_for_eng cycles: known clip, both target clips, native durations ----
+var PHRASES = [
+  { tag:'Short', known:'Two', target:'Dos',
+    kn:'066eb654-acad-495a-aa7b-f10aa192e387',
+    t1:'c4743a54-958e-449b-a432-5c253f141653', t1ms:1054,
+    t2:'a2ec0960-d1cd-4b56-b8c6-e77d2b5334ae', t2ms:1944 },
+  { tag:'Medium', known:'I want to practise speaking with you', target:'Quiero practicar hablando contigo',
+    kn:'fd6cebd9-31d3-4ac3-9774-8a53d9638d10',
+    t1:'b2de0958-71af-403b-a97e-9f2346bab561', t1ms:3120,
+    t2:'7a2ad05d-46ea-4231-b73e-1b9d9456cee2', t2ms:3264 },
+  { tag:'Long', known:'I want to relax for a while this evening because I am very tired',
+    target:'Quiero relajarme un rato esta noche porque estoy muy cansado',
+    kn:'4585e807-f5ee-4e4f-83cf-58880fe10df8',
+    t1:'fe93908f-8888-4732-9c57-0b2708cbba51', t1ms:4776,
+    t2:'98b344fc-160d-4f4d-97bb-ac51f1acae09', t2ms:4992 },
+  { tag:'Very long', known:'I think the best way to learn new words is to practise speaking with people as much as possible',
+    target:'Pienso que la mejor manera de aprender palabras nuevas es practicar hablando con personas lo más posible',
+    kn:'2e892f9e-f7f7-4b29-8399-0ba59208b43e',
+    t1:'78b1c3e1-b2c5-4dee-97cf-cf0f7a9fee37', t1ms:6864,
+    t2:'3854cef0-da3a-4526-bab4-2acf8dd7ef2d', t2ms:7296 }
+];
+
+// ---- the one formula, copied from packages/core/src/script/computePauseDuration.ts ----
+function computeGap(t1, t2, cfg) {
+  var answer = Math.max(0, ((t1||0) + (t2||0)) / 2);
+  var calc = cfg.pause_k * answer + cfg.pause_reaction_ms;
+  return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, Math.round(calc)));
+}
+
+var mode = 'fast';
+var hearing = 'yours';            // 'yours' | 'shipped'
+var mine = { fast: Object.assign({}, SHIPPED.fast), easy: Object.assign({}, SHIPPED.easy) };
+function cfgYours(){ return mine[mode]; }
+function cfgActive(){ return hearing === 'shipped' ? SHIPPED[mode] : mine[mode]; }
+
+// ---- one reused Audio element: iOS keeps the unlock only if we never make a new one ----
+var audio = new Audio();
+audio.preload = 'auto';
+var run = null;                    // active playback token
+
+function stopAll(){
+  if (run) { run.cancelled = true; run = null; }
+  try { audio.pause(); } catch(e){}
+  clearTimeout(stopAll.t);
+  document.querySelectorAll('.ph').forEach(function(el){ el.classList.remove('playing'); });
+  document.querySelectorAll('.bar i').forEach(function(el){ el.style.transition='none'; el.style.width='0'; });
+  document.querySelectorAll('.play').forEach(function(b){ b.textContent = '▶ Play'; });
+  setStat('');
+}
+function setStat(s){ document.getElementById('stat').textContent = s; }
+
+function playClip(id, token){
+  return new Promise(function(resolve){
+    var done = false;
+    function fin(){ if (done) return; done = true; audio.removeEventListener('ended', fin); audio.removeEventListener('error', fin); resolve(); }
+    audio.addEventListener('ended', fin);
+    audio.addEventListener('error', fin);
+    audio.src = '/api/audio/' + id;
+    audio.load();
+    var p = audio.play();
+    if (p && p.catch) p.catch(function(){ fin(); });
+    // safety: never hang the sequence on a clip that fires nothing
+    setTimeout(function(){ if (token.cancelled) fin(); }, 30000);
+  });
+}
+function wait(ms, token){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+function playPhrase(i, token){
+  var p = PHRASES[i];
+  var card = document.getElementById('ph' + i);
+  var bar = card.querySelector('.bar i');
+  var gap = computeGap(p.t1ms, p.t2ms, cfgActive());
+  card.classList.add('playing');
+  card.querySelector('.play').textContent = '■ Stop';
+  return Promise.resolve()
+    .then(function(){ if (token.cancelled) throw 0; setStat('Prompt — "' + p.known + '"'); return playClip(p.kn, token); })
+    .then(function(){
+      if (token.cancelled) throw 0;
+      setStat('Your turn — ' + (gap/1000).toFixed(1) + 's');
+      bar.style.transition = 'none'; bar.style.width = '100%';
+      // force reflow so the countdown actually animates
+      void bar.offsetWidth;
+      bar.style.transition = 'width ' + gap + 'ms linear';
+      bar.style.width = '0%';
+      return wait(gap, token);
+    })
+    .then(function(){ if (token.cancelled) throw 0; setStat('Answer, voice 1'); return playClip(p.t1, token); })
+    .then(function(){ if (token.cancelled) throw 0; return wait(400, token); })
+    .then(function(){ if (token.cancelled) throw 0; setStat('Answer, voice 2'); return playClip(p.t2, token); })
+    .then(function(){
+      card.classList.remove('playing');
+      card.querySelector('.play').textContent = '▶ Play';
+    })
+    .catch(function(){});
+}
+
+function startOne(i){
+  var wasPlaying = document.getElementById('ph' + i).classList.contains('playing');
+  stopAll();
+  if (wasPlaying) return;
+  var token = run = { cancelled:false };
+  playPhrase(i, token).then(function(){ if (run === token) { run = null; setStat(''); } });
+}
+function startAll(){
+  stopAll();
+  var token = run = { cancelled:false };
+  var chain = Promise.resolve();
+  PHRASES.forEach(function(_, i){
+    chain = chain.then(function(){
+      if (token.cancelled) return;
+      return playPhrase(i, token).then(function(){ return wait(700, token); });
+    });
+  });
+  chain.then(function(){ if (run === token) { run = null; setStat(''); } });
+}
+
+// ---- rendering; every number animates on every step ----
+function tween(el, to, digits){
+  var from = parseFloat(el.getAttribute('data-v') || to);
+  el.setAttribute('data-v', to);
+  var t0 = performance.now(), dur = 220;
+  (function frame(now){
+    var f = Math.min(1, (now - t0) / dur);
+    var e = 1 - Math.pow(1 - f, 3);
+    el.textContent = (from + (to - from) * e).toFixed(digits);
+    if (f < 1) requestAnimationFrame(frame);
+  })(t0);
+}
+
+function buildList(){
+  document.getElementById('list').innerHTML = PHRASES.map(function(p, i){
+    return '<div class="ph" id="ph' + i + '">' +
+      '<div class="tag">' + p.tag + ' — answer ' + ((p.t1ms + p.t2ms) / 2000).toFixed(1) + 's</div>' +
+      '<div class="kn">' + p.known + '</div>' +
+      '<div class="tg">' + p.target + '</div>' +
+      '<div class="gaprow"><div class="gap" id="g' + i + '">0.0</div>' +
+      '<div class="gapsub" id="gs' + i + '"></div>' +
+      '<button class="play" data-i="' + i + '">▶ Play</button></div>' +
+      '<div class="bar"><i></i></div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('list').addEventListener('click', function(e){
+    var b = e.target.closest('.play'); if (b) startOne(+b.getAttribute('data-i'));
+  });
+}
+
+function render(){
+  var y = cfgYours(), s = SHIPPED[mode], a = cfgActive();
+  document.getElementById('v_k').textContent = y.pause_k.toFixed(1);
+  document.getElementById('v_reaction').textContent = y.pause_reaction_ms + 'ms';
+  document.getElementById('v_min').textContent = y.min_pause_ms + 'ms';
+  document.getElementById('v_max').textContent = (y.max_pause_ms / 1000).toFixed(1) + 's';
+  [['v_k','pause_k'],['v_reaction','pause_reaction_ms'],['v_min','min_pause_ms'],['v_max','max_pause_ms']]
+    .forEach(function(pair){
+      document.getElementById(pair[0]).classList.toggle('diff', y[pair[1]] !== s[pair[1]]);
+    });
+  document.getElementById('s_k').textContent = 'shipped ' + s.pause_k.toFixed(1) + ' · steps of 0.1';
+  document.getElementById('s_reaction').textContent = 'shipped ' + s.pause_reaction_ms + 'ms · steps of 100';
+  document.getElementById('s_min').textContent = 'shipped ' + s.min_pause_ms + 'ms · safety clamp';
+  document.getElementById('s_max').textContent = 'shipped ' + (s.max_pause_ms/1000).toFixed(1) + 's · safety clamp';
+
+  var ab = document.getElementById('ab');
+  ab.className = 'abtn ' + (hearing === 'shipped' ? 'shipped' : 'yours');
+  ab.textContent = hearing === 'shipped'
+    ? 'Hearing: SHIPPED — tap for your values'
+    : 'Hearing: YOUR VALUES — tap for shipped';
+  document.getElementById('knobs').style.opacity = hearing === 'shipped' ? '.55' : '1';
+
+  PHRASES.forEach(function(p, i){
+    var g = computeGap(p.t1ms, p.t2ms, a) / 1000;
+    var el = document.getElementById('g' + i);
+    el.className = 'gap ' + (hearing === 'shipped' ? 'shipped' : 'yours');
+    tween(el, g, 1);
+    var other = computeGap(p.t1ms, p.t2ms, hearing === 'shipped' ? y : s) / 1000;
+    var lbl = hearing === 'shipped' ? 'yours' : 'shipped';
+    document.getElementById('gs' + i).textContent =
+      'seconds of silence · ' + lbl + ' ' + other.toFixed(1) + 's';
+  });
+
+  document.getElementById('sum').textContent =
+    'Fast: k ' + mine.fast.pause_k.toFixed(1) + ', reaction ' + mine.fast.pause_reaction_ms +
+    'ms, floor ' + mine.fast.min_pause_ms + 'ms, ceiling ' + mine.fast.max_pause_ms + 'ms   ·   ' +
+    'Easy: k ' + mine.easy.pause_k.toFixed(1) + ', reaction ' + mine.easy.pause_reaction_ms +
+    'ms, floor ' + mine.easy.min_pause_ms + 'ms, ceiling ' + mine.easy.max_pause_ms + 'ms';
+}
+
+// ---- controls ----
+document.getElementById('modeseg').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-mode]'); if (!b) return;
+  stopAll(); mode = b.getAttribute('data-mode');
+  document.querySelectorAll('#modeseg button').forEach(function(x){ x.classList.toggle('on', x === b); });
+  render();
+});
+document.getElementById('ab').addEventListener('click', function(){
+  stopAll(); hearing = hearing === 'shipped' ? 'yours' : 'shipped'; render();
+});
+document.getElementById('knobs').addEventListener('click', function(e){
+  var b = e.target.closest('.step'); if (!b) return;
+  if (hearing === 'shipped') { hearing = 'yours'; }   // stepping means you want your own values
+  var key = b.getAttribute('data-k'), d = +b.getAttribute('data-d');
+  var c = mine[mode];
+  var v = c[key] + d * STEPS[key];
+  v = Math.round(v * 1000) / 1000;
+  var lim = LIMITS[key];
+  c[key] = Math.max(lim[0], Math.min(lim[1], v));
+  stopAll(); render();
+});
+document.getElementById('reset').addEventListener('click', function(){
+  stopAll(); mine[mode] = Object.assign({}, SHIPPED[mode]); render();
+});
+document.getElementById('playall').addEventListener('click', startAll);
+
+buildList();
+render();
+</script>
+</body>
+</html>

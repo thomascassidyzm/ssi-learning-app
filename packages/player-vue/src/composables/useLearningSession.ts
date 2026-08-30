@@ -17,6 +17,7 @@ import {
   DEFAULT_CONFIG,
 } from '@ssi/core'
 import type { CourseDataProvider, LearningItem } from '../providers/CourseDataProvider'
+import { isBundleBootstrapEnabled } from './useInstantPlayback'
 
 // Accept either a value or a Ref — read lazily to avoid setup-time null captures
 type MaybeRef<T> = T | Ref<T>
@@ -237,6 +238,19 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   })
 
   // Helper to check if learner is a guest (guest IDs start with 'guest-')
+  /**
+   * Run after the boot rush. `requestIdleCallback` where it exists, with a
+   * generous timeout so it cannot be starved indefinitely; a plain timer
+   * everywhere else (Safari). Deliberately not tied to the player's ready
+   * signal — this composable has no access to it, and "after the busy part of
+   * boot" is all the guarantee this work needs.
+   */
+  const scheduleWhenIdle = (fn: () => void) => {
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback
+    if (typeof ric === 'function') ric(() => fn(), { timeout: 8000 })
+    else setTimeout(fn, 4000)
+  }
+
   const isGuestLearner = (id: string | undefined) => {
     return !id || id === 'demo-learner' || id.startsWith('guest-')
   }
@@ -262,25 +276,48 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       const learnerId = getLearnerId()
       const courseId = getCourseId()
 
-      // Try to load items from database
-      if (courseDataProvider) {
+      // Try to load items from database.
+      //
+      // This is the LEGACY round-based path's inventory: seeds 1..30, plus one
+      // `course_practice_phrases` read PER SEED for the baskets, plus the
+      // TripleHelix engine build. `LearningPlayer.currentItem` reads it only
+      // while `useRoundBasedPlayback` is false — that is, only before the
+      // SimplePlayer has any rounds, when `demoItems` is the standing fallback
+      // anyway.
+      //
+      // On a bundle-flagged course those 30 per-seed reads landed at ~t+2.8s on
+      // a cold start, in the middle of the boot window, for data the bundle
+      // already holds and a queue the learner does not play from (measured
+      // 2026-08-29 — docs/first-play-wait-measured-2026-08-29.md). So there
+      // they are deferred to idle rather than awaited on the way to a play
+      // button. Nothing about them changes; only when they happen. An UNFLAGGED
+      // course keeps the exact original ordering, awaited inline.
+      const deferItemLoad = !!courseId && isBundleBootstrapEnabled(courseId)
+      const loadItems = async () => {
+        if (!courseDataProvider) {
+          items.value = demoItems
+          return
+        }
         console.log('[useLearningSession] Loading items from database...')
         const dbItems = await courseDataProvider.loadSessionItems(1, 30)
-
         if (dbItems.length > 0) {
           items.value = dbItems
           console.log(`[useLearningSession] Loaded ${dbItems.length} items from database`)
-
-          // Initialize TripleHelixEngine with loaded items
           await initializeHelixEngine(dbItems)
         } else {
-          // Fall back to demo items
           console.log('[useLearningSession] No database items, using demo mode')
           items.value = demoItems
         }
-      } else {
-        // No provider, use demo items
+      }
+      if (deferItemLoad) {
         items.value = demoItems
+        scheduleWhenIdle(() => {
+          void loadItems().catch((err) => {
+            console.warn('[useLearningSession] deferred item load failed (non-fatal):', err)
+          })
+        })
+      } else {
+        await loadItems()
       }
 
       // Start session tracking only for real learners — Supabase rejects
@@ -406,17 +443,17 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       // Get unique seed IDs
       const seedIds = [...new Set(loadedItems.map(item => item.seed.seed_id))]
 
-      // Load all baskets in parallel (not sequentially!)
-      const basketResults = await Promise.all(
-        seedIds.map(seedId => courseDataProvider.getLegoBasketsForSeed(seedId))
-      )
+      // ONE request for the whole inventory. This used to be one
+      // `course_practice_phrases` read per seed — thirty of them on the
+      // legacy 1..30 window, all with the same filter bar `seed_number`,
+      // firing in the middle of the boot window (measured 2026-08-29,
+      // docs/first-play-wait-measured-2026-08-29.md). Same rows, same
+      // grouping, one round-trip.
+      const seedBaskets = await courseDataProvider.getLegoBasketsForSeeds(seedIds)
 
-      // Merge all results
-      for (const seedBaskets of basketResults) {
-        for (const [legoId, basket] of seedBaskets) {
-          baskets.value.set(legoId, basket)
-          engine.registerBasket(legoId, basket)
-        }
+      for (const [legoId, basket] of seedBaskets) {
+        baskets.value.set(legoId, basket)
+        engine.registerBasket(legoId, basket)
       }
 
       console.log('[useLearningSession] Loaded baskets for', baskets.value.size, 'LEGOs')

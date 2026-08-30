@@ -216,6 +216,168 @@ a stalled connection would have waited 20s and only then fallen through to
 budget; the download is not cancelled and `getCourseBundle` de-dupes in flight,
 so the next page joins it and the session cuts over the moment it lands.
 
+## The boot budget, and why the cutover was largely cosmetic (2026-08-29)
+
+Tom hit this in the console on a real first play on staging, with all fifteen
+courses flagged:
+
+```
+[InstantPlayback] bundle round-map failed, falling back to /round-map:
+  Error: [InstantPlayback] bundle not ready inside the boot budget
+```
+
+The fallback is the right safety behaviour — the learner still plays, on the
+old endpoints — but it meant the cutover had not happened for that session, and
+it said so only in the console. Two hypotheses were separated by measurement:
+the budget was too tight, or the fetch started too late and the budget was a
+red herring.
+
+**It was the budget, and not marginally.** Measured against the staging
+deployment, entitled session, brotli on the wire, two runs each:
+
+| course | wire | JSON | TTFB | total |
+|---|---|---|---|---|
+| `spa_for_eng` | 2.19 MB | 13.9 MB | 1.42–1.55s | 1.91–1.94s |
+| `fra_for_eng` | 1.91 MB | | 1.30–1.31s | 1.68–2.20s |
+| `jpn_for_eng` | 1.46 MB | | 1.08–1.12s | 1.46–1.66s |
+| `zho_for_eng` | 1.46 MB | | 0.91–0.94s | 1.33–1.37s |
+| `cym_s_for_eng` | 0.80 MB | | 0.63–0.68s | 0.90–0.96s |
+| `hun_for_eng` | 0.67 MB | | 0.44–0.46s | 0.69–0.84s |
+
+Those are from a fast wired link with a warm serverless function. The worst
+course spent ~78% of the 2500ms budget under the best conditions any learner
+will ever have, and `fra_for_eng` crossed 2.2s on one of two runs. On a 4G-ish
+link the same download is roughly 1.4s of server generation plus ~2.0s of
+transfer plus mobile JSON parse — about 4s. The budget was
+`CRITICAL_PATH_TIMEOUT_MS`, which exists to bound a ~20 KB round-map fetch; it
+was never sized for a whole-course download.
+
+A separate anonymous sweep of all fifteen courses (same day, first-hit vs
+second-hit) shows the **cold serverless** case is worse again — server time
+alone, before a byte of payload moves:
+
+| course | cold TTFB | warm TTFB | wire | JSON | legos / phrases |
+|---|---|---|---|---|---|
+| `fra_for_eng` (preview) | 3379ms | 1086ms | 74 KB | 0.53 MB | 62 / 641 |
+| `eus_for_eng` | 2843ms | 564ms | 662 KB | 4.0 MB | 713 / 6,011 |
+| `hin_for_eng` | 1725ms | 650ms | 912 KB | 5.8 MB | 716 / 5,760 |
+| `heb_for_eng` | 1706ms | 536ms | 758 KB | 4.6 MB | 602 / 4,701 |
+| `pol_for_eng` | 1500ms | 679ms | 751 KB | 4.5 MB | 666 / 5,049 |
+| `tur_for_eng` | 1313ms | 780ms | 1.18 MB | 7.5 MB | 840 / 9,046 |
+| `gle_for_eng` | 1043ms | 668ms | 916 KB | 6.2 MB | 786 / 5,431 |
+
+`fra_for_eng`'s 3379ms is a 74 KB preview — that is cold-start latency, not
+payload. So the realistic worst cold case for a learner is roughly 3.4s of
+server time plus a multi-megabyte download on whatever connection they have.
+8000ms leaves about 1.5x headroom over that, not 2x; it is a budget that wins
+on any workable connection rather than one that can never lose. The
+`bundle_boot_path` fallback share is what tells us whether it was set right.
+
+Note the anonymous numbers are not the real ones for premium courses:
+anonymous `spa_for_eng` is 64 KB, the 19-seed preview slice — 34x smaller than
+what an entitled learner downloads. Any measurement of a premium bundle taken
+without a session understates it by that factor.
+
+A cold-cache browser trace on staging (old code) caught the failure directly.
+Four runs survived before the run's browser died; they are enough:
+
+| course | condition | bundle starts | bundle TTFB | bundle takes | fell back? | first audio |
+|---|---|---|---|---|---|---|
+| `spa_for_eng` anon | unthrottled | 1282ms | 1700ms | 2338ms | yes | 3848ms |
+| `spa_for_eng` anon | unthrottled | 1078ms | 1839ms | 2429ms | yes | 3722ms |
+| `spa_for_eng` anon | unthrottled | 1311ms | 1784ms | 2549ms | yes | 4080ms |
+| `spa_for_eng` anon | Fast 3G | 5299ms | 1593ms | — | yes (t+7811ms) | 35607ms |
+
+Two things to take from it. First, that is the **64 KB preview** bundle — the
+smallest payload in the estate — and it still took 2.3–2.5s in the browser and
+lost the 2500ms race every time, because the cost is server time plus
+contention with the rest of app boot, not bytes. The 2.19 MB entitled bundle
+never stood a chance. Second, the fetch did not begin until 1.1–1.3s after
+navigation, which is the ordering contribution: real, worth removing, but not
+on its own the cause — closing that gap entirely would still have left the
+fetch finishing right on the budget line.
+
+**What changed**
+
+- `BUNDLE_BOOT_BUDGET_MS = 8000` in `config/networkGate.ts`, used by every
+  bundle consumer on the boot path instead of the round-map budget. Sized off
+  the table above with ~2x headroom over the 4G worst case, and still bounded
+  so a genuinely bad link falls through to the small `/round-map` rather than
+  staring at a blank player.
+- The IndexedDB persist left the budget. `getCourseBundle` returned only after
+  `await writeCached(...)`, so structured-cloning a 13.9 MB object graph with
+  ~15,000 phrase objects was time the boot path paid for a write it does not
+  need this session. It now returns the bundle and persists in the background.
+- The download starts at the earliest moment a course can be named — the URL
+  param, else the last-played course — from `App.vue`'s synchronous Supabase
+  block, rather than after course-list and enrollment resolution. It overlaps
+  the download with app boot; `getCourseBundle` de-dupes in flight, so
+  `prewarmInstantCaches` and the player's own bootstrap join that one fetch.
+- A cached PREVIEW bundle is re-fetched once a token exists. The IndexedDB
+  store is keyed by course alone while cache identity includes `previewOnly`,
+  and the head probe compares versions only — so a guest who cached the 19-seed
+  preview kept being served it after signing in.
+
+**Verified on dev, cold cache, real headless browser**
+
+Nine cold runs (fresh profile each: no service worker, no IndexedDB, no
+localStorage beyond the injected session), plus one control. `waited` is the
+figure the new telemetry reports — how long the boot path actually waited,
+which is shorter than the fetch because the download now starts earlier.
+
+| run | condition | /round-map called? | bundle starts | bundle takes | waited | outcome | first audio |
+|---|---|---|---|---|---|---|---|
+| `spa` signed in | unthrottled | **no** | 219–434ms | 2.5–2.8s | 1170–1495ms | bundle | 2.9–3.3s |
+| `spa` signed in | 4G (9 Mbit/60ms) | **no** | 557–566ms | 4.8–4.9s | 3506–3511ms | bundle | 5.5s |
+| `hun` anon | unthrottled | **no** | 330–605ms | 0.86–1.3s | 206–615ms | bundle | 1.3–1.7s |
+| `hun` anon | Fast 3G (1.6 Mbit/150ms) | **no** | ~1980ms | 10.6–11.0s | 7672–7901ms | bundle | 12.6–13.0s |
+| `spa` signed in, `?bundle=0` | unthrottled | yes (control) | — | — | — | old path | 2.5s |
+
+Zero fallbacks across all nine. The control confirms the old path is intact.
+
+Two things worth reading off this table, and one worth being careful about.
+
+**Against what learners have today, time to first audio improved**: unthrottled
+`spa_for_eng` was 3722–4080ms on the old code and is 2935–3283ms now, because
+the session no longer pays 2.5s of waiting followed by a round-map fetch it did
+not need. **Against the bundle path switched off entirely** — the `?bundle=0`
+control, 2450ms — it is ~550ms slower on a cold first play. Both comparisons
+are honest; they answer different questions. The one that matters for the
+cutover decision is the first, because the second describes a world we are
+deliberately leaving.
+
+On a slow connection the picture is different and should not be glossed: Fast-3G
+`hun_for_eng` reached first audio at 12.6–13.0s, where the old path would have
+managed a round-map plus one small cycles page in a couple of seconds. That is
+the one-time-per-course cost the owner ruled acceptable (2026-08-29), paid in
+full on the worst connection. It is a first-impression question rather than a
+correctness one, and it is the number to revisit if the fallback share and the
+`cold_start` tail say learners actually live there.
+
+And the **ordering fix is doing real work**:
+on Fast 3G the fetch itself took 10.6–11.0s but the boot path only waited
+7.7–7.9s, because the download had a ~2s head start. Without it that run would
+have fallen back.
+
+**The honest limit.** That Fast-3G run cleared 8000ms by 99–328ms — thin. A
+2.19 MB premium bundle on Fast 3G will not clear it and will fall back, which
+is deliberate: holding a learner on a bad connection for twenty-plus seconds is
+worse than playing from the old path in three and cutting over when the bundle
+lands moments later. `bundle_boot_path`'s fallback share is how we find out
+whether real learners sit in that band.
+
+**How anyone can now tell**
+
+`bundle_boot_path` on `player_events`, one row per stage per session, carrying
+`stage` (`round_map` | `cycles` | `infplay`), `outcome` (`bundle` |
+`fallback`), `reason` (`budget` | `error` | `preview`), `waitedMs` and
+`budgetMs`. The fallback share per course is the health number: if it climbs,
+the cutover is drifting back to cosmetic, and that is now a query rather than
+a console line somebody happened to have open. Wired through a module-level
+sink (`playback/bundlePathTelemetry.ts`) exactly like `introAudioTelemetry`,
+because `useInstantPlayback` is a plain module with no access to the Vue
+telemetry composable.
+
 ## Still open
 
 1. **Bundle weight is not a gate** (Tom, 2026-08-29): "it is a one-time

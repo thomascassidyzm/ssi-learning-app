@@ -721,153 +721,21 @@ export function makeKnownSyllableResolver(
 }
 
 /**
- * How the CAP measures phrase length: CHARACTERS of target text.
- *
- * Not syllables, and this is measured rather than assumed. On real data
- * (ara_for_eng, 11,340 phrases): `target_syllable_count` is NULL for every
- * row, and the `countTargetSyllables` fallback is a Latin vowel-cluster
- * heuristic that returns 1 for every Arabic phrase — it special-cases CJK but
- * not Arabic. A syllable-based ceiling therefore computed to 0.5 and the cap
- * silently did nothing. Character length is always present and works in every
- * script.
- *
- * The shortest-first SORT still uses syllables, exactly as it always has.
- * Only the cap's measure is characters. Mirrors `phraseLengthOf` in Popty's
- * services/learning-modes.cjs.
- *
- * EXTENDED 2026-08-07 — everything above remains true, and the character cap
- * stays exactly as it is. It is now JOINED by, not replaced by, an absolute
- * syllable cap (`maxPhraseSyllables`); the two compose, a phrase being dropped
- * if it exceeds EITHER. What makes the syllable measure viable this time is
- * that it no longer relies on that all-scripts vowel-cluster heuristic: it
- * uses the canonical per-language counter (@ssi/core/text), which registers
- * nine languages and THROWS rather than guess for the rest. On a course whose
- * target language has no counter — ara among them — the syllable cap declares
- * itself INERT and warns, instead of silently computing nothing. The character
- * cap remains the universal backstop that covers exactly those courses, which
- * is why it must not be removed in favour of syllables.
+ * Phrase-pool ordering, the length cap and the known-side pull filter now live
+ * ONCE, in `@ssi/core`'s `script/phraseSelection.ts` — "selection is pedagogy;
+ * bundling is plumbing" (Tom, 2026-08-29). They used to live here AND, in a
+ * different form, in the bundle path's generator, which is how the two
+ * producers came to disagree about which phrase fills a slot. Re-exported so
+ * every existing importer of this module keeps working unchanged; the full
+ * rules and their history are documented at the definitions.
  */
-export function phraseTextLength(text: string | null | undefined): number {
-  return (text || '').length
-}
-
-/**
- * The longest phrase in the COURSE — the "longest possible phrase" the cap
- * fraction is a fraction OF.
- *
- * Course-wide, deliberately, NOT per-LEGO. A per-LEGO pool max was implemented
- * first and is useless on real data: BUILD pools average 3.2 phrases
- * (ara_for_eng, 1,384 pools), so half-the-pool-max left under one eligible
- * phrase and the starvation guard fired on 100% of LEGOs — the cap never bit
- * at all. Mirrors `courseMaxPhraseLength` in Popty's learning-modes.cjs.
- */
-export function courseMaxPhraseLength<T>(
-  phraseLists: Iterable<readonly T[] | null | undefined>,
-  lengthOf: (phrase: T) => number,
-): number {
-  let max = 0
-  for (const list of phraseLists) {
-    if (!list) continue
-    for (const p of list) {
-      const n = lengthOf(p)
-      if (n > max) max = n
-    }
-  }
-  return max
-}
-
-/**
- * Sort a LEGO's candidate phrase pool shortest-first and cap it at an
- * ABSOLUTE length ceiling computed once per run from the whole course.
- *
- * THE single place the phrase-length cap lives (Aran, 2026-08-06: Easy halves
- * the longest possible phrase). The rules, in order:
- *   1. sort shortest-first by SYLLABLES — unchanged, historic, and what makes
- *      an uncapped run byte-identical to the pre-2026-08-06 behaviour;
- *   2. drop phrases whose target text is longer than `limit` CHARACTERS;
- *   3. STARVATION GUARD — if that leaves fewer than `minKeep`, return the
- *      shortest `minKeep` instead. `minKeep` is the methodology's per-LEGO
- *      phrase floor (4 BUILD / 5 USE), deliberately NOT the round's ceiling:
- *      passing the ceiling makes the guard swallow the cap on every LEGO
- *      smaller than it, which is most of them. Phrase volume is a hard rail —
- *      fewer phrases is a FAIL — so the cap yields to it, not the reverse.
- *   4. `limit` of Infinity (fraction 1.0 — Fast) short-circuits to the plain
- *      historic sort.
- *
- * 2026-08-07: the absolute TARGET-syllable ceiling that briefly composed with
- * this cap is gone — superseded by the known-side pull filter on review and
- * consolidate slots (see ModeConfig.reviewMaxKnownSyllables). It counted the
- * wrong side of the pair, applied to the whole script rather than to the pull,
- * and never lifted. This function is back to the one measure it can always
- * take in every script: characters of target text.
- */
-export function capPhrasesByLength<T>(
-  phrases: readonly T[],
-  syllablesOf: (phrase: T) => number,
-  lengthOf: (phrase: T) => number,
-  limit: number,
-  minKeep: number,
-): T[] {
-  const sorted = [...phrases].sort((a, b) => syllablesOf(a) - syllablesOf(b))
-
-  if (!Number.isFinite(limit) || limit <= 0 || sorted.length === 0) return sorted
-
-  const capped = sorted.filter((phrase) => lengthOf(phrase) <= limit)
-
-  return capped.length >= Math.min(minKeep, sorted.length) ? capped : sorted.slice(0, minKeep)
-}
-
-/**
- * The KNOWN-side pull filter for REVIEW and CONSOLIDATE slots (Tom,
- * 2026-08-07). THE one place this rule lives.
- *
- * Given a LEGO's basket of use phrases and the round being generated, return
- * the sub-basket the pull is allowed to draw from:
- *
- *   1. filter off, or past `maxRound` ⇒ the whole basket, untouched. Nothing
- *      is backlogged when it lifts and nothing cascades — the LEGO is what is
- *      being practised, so a phrase the learner has never met is fine;
- *   2. otherwise keep phrases of at most `limit` KNOWN-language syllables. A
- *      phrase whose known side cannot be counted (no counter for this course's
- *      known language) passes — that is the inert path, per phrase;
- *   3. SHORTEST-IN-BASKET FALLBACK — if that leaves nothing, return the single
- *      shortest phrase in the basket. A LEGO is never skipped and a review
- *      slot is never left empty because the basket happens to be long.
- */
-export interface ReviewPullFilter<T> {
-  /** Max known-language syllables, inclusive. Infinity ⇒ filter off. */
-  limit: number
-  /** Last round on which the filter applies. */
-  maxRound: number
-  /** Known-side syllables of a phrase, or null when uncountable. */
-  syllablesOf: (phrase: T) => number | null
-}
-
-export function filterReviewPool<T>(
-  pool: readonly T[],
-  roundNumber: number,
-  filter: ReviewPullFilter<T> | null | undefined,
-): readonly T[] {
-  if (!filter || !Number.isFinite(filter.limit) || filter.limit <= 0) return pool
-  if (roundNumber > filter.maxRound) return pool
-  if (pool.length === 0) return pool
-
-  const kept = pool.filter((phrase) => {
-    const n = filter.syllablesOf(phrase)
-    if (typeof n !== 'number' || !Number.isFinite(n)) return true // uncountable ⇒ passes
-    return n <= filter.limit
-  })
-  if (kept.length > 0) return kept
-
-  let shortest = pool[0]
-  let shortestN = Infinity
-  for (const phrase of pool) {
-    const n = filter.syllablesOf(phrase)
-    const value = typeof n === 'number' && Number.isFinite(n) ? n : Infinity
-    if (value < shortestN) { shortestN = value; shortest = phrase }
-  }
-  return [shortest]
-}
+export {
+  phraseTextLength,
+  courseMaxPhraseLength,
+  capPhrasesByLength,
+  filterReviewPool,
+  type ReviewPullFilter,
+} from '@ssi/core'
 
 /**
  * Coerce a mode's `useWordCapTiers` into a valid, ascending ladder.

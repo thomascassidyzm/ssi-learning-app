@@ -178,6 +178,20 @@ export interface BundlePhrase {
   knownText: string
   targetText: string
   targetTextNative?: string
+  /**
+   * `course_practice_phrases.target_syllable_count` when the content build
+   * populated it. THE shortest-first sort key the walk uses
+   * (`target_syllable_count || countTargetSyllables(target_text)`), carried on
+   * the wire so the shared selector can reproduce that order exactly rather
+   * than re-deriving a different one.
+   *
+   * Mostly NULL in practice — measured 2026-08-29 across the fifteen cut-over
+   * courses, only `cym_s_for_eng` (5,323 of 5,365 rows) and `spa_for_eng`
+   * (20 of 16,328) have it at all — so `countTargetSyllables` is the live path
+   * on thirteen of them. It travels anyway because on the two that do have it,
+   * the stored value WINS and skipping it would silently reorder their debuts.
+   */
+  targetSyllableCount?: number
   decomposition?: Array<{
     legoId: string | null
     target: string

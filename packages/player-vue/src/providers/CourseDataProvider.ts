@@ -506,41 +506,77 @@ export class CourseDataProvider {
    * v13: Orders by target1_duration_ms (audio duration = cognitive load)
    */
   async getLegoBasketsForSeed(seedId: string): Promise<Map<string, ClassifiedBasket>> {
+    return this.getLegoBasketsForSeeds([seedId])
+  }
+
+  /**
+   * Load baskets for MANY seeds in one round-trip.
+   *
+   * The session bootstrap needs the baskets for every seed in its inventory
+   * (seeds 1..30 on the legacy round-based path). Asking seed by seed cost
+   * thirty separate `course_practice_phrases` reads on the way to a play
+   * button — measured landing at ~t+2.8s on a cold boot
+   * (docs/first-play-wait-measured-2026-08-29.md). The filter is identical
+   * for every one of them apart from `seed_number`, so `.in()` collapses the
+   * lot into a single request.
+   *
+   * Result is byte-identical to merging the per-seed maps: a lego_id encodes
+   * its own seed_number, so groups can never collide across seeds, and the
+   * ordering clauses below are the per-seed ones with `seed_number` prepended
+   * — within any one seed the row order is unchanged.
+   *
+   * Paginated defensively. A 30-seed window can approach a thousand phrase
+   * rows on a dense course, and PostgREST silently truncates at its
+   * server-side max-rows; a short page ends the walk, so the normal case is
+   * still exactly one request.
+   */
+  async getLegoBasketsForSeeds(seedIds: string[]): Promise<Map<string, ClassifiedBasket>> {
     const baskets = new Map<string, ClassifiedBasket>()
 
-    if (!this.client) return baskets
+    if (!this.client || seedIds.length === 0) return baskets
 
     try {
       // Convert seed_id (e.g., "S0001") to seed_number (e.g., 1)
-      const seedNumber = parseInt(seedId.replace(/^S0*/, ''), 10)
-      if (isNaN(seedNumber)) {
-        return baskets
-      }
+      const seedNumbers = [...new Set(
+        seedIds
+          .map((seedId) => parseInt(String(seedId).replace(/^S0*/, ''), 10))
+          .filter((n) => !isNaN(n)),
+      )]
+      if (seedNumbers.length === 0) return baskets
 
-      // Query practice_cycles for all LEGOs in this seed
+      // Query practice_cycles for all LEGOs in these seeds
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       // Audio-completeness invariant — see getLegoBasket.
-      const { data, error } = await this.client
-        .from('course_practice_phrases')
-        .select('*')
-        .eq('seed_number', seedNumber)
-        .eq('course_code', this.courseId)
-        .not('known_audio_id', 'is', null)
-        .not('target1_audio_id', 'is', null)
-        .not('target2_audio_id', 'is', null)
-        .order('lego_index', { ascending: true })
-        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
+      const PAGE = 5000
+      const rows: any[] = []
+      for (let page = 0; ; page++) {
+        const { data, error } = await this.client
+          .from('course_practice_phrases')
+          .select('*')
+          .in('seed_number', seedNumbers)
+          .eq('course_code', this.courseId)
+          .not('known_audio_id', 'is', null)
+          .not('target1_audio_id', 'is', null)
+          .not('target2_audio_id', 'is', null)
+          .order('seed_number', { ascending: true })
+          .order('lego_index', { ascending: true })
+          .order('target1_duration_ms', { ascending: true, nullsFirst: false })
+          .range(page * PAGE, page * PAGE + PAGE - 1)
 
-      if (error) {
-        return baskets
+        if (error) {
+          return baskets
+        }
+        if (!data || data.length === 0) break
+        rows.push(...data)
+        if (data.length < PAGE) break
       }
 
-      if (!data || data.length === 0) return baskets
+      if (rows.length === 0) return baskets
 
       // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
       // A-86: versioned refs stamped here, at the walk (see revisedRefs).
       const grouped = new Map<string, any[]>()
-      for (const row of stampRowAudioRefs(await this.revisedRefs(), data)) {
+      for (const row of stampRowAudioRefs(await this.revisedRefs(), rows)) {
         const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(legoId)) {
           grouped.set(legoId, [])
@@ -549,15 +585,13 @@ export class CourseDataProvider {
       }
 
       // Transform each group to a basket
-      for (const [legoId, rows] of grouped) {
-        const basket = this.transformToBasket(legoId, rows)
+      for (const [legoId, legoRows] of grouped) {
+        const basket = this.transformToBasket(legoId, legoRows)
         if (basket) {
           baskets.set(legoId, basket)
         }
       }
 
-      // Suppress frequent progress logs during loading
-      // this.logOnce('baskets-loaded', 'log', '[CourseDataProvider] Loaded baskets for', baskets.size, 'LEGOs')
       return baskets
     } catch (err) {
       return baskets

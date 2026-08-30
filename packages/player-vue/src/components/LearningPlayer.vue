@@ -52,8 +52,8 @@ import { useClassAwareProgressStore, type ClassContextForProgress } from '../com
 import { useClassAwareSessionStore, type ClassContextForSession } from '../composables/schools/useClassSessionStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop, type ScriptItem } from '../providers/generateLearningScript'
-import { computeCentralityFromScript } from '../playback/legoCentrality'
+import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop, type ScriptItem, type LearningScriptResult } from '../providers/generateLearningScript'
+import { computeCentralityFromScript, computeCentralityFromBundle } from '../playback/legoCentrality'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
@@ -122,9 +122,13 @@ import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
-import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
+import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
+import type { CourseBundle } from '@ssi/core'
+import { getCourseBundle } from '../composables/useCourseBundle'
+import { bundleFullScriptSliced } from '../providers/bundleFullScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
+import { setBundlePathTelemetrySink, reportBundlePath } from '../playback/bundlePathTelemetry'
 import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
@@ -198,6 +202,23 @@ function hashStringToSeed(str: string): number {
 // critical path so it can't starve the instant bootstrap. The timeout ceiling
 // guarantees the walk still runs even on a busy main thread — it lands long
 // before the learner reaches the INF-PLAY boundary that consumes its output.
+/**
+ * Run after the browser has actually PAINTED the next frame.
+ *
+ * `resolvePlayerReady()` fires in the same tick that flips `isFirstClipReady`,
+ * which is what un-disables the play button — so anything chained straight onto
+ * the ready signal competes with the render that lights the button up. That was
+ * harmless while the ready-gated work was network-bound (the walk). Bundle
+ * cutover step 6 made it CPU-bound: ~700ms of whole-course build, measured in a
+ * Chromium CPU profile of a cold spa_for_eng load, landing exactly in the paint
+ * window and pushing the pressable moment out by ~1s versus the walk it
+ * replaced. Two frames of patience costs ~32ms and gives that back.
+ */
+function afterNextPaint(fn: () => void): void {
+  if (typeof requestAnimationFrame !== 'function') { setTimeout(fn, 0); return }
+  requestAnimationFrame(() => requestAnimationFrame(() => fn()))
+}
+
 function scheduleIdleTask(fn: () => void, timeout = 2000): void {
   if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
     ;(window as any).requestIdleCallback(fn, { timeout })
@@ -477,11 +498,19 @@ let inFlightScript: { key: string; promise: Promise<any> } | null = null
 let centralityForCourse: string | null = null
 const legoCentralityPercentile = ref<Record<string, number> | null>(null)
 
-const maybeComputeCentrality = (items: ScriptItem[] | undefined, forCourse: string) => {
-  if (!items?.length || centralityForCourse === forCourse) return
+const maybeComputeCentrality = (
+  items: ScriptItem[] | undefined,
+  forCourse: string,
+  bundle?: CourseBundle | null,
+) => {
+  // The bundle path emits no ScriptItems, and does not need to: the bundle
+  // carries the two centrality inputs directly (see computeCentralityFromBundle).
+  if ((!items?.length && !bundle) || centralityForCourse === forCourse) return
   try {
     centralityForCourse = forCourse
-    const { percentileByLego } = computeCentralityFromScript(items)
+    const { percentileByLego } = bundle
+      ? computeCentralityFromBundle(bundle)
+      : computeCentralityFromScript(items!)
     legoCentralityPercentile.value = percentileByLego
   } catch (err) {
     // Centrality is an enrichment — the criticality guard falls back to
@@ -512,7 +541,9 @@ const generateScript = (
   inFlightScript = { key: dedupeKey, promise }
   const walkCourse = courseCode.value
   promise.then((result) => {
-    if (walkCourse === courseCode.value) maybeComputeCentrality(result?.items, walkCourse)
+    if (walkCourse === courseCode.value) {
+      maybeComputeCentrality(result?.items, walkCourse, (result as { bundle?: CourseBundle })?.bundle ?? null)
+    }
   }).catch(() => { /* observers handle their own errors */ })
   promise.finally(() => {
     if (inFlightScript?.promise === promise) inFlightScript = null
@@ -520,9 +551,114 @@ const generateScript = (
   return promise
 }
 
-const runGenerateScript = (
+/** `?fullscript=walk|bundle` — dev A/B lever, see fullScriptFromBundle. */
+const fullScriptOverride = (): string | null => {
+  try {
+    return new URLSearchParams(window.location.search).get('fullscript')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The whole course from the bundle already in memory — the step-6 replacement
+ * for the Supabase walk. Returns null when this course is not flagged, or when
+ * anything at all goes wrong, and EVERY caller then takes the walk: the worst
+ * case is today's behaviour, exactly as at step 5.
+ *
+ * What it replaces, measured on a cold `spa_for_eng` load
+ * (docs/first-play-wait-measured-2026-08-29.md §3): ~125 Supabase queries —
+ * six course-wide reads plus one `course_practice_phrases` read per seed — and
+ * a 4.7s unbroken main-thread block, all of it re-deriving a script the bundle
+ * had already delivered. On a flagged course `getCourseBundle` resolves from
+ * its in-session map: no network, no IndexedDB read.
+ *
+ * The choice is reported to `bundle_boot_path` so "did this session actually
+ * skip the walk?" is a query rather than a console line.
+ */
+const fullScriptFromBundle = async (
+  code: string,
+  infinitePlayLookahead: number,
+): Promise<LearningScriptResult | null> => {
+  if (!code || !isBundleBootstrapEnabled(code)) return null
+  // `?fullscript=walk` forces the retiring walk while leaving the bundle
+  // bootstrap on — the ONE arm that isolates step 6 from the rest of the
+  // cutover, so before/after can be measured on a single deployment instead of
+  // two. `?bundle=0` is the wider lever: it turns the whole bundle path off.
+  if (fullScriptOverride() === 'walk') return null
+  const startedAt = Date.now()
+  try {
+    const bundle = await getCourseBundle(code)
+    // SLICED, not the plain synchronous build. The whole course out of memory
+    // is ~250ms of pure main-thread work on a mid-size course and several times
+    // that on a phone; taken in one un-yielded block during boot it costs MORE
+    // time-to-pressable than the network-bound walk it replaces, because the
+    // walk's awaits handed the main thread back and this did not. Measured, and
+    // the reason `?fullscript=walk` exists.
+    const built = await bundleFullScriptSliced(bundle, {
+      infinitePlayLookahead,
+      targetSpeed: currentTargetSpeedConfig(),
+      // Mode-neutral, like the walk: the player decides repetition (Tom, 2026-08-09).
+      repeat: MODE_NEUTRAL_REPEATS,
+    })
+    if (built.rounds.length === 0) throw new Error('bundle full script produced 0 rounds')
+    reportBundlePath({ stage: 'full_script', outcome: 'bundle', waitedMs: Date.now() - startedAt })
+    console.log(
+      `[BundleScript] ${code}: ${built.roundCount} rounds, ${built.cycleCount} cycles, ` +
+      `main loop ${built.mainLoopRoundCount} — 0 queries, ${Date.now() - startedAt}ms`,
+    )
+    return {
+      // The bundle path emits player Rounds directly; there is no ScriptItem
+      // stage to pass through, and every consumer reads `rounds` first.
+      items: [],
+      rounds: built.rounds,
+      roundCount: built.roundCount,
+      cycleCount: built.cycleCount,
+      mainLoopRoundCount: built.mainLoopRoundCount,
+      // Set by its own count query (see hasRomanizedText) on every path — false
+      // here is not a claim about the course.
+      hasRomanizedText: false,
+      // Both levers have lived in the player, not the script, since 2026-08-09.
+      syllableCapApplied: false,
+      useWordCapApplied: false,
+      bundle,
+    }
+  } catch (err) {
+    reportBundlePath({
+      stage: 'full_script',
+      outcome: 'fallback',
+      waitedMs: Date.now() - startedAt,
+      reason: 'error',
+      detail: String((err as Error)?.message ?? err).slice(0, 200),
+    })
+    console.warn('[BundleScript] full script from bundle failed, falling back to the walk:', err)
+    return null
+  }
+}
+
+/**
+ * Player rounds out of a script result, whichever producer made it.
+ *
+ * The bundle path (step 6) hands back `rounds` already built — the same
+ * `backendCyclesToRounds` output the learner's live queue is made of — so
+ * there is nothing to convert. The walk hands back `items` and pays the
+ * ScriptItem→Round conversion. ONE fork, here, rather than eight.
+ */
+const roundsOfScript = (result: LearningScriptResult): any[] =>
+  // Copied, not aliased. `generateScript` de-dupes in flight, so two consumers
+  // can hold the same result; the walk gave each of them its own array and this
+  // keeps that true, so a splice by one is never felt by the other.
+  result.rounds ? [...(result.rounds as any[])] : (toSimpleRoundsWithComponents(result.items) as any[])
+
+/** As `scriptRounds`, but the walk's conversion yields between rounds so it
+ *  cannot add a post-READY main-thread block. The bundle path has nothing to
+ *  yield for. */
+const roundsOfScriptSliced = async (result: LearningScriptResult): Promise<any[]> =>
+  result.rounds ? [...(result.rounds as any[])] : ((await toSimpleRoundsWithComponentsSliced(result.items)) as any[])
+
+const runGenerateScript = async (
   listeningOverride?: ListeningConfigType,
-) => {
+): Promise<LearningScriptResult> => {
   // Pod activation default lives on PodsConfig (admin UI is in L2 section).
   // Merge it into the listening shape the generator consumes. Precedence:
   //   1. listeningOverride.podActivationRound (per-learner pin path)
@@ -541,6 +677,12 @@ const runGenerateScript = (
   // (so the final LEGO always drains fully). expandScript grows it in batches
   // during INF PLAY so the tail keeps extending — genuinely infinite.
   const infinitePlayLookahead = Math.max(infPlayLookahead.value, infPlayLookaheadFloor())
+
+  // Bundle cutover step 6: the whole course out of the bundle already in
+  // memory, or null and the untouched walk below.
+  const fromBundle = await fullScriptFromBundle(courseCode.value, infinitePlayLookahead)
+  if (fromBundle) return fromBundle
+
   return generateSimpleScript(
     supabase.value,
     courseCode.value,
@@ -1420,6 +1562,30 @@ setIntroAudioTelemetrySink((e) => {
   })
 })
 onUnmounted(() => setIntroAudioTelemetrySink(null))
+
+// Bundle cutover observability (2026-08-29). The flagged courses are supposed
+// to boot off one course bundle; when it isn't in hand inside the boot budget
+// the session quietly takes the old /round-map + /cycles path instead. That
+// fallback is correct — the learner still plays — but until now it announced
+// itself only in the console, so a cutover that was falling back on most cold
+// first plays would have looked exactly like one that worked. One event per
+// stage per session: the round map, the first cycles page and INF PLAY each
+// decide once, and repeats after that are cache hits with nothing to say.
+const bundlePathReported = new Set<string>()
+setBundlePathTelemetrySink((e) => {
+  const key = `${e.stage}:${e.outcome}`
+  if (bundlePathReported.has(key)) return
+  bundlePathReported.add(key)
+  logEvent('bundle_boot_path', {
+    stage: e.stage,
+    outcome: e.outcome,
+    waitedMs: e.waitedMs,
+    budgetMs: e.budgetMs ?? null,
+    reason: e.reason ?? null,
+    detail: e.detail ?? null,
+  })
+})
+onUnmounted(() => setBundlePathTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -6348,7 +6514,7 @@ const runSwrRevalidation = async (code: string) => {
     console.log(`[ScriptCache] SWR revalidation: regenerating ${code} in background (${staleness.cachedStamp ?? 'pre-stamp'} → ${staleness.liveStamp})`)
     const result = await generateScript()
     if (code !== courseCode.value || !result?.items?.length) return
-    const freshRounds = toSimpleRoundsWithComponents(result.items) as any[]
+    const freshRounds = roundsOfScript(result)
     if (freshRounds.length === 0) return
     // Default stamp = live vintage → this write clears the staleness and the
     // NEXT session hydrates fresh from the cache fast-path.
@@ -9101,8 +9267,8 @@ const enterInfPlay = async () => {
       if (supabase?.value) {
         console.debug('[LearningPlayer] No infplay rounds loaded; regenerating script')
         const skipResult = await generateScript()
-        if (skipResult.items.length > 0) {
-          const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
+        const newRounds = roundsOfScript(skipResult)
+        if (newRounds.length > 0) {
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
           // Single-source the boundary on the audio-aware count from this regen
@@ -9289,7 +9455,7 @@ const handleRoundForward = async () => {
     if (targetIdx >= cachedRounds.value.length && supabase?.value) {
       console.debug('[LearningPlayer] Round forward: next round not loaded, regenerating script')
       const result = await generateScript()
-      if (result.items.length > 0) {
+      if (result.roundCount > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         // Must go through mergeGeneratedRoundsIntoQueue, NOT a bare
         // simplePlayer.addRounds — that only grows the engine's internal
@@ -9298,7 +9464,7 @@ const handleRoundForward = async () => {
         // targetIdx >= cachedRounds.value.length stays true forever and
         // forward-skip silently no-ops at the loaded edge (round-skip
         // freeze, live session 0c4bc301, 2026-07-21).
-        mergeGeneratedRoundsIntoQueue(result.items)
+        mergeGeneratedRoundsIntoQueue(result)
       }
     }
     if (targetIdx >= cachedRounds.value.length) {
@@ -9354,8 +9520,8 @@ const handleRoundForward = async () => {
  * inserting ahead of the live cursor), so calling this while INF PLAY is
  * actively playing does not disturb the active round/cycle/phase.
  */
-const mergeGeneratedRoundsIntoQueue = (items: any[]): any[] =>
-  mergeConvertedRoundsIntoQueue(toSimpleRoundsWithComponents(items))
+const mergeGeneratedRoundsIntoQueue = (result: LearningScriptResult): any[] =>
+  mergeConvertedRoundsIntoQueue(roundsOfScript(result))
 
 // Split from the converter so the deferred handoff can convert
 // cooperatively (sliced) and merge the already-converted rounds.
@@ -9392,9 +9558,9 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
   console.debug(`[progressiveLoad] Belt skip: target belt (>= seed ${targetThreshold}) ${forceReload ? 'force-loading' : 'not loaded, regenerating'} full script...`)
   const skipResult = await generateScript()
 
-  if (skipResult.items.length > 0) {
+  if (skipResult.roundCount > 0) {
     if (skipResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
-    const newRounds = mergeGeneratedRoundsIntoQueue(skipResult.items)
+    const newRounds = mergeGeneratedRoundsIntoQueue(skipResult)
     console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
 }
@@ -10337,7 +10503,7 @@ async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
       // — generateScript cached if already run elsewhere.
       console.log('[LearningPlayer] Pre-emptive INF PLAY warm-up: generating full script')
       const result = await generateScript()
-      const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
+      const fullRounds = roundsOfScript(result)
       if (fullRounds.length > 0) {
         if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         cachedRounds.value = fullRounds
@@ -12359,7 +12525,7 @@ const expandScript = async (): Promise<number> => {
       infPlayLookahead.value = base + INF_PLAY_BATCH
     }
     const result = await generateScript()
-    const expandedRounds = toSimpleRoundsWithComponents(result.items)
+    const expandedRounds = roundsOfScript(result)
     // Single-source the boundary on the live audio-aware count. In INF PLAY the
     // main-loop count is unchanged (we only grew the revival lookahead), but in
     // a main-loop expand on a course whose audio'd extent grew this keeps the
@@ -13472,16 +13638,16 @@ onMounted(async () => {
             // Ready-gated for the same reason as the main-loop handoff below:
             // the walk's course-wide queries must not compete with the switch's
             // critical path (founder ruling 2026-07-30).
-            void playerReadySignal.then(() => scheduleIdleTask(() => {
+            void playerReadySignal.then(() => afterNextPaint(() => scheduleIdleTask(() => {
               void generateScript()
                 .then(async (result) => {
                   if (currentMode.value !== 'infplay') return
                   if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-                  if (result.items.length === 0) return
+                  if (result.roundCount === 0) return
                   // ONE cooperative conversion feeds both the queue merge and
                   // the cachedRounds mirror (this used to convert the whole
                   // course twice, back to back, in one main-thread task).
-                  const converted = await toSimpleRoundsWithComponentsSliced(result.items) as any[]
+                  const converted = await roundsOfScriptSliced(result)
                   // Re-check the mode: the sliced conversion yields, so a
                   // fast INF-PLAY exit can land mid-conversion — same stale-
                   // merge guard as the scheduleIdleTask entry above.
@@ -13507,7 +13673,7 @@ onMounted(async () => {
                 .catch((err) => {
                   console.warn('[InstantPlayback] INF-PLAY idle full-script warm failed, belt-skip will fall back to foreground regen:', err)
                 })
-            }))
+            })))
             return
           }
 
@@ -13536,7 +13702,7 @@ onMounted(async () => {
             .then(async (result) => {
               // Sliced conversion — the whole-course Round[] build yields per
               // round, so it can't add a post-READY main-thread block.
-              const fullRounds = await toSimpleRoundsWithComponentsSliced(result.items) as any[]
+              const fullRounds = await roundsOfScriptSliced(result)
               if (fullRounds.length === 0) {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on /cycles path')
                 return
@@ -13653,7 +13819,11 @@ onMounted(async () => {
           // fetches (measured 4–9s to READY on-device). The walk lands in the
           // background well before the learner nears the INF-PLAY boundary
           // that consumes its output.
-          void playerReadySignal.then(() => scheduleIdleTask(() => { void runFullScriptHandoff() }))
+          // afterNextPaint, not straight off the ready signal: the signal
+          // resolves in the same tick that lights the play button, and on the
+          // bundle path this handoff is ~700ms of main-thread build rather than
+          // the walk's network waits. Let the button paint first.
+          void playerReadySignal.then(() => afterNextPaint(() => scheduleIdleTask(() => { void runFullScriptHandoff() })))
 
           // Mark position + data ready and skip the legacy load
           // entirely. The flag-on branch is now the only source of
@@ -13904,28 +14074,28 @@ onMounted(async () => {
                 console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
               }
               result = await generateScript(config)
-              console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Returning-user load ready: ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
               console.log('[LearningPlayer] Awaiting eager script preload...')
               result = await eagerScript.scriptPromise.value
-              console.log(`[LearningPlayer] Eager preload ready: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Eager preload ready: ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
               result = await generateScript(config)
-              console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Direct load: ${result.roundCount} rounds`)
             }
 
             } finally {
               endBlockingRegenNotice()
             }
 
-            if (result.items.length > 0) {
+            if (result.roundCount > 0) {
               // Legacy fallback path (instant-playback unavailable). This still
               // generates the full audio-aware script, so single-source the
               // boundary on its count here too — the matview is never consulted
               // again once this lands.
               if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
-              const simpleRounds = toSimpleRoundsWithComponents(result.items)
+              const simpleRounds = roundsOfScript(result)
 
               simplePlayer.initialize(simpleRounds as any)
 
@@ -14349,7 +14519,7 @@ onMounted(async () => {
           } finally {
             endBlockingRegenNotice()
           }
-          const simpleRounds = toSimpleRoundsWithComponents(result.items)
+          const simpleRounds = roundsOfScript(result)
 
           if (simpleRounds.length > 0) {
             console.log('[LearningPlayer] Legacy fallback: generated', simpleRounds.length, 'rounds')
@@ -14544,7 +14714,7 @@ onMounted(async () => {
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
         const expandResult = await generateScript()
-        const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
+        const expandedRounds = roundsOfScript(expandResult)
         if (expandedRounds.length > cachedRounds.value.length) {
           cachedRounds.value = expandedRounds as any
           console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview`)
@@ -14877,7 +15047,13 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     let freshResult
     beginBlockingRegenNotice()
     try {
-      if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
+      // Bundle cutover step 6: a flagged course switches without a walk. The
+      // bundle for the new course is already downloading (prewarmInstantCaches
+      // fires on the tap), and getCourseBundle joins that same fetch.
+      const switchFromBundle = await fullScriptFromBundle(newCourseCode, 50)
+      if (switchFromBundle) {
+        freshResult = switchFromBundle
+      } else if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
         console.log('[LearningPlayer] Awaiting eager preload for course switch:', newCourseCode)
         freshResult = await eagerScript.scriptPromise.value
       } else {
@@ -14895,7 +15071,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       endBlockingRegenNotice()
     }
     if (freshResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = freshResult.mainLoopRoundCount
-    const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
+    const freshRounds = roundsOfScript(freshResult)
     cachedRounds.value = freshRounds as any
     sessionScriptVintage = undefined // fresh walk → live vintage
   }
