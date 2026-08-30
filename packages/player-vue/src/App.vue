@@ -22,6 +22,7 @@ import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
   NETWORK_TIMEOUT,
+  BACKGROUND_FETCH_TIMEOUT_MS,
   wireNetworkRecovery,
 } from './config/networkGate'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
@@ -442,13 +443,33 @@ const fetchEnrolledCourses = async () => {
       // no course, no player, nothing plays, even with a full cache sitting
       // on the device. The offline catalogue mirror below is exactly the
       // fallback we want; it just has to be REACHED. (Tom 2026-08-15.)
-      const res = await withNetworkTimeout(
+      // ONE shared promise. It is awaited up to twice below, so it must be a
+      // real promise rather than the Supabase thenable, which re-runs the
+      // request every time it is awaited.
+      const coursesQuery = Promise.resolve(
         supabaseClient.value
           .from('courses')
           .select('*')
           .in('new_app_status', ['live', 'beta'])
           .order('display_name'),
       )
+      let res = await withNetworkTimeout(coursesQuery)
+      if (res === NETWORK_TIMEOUT && !readCatalogueCache()) {
+        // The offline mirror is the right fallback for a RETURNING learner,
+        // but a FIRST-TIME visitor has never written one — so giving up here
+        // leaves them with no catalogue, hence no active course, hence no
+        // player mount and no audio AT ALL. Measured 2026-08-30 on Fast 3G:
+        // 5/5 first-time-guest runs reached the 60s budget without a single
+        // note playing, because this budget lost its race and the mirror it
+        // fell back to was empty.
+        //
+        // So only give up on the network when the mirror can actually serve.
+        // Otherwise keep waiting on the SAME in-flight request, on the longer
+        // background leash — still bounded, so this cannot reintroduce the
+        // unbounded hang the 2500ms budget was added to kill (Tom 2026-08-15).
+        console.warn('[App] Courses fetch exceeded its budget and no offline mirror exists — waiting longer rather than booting without a catalogue.')
+        res = await withNetworkTimeout(coursesQuery, BACKGROUND_FETCH_TIMEOUT_MS)
+      }
       if (res === NETWORK_TIMEOUT) {
         console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
       } else if (res.error) {
