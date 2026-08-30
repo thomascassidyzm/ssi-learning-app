@@ -45,6 +45,26 @@
 export const CRITICAL_PATH_TIMEOUT_MS = 2500
 
 /**
+ * How long the boot→first-audio path may wait when there is NOTHING BETTER TO
+ * DO WHEN THE TIMEOUT FIRES.
+ *
+ * Tom's ruling, 2026-08-30: "a timeout is only justified when there is
+ * something BETTER to do when it fires." CRITICAL_PATH_TIMEOUT_MS is justified
+ * because falling out of the race lands on a usable cache — that is the better
+ * thing. When the caller has checked and there IS no usable cache for the
+ * content being fetched, expiring at 2500ms buys nothing at all: it trades a
+ * slow boot for a dead one. So that caller waits here instead.
+ *
+ * 18000ms is chosen to cover a Fast-3G cold catalogue round-trip with real
+ * headroom (measured 2026-08-30: the same request that lost the 2500ms race
+ * lands in the 3-8s band once it is allowed to finish), while staying short
+ * enough that a genuinely dead connection reaches the slow-connection notice
+ * inside the span a learner will sit through. It is still BOUNDED — the
+ * unbounded hang the 2500ms budget was added to kill cannot come back.
+ */
+export const NO_FALLBACK_TIMEOUT_MS = 18000
+
+/**
  * Background work — prefetch tiers, revalidation, telemetry — is NOT on the
  * critical path and gets a longer leash, because nothing is waiting on it.
  * It still needs a bound so a fire-and-forget fetch can't leak forever.

@@ -11,7 +11,7 @@ import { prewarmInstantCaches, setInstantPlaybackAuthProvider } from './composab
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
-import { checkContentVersion } from './composables/useScriptCache'
+import { checkContentVersion, getCachedScript } from './composables/useScriptCache'
 import { useInviteCode } from './composables/useInviteCode'
 import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
@@ -22,7 +22,7 @@ import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
   NETWORK_TIMEOUT,
-  BACKGROUND_FETCH_TIMEOUT_MS,
+  NO_FALLBACK_TIMEOUT_MS,
   wireNetworkRecovery,
 } from './config/networkGate'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
@@ -40,6 +40,10 @@ const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFee
 const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOverlay.vue'))
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
+// Slow-connection notice — renders nothing unless the no-fallback boot wait
+// expired with no catalogue to show. Async: it must never sit on the boot path
+// it exists to rescue.
+const SlowConnectionNotice = defineAsyncComponent(() => import('./components/SlowConnectionNotice.vue'))
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 // In-app browser — renders nothing until a link asks to open a page inside the
 // app rather than throwing the learner out to a browser tab.
@@ -431,6 +435,69 @@ const writeCatalogueCache = (rows) => {
   }
 }
 
+// Which course is this boot actually about? Resolved from local signals ONLY,
+// because it has to be answerable BEFORE the catalogue fetch returns — the
+// whole point is to decide how long that fetch is worth waiting for. Same
+// precedence the resolution below uses (URL param → saved preference), minus
+// the "first accessible course in the catalogue" fallback, which by definition
+// needs the catalogue we are still waiting for.
+const resolveIntendedCourseCode = () => {
+  try {
+    const urlCourse = new URLSearchParams(window.location.search).get('course')
+    if (urlCourse) return urlCourse
+  } catch (e) {
+    // ignore — fall through to the saved preference
+  }
+  const fromLearner = auth.learner.value?.preferences?.last_course_code
+  if (fromLearner) return fromLearner
+  try {
+    return sessionStorage.getItem('ssi-demo-last-course') || localStorage.getItem(LAST_COURSE_KEY) || null
+  } catch (e) {
+    return null
+  }
+}
+
+// "Is there something BETTER to do when the timeout fires?" (Tom, 2026-08-30.)
+//
+// NOT "does any cache exist" — that is the trap this replaces. The catalogue
+// mirror is one blob of ALL course rows, so a returning learner who opens a
+// course they have never started has a fully populated mirror and nothing
+// playable for the course they actually asked for. Falling out of the race
+// then gives them a course row, no script, and no audio: a dead boot dressed
+// up as a fallback.
+//
+// So the check is keyed to the ONE course this boot is about, and it needs
+// both halves:
+//   1. the mirror carries that course's row (without it activeCourse never
+//      resolves and the player never mounts), and
+//   2. the per-course script cache — ssi-script-cache, keyed
+//      `${SCRIPT_VERSION}:${courseCode}` — holds that course's script, which
+//      is what lets the player mount and reach its cached-content paths
+//      (useOfflinePlay degrades from there over whatever audio is cached).
+// Either half missing means there is nothing better to do, so we wait longer.
+const hasUsableCourseFallback = async () => {
+  const catalogue = readCatalogueCache()
+  if (!catalogue) return false
+  const code = resolveIntendedCourseCode()
+  if (!code) return false
+  if (!catalogue.some((c) => c?.course_code === code)) return false
+  try {
+    return (await getCachedScript(code)) !== null
+  } catch (e) {
+    return false
+  }
+}
+
+// The long wait expired and there is still nothing to show. Rather than a
+// blank screen, say so and offer a retry — while the original request keeps
+// running underneath, so a connection that finally lands recovers on its own
+// without the learner touching anything.
+const slowConnection = ref(false)
+const retryCatalogueFetch = () => {
+  slowConnection.value = false
+  void fetchEnrolledCourses()
+}
+
 // Fetch enrolled courses from Supabase
 const fetchEnrolledCourses = async () => {
   let data = null
@@ -454,21 +521,33 @@ const fetchEnrolledCourses = async () => {
           .order('display_name'),
       )
       let res = await withNetworkTimeout(coursesQuery)
-      if (res === NETWORK_TIMEOUT && !readCatalogueCache()) {
-        // The offline mirror is the right fallback for a RETURNING learner,
-        // but a FIRST-TIME visitor has never written one — so giving up here
-        // leaves them with no catalogue, hence no active course, hence no
-        // player mount and no audio AT ALL. Measured 2026-08-30 on Fast 3G:
-        // 5/5 first-time-guest runs reached the 60s budget without a single
-        // note playing, because this budget lost its race and the mirror it
-        // fell back to was empty.
+      if (res === NETWORK_TIMEOUT && !(await hasUsableCourseFallback())) {
+        // The 2500ms budget is only worth honouring when losing the race lands
+        // somewhere better. For THIS course it does not: no row, or no cached
+        // script, means giving up here leaves no active course, hence no player
+        // mount and no audio AT ALL. Measured 2026-08-30 on Fast 3G: 5/5
+        // first-time-guest runs reached the 60s budget without a single note
+        // playing, because this budget lost its race and the mirror it fell
+        // back to could not serve the course being opened.
         //
-        // So only give up on the network when the mirror can actually serve.
-        // Otherwise keep waiting on the SAME in-flight request, on the longer
-        // background leash — still bounded, so this cannot reintroduce the
-        // unbounded hang the 2500ms budget was added to kill (Tom 2026-08-15).
-        console.warn('[App] Courses fetch exceeded its budget and no offline mirror exists — waiting longer rather than booting without a catalogue.')
-        res = await withNetworkTimeout(coursesQuery, BACKGROUND_FETCH_TIMEOUT_MS)
+        // So keep waiting on the SAME in-flight request, on the no-fallback
+        // leash — still bounded (Tom 2026-08-15), just no longer trading a slow
+        // boot for a dead one.
+        console.warn('[App] Courses fetch exceeded its budget and no cached fallback exists for this course — waiting longer rather than booting without a catalogue.')
+        res = await withNetworkTimeout(coursesQuery, NO_FALLBACK_TIMEOUT_MS)
+        if (res === NETWORK_TIMEOUT) {
+          // Nothing to show and nothing left to wait on the critical path for.
+          // Say so, offer a retry — and leave the request running, so if it
+          // lands while the notice is up the learner never has to tap.
+          slowConnection.value = true
+          void coursesQuery.then((late) => {
+            if (!slowConnection.value) return
+            if (late && !late.error && late.data && late.data.length > 0) {
+              console.log('[App] Slow courses fetch landed behind the notice — recovering without a retry tap.')
+              applyCatalogue(late.data)
+            }
+          }).catch(() => {})
+        }
       }
       if (res === NETWORK_TIMEOUT) {
         console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
@@ -482,8 +561,18 @@ const fetchEnrolledCourses = async () => {
     }
   }
 
+  applyCatalogue(data)
+}
+
+// Take a set of course rows — live or from the mirror — and resolve the active
+// course from them. Split out of fetchEnrolledCourses so a slow fetch that
+// lands AFTER the slow-connection notice is showing can complete the boot on
+// its own, with no second request and no tap from the learner.
+const applyCatalogue = (fetched) => {
+  let data = fetched
   if (data && data.length > 0) {
     writeCatalogueCache(data)
+    slowConnection.value = false
   } else {
     // Offline / query failed — serve the last known catalogue so the saved
     // course resolves and the player boots into its cached-content paths.
@@ -784,6 +873,7 @@ onMounted(async () => {
     <WalkOverlay />
     <CheckoutOverlay />
     <InAppBrowser />
+    <SlowConnectionNotice v-if="slowConnection" @retry="retryCatalogueFetch" />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>
