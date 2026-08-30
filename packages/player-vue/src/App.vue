@@ -502,6 +502,43 @@ const writeCatalogueCache = (rows) => {
 
 // Fetch enrolled courses from Supabase
 /**
+ * Every column of `courses` EXCEPT the two that boot never reads.
+ *
+ * This query used to be `select('*')`, and `*` on this table is 1.74 MB of
+ * JSON for 83 rows — because Popty stores its content-authoring working notes
+ * on the same row. Measured live 2026-08-30:
+ *
+ *   quality_rules         1,364,495 bytes   78% of the payload   0 references in this repo
+ *   translation_analysis    248,931 bytes   14% of the payload   0 references in this repo
+ *   everything else         128,084 bytes    7%
+ *
+ * So 93% of the FIRST network dependency of every boot was authoring metadata
+ * the player has never once looked at. On Fast 3G, with the JS bundle still
+ * coming down the same pipe, its body took ~7s to arrive — the response
+ * HEADERS landed at 2.28s, comfortably inside the 2500ms budget, and then the
+ * body streamed past it. That is why a FIRST load hung and a REFRESH was fine:
+ * on the second load the bundle is cached, the pipe is free, and the same
+ * 1.5 MB lands in a few hundred ms. Measured against staging (no leash):
+ * 5/5 first cold loads never rendered anything at all.
+ *
+ * Stated as an EXCLUSION rather than an allowlist on purpose. `enrolledCourses`
+ * flows into the browse screen, the course switcher and LearningPlayer, and an
+ * allowlist that missed a field would fail silently somewhere far from here.
+ * Excluding two provably-unread columns cannot. A column added in Popty later
+ * will need adding here — that is the accepted cost, and it is why the list is
+ * next to the query rather than in a config file.
+ */
+const CATALOGUE_COLUMNS = [
+  'audio_stamp', 'content_stamp', 'content_version', 'course_code', 'course_type',
+  'created_at', 'creator_email', 'dialect', 'display_name', 'export_ready',
+  'featured_order', 'gender_prep_check_notes', 'gender_prep_checked_at', 'is_community',
+  'known_lang', 'learner_display_name', 'legacy_app_beta_started_at', 'legacy_app_status',
+  'needs_gender_prep', 'new_app_beta_started_at', 'new_app_status', 'pricing_tier',
+  'record_full_max_seed', 'released_at', 'seed_count', 'status', 'target_lang',
+  'updated_at', 'variant_label', 'version', 'visibility', 'voice_config', 'voice_pool_key',
+].join(',')
+
+/**
  * The course catalogue read, as a real promise.
  *
  * Deliberately NOT session-scoped: the filter is `new_app_status`, and the
@@ -514,7 +551,7 @@ const startCoursesQuery = () =>
   Promise.resolve(
     supabaseClient.value
       .from('courses')
-      .select('*')
+      .select(CATALOGUE_COLUMNS)
       .in('new_app_status', ['live', 'beta'])
       .order('display_name'),
   )
@@ -526,6 +563,46 @@ const startCoursesQuery = () =>
  * once by the first fetchEnrolledCourses.
  */
 let prefetchedCoursesQuery = null
+
+/**
+ * The dead end this closes: a FIRST-TIME visitor whose catalogue read fails.
+ * There is no offline mirror to fall back to, so `data` stays null, the whole
+ * course-resolution block below is skipped, no course is chosen, the player
+ * never mounts — and nothing else ever runs. No error, no retry, no terminal
+ * state of any kind: a permanently blank screen that only a manual reload can
+ * escape. Tom, testing staging in incognito on 2026-08-30: "it just sat there
+ * until I refreshed it."
+ *
+ * So the app does the refresh itself. Each attempt is a FRESH query, not
+ * another await on the request that already lost — a stalled request observed
+ * on 2026-08-30 was still pending 45s later while an identical new one
+ * answered in 344ms, so re-awaiting the loser is the one thing that reliably
+ * does not work.
+ *
+ * Bounded on purpose, and this is the constraint that matters: three attempts
+ * at 2s / 4s / 8s, then it stops for good. It is emphatically NOT a retry loop
+ * that waits forever on a weak signal — that is exactly the unbounded hang the
+ * 2500ms critical-path budget exists to kill (Tom 2026-08-15). Whatever the
+ * network is doing, this is over within ~14s and the app is never left waiting
+ * on it again.
+ */
+const CATALOGUE_RETRY_DELAYS_MS = [2000, 4000, 8000]
+let catalogueRetries = 0
+let catalogueRetryTimer = null
+const scheduleCatalogueRetry = () => {
+  if (catalogueRetryTimer) return
+  const delay = CATALOGUE_RETRY_DELAYS_MS[catalogueRetries]
+  if (delay === undefined) {
+    console.warn('[App] Courses catalogue still unavailable after all retries — no course can be resolved.')
+    return
+  }
+  catalogueRetries += 1
+  console.warn(`[App] No catalogue and no offline mirror — retrying in ${delay}ms (attempt ${catalogueRetries}/${CATALOGUE_RETRY_DELAYS_MS.length}).`)
+  catalogueRetryTimer = setTimeout(() => {
+    catalogueRetryTimer = null
+    void fetchEnrolledCourses()
+  }, delay)
+}
 
 const fetchEnrolledCourses = async () => {
   let data = null
@@ -578,11 +655,13 @@ const fetchEnrolledCourses = async () => {
 
   if (data && data.length > 0) {
     writeCatalogueCache(data)
+    catalogueRetries = 0
   } else {
     // Offline / query failed — serve the last known catalogue so the saved
     // course resolves and the player boots into its cached-content paths.
     data = readCatalogueCache()
     if (data) console.log('[App] Courses catalogue hydrated from offline mirror:', data.length, 'courses')
+    else scheduleCatalogueRetry()
   }
 
   try {
