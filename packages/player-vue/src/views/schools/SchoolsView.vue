@@ -97,7 +97,7 @@ function formatJoined(iso: string | null | undefined): string {
 function handleSchoolClick(school: School) {
   // Under an admin read-view, drill into THAT school's own admin read-view —
   // never the self-viewing singleton + '/schools', which would eject the
-  // admin into their own scope (docs/audits/2026-07-13-bug-class-audit.md #1b).
+  // admin into their own scope (archive/docs-retired-2026-08-24/audits/2026-07-13-bug-class-audit.md #1b).
   if (isAdminView) {
     router.push({ path: schoolsLink('schools-list', { schoolId: school.id }) })
     return

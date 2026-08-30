@@ -121,7 +121,7 @@ describe('useUserRole — tutor is teacher-shaped (THE-MODEL I5)', () => {
 // preserve" branch as RedeemCode's partial write. That meant a demoted
 // ssi_admin's platform_role NEVER cleared from the cache — not on
 // useAdminGate's periodic re-validation (Trinity audit finding #2,
-// docs/trinity/admin.md), and not even on a hard reload (restoreFromCache()
+// archive/docs-retired-2026-08-24/trinity/admin.md), and not even on a hard reload (restoreFromCache()
 // seeds the stale 'ssi_admin' from localStorage before the DB re-fetch
 // lands, so the guard sees "cached non-null" and wins every time) — only an
 // explicit sign-out actually fixed it. setAuthoritative always writes

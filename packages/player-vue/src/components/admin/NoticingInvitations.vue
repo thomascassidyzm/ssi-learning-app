@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // NoticingInvitations — the self-explaining dashboard's noticing surface
-// (docs/self-explaining-dashboard.md §5). Renders the invitations the page
+// (archive/docs-retired-2026-08-24/self-explaining-dashboard.md §5). Renders the invitations the page
 // computed via useNoticingInvitations (one evaluation feeds this AND the
 // How-this-works panel/throb) as gentle tappable cards. Never modal, never
 // forced, dismissible (14 days per rule × node), never more than 3 at once.

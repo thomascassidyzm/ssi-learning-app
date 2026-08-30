@@ -3,7 +3,7 @@
  * (adaptation v2, workstream C — WP-2).
  *
  * This is the pedagogical core: the controller that spends a session's finite
- * practice budget across three moves (`docs/adaptation/adaptation-v2-build-spec.md`
+ * practice budget across three moves (`archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md`
  * §4; `packages/player-vue/public/docs/metrics-vision.html` §03, the design
  * authority — wins on conflict):
  *
@@ -26,7 +26,7 @@
  * a caller cannot accidentally invert the lean even by misconfiguring bounds.
  *
  * CRITICALITY (founder ruling 2026-07-31, supersedes criticality =
- * introduction order — see `centrality.ts` and docs/DECISIONS.md): a unit is
+ * introduction order — see `centrality.ts` and archive/docs-retired-2026-08-24/DECISIONS.md): a unit is
  * critical when it is a HUB in the distinction network — high forward-reuse
  * centrality, i.e. many subsequent phrases / M-LEGO compositions contain it,
  * so struggling on it blocks the path forward. The caller supplies the

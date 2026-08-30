@@ -11,7 +11,7 @@
  * "No sessions" model: the engine lives for as long as the player is mounted.
  * Rolling stats persist in memory; mastery state persists in Supabase.
  *
- * Adaptation v2 (`docs/adaptation/adaptation-v2-build-spec.md` §2/§4, WP-3):
+ * Adaptation v2 (`archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §2/§4, WP-3):
  * this composable also owns the ONE shared `EvidenceAggregator` — the
  * latency producer below feeds it alongside the untouched v1 metrics flow,
  * and `useBehaviouralEvidence`'s behavioural producer feeds the SAME

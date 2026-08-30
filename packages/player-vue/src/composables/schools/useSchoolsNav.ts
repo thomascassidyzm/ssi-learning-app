@@ -7,7 +7,7 @@
  * /admin/groups/:id. A hardcoded `/schools/...` link in a shared component
  * ejects an ssi_admin viewing another school straight into the admin's OWN
  * scope on click, carrying whatever stale context useSchoolContext still
- * holds — see docs/audits/2026-07-13-bug-class-audit.md #1b.
+ * holds — see archive/docs-retired-2026-08-24/audits/2026-07-13-bug-class-audit.md #1b.
  *
  * Build every internal nav target through this composable instead of a
  * literal `/schools/...` string.

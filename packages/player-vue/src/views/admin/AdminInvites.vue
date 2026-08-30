@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Invites — one primitive, one surface (docs/invites-redesign/DESIGN.md).
+// Invites — one primitive, one surface (archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md).
 // Replaces the creation/list halves of /admin/access, /admin/demos and
 // /admin/try-links: one create card (org / direct / demo modes) + one live
 // list aggregated across invite_codes, entitlement_codes, email_access_grants

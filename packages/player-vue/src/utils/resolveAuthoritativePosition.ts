@@ -1,6 +1,6 @@
 /**
  * resolveAuthoritativePosition — the position authority ruling
- * (docs/pwa-lifecycle-design.md §2.3, 2026-07-09).
+ * (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3, 2026-07-09).
  *
  * For a signed-in learner, `course_enrollments` is THE authority for
  * position; `ssi_learning_position_<course>` (localStorage) is a device

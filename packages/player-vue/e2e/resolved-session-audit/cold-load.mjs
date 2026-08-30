@@ -44,7 +44,7 @@ async function attempt(role, path, expect) {
 
 // A non-admin whose real Supabase session sat, cold-cache, on the wrong side
 // of the standalone read-view gate before this fix (Trinity audit finding
-// #1, docs/trinity/admin.md): /admin/schools/:id, /admin/groups/:id,
+// #1, archive/docs-retired-2026-08-24/trinity/admin.md): /admin/schools/:id, /admin/groups/:id,
 // /admin/classes/:id, /admin/users/:learnerId/progress render OUTSIDE
 // AdminContainer, so they used to rely SOLELY on the deferring global router
 // guard — a cold-cache non-admin deep link fired the scoped query and could

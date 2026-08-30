@@ -1,7 +1,7 @@
 /**
  * Possession-based invite onboarding — POST /api/auth/possession-redeem
  *
- * docs/schools/email-deliverability-plan.md, Option A: school mail gateways
+ * archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md, Option A: school mail gateways
  * (Microsoft/Exchange Online education tenants, confirmed by header analysis
  * 2026-07-15) silently quarantine our OTP mail — a teacher can never receive
  * the code, so the OTP-gated redemption path is structurally dead for them.

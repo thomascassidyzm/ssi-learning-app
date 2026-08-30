@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// WalkOverlay — the ONE walkthrough overlay (docs/walkthrough-engine-scout.md
+// WalkOverlay — the ONE walkthrough overlay (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md
 // §3), mounted once in App.vue, rendering whichever walk useWalkthrough holds.
 // The install walker's grammar: learner-paced Back/Next, step dots, pulse-ring
 // pointer on the anchored element, Skip always visible — but anchored to REAL

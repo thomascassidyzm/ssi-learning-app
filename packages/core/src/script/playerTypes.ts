@@ -1,7 +1,7 @@
 /**
  * Cycle / Round — pure data shapes for one 4-phase learning cycle and the
  * round that groups them. Canonical home as of the bundle-cutover Phase 1
- * move (docs/bundle-cutover-design.md §3): `generateScript` lives in
+ * move (archive/docs-retired-2026-08-24/bundle-cutover-design.md §3): `generateScript` lives in
  * `@ssi/core` and must not import from `player-vue`, so these interfaces —
  * previously declared inline in `player-vue/src/playback/SimplePlayer.ts` —
  * moved here. `SimplePlayer.ts` re-exports `Cycle`/`Round` from this module

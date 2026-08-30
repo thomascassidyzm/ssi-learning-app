@@ -119,7 +119,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
   let player: SimplePlayer | null = null
   // The conductor is the ONLY thing allowed to call control methods on
-  // `player` (docs/player-decomposition-options.md Option 2). Every method
+  // `player` (archive/docs-retired-2026-08-24/player-decomposition-options.md Option 2). Every method
   // below that used to call `player?.xxx()` directly now routes through
   // `conductor.request()` (or runInterlude/runSeek for the async brackets)
   // instead — a fresh conductor is created alongside each new player in
@@ -380,7 +380,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   /**
    * Pull the reactive queue from the engine's own array (M4,
-   * docs/player/pull-consistency-map.md). This replaced three hand-mirrored
+   * archive/docs-retired-2026-08-24/player/pull-consistency-map.md). This replaced three hand-mirrored
    * copies of SimplePlayer's insertion/splice algorithms — one per mutation
    * method — each of which had to be kept bit-identical to the engine's or
    * roundsRef sheared against the live queue (the INF-PLAY full-script

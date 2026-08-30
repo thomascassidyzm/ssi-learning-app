@@ -1,6 +1,6 @@
 // Pins for the self-explaining dashboard's rule evaluator AND for the four
 // shipped noticing rules from the compiled pack — fixtures shaped like real
-// /api/groups/:id/home payloads (docs/self-explaining-dashboard.md §5).
+// /api/groups/:id/home payloads (archive/docs-retired-2026-08-24/self-explaining-dashboard.md §5).
 import { describe, it, expect } from 'vitest'
 import { evaluateRules, nodeKindOf, type NoticingRule } from './evaluateRules'
 import pack from './pack.json'

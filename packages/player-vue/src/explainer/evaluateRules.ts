@@ -1,6 +1,6 @@
 /**
  * evaluateRules — the RUNTIME half of the self-explaining dashboard
- * (docs/self-explaining-dashboard.md §5). Evaluates the explanation pack's
+ * (archive/docs-retired-2026-08-24/self-explaining-dashboard.md §5). Evaluates the explanation pack's
  * declarative noticing rules against the /api/groups/:id/home payload the
  * page has ALREADY fetched — zero new queries, zero model calls, zero
  * polling. Output is gentle invitations (never missions): a sentence and a

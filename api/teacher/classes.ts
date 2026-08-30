@@ -33,7 +33,7 @@ const CLASS_SELECT =
  * personal tutor surface (school_id IS NULL, active). `classes.teacher_user_id`
  * is only the demoted lead pointer, so a list built from it alone silently
  * hides every class the user co-teaches — see
- * docs/methodology/class-first-class-citizen.md. Read errors are RETURNED,
+ * archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md. Read errors are RETURNED,
  * never swallowed into an empty list.
  */
 async function listCoTaughtClasses(

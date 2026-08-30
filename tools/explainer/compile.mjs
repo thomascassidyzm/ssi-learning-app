@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The self-explaining dashboard COMPILER (docs/self-explaining-dashboard.md).
+ * The self-explaining dashboard COMPILER (archive/docs-retired-2026-08-24/self-explaining-dashboard.md).
  *
  * Reads live truth out of the admin surface's own source — the verbs on
  * NodeActionBar.vue, the stat words on NodeHomeView.vue, the insight measures

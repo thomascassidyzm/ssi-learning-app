@@ -2,7 +2,7 @@
  * useLayer1Scheduler — runtime scheduler for Layer-1 listening exercises.
  *
  * THE 30-CUP MODEL (Tom, 2026-06-16). Full spec + worked trace:
- *   docs/methodology/layer1-listening-cups.md
+ *   archive/docs-retired-2026-08-24/methodology/layer1-listening-cups.md
  *
  * Layer-1 is fluency maintenance through pure INPUT — replaying seed sentences
  * you've already been *introduced* to, so the listening channel stays warm on

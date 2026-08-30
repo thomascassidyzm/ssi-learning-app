@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The one create surface — three modes over the same WHO x WHERE x WHAT x
-// LIMITS primitive (docs/invites-redesign/DESIGN.md). Deep-linkable via
+// LIMITS primitive (archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md). Deep-linkable via
 // ?mode=org|direct|demo (+ ?sub= for direct's code/email/preview variant).
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

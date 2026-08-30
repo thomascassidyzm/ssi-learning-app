@@ -9,7 +9,7 @@
  * `user_tags(tag_type='class', role_in_context='teacher')`, surfaced by the
  * `class_teachers` view (lead + co-taught), with `classes.teacher_user_id`
  * demoted to a denormalised lead pointer. See
- * `docs/methodology/class-first-class-citizen.md` §4.
+ * `archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md` §4.
  *
  * This helper is the single place the schools composables ask "which classes
  * are mine?" so the ownership→membership swap happens once.

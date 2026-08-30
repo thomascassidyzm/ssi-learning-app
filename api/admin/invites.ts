@@ -3,7 +3,7 @@
  *
  * GET  — { invites: UnifiedInvite[] } aggregated over the four existing code
  *        tables (invite_codes, entitlement_codes, email_access_grants,
- *        try_links) — the lens described in docs/invites-redesign/DESIGN.md.
+ *        try_links) — the lens described in archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md.
  *        No new table, no dual-write; this is a read-side view over storage
  *        that keeps redeeming exactly as before.
  * POST { source, id, is_active } — toggle is_active on the owning table.

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref, computed } from 'vue'
 import { SimplePlayer, type PlaybackState, type Round } from './SimplePlayer'
 
-// REGRESSION: M3 of docs/player/pull-consistency-map.md — the position
+// REGRESSION: M3 of archive/docs-retired-2026-08-24/player/pull-consistency-map.md — the position
 // mirrors. `currentRoundIndex`/`currentItemInRound` used to be writable refs
 // synced by edge-triggered watchers on the engine PLUS ~20 manual assignments
 // across the resume labyrinth, preview, reset and the legacy cycle-event

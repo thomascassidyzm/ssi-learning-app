@@ -14,7 +14,7 @@
  *   therefore 403 the instant they're made, regardless of any client state.
  *   The /admin/users/:learnerId/progress read-view reads learner rows under
  *   own-row RLS (+ admin-bypass), also enforced server-side per request.
- *   (Full server-side audit: docs/trinity/admin.md — 0 endpoint gaps.)
+ *   (Full server-side audit: archive/docs-retired-2026-08-24/trinity/admin.md — 0 endpoint gaps.)
  *
  * So this gate is a UX affordance, not a security control: it keeps a
  * revoked admin from staring at a dead shell whose every request 403s, by

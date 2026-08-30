@@ -1,6 +1,6 @@
 /**
  * Tests for GET /api/school/daily-activity, focused on the coverage gate
- * (docs/schools/group-commercial-model.md, "Server-side enforcement of (4)").
+ * (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Server-side enforcement of (4)").
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'

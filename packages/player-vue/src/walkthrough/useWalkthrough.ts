@@ -1,6 +1,6 @@
 /**
  * useWalkthrough — the walkthrough engine's runtime state machine
- * (docs/walkthrough-engine-scout.md §3). One module-level singleton, same
+ * (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3). One module-level singleton, same
  * pattern as the other shared composables: any surface can offer a walk,
  * one WalkOverlay (mounted once in App.vue) renders whichever is active.
  *

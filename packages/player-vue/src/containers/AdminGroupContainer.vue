@@ -5,7 +5,7 @@
  * Mirrors AdminSchoolsContainer but loads group context (govt_admin role)
  * so schools composables take the group-scope query branch. Standalone
  * route — see AdminSchoolsContainer's docstring for why useAdminGate is
- * its own gate (Trinity audit finding #1, docs/trinity/admin.md).
+ * its own gate (Trinity audit finding #1, archive/docs-retired-2026-08-24/trinity/admin.md).
  */
 import { computed, inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'

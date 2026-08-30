@@ -1,6 +1,6 @@
 /**
  * Server-side enforcement of the "school-goes-blind-at-expiry" rule for the
- * schools rollup/analytics API surface (docs/schools/group-commercial-model.md,
+ * schools rollup/analytics API surface (archive/docs-retired-2026-08-24/schools/group-commercial-model.md,
  * "Student entitlement — FINAL model"). Client-side, SchoolsContainer's
  * platformActive gate already locks the whole app out at expiry; this closes
  * the matching gap for callers who hit the analytics endpoints directly,

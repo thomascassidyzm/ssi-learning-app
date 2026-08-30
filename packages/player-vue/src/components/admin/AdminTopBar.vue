@@ -17,7 +17,7 @@
  * collapse instead of losing to the chrome.
  *
  * Invites unification (2026-07-17, same day): Demos, Try Links and Access
- * folded into one /admin/invites surface (docs/invites-redesign/DESIGN.md)
+ * folded into one /admin/invites surface (archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md)
  * — one create card (org / direct / demo) + one live list. The three old
  * More-menu entries collapse to a single "Invites" item.
  *

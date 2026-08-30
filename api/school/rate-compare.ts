@@ -4,7 +4,7 @@
  *   ?course_code=<code>&entity_level=class|school|group&entity_id=<uuid>
  *   &compare_to=school|group|region|global|global_all_courses&days=90
  *
- * The class-as-learner coverage lane (docs/methodology/tutor-insights.md §2-3)
+ * The class-as-learner coverage lane (archive/docs-retired-2026-08-24/methodology/tutor-insights.md §2-3)
  * made real for schools roles: rate of progress (LEGOs/week) for an entity —
  * a class, a whole school, or a whole group — against an aggregate average,
  * never another named entity (sovereignty, insight-engine.md §7).

@@ -24,7 +24,7 @@ const CLASS_SELECT =
  * (`user_tags` tag_type='class', role_in_context='teacher'), restricted to the
  * personal tutor surface. `classes.teacher_user_id` is only the demoted lead
  * pointer, so a list built from it alone silently hides every co-taught class —
- * see docs/methodology/class-first-class-citizen.md. Mirrors the helper in
+ * see archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md. Mirrors the helper in
  * api/teacher/classes.ts.
  */
 async function listCoTaughtClasses(

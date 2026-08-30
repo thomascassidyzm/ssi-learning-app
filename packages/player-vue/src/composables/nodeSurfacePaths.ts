@@ -1,5 +1,5 @@
 /**
- * nodeSurfacePaths — THE VIEW's node surface has two mounts (docs/THE-VIEW.md):
+ * nodeSurfacePaths — THE VIEW's node surface has two mounts (archive/docs-retired-2026-08-24/THE-VIEW.md):
  *
  *   - admin (ssi_admin god-view): /admin/groups/:id · /admin/schools/:id ·
  *     /admin/classes/:id — the whole forest.

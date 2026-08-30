@@ -2,7 +2,7 @@
  * Distinction-network criticality — forward-reuse centrality per LEGO
  * (adaptation workstream C, supersedes the intro-order criticality proxy).
  *
- * FOUNDER RULING (Tom, 2026-07-31, verbatim — journaled in docs/DECISIONS.md):
+ * FOUNDER RULING (Tom, 2026-07-31, verbatim — journaled in archive/docs-retired-2026-08-24/DECISIONS.md):
  * "A hub LEGO is a LEGO that is connected to many other subsequent LEGOs, or
  * is used in many subsequent phrases… The question is whether this LEGO is
  * going to block people from getting to other phrases. And maybe we do some

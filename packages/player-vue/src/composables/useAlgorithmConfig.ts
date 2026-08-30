@@ -966,7 +966,7 @@ const DEFAULT_RESUME: ResumeConfig = {
 }
 
 /**
- * Adaptation v2 safety rails (`docs/adaptation/adaptation-v2-build-spec.md`
+ * Adaptation v2 safety rails (`archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md`
  * §6, WP-5). Two independent gates:
  *   - `enabled`: the kill switch. false ⇒ the whole v2 pipeline (evidence →
  *     curvature → RatePolicyEngine → shadow log) never even computes for a

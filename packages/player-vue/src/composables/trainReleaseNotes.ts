@@ -2,7 +2,7 @@
  * trainReleaseNotes — the release train's notes, bundled at BUILD TIME.
  *
  * The Friday train already writes honest, learner-facing notes to
- * `tools/release-train/notes/<date>.md` (see `docs/RELEASE-TRAIN.md`). They were
+ * `tools/release-train/notes/<date>.md` (see `archive/docs-retired-2026-08-24/RELEASE-TRAIN.md`). They were
  * reaching nobody: the Settings "What's new" panel only ever read the
  * admin-curated `release_notes` table in Supabase. This module closes that gap by
  * importing the notes files straight into the bundle — no endpoint, no table, no

@@ -2,7 +2,7 @@
  * generateScript — unified main-loop + INF PLAY generator.
  *
  * Lives in `@ssi/core` (moved from `player-vue/src/script/` in the
- * bundle-cutover Phase 1 promotion, docs/bundle-cutover-design.md §3/§5
+ * bundle-cutover Phase 1 promotion, archive/docs-retired-2026-08-24/bundle-cutover-design.md §3/§5
  * step 1) so both the client and a future server script-view (§3) call the
  * SAME function — `packages/player-vue/src/script/generateScript.ts`
  * re-exports from here so no import churn rides the move.
@@ -64,7 +64,7 @@ import type {
 /**
  * Identifies the assembly algorithm's CODE (as opposed to `scriptShapeVersion`,
  * which identifies the algorithm's PARAMETERS) — one component of the script
- * artifact identity (docs/bundle-cutover-design.md §2). Bump when the
+ * artifact identity (archive/docs-retired-2026-08-24/bundle-cutover-design.md §2). Bump when the
  * assembly logic changes (e.g. a new cycle-ordering rule), not when a shape
  * parameter changes.
  */

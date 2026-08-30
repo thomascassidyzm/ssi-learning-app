@@ -1,4 +1,4 @@
-// THE MODEL — deployed-dev verification (docs/THE-MODEL.md §8 step 5).
+// THE MODEL — deployed-dev verification (archive/docs-retired-2026-08-24/THE-MODEL.md §8 step 5).
 // Real sessions against the DEPLOYED dev build; screenshots to docs/the-model/.
 //
 //   node --env-file=../../.env --env-file=../../.env.local e2e/the-model/verify-the-model.mjs

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref, computed, watch, nextTick } from 'vue'
 import { SimplePlayer, type PlaybackState, type Round, type Cycle } from './SimplePlayer'
 
-// REGRESSION: the displayed-cycle mirror (M1, docs/player/pull-consistency-map.md)
+// REGRESSION: the displayed-cycle mirror (M1, archive/docs-retired-2026-08-24/player/pull-consistency-map.md)
 // — the TEXT/AUDIO pairing. LearningPlayer's currentCycle used to be a
 // writable ref synced by an edge-triggered watcher (holding its last value on
 // transient nulls) plus a legacy-path writer. A missed or reordered flush
