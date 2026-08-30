@@ -71,7 +71,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 import { courseMaxSeed } from '../../_utils/courseBoundary'
-import { fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
+import { fetchRevisedAudioRefs, stampRowAudioRefs, PREMIUM_PREVIEW_MAX_SEED } from '../../_utils/audioAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -664,6 +664,11 @@ export default async function handler(
     const cycles: Cycle[] = []
     let nextLegoId: string | null = null
 
+    // Highest seed actually emitted in this response. Drives the edge-cache
+    // decision below: only a window that lies wholly inside the free-preview
+    // band is identical for every caller and therefore shareable.
+    let maxEmittedSeed = 0
+
     outer: for (let i = 0; i < rounds.length; i++) {
       const r = rounds[i]
       // Past the review budget we stop rather than serve a review-less round —
@@ -697,6 +702,7 @@ export default async function handler(
           break outer
         }
         cycles.push(cycle)
+        maxEmittedSeed = Math.max(maxEmittedSeed, r.seed_number)
       }
 
       // We emitted everything for this LEGO; if there's a next one in the
@@ -713,7 +719,37 @@ export default async function handler(
     // On a preview slice, a null nextLegoId means "preview window exhausted",
     // NOT "course finished" — the previewOnly flag lets the frontend tell
     // the two apart and show the paywall instead of a completion screen.
-    res.setHeader('Cache-Control', 'private, max-age=60')
+    // --- Edge cache: R1 is the same object for every learner on earth --------
+    // A window lying wholly at or below PREMIUM_PREVIEW_MAX_SEED is served
+    // identically to anonymous, signed-in-unsubscribed and entitled callers
+    // (verified 2026-08-30 against dev: anon and unsubscribed bodies are
+    // byte-identical; the entitled body differs only by the `preview_only`
+    // flag, which has no runtime consumer in the player). That makes it safe
+    // to share from the CDN edge, which turns first play from a ~450ms origin
+    // round-trip into a ~60ms cache hit.
+    //
+    // TWO conditions, both required:
+    //  - No Authorization header. An entitled deep-window body must never be
+    //    able to enter a shared cache that an anonymous caller could then read
+    //    (that would be a paywall bypass). Vercel also BYPASSES its edge cache
+    //    for any request carrying Authorization, so an authed request could
+    //    not be served from cache anyway.
+    //  - The emitted window sits at or below the preview ceiling. Beyond it the
+    //    response genuinely differs by entitlement (anon gets 403, entitled
+    //    gets content), so it is per-learner and must stay private.
+    //
+    // s-maxage is deliberately SHORT (5 min). There is no cache-purge path in
+    // either repo, so a long TTL would leave edited content stale with no way
+    // to bust it — the same latent bug round-map's s-maxage=31536000 carries.
+    const isAnonymousRequest = !req.headers.authorization
+    const windowIsUniversal =
+      maxEmittedSeed > 0 && maxEmittedSeed <= PREMIUM_PREVIEW_MAX_SEED
+    res.setHeader(
+      'Cache-Control',
+      isAnonymousRequest && windowIsUniversal
+        ? 'public, s-maxage=300, stale-while-revalidate=3600'
+        : 'private, max-age=60',
+    )
     res.status(200).json({
       course_code: code,
       version,
