@@ -1,6 +1,6 @@
 # What's on staging, and what to test
 
-**Six things. About twenty minutes if you do them all, and the first two are the ones that matter.**
+**Six things to test, plus one thing to read. About twenty minutes if you do the lot, and the first two are the ones that matter.**
 
 Everything below is live right now and I've checked each URL answers. Where I couldn't check something properly, I say so beside it.
 
@@ -48,9 +48,9 @@ https://staging.saysomethingin.app
 
 ## 5. Script Lab — edit a pod script without loading a course
 
-Your ask: *"I want a single place I can edit the canonical scripts for the pods."* That place now exists. Every canonical script in one index, no course code anywhere, and for each one it tells you — in red, at the top — which shapes the script never reaches.
+Your ask: *"I want a single place I can edit the canonical scripts for the pods."* That place now exists, on Popty. Every canonical script in one index, no course code anywhere, and for each one it tells you — in red, at the top — which shapes the script never reaches.
 
-**What to do:** open the index, click into a script, and check the red deficit list at the top reads like something you'd act on. Try editing a line and see it stick.
+**What to do:** open the Script Lab index, click into a script, and check the red deficit list at the top reads like something you'd act on. Try editing a line and see it stick.
 
 https://popty.app/canonical/scripts
 
@@ -58,21 +58,31 @@ https://popty.app/canonical/scripts
 
 ## 6. Basket Lab — where it now lives
 
-Basket Lab has a proper home: a card in the row beside Listening, Speaking, Pod, Voice and VAD.
+Basket Lab has a proper home on Popty: a card in the row beside Listening, Speaking, Pod, Voice and VAD.
 
-**What to do:** open the configs page and check the Basket card is where you'd expect it and opens onto something usable.
+**What to do:** open the Configs page and check the Basket card is where you'd expect it and opens onto something usable.
 
 https://popty.app/admin/configs/basket
 
 ---
 
-# What did NOT go to staging, and why
+## 7. One thing to read rather than tap
 
-- **A second, older attempt at the slow-connection fix.** There was another branch doing the same job, written earlier in the day. The version already on staging is newer and better; merging the old one would have undone work. Left alone deliberately.
-- **An older version of the edge-caching and pod-splitting work.** Someone is still actively working in that code right now — it's mid-flight, so it isn't safe to promote. The finished parts of it are already on staging by another route.
-- **A security audit.** Six commits of security tests and findings. Nothing in it changes anything you can see or press, so it would only pad this list. It's finished and it's safe; it just isn't a thing to test.
-- **Three sets of Popty write-ups** — the opening-phrases doc, Aran's health-sector conversations, and a course-consistency scan. Popty has no staging tier, only live, and you said "never to main". They're documents rather than working code, and you've already been sent the two that matter as links. Say the word and they go on.
-- **Nothing at all went to production, in either app.** Both live sites are untouched.
+A survey of 49 courses asking a simple question: does each course pick one way of saying something and stick to it, or does it teach one way and then drill you on the other? **43 of 49 are clean. Six are not — and four of those six are a single bad authoring day each.** The two real ones are Egyptian Arabic and English for German speakers.
+
+**What to do:** read the first screen and tell me whether the two big ones are worth a proper pass. Nothing has been changed; this is a survey.
+
+https://watson-1.tail4968cb.ts.net/d/c690f72f
+
+---
+
+# What did NOT go up, and why
+
+- **A second, older attempt at the slow-connection fix.** Another branch was doing the same job, written earlier in the day. The version now live on staging is newer and better; merging the old one would have undone work. Left alone deliberately.
+- **An older version of the edge-caching and pod-splitting work.** Someone is still actively in that code right now — mid-flight, so not safe to promote. The finished parts of it are already on staging by another route; I checked each one.
+- **A security audit.** Six commits of security tests and findings. Nothing in it changes anything you can see or press, so it would only pad this list. Finished and safe; just not a thing to test.
+- **A large pile of older Popty write-ups — and this one is worth knowing about.** There are roughly four hundred documents and logs from the past three weeks — audio forensics, Sinhala repairs, Japanese and Korean adjudications, recording sweeps — sitting on branches that never reached Popty's main. Their code has drifted too far to merge safely now, but the documents themselves are fine. Rescuing them is a job of its own, on a night when you aren't testing. I landed the three most recent ones tonight and left the rest.
+- **Nothing at all went to the learning app's production.** Paying users are untouched. Popty went straight to main, as you ruled.
 
 ---
 
