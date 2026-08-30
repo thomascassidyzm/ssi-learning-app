@@ -27,9 +27,9 @@ import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
   NETWORK_TIMEOUT,
-  BACKGROUND_FETCH_TIMEOUT_MS,
   wireNetworkRecovery,
 } from './config/networkGate'
+import { waitForCatalogue, usableCatalogue } from './config/catalogueWait'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
@@ -547,14 +547,17 @@ const CATALOGUE_COLUMNS = [
  * start before auth has resolved — only the SELECTION below needs the
  * learner, not the fetch.
  */
-const startCoursesQuery = () =>
-  Promise.resolve(
-    supabaseClient.value
-      .from('courses')
-      .select(CATALOGUE_COLUMNS)
-      .in('new_app_status', ['live', 'beta'])
-      .order('display_name'),
-  )
+const startCoursesQuery = (signal) => {
+  let q = supabaseClient.value
+    .from('courses')
+    .select(CATALOGUE_COLUMNS)
+    .in('new_app_status', ['live', 'beta'])
+    .order('display_name')
+  // Superseded attempts are aborted rather than left to hang, so a long wait
+  // on a bad network cannot quietly accumulate dead sockets.
+  if (signal) q = q.abortSignal(signal)
+  return Promise.resolve(q)
+}
 
 /**
  * Boot's head start on that read. `await auth.initialize()` costs ~600ms on a
@@ -565,44 +568,13 @@ const startCoursesQuery = () =>
 let prefetchedCoursesQuery = null
 
 /**
- * The dead end this closes: a FIRST-TIME visitor whose catalogue read fails.
- * There is no offline mirror to fall back to, so `data` stays null, the whole
- * course-resolution block below is skipped, no course is chosen, the player
- * never mounts — and nothing else ever runs. No error, no retry, no terminal
- * state of any kind: a permanently blank screen that only a manual reload can
- * escape. Tom, testing staging in incognito on 2026-08-30: "it just sat there
- * until I refreshed it."
+ * Is the learner watching a blank screen because the catalogue has not landed?
  *
- * So the app does the refresh itself. Each attempt is a FRESH query, not
- * another await on the request that already lost — a stalled request observed
- * on 2026-08-30 was still pending 45s later while an identical new one
- * answered in 344ms, so re-awaiting the loser is the one thing that reliably
- * does not work.
- *
- * Bounded on purpose, and this is the constraint that matters: three attempts
- * at 2s / 4s / 8s, then it stops for good. It is emphatically NOT a retry loop
- * that waits forever on a weak signal — that is exactly the unbounded hang the
- * 2500ms critical-path budget exists to kill (Tom 2026-08-15). Whatever the
- * network is doing, this is over within ~14s and the app is never left waiting
- * on it again.
+ * Only ever true on a FIRST cold visit — a returning learner has the offline
+ * mirror and never gets here. Drives the one visible thing in the template.
+ * Waiting visibly is a state; waiting blankly is the bug this closes.
  */
-const CATALOGUE_RETRY_DELAYS_MS = [2000, 4000, 8000]
-let catalogueRetries = 0
-let catalogueRetryTimer = null
-const scheduleCatalogueRetry = () => {
-  if (catalogueRetryTimer) return
-  const delay = CATALOGUE_RETRY_DELAYS_MS[catalogueRetries]
-  if (delay === undefined) {
-    console.warn('[App] Courses catalogue still unavailable after all retries — no course can be resolved.')
-    return
-  }
-  catalogueRetries += 1
-  console.warn(`[App] No catalogue and no offline mirror — retrying in ${delay}ms (attempt ${catalogueRetries}/${CATALOGUE_RETRY_DELAYS_MS.length}).`)
-  catalogueRetryTimer = setTimeout(() => {
-    catalogueRetryTimer = null
-    void fetchEnrolledCourses()
-  }, delay)
-}
+const catalogueSlow = ref(false)
 
 const fetchEnrolledCourses = async () => {
   let data = null
@@ -624,29 +596,38 @@ const fetchEnrolledCourses = async () => {
       // empty and issues its own, so a refresh is never served stale.
       const coursesQuery = prefetchedCoursesQuery || startCoursesQuery()
       prefetchedCoursesQuery = null
-      let res = await withNetworkTimeout(coursesQuery)
-      if (res === NETWORK_TIMEOUT && !readCatalogueCache()) {
-        // The offline mirror is the right fallback for a RETURNING learner,
-        // but a FIRST-TIME visitor has never written one — so giving up here
-        // leaves them with no catalogue, hence no active course, hence no
-        // player mount and no audio AT ALL. Measured 2026-08-30 on Fast 3G:
-        // 5/5 first-time-guest runs reached the 60s budget without a single
-        // note playing, because this budget lost its race and the mirror it
-        // fell back to was empty.
-        //
-        // So only give up on the network when the mirror can actually serve.
-        // Otherwise keep waiting on the SAME in-flight request, on the longer
-        // background leash — still bounded, so this cannot reintroduce the
-        // unbounded hang the 2500ms budget was added to kill (Tom 2026-08-15).
-        console.warn('[App] Courses fetch exceeded its budget and no offline mirror exists — waiting longer rather than booting without a catalogue.')
-        res = await withNetworkTimeout(coursesQuery, BACKGROUND_FETCH_TIMEOUT_MS)
+      // supabase-js reports transport failures as `res.error` rather than
+      // rejecting — but if it ever does reject, a first-time visitor must
+      // still reach the waiter below instead of falling out to the catch and
+      // dead-ending on a blank screen, which is the whole bug being closed.
+      let res = await withNetworkTimeout(coursesQuery).catch((err) => {
+        console.error('[App] Courses fetch threw:', err)
+        return null
+      })
+      if (!usableCatalogue(res) && !readCatalogueCache()) {
+        // The offline mirror is the right fallback for a RETURNING learner.
+        // A FIRST-TIME visitor has never written one, so there is nothing here
+        // to fall back TO — and giving up at a deadline would just trade a
+        // blank screen that might still resolve for a blank screen that never
+        // will. Neither is any use to the learner. So: say so on screen, and
+        // keep trying until it lands. (Tom's ruling, 2026-08-30.)
+        if (res === NETWORK_TIMEOUT) {
+          console.warn('[App] Courses fetch exceeded its budget and there is no offline mirror to serve — telling the learner and staying on it.')
+        } else if (res?.error) {
+          console.error('[App] Failed to fetch courses:', res.error)
+        }
+        catalogueSlow.value = true
+        res = await waitForCatalogue(coursesQuery, {
+          startQuery: (signal) => startCoursesQuery(signal),
+          onRetry: (n) => console.warn(`[App] No catalogue and no offline mirror — still trying (attempt ${n}).`),
+        })
       }
       if (res === NETWORK_TIMEOUT) {
         console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
-      } else if (res.error) {
+      } else if (res?.error) {
         console.error('[App] Failed to fetch courses:', res.error)
       } else {
-        data = res.data
+        data = res?.data ?? null
       }
     } catch (err) {
       console.error('[App] Error fetching enrolled courses:', err)
@@ -655,14 +636,14 @@ const fetchEnrolledCourses = async () => {
 
   if (data && data.length > 0) {
     writeCatalogueCache(data)
-    catalogueRetries = 0
   } else {
     // Offline / query failed — serve the last known catalogue so the saved
     // course resolves and the player boots into its cached-content paths.
     data = readCatalogueCache()
     if (data) console.log('[App] Courses catalogue hydrated from offline mirror:', data.length, 'courses')
-    else scheduleCatalogueRetry()
   }
+  // Either way the wait is over — the notice comes down.
+  catalogueSlow.value = false
 
   try {
     // Set active course from: 1) localStorage, 2) first available
@@ -969,6 +950,22 @@ onMounted(async () => {
     <WalkOverlay />
     <CheckoutOverlay />
     <InAppBrowser />
+    <!--
+      Shown only on a FIRST cold visit whose catalogue has not arrived yet.
+      A returning learner has the offline mirror and never sees this. It is not
+      an error state and offers nothing to tap: the app is still trying, and
+      the one useful thing it can do is say so rather than sit blank.
+    -->
+    <div v-if="catalogueSlow" class="slow-network-notice">
+      <div class="slow-network-card">
+        <div class="slow-network-pulse" aria-hidden="true"></div>
+        <p class="slow-network-title">Still loading</p>
+        <p class="slow-network-body">
+          Your connection looks slow. This will start on its own as soon as it
+          comes through, so there's no need to reload.
+        </p>
+      </div>
+    </div>
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>
@@ -988,6 +985,61 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+/*
+ * The slow-network notice. Mist tokens, no belt accent — this is the shell
+ * speaking before any course exists, so there is no belt colour to carry yet.
+ * Edge-anchored and full-bleed, so it pads itself out of the notch and the
+ * home indicator per the standing safe-area rule.
+ */
+.slow-network-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  background: var(--bg-primary);
+}
+
+.slow-network-card {
+  max-width: 320px;
+  text-align: center;
+}
+
+.slow-network-pulse {
+  width: 10px;
+  height: 10px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: var(--text-secondary, #6b6560);
+  animation: slow-network-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes slow-network-breathe {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slow-network-pulse { animation: none; opacity: 0.6; }
+}
+
+.slow-network-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary, #2b2724);
+}
+
+.slow-network-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary, #6b6560);
 }
 
 .kill-switch-overlay {
