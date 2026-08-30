@@ -501,6 +501,32 @@ const writeCatalogueCache = (rows) => {
 }
 
 // Fetch enrolled courses from Supabase
+/**
+ * The course catalogue read, as a real promise.
+ *
+ * Deliberately NOT session-scoped: the filter is `new_app_status`, and the
+ * row set is identical for an anonymous and a service-role reader (verified
+ * live 2026-08-30, 83 courses either way). Which is what makes it safe to
+ * start before auth has resolved — only the SELECTION below needs the
+ * learner, not the fetch.
+ */
+const startCoursesQuery = () =>
+  Promise.resolve(
+    supabaseClient.value
+      .from('courses')
+      .select('*')
+      .in('new_app_status', ['live', 'beta'])
+      .order('display_name'),
+  )
+
+/**
+ * Boot's head start on that read. `await auth.initialize()` costs ~600ms on a
+ * cold boot and the catalogue fetch used to queue behind it, one after the
+ * other, before any course could be named. Started alongside instead, claimed
+ * once by the first fetchEnrolledCourses.
+ */
+let prefetchedCoursesQuery = null
+
 const fetchEnrolledCourses = async () => {
   let data = null
   if (supabaseClient.value) {
@@ -515,13 +541,12 @@ const fetchEnrolledCourses = async () => {
       // ONE shared promise. It is awaited up to twice below, so it must be a
       // real promise rather than the Supabase thenable, which re-runs the
       // request every time it is awaited.
-      const coursesQuery = Promise.resolve(
-        supabaseClient.value
-          .from('courses')
-          .select('*')
-          .in('new_app_status', ['live', 'beta'])
-          .order('display_name'),
-      )
+      //
+      // Boot may already have this in flight (see startCoursesQuery) — claim
+      // it once. Every later caller (PlayerContainer's refresh) finds the slot
+      // empty and issues its own, so a refresh is never served stale.
+      const coursesQuery = prefetchedCoursesQuery || startCoursesQuery()
+      prefetchedCoursesQuery = null
       let res = await withNetworkTimeout(coursesQuery)
       if (res === NETWORK_TIMEOUT && !readCatalogueCache()) {
         // The offline mirror is the right fallback for a RETURNING learner,
@@ -703,6 +728,11 @@ onMounted(async () => {
     try {
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
+
+      // Catalogue read goes out NOW, in parallel with auth init, rather than
+      // waiting its turn behind it. Errors are handled where it is awaited.
+      prefetchedCoursesQuery = startCoursesQuery()
+      void prefetchedCoursesQuery.catch(() => {})
 
       // Initialize auth with Supabase client (for learner management). Its
       // completion — including the "staff on a fresh browser lands on the

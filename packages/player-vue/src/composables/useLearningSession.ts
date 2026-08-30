@@ -443,17 +443,17 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       // Get unique seed IDs
       const seedIds = [...new Set(loadedItems.map(item => item.seed.seed_id))]
 
-      // Load all baskets in parallel (not sequentially!)
-      const basketResults = await Promise.all(
-        seedIds.map(seedId => courseDataProvider.getLegoBasketsForSeed(seedId))
-      )
+      // ONE request for the whole inventory. This used to be one
+      // `course_practice_phrases` read per seed — thirty of them on the
+      // legacy 1..30 window, all with the same filter bar `seed_number`,
+      // firing in the middle of the boot window (measured 2026-08-29,
+      // docs/first-play-wait-measured-2026-08-29.md). Same rows, same
+      // grouping, one round-trip.
+      const seedBaskets = await courseDataProvider.getLegoBasketsForSeeds(seedIds)
 
-      // Merge all results
-      for (const seedBaskets of basketResults) {
-        for (const [legoId, basket] of seedBaskets) {
-          baskets.value.set(legoId, basket)
-          engine.registerBasket(legoId, basket)
-        }
+      for (const [legoId, basket] of seedBaskets) {
+        baskets.value.set(legoId, basket)
+        engine.registerBasket(legoId, basket)
       }
 
       console.log('[useLearningSession] Loaded baskets for', baskets.value.size, 'LEGOs')
