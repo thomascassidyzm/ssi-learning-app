@@ -32,11 +32,6 @@ export interface InviteCodeContext {
 // Module-level singleton state
 const pendingCode = ref<InviteCodeContext | null>(null)
 const validationError = ref<string | null>(null)
-// A throttle refusal is NOT a bad code, and must never be reported as one:
-// a whole class opens the same join link from one school NAT, so the person
-// looking at the screen is holding a perfectly good link (production,
-// 2026-08-31). RedeemCode.vue reads this to say so.
-const validationThrottled = ref(false)
 const isValidating = ref(false)
 const isRedeeming = ref(false)
 
@@ -72,7 +67,6 @@ function persistPendingCode() {
 export function useInviteCode() {
   async function validateCode(code: string, authToken?: string): Promise<boolean> {
     validationError.value = null
-    validationThrottled.value = false
     isValidating.value = true
     try {
       const res = await fetch('/api/code/validate', {
@@ -117,7 +111,6 @@ export function useInviteCode() {
         persistPendingCode()
         return true
       } else {
-        if (res.status === 429) validationThrottled.value = true
         validationError.value = data.error || 'Invalid code'
         return false
       }
@@ -253,7 +246,6 @@ export function useInviteCode() {
   return {
     pendingCode: readonly(pendingCode),
     validationError: readonly(validationError),
-    validationThrottled: readonly(validationThrottled),
     isValidating: readonly(isValidating),
     isRedeeming: readonly(isRedeeming),
     validateCode,
