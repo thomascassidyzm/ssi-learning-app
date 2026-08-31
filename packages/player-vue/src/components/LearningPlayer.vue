@@ -86,6 +86,7 @@ import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
+import { resolveResumeStart } from '../utils/resolveResumeStart'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
   getDeepLinkTarget,
@@ -871,53 +872,44 @@ const instantPlayback = useInstantPlayback(courseCode, {
       return winner.legoId
     }
 
+    // Resolution lives in utils/resolveResumeStart.ts so the three
+    // outcomes are testable outside this component: a legoId (we found
+    // their place), null (we ASKED and they genuinely have no place —
+    // fresh learner, round 1), or a throw (we could not find out).
+    // The saved cycle index restores the exact mid-round spot. INF PLAY
+    // is handled by the derived check inside, so there's no course-end
+    // branch here: a main-mode learner sitting on the final round simply
+    // resumes onto it and enters INF PLAY when they finish it.
     try {
-      // INF PLAY mode: skip instant-playback entirely and fall to the
-      // legacy path, which emits the spaced-rep + random-USE rounds the
-      // mode is designed around. The path is the same as the course-
-      // end case below — throw and let the catch in LearningPlayer
-      // pick up the legacy generator.
-      //
-      // Cursor-only model: infinite-play is DERIVED — no is_new LEGO
-      // remains beyond the cursor — rather than trusted from the
-      // enrollment.current_mode column (2026-07-04).
-      const lastCompleted = winner.legoId
-      if (await hasReachedInfinitePlay(lastCompleted, courseCode.value)) {
-        throw new Error('CourseEndNoNextLego')
-      }
-
-      // The cursor (last_completed_lego_id) is the primary position. If it
-      // can't be located in the round-map — null on a fresh row, or
-      // stale/schema-drifted — fall back to the legacy ceiling
-      // (highest_completed_lego_id) when one is populated, so a learner
-      // with a null/unresolvable cursor but a real ceiling isn't dropped
-      // to R1 (2026-07-05: narrow reinstatement — read-only fallback,
-      // never ratcheted or written back). Only a learner with neither
-      // resolves fresh at R1.
-      const ceiling = enrollment?.highest_completed_lego_id ?? null
-      const map = await instantPlayback.getOrFetchRoundMap()
-      const findIndex = (legoId: string) => map.rounds.findIndex(r => r.legoId === legoId)
-      const { legoId: anchor, viaCeiling } = resolveResumeAnchor(lastCompleted, ceiling, findIndex)
-      if (viaCeiling) {
-        console.warn(`[InstantPlayback] cursor ${lastCompleted} not in round-map; falling back to ceiling ${anchor}`)
-      }
-      if (!anchor) {
-        if (lastCompleted) {
-          console.warn(`[InstantPlayback] resume anchor ${lastCompleted} not in round-map; starting at R1`)
-        }
-        return null
-      }
-
-      // anchor names the round the learner is ON (position, not
-      // completion), so resume lands there directly — no "+1". The saved
-      // cycle index restores the exact mid-round spot. INF PLAY is handled
-      // by the derived check above, so there's no course-end branch here:
-      // a main-mode learner sitting on the final round simply resumes onto
-      // it and enters INF PLAY when they finish it.
-      return anchor
+      return await resolveResumeStart({
+        lastCompletedLegoId: winner.legoId,
+        ceilingLegoId: enrollment?.highest_completed_lego_id ?? null,
+        hasReachedInfinitePlay: (legoId) => hasReachedInfinitePlay(legoId, courseCode.value),
+        fetchRoundMap: () => instantPlayback.getOrFetchRoundMap(),
+        onCeilingFallback: (cursor, anchor) => {
+          console.warn(`[InstantPlayback] cursor ${cursor} not in round-map; falling back to ceiling ${anchor}`)
+        },
+        onAnchorMissing: (cursor) => {
+          console.warn(`[InstantPlayback] resume anchor ${cursor} not in round-map; starting at R1`)
+        },
+      })
     } catch (err) {
       if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
-      return null
+      // A FAILURE to resolve is not a fresh learner. Returning null here
+      // is what silently dropped returning learners to round 1 whenever
+      // the round-map cache missed on a bad pipe. Rethrow so the cutover
+      // catch in loadAllData falls through to the legacy loader — the
+      // safety net that was already built for exactly this.
+      console.error(
+        '[InstantPlayback] RESUME RESOLUTION FAILED → falling back to the legacy loader. ' +
+        'A returning learner must NOT be treated as fresh.', err,
+      )
+      logEvent('instant_playback_resume_resolution_failure', {
+        courseCode: courseCode.value,
+        guest: isGuestLearner.value,
+        detail: String((err as Error)?.message ?? err).slice(0, 200),
+      })
+      throw err
     }
   },
 })
@@ -1342,17 +1334,31 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
 // fails to null exactly like "no saved progress" — callers already treat
 // that as fall-through to local cache / round 1 defaults.
 const ENROLLMENT_FETCH_TIMEOUT_MS = 2000
+// Did the LAST loadSavedProgress() call fail to get an answer (timed out or
+// threw), as opposed to answering "this learner has no saved progress"? The
+// null return contract is unchanged — other callers depend on it — so this
+// ref carries the distinction the null can't. Without it, a timed-out
+// enrollment fetch looks exactly like a brand-new learner and the legacy
+// loader starts a returning learner at round 1.
+const lastProgressLoadFailed = ref(false)
 const loadSavedProgress = async () => {
   if (isGuestLearner.value || !progressStore?.value) {
     return null
   }
 
+  lastProgressLoadFailed.value = false
   try {
     const TIMEOUT = Symbol('enrollment-fetch-timeout')
     const enrollment = await Promise.race([
       activeProgressStore.value.getEnrollment(learnerId.value, courseCode.value),
       new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), ENROLLMENT_FETCH_TIMEOUT_MS)),
-    ]).then((result) => (result === TIMEOUT ? null : result))
+    ]).then((result) => {
+      if (result === TIMEOUT) {
+        lastProgressLoadFailed.value = true
+        return null
+      }
+      return result
+    })
     if (enrollment && enrollment.last_completed_round_index !== null) {
       return {
         lastCompletedLegoId: enrollment.last_completed_lego_id,
@@ -1365,6 +1371,7 @@ const loadSavedProgress = async () => {
       }
     }
   } catch (err) {
+    lastProgressLoadFailed.value = true
     console.warn('[LearningPlayer] Failed to load saved progress:', err)
   }
   return null
@@ -6443,7 +6450,22 @@ const currentPlayableItem = ref(null)
 // Progressive loading stages for atmospheric effect
 // ============================================
 const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
-const isAwakening = computed(() => loadingStage.value !== 'ready')
+// Terminal, honest failure state: we could not load where the learner got to.
+// Their progress is untouched — this is a read failure, not a data loss — so
+// the only thing to do is say so and offer another go. Kept OUT of
+// loadingStage so nothing that flips the stage to 'ready' can clear it.
+const progressLoadFailed = ref(false)
+// Failed counts as not-ready: it keeps the play guard closed and the chrome
+// (belt badge, Easy/Fast switch) hidden while the message is on screen.
+const isAwakening = computed(() => progressLoadFailed.value || loadingStage.value !== 'ready')
+
+// Re-run the whole load path. A full reload rather than re-entering
+// loadAllData: boot is the one path guaranteed to be re-runnable from
+// scratch, and by here we know almost nothing has been initialised.
+const retryProgressLoad = () => {
+  progressLoadFailed.value = false
+  if (typeof window !== 'undefined') window.location.reload()
+}
 
 // PER-CONTROL READINESS (Tom, 2026-08-08: "once it APPEARS ready, then it
 // should actually be ready").
@@ -14091,6 +14113,24 @@ onMounted(async () => {
               isReturningUser = startingSeed > 0 || !!freshHighestLego
             }
 
+            // We could not READ their progress (timeout / error) and we are
+            // about to start a signed-in learner at the very beginning. That
+            // is a lie we are not willing to tell: their position is safe in
+            // the enrollment row, we simply failed to fetch it. Stop here and
+            // say so, with a retry — never silently rewind them to round 1.
+            // Read-only: nothing is written to any learner or enrollment row.
+            if (!isGuestLearner.value && lastProgressLoadFailed.value && startingSeed === 0 && !isReturningUser) {
+              console.error(
+                '[LearningPlayer] PROGRESS LOAD FAILED for a signed-in learner and the legacy path ' +
+                'would have started them at round 1. Halting with a retry instead.',
+              )
+              logEvent('progress_load_failed_terminal', {
+                courseCode: courseCode.value,
+              })
+              progressLoadFailed.value = true
+              return
+            }
+
             // Set playing belt to match starting position. PRE-ENGINE seed
             // (no script/engine exists yet at this point in boot) so the
             // splash belt is right during loading; once the engine lands,
@@ -15763,7 +15803,11 @@ defineExpose({
           <div class="hero-text-container" :class="{ 'is-transitioning': isTransitioningItem }">
             <!-- Known text - always visible, stable position -->
             <div class="hero-text-known">
-              <p v-if="isAwakening" class="hero-known loading-text">
+              <div v-if="progressLoadFailed" class="progress-load-failed">
+                <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
+                <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+              </div>
+              <p v-else-if="isAwakening" class="hero-known loading-text">
                 {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
               </p>
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
@@ -16325,7 +16369,11 @@ defineExpose({
              both hero-text-pane (10) and PodTurnDisplay (3), so left
              unguarded it visibly floated over the pod dialogue. -->
         <div v-if="!playingPodLapAudio" class="pane-text-known">
-          <p v-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
+          <div v-if="progressLoadFailed" class="progress-load-failed">
+            <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
+            <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+          </div>
+          <p v-else-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
             {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
           <p v-else-if="isAwakening" class="known-text loading-text">
@@ -18871,6 +18919,37 @@ button.phase-segment:active:not(.is-active) {
 .loading-text {
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-secondary);
+}
+
+/* Terminal "we couldn't load your position" state. Calm, not alarming:
+ * it is our failure, not the learner's, and their progress is intact. */
+.progress-load-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.progress-load-failed-text {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.progress-load-failed-retry {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.progress-load-failed-retry:active {
+  opacity: 0.7;
 }
 
 /* INF PLAY first-entry intro. Same monospace + typewriter cursor as
