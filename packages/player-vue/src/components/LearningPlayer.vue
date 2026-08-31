@@ -4907,11 +4907,33 @@ const practisingHoldTarget = (fromIndex: number): PractisedPosition | null =>
   )
 
 /**
- * Called synchronously from onRoundCompleted, in the same tick as the event,
- * for the same reason the pod pre-pause is there: `handleRoundBoundary` is
- * async, and by the time a later microtask ran the orchestrator would already
- * have started the next round's prompt audio. The learner would hear the first
- * syllable of a new LEGO before we took it away.
+ * Called synchronously from onRoundCompleted.
+ *
+ * THE SHAPE OF THIS IS DICTATED BY `advanceRound`, and getting it wrong made
+ * the hold decide correctly and change nothing. Demonstrated live on staging,
+ * 2026-08-31: `practising_hold` fired three times naming the right refused
+ * LEGO each time, and the learner heard that LEGO's full intro → debut →
+ * build → use anyway, identical to the control run.
+ *
+ * `advanceRound` emits `round_completed`, runs THIS listener synchronously,
+ * and then reads `this.state.isPlaying` to decide what happens next. That
+ * check is the entire contract:
+ *
+ *   isPlaying FALSE  → it advances roundIndex, sets phase 'idle' and starts
+ *                      nothing. Whoever paused owns the resume. This is how
+ *                      the pod lap gets its silence.
+ *   isPlaying TRUE   → it takes `this.state.roundIndex + 1` and starts that
+ *                      round's prompt.
+ *
+ * The first version paused, jumped and RESUMED, all in this tick. The resume
+ * put isPlaying back to true, so control returned to advanceRound and it took
+ * the true branch — reading roundIndex + 1 from the round we had just jumped
+ * to, and walking forward from THERE. Our jump was not ignored. It was used as
+ * the starting point for the very advance it was meant to prevent.
+ *
+ * So: PAUSE in this tick and nothing else. The jump and the resume go on a
+ * microtask, after advanceRound has returned and left the playhead parked and
+ * idle.
  *
  * Returns true if it held.
  */
@@ -4938,7 +4960,10 @@ const practisingHoldPlayhead = (completedRoundIndex: number, aLapWillFire: boole
 
   const heldRound = rounds[target.roundIndex] as any
   const heldCycle = heldRound?.cycles?.[target.cycleIndex]
-  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised material at round ${target.roundIndex} cycle ${target.cycleIndex} (${heldCycle?.type} ${heldCycle?.legoId ?? heldRound?.legoId}).`)
+  // console.warn, not .log: the production build marks console.log/.info/
+  // .debug as pure and strips them (vite.config.js), so a .log here is
+  // unobservable on the device where it actually matters.
+  console.warn(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised material at round ${target.roundIndex} cycle ${target.cycleIndex} (${heldCycle?.type} ${heldCycle?.legoId ?? heldRound?.legoId}).`)
   logEvent('practising_hold', {
     fromRoundIndex: completedRoundIndex,
     refusedRoundIndex: completedRoundIndex + 1,
@@ -4948,15 +4973,29 @@ const practisingHoldPlayhead = (completedRoundIndex: number, aLapWillFire: boole
     heldOnCycleType: heldCycle?.type ?? null,
     heldOnLegoId: heldCycle?.legoId ?? heldRound?.legoId ?? null,
   })
-  // Pause first, for the same race the pod pre-pause beats: it kills the
-  // advance the orchestrator has already lined up. jumpToRound then lands us
-  // on practised material without auto-resuming (it only auto-resumes if it
-  // was playing when called, and we have just stopped it).
+  // Was the learner actually listening? If they tapped pause on this very
+  // boundary, we must not start them up again on our own account.
+  const wasPlaying = simplePlayer.isPlaying.value
+
+  // THE ONLY THING THAT MAY HAPPEN IN THIS TICK. It sends advanceRound down
+  // its isPlaying-false branch, which parks the playhead idle and starts
+  // nothing. Anything else here — a jump, a resume — is read by advanceRound
+  // as permission to carry on.
   simplePlayer.pause()
-  simplePlayer.jumpToRound(target.roundIndex, target.cycleIndex)
-  // If a listening lap is about to fire on this boundary, handleRoundBoundary
-  // owns the resume — resuming here would start the round underneath the lap.
-  if (!aLapWillFire) simplePlayer.resume()
+
+  // Everything else waits until advanceRound has returned. jumpToRound reads
+  // isPlaying to decide whether to auto-play; it is false now, so this
+  // repositions silently and the resume below is ours to give.
+  queueMicrotask(() => {
+    // The world can have moved while we waited — the learner may have skipped,
+    // jumped a belt, or left the mode. A stale hold that still jumped would
+    // yank them out of somewhere they deliberately went.
+    if (!isPractising.value) return
+    simplePlayer.jumpToRound(target.roundIndex, target.cycleIndex)
+    // If a listening lap is firing on this boundary, handleRoundBoundary owns
+    // the resume — resuming here would start the round underneath the lap.
+    if (wasPlaying && !aLapWillFire) simplePlayer.resume()
+  })
   return true
 }
 
