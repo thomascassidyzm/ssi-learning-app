@@ -276,9 +276,13 @@ const handleVerify = async () => {
 // plainly what happened, and leaves the code PENDING so Try again can re-run
 // it. `useInviteCode.redeemCode` only clears pendingCode on success, so the
 // code survives untouched for the retry.
-type RedeemOutcome =
-  | { ok: true; role?: string; redirectTo?: string }
-  | { ok: false; reason: string }
+interface RedeemOutcome {
+  ok: boolean
+  role?: string
+  redirectTo?: string
+  /** Internal slug or the server's own error text. Present only when !ok. */
+  reason?: string
+}
 
 const redeemPendingCode = async (): Promise<RedeemOutcome> => {
   try {
@@ -312,10 +316,11 @@ const handlePostAuth = async () => {
     // console.error, not console.log — production strips log/info/debug via
     // the vite esbuild pure list, which is why this class of failure has been
     // invisible to us in the field.
-    console.error('[SignInModal] Code redemption failed after sign-in:', outcome.reason)
+    const reason = outcome.reason || 'unknown'
+    console.error('[SignInModal] Code redemption failed after sign-in:', reason)
     loginCodeAudit.codeRedemptionFailed(
       email.value,
-      outcome.reason,
+      reason,
       pendingCode.value?.codeKind ?? null,
     )
     redeemFailed.value = true
