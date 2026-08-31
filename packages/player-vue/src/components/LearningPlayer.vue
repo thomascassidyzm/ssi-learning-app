@@ -85,7 +85,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
-import { nextPractisingState, type NextLegoFetchOutcome } from '../playback/practisingMode'
+import { nextPractisingState, chooseHeldRoundIndex, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -2554,6 +2554,11 @@ simplePlayer.onRoundCompleted((round) => {
     simplePlayer.pause()
   }
 
+  // PRACTISING holds the playhead off new material. Same tick as the event and
+  // for the same race as the pod pause above — a later microtask is already too
+  // late, the next round's prompt has started. See practisingHoldPlayhead.
+  const heldOnPractised = practisingHoldPlayhead(completedRoundIndex, willFirePod)
+
   if (round.legoId) {
     if (props.classContext) {
       // Class mode: update class progress, NOT personal belt
@@ -2594,7 +2599,11 @@ simplePlayer.onRoundCompleted((round) => {
       // M9 — so only the lego-id signal is pushed here.)
       // Round-shape signal, not the mode: offline belt-held recycle draws the
       // same random USE phrases, so the same belt-flip would happen. Suppress.
-      if (!isRecycledRoundPlayback.value) {
+      // `heldOnPractised`: the playhead was just sent BACK to practised
+      // material, so the belt must not follow it back down. Same reason the
+      // recycled-round check is here — the round being played is review, not a
+      // statement about where the learner has got to.
+      if (!isRecycledRoundPlayback.value && !heldOnPractised) {
         const visualLegoId = visualLegoIdForRound(round)
         if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
           beltProgress.value.setCurrentLegoId(visualLegoId)
@@ -4809,6 +4818,125 @@ const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
     logEvent('practising_exit', { outcome, ...practisingProbeContext() })
     stopPractisingRecoveryProbe()
   }
+}
+
+/**
+ * PRACTISING MUST STOP SERVING NEW MATERIAL. Tom, 2026-08-31, live on staging
+ * with the switch ON: "I am still notionally in practice mode, but it has not
+ * had any problem introducing new LEGOS for the last 20 mins, so something is
+ * off."
+ *
+ * He was right, and the gap was total. Until this, `isPractising` had FIVE
+ * consumers and every single one was a progress-WRITE gate or the banner:
+ * progressWritesSuppressed, practisingBlocksProgressWrite, the isPractising
+ * option handed to useLearningSession, and `v-if` on the banner. NOTHING in
+ * the serving path read it. The mode meant "stop writing down where you are",
+ * and it has never meant "stop handing out new LEGOs".
+ *
+ * That was survivable only under an assumption that is false in practice: that
+ * the failing fetch IS the supply of forward material, so failing it starves
+ * the queue by itself. On a bundle-enabled course the whole course is already
+ * on the device, and after the full-script handoff every course has hundreds of
+ * rounds pre-generated in memory. Starving the fetch changes nothing about what
+ * plays. Tom's session had ~800 rounds in hand and walked straight on into
+ * S0402L01 — a brand-new LEGO, intro, debut, build and all — while the mode was
+ * supposedly holding.
+ *
+ * So the mode now holds the PLAYHEAD, which is what his ruling said all along:
+ * "We keep playing from the cache from that point onwards."
+ *
+ * THE PREDICATE IS THE ROUND'S SHAPE, not a flag and not a fetch. A round that
+ * carries an intro, a debut or a build cycle is a round that INTRODUCES a LEGO
+ * — that is exactly what `isMainLoopRound` already means, and it is the same
+ * test the suppression floor uses. While the mode holds, the playhead may not
+ * enter one. It goes back to material the learner has already been through
+ * instead.
+ *
+ * NO NEW CONTENT SOURCE, deliberately. The rounds behind the playhead are
+ * already in the engine's queue and their audio is already reachable, online or
+ * off. The offline urn (appendCachedLoopForOffline) is not used here: it draws
+ * only from what is in the persistent audio cache, which after a belt jump is
+ * nearly empty, and it refuses to run online at all. Walking back is free,
+ * works in both conditions, and is genuinely practised material by definition.
+ *
+ * ROTATING, so it is not one round on a loop. We take review-shaped rounds
+ * (no intro/debut/build) below the playhead, newest first, and step one
+ * further back each time the hold fires — the same "recently introduced comes
+ * round more often" shape as the urn, without the urn.
+ */
+let practisingHoldStep = 0
+
+/** How far back we are willing to reach for practised material. */
+const PRACTISING_HOLD_WINDOW = 40
+
+/**
+ * The round to hold on, or null when there is nothing behind us to hold on —
+ * a learner in the mode within the first few rounds of a session. Null means
+ * we let the round play: refusing to serve anything at all would be worse than
+ * serving one more LEGO, and the telemetry says which happened.
+ */
+const practisingHoldTarget = (fromIndex: number): number | null =>
+  // Review-shaped means nothing in the round introduces anything, which is
+  // exactly `isMainLoopRound` inverted — the same test the suppression floor
+  // uses. Recycled rounds are review-shaped already, so they qualify with no
+  // special case. The choosing itself is pure and asserted in
+  // playback/practisingMode.test.ts.
+  chooseHeldRoundIndex(
+    simplePlayer.getEngineRounds() as any[],
+    fromIndex,
+    practisingHoldStep++,
+    PRACTISING_HOLD_WINDOW,
+    isMainLoopRound,
+  )
+
+/**
+ * Called synchronously from onRoundCompleted, in the same tick as the event,
+ * for the same reason the pod pre-pause is there: `handleRoundBoundary` is
+ * async, and by the time a later microtask ran the orchestrator would already
+ * have started the next round's prompt audio. The learner would hear the first
+ * syllable of a new LEGO before we took it away.
+ *
+ * Returns true if it held.
+ */
+const practisingHoldPlayhead = (completedRoundIndex: number, aLapWillFire: boolean): boolean => {
+  if (!isPractising.value) return false
+  // INF PLAY paginates and holds its own position; the mode's recovery probe
+  // already stands down there, and so does this.
+  if (currentMode.value === 'infplay') return false
+  const rounds = simplePlayer.getEngineRounds() as any[]
+  const nextRound = rounds?.[completedRoundIndex + 1]
+  // Nothing queued ahead, or what is queued introduces nothing: let it play.
+  if (!nextRound || !isMainLoopRound(nextRound)) return false
+
+  const target = practisingHoldTarget(completedRoundIndex + 1)
+  if (target === null) {
+    console.warn('[LearningPlayer] PRACTISING wanted to hold the playhead but there is no practised material behind it — letting the new LEGO play')
+    logEvent('practising_hold_failed', {
+      reason: 'no_practised_material_behind',
+      atRoundIndex: completedRoundIndex,
+      nextLegoId: nextRound?.legoId ?? null,
+    })
+    return false
+  }
+
+  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised round ${target}.`)
+  logEvent('practising_hold', {
+    fromRoundIndex: completedRoundIndex,
+    refusedRoundIndex: completedRoundIndex + 1,
+    refusedLegoId: nextRound?.legoId ?? null,
+    heldOnRoundIndex: target,
+    heldOnLegoId: (rounds[target] as any)?.legoId ?? null,
+  })
+  // Pause first, for the same race the pod pre-pause beats: it kills the
+  // advance the orchestrator has already lined up. jumpToRound then lands us
+  // on practised material without auto-resuming (it only auto-resumes if it
+  // was playing when called, and we have just stopped it).
+  simplePlayer.pause()
+  simplePlayer.jumpToRound(target)
+  // If a listening lap is about to fire on this boundary, handleRoundBoundary
+  // owns the resume — resuming here would start the round underneath the lap.
+  if (!aLapWillFire) simplePlayer.resume()
+  return true
 }
 
 // RECOVERY (Tom's rule 5): when the connection returns and the next new LEGO

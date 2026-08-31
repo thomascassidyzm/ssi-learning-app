@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { nextPractisingState, type NextLegoFetchOutcome } from './practisingMode'
+import { nextPractisingState, chooseHeldRoundIndex, type NextLegoFetchOutcome } from './practisingMode'
 
 describe('practising mode — the next-new-LEGO trigger', () => {
   it('enters when the next new LEGO cannot be fetched', () => {
@@ -56,5 +56,46 @@ describe('practising mode — the next-new-LEGO trigger', () => {
       return acc
     }, [])
     expect(seen).toEqual([false, false, true, true, true, true, false])
+  })
+})
+
+describe('chooseHeldRoundIndex — where the playhead goes instead of a new LEGO', () => {
+  // A round "introduces material" if it carries an intro/debut/build cycle.
+  const introduces = (r: { new?: boolean }) => r.new === true
+  // 0..9, where every third round is a new-LEGO round.
+  const rounds = Array.from({ length: 10 }, (_, i) => ({ i, new: i % 3 === 0 }))
+
+  it('holds on the most recent review round behind the playhead', () => {
+    // From 7: 6 is new, 5 is review. 5 is the answer.
+    expect(chooseHeldRoundIndex(rounds, 7, 0, 40, introduces)).toBe(5)
+  })
+
+  it('steps further back each time, so the hold is a rotation not a loop', () => {
+    const seen = [0, 1, 2, 3].map((step) => chooseHeldRoundIndex(rounds, 7, step, 40, introduces))
+    expect(seen).toEqual([5, 4, 2, 1])
+    // and it wraps rather than running off the end
+    expect(chooseHeldRoundIndex(rounds, 7, 4, 40, introduces)).toBe(5)
+  })
+
+  it('never reaches further back than the window', () => {
+    expect(chooseHeldRoundIndex(rounds, 9, 0, 2, introduces)).toBe(8)
+    // window of 1 from index 9 leaves only round 8, which is review
+    expect(chooseHeldRoundIndex(rounds, 9, 1, 1, introduces)).toBe(8)
+  })
+
+  it('says null when there is nothing practised behind the playhead', () => {
+    // The learner is three rounds into a session and all of them are new.
+    const allNew = [{ new: true }, { new: true }, { new: true }]
+    expect(chooseHeldRoundIndex(allNew, 3, 0, 40, introduces)).toBeNull()
+    // and at the very start of a session there is nothing behind at all
+    expect(chooseHeldRoundIndex(rounds, 0, 0, 40, introduces)).toBeNull()
+    expect(chooseHeldRoundIndex([], 5, 0, 40, introduces)).toBeNull()
+  })
+
+  it('never names a round the engine does not have', () => {
+    // fromIndex past the end (a queue that shrank under us) must still be safe.
+    const r = chooseHeldRoundIndex(rounds, 999, 0, 40, introduces)
+    expect(r).not.toBeNull()
+    expect(r!).toBeLessThan(rounds.length)
   })
 })
