@@ -41,6 +41,7 @@ import {
   clearNetworkStalled,
 } from '../config/networkGate'
 import { getCourseBundle } from './useCourseBundle'
+import { isContentBlackoutActive } from '../playback/contentBlackout'
 import { reportBundlePath, type BundlePathStage } from '../playback/bundlePathTelemetry'
 import type { CourseBundle } from '@ssi/core'
 import type { NextLegoFetchOutcome } from '../playback/practisingMode'
@@ -929,11 +930,19 @@ export function useInstantPlayback(
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
 
+    // The admin CONTENT BLACKOUT test switch (playback/contentBlackout.ts) makes
+    // the next new LEGO genuinely unreachable so PRACTISING mode can be watched
+    // on a real device. It has to decline the bundle too: a bundle-enabled
+    // course answers every cycles question from IndexedDB with no network at
+    // all, so without this the switch would change nothing on the fifteen
+    // courses that matter most. Off by default, in memory only, never persisted.
+    const blackout = isContentBlackoutActive()
+
     // Bundle cutover: generate this page of cycles from the in-memory bundle
     // instead of fetching /cycles. Synchronous once the bundle is cached, so
     // resume on a bundle-enabled course is zero-network. Any failure falls
     // through to the network path below.
-    if (isBundleBootstrapEnabled(code)) {
+    if (isBundleBootstrapEnabled(code) && !blackout) {
       try {
         return await fromBundle('cycles', code, (bundle) =>
           bundleToCyclesResponse(bundle, fromLegoId, limit),
@@ -947,7 +956,7 @@ export function useInstantPlayback(
     // has the round-map and can validate), serve the cached cycles response
     // when it matches. Skip network entirely. This is the "zero-network
     // resume" path for returning visitors to a previously-fetched position.
-    if (typeof expectedVersion === 'number') {
+    if (typeof expectedVersion === 'number' && !blackout) {
       const cached = readCachedCycles(code, fromLegoId, expectedVersion)
       if (cached) {
         // Only return cache if it covers >= the requested limit — a tiny
@@ -971,7 +980,14 @@ export function useInstantPlayback(
     // only then is there truly nothing to play. (Tom 2026-08-15: "Play what
     // you have. Verify access as and when you can. Never as a gate.")
     const serveStale = (why: string): CyclesResponse | null => {
-      const stale = readAnyCachedCycles(code, fromLegoId)
+      // Under the blackout this device is standing in for one that has never
+      // held the next new LEGO — which is the real trigger condition, since the
+      // whole job of that fetch is to reach content the learner has never
+      // reached. Our own one-round-ahead prefetch happens to have cached the
+      // very round tier 3 asks for, so consulting the cache here would answer
+      // 'fetched' and the switch would look broken until the learner advanced a
+      // round. Declining it makes the switch mean what it says.
+      const stale = blackout ? null : readAnyCachedCycles(code, fromLegoId)
       if (stale) {
         console.warn(
           `[InstantPlayback] ${why} — serving ${stale.cycles.length} cached cycles for ${fromLegoId} instead of blocking the learner.`,
@@ -982,6 +998,13 @@ export function useInstantPlayback(
 
     let res: CoalescedJson
     try {
+      // Blackout: fail the network leg the way a dead network fails it — a
+      // transport error, no status. Thrown HERE and not earlier so that
+      // everything a real outage would still do, still happens: the cache-first
+      // read above already ran, and `serveStale` below still serves whatever
+      // this device holds. Only content this device has never held comes back
+      // empty, which is precisely the next new LEGO, which is the trigger.
+      if (blackout) throw new TypeError('Failed to fetch (simulated content blackout)')
       res = await coalescedJsonGet(url, signal)
     } catch (err) {
       // Abort (our own budget expiring) or a transport failure. Both mean the

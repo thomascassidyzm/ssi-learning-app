@@ -13403,6 +13403,16 @@ onMounted(async () => {
       case 'adaptationConsent':
         handleAdaptationConsent(detail.value)
         break
+      case 'simulateContentBlackout':
+        // The admin practising-mode test switch was just tapped in Settings.
+        // Nothing here sets the mode — `fetchNextNewLego` runs the REAL tier-3
+        // probe and `reportNextNewLegoFetch` decides, exactly as it does on a
+        // round advance. All this does is bring that probe forward from "some
+        // minutes away" to "now", in both directions: on gives the failure that
+        // raises the mode, off gives the success that ends it and resumes
+        // forward play. See playback/contentBlackout.ts.
+        void fetchNextNewLego()
+        break
     }
   }
   window.addEventListener('ssi-setting-changed', settingChangedHandler)

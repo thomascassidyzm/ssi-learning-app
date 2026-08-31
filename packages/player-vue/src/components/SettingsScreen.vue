@@ -7,6 +7,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
+import { isContentBlackoutActive, setContentBlackout } from '../playback/contentBlackout'
 import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
@@ -412,6 +413,13 @@ const enableAdaptation = ref(false) // Personalised pacing via microphone
 const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
 const showListeningAudit = ref(false) // Reveal the 9-stage progression audit mode in Listening → Dialogues
+
+// PRACTISING-MODE TEST SWITCH (admin only). Not a display preference and not a
+// mock: it makes the next new LEGO genuinely unfetchable, so the real trigger
+// fires and what appears is the real feature. Source of truth is the module in
+// playback/contentBlackout.ts, which is in memory only and off at every app
+// start, so this ref is seeded from it rather than from localStorage.
+const simulateContentBlackout = ref(isContentBlackoutActive())
 
 // Theme settings (uses shared composable)
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
@@ -999,10 +1007,29 @@ onMounted(async () => {
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
   showListeningAudit.value = localStorage.getItem('ssi-listening-audit') === 'true'
+  // Deliberately NOT from localStorage — the blackout never survives a restart.
+  simulateContentBlackout.value = isContentBlackoutActive()
 
   // Pull fresh subscription state so the panel reflects any cancel/renew change.
   refreshSubscription()
 })
+
+/**
+ * Turn the practising-mode test switch on or off.
+ *
+ * ON makes the content unreachable and then gets out of the way: the player's
+ * own next-new-LEGO fetch fails, reports 'failed', and the mode raises itself.
+ * OFF restores it and the same fetch succeeds, so the mode ends itself and
+ * forward play resumes from a position that never moved.
+ *
+ * The event is not what causes the mode — it only asks the player to run its
+ * real probe NOW rather than at the next round advance, which could be minutes
+ * away. Without it the switch would appear not to work for whoever tapped it.
+ */
+const toggleContentBlackout = () => {
+  simulateContentBlackout.value = setContentBlackout(!simulateContentBlackout.value)
+  dispatchSettingChanged('simulateContentBlackout', simulateContentBlackout.value)
+}
 
 const toggleListeningMode = () => {
   showListeningMode.value = !showListeningMode.value
@@ -2230,6 +2257,24 @@ const confirmReset = async () => {
               <span class="setting-desc">Show "progress is fragile" banner for guests</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showFragileProgressWarning }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- The practising-mode test switch. Last in the section, admin-gated
+               with everything else here, and worded so it cannot be mistaken for
+               a learner setting. It does not fake the banner — it takes the
+               content away and lets the real trigger fire. -->
+          <div class="setting-row clickable" @click="toggleContentBlackout">
+            <div class="setting-info">
+              <span class="setting-label">Practising Mode (test)</span>
+              <span class="setting-desc">Makes the next new LEGO unreachable, so the real practising trigger fires. Play carries on from the cache and your position is frozen while it holds. Turn it off here to watch normal play resume. Resets itself when the app restarts.</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': simulateContentBlackout }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>
