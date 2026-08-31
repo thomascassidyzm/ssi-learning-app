@@ -4608,8 +4608,24 @@ const isRecycledRoundPlayback = computed(() =>
 //
 // It clears itself the instant a real main-loop round plays (see the round-entry
 // watcher below), and normal writing resumes with it.
+// Dev cheat (?consolidating=1): force the mode on so the banner and the
+// write-suppression can be seen without reproducing cache exhaustion.
+//
+// This exists because a live probe could NOT get the app into the state within
+// any budget worth spending (job #473, 6 runs, up to 7-minute offline windows):
+// the script pre-generates ~57 rounds ahead, so "forward material" is enormous
+// relative to any plausible warm-up, and the real trigger needs the AUDIO for
+// all of it to be missing too. A state that cannot be reached on demand cannot
+// be checked before shipping — so it gets a door, like ?fc and ?stream.
+const forceConsolidatingCheat = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('consolidating')
+  } catch { return false }
+})()
+
 const isConsolidating = computed(() =>
-  offlineRecycleBeltHeld.value && currentMode.value !== 'infplay'
+  forceConsolidatingCheat
+  || (offlineRecycleBeltHeld.value && currentMode.value !== 'infplay')
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
