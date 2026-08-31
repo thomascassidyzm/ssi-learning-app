@@ -149,6 +149,11 @@ const cohortLine = computed(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-3, 12px);
+  /* Matches the Library's own .section spacing. It lives on the panel rather
+     than on a wrapper in BrowseScreen so that it disappears with the panel —
+     a wrapper would leave 1.5rem of dead space whenever the gate is closed,
+     which is most of the time. */
+  margin-bottom: 1.5rem;
 }
 .cohort {
   margin: 0;
