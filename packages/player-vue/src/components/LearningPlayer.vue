@@ -85,7 +85,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
-import { nextPractisingState, chooseHeldRoundIndex, type NextLegoFetchOutcome } from '../playback/practisingMode'
+import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type PractisedPosition, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -4866,48 +4866,44 @@ const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
  * So the mode now holds the PLAYHEAD, which is what his ruling said all along:
  * "We keep playing from the cache from that point onwards."
  *
- * THE PREDICATE IS THE ROUND'S SHAPE, not a flag and not a fetch. A round that
- * carries an intro, a debut or a build cycle is a round that INTRODUCES a LEGO
- * — that is exactly what `isMainLoopRound` already means, and it is the same
- * test the suppression floor uses. While the mode holds, the playhead may not
- * enter one. It goes back to material the learner has already been through
- * instead.
+ * THE PREDICATE IS A CYCLE, not a round. The first version of this looked
+ * BACKWARDS for a ROUND that introduced nothing, and every main-loop round
+ * carries an intro, a debut and a build — so on an ordinary learner the
+ * candidate list was always empty and the hold never engaged. Measured against
+ * Tom's own state (learner 81987d60, spa_for_eng, round 828) the next twenty
+ * items with the mode ON were identical to the twenty with it OFF. His ruling
+ * on seeing it: "practice mode is designed as a no/low wifi test though ffs,
+ * so it should not serve any new LEGOS, else, what is the point???"
  *
- * NO NEW CONTENT SOURCE, deliberately. The rounds behind the playhead are
- * already in the engine's queue and their audio is already reachable, online or
- * off. The offline urn (appendCachedLoopForOffline) is not used here: it draws
- * only from what is in the persistent audio cache, which after a belt jump is
- * nearly empty, and it refuses to run online at all. Walking back is free,
- * works in both conditions, and is genuinely practised material by definition.
+ * So the hold now lands on a CYCLE. Every completed round ends in a block of
+ * spaced repetition and USE phrases over LEGOs introduced long ago — practised
+ * material, already in the queue, audio already on the device because the round
+ * was played. We walk back over the completed history newest-first and land on
+ * the first cycle of a round whose remaining tail introduces nothing. The
+ * choosing is pure and asserted in playback/practisingMode.test.ts.
  *
- * ROTATING, so it is not one round on a loop. We take review-shaped rounds
- * (no intro/debut/build) below the playhead, newest first, and step one
- * further back each time the hold fires — the same "recently introduced comes
- * round more often" shape as the urn, without the urn.
+ * NO NEW CONTENT SOURCE, deliberately. The offline urn
+ * (appendCachedLoopForOffline) is not used here: it draws only from what is in
+ * the persistent audio cache, which after a belt jump is nearly empty, and it
+ * refuses to run online at all. Walking back is free, works in both conditions,
+ * and is genuinely practised material by definition.
+ *
+ * IT CANNOT RUN DRY and it cannot serve something new — see the floor in
+ * choosePractisedPosition. The rotation covers the whole played history and
+ * wraps, so there is no window constant left to tune.
  */
 let practisingHoldStep = 0
 
-/** How far back we are willing to reach for practised material. */
-const PRACTISING_HOLD_WINDOW = 40
-
 /**
- * The round to hold on, or null when there is nothing behind us to hold on —
- * a learner in the mode within the first few rounds of a session. Null means
- * we let the round play: refusing to serve anything at all would be worse than
- * serving one more LEGO, and the telemetry says which happened.
+ * Where to hold, or null when nothing whatsoever has been completed. The caller
+ * cannot actually reach null — this fires from onRoundCompleted, so a round is
+ * always behind us — but it is handled rather than assumed.
  */
-const practisingHoldTarget = (fromIndex: number): number | null =>
-  // Review-shaped means nothing in the round introduces anything, which is
-  // exactly `isMainLoopRound` inverted — the same test the suppression floor
-  // uses. Recycled rounds are review-shaped already, so they qualify with no
-  // special case. The choosing itself is pure and asserted in
-  // playback/practisingMode.test.ts.
-  chooseHeldRoundIndex(
+const practisingHoldTarget = (fromIndex: number): PractisedPosition | null =>
+  choosePractisedPosition(
     simplePlayer.getEngineRounds() as any[],
     fromIndex,
     practisingHoldStep++,
-    PRACTISING_HOLD_WINDOW,
-    isMainLoopRound,
   )
 
 /**
@@ -4927,33 +4923,37 @@ const practisingHoldPlayhead = (completedRoundIndex: number, aLapWillFire: boole
   const rounds = simplePlayer.getEngineRounds() as any[]
   const nextRound = rounds?.[completedRoundIndex + 1]
   // Nothing queued ahead, or what is queued introduces nothing: let it play.
-  if (!nextRound || !isMainLoopRound(nextRound)) return false
+  if (!nextRound || !(nextRound.cycles || []).some((c: any) => cycleIntroducesMaterial(c))) return false
 
   const target = practisingHoldTarget(completedRoundIndex + 1)
   if (target === null) {
-    console.warn('[LearningPlayer] PRACTISING wanted to hold the playhead but there is no practised material behind it — letting the new LEGO play')
+    console.warn('[LearningPlayer] PRACTISING wanted to hold the playhead but nothing has been completed behind it — letting the new LEGO play')
     logEvent('practising_hold_failed', {
-      reason: 'no_practised_material_behind',
+      reason: 'nothing_completed_behind',
       atRoundIndex: completedRoundIndex,
       nextLegoId: nextRound?.legoId ?? null,
     })
     return false
   }
 
-  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised round ${target}.`)
+  const heldRound = rounds[target.roundIndex] as any
+  const heldCycle = heldRound?.cycles?.[target.cycleIndex]
+  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised material at round ${target.roundIndex} cycle ${target.cycleIndex} (${heldCycle?.type} ${heldCycle?.legoId ?? heldRound?.legoId}).`)
   logEvent('practising_hold', {
     fromRoundIndex: completedRoundIndex,
     refusedRoundIndex: completedRoundIndex + 1,
     refusedLegoId: nextRound?.legoId ?? null,
-    heldOnRoundIndex: target,
-    heldOnLegoId: (rounds[target] as any)?.legoId ?? null,
+    heldOnRoundIndex: target.roundIndex,
+    heldOnCycleIndex: target.cycleIndex,
+    heldOnCycleType: heldCycle?.type ?? null,
+    heldOnLegoId: heldCycle?.legoId ?? heldRound?.legoId ?? null,
   })
   // Pause first, for the same race the pod pre-pause beats: it kills the
   // advance the orchestrator has already lined up. jumpToRound then lands us
   // on practised material without auto-resuming (it only auto-resumes if it
   // was playing when called, and we have just stopped it).
   simplePlayer.pause()
-  simplePlayer.jumpToRound(target)
+  simplePlayer.jumpToRound(target.roundIndex, target.cycleIndex)
   // If a listening lap is about to fire on this boundary, handleRoundBoundary
   // owns the resume — resuming here would start the round underneath the lap.
   if (!aLapWillFire) simplePlayer.resume()
@@ -11801,6 +11801,28 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
+/**
+ * CAN THIS APP REACH CONTENT IT HAS NOT GOT? Tom's principle, 2026-08-31:
+ * belt skip must be unavailable whenever the app cannot serve the target belt.
+ *
+ * Being offline is one way to be in that state and it was the only one the
+ * belt picker knew about. PRACTISING is the other, and it is the more exact
+ * one: the mode's entire trigger is the next new LEGO coming back unfetchable,
+ * so a learner in it is by definition unable to reach material that is not
+ * already on the device. It can also be switched on deliberately, on a full
+ * signal, from the settings door — and in that case `isOnline` is true,
+ * `offlineActive` is false, and every belt pill was tappable. Tapping one
+ * walked the learner out of the downloaded plan into content the mode has just
+ * finished refusing to fetch, which is the same walk-into-nothing the offline
+ * greying exists to stop.
+ *
+ * The AVAILABILITY test underneath is unchanged and stays exact: a belt greys
+ * out only when its landing round has no cycle whose audio is actually in the
+ * persistent cache. So a practising learner keeps every belt they have already
+ * downloaded and loses only the ones that would hand them silence.
+ */
+const cannotFetchNewContent = (): boolean => offlinePlaybackActive() || isPractising.value
+
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
 // ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
@@ -11813,7 +11835,7 @@ const offlinePlaybackActive = (): boolean =>
 // reads available exactly when landing there would actually produce sound.
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
-  if (!offlinePlaybackActive()) return new Set()
+  if (!cannotFetchNewContent()) return new Set()
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -16261,7 +16283,7 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
-    :is-offline="offlinePlaybackActive()"
+    :is-offline="cannotFetchNewContent()"
     :offline-unavailable-belt-names="offlineUnavailableBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"

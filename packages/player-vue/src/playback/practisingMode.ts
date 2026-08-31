@@ -82,42 +82,140 @@ export function nextPractisingState(
 /**
  * WHERE THE PLAYHEAD GOES INSTEAD.
  *
- * Added 2026-08-31, after Tom watched the mode hold for twenty minutes while
- * the app introduced new LEGOs the whole time. The mode had five consumers and
- * every one of them was a progress-WRITE gate; nothing in the serving path read
- * it. The failing fetch was assumed to starve the queue, and on a course whose
- * material is already on the device it starves nothing.
+ * Tom, 2026-08-31, once the first attempt at this had been measured against
+ * his own real state:
  *
- * So the mode holds the playhead, and this is the pure half of that: given the
- * engine's rounds and where we are, name a round BEHIND us that introduces
- * nothing. Newest first, stepping one further back each time it is called, so
- * the hold is a rotation over recent review rather than one round looping —
- * the same "recently introduced comes round more often" shape the offline urn
- * has, with no urn, no cache measurement and no network.
+ *   "practice mode is designed as a no/low wifi test though ffs, so it should
+ *    not serve any new LEGOS, else, what is the point???"
  *
- * Returns null when there is nothing behind us to hold on. The caller lets the
- * round play in that case and says so in telemetry: refusing to serve anything
- * at all would be worse than serving one more LEGO.
+ * That is the whole specification, and it is absolute: IN PRACTISING MODE, NO
+ * NEW LEGO IS EVER INTRODUCED. The mode simulates a device that genuinely
+ * cannot fetch new material, so it must behave like one.
+ *
+ * WHY THE FIRST ATTEMPT FAILED, because the shape of the failure is the reason
+ * this function looks the way it does. It searched BACKWARDS over a 40-round
+ * window for a ROUND that introduced nothing — no intro, no debut, no build.
+ * Every main-loop round has all three. So on a learner whose whole history is
+ * main-loop rounds (which is every ordinary learner) the candidate list was
+ * always empty, the hold never engaged, and the mode changed nothing about
+ * what was SERVED. Measured against Tom's own state on 2026-08-31 — learner
+ * 81987d60, spa_for_eng, cursor S0403L03, round 828 — the next twenty items
+ * with the mode ON were IDENTICAL, item for item, to the twenty with it OFF.
+ *
+ * SO DO NOT WIDEN THE WINDOW OR LOOSEN THE PREDICATE. A review-shaped round is
+ * not a thing this course produces; a bigger search for one still finds none.
+ * The unit was wrong, not its range.
+ *
+ * WHAT THIS DOES INSTEAD: it names a CYCLE, not a round. Every round the
+ * learner has already completed ends in a block of practised material —
+ * spaced repetition and USE phrases over LEGOs introduced long ago — sitting
+ * behind that round's own intro/debut/build. That material is already in the
+ * queue, its audio is already on the device (the round was played), and by
+ * definition it introduces nothing. So we walk back over the completed
+ * history, newest first, and land the playhead on the first cycle of a round
+ * from which no introducing cycle remains. The mode then serves practised
+ * material and only practised material, with no new content source, no fetch,
+ * no urn, no cache measurement and no network.
+ *
+ * NO WINDOW CONSTANT. The rotation covers the whole played history and wraps,
+ * so it cannot run dry while a single round has been completed, and there is
+ * no arbitrary number to tune. Newest-first keeps the urn's shape — recently
+ * introduced material comes round more often — without the urn.
+ *
+ * AND IT CANNOT RUN DRY. If no completed round has a practised-only tail at
+ * all (a learner one round into a brand-new course), we replay the most recent
+ * completed round from its start. That round's LEGO is one the learner has
+ * already met, so replaying it introduces nothing NEW — which is the rule —
+ * and there is always something to play. Null comes back only when nothing
+ * whatsoever has been completed, which the caller cannot reach: the hold fires
+ * from onRoundCompleted, so at least one round is always behind it.
  */
-export function chooseHeldRoundIndex<T>(
-  rounds: readonly T[],
+
+/** A landing place: a round in the completed history, and the cycle within it
+ *  from which nothing introduces anything. */
+export interface PractisedPosition {
+  roundIndex: number
+  cycleIndex: number
+}
+
+/**
+ * Cycle types that INTRODUCE material. Everything else — spaced_rep, use,
+ * listening, pod, the listening bookends — is review of something already met.
+ *
+ * Wider than `isMainLoopRound`'s intro/debut/build deliberately: the component
+ * cycles belong to the new LEGO being taught and are new material by the same
+ * argument, and a hold that landed on one would be serving the very thing the
+ * mode exists to withhold. `isMainLoopRound` is left alone — it has other
+ * consumers and other reasons — and this is the practising-specific test.
+ */
+const INTRODUCING_CYCLE_TYPES = new Set([
+  'intro',
+  'debut',
+  'build',
+  'component_intro',
+  'component_practice',
+])
+
+export function cycleIntroducesMaterial(cycle: { type?: string } | null | undefined): boolean {
+  return !!cycle?.type && INTRODUCING_CYCLE_TYPES.has(cycle.type)
+}
+
+/** The minimum a round must look like for this to reason about it. `Round`
+ *  from SimplePlayer satisfies it; so does anything a probe hands us. */
+export interface PractisableRound {
+  cycles?: readonly ({ type?: string } | null | undefined)[]
+}
+
+/**
+ * Where to put the playhead instead of the new LEGO.
+ *
+ * @param rounds  the engine's rounds, in play order
+ * @param fromIndex  the index of the round we are REFUSING (i.e. the one that
+ *                   would have played next); everything below it is history
+ * @param step  a counter the caller increments on every hold, so consecutive
+ *              holds rotate through the history rather than looping one round
+ * @param introduces  which cycles count as new material; defaults to
+ *                    `cycleIntroducesMaterial` and is injectable for tests
+ */
+export function choosePractisedPosition(
+  rounds: readonly (PractisableRound | null | undefined)[],
   fromIndex: number,
   step: number,
-  window: number,
-  introducesMaterial: (round: T) => boolean,
-): number | null {
-  if (!rounds.length || fromIndex <= 0) return null
-  // Clamp BEFORE measuring the window. A queue that shrank underneath us (a
-  // rebuild, a mode change) leaves fromIndex past the end, and taking the
-  // window off the raw value puts the floor above every round there is — the
-  // hold would silently never engage and a new LEGO would play.
+  introduces: (cycle: { type?: string } | null | undefined) => boolean = cycleIntroducesMaterial,
+): PractisedPosition | null {
+  // Clamp BEFORE measuring. A queue that shrank underneath us (a rebuild, a
+  // mode change) leaves fromIndex past the end, and reaching from the raw
+  // value would index nothing at all — the hold would silently never engage
+  // and a new LEGO would play.
   const start = Math.min(fromIndex, rounds.length)
-  const floor = Math.max(0, start - window)
-  const candidates: number[] = []
-  for (let i = start - 1; i >= floor; i--) {
-    const r = rounds[i]
-    if (r && !introducesMaterial(r)) candidates.push(i)
+  if (start <= 0) return null
+
+  const offset = ((step % start) + start) % start
+  for (let k = 0; k < start; k++) {
+    // Newest first, wrapping, so every completed round is reachable and each
+    // consecutive hold lands somewhere different.
+    const i = start - 1 - ((offset + k) % start)
+    const cycles = rounds[i]?.cycles
+    if (!cycles || cycles.length === 0) continue
+    // The first cycle that introduces nothing, PROVIDED nothing after it does
+    // either — we play from there to the end of the round, so the whole tail
+    // has to be clean. In practice the tail is the spaced-rep/USE block that
+    // every main-loop round ends with; the check is here so the guarantee is
+    // structural rather than a belief about round shape.
+    let firstClean = -1
+    let cleanToEnd = true
+    for (let c = 0; c < cycles.length; c++) {
+      if (introduces(cycles[c])) {
+        if (firstClean !== -1) { cleanToEnd = false; break }
+      } else if (firstClean === -1) {
+        firstClean = c
+      }
+    }
+    if (firstClean !== -1 && cleanToEnd) return { roundIndex: i, cycleIndex: firstClean }
   }
-  if (candidates.length === 0) return null
-  return candidates[Math.abs(step) % candidates.length]
+
+  // The floor. Nothing behind us has a practised-only tail, so replay the most
+  // recently completed round whole: its LEGO is already introduced, so this
+  // serves nothing new, and the mode still never runs dry.
+  return { roundIndex: start - 1, cycleIndex: 0 }
 }
