@@ -208,7 +208,14 @@ export interface IProgressStore {
   updateHelixState(learnerId: string, courseId: string, state: HelixState): Promise<void>;
   updateEnrollmentProgress(learnerId: string, courseId: string, legoId: string, roundIndex: number): Promise<void>;
   updateCurrentCycle(learnerId: string, courseId: string, cycleIndex: number): Promise<void>;
-  setEnrollmentCursor(learnerId: string, courseId: string, legoId: string, roundIndex: number): Promise<void>;
+  setEnrollmentCursor(
+    learnerId: string,
+    courseId: string,
+    legoId: string,
+    roundIndex: number,
+    /** Observability only — never affects the write. See ProgressStore. */
+    opts?: { reason?: string; from?: { legoId: string | null; roundIndex: number | null } | null }
+  ): Promise<void>;
   updateEnrollmentActivity(learnerId: string, courseId: string, highestSeed: number, practiceMinutes: number): Promise<void>;
   /** Switch playback mode. Setting 'infplay' starts the INF round counter
    *  at 1 (only on initial entry; idempotent if already in infplay).

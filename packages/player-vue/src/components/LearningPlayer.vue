@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
@@ -122,6 +122,7 @@ import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
+import { setCursorTelemetrySink } from '@ssi/core'
 import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
 import type { CourseBundle } from '@ssi/core'
 import { getCourseBundle } from '../composables/useCourseBundle'
@@ -1173,7 +1174,7 @@ const consolidatingBlocksProgressWrite = (what: string): boolean => {
   return true
 }
 
-const setRemoteCursor = async (legoId: string, roundIndex: number) => {
+const setRemoteCursor = async (legoId: string, roundIndex: number, reason = 'persist_cursor') => {
   if (consolidatingBlocksProgressWrite('remote cursor')) return
   if (isGuestLearner.value || !progressStore?.value || !legoId) return
   try {
@@ -1181,7 +1182,11 @@ const setRemoteCursor = async (legoId: string, roundIndex: number) => {
       learnerId.value,
       courseCode.value,
       legoId,
-      roundIndex
+      roundIndex,
+      // Observability only. `from` is what the client believed the cursor was,
+      // so a move the learner did not ask for reads as a from→to pair rather
+      // than a bare destination with no history behind it.
+      { reason, from: { legoId: lastCompletedLegoIdRef.value ?? null, roundIndex: null } },
     )
     console.log('[LearningPlayer] Cursor set to round', roundIndex, 'LEGO:', legoId)
   } catch (err) {
@@ -1310,6 +1315,10 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     console.log('[LearningPlayer] Review-only round at', roundIndex, '— not INF PLAY (degraded fetch, or new content remains past', cursorForInfCheck, ')')
     return
   }
+
+  // The mid-session crossing is a machine decision, not a learner gesture —
+  // the single most important one to be able to tell apart from the ∞ tap.
+  noteInfPlayEnter('round_cross')
 
   // INF PLAY auto-entry (mid-session). Crossing from the last main-loop
   // round into the first infplay round flips current_mode here so the mode
@@ -1612,6 +1621,82 @@ const playerLogGetToken = (): Promise<string | null> =>
 const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken })
 const logEvent = playerLog.event
 
+// ── INF PLAY OBSERVABILITY ──────────────────────────────────────────────────
+//
+// Until now every route into infinite play — the deliberate ∞ tap, the
+// mid-session round crossing, the belt-forward chevron at course end, and the
+// offline cache recycle — emitted nothing but a console.log, which
+// esbuild.pure strips out of production. So a learner who CHOSE infinite play
+// and a learner the machine flung there produced byte-identical telemetry:
+// none. That is why an afternoon of investigation could not tell them apart,
+// and why nobody could be helped.
+//
+// One EPISODE at a time, not one event per round: the first entry opens it,
+// re-entries while it is open are swallowed, and it closes exactly once. So a
+// learner who spends an hour in ∞ produces two rows, not two hundred.
+type InfPlayTrigger = 'tap' | 'belt_skip' | 'round_cross' | 'cache_recycle'
+let infPlayEpisode: {
+  trigger: InfPlayTrigger
+  at: number
+  cursorLegoId: string | null
+  infRoundAtEntry: number
+} | null = null
+
+/** Open an INF PLAY episode. Idempotent while one is open. */
+const noteInfPlayEnter = (trigger: InfPlayTrigger): void => {
+  if (infPlayEpisode) return
+  // The cursor BEFORE entry — the position the learner is being moved away
+  // from. Prefer the in-session main-loop high-water, fall back to the
+  // persisted ceiling, then to whatever round is under the playhead.
+  const cursorLegoId =
+    lastMainLoopLegoId.value
+    ?? highestCompletedLegoId.value
+    ?? simplePlayer.currentRound.value?.legoId
+    ?? null
+  infPlayEpisode = {
+    trigger,
+    at: Date.now(),
+    cursorLegoId,
+    infRoundAtEntry: infplayRoundIndex.value,
+  }
+  logEvent('infplay_enter', {
+    trigger,
+    // `cache_recycle` WHILE OFFLINE is the defect signature — the learner ran
+    // out of cached material and got recycled content they never asked for.
+    // The same trigger while online would be the refusal path (a bug of a
+    // different kind), so both halves of the pair have to be on the row.
+    online: isOnline.value,
+    cachedOnly: offlinePlaybackActive(),
+    cursorLegoId,
+    // The mode flag as it stands at entry. 'main' alongside a cache_recycle
+    // trigger is correct and expected: the offline recycle deliberately does
+    // NOT write current_mode (Tom 2026-08-15).
+    mode: currentMode.value,
+    infRoundIndex: infplayRoundIndex.value,
+    isGuest: isGuestLearner.value,
+    // course_code, client_version, session_id and learner attribution are
+    // stamped on the row by usePlayerLog — not repeated here.
+  })
+}
+
+/** Close the open episode, if any, bounding the stay. */
+const noteInfPlayExit = (reason: 'mode_main' | 'belt_held_cleared' | 'session_end'): void => {
+  const ep = infPlayEpisode
+  if (!ep) return
+  infPlayEpisode = null
+  logEvent('infplay_exit', {
+    trigger: ep.trigger,
+    reason,
+    // A STAY, measured — not inferred from the gap between other events.
+    dwellMs: Date.now() - ep.at,
+    infRoundsElapsed: Math.max(0, infplayRoundIndex.value - ep.infRoundAtEntry),
+    enteredAtCursorLegoId: ep.cursorLegoId,
+    cursorLegoId: simplePlayer.currentRound.value?.legoId ?? null,
+    online: isOnline.value,
+  })
+}
+
+
 // Intro/presentation audio never reaches SimplePlayer's audio_failed path —
 // a missing presentation clip isn't an error, it's an empty URL and a skipped
 // phase. The round-building adapters report it instead, through a module-level
@@ -1620,6 +1705,24 @@ const logEvent = playerLog.event
 // Deduped per cycle id: a round can be rebuilt several times per session
 // (tier-3 top-ups, INF PLAY refreshes) and the gap is a property of the
 // CONTENT, so one report per cycle per session is the useful signal.
+// Non-linear cursor moves (the INF-PLAY ratchet, explicit navigation) report
+// through @ssi/core's module-level sink — ProgressStore is framework-agnostic
+// and cannot reach a Vue composable. Wired here because playerLog is what
+// stamps client_version, session_id, course_code and learner attribution, and
+// the build id is half the answer to "what moved this cursor".
+setCursorTelemetrySink((e) => {
+  logEvent('cursor_move', {
+    kind: e.kind,
+    fromLegoId: e.fromLegoId,
+    fromRoundIndex: e.fromRoundIndex,
+    toLegoId: e.toLegoId,
+    toRoundIndex: e.toRoundIndex,
+    moved: e.moved,
+    ...(e.reason ? { reason: e.reason } : {}),
+  })
+})
+onBeforeUnmount(() => setCursorTelemetrySink(null))
+
 const introAudioMissingReported = new Set<string>()
 setIntroAudioTelemetrySink((e) => {
   if (introAudioMissingReported.has(e.cycleId)) return
@@ -9240,8 +9343,12 @@ const jumpToRound = async (roundIndex) => {
  * belt-jump else branch that used to live here is gone (belt jumps are
  * MODAL-only via handleSkipToBelt).
  */
-const enterInfPlay = async () => {
+const enterInfPlay = async (trigger: InfPlayTrigger = 'round_cross') => {
   cancelInFlightLap()
+  // Opened BEFORE the paywall gate below: an entry attempt that the gate turns
+  // away is still a thing we want to see. The episode is idempotent, so a
+  // refused attempt followed by a real entry logs once.
+  noteInfPlayEnter(trigger)
   // Deliberate ∞ entry outranks the offline belt-held recycle: the learner
   // asked to go somewhere, so the red ∞ is right and the belt un-holds.
   offlineRecycleBeltHeld.value = false
@@ -9556,7 +9663,7 @@ const handleRoundForward = async () => {
     ? curMainLoopIdx >= forwardBoundary - 1
     : wouldEnterInfplay.value
   if (atOrPastFinalLego) {
-    await enterInfPlay()
+    await enterInfPlay('round_cross')
     return
   }
 
@@ -9586,7 +9693,7 @@ const handleRoundForward = async () => {
     if (targetIdx >= cachedRounds.value.length) {
       // Couldn't load the next round — if there genuinely is no more main-loop
       // content this is the course end, so enter INF PLAY; otherwise stay put.
-      if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+      if (wouldEnterInfplay.value) { await enterInfPlay('round_cross'); return }
       console.warn('[LearningPlayer] Round forward: next round unavailable — staying put')
       return
     }
@@ -9824,7 +9931,7 @@ const handleBeltPillTap = async () => {
 // modal closes itself (emits close) before this fires; just enter the mode.
 const handleActivateInfPlay = async () => {
   showProgressModal.value = false
-  await enterInfPlay()
+  await enterInfPlay('tap')
 }
 
 // Jump to any belt (from ProgressModal)
@@ -9948,7 +10055,7 @@ const handleSkipToNextBelt = async () => {
   // (handleRoundForward → advanceInfPlayRound), not the belt axis. Position-based
   // (isInfPlayActive) so it also nulls for GUESTS, who never get the mode flag.
   if (isInfPlayActive.value) return
-  if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+  if (wouldEnterInfplay.value) { await enterInfPlay('belt_skip'); return }
   if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
 }
 
@@ -11179,6 +11286,41 @@ const offlineUnavailableBeltNames = computed<Set<string>>(() => {
 // this instance's offlineActive) stops writing the shared refs for the next
 // course's ring.
 onMounted(() => { resetOfflineDownloadStatus() })
+
+// Registered in onMounted, not at setup top level: `watch` evaluates its
+// source getter eagerly to collect dependencies, and `currentMode` /
+// `offlineRecycleBeltHeld` are declared below this file's telemetry helpers.
+onMounted(() => {
+  // The mode flag and the offline belt-held flag are the two things that can end
+  // an episode without going through a named exit function, so watch them rather
+  // than chase every branch that flips them. A cache_recycle episode ends when
+  // real main-loop content resumes (the belt un-holds); a mode episode ends when
+  // the flag goes back to 'main'.
+  watch(
+    () => [currentMode.value, offlineRecycleBeltHeld.value] as [ 'main' | 'infplay', boolean ],
+    ([mode, beltHeld], prev) => {
+      const [prevMode, prevBeltHeld] = prev ?? [mode, beltHeld]
+      if (!infPlayEpisode) return
+      if (infPlayEpisode.trigger === 'cache_recycle') {
+        if (prevBeltHeld && !beltHeld) noteInfPlayExit('belt_held_cleared')
+        return
+      }
+      if (prevMode === 'infplay' && mode !== 'infplay') noteInfPlayExit('mode_main')
+    },
+  )
+})
+
+// An episode that is still open when the session ends is a real stay that just
+// happens not to have been left — bound it rather than losing it. Both signals
+// fire: visibilitychange=hidden is the reliable one on iOS PWA, pagehide
+// catches a true unload.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') noteInfPlayExit('session_end')
+  })
+}
+onBeforeUnmount(() => noteInfPlayExit('session_end'))
+
 onUnmounted(() => { offlineActive.value = false })
 
 // Estimated wall-clock (ms) of play currently sitting in cachedRounds from
@@ -12034,6 +12176,11 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
   // freezes the belt at the top belt. It keeps the belt HELD where the learner
   // actually is (offlineRecycleBeltHeld, raised by the append above) and just
   // plays what's cached until the network comes back.
+  // THE DEFECT SIGNATURE. This path writes no mode and no cursor by design, so
+  // it left no trace at all — a learner recycled here looked, in the data,
+  // exactly like a learner who tapped ∞. `trigger:'cache_recycle'` with
+  // `cachedOnly:true` is that learner, named.
+  noteInfPlayEnter('cache_recycle')
   console.log(`[LearningPlayer] Skip past cached content — recycling ${looped} cached rounds at index ${firstNewIdx}, belt held`)
   // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
   // doesn't pause it), so this picks straight up at the recycled round.
@@ -14296,6 +14443,12 @@ onMounted(async () => {
                             activeProgressStore.value.setEnrollmentCursor(
                               learnerId.value, courseCode.value,
                               priorRound.legoId, beltStartRoundIdx - 1,
+                              // A REGRESSION the learner did not ask for (a
+                              // long absence rewound them to a belt start).
+                              // Legitimate, but exactly the kind of move that
+                              // looks like a bug when it cannot be named.
+                              { reason: 'resume_ttl_belt_regression',
+                                from: { legoId: resumeLegoId ?? null, roundIndex: null } },
                             ).catch((err: unknown) => {
                               console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
                             })

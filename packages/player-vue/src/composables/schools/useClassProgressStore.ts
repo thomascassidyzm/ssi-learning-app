@@ -26,7 +26,11 @@ import { computed, type Ref } from 'vue'
 interface MinimalProgressStore {
   getEnrollment: (learnerId: string, courseId: string) => Promise<any>
   createEnrollment: (learnerId: string, courseId: string) => Promise<any>
-  setEnrollmentCursor: (learnerId: string, courseId: string, legoId: string, roundIndex: number) => Promise<void>
+  setEnrollmentCursor: (
+    learnerId: string, courseId: string, legoId: string, roundIndex: number,
+    /** Observability only — telemetry context, never affects the write. */
+    opts?: { reason?: string; from?: { legoId: string | null; roundIndex: number | null } | null }
+  ) => Promise<void>
   setLivePosition: (
     learnerId: string, courseId: string, legoId: string, roundIndex: number, cycleIndex: number,
     opts?: { touchPracticedAt?: boolean },
@@ -97,8 +101,10 @@ export function createClassAwareProgressStore(
       if (!inClass()) return baseStore.value?.createEnrollment(learnerId, courseId)
       return call('createEnrollment', [])
     },
-    async setEnrollmentCursor(learnerId, courseId, legoId, roundIndex) {
-      if (!inClass()) return baseStore.value?.setEnrollmentCursor(learnerId, courseId, legoId, roundIndex)
+    async setEnrollmentCursor(learnerId, courseId, legoId, roundIndex, opts) {
+      if (!inClass()) return baseStore.value?.setEnrollmentCursor(learnerId, courseId, legoId, roundIndex, opts)
+      // `opts` is telemetry-only and stays client-side: the class write goes
+      // through the server endpoint, whose payload shape is unchanged.
       await call('setEnrollmentCursor', [legoId, roundIndex])
     },
     async setLivePosition(learnerId, courseId, legoId, roundIndex, cycleIndex, opts) {
