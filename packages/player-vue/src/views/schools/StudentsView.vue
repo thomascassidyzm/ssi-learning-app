@@ -114,7 +114,7 @@ const needsAttention = computed(() =>
 )
 
 const headlineSubtitle = computed(() =>
-  `${totalCount.value} students · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
+  `${totalCount.value} ${totalCount.value === 1 ? 'student' : 'students'} · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
 )
 
 function viewStudent(s: { learner_id: string; name?: string }) {
