@@ -1977,6 +1977,45 @@ watch(
   { immediate: true }
 )
 
+/**
+ * THE NEXT-NEW-LEGO FETCH, in one place.
+ *
+ * tier 3 walks the round-map to the round AFTER the one playing and fetches its
+ * cycles: that IS the next new LEGO, the one whose turn it is per the learner's
+ * cursor. Its outcome is reported to the PRACTISING state machine — a failure
+ * is the mode's one trigger, a success its one exit (Tom, 2026-08-31) — and
+ * whatever it brought back is folded into the engine's queue.
+ *
+ * Called from the near-edge round-advance watcher in normal play, and from the
+ * recovery probe while practising.
+ */
+const fetchNextNewLego = async (): Promise<void> => {
+  const outcome = await instantPlayback.prefetchTier3()
+  reportNextNewLegoFetch(outcome)
+  const map = instantPlayback.roundMap.value
+  if (!map) return
+  // Guard: if the learner tapped ∞ while this was in flight, the queue is now
+  // the deterministic revival set and a main-loop append would splice a LEGO
+  // intro into live INF PLAY.
+  if (currentMode.value === 'infplay') return
+  const refreshed = backendCyclesToRounds(
+    instantPlayback.getBufferedCyclesForLego,
+    map,
+    instantPlayback.isLegoComplete,
+    currentTargetSpeedConfig(),
+    MODE_NEUTRAL_REPEATS,
+  )
+  // Diff by roundNumber against the engine's truth. Never slice(totalLoaded):
+  // the loaded rounds are a window at the resume cursor, not `refreshed`'s
+  // head — slicing here dropped the early rounds and sheared every index-keyed
+  // read (same bug family as the expandScript fix, 2026-07-23).
+  const newRounds = refreshed.filter((r) => !simplePlayer.hasRound(r.roundNumber))
+  if (newRounds.length > 0) {
+    simplePlayer.appendRounds(newRounds as any)
+    loadedRounds.value = refreshed as any
+  }
+}
+
 // Effect bridge on the engine's round advance (position itself is derived
 // above — this watcher only drives imperative sinks: persistence + prefetch).
 watch(() => simplePlayer.roundIndex.value, (idx) => {
@@ -2036,31 +2075,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
         })
         return
       }
-      void instantPlayback.prefetchTier3().then((outcome) => {
-        // THE TRIGGER. This is the fetch of the next NEW LEGO — the one whose
-        // turn it is per the learner's cursor — and its failure is the one and
-        // only thing that puts the player into PRACTISING (Tom, 2026-08-31).
-        // Its success is the one and only thing that takes us back out.
-        reportNextNewLegoFetch(outcome)
-        const map = instantPlayback.roundMap.value
-        if (!map) return
-        const refreshed = backendCyclesToRounds(
-          instantPlayback.getBufferedCyclesForLego,
-          map,
-          instantPlayback.isLegoComplete,
-          currentTargetSpeedConfig(),
-          MODE_NEUTRAL_REPEATS,
-        )
-        // Diff by roundNumber against the engine's truth. Never
-        // slice(totalLoaded): the loaded rounds are a window at the resume
-        // cursor, not `refreshed`'s head — slicing here dropped the early
-        // rounds and sheared every index-keyed read (same bug family as the
-        // expandScript fix, 2026-07-23).
-        if (refreshed.length > totalLoaded) {
-          simplePlayer.appendRounds(refreshed.filter((r) => !simplePlayer.hasRound(r.roundNumber)) as any)
-          loadedRounds.value = refreshed as any
-        }
-      })
+      void fetchNextNewLego()
     }
     return
   }
@@ -4665,10 +4680,48 @@ const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
   if (next) {
     console.log('[LearningPlayer] PRACTISING — the next new LEGO could not be fetched; playing from cache, position frozen')
     cancelPendingCursor()
+    startPractisingRecoveryProbe()
   } else {
     console.log('[LearningPlayer] PRACTISING over — the next new LEGO is reachable again; forward play resumes')
+    stopPractisingRecoveryProbe()
   }
 }
+
+// RECOVERY (Tom's rule 5): when the connection returns and the next new LEGO
+// can be fetched, we leave the mode and resume forward play, position intact.
+//
+// In ordinary play the near-edge watcher re-attempts that fetch on every round
+// advance, and for a learner deep in a session that is exactly the right
+// cadence. It is not enough on its own: a session that enters the mode with a
+// shallow queue may not advance a round for a very long time, because the queue
+// cannot grow until the fetch works and the fetch is not retried until the queue
+// advances. Proven live on the dev alias, 2026-08-31 — six minutes of perfectly
+// healthy network, no re-attempt, banner still up.
+//
+// So the mode carries one slow heartbeat of its own: ONE attempt a minute, the
+// same single fetch, no backoff pyramid, no burst — which is the "no retry
+// storm" Tom asked for, not a contradiction of it. It exists only while the
+// mode holds, and is cleared the moment we leave it or the player goes away.
+const PRACTISING_RECOVERY_PROBE_MS = 60_000
+let practisingRecoveryTimer: ReturnType<typeof setInterval> | null = null
+const stopPractisingRecoveryProbe = () => {
+  if (practisingRecoveryTimer) {
+    clearInterval(practisingRecoveryTimer)
+    practisingRecoveryTimer = null
+  }
+}
+const startPractisingRecoveryProbe = () => {
+  if (practisingRecoveryTimer) return
+  practisingRecoveryTimer = setInterval(() => {
+    if (!nextNewLegoUnreachable.value) { stopPractisingRecoveryProbe(); return }
+    // INF PLAY paginates by round number, not by round-map LEGO — tier 3 is
+    // not its fetch, so the probe stands down there.
+    if (currentMode.value === 'infplay') return
+    if (!isInstantPlaybackCourse(courseCode.value)) return
+    void fetchNextNewLego()
+  }, PRACTISING_RECOVERY_PROBE_MS)
+}
+onUnmounted(stopPractisingRecoveryProbe)
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
 // round the engine is on — never pushed from scattered sites. The INF-PLAY
