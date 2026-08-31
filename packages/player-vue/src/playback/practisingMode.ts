@@ -78,3 +78,46 @@ export function nextPractisingState(
   if (outcome === 'fetched') return false
   return current
 }
+
+/**
+ * WHERE THE PLAYHEAD GOES INSTEAD.
+ *
+ * Added 2026-08-31, after Tom watched the mode hold for twenty minutes while
+ * the app introduced new LEGOs the whole time. The mode had five consumers and
+ * every one of them was a progress-WRITE gate; nothing in the serving path read
+ * it. The failing fetch was assumed to starve the queue, and on a course whose
+ * material is already on the device it starves nothing.
+ *
+ * So the mode holds the playhead, and this is the pure half of that: given the
+ * engine's rounds and where we are, name a round BEHIND us that introduces
+ * nothing. Newest first, stepping one further back each time it is called, so
+ * the hold is a rotation over recent review rather than one round looping —
+ * the same "recently introduced comes round more often" shape the offline urn
+ * has, with no urn, no cache measurement and no network.
+ *
+ * Returns null when there is nothing behind us to hold on. The caller lets the
+ * round play in that case and says so in telemetry: refusing to serve anything
+ * at all would be worse than serving one more LEGO.
+ */
+export function chooseHeldRoundIndex<T>(
+  rounds: readonly T[],
+  fromIndex: number,
+  step: number,
+  window: number,
+  introducesMaterial: (round: T) => boolean,
+): number | null {
+  if (!rounds.length || fromIndex <= 0) return null
+  // Clamp BEFORE measuring the window. A queue that shrank underneath us (a
+  // rebuild, a mode change) leaves fromIndex past the end, and taking the
+  // window off the raw value puts the floor above every round there is — the
+  // hold would silently never engage and a new LEGO would play.
+  const start = Math.min(fromIndex, rounds.length)
+  const floor = Math.max(0, start - window)
+  const candidates: number[] = []
+  for (let i = start - 1; i >= floor; i--) {
+    const r = rounds[i]
+    if (r && !introducesMaterial(r)) candidates.push(i)
+  }
+  if (candidates.length === 0) return null
+  return candidates[Math.abs(step) % candidates.length]
+}
