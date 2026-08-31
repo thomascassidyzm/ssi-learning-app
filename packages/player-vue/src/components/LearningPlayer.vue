@@ -897,7 +897,16 @@ const instantPlayback = useInstantPlayback(courseCode, {
       const ceiling = enrollment?.highest_completed_lego_id ?? null
       const map = await instantPlayback.getOrFetchRoundMap()
       const findIndex = (legoId: string) => map.rounds.findIndex(r => r.legoId === legoId)
-      const { legoId: anchor, viaCeiling } = resolveResumeAnchor(lastCompleted, ceiling, findIndex)
+      // Seed fallback (Tom, 2026-08-31): a cursor whose LEGO the course no
+      // longer has lands on the first LEGO of the seed it was keyed to.
+      const firstLegoOfSeed = (seed: number) =>
+        map.rounds.find(r => r.seed === seed)?.legoId ?? null
+      const { legoId: anchor, viaCeiling, viaSeed } = resolveResumeAnchor(
+        lastCompleted, ceiling, findIndex, firstLegoOfSeed,
+      )
+      if (viaSeed) {
+        console.warn(`[InstantPlayback] cursor ${lastCompleted} is gone from the course; landing on its seed at ${anchor}`)
+      }
       if (viaCeiling) {
         console.warn(`[InstantPlayback] cursor ${lastCompleted} not in round-map; falling back to ceiling ${anchor}`)
       }
@@ -13269,8 +13278,10 @@ onMounted(async () => {
                 // to the legacy ceiling (highest_completed_lego_id) when
                 // populated — read-only, never ratcheted (2026-07-05 narrow
                 // reinstatement). Only a learner with neither starts at R1.
+                const firstLegoOfSeedFast = (seed: number) =>
+                  fastRounds.find((r: any) => getSeedFromLegoId(r?.legoId ?? '') === seed)?.legoId ?? null
                 const { legoId: fastAnchor, viaCeiling: fastViaCeiling } =
-                  resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findLego)
+                  resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findLego, firstLegoOfSeedFast)
                 if (fastAnchor) {
                   resumeRoundIndex = findLego(fastAnchor)
                   // The ceiling fallback has no saved cycle position — land on
@@ -13774,8 +13785,10 @@ onMounted(async () => {
                   // legacy ceiling (highest_completed_lego_id) when the
                   // cursor is null/unresolvable — read-only fallback, never
                   // ratcheted (2026-07-05 narrow reinstatement).
+                  const firstLegoOfSeedFull = (seed: number) =>
+                    fullRounds.find((r: any) => getSeedFromLegoId(r?.legoId ?? '') === seed)?.legoId ?? null
                   const { legoId: trueLego, viaCeiling: trueViaCeiling } =
-                    resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findInFull)
+                    resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findInFull, firstLegoOfSeedFull)
                   const trueIdx = trueLego ? findInFull(trueLego) : -1
                   let trueCycle = trueViaCeiling ? 0 : inferCursorCycle
                   // Only repair when the true position resolves in the full script

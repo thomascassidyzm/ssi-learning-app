@@ -53,3 +53,44 @@ describe('resolveResumeAnchor', () => {
     })
   })
 })
+
+describe('resolveResumeAnchor — seed fallback (Tom, 2026-08-31)', () => {
+  const firstLegoOfSeed = (seed: number) =>
+    ROUNDS.find(id => id.startsWith(`S${String(seed).padStart(4, '0')}`)) ?? null
+
+  it('lands on the first LEGO of the seed when the cursor LEGO is gone', () => {
+    // S0002L09 was regenerated away; the learner was working in seed 2.
+    expect(resolveResumeAnchor('S0002L09', 'S0001L01', findIndex, firstLegoOfSeed)).toEqual({
+      legoId: 'S0002L01',
+      viaCeiling: false,
+      viaSeed: true,
+    })
+  })
+
+  it('prefers the seed the learner was in over the ceiling', () => {
+    expect(
+      resolveResumeAnchor('S0002L09', 'S0002L03', findIndex, firstLegoOfSeed).legoId,
+    ).toBe('S0002L01')
+  })
+
+  it('falls through to the ceiling when the whole seed is gone', () => {
+    expect(resolveResumeAnchor('S0404L01', 'S0002L02', findIndex, firstLegoOfSeed)).toEqual({
+      legoId: 'S0002L02',
+      viaCeiling: true,
+    })
+  })
+
+  it('is inert for callers that do not supply the seed resolver', () => {
+    expect(resolveResumeAnchor('S0002L09', 'S0002L03', findIndex)).toEqual({
+      legoId: 'S0002L03',
+      viaCeiling: true,
+    })
+  })
+
+  it('never overrides a cursor that still resolves', () => {
+    expect(resolveResumeAnchor('S0002L03', null, findIndex, firstLegoOfSeed)).toEqual({
+      legoId: 'S0002L03',
+      viaCeiling: false,
+    })
+  })
+})
