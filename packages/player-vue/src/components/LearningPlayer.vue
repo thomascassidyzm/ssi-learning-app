@@ -10999,6 +10999,10 @@ simplePlayer.setRuntimeOverrides({
   // getBlobUrl now forces the stored mimeType, which fixes the iOS
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
+  // The engine's own last-ditch offline guard reads this. Same predicate the
+  // cycle cull and the listening-lap gate ride, so all three agree about what
+  // "offline" means.
+  isOfflinePlayback: () => offlinePlaybackActive(),
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
     // Serve the cached WAV blob when offline OR when online cache-play is on —
     // this is what keeps the MAIN cycle off the network so it survives lock.
