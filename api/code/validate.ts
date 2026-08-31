@@ -14,7 +14,7 @@ import {
   hashIp,
   isIpOverLimit,
   logAttempt,
-  PER_IP_LIMIT,
+  REDEEM_PER_IP_LIMIT,
 } from '../_utils/codeAttemptThrottle'
 
 /**
@@ -145,7 +145,18 @@ export default async function handler(
     //      actions, not its own refusals.
     // 'validate_attempt' rows — the actual enumeration signal — still count,
     // so the anti-sweep purpose above is untouched.
-    if (await isIpOverLimit(supabase, ipHash, PER_IP_LIMIT)) {
+    // The WIDER limit (REDEEM_PER_IP_LIMIT, 120/15min), for exactly the reason
+    // api/code/redeem.ts and api/try-link/validate.ts already use it: the
+    // legitimate shape of this traffic is a whole class arriving through one
+    // school NAT inside a few minutes. This endpoint runs FIRST — merely
+    // OPENING /redeem/:code validates it — so a 10/15min budget here locked
+    // the eleventh child out of a class before redeem's 120 was ever reached,
+    // and told them "Invalid Code". Reproduced live on production during the
+    // 2026-08-31 journey walk, on a class join link, well inside 20 opens.
+    // The oracle argument is unchanged and is written out in
+    // codeAttemptThrottle.ts: 120/quarter-hour against a 13.8M keyspace is
+    // still useless as a quiet sweep, on a table that logs every attempt.
+    if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
       await logAttempt(supabase, '[CodeValidate]', { ipHash, outcome: 'rate_limited_ip' })
       res.status(429).json({ valid: false, error: 'Too many attempts. Please try again later.' })
       return

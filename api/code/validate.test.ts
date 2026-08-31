@@ -142,9 +142,29 @@ describe('POST /api/code/validate', () => {
     expect(res._json.valid).toBe(false)
   })
 
+  // A whole class opens ONE join link from one school NAT, and opening the
+  // link is what calls this endpoint — so the budget here is the wide one
+  // (REDEEM_PER_IP_LIMIT, 120/15min), the same one redeem.ts and
+  // try-link/validate.ts use. At 10 the eleventh child was told "Invalid
+  // Code" (live repro, production, 2026-08-31).
+  it('lets a whole class through one NAT — 30 opens is nowhere near the limit', async () => {
+    responders.possession_mint_attempts = attemptsResponder(30)
+    responders.invite_code_validation = (calls) => {
+      if (calls.some((c) => c[0] === 'select')) {
+        return { data: { id: 'invite-x', code: 'RHM-671', code_type: 'student', is_active: true, use_count: 30, max_uses: null, expires_at: null, grants_class_id: 'class-1' }, error: null }
+      }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'RHM-671' }, headers: { 'x-forwarded-for': '5.5.5.5' } }), res)
+
+    expect(res._status).toBe(200)
+  })
+
   it('returns 429 once the per-IP window is at/over the limit', async () => {
-    // PER_IP_LIMIT is 10; simulate the window already at the limit.
-    responders.possession_mint_attempts = attemptsResponder(10)
+    // REDEEM_PER_IP_LIMIT is 120; simulate the window already at the limit.
+    responders.possession_mint_attempts = attemptsResponder(120)
     // Even a valid code must NOT be revealed once throttled.
     responders.invite_code_validation = (calls) => {
       if (calls.some((c) => c[0] === 'select')) {
