@@ -11768,6 +11768,28 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
+/**
+ * CAN THIS APP REACH CONTENT IT HAS NOT GOT? Tom's principle, 2026-08-31:
+ * belt skip must be unavailable whenever the app cannot serve the target belt.
+ *
+ * Being offline is one way to be in that state and it was the only one the
+ * belt picker knew about. PRACTISING is the other, and it is the more exact
+ * one: the mode's entire trigger is the next new LEGO coming back unfetchable,
+ * so a learner in it is by definition unable to reach material that is not
+ * already on the device. It can also be switched on deliberately, on a full
+ * signal, from the settings door — and in that case `isOnline` is true,
+ * `offlineActive` is false, and every belt pill was tappable. Tapping one
+ * walked the learner out of the downloaded plan into content the mode has just
+ * finished refusing to fetch, which is the same walk-into-nothing the offline
+ * greying exists to stop.
+ *
+ * The AVAILABILITY test underneath is unchanged and stays exact: a belt greys
+ * out only when its landing round has no cycle whose audio is actually in the
+ * persistent cache. So a practising learner keeps every belt they have already
+ * downloaded and loses only the ones that would hand them silence.
+ */
+const cannotFetchNewContent = (): boolean => offlinePlaybackActive() || isPractising.value
+
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
 // ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
@@ -11780,7 +11802,7 @@ const offlinePlaybackActive = (): boolean =>
 // reads available exactly when landing there would actually produce sound.
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
-  if (!offlinePlaybackActive()) return new Set()
+  if (!cannotFetchNewContent()) return new Set()
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -16228,7 +16250,7 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
-    :is-offline="offlinePlaybackActive()"
+    :is-offline="cannotFetchNewContent()"
     :offline-unavailable-belt-names="offlineUnavailableBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
