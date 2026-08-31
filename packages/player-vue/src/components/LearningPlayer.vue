@@ -2153,16 +2153,15 @@ simplePlayer.onCycleCompleted((cycle) => {
     }
     // Accumulate locally; flushed in one batch on pause/background/unmount.
     // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
-    // "No progress data at all in terms of LEGOs" includes the per-LEGO fire
-    // counts behind the brain view — recycled review would inflate them against
-    // LEGOs the learner is not actually working on right now.
-    if (!consolidatingBlocksProgressWrite('lego pairings')) {
-      pairingsTelemetry.recordCyclePlay({
-        learnerId: learnerId.value,
-        courseCode: courseCode.value,
-        legoIds: firedLegoIds,
-      })
-    }
+    // Pairings keep flowing while CONSOLIDATING. Tom, 2026-08-31: ordinary
+    // usage telemetry continues — this records what the learner HEARD, not a
+    // claim about how far through the course they are, and the brain view
+    // would go blank for the session otherwise.
+    pairingsTelemetry.recordCyclePlay({
+      learnerId: learnerId.value,
+      courseCode: courseCode.value,
+      legoIds: firedLegoIds,
+    })
   }
 
   // Close the VAD timing window for the cycle that just finished. Under
@@ -3901,6 +3900,12 @@ const learningSession = useLearningSession({
   learnerId: learnerId,
   courseId: courseCode,
   demoItems,
+  // Splits usage from progress inside recordCycleComplete: the learner's time,
+  // opportunities and session checkpoints keep flowing while consolidating;
+  // lego_progress and the highest_completed_seed ratchet do not.
+  // A getter, not the ref: this composable is constructed during setup, before
+  // the computed below it exists.
+  isConsolidating: () => isConsolidating.value,
 })
 
 // Use items from session (will be demo items if database not available)
