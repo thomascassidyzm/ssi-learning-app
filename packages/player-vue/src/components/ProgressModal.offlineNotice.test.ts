@@ -46,3 +46,44 @@ describe('ProgressModal — offline infinite-play message', () => {
     expect(wrapper.text()).not.toContain(MESSAGE)
   })
 })
+
+/**
+ * THE WALK INTO NOTHING. Tom, 2026-08-31: "Belt skip must be unavailable
+ * whenever the app cannot serve the target belt."
+ *
+ * The modal's half of that is this pair of assertions — a belt the device has
+ * not got must be BOTH visually disabled and inert to a tap, because either
+ * one alone still lets a determined finger leap out of the downloaded plan.
+ * Which states count as "cannot serve" is the caller's half: LearningPlayer
+ * feeds `is-offline` from `cannotFetchNewContent()`, which is offline OR
+ * practising, and the practising case is the one that was missing.
+ */
+describe('ProgressModal — a belt we cannot serve is not tappable', () => {
+  const unreachable = new Set([BELTS[3].name])
+
+  it('disables the chip and swallows the tap', async () => {
+    const wrapper = render({
+      isOffline: true,
+      offlineUnavailableBeltNames: unreachable,
+    })
+    const chip = wrapper.findAll('.map-chip')
+      .find((c) => c.attributes('aria-label')?.startsWith(`${BELTS[3].name} belt`))!
+    expect(chip.attributes('disabled')).toBeDefined()
+    // and it SAYS why, rather than looking broken
+    expect(chip.attributes('aria-label')).toContain('unavailable')
+    await chip.trigger('click')
+    expect(wrapper.emitted('skipToBelt')).toBeUndefined()
+  })
+
+  it('leaves the belts we DO have on the device fully tappable', async () => {
+    const wrapper = render({
+      isOffline: true,
+      offlineUnavailableBeltNames: unreachable,
+    })
+    const chip = wrapper.findAll('.map-chip')
+      .find((c) => c.attributes('aria-label') === `Jump to ${BELTS[2].name} belt`)!
+    expect(chip.attributes('disabled')).toBeUndefined()
+    await chip.trigger('click')
+    expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
+  })
+})
