@@ -29,9 +29,10 @@ simulated.
 | Learner position during the stretch | **Byte-identical** before and after: `S0001L01`, cycle `S0001L01_intro` |
 | Recovery, unaided | Mode cleared **45 seconds** after the fetch was healthy again, no tap and no reload |
 
-Screenshots: `banner-on-dev-alias.png` (the pill in place under the hero card, above the
-phase strip) and `entered-on-real-trigger.png` (the same, reached by failing the fetch
-rather than by the `?practising=1` door).
+Screenshots — the pill in place under the hero card, above the phase strip:
+
+- http://localhost:4317/practising-2026-08-31/entered-on-real-trigger.png — reached by failing the fetch
+- http://localhost:4317/practising-2026-08-31/banner-on-dev-alias.png — the same pill via the `?practising=1` door
 
 ## What this run found and fixed
 
