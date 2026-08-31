@@ -32,7 +32,7 @@ const loginCodeAudit = useLoginCodeAudit('redeem-code')
 // instead of their class's).
 const handleCourseSelect = inject<((course: any) => Promise<void>) | null>('handleCourseSelect', null)
 const enrolledCourses = inject<{ value: any[] } | null>('enrolledCourses', null)
-const { validateCode, redeemCode, possessionRedeem, linkPossessionRedeem, pendingCode, clearPendingCode, validationError } = useInviteCode()
+const { validateCode, redeemCode, possessionRedeem, linkPossessionRedeem, pendingCode, clearPendingCode, validationError, validationThrottled } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // Possession-based onboarding (docs/schools/email-deliverability-plan.md,
@@ -50,6 +50,8 @@ const POSSESSION_ELIGIBLE_CODE_TYPES = new Set(['teacher', 'school_admin', 'scho
 // email — young learners have none to give).
 const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'details' | 'name' | 'already-registered' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
+// True when the failure was a rate-limit refusal rather than a bad code.
+const wasThrottled = ref(false)
 const email = ref('')
 const displayName = ref('')
 const otpCode = ref('')
@@ -261,6 +263,7 @@ async function validateAndProceed(rawCode: string): Promise<void> {
     // Surface the API's specific reason ('Code expired' / 'Code fully used' /
     // 'Invalid code') when available, rather than a generic catch-all.
     error.value = validationError.value || 'This code is invalid or has expired'
+    wasThrottled.value = validationThrottled.value
     step.value = 'invalid'
     return
   }
@@ -758,10 +761,18 @@ function goHome() {
             <line x1="9" y1="9" x2="15" y2="15"/>
           </svg>
         </div>
-        <h2>Invalid Code</h2>
-        <p class="detail-text">{{ error }}</p>
-        <button v-if="props.variant !== 'landing'" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">Try another code</button>
-        <button class="btn btn--secondary" @click="goHome">Go to App</button>
+        <!-- A throttle refusal is not a bad code. Saying "Invalid Code" to a
+             child holding a working class link — and offering "Try another
+             code" — sends the whole class hunting for a link that was right
+             all along (production, 2026-08-31). -->
+        <h2>{{ wasThrottled ? 'Too many people at once' : 'Invalid Code' }}</h2>
+        <p v-if="wasThrottled" class="detail-text">
+          Your link is fine — a lot of people have opened it from here in the last few
+          minutes. Wait a few minutes and open it again.
+        </p>
+        <p v-else class="detail-text">{{ error }}</p>
+        <button v-if="props.variant !== 'landing' && !wasThrottled" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">Try another code</button>
+        <button v-if="!wasThrottled" class="btn btn--secondary" @click="goHome">Go to App</button>
       </div>
 
       <!-- Redeeming spinner -->

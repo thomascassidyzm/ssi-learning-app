@@ -9,6 +9,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { verifyAuthToken } from '../_utils/auth'
+import { REDEEM_PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
 
 /**
  * Already-redeemed check (founder ruling 2026-07-20: subsequent redeems of a
@@ -76,11 +77,12 @@ if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
-// Rate-limit window/limits kept CONSISTENT with api/auth/possession-redeem.ts —
-// both endpoints validate the same codes against the same throttle table, so if
-// one's window/limit changes the other must too (see plan 007 Maintenance).
+// Rate-limit window kept CONSISTENT with api/auth/possession-redeem.ts — both
+// endpoints validate the same codes against the same throttle table, so if
+// one's window changes the other must too (see plan 007 Maintenance).
+// The per-IP LIMIT comes from the shared module (REDEEM_PER_IP_LIMIT, imported
+// above) rather than a local copy: see the comment at the check below.
 const RATE_WINDOW_MS = 15 * 60 * 1000
-const PER_IP_LIMIT = 10
 
 // Same sha256-truncated hashing as possession-redeem.ts / try-link/validate.ts —
 // IPs are only ever stored hashed, never raw. Kept identical so a single IP's
@@ -171,6 +173,17 @@ export default async function handler(
     //      actions, not its own refusals.
     // 'validate_attempt' rows — the actual enumeration signal — still count,
     // so the anti-sweep purpose above is untouched.
+    // The WIDER limit (REDEEM_PER_IP_LIMIT, 120/15min), for exactly the reason
+    // api/code/redeem.ts already uses it: the legitimate shape of this traffic
+    // is a whole class arriving through one school NAT inside a few minutes.
+    // This endpoint runs FIRST — merely OPENING /redeem/:code validates it — so
+    // a 10/15min budget here locked the eleventh child out of a class before
+    // redeem's 120 was ever reached, and told them "Invalid Code". Reproduced
+    // live on production during the 2026-08-31 journey walk, on a class join
+    // link, well inside 20 opens. The oracle argument is unchanged and is
+    // written out in codeAttemptThrottle.ts: 120/quarter-hour against a 13.8M
+    // keyspace is still useless as a quiet sweep, on a table that logs every
+    // attempt.
     const { count: ipCount } = await supabase
       .from('possession_mint_attempts')
       .select('id', { count: 'exact', head: true })
@@ -180,7 +193,7 @@ export default async function handler(
       .neq('outcome', 'rate_limited_code')
       .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
 
-    if ((ipCount ?? 0) >= PER_IP_LIMIT) {
+    if ((ipCount ?? 0) >= REDEEM_PER_IP_LIMIT) {
       await logAttempt(supabase, { ipHash, outcome: 'rate_limited_ip' })
       res.status(429).json({ valid: false, error: 'Too many attempts. Please try again later.' })
       return
