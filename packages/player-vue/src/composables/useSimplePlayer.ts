@@ -98,6 +98,7 @@ export interface UseSimplePlayerReturn {
   onRoundCompleted: (callback: (round: Round) => void) => void
   onSessionComplete: (callback: () => void) => void
   onAudioFailed: (callback: (event: AudioFailedEvent) => void) => void
+  onNoPlayableContent: (callback: () => void) => void
   /** Recover from an outside audio-session interruption (another app took
    * audio focus). Wired to visibilitychange internally; exposed so a
    * foreground surface can also nudge it. No-ops unless the engine actually
@@ -138,6 +139,10 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const roundCallbacks: Array<(round: Round) => void> = []
   const sessionCallbacks: Array<() => void> = []
   const audioFailedCallbacks: Array<(event: AudioFailedEvent) => void> = []
+  // Raised when a jump found nothing playable from its target to the end of
+  // the queue — offline, "none of the rest of this is on the device". The app
+  // decides what to do (recycle what IS cached, or tell the learner plainly).
+  const noPlayableCallbacks: Array<() => void> = []
 
   // Reactive mirror of the latest audio_failed event. Cleared on successful
   // resume/play/jump so UI banners bound to this ref disappear automatically.
@@ -200,6 +205,9 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       const event = data as AudioFailedEvent
       audioFailed.value = event
       audioFailedCallbacks.forEach(cb => cb(event))
+    })
+    player.on('no_playable_content', () => {
+      noPlayableCallbacks.forEach(cb => cb())
     })
     // Something outside the app paused our audio. If we're backgrounded, the
     // visibilitychange listener below recovers on return; if we're already in
@@ -505,6 +513,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const onRoundCompleted = (callback: (round: Round) => void) => { roundCallbacks.push(callback) }
   const onSessionComplete = (callback: () => void) => { sessionCallbacks.push(callback) }
   const onAudioFailed = (callback: (event: AudioFailedEvent) => void) => { audioFailedCallbacks.push(callback) }
+  const onNoPlayableContent = (callback: () => void) => { noPlayableCallbacks.push(callback) }
 
   // Cleanup on unmount
   onUnmounted(() => {
@@ -521,6 +530,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     roundCallbacks.length = 0
     sessionCallbacks.length = 0
     audioFailedCallbacks.length = 0
+    noPlayableCallbacks.length = 0
   })
 
   return {
@@ -567,6 +577,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     onRoundCompleted,
     onSessionComplete,
     onAudioFailed,
+    onNoPlayableContent,
     resumeAfterInterruption,
   }
 }

@@ -2663,6 +2663,23 @@ simplePlayer.onAudioFailed((event) => {
   })
 })
 
+/**
+ * A jump found nothing playable from its target to the end of the queue.
+ *
+ * Offline that means "none of the rest of this course is on this device" —
+ * the exact state Tom belt-skipped into on 2026-08-31. The engine does not
+ * decide what happens next; this does, and it does the two things his rule
+ * asks for: play what IS here, and if there is nothing, say so plainly.
+ * enterInfPlayFromCache already walks forward through the cached script
+ * first and only recycles when that is exhausted, and it raises the
+ * nothing-playable notice when even that comes back empty.
+ */
+simplePlayer.onNoPlayableContent(() => {
+  if (!offlinePlaybackActive()) return
+  console.warn('[LearningPlayer] Jump landed with nothing playable ahead — recycling what this device has')
+  void enterInfPlayFromCache()
+})
+
 simplePlayer.onSessionComplete(async () => {
   logEvent('session_complete', {
     deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
@@ -10986,7 +11003,19 @@ simplePlayer.setRuntimeOverrides({
       // "cached" for a BLANK url, so an audio-less intro — cycle 0 of the round a
       // resume lands on — was the one cycle guaranteed to survive the filter, and
       // played four phases of silence with its text on screen. Tom's first phrase.
-      if (!isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))) {
+      // SCRATCH PROBE (diagnostic only — not for commit): record exactly what
+      // .has(id) answered per required clip, for the isolate-one-fact task.
+      const __probeRequired = requiredClipUrls(cycle as any)
+      const __probeResults = __probeRequired.map((u) => {
+        const id = (typeof u === 'string' ? (u.match(/\/api\/audio\/([^?]+)/)?.[1] ?? null) : null)
+        return { url: u, id, hasCached: id ? audioCache.persistent.has(id) : null }
+      })
+      const passed = isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))
+      try {
+        ;(window as any).__cullProbeLog = (window as any).__cullProbeLog || []
+        ;(window as any).__cullProbeLog.push({ at: Date.now(), cycleId: (cycle as any)?.id, legoId: (cycle as any)?.legoId, type: (cycle as any)?.type, passed, results: __probeResults })
+      } catch { /* scratch probe, never break playback */ }
+      if (!passed) {
         return true
       }
     }

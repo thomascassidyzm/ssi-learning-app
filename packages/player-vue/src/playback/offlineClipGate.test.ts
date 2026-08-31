@@ -79,3 +79,72 @@ describe('SimplePlayer offline clip gate', () => {
     expect(p.unavailableOffline('/api/audio/x')).toBe(false)
   })
 })
+
+/**
+ * A JUMP MUST LAND SOMEWHERE PLAYABLE (Tom, 2026-08-31: "the availability
+ * check happens too late. Move it ahead of the render if that is where it
+ * belongs.")
+ *
+ * jumpToRound used to land wherever it was aimed even when the live cull
+ * played nothing there — putting an unplayable cycle into `currentCycle`,
+ * which is what the learner reads on screen a beat before the app discovers
+ * it has no sound for it. That is the belt-skip half of his report.
+ */
+describe('SimplePlayer jump lands on playable content', () => {
+  const r = (n: number, ids: string[]) => ({
+    roundNumber: n,
+    legoId: `L${n}`,
+    cycles: ids.map((id) => ({
+      id,
+      legoId: `L${n}`,
+      type: 'debut',
+      known: { text: id, audioUrl: `/api/audio/${id}-k` },
+      target: { text: id, voice1Url: `/api/audio/${id}-1`, voice2Url: `/api/audio/${id}-2` },
+    })),
+  })
+
+  const playerWith = (skipIds: string[]) => {
+    const p: any = new SimplePlayer(
+      [r(1, ['a1']), r(2, ['dead1', 'dead2']), r(3, ['c1'])] as any,
+      { shouldSkipCycle: (c: any) => skipIds.includes(c.id) },
+    )
+    p.audio.play = () => Promise.resolve()
+    p.audio.load = () => {}
+    return p
+  }
+
+  it('walks past a round whose every cycle is culled', () => {
+    const p = playerWith(['dead1', 'dead2'])
+    p.jumpToRound(1) // round 2 — entirely unplayable
+    expect(p.state.roundIndex).toBe(2) // landed on round 3
+    expect(p.currentCycle?.id).toBe('c1')
+  })
+
+  it('lands normally when the target round has something playable', () => {
+    const p = playerWith(['dead1']) // dead2 still playable
+    p.jumpToRound(1)
+    expect(p.state.roundIndex).toBe(1)
+    expect(p.currentCycle?.id).toBe('dead2')
+  })
+
+  it('emits no_playable_content when nothing ahead can play, and still lands', () => {
+    const p = playerWith(['dead1', 'dead2', 'c1'])
+    const seen: any[] = []
+    p.on('no_playable_content', (d: any) => seen.push(d))
+    p.jumpToRound(1)
+    expect(seen.length).toBe(1)
+    // Never a silent no-op: it still lands, so the app can recycle from here.
+    expect(p.state.roundIndex).toBe(1)
+  })
+
+  it('does not fire when there is no cull at all', () => {
+    const p: any = new SimplePlayer([r(1, ['a1']), r(2, ['b1'])] as any, {})
+    p.audio.play = () => Promise.resolve()
+    p.audio.load = () => {}
+    const seen: any[] = []
+    p.on('no_playable_content', () => seen.push(1))
+    p.jumpToRound(1)
+    expect(seen.length).toBe(0)
+    expect(p.state.roundIndex).toBe(1)
+  })
+})
