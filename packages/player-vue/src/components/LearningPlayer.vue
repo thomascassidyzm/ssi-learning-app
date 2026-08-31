@@ -84,7 +84,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
-import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
+import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -1086,9 +1086,7 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   // cachedRounds for the legacy path. cachedRounds is empty on the
   // instant-playback path.
   const r = round ?? cachedRounds.value[roundIndex]
-  const isInfPlayRound = !!r?.cycles?.length && !r.cycles.some((c: any) =>
-    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-  )
+  const isInfPlayRound = roundShapeSuggestsInfinitePlay(r)
 
   // MAIN loop: the cursor is the LIVE position (the round + cycle the
   // learner is ON) and is written continuously by persistLivePositionToDb
@@ -1102,26 +1100,28 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     return
   }
 
-  // SHAPE IS NOT PROOF. "No intro/debut/build cycle in this round" is the
-  // shape of an INF PLAY round, but it is also the shape of a main-loop
-  // round whose opening cycles never reached the round object — a mid-round
-  // resume, a mode that selects the builds out, a partial /cycles payload.
-  // The cost of getting it wrong is catastrophic and silent: the branch
-  // below stamps the cursor to the course's FINAL LEGO, so the learner's
-  // next boot resumes them at the end of the course in INF PLAY.
+  // SHAPE IS NOT PROOF, AND A DEGRADED SESSION IS NOT A FINISHED ONE.
   //
-  // That is what happened to a real learner on 2026-08-31 (round 13 of
-  // German, relaunched at round 1399), and 22 enrollments across 8 accounts
-  // carry the same phantom counter with course content still ahead of them.
+  // The branch below stamps the cursor to the course's FINAL LEGO, so a wrong
+  // "yes" here silently relocates the learner to the end of their course and
+  // survives every future boot. That is what happened to a real learner on
+  // 2026-08-31 — round 13 of German, relaunched at round 1399 — and to 22
+  // enrollments across 8 accounts with course content still ahead of them.
   //
-  // So confirm against the cursor-only model before acting: infinite-play is
-  // TRUE only when no is_new LEGO remains beyond the cursor. Shape proposes,
-  // the course's own content decides. A failed/offline check returns false
-  // and we stay in main — the safe direction, since a real INF PLAY learner
-  // simply re-enters on their next completed round.
+  // The full gate now lives in utils/infinitePlay.ts, where it is one place and
+  // has tests: shape proposes, a degraded fetch vetoes, and the course's own
+  // content decides. Playing from cache because nothing could be reached is
+  // CONSOLIDATING (`isConsolidating`), never a route into INF PLAY.
   const cursorForInfCheck = lastCompletedLegoIdRef.value ?? legoId
-  if (!(await hasReachedInfinitePlay(cursorForInfCheck, courseCode.value))) {
-    console.log('[LearningPlayer] Review-only round at', roundIndex, 'but new content remains past', cursorForInfCheck, '— NOT INF PLAY')
+  const mayEnter = await shouldAutoEnterInfinitePlay({
+    round: r,
+    contentFetchingDegraded: offlinePlaybackActive(),
+    cursorLegoId: cursorForInfCheck,
+    courseCode: courseCode.value,
+    supabaseClient: supabase?.value,
+  })
+  if (!mayEnter) {
+    console.log('[LearningPlayer] Review-only round at', roundIndex, '— not INF PLAY (degraded fetch, or new content remains past', cursorForInfCheck, ')')
     return
   }
 
@@ -4244,6 +4244,25 @@ const isInfPlayActive = computed(() =>
 // has not gone anywhere — so it belongs here and not in isInfPlayActive.
 const isRecycledRoundPlayback = computed(() =>
   isInfPlayActive.value || offlineRecycleBeltHeld.value
+)
+
+// CONSOLIDATING — the third state, named at last (Tom, 2026-08-31).
+//
+// There were only ever two states in the learner's head: working through new
+// material, and INFINITE PLAY at the end of the course. So a session that
+// could not reach new content had nowhere to be, and the app quietly filed it
+// under the only other thing it recognised — with the belt held it at least
+// LOOKED right, but nothing on screen said why the same phrases kept coming
+// round, and the round shape leaked into the cursor.
+//
+// This is that missing state, and it is neither of the other two: we are
+// playing what is on the device because we cannot fetch anything new. It says
+// nothing about the learner's progress — they have finished nothing, they have
+// gone nowhere — and it is not an error either: the audio never stops, and new
+// material resumes the moment it can be reached. It clears itself the instant a
+// real main-loop round plays (see the round-entry watcher below).
+const isConsolidating = computed(() =>
+  offlineRecycleBeltHeld.value && currentMode.value !== 'infplay'
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
@@ -16052,6 +16071,24 @@ defineExpose({
         <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
+      <!-- CONSOLIDATING banner. A DISTINCT state from infinite play, and
+           distinct from a failure: the app is playing what is already on the
+           device because it cannot reach new material right now. It must not
+           imply the learner has finished anything, and it must not read as an
+           error — so it is a calm status pill, not the amber audio-failure
+           chip, and it carries no action because there is nothing for the
+           learner to do. Playback never stops underneath it. Once new content
+           is reachable a real main-loop round clears the state and the pill
+           goes with it. Tom, 2026-08-31. -->
+      <div
+        v-if="isConsolidating"
+        class="consolidating-banner"
+        role="status"
+        aria-live="polite"
+      >
+        {{ t('player.consolidatingBanner', "Consolidating — going back over what you’ve covered") }}
+      </div>
+
       <!-- Audio failure banner. Two halt cases:
            - 'needs-gesture': iOS revoked the audio unlock; tap the player
              to resume from the same cycle (the surrounding control pane
@@ -17508,6 +17545,25 @@ defineExpose({
 .control-pane.voice_2 {
   border-color: #3b82f6;
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+/* Consolidating banner — the "playing from what's on the device" status.
+   Deliberately quieter than the audio-failure chip: warm neutral, no border
+   emphasis, no pointer affordance. It is information, not a problem, and not
+   a milestone. Same pill geometry as the failure banner so the slot reads
+   consistently whichever one is up. */
+.consolidating-banner {
+  display: block;
+  padding: 0.5rem 1rem;
+  margin: 0.5rem auto;
+  max-width: 28rem;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.7));
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  border-radius: 999px;
+  color: var(--text-secondary, #6b6560);
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.3;
 }
 
 /* Audio-failure banner. Default styling = needs-gesture (blue, neutral
