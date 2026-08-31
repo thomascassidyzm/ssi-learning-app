@@ -866,12 +866,35 @@ const loadLegoOrdinals = async () => {
 // ============================================================================
 
 /**
- * Available phrases filtered by playing position.
- * DB query already filters by seed_number <= upToSeed.
+ * Available phrases filtered by playing position — and, OFFLINE, by whether
+ * this device can actually sound them.
+ *
+ * Tom, 2026-08-31: "play what you have means play whatever cycles you have
+ * COMPLETELY and not keep fucking well trying to play listening exercises you
+ * havent got". The filter belongs HERE, on the list, not on each phrase as it
+ * comes up: skipping phrase-by-phrase feeds advanceToNext → handleEndOfList,
+ * which WRAPS AROUND to the first scene — so an all-uncached list would walk
+ * itself into a permanent silent circuit. A phrase with nothing on the device
+ * is not a phrase you skip; it is not in the list.
+ *
+ * `audioCache.has` is a synchronous Set read and not reactive, which is fine
+ * for the case that matters: offline, nothing new lands. Online the filter is
+ * bypassed entirely, so the list is unchanged.
  */
 const availablePhrases = computed(() => {
-  return allPhrases.value // DB query handles the filtering
+  const all = allPhrases.value // DB query handles the position filtering
+  if (!isOfflineish()) return all
+  return all.filter((phrase) => buildPlayQueue(phrase).some((item) => item?.id && audioCache.has(item.id)))
 })
+
+/**
+ * Offline, rows loaded, and not one of them has audio on this device. The list
+ * would otherwise render as a playlist of silences. Purely a display state —
+ * it gates nothing and clears itself the moment anything is reachable.
+ */
+const offlineNothingListenable = computed(() =>
+  isOfflineish() && !isLoading.value && allPhrases.value.length > 0 && availablePhrases.value.length === 0,
+)
 
 const progressPercent = computed(() => {
   if (availablePhrases.value.length === 0) return 0
@@ -1395,8 +1418,21 @@ const playCurrentPhrase = async (myPlaybackId) => {
     return
   }
 
-  const playQueue = buildPlayQueue(phrase)
-
+  // SELECTION IS WHERE AVAILABILITY IS DECIDED (Tom, 2026-08-31, after the
+  // airplane-mode listening loop): "play what you have means play whatever
+  // cycles you have COMPLETELY and not keep fucking well trying to play
+  // listening exercises you havent got". Offline, a clip that isn't on this
+  // device is not a queue item that will fail — it is not a queue item. The
+  // loop below no longer needs to discover it one dead request at a time, and
+  // a phrase with nothing on the device is skipped whole rather than shown as
+  // text over silence. Online this is a no-op.
+  const fullQueue = buildPlayQueue(phrase)
+  const playQueue = isOfflineish()
+    ? fullQueue.filter((item) => item?.id && audioCache.has(item.id))
+    : fullQueue
+  if (isOfflineish() && playQueue.length < fullQueue.length) {
+    console.warn(`[ListeningOverlay] Offline: ${fullQueue.length - playQueue.length}/${fullQueue.length} clips for this phrase aren't on this device — not requesting them`)
+  }
   console.log('[ListeningOverlay] Playing phrase:', {
     index: currentIndex.value,
     text: phrase.targetText,
@@ -2240,6 +2276,13 @@ watch(
     </div>
 
     <!-- Error State -->
+    <!-- Offline, with rows loaded but none of their audio on the device. Say so
+         plainly (Tom, 2026-08-31) rather than presenting a list that can only
+         play silence. -->
+    <div v-else-if="offlineNothingListenable" class="error" @click.stop>
+      <p>None of this is saved on your device yet, so there's nothing to listen to offline. Connect once and download for offline to bring it with you.</p>
+    </div>
+
     <div v-else-if="(view === 'phrases' || view === 'seeds' || selectedScene) && error" class="error" @click.stop>
       <p>{{ error }}</p>
       <button @click="view === 'seeds' ? loadSeeds() : loadPhrases()">Retry</button>
@@ -2274,7 +2317,7 @@ watch(
          Standalone v-if so the belt-jump strip above doesn't break the
          chain that loading/error states form. -->
     <div
-      v-if="!isLoading && !error && (view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene))"
+      v-if="!isLoading && !error && !offlineNothingListenable && (view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene))"
       class="teleprompter-shell"
     >
       <!-- Dialogues (pods): the shared Spotify/karaoke scroll display —

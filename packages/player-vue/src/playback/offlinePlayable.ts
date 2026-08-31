@@ -93,3 +93,94 @@ export const isCyclePlayableOffline = (
     return hasCachedAudio(id)
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LISTENING LAPS (pods + Layer-1 cups)
+//
+// Tom, iPhone, airplane mode, Spanish, 2026-08-31: "it should probably NOT try
+// and play the listening exercises - its doing that now and its got stuck in a
+// loop" ... "play what you have means play whatever cycles you have COMPLETELY
+// and not keep fucking well trying to play listening exercises you havent got"
+// ... "its stuck in a listening exercise loop of death now".
+//
+// The main cycle walker has fed through `isCyclePlayableOffline` since
+// 2026-08-15, but listening laps never went near it. A lap was assembled from
+// POSITION alone — which cup the wheel is on, which pod the ratchet is at — and
+// handed straight to playPodSegment, which builds `/api/audio/<id>` and plays
+// it. Offline, that request fails; the audio element's `error` event routes
+// through `_notifyEnded`, which the lap reads as a NATURAL end. So every play
+// "succeeded" instantly, in silence, the lap "completed", the round resumed,
+// and the next boundary fired the next cup. Forever. Nothing sounds, nothing
+// advances, nothing can be escaped — a loop whose retried condition (the clip
+// arriving over a network that isn't there) can never become satisfiable.
+//
+// The rule is the same one the cycle gate already obeys, applied one level up:
+// SELECTION IS WHERE AVAILABILITY IS DECIDED. A sentence whose audio is not on
+// this device is not "a sentence that will fail" — it is not a candidate.
+//
+// The unit is the SENTENCE, not the individual play. A pod sentence sounds as
+// a four-slot sandwich (target · known · target · target) and a half-cached
+// sandwich is a broken exercise, not a degraded one — so a sentence survives
+// only if EVERY one of its plays is on the device. That is "play whatever
+// cycles you have COMPLETELY".
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LapPlayLike {
+  /** Which sentence this play belongs to — the completeness unit. */
+  sentenceIdx?: number | null
+  audioId?: string | null
+}
+
+interface LapLike {
+  intro?: { id?: string | null } | null
+  outro?: { id?: string | null } | null
+  plays: LapPlayLike[]
+}
+
+/** Is this clip actually on the device? Blank/absent ids fail closed. */
+const clipOnDevice = (id: string | null | undefined, hasCachedAudio: HasCachedAudio): boolean =>
+  typeof id === 'string' && id.length > 0 && hasCachedAudio(id)
+
+/**
+ * Reduce a listening lap to the sentences this device can sound COMPLETELY.
+ *
+ * Returns null when nothing survives — which means the lap must not be fired
+ * at all. A null here is the difference between "skip this listening exercise
+ * and carry on with the course" and the loop of death.
+ *
+ * Bookends (intro/outro) are dropped individually when their clip is missing:
+ * a cup with its sentences on the device is still worth playing without its
+ * "now just listen for a while…" wrapper, and the wrapper alone never was the
+ * exercise.
+ */
+export const filterLapToDeviceAudio = <T extends LapLike>(
+  lap: T | null | undefined,
+  hasCachedAudio: HasCachedAudio,
+): T | null => {
+  if (!lap) return null
+  const plays = Array.isArray(lap.plays) ? lap.plays : []
+  if (plays.length === 0) return null
+
+  // A play with no sentenceIdx is its own unit — it can't be grouped with
+  // anything, and grouping every such play together would let one missing clip
+  // delete unrelated material.
+  const keyOf = (p: LapPlayLike, i: number) =>
+    p?.sentenceIdx == null ? `solo:${i}` : `s:${p.sentenceIdx}`
+
+  const complete = new Map<string, boolean>()
+  plays.forEach((p, i) => {
+    const key = keyOf(p, i)
+    const ok = clipOnDevice(p?.audioId, hasCachedAudio)
+    complete.set(key, (complete.get(key) ?? true) && ok)
+  })
+
+  const kept = plays.filter((p, i) => complete.get(keyOf(p, i)) === true)
+  if (kept.length === 0) return null
+
+  return {
+    ...lap,
+    intro: clipOnDevice(lap.intro?.id, hasCachedAudio) ? lap.intro : null,
+    outro: clipOnDevice(lap.outro?.id, hasCachedAudio) ? lap.outro : null,
+    plays: kept,
+  }
+}

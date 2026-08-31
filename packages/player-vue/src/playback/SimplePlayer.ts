@@ -90,6 +90,21 @@ export interface SimplePlayerRuntimeOverrides {
    * never breaks playback.
    */
   resolveAudioUrl?: (audioUrl: string) => Promise<string>
+
+  /**
+   * Is playback currently OFFLINE (airplane mode, or a connection stalling so
+   * badly that nothing completes)?
+   *
+   * Supplied by the app, because "offline" here is a playback policy — the
+   * toggle, the browser flag and the observed-stall signal folded together —
+   * not something an engine should re-derive from navigator.onLine, which
+   * lies on weak signal.
+   *
+   * The engine uses it for exactly one thing: refusing to touch the network
+   * for a clip it cannot get. Tom, 2026-08-31: "there must be no path that
+   * retries an unavailable asset."
+   */
+  isOfflinePlayback?: () => boolean
 }
 
 // Phases: idle → buffering (only if known audio not yet local) → prompt → pause → voice1 → voice2
@@ -680,6 +695,16 @@ export class SimplePlayer {
     // Same staleness guard as onErrorHandler — a failure tied to a src a
     // reposition has already superseded must never retry/halt the NEW cycle.
     if (this.lastAssignedSrcGen !== this.playGeneration) return
+
+    // A retry is a fresh fetch of the same URL. Offline, against a non-local
+    // URL, that cannot possibly succeed — so it is not a retry, it is a second
+    // guaranteed failure plus a ten-second timer. Skip straight to skipping.
+    if (!this.retryAttempted && this.retryUrl && this.unavailableOffline(this.retryUrl)) {
+      console.warn('[SimplePlayer] Offline — not retrying a clip the device does not have')
+      this.retryAttempted = true
+      this.skipFailedClip(errorCode, lastError)
+      return
+    }
 
     if (!this.retryAttempted && this.retryUrl) {
       // First failure — log and silently retry the same URL.
@@ -1577,7 +1602,47 @@ export class SimplePlayer {
     this.prefetchUrl(nextCycle.target?.voice2Url, 'low')
   }
 
+  /**
+   * A URL the device can serve with no network at all: an IndexedDB blob or an
+   * inline data: clip (the silent pause/gap clips). Anything else — the
+   * /api/audio proxy in particular — needs the radio.
+   */
+  private isLocalUrl(url: string): boolean {
+    return url.startsWith('blob:') || url.startsWith('data:')
+  }
+
+  /**
+   * OFFLINE: A CLIP WE CANNOT GET IS NOT A CLIP WE TRY (Tom, 2026-08-31).
+   *
+   * The cycle-level offline cull (shouldSkipCycle → isCyclePlayableOffline)
+   * asks the audio cache's INDEX whether a clip is present. This asks the
+   * stronger question, at the last possible moment and about the actual thing
+   * we are about to play: did the resolver hand back something local? An index
+   * entry whose bytes are gone, evicted, or undecodable resolves to the
+   * network proxy URL — and offline that is a guaranteed `code=4`, a retry,
+   * a second `code=4`, and a skip, per clip. Verified on the dev deployment
+   * 2026-08-31: six such cycles ran eighteen clips of silence in a row.
+   *
+   * Skipping here reaches the same place that failure chain reached — the
+   * clip is skipped and the session continues, per the standing ruling — but
+   * without the two doomed requests and without the retry's ten-second timer.
+   */
+  private unavailableOffline(url: string): boolean {
+    return this.runtimeOverrides.isOfflinePlayback?.() === true && !this.isLocalUrl(url)
+  }
+
   private playAudio(url: string, isTarget = false): void {
+    if (this.unavailableOffline(url)) {
+      const cycle = this.currentCycle
+      console.warn(
+        `[SimplePlayer] Offline and this clip is not on the device — skipping it without ` +
+        `touching the network. phase=${this.state.phase} legoId=${cycle?.legoId} cycleId=${cycle?.id}`,
+      )
+      this.retryAttempted = true // nothing to retry against; keep the budget honest
+      this.retryUrl = null
+      this.skipFailedClip(undefined, 'offline-clip-not-on-device')
+      return
+    }
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen

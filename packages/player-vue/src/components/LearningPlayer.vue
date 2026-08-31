@@ -85,7 +85,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
-import { nextPractisingState, chooseHeldRoundIndex, type NextLegoFetchOutcome } from '../playback/practisingMode'
+import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type PractisedPosition, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
@@ -119,10 +119,10 @@ const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useOfflineLease } from '../composables/useOfflineLease'
-import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible } from '../composables/useOfflineInfPlayNotice'
+import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible, markOfflineNothingPlayable, dismissOfflineNothingPlayableNotice, offlineNothingPlayableVisible } from '../composables/useOfflineInfPlayNotice'
 import { isNetworkPresumedDown } from '../config/networkGate'
 import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
-import { isCyclePlayableOffline, requiredClipUrls } from '../playback/offlinePlayable'
+import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
@@ -2704,6 +2704,10 @@ simplePlayer.onSessionComplete(async () => {
     // dropped him on an infinite-play sentence, 2026-08-15. Cutting a network
     // await that cannot succeed costs nothing and saves all of it.
     if (wrapInfPlayAtTail()) return
+    // Offline and genuinely out of playable material — say so plainly rather
+    // than showing a paused summary that reads like the learner finished
+    // something (Tom, 2026-08-31).
+    markOfflineNothingPlayable(true)
     sessionEnded.value = true
     showPausedSummary()
     return
@@ -4846,48 +4850,44 @@ const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
  * So the mode now holds the PLAYHEAD, which is what his ruling said all along:
  * "We keep playing from the cache from that point onwards."
  *
- * THE PREDICATE IS THE ROUND'S SHAPE, not a flag and not a fetch. A round that
- * carries an intro, a debut or a build cycle is a round that INTRODUCES a LEGO
- * — that is exactly what `isMainLoopRound` already means, and it is the same
- * test the suppression floor uses. While the mode holds, the playhead may not
- * enter one. It goes back to material the learner has already been through
- * instead.
+ * THE PREDICATE IS A CYCLE, not a round. The first version of this looked
+ * BACKWARDS for a ROUND that introduced nothing, and every main-loop round
+ * carries an intro, a debut and a build — so on an ordinary learner the
+ * candidate list was always empty and the hold never engaged. Measured against
+ * Tom's own state (learner 81987d60, spa_for_eng, round 828) the next twenty
+ * items with the mode ON were identical to the twenty with it OFF. His ruling
+ * on seeing it: "practice mode is designed as a no/low wifi test though ffs,
+ * so it should not serve any new LEGOS, else, what is the point???"
  *
- * NO NEW CONTENT SOURCE, deliberately. The rounds behind the playhead are
- * already in the engine's queue and their audio is already reachable, online or
- * off. The offline urn (appendCachedLoopForOffline) is not used here: it draws
- * only from what is in the persistent audio cache, which after a belt jump is
- * nearly empty, and it refuses to run online at all. Walking back is free,
- * works in both conditions, and is genuinely practised material by definition.
+ * So the hold now lands on a CYCLE. Every completed round ends in a block of
+ * spaced repetition and USE phrases over LEGOs introduced long ago — practised
+ * material, already in the queue, audio already on the device because the round
+ * was played. We walk back over the completed history newest-first and land on
+ * the first cycle of a round whose remaining tail introduces nothing. The
+ * choosing is pure and asserted in playback/practisingMode.test.ts.
  *
- * ROTATING, so it is not one round on a loop. We take review-shaped rounds
- * (no intro/debut/build) below the playhead, newest first, and step one
- * further back each time the hold fires — the same "recently introduced comes
- * round more often" shape as the urn, without the urn.
+ * NO NEW CONTENT SOURCE, deliberately. The offline urn
+ * (appendCachedLoopForOffline) is not used here: it draws only from what is in
+ * the persistent audio cache, which after a belt jump is nearly empty, and it
+ * refuses to run online at all. Walking back is free, works in both conditions,
+ * and is genuinely practised material by definition.
+ *
+ * IT CANNOT RUN DRY and it cannot serve something new — see the floor in
+ * choosePractisedPosition. The rotation covers the whole played history and
+ * wraps, so there is no window constant left to tune.
  */
 let practisingHoldStep = 0
 
-/** How far back we are willing to reach for practised material. */
-const PRACTISING_HOLD_WINDOW = 40
-
 /**
- * The round to hold on, or null when there is nothing behind us to hold on —
- * a learner in the mode within the first few rounds of a session. Null means
- * we let the round play: refusing to serve anything at all would be worse than
- * serving one more LEGO, and the telemetry says which happened.
+ * Where to hold, or null when nothing whatsoever has been completed. The caller
+ * cannot actually reach null — this fires from onRoundCompleted, so a round is
+ * always behind us — but it is handled rather than assumed.
  */
-const practisingHoldTarget = (fromIndex: number): number | null =>
-  // Review-shaped means nothing in the round introduces anything, which is
-  // exactly `isMainLoopRound` inverted — the same test the suppression floor
-  // uses. Recycled rounds are review-shaped already, so they qualify with no
-  // special case. The choosing itself is pure and asserted in
-  // playback/practisingMode.test.ts.
-  chooseHeldRoundIndex(
+const practisingHoldTarget = (fromIndex: number): PractisedPosition | null =>
+  choosePractisedPosition(
     simplePlayer.getEngineRounds() as any[],
     fromIndex,
     practisingHoldStep++,
-    PRACTISING_HOLD_WINDOW,
-    isMainLoopRound,
   )
 
 /**
@@ -4907,33 +4907,37 @@ const practisingHoldPlayhead = (completedRoundIndex: number, aLapWillFire: boole
   const rounds = simplePlayer.getEngineRounds() as any[]
   const nextRound = rounds?.[completedRoundIndex + 1]
   // Nothing queued ahead, or what is queued introduces nothing: let it play.
-  if (!nextRound || !isMainLoopRound(nextRound)) return false
+  if (!nextRound || !(nextRound.cycles || []).some((c: any) => cycleIntroducesMaterial(c))) return false
 
   const target = practisingHoldTarget(completedRoundIndex + 1)
   if (target === null) {
-    console.warn('[LearningPlayer] PRACTISING wanted to hold the playhead but there is no practised material behind it — letting the new LEGO play')
+    console.warn('[LearningPlayer] PRACTISING wanted to hold the playhead but nothing has been completed behind it — letting the new LEGO play')
     logEvent('practising_hold_failed', {
-      reason: 'no_practised_material_behind',
+      reason: 'nothing_completed_behind',
       atRoundIndex: completedRoundIndex,
       nextLegoId: nextRound?.legoId ?? null,
     })
     return false
   }
 
-  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised round ${target}.`)
+  const heldRound = rounds[target.roundIndex] as any
+  const heldCycle = heldRound?.cycles?.[target.cycleIndex]
+  console.log(`[LearningPlayer] PRACTISING — refusing round ${completedRoundIndex + 1} (${nextRound?.legoId}): it introduces a LEGO. Holding on practised material at round ${target.roundIndex} cycle ${target.cycleIndex} (${heldCycle?.type} ${heldCycle?.legoId ?? heldRound?.legoId}).`)
   logEvent('practising_hold', {
     fromRoundIndex: completedRoundIndex,
     refusedRoundIndex: completedRoundIndex + 1,
     refusedLegoId: nextRound?.legoId ?? null,
-    heldOnRoundIndex: target,
-    heldOnLegoId: (rounds[target] as any)?.legoId ?? null,
+    heldOnRoundIndex: target.roundIndex,
+    heldOnCycleIndex: target.cycleIndex,
+    heldOnCycleType: heldCycle?.type ?? null,
+    heldOnLegoId: heldCycle?.legoId ?? heldRound?.legoId ?? null,
   })
   // Pause first, for the same race the pod pre-pause beats: it kills the
   // advance the orchestrator has already lined up. jumpToRound then lands us
   // on practised material without auto-resuming (it only auto-resumes if it
   // was playing when called, and we have just stopped it).
   simplePlayer.pause()
-  simplePlayer.jumpToRound(target)
+  simplePlayer.jumpToRound(target.roundIndex, target.cycleIndex)
   // If a listening lap is about to fire on this boundary, handleRoundBoundary
   // owns the resume — resuming here would start the round underneath the lap.
   if (!aLapWillFire) simplePlayer.resume()
@@ -5313,7 +5317,63 @@ const podLapCancelled = ref(false)
  * Play a single pod-lap audio segment (one bookend or one pod play).
  * Uses the same audioController as commentary. Resolves on ended/error.
  */
-type PodSegmentReason = 'natural' | 'cancelled' | 'safety_timeout'
+/**
+ * A listening exercise was skipped because its audio isn't on this device.
+ *
+ * This is TELEMETRY, not a gate and not a message.
+ *
+ * Be clear-eyed about its reach: usePlayerLog DROPS its buffer outright while
+ * `isOfflineish()` (composables/usePlayerLog.ts, `buffer.length = 0`), so on a
+ * genuinely dark radio this event goes nowhere and the console warn beside it
+ * is the only reliable half. It earns its place on the weak-signal cases —
+ * where offlinePlaybackActive() is true because the network is stalling but
+ * flushes still land — and it makes the skip legible in a Safari inspector,
+ * which is how Tom's phone gets read. The wider gap (offline faults are
+ * structurally invisible to telemetry: his airplane-mode window is a HOLE, and
+ * a hole cannot say whether nothing played or nothing was reported) wants a
+ * durable offline event queue, which is its own piece of work.
+ */
+const listeningSkippedOfflineCount = ref(0)
+const noteListeningSkippedOffline = (kind: 'pod' | 'l1', round: number, playsWanted: number): void => {
+  listeningSkippedOfflineCount.value++
+  logEvent('listening_skipped_offline', {
+    kind,
+    round,
+    playsWanted,
+    skippedSoFar: listeningSkippedOfflineCount.value,
+  })
+}
+
+/**
+ * OFFLINE SELECTION GATE FOR LISTENING LAPS (Tom, 2026-08-31).
+ *
+ * "play what you have means play whatever cycles you have COMPLETELY and not
+ * keep fucking well trying to play listening exercises you havent got".
+ *
+ * Every listening surface that runs through playPodLap — scheduled pods and
+ * Layer-1 cups alike — passes its lap through here first. Online it is a
+ * no-op. Offline it returns the lap reduced to the sentences whose audio is
+ * actually on this device, or NULL when none is, and null means DON'T FIRE
+ * THE EXERCISE AT ALL: no pause, no display, no text on screen for a phrase
+ * that can never sound. The course simply carries on.
+ *
+ * This is the difference between a selector and a retry loop. Before it, a cup
+ * was chosen by POSITION alone and its missing audio was discovered one dead
+ * request at a time, at every round boundary, forever.
+ */
+const lapPlayableNow = <T extends { plays: any[] }>(lap: T | null | undefined): T | null => {
+  if (!lap) return null
+  if (!offlinePlaybackActive()) return lap
+  const filtered = filterLapToDeviceAudio(lap as any, (id: string) => audioCache.has(id)) as T | null
+  if (!filtered) {
+    console.warn('[LearningPlayer] Listening lap has no audio on this device — skipping the exercise entirely (offline)')
+  } else if (filtered.plays.length < lap.plays.length) {
+    console.warn(`[LearningPlayer] Listening lap trimmed to what's on this device: ${filtered.plays.length}/${lap.plays.length} plays`)
+  }
+  return filtered
+}
+
+type PodSegmentReason = 'natural' | 'cancelled' | 'safety_timeout' | 'audio_error' | 'unavailable'
 type PodSegmentResult = { ok: boolean; reason: PodSegmentReason }
 
 const playPodSegment = async (
@@ -5323,6 +5383,16 @@ const playPodSegment = async (
   slice?: { startMs: number; endMs: number },
 ): Promise<PodSegmentResult> => {
   if (!audioId || !audioController.value) return { ok: false, reason: 'safety_timeout' }
+  // NEVER REQUEST A CLIP THIS DEVICE HASN'T GOT, OFFLINE. The lap-level filter
+  // above (lapPlayableNow) is the real gate; this is the backstop that makes
+  // "there is no path that retries an unavailable asset" true of the playback
+  // primitive itself rather than only of its callers. Without it a missing clip
+  // means a network request that cannot succeed, and thirty seconds of the
+  // safety timeout below per play — Tom's thirteen silent minutes.
+  if (offlinePlaybackActive() && !audioCache.has(audioId)) {
+    console.warn(`[LearningPlayer] Pod segment ${audioId} is not on this device — skipping rather than requesting it offline`)
+    return { ok: false, reason: 'unavailable' }
+  }
   const audio = audioController.value
   return new Promise((resolve) => {
     let cancelPoll: ReturnType<typeof setInterval> | null = null
@@ -5330,6 +5400,7 @@ const playPodSegment = async (
     let settled = false
     const cleanup = () => {
       audio.offEnded(onEnded)
+      audio.offError?.(onPlayError)
       try { (audio as any).setPlaybackRate?.(1.0) } catch {}
       if (cancelPoll) clearInterval(cancelPoll)
       if (safetyTimeout) clearTimeout(safetyTimeout)
@@ -5341,11 +5412,20 @@ const playPodSegment = async (
       resolve(result)
     }
     // AudioController._notifyEnded fires onEnded for BOTH natural-end AND
-    // load/play errors (it has no error callback path). So this resolves
-    // ok:true for both — we can't tell them apart from here. Per-play
-    // telemetry in playPodLap lets us see latency anomalies that suggest
-    // failed plays without bailing out the whole lap on transient errors.
-    const onEnded = () => finish({ ok: true, reason: 'natural' })
+    // load/play errors, so an ended event alone cannot tell them apart — which
+    // is how a lap of dead plays used to report itself as a COMPLETED lap,
+    // ratchet forward, and hand the next boundary another one, in silence.
+    // `onError` (added 2026-08-31) is the missing channel: the controller now
+    // announces the failure immediately BEFORE the end, so the flag is always
+    // set by the time onEnded runs.
+    let erroredThisSegment = false
+    const onPlayError = () => { erroredThisSegment = true }
+    audio.onError?.(onPlayError)
+    const onEnded = () => finish(
+      erroredThisSegment
+        ? { ok: false, reason: 'audio_error' }
+        : { ok: true, reason: 'natural' },
+    )
     audio.onEnded(onEnded)
     try {
       ;(audio as any).setPlaybackRate?.(playbackSpeed)
@@ -6059,13 +6139,26 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
             console.log(`[LearningPlayer] Seguing L1 cup ${l1Cup.cupIndex} (${l1Cup.bucketSize} seeds) into pod lap ${lap.podRound}`)
           }
         }
-        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lapToPlay.plays.length} plays)`)
+        // AVAILABILITY BEFORE ANYTHING ELSE — before the pause, before the
+        // display, before a single request. A lap with nothing on this device
+        // is not fired at all; the course carries straight on.
+        const podLapToPlay = lapPlayableNow(lapToPlay)
+        if (!podLapToPlay) {
+          console.warn(`[LearningPlayer] Pod lap ${lap.podRound} skipped — its audio isn't on this device. Ratchet unchanged; the listening work still has to be done.`)
+          noteListeningSkippedOffline('pod', lap.podRound, lapToPlay.plays.length)
+          // Resume and leave; the only thing downstream of here is the visual
+          // encouragement fallback, which has nothing to celebrate on a
+          // boundary whose listening exercise could not run.
+          simplePlayer.resume()
+          return
+        }
+        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${podLapToPlay.plays.length} plays)`)
         if (forcePodPreviewCheat) {
           podPreviewFired = true
           console.warn(`[LearningPlayer] ?pod=1 preview cheat FIRED at round ${lap.podRound}`)
         }
         simplePlayer.pause()
-        const completed = await playPodLap(lapToPlay, l1FiredThisRound)
+        const completed = await playPodLap(podLapToPlay, l1FiredThisRound)
         // Ratchet writes are fire-and-forget — awaiting the Supabase
         // round-trip put a 200-1000ms silence between the lap outro and
         // the next round's intro on mobile networks. The audible audio
@@ -6113,6 +6206,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
               // PLAY never dead-ends right after a listening pod.
               // (wrapInfPlayAtTail clears sessionEnded + resumes.)
             } else {
+              markOfflineNothingPlayable(offlinePlaybackActive())
               showPausedSummary()
             }
           }
@@ -6121,7 +6215,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           // skipping silently into round N+1. Re-fire uses omitIntro=true
           // so the bookend doesn't double up.
           userStoppedDuringLap.value = false
-          pendingLapResume.value = lapToPlay
+          pendingLapResume.value = podLapToPlay
         } else {
           simplePlayer.resume()
         }
@@ -6175,7 +6269,6 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         l1PreviewFired = true
         console.warn(`[LearningPlayer] ?l1=1 preview cheat FIRED at round ${completedMainRound}`)
       }
-      simplePlayer.pause()
 
       // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
       // L1 plays are seed target sentences (no glued chunks → glueToNextChunk
@@ -6196,7 +6289,18 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           isLayer1: true,
         })),
       }
-      await playPodLap(l1AsPodLap, false) // L1 has no ratchet — nothing to persist.
+      // Same selection gate as the pod branch. L1 cups are the specimen from
+      // Tom's airplane-mode session: they fire at EVERY clean non-pod boundary,
+      // so an uncached cup meant a dead silent lap between every single round,
+      // indefinitely, with no way out.
+      const l1LapToPlay = lapPlayableNow(l1AsPodLap)
+      if (!l1LapToPlay) {
+        console.warn(`[LearningPlayer] L1 cup ${l1Lap.cupIndex} skipped — its audio isn't on this device`)
+        noteListeningSkippedOffline('l1', completedMainRound, l1AsPodLap.plays.length)
+        return
+      }
+      simplePlayer.pause()
+      await playPodLap(l1LapToPlay, false) // L1 has no ratchet — nothing to persist.
 
       // Resume handling mirrors the pod block: keep the course rolling unless
       // the session ended (offline loop / expand) or the learner stopped.
@@ -6214,12 +6318,13 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
+            markOfflineNothingPlayable(offlinePlaybackActive())
             showPausedSummary()
           }
         }
       } else if (userStoppedDuringLap.value) {
         userStoppedDuringLap.value = false
-        pendingLapResume.value = l1AsPodLap
+        pendingLapResume.value = l1LapToPlay
       } else {
         simplePlayer.resume()
       }
@@ -7898,6 +8003,7 @@ class RealAudioController {
 
   // TypeScript property declarations
   endedCallbacks: Set<() => void>
+  errorCallbacks: Set<(err: any) => void>
   audio: HTMLAudioElement
   currentCleanup: (() => void) | null
   preloadedUrls: Set<string>
@@ -7913,6 +8019,7 @@ class RealAudioController {
 
   constructor() {
     this.endedCallbacks = new Set()
+    this.errorCallbacks = new Set()
     // Create audio element immediately for mobile compatibility
     // This ensures intro and cycle audio use the SAME element (mobile unlock)
     this.audio = new Audio()
@@ -7954,7 +8061,11 @@ class RealAudioController {
     this.stop()
 
     if (!audioRef?.url) {
+      // No url means no sound. That is a FAILURE, not a play — say so on the
+      // error channel before ending, or a caller counting real plays counts a
+      // silence as one of them.
       console.warn('[AudioController] No URL in audioRef:', audioRef)
+      this._notifyError(new Error('no audio url'))
       this._notifyEnded()
       return Promise.resolve()
     }
@@ -8012,6 +8123,13 @@ class RealAudioController {
         this.currentCleanup = null
         // Only notify if this play wasn't cancelled
         if (this.playGeneration === playGen) {
+          // ERROR FIRST, THEN END. Callers that care (the pod/listening lap)
+          // read the error flag inside their ended handler, so the order here
+          // is load-bearing: announcing the end first would let a failed play
+          // pass as a natural one — exactly the bug that let a lap of dead
+          // clips report itself complete. Callers that don't subscribe are
+          // unaffected; the ended notification is unchanged.
+          this._notifyError(e)
           this._notifyEnded()
         }
         resolve()
@@ -8086,6 +8204,33 @@ class RealAudioController {
         })
       }
     })
+  }
+
+  /**
+   * Subscribe to play FAILURES (load/decode/autoplay errors).
+   *
+   * The controller has always converted an error into an `ended` notification
+   * so the 4-phase cycle keeps moving — right, and unchanged. But a consumer
+   * that needs to know whether a sound was actually MADE had no way to ask,
+   * and the listening-lap runner guessed "yes". This is that channel; it fires
+   * immediately before the ended notification for the same play.
+   */
+  onError(callback) {
+    if (!this.errorCallbacks) this.errorCallbacks = new Set()
+    this.errorCallbacks.add(callback)
+  }
+
+  offError(callback) {
+    this.errorCallbacks?.delete(callback)
+  }
+
+  _notifyError(err) {
+    if (this.suppressAllCallbacks) return
+    if (!this.errorCallbacks?.size) return
+    // Snapshot, same as _notifyEnded — a callback may unsubscribe itself.
+    for (const cb of Array.from(this.errorCallbacks)) {
+      try { cb(err) } catch (e) { console.warn('[AudioController] error callback threw:', e) }
+    }
   }
 
   _notifyEnded() {
@@ -10870,6 +11015,10 @@ simplePlayer.setRuntimeOverrides({
   // getBlobUrl now forces the stored mimeType, which fixes the iOS
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
+  // The engine's own last-ditch offline guard reads this. Same predicate the
+  // cycle cull and the listening-lap gate ride, so all three agree about what
+  // "offline" means.
+  isOfflinePlayback: () => offlinePlaybackActive(),
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
     // Serve the cached WAV blob when offline OR when online cache-play is on —
     // this is what keeps the MAIN cycle off the network so it survives lock.
@@ -11639,6 +11788,28 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value || isNetworkPresumedDown()) && !offlineLeaseLocked.value
 
+/**
+ * CAN THIS APP REACH CONTENT IT HAS NOT GOT? Tom's principle, 2026-08-31:
+ * belt skip must be unavailable whenever the app cannot serve the target belt.
+ *
+ * Being offline is one way to be in that state and it was the only one the
+ * belt picker knew about. PRACTISING is the other, and it is the more exact
+ * one: the mode's entire trigger is the next new LEGO coming back unfetchable,
+ * so a learner in it is by definition unable to reach material that is not
+ * already on the device. It can also be switched on deliberately, on a full
+ * signal, from the settings door — and in that case `isOnline` is true,
+ * `offlineActive` is false, and every belt pill was tappable. Tapping one
+ * walked the learner out of the downloaded plan into content the mode has just
+ * finished refusing to fetch, which is the same walk-into-nothing the offline
+ * greying exists to stop.
+ *
+ * The AVAILABILITY test underneath is unchanged and stays exact: a belt greys
+ * out only when its landing round has no cycle whose audio is actually in the
+ * persistent cache. So a practising learner keeps every belt they have already
+ * downloaded and loses only the ones that would hand them silence.
+ */
+const cannotFetchNewContent = (): boolean => offlinePlaybackActive() || isPractising.value
+
 // Which belts the pill nav must grey out while offline. A belt is available
 // offline iff its landing round (the belt's first LEGO, via findRoundIndex-
 // ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
@@ -11651,7 +11822,7 @@ const offlinePlaybackActive = (): boolean =>
 // reads available exactly when landing there would actually produce sound.
 // White belt (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
-  if (!offlinePlaybackActive()) return new Set()
+  if (!cannotFetchNewContent()) return new Set()
   const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
@@ -12574,7 +12745,12 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
   }
   const looped = appendCachedLoopForOffline()
   if (looped <= 0) {
+    // NOTHING IS FULLY AVAILABLE. Say so plainly rather than spinning (Tom,
+    // 2026-08-31) — "staying put" was a console warn nobody on a phone can
+    // read, and the learner was left looking at a player that had stopped for
+    // no stated reason.
     console.warn('[LearningPlayer] Skip past content but no cached cycles to recycle — staying put')
+    markOfflineNothingPlayable(offlinePlaybackActive())
     return false
   }
   // OFFLINE IS NOT A COMPLETION TRIGGER. Tom's ruling, 2026-08-15: infinite
@@ -16112,7 +16288,7 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
-    :is-offline="offlinePlaybackActive()"
+    :is-offline="cannotFetchNewContent()"
     :offline-unavailable-belt-names="offlineUnavailableBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
@@ -16211,6 +16387,33 @@ defineExpose({
         <div class="paywall-actions">
           <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineInfPlayNotice">
             {{ t('player.offlinePracticeAck', 'Got it') }}<!-- acknowledge, never a gate -->
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline, and nothing on this device can be played. The plain saying-so
+       Tom asked for on 2026-08-31 ("if nothing is fully available it says so
+       plainly to the learner rather than spinning"). Like the notice above it
+       is dismissible, shows once per session, and gates nothing — the moment
+       anything becomes reachable, play resumes on its own. -->
+  <Transition name="fade">
+    <div
+      v-if="offlineNothingPlayableVisible"
+      class="paywall-overlay"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="t('player.offlineNothingBody', 'We can\'t reach anything to play right now, and there\'s nothing saved on this device for this course yet. As soon as we can reach the internet again, this will pick up right where you left off.')"
+      @click.self="dismissOfflineNothingPlayableNotice"
+    >
+      <div class="paywall-card">
+        <p class="paywall-subtitle">
+          {{ t('player.offlineNothingBody', 'We can\'t reach anything to play right now, and there\'s nothing saved on this device for this course yet. As soon as we can reach the internet again, this will pick up right where you left off.') }}
+        </p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="dismissOfflineNothingPlayableNotice">
+            {{ t('player.offlinePracticeAck', 'Got it') }}
           </button>
         </div>
       </div>
