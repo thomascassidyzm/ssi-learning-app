@@ -8,6 +8,7 @@ import { useInviteCode, type InviteCodeContext } from '../composables/useInviteC
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
 import { isContentBlackoutActive, setContentBlackout } from '../playback/contentBlackout'
+import { useTestDoorPermission } from '../composables/useTestDoorPermission'
 import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
@@ -420,6 +421,15 @@ const showListeningAudit = ref(false) // Reveal the 9-stage progression audit mo
 // playback/contentBlackout.ts, which is in memory only and off at every app
 // start, so this ref is seeded from it rather than from localStorage.
 const simulateContentBlackout = ref(isContentBlackoutActive())
+
+// THE GATE IS A PERMISSION, NOT A TRICK (Tom, 2026-08-31). `isAdmin` above is
+// the client's own belief about its role, and useUserRole rehydrates that from
+// localStorage — so it can be forged by the very person it is meant to gate.
+// The test control renders only when the SERVER has confirmed the account is an
+// ssi_admin, against the learners row, under RLS. Nothing is persisted: the
+// answer is asked for again each app run, because a stored grant would be back
+// under the control of the claimant.
+const { allowed: testDoorsAllowed, check: checkTestDoorPermission } = useTestDoorPermission()
 
 // Theme settings (uses shared composable)
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
@@ -1010,6 +1020,21 @@ onMounted(async () => {
   // Deliberately NOT from localStorage — the blackout never survives a restart.
   simulateContentBlackout.value = isContentBlackoutActive()
 
+  // Ask the server whether this account may operate the test doors. Only worth
+  // a round trip for someone whose client already thinks it is an admin — an
+  // ordinary learner is not going to become one by asking, and there is no
+  // reason to spend the request on every Settings open for everybody.
+  if (isAdmin.value) {
+    void checkTestDoorPermission(async () => {
+      try {
+        const { data } = await supabase?.value?.auth?.getSession?.() ?? { data: null }
+        return data?.session?.access_token ?? null
+      } catch {
+        return null
+      }
+    })
+  }
+
   // Pull fresh subscription state so the panel reflects any cancel/renew change.
   refreshSubscription()
 })
@@ -1027,6 +1052,9 @@ onMounted(async () => {
  * away. Without it the switch would appear not to work for whoever tapped it.
  */
 const toggleContentBlackout = () => {
+  // Belt and braces with the v-if: the row cannot be tapped without the grant,
+  // and the handler refuses without it too, so a stray call path can't arm it.
+  if (!testDoorsAllowed.value) return
   simulateContentBlackout.value = setContentBlackout(!simulateContentBlackout.value)
   dispatchSettingChanged('simulateContentBlackout', simulateContentBlackout.value)
 }
@@ -2263,13 +2291,13 @@ const confirmReset = async () => {
             </div>
           </div>
 
-          <div class="divider"></div>
+          <div v-if="testDoorsAllowed" class="divider"></div>
 
           <!-- The practising-mode test switch. Last in the section, admin-gated
                with everything else here, and worded so it cannot be mistaken for
                a learner setting. It does not fake the banner — it takes the
                content away and lets the real trigger fire. -->
-          <div class="setting-row clickable" @click="toggleContentBlackout">
+          <div v-if="testDoorsAllowed" class="setting-row clickable" @click="toggleContentBlackout">
             <div class="setting-info">
               <span class="setting-label">Practising Mode (test)</span>
               <span class="setting-desc">Makes the next new LEGO unreachable, so the real practising trigger fires. Play carries on from the cache and your position is frozen while it holds. Turn it off here to watch normal play resume. Resets itself when the app restarts.</span>
