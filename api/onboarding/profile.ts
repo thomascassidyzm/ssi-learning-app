@@ -85,7 +85,12 @@ export default async function handler(
     if (institution) {
       const { data: updatedSchools, error: schoolErr } = await supabase
         .from('schools')
-        .update({ school_name: institution })
+        // Typing the school's name here IS confirming it — same ruling as the
+        // setup wizard's step 1 (4936da6d). Pairs with provision.ts leaving a
+        // brand-new self-serve school name_confirmed=false, so a head who
+        // SKIPS this optional step still gets the "what's your school called?"
+        // card on her dashboard instead of being stuck as "My school" for ever.
+        .update({ school_name: institution, name_confirmed: true })
         .eq('admin_user_id', auth.userId)
         .select('id')
       if (schoolErr) {

@@ -472,7 +472,17 @@ export default async function handler(
         }
         const { data: school, error: sErr } = await supabase
           .from('schools')
-          .insert({ admin_user_id: auth.userId, school_name: 'My school' })
+          // name_confirmed:false — 'My school' is OUR placeholder, not her
+          // answer. The column defaults to true, which meant a head who closed
+          // the tab at the optional "School / institution" step owned a school
+          // called "My school" for ever, with nothing ever asking (production,
+          // 2026-08-31). false arms the node home's "what's your school
+          // called?" card; naming it in the door or the wizard sets it true.
+          .insert({
+            admin_user_id: auth.userId,
+            school_name: 'My school',
+            name_confirmed: false,
+          })
           .select('id')
           .single()
         if (sErr || !school) throw new Error(`school create failed: ${sErr?.message}`)
