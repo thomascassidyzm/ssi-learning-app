@@ -21,14 +21,28 @@
  * AFTER the one playing). When THAT attempt comes back with nothing playable,
  * we are practising. Nothing else qualifies: not a generic fetch failure
  * somewhere else, not an empty forward queue, not a shape heuristic about how
- * a round is built. And note that the cycles fetch already falls back to this
- * device's own cached copy of that LEGO — so a "failed" here means the next new
- * LEGO is genuinely unreachable, from the network AND from the cache.
+ * a round is built.
+ *
+ * A "failed" is the LEARNER'S reach, not our own wobble. The cycles fetch does
+ * try this device's cached copy first, but that cache is empty by definition
+ * for a LEGO the learner has never reached — so the outcome is decided by what
+ * the throw was about. Our own outage (401/403 expired login, 429, 5xx) reports
+ * `skipped` and leaves the mode alone: an SSi problem must never cost a paying
+ * learner their recorded progress. Only a genuine failure to reach the content
+ * says `failed`.
  *
  * Recovery is the same fetch succeeding. The moment the next new LEGO can be
  * had again, the mode ends and forward play resumes from a position that never
  * moved — because while it held, nothing about that position was written down
  * (see `practisingBlocksProgressWrite` in LearningPlayer.vue).
+ *
+ * AND IT IS NOT THE ONLY THING HOLDING THAT LINE. This mode is the precise
+ * trigger; underneath it sits a floor that refuses any progress write while a
+ * RECYCLED round — one dealt from the offline urn, carrying an old LEGO's id —
+ * is on the playhead. The mode can be off (a slow connection that aborts
+ * reports `skipped`; a course with no round map can never report at all) while
+ * recycled material plays, and a write from there moves a learner BACKWARDS.
+ * Belt and braces, deliberately: see `recycledRoundOnPlayhead`.
  */
 
 /**

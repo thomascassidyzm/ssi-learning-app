@@ -1488,12 +1488,37 @@ export function useInstantPlayback(
       // THE ONE TRIGGER (Tom, 2026-08-31). This is the fetch of the next NEW
       // LEGO — the one whose turn it is per the learner's cursor — and this
       // catch is the only place in the app that knows it came back with
-      // nothing. `fetchCycles` has already fallen back to this device's cached
-      // copy of that LEGO before throwing, so reaching here means the next new
-      // LEGO is genuinely out of reach. The caller turns that into
-      // `playback/practisingMode`'s one state change; an abort is our own
-      // teardown and says nothing about the connection.
+      // nothing. The caller turns that into `playback/practisingMode`'s one
+      // state change.
+      //
+      // `fetchCycles` does try this device's cached copy of that LEGO before
+      // throwing, but do NOT read that as "failed means unreachable from
+      // network AND cache" — an earlier comment here said exactly that and it
+      // was wrong. The cached copy only exists if this same LEGO was fetched
+      // successfully before, and the whole job of this fetch is to reach
+      // content the learner has NEVER reached. For the next new LEGO that
+      // cache is empty by definition, so effectively every throw arrives here.
+      //
+      // Which makes it our job to say what the throw was ABOUT.
+      //
+      //   • An abort is our own teardown or budget expiring — says nothing
+      //     about anything.
+      //   • 401/403 (a login that expired), 429 (our rate limit), 5xx (our
+      //     server) are OUR outage, not the learner's connection. A single one
+      //     of those used to freeze a paying learner's position for the rest of
+      //     the session, with no button to force a re-check and no retry — and
+      //     a Supabase or auth wobble would do it to everybody at once. Our
+      //     failure must not cost the learner their progress, so these hold the
+      //     mode where it is and the next probe simply tries again.
+      //   • Anything else — transport failure, DNS, a 404 on the content — is
+      //     the learner genuinely unable to reach the next new LEGO. That, and
+      //     only that, is PRACTISING.
       if ((err as Error)?.name === 'AbortError') return 'skipped'
+      const status = (err as { status?: number })?.status
+      if (status === 401 || status === 403 || status === 429 || (typeof status === 'number' && status >= 500)) {
+        console.warn(`[InstantPlayback] next-new-LEGO fetch got ${status} — our side, not the learner's; leaving the mode as it is`, err)
+        return 'skipped'
+      }
       console.warn('[InstantPlayback] next-new-LEGO fetch failed:', err)
       return 'failed'
     } finally {

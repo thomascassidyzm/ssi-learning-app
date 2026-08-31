@@ -67,5 +67,17 @@ export interface Round {
   legoTargetTextNative?: string
   /** Canonical LEGO known text (from intro item) */
   legoKnownText?: string
+  /**
+   * This round was DEALT FROM THE CACHE, not built from the course — the
+   * offline urn drew already-covered phrases and kept the metadata of the
+   * round each phrase came from. So `legoId` here names an old LEGO from
+   * anywhere in the learner's history while `roundNumber` is above every
+   * real round, which is precisely the shape that walks past a forward-only-
+   * by-round-index cursor guard and writes a learner BACKWARDS.
+   *
+   * Anything that writes progress must refuse a round carrying this stamp.
+   * Set by LearningPlayer's appendCachedLoopForOffline; never persisted.
+   */
+  recycled?: boolean
   cycles: Cycle[]
 }

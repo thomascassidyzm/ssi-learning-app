@@ -45,6 +45,9 @@ export interface UseLearningSessionOptions {
    * writes only; usage telemetry is unaffected. Being offline is NOT this: a
    * downloaded look-ahead of genuinely new LEGOs plays and records normally.
    */
+  /** True while NO LEGO PROGRESS may be written: the PRACTISING mode, or a
+   *  recycled round on the playhead. The caller composes both — see
+   *  progressWritesSuppressed in LearningPlayer. */
   isPractising?: () => boolean
 }
 
@@ -608,7 +611,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       return
     }
 
-    // LEGO PROGRESS STOPS HERE while practising — but everything above
+    // LEGO PROGRESS STOPS HERE while practising OR while a recycled round is
+    // on the playhead (the caller passes one predicate for both) — but
+    // everything above
     // (itemsPracticed, the opportunities delta, the session checkpoint, the
     // helix engine) has already run, which is the point: the learner's time
     // is recorded, their position is not.
