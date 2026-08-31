@@ -43,6 +43,7 @@ import {
 import { getCourseBundle } from './useCourseBundle'
 import { reportBundlePath, type BundlePathStage } from '../playback/bundlePathTelemetry'
 import type { CourseBundle } from '@ssi/core'
+import type { NextLegoFetchOutcome } from '../playback/practisingMode'
 import {
   bundleToCyclesResponse,
   bundleToInfPlayCyclesResponse,
@@ -1456,14 +1457,17 @@ export function useInstantPlayback(
    * So it is warmed here, and ONLY it — a single fire-and-forget GET, not a
    * return of the bulk prefetch. Cache-as-you-go is unchanged.
    */
-  async function prefetchTier3(): Promise<void> {
+  async function prefetchTier3(): Promise<NextLegoFetchOutcome> {
     const map = roundMap.value
     const lego = currentLegoId.value
-    if (!map || !lego) return
+    if (!map || !lego) return 'skipped'
 
     const idx = map.rounds.findIndex((r) => r.legoId === lego)
     const next = idx >= 0 ? map.rounds[idx + 1] : null
-    if (!next) return
+    // No round after this one is the COURSE'S OWN END, and the caller must be
+    // able to tell that apart from a fetch that failed: one is a fact about
+    // the content, the other is the trigger for PRACTISING mode.
+    if (!next) return 'no-next'
 
     const ctrl = makeAbort()
     try {
@@ -1479,10 +1483,19 @@ export function useInstantPlayback(
       // no presentation clip still gets its fallback clip warmed rather than
       // nothing. Everything else in the round still JIT-fetches at use time.
       warmIntroPrompt(response.cycles)
+      return 'fetched'
     } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        console.warn('[InstantPlayback] tier-3 prefetch failed:', err)
-      }
+      // THE ONE TRIGGER (Tom, 2026-08-31). This is the fetch of the next NEW
+      // LEGO — the one whose turn it is per the learner's cursor — and this
+      // catch is the only place in the app that knows it came back with
+      // nothing. `fetchCycles` has already fallen back to this device's cached
+      // copy of that LEGO before throwing, so reaching here means the next new
+      // LEGO is genuinely out of reach. The caller turns that into
+      // `playback/practisingMode`'s one state change; an abort is our own
+      // teardown and says nothing about the connection.
+      if ((err as Error)?.name === 'AbortError') return 'skipped'
+      console.warn('[InstantPlayback] next-new-LEGO fetch failed:', err)
+      return 'failed'
     } finally {
       releaseAbort(ctrl)
     }

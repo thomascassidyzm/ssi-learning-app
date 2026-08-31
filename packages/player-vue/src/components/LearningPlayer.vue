@@ -85,6 +85,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
+import { nextPractisingState, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -1148,9 +1149,10 @@ const endClassSessionTracking = async () => {
  * which is forward-only — the bug-overwrite safety net stays in place.
  */
 /**
- * CONSOLIDATING WRITES NOTHING. Tom's ruling, 2026-08-31.
+ * PRACTISING WRITES NOTHING. Tom's ruling, 2026-08-31.
  *
- * While the app is playing from cache because it could not reach new content,
+ * While the app is playing from cache because it could not fetch the next new
+ * LEGO — the one whose turn it is —
  * NO LEGO PROGRESS IS CAPTURED AT ALL — no cursor advance, no cursor stamp, no
  * ceiling ratchet, no completion mark, no infinite-play derivation or entry.
  *
@@ -1168,14 +1170,14 @@ const endClassSessionTracking = async () => {
  * Gated at the WRITE PRIMITIVES rather than at their ~20 call sites, so a
  * caller added later is covered without anyone having to remember this rule.
  */
-const consolidatingBlocksProgressWrite = (what: string): boolean => {
-  if (!isConsolidating.value) return false
-  console.log(`[LearningPlayer] CONSOLIDATING — ${what} not written`)
+const practisingBlocksProgressWrite = (what: string): boolean => {
+  if (!isPractising.value) return false
+  console.log(`[LearningPlayer] PRACTISING — ${what} not written`)
   return true
 }
 
 const setRemoteCursor = async (legoId: string, roundIndex: number, reason = 'persist_cursor') => {
-  if (consolidatingBlocksProgressWrite('remote cursor')) return
+  if (practisingBlocksProgressWrite('remote cursor')) return
   if (isGuestLearner.value || !progressStore?.value || !legoId) return
   try {
     await activeProgressStore.value.setEnrollmentCursor(
@@ -1202,7 +1204,7 @@ const setRemoteCursor = async (legoId: string, roundIndex: number, reason = 'per
  *  bar reflects current truth without needing a page reload. The DB
  *  trigger does this on its side; this keeps the client in sync. */
 const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => {
-  if (consolidatingBlocksProgressWrite('local ceiling ratchet')) return
+  if (practisingBlocksProgressWrite('local ceiling ratchet')) return
   if (typeof roundIndex !== 'number' || !legoId) return
   if (highestCompletedRoundIndex.value === null || roundIndex > highestCompletedRoundIndex.value) {
     highestCompletedRoundIndex.value = roundIndex
@@ -1211,7 +1213,7 @@ const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => 
 }
 
 const persistCursorAtCurrentRound = async () => {
-  if (consolidatingBlocksProgressWrite('cursor at current round')) return
+  if (practisingBlocksProgressWrite('cursor at current round')) return
   const round = simplePlayer.currentRound.value
   const idx = simplePlayer.roundIndex.value
   if (!round?.legoId || typeof idx !== 'number') return
@@ -1242,7 +1244,7 @@ const persistCursorAtCurrentRound = async () => {
 // setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
 // never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
 const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
-  if (consolidatingBlocksProgressWrite('live position')) return
+  if (practisingBlocksProgressWrite('live position')) return
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -1265,9 +1267,9 @@ const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true
 
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   // This is the function that used to stamp the cursor to the course's final
-  // LEGO off nothing but a round's shape. Under CONSOLIDATING it does not run
+  // LEGO off nothing but a round's shape. Under PRACTISING it does not run
   // at all, so that route is closed before any reasoning about it begins.
-  if (consolidatingBlocksProgressWrite('round progress')) return
+  if (practisingBlocksProgressWrite('round progress')) return
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
     return
@@ -1302,7 +1304,7 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   // The full gate now lives in utils/infinitePlay.ts, where it is one place and
   // has tests: shape proposes, a degraded fetch vetoes, and the course's own
   // content decides. Playing from cache because nothing could be reached is
-  // CONSOLIDATING (`isConsolidating`), never a route into INF PLAY.
+  // PRACTISING (`isPractising`), never a route into INF PLAY.
   const cursorForInfCheck = lastCompletedLegoIdRef.value ?? legoId
   const mayEnter = await shouldAutoEnterInfinitePlay({
     round: r,
@@ -1585,14 +1587,14 @@ const flushCursor = () => {
   pendingCursor = null
   // A write queued BEFORE the mode engaged must not land after it: the 60s
   // throttle means one can be in flight at the moment the connection drops.
-  if (consolidatingBlocksProgressWrite('queued current cycle')) return
+  if (practisingBlocksProgressWrite('queued current cycle')) return
   if (!p || !progressStore?.value) return
   void activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
     console.warn('[LearningPlayer] Failed to persist current cycle:', err)
   })
 }
 const queueCursor = (learnerId: string, courseId: string, idx: number) => {
-  if (consolidatingBlocksProgressWrite('current cycle')) return
+  if (practisingBlocksProgressWrite('current cycle')) return
   pendingCursor = { learnerId, courseId, idx }
   if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
 }
@@ -2034,7 +2036,12 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
         })
         return
       }
-      void instantPlayback.prefetchTier3().then(() => {
+      void instantPlayback.prefetchTier3().then((outcome) => {
+        // THE TRIGGER. This is the fetch of the next NEW LEGO — the one whose
+        // turn it is per the learner's cursor — and its failure is the one and
+        // only thing that puts the player into PRACTISING (Tom, 2026-08-31).
+        // Its success is the one and only thing that takes us back out.
+        reportNextNewLegoFetch(outcome)
         const map = instantPlayback.roundMap.value
         if (!map) return
         const refreshed = backendCyclesToRounds(
@@ -2256,7 +2263,7 @@ simplePlayer.onCycleCompleted((cycle) => {
     }
     // Accumulate locally; flushed in one batch on pause/background/unmount.
     // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
-    // Pairings keep flowing while CONSOLIDATING. Tom, 2026-08-31: ordinary
+    // Pairings keep flowing while PRACTISING. Tom, 2026-08-31: ordinary
     // usage telemetry continues — this records what the learner HEARD, not a
     // claim about how far through the course they are, and the brain view
     // would go blank for the session otherwise.
@@ -3545,7 +3552,7 @@ const extractSeedNumber = (seedId: string): number => {
 const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = true) => {
   // The local snapshot is a position record like any other — and it is the one
   // resume reads first, so leaving it writable would reopen the route locally.
-  if (consolidatingBlocksProgressWrite('local position')) return
+  if (practisingBlocksProgressWrite('local position')) return
   if (!courseCode.value) return
 
   const round = currentRound.value
@@ -4004,11 +4011,11 @@ const learningSession = useLearningSession({
   courseId: courseCode,
   demoItems,
   // Splits usage from progress inside recordCycleComplete: the learner's time,
-  // opportunities and session checkpoints keep flowing while consolidating;
+  // opportunities and session checkpoints keep flowing while practising;
   // lego_progress and the highest_completed_seed ratchet do not.
   // A getter, not the ref: this composable is constructed during setup, before
   // the computed below it exists.
-  isConsolidating: () => isConsolidating.value,
+  isPractising: () => isPractising.value,
 })
 
 // Use items from session (will be demo items if database not available)
@@ -4580,7 +4587,7 @@ const isRecycledRoundPlayback = computed(() =>
   isInfPlayActive.value || offlineRecycleBeltHeld.value
 )
 
-// CONSOLIDATING — the third player MODE (Tom's ruling, 2026-08-31).
+// PRACTISING — the third player MODE (Tom's ruling, 2026-08-31).
 //
 // There were only ever two states in the learner's head: working through new
 // material, and INFINITE PLAY at the end of the course. So a session that
@@ -4590,43 +4597,78 @@ const isRecycledRoundPlayback = computed(() =>
 // round, and the round shape leaked into the cursor.
 //
 // This is that missing mode, and it is neither of the other two: we are playing
-// what is on the device because we cannot fetch anything new. It says nothing
-// about the learner's progress — they have finished nothing, they have gone
-// nowhere — and it is not an error either: the audio never stops.
+// what is on the device because we cannot fetch the next new LEGO. It says
+// nothing about the learner's progress — they have finished nothing, they have
+// gone nowhere — and it is not an error either: the audio never stops.
+//
+// THE TRIGGER IS ONE FETCH, AND NETWORK QUALITY IS NOT IT. Tom, in his own
+// words: "we should just keep playing as always, whether network is good or
+// bad, UNTIL we can't fetch the next NEW LEGO, the LEGO whose turn it is. At
+// THAT point we go into practising mode." So this flag is raised by exactly one
+// event — the tier-3 next-new-LEGO fetch coming back with nothing — and lowered
+// by exactly one — that same fetch succeeding. Being offline, degraded or on a
+// weak signal changes nothing on its own; the device holds ample material and
+// plays straight through. The state machine is `playback/practisingMode.ts`,
+// the fetch is `instantPlayback.prefetchTier3`, and the two call sites that
+// report into here are the round-advance near-edge watcher and the one boot
+// prefetch. Note the fetch already falls back to this device's cached copy of
+// that LEGO before it reports a failure, so the trigger means genuinely
+// unreachable, from network AND cache.
 //
 // Its contract is that it WRITES NOTHING about LEGO progress — see
-// consolidatingBlocksProgressWrite, which gates every write primitive. So the
-// mode cannot move a learner even in principle, and leaving it resumes normal
-// behaviour from the learner's position exactly as it stood on entry.
+// practisingBlocksProgressWrite, which gates every write primitive. So the mode
+// cannot move a learner even in principle, and leaving it resumes normal
+// behaviour from the learner's position exactly as it stood on entry. Ordinary
+// USAGE telemetry — minutes, sessions, streaks, speaking opportunities — keeps
+// flowing throughout: the learner genuinely turned up and practised.
 //
-// SCOPE. This is the cache RECYCLE fallback — appendCachedLoopForOffline, which
-// draws only 'use'/'spaced_rep' cycles, i.e. material already covered. It is
-// deliberately NOT raised by appendForwardFromCacheOffline: that path plays
-// genuinely NEW cached rounds the learner has never done, forward through the
-// course, and progress made there is real progress and is recorded as such.
-// The mode tracks "we ran out of new material", not "we are offline".
-//
-// It clears itself the instant a real main-loop round plays (see the round-entry
-// watcher below), and normal writing resumes with it.
-// Dev cheat (?consolidating=1): force the mode on so the banner and the
-// write-suppression can be seen without reproducing cache exhaustion.
-//
-// This exists because a live probe could NOT get the app into the state within
-// any budget worth spending (job #473, 6 runs, up to 7-minute offline windows):
-// the script pre-generates ~57 rounds ahead, so "forward material" is enormous
-// relative to any plausible warm-up, and the real trigger needs the AUDIO for
-// all of it to be missing too. A state that cannot be reached on demand cannot
-// be checked before shipping — so it gets a door, like ?fc and ?stream.
-const forceConsolidatingCheat = (() => {
+// Dev cheat (?practising=1, and ?consolidating=1 kept as the older alias):
+// force the mode on so the banner and the write-suppression can be seen without
+// waiting for a real unreachable LEGO. This exists because a live probe could
+// NOT get the app into the state within any budget worth spending (job #473, 6
+// runs, up to 7-minute offline windows): the script pre-generates ~57 rounds
+// ahead, so the forward material is enormous relative to any plausible warm-up.
+// A state that cannot be reached on demand cannot be checked before shipping —
+// so it gets a door, like ?fc and ?stream.
+const forcePractisingCheat = (() => {
   try {
-    return new URLSearchParams(window.location.search).has('consolidating')
+    const q = new URLSearchParams(window.location.search)
+    return q.has('practising') || q.has('consolidating')
   } catch { return false }
 })()
 
-const isConsolidating = computed(() =>
-  forceConsolidatingCheat
-  || (offlineRecycleBeltHeld.value && currentMode.value !== 'infplay')
+// Raised ONLY by a failed next-new-LEGO fetch; lowered ONLY by a successful
+// one. Never by an offline/degraded signal, and never by the shape of a round.
+const nextNewLegoUnreachable = ref(false)
+
+const isPractising = computed(() =>
+  forcePractisingCheat || nextNewLegoUnreachable.value
 )
+
+/**
+ * The single reporting point for the next-new-LEGO fetch. Both call sites hand
+ * their outcome here and nothing else touches the flag.
+ *
+ * On ENTRY we also drop any throttled cursor write still sitting in the queue:
+ * the per-cycle write has a 60s window, so one can be pending at the very
+ * moment the LEGO becomes unreachable, and it must not land from inside the
+ * mode. From here on the learner's position does not move for anything played.
+ *
+ * NO RETRY STORM. Nothing is scheduled here. The probe that eventually lets us
+ * out is the same near-edge prefetch, which fires once per round advance —
+ * minutes apart — and that cadence is the recovery check.
+ */
+const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
+  const next = nextPractisingState(nextNewLegoUnreachable.value, outcome)
+  if (next === nextNewLegoUnreachable.value) return
+  nextNewLegoUnreachable.value = next
+  if (next) {
+    console.log('[LearningPlayer] PRACTISING — the next new LEGO could not be fetched; playing from cache, position frozen')
+    cancelPendingCursor()
+  } else {
+    console.log('[LearningPlayer] PRACTISING over — the next new LEGO is reachable again; forward play resumes')
+  }
+}
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
 // round the engine is on — never pushed from scattered sites. The INF-PLAY
@@ -12143,9 +12185,12 @@ const appendCachedLoopForOffline = (): number => {
     // the right answer for a learner with no recorded cursor yet.
     if (cursorSeed != null) beltFreezeSeed.value = cursorSeed
     offlineRecycleBeltHeld.value = true
-    // Entering CONSOLIDATING. Drop any throttled cursor write still pending —
-    // the 60s window means one can be sitting in the queue at the moment the
-    // connection dies, and it must not land from inside the mode.
+    // This flag holds the BELT only. It no longer decides PRACTISING: the mode
+    // is raised by the failed next-new-LEGO fetch and by nothing else (Tom,
+    // 2026-08-31), which in practice has already happened long before the queue
+    // runs dry enough to recycle. Dropping any throttled cursor write still in
+    // the 60s queue is kept here all the same — cheap, and correct on any path
+    // that reaches cache recycling.
     cancelPendingCursor()
   }
   return loopRounds.length
@@ -13845,7 +13890,10 @@ onMounted(async () => {
           //    2026-05-23 — JIT fetch + SW CacheFirst cover it.)
           if (inferEnrollmentMode !== 'infplay') {
             void instantPlayback.prefetchTier3()
-              .then(() => {
+              .then((outcome) => {
+                // Same trigger at boot: if the LEGO whose turn it is cannot be
+                // fetched, we are practising from the first round onwards.
+                reportNextNewLegoFetch(outcome)
                 // Tier 3 may have brought in the N+1 round's cycles —
                 // fold them into SimplePlayer so the engine can walk
                 // past the initial loaded edge without stalling.
@@ -15954,27 +16002,35 @@ defineExpose({
 
       </div>
 
-      <!-- CONSOLIDATING banner. A DISTINCT state from infinite play, and
-           distinct from a failure: the app is playing what is already on the
-           device because it cannot reach new material right now. It must not
-           imply the learner has finished anything, and it must not read as an
-           error — so it is a calm status pill, not the amber audio-failure
-           chip, and it carries no action because there is nothing for the
-           learner to do. Playback never stops underneath it. Once new content
-           is reachable a real main-loop round clears the state and the pill
-           goes with it. Tom, 2026-08-31.
+      <!-- PRACTISING banner. A DISTINCT state from infinite play, and distinct
+           from a failure: the app is playing what is already on the device
+           because it could not fetch the next new LEGO. It must not imply the
+           learner has finished anything, and it must not read as an error — so
+           it is a calm status pill, not the amber audio-failure chip, and it
+           carries no action because there is nothing for the learner to do.
+           Playback never stops underneath it. The pill goes the moment the next
+           new LEGO can be fetched again.
+
+           THE WORD IS TOM'S, 2026-08-31: the single word "Practising". He
+           explicitly rejected "Consolidating — going back over what you've
+           covered" as too much for the average learner. The second line says
+           only that new material comes back, in the plainest English there is.
+           NOT LOCALISED into the other 20 locales yet, deliberately — English
+           only until Tom has seen it on a real screen.
+
            Lives in hero-text-pane, not the old .control-pane — that section
            has been `display: none !important` since the hero-centric text
            pane replaced it, so a banner placed there (as this one was,
            2026-08-31) is never seen (found during staging promotion
            verification the same day; fixed in place, same day). -->
       <div
-        v-if="isConsolidating"
-        class="consolidating-banner"
+        v-if="isPractising"
+        class="practising-banner"
         role="status"
         aria-live="polite"
       >
-        {{ t('player.consolidatingBanner', "Consolidating — going back over what you’ve covered") }}
+        <span class="practising-banner__word">{{ t('player.practisingBanner', 'Practising') }}</span>
+        <span class="practising-banner__note">{{ t('player.practisingBannerNote', 'New material comes back when your connection does.') }}</span>
       </div>
 
       <!-- Phase strip — a single pill divided into four segments. One
@@ -17983,12 +18039,13 @@ defineExpose({
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
 }
 
-/* Consolidating banner — the "playing from what's on the device" status.
+/* Practising banner — the "playing from what's on the device" status.
    Deliberately quieter than the audio-failure chip: warm neutral, no border
    emphasis, no pointer affordance. It is information, not a problem, and not
    a milestone. Same pill geometry as the failure banner so the slot reads
-   consistently whichever one is up. */
-.consolidating-banner {
+   consistently whichever one is up. The word carries the state; the note under
+   it is deliberately the quieter of the two. */
+.practising-banner {
   display: block;
   padding: 0.5rem 1rem;
   margin: 0.5rem auto;
@@ -18000,6 +18057,18 @@ defineExpose({
   font-size: 0.85rem;
   text-align: center;
   line-height: 1.3;
+}
+
+.practising-banner__word {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary, #3a3632);
+}
+
+.practising-banner__note {
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.85;
 }
 
 /* Audio-failure banner. Default styling = needs-gesture (blue, neutral
