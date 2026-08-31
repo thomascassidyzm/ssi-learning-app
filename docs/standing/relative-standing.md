@@ -1,6 +1,6 @@
 # Relative standing — the one comparison the doctrine allows
 
-**Live on staging** · `staging.saysomethingin.app` · branch `staging` at `64276f87` · 2026-08-31
+**Live on staging** · `staging.saysomethingin.app` · branch `staging` at `aa7aafdf` · 2026-08-31
 
 You asked whether we could improve the gamification "without sacrificing our gamification done
 right perspective — i.e. placing people in the top X% type thing". Short version: **yes, and it is
@@ -47,23 +47,34 @@ every choice below. **The top-5 list stays deleted. I did not build it.**
 
 ---
 
-## 3. What I built
+## 3. What I built — and how to see it on your phone right now
 
-A panel in the Library, above Activity. Two sentences and a strip:
+A panel in the Library, above Activity. Two sentences and a strip.
 
-![The standing panel, with a cohort](panel-with-cohort.png)
+Because the honesty gate (§5) means it is invisible on real data, there is a way to look at it.
+Open this on your phone, then tap the Library button (bottom-left grid icon):
 
-And below the halfway mark, this — the collective line, and nothing else:
+```
+https://staging.saysomethingin.app/?standing=72
+```
 
-![The standing panel below the halfway mark](panel-below-median.png)
+Change the number to see the other state — `?standing=18` is a learner below the halfway mark.
+Anything drawn this way says **"Sample data — not your real numbers."** underneath it, and the
+parameter is ignored unless you type it deliberately.
 
-That second state is a change I made after photographing the first one. The panel already
-suppressed the percentage below the halfway mark, on the grounds that "further along than 12% of
-people" is a shortfall dressed as a statistic. But the **strip** was still being drawn, with the
-marker over on the left — which states the same shortfall graphically, and more viscerally than
-the number would have. Suppressing the figure while drawing the picture was a fig leaf, so below
-the mark the panel now keeps the collective line and nothing else. It is about belonging rather
-than rank, which is the half of the standing widget that is meant to be for everybody.
+**Verified live on staging, 2026-08-31**, in the real Library on a phone-sized viewport: the panel
+renders, reads "You are one of 34 people who started this course around the same time as you" and
+"You are further along than 72% of them", carries the strip with the marker at 72% and the sample
+label — and shows no course-position number anywhere.
+
+At `?standing=18` the panel collapses to the collective line alone. That second state is a change
+I made after photographing the first one. The panel already suppressed the percentage below the
+halfway mark, on the grounds that "further along than 12% of people" is a shortfall dressed as a
+statistic. But the **strip** was still being drawn, with the marker over on the left — which states
+the same shortfall graphically, and more viscerally than the number would have. Suppressing the
+figure while drawing the picture was a fig leaf, so below the mark the panel now keeps the
+collective line and nothing else. It is about belonging rather than rank, which is the half of the
+standing widget that is meant to be for everybody.
 
 Three properties keep it on the right side of the doctrine, and all three are enforced by test, not
 by good intentions:
@@ -132,10 +143,8 @@ floor k>=10: placed  84  refused 188  of which shown a percentage 31
 floor k>= 5: placed 216  refused  56  of which shown a percentage 76
 ```
 
-And this is the Library on staging as a learner sees it today — the panel correctly absent between
-"How this works" and "Activity", the rest of the screen untouched:
-
-![The Library on staging, gate closed](library-gate-closed.png)
+Without that parameter, the Library on staging shows the panel correctly absent between "How this
+works" and "Activity", with the rest of the screen untouched — verified in a browser on staging.
 
 **At the shipped floor, nobody gets a number. Zero out of 272.** The largest genuine single-course
 cohort is 19 people (Afrikaans). The arithmetic demonstrably works — drop the floor and it produces
@@ -171,7 +180,19 @@ before it ever reaches anybody.
 - **Any notification or email about standing.** Ever. That is the delivery mechanism of every
   mechanic this doctrine exists to refuse.
 
-## 7. Two calls that are yours, not mine
+## 7. One explicit gap
+
+**The command surface cannot deliver images.** Its markdown renderer prints `![...]()` as literal
+text and escapes raw `<img>` HTML, `/api/upload` returns a filesystem path with nothing serving it
+over HTTP, and GitHub links are banned as deliverables to you. So I could not put the screenshots
+in front of you, and I am reporting that rather than pretending the PNGs in the repo count as
+delivered. The `?standing=72` link above is the substitute, and it is honestly a better one — it is
+the real component on your real phone at real size, rather than my picture of it.
+
+The screenshots do exist, on the `staging` branch under `docs/standing/`, for whenever the surface
+grows image support.
+
+## 8. Two calls that are yours, not mine
 
 1. **The reversal itself.** You deleted the percentile on 2026-08-03 saying "comparison is not the
    instrument". I have built it because you asked today, and flagged it because you may not have
