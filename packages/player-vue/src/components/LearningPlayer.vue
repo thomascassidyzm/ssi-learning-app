@@ -1146,7 +1146,35 @@ const endClassSessionTracking = async () => {
  * real revisits. Round-completion writes still go through saveRoundProgress
  * which is forward-only — the bug-overwrite safety net stays in place.
  */
+/**
+ * CONSOLIDATING WRITES NOTHING. Tom's ruling, 2026-08-31.
+ *
+ * While the app is playing from cache because it could not reach new content,
+ * NO LEGO PROGRESS IS CAPTURED AT ALL — no cursor advance, no cursor stamp, no
+ * ceiling ratchet, no completion mark, no infinite-play derivation or entry.
+ *
+ * This is deliberately a blunter instrument than a smarter is-this-really-
+ * infinite-play check, and that is the point: the corruption route closes BY
+ * CONSTRUCTION rather than by a check being right every time. A weak connection
+ * cannot move a learner if nothing about their position is written down.
+ *
+ * The learner still HEARS everything — playback is untouched. It is only the
+ * writing that stops. And nothing is lost by stopping it: the material being
+ * recycled is, by definition, work they have already done, so there is no new
+ * progress to record. A learner practising through a dead connection earns no
+ * recorded progress for that stretch. That is accepted and correct.
+ *
+ * Gated at the WRITE PRIMITIVES rather than at their ~20 call sites, so a
+ * caller added later is covered without anyone having to remember this rule.
+ */
+const consolidatingBlocksProgressWrite = (what: string): boolean => {
+  if (!isConsolidating.value) return false
+  console.log(`[LearningPlayer] CONSOLIDATING — ${what} not written`)
+  return true
+}
+
 const setRemoteCursor = async (legoId: string, roundIndex: number) => {
+  if (consolidatingBlocksProgressWrite('remote cursor')) return
   if (isGuestLearner.value || !progressStore?.value || !legoId) return
   try {
     await activeProgressStore.value.setEnrollmentCursor(
@@ -1169,6 +1197,7 @@ const setRemoteCursor = async (legoId: string, roundIndex: number) => {
  *  bar reflects current truth without needing a page reload. The DB
  *  trigger does this on its side; this keeps the client in sync. */
 const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => {
+  if (consolidatingBlocksProgressWrite('local ceiling ratchet')) return
   if (typeof roundIndex !== 'number' || !legoId) return
   if (highestCompletedRoundIndex.value === null || roundIndex > highestCompletedRoundIndex.value) {
     highestCompletedRoundIndex.value = roundIndex
@@ -1177,6 +1206,7 @@ const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => 
 }
 
 const persistCursorAtCurrentRound = async () => {
+  if (consolidatingBlocksProgressWrite('cursor at current round')) return
   const round = simplePlayer.currentRound.value
   const idx = simplePlayer.roundIndex.value
   if (!round?.legoId || typeof idx !== 'number') return
@@ -1207,6 +1237,7 @@ const persistCursorAtCurrentRound = async () => {
 // setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
 // never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
 const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
+  if (consolidatingBlocksProgressWrite('live position')) return
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -1228,6 +1259,10 @@ const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true
 }
 
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
+  // This is the function that used to stamp the cursor to the course's final
+  // LEGO off nothing but a round's shape. Under CONSOLIDATING it does not run
+  // at all, so that route is closed before any reasoning about it begins.
+  if (consolidatingBlocksProgressWrite('round progress')) return
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
     return
@@ -1539,12 +1574,16 @@ const flushCursor = () => {
   if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
   const p = pendingCursor
   pendingCursor = null
+  // A write queued BEFORE the mode engaged must not land after it: the 60s
+  // throttle means one can be in flight at the moment the connection drops.
+  if (consolidatingBlocksProgressWrite('queued current cycle')) return
   if (!p || !progressStore?.value) return
   void activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
     console.warn('[LearningPlayer] Failed to persist current cycle:', err)
   })
 }
 const queueCursor = (learnerId: string, courseId: string, idx: number) => {
+  if (consolidatingBlocksProgressWrite('current cycle')) return
   pendingCursor = { learnerId, courseId, idx }
   if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
 }
@@ -2114,11 +2153,16 @@ simplePlayer.onCycleCompleted((cycle) => {
     }
     // Accumulate locally; flushed in one batch on pause/background/unmount.
     // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
-    pairingsTelemetry.recordCyclePlay({
-      learnerId: learnerId.value,
-      courseCode: courseCode.value,
-      legoIds: firedLegoIds,
-    })
+    // "No progress data at all in terms of LEGOs" includes the per-LEGO fire
+    // counts behind the brain view — recycled review would inflate them against
+    // LEGOs the learner is not actually working on right now.
+    if (!consolidatingBlocksProgressWrite('lego pairings')) {
+      pairingsTelemetry.recordCyclePlay({
+        learnerId: learnerId.value,
+        courseCode: courseCode.value,
+        legoIds: firedLegoIds,
+      })
+    }
   }
 
   // Close the VAD timing window for the cycle that just finished. Under
@@ -3397,6 +3441,9 @@ const extractSeedNumber = (seedId: string): number => {
  * This ensures position is valid across script regeneration
  */
 const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = true) => {
+  // The local snapshot is a position record like any other — and it is the one
+  // resume reads first, so leaving it writable would reopen the route locally.
+  if (consolidatingBlocksProgressWrite('local position')) return
   if (!courseCode.value) return
 
   const round = currentRound.value
@@ -4425,7 +4472,7 @@ const isRecycledRoundPlayback = computed(() =>
   isInfPlayActive.value || offlineRecycleBeltHeld.value
 )
 
-// CONSOLIDATING — the third state, named at last (Tom, 2026-08-31).
+// CONSOLIDATING — the third player MODE (Tom's ruling, 2026-08-31).
 //
 // There were only ever two states in the learner's head: working through new
 // material, and INFINITE PLAY at the end of the course. So a session that
@@ -4434,12 +4481,25 @@ const isRecycledRoundPlayback = computed(() =>
 // LOOKED right, but nothing on screen said why the same phrases kept coming
 // round, and the round shape leaked into the cursor.
 //
-// This is that missing state, and it is neither of the other two: we are
-// playing what is on the device because we cannot fetch anything new. It says
-// nothing about the learner's progress — they have finished nothing, they have
-// gone nowhere — and it is not an error either: the audio never stops, and new
-// material resumes the moment it can be reached. It clears itself the instant a
-// real main-loop round plays (see the round-entry watcher below).
+// This is that missing mode, and it is neither of the other two: we are playing
+// what is on the device because we cannot fetch anything new. It says nothing
+// about the learner's progress — they have finished nothing, they have gone
+// nowhere — and it is not an error either: the audio never stops.
+//
+// Its contract is that it WRITES NOTHING about LEGO progress — see
+// consolidatingBlocksProgressWrite, which gates every write primitive. So the
+// mode cannot move a learner even in principle, and leaving it resumes normal
+// behaviour from the learner's position exactly as it stood on entry.
+//
+// SCOPE. This is the cache RECYCLE fallback — appendCachedLoopForOffline, which
+// draws only 'use'/'spaced_rep' cycles, i.e. material already covered. It is
+// deliberately NOT raised by appendForwardFromCacheOffline: that path plays
+// genuinely NEW cached rounds the learner has never done, forward through the
+// course, and progress made there is real progress and is recorded as such.
+// The mode tracks "we ran out of new material", not "we are offline".
+//
+// It clears itself the instant a real main-loop round plays (see the round-entry
+// watcher below), and normal writing resumes with it.
 const isConsolidating = computed(() =>
   offlineRecycleBeltHeld.value && currentMode.value !== 'infplay'
 )
@@ -11920,6 +11980,10 @@ const appendCachedLoopForOffline = (): number => {
     // the right answer for a learner with no recorded cursor yet.
     if (cursorSeed != null) beltFreezeSeed.value = cursorSeed
     offlineRecycleBeltHeld.value = true
+    // Entering CONSOLIDATING. Drop any throttled cursor write still pending —
+    // the 60s window means one can be sitting in the queue at the moment the
+    // connection dies, and it must not land from inside the mode.
+    cancelPendingCursor()
   }
   return loopRounds.length
 }
