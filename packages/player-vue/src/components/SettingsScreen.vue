@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, onBeforeUnmount } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
@@ -7,7 +7,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
-import { isContentBlackoutActive, setContentBlackout } from '../playback/contentBlackout'
+import { isContentBlackoutActive, setContentBlackout, lastBlackoutProbe } from '../playback/contentBlackout'
 import { useTestDoorPermission } from '../composables/useTestDoorPermission'
 import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
@@ -1051,13 +1051,42 @@ onMounted(async () => {
  * real probe NOW rather than at the next round advance, which could be minutes
  * away. Without it the switch would appear not to work for whoever tapped it.
  */
+/**
+ * The switch's own verdict, polled while the panel is open.
+ *
+ * `lastBlackoutProbe()` is a plain module value, not a ref — the player writes
+ * it from a code path that must stay free of this component. A 500ms poll for
+ * as long as a settings panel is open is cheaper than plumbing reactivity
+ * through the playback layer for one admin control, and it cannot go stale in
+ * a way anybody would notice.
+ */
+const blackoutProbe = ref(lastBlackoutProbe())
+let blackoutProbeTimer: ReturnType<typeof setInterval> | null = null
+
 const toggleContentBlackout = () => {
   // Belt and braces with the v-if: the row cannot be tapped without the grant,
   // and the handler refuses without it too, so a stray call path can't arm it.
   if (!testDoorsAllowed.value) return
   simulateContentBlackout.value = setContentBlackout(!simulateContentBlackout.value)
+  // setContentBlackout cleared the previous verdict; mirror that immediately so
+  // the line does not show the LAST throw's answer under THIS one.
+  blackoutProbe.value = null
   dispatchSettingChanged('simulateContentBlackout', simulateContentBlackout.value)
+  // The player answers the event with the real probe. It is a network round
+  // trip, so watch for the verdict rather than reading it on the next tick.
+  if (blackoutProbeTimer) clearInterval(blackoutProbeTimer)
+  let ticks = 0
+  blackoutProbeTimer = setInterval(() => {
+    blackoutProbe.value = lastBlackoutProbe()
+    // 30s: long enough to cover the 9s fetch budget twice over, short enough
+    // that a panel left open all session is not polling forever.
+    if (blackoutProbe.value || ++ticks > 60) {
+      clearInterval(blackoutProbeTimer!)
+      blackoutProbeTimer = null
+    }
+  }, 500)
 }
+onBeforeUnmount(() => { if (blackoutProbeTimer) clearInterval(blackoutProbeTimer) })
 
 const toggleListeningMode = () => {
   showListeningMode.value = !showListeningMode.value
@@ -2301,6 +2330,16 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Practising Mode (test)</span>
               <span class="setting-desc">Makes the next new LEGO unreachable, so the real practising trigger fires. Play carries on from the cache and your position is frozen while it holds. Turn it off here to watch normal play resume. Resets itself when the app restarts.</span>
+              <!-- WHAT IT ACTUALLY DID. Two of the four outcomes leave the mode
+                   alone by design, so without this line a correct no-op and a
+                   broken switch look identical — which is exactly how a live
+                   session came to be unsettleable (2026-08-31). -->
+              <span
+                v-if="blackoutProbe"
+                class="setting-verdict"
+                :class="{ 'is-engaged': blackoutProbe.practising, 'is-inert': !blackoutProbe.practising && simulateContentBlackout }"
+              >{{ blackoutProbe.message }}</span>
+              <span v-else-if="simulateContentBlackout" class="setting-verdict">Checking…</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': simulateContentBlackout }">
               <div class="toggle-track">
@@ -2783,6 +2822,19 @@ const confirmReset = async () => {
   font-size: 0.8125rem;
   color: var(--success, #22c55e);
 }
+
+/* The practising test switch's verdict. Muted by default (it is a neutral
+   statement of fact), green when the mode genuinely engaged, amber when the
+   switch is ON and the mode did NOT move — the case that used to be silent. */
+.setting-verdict {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+.setting-verdict.is-engaged { color: var(--success, #22c55e); }
+.setting-verdict.is-inert { color: var(--warning, #d97706); }
 
 .setting-status.error {
   color: var(--error, #ef4444);

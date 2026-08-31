@@ -1486,7 +1486,18 @@ export function useInstantPlayback(
     if (!map || !lego) return 'skipped'
 
     const idx = map.rounds.findIndex((r) => r.legoId === lego)
-    const next = idx >= 0 ? map.rounds[idx + 1] : null
+    // THE LEARNER'S LEGO IS NOT IN THE MAP. This used to fall into the same
+    // `no-next` as a genuine course end, which claims a fact about the CONTENT
+    // ("there is nothing after this") off the back of a fact about OURSELVES
+    // ("we cannot find where they are"). They are not the same thing, and the
+    // difference matters the moment anyone tries to read the practising
+    // telemetry afterwards: one is the course ending, the other is a cursor
+    // that has drifted out of the map — a belt jump into a stale map, an
+    // INF-PLAY round id, a course whose map was rebuilt underneath a live
+    // session. Neither moves the mode, so nothing about behaviour changes;
+    // 'skipped' simply stops the row lying about which one happened.
+    if (idx < 0) return 'skipped'
+    const next = map.rounds[idx + 1]
     // No round after this one is the COURSE'S OWN END, and the caller must be
     // able to tell that apart from a fetch that failed: one is a fact about
     // the content, the other is the trigger for PRACTISING mode.
@@ -1623,6 +1634,11 @@ export function useInstantPlayback(
     // Navigation helpers (player layer uses these to keep the
     // composable in sync with playback position).
     setCurrentLegoId,
+    // Read-only for telemetry: this is the exact anchor `prefetchTier3` walks
+    // the round-map from, so a practising row that carries it can be checked
+    // against the map afterwards — which is how "the cursor was not in the
+    // map" gets told apart from "the course genuinely ended".
+    currentLegoId,
     getBufferedCyclesForLego,
     isLegoComplete,
 

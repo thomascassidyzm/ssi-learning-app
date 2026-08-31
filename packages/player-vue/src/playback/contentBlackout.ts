@@ -47,6 +47,7 @@
  */
 
 let blackoutActive = false
+let lastProbe: BlackoutProbeReport | null = null
 
 /** True while the admin test switch is holding content unreachable. */
 export function isContentBlackoutActive(): boolean {
@@ -59,6 +60,9 @@ export function isContentBlackoutActive(): boolean {
  */
 export function setContentBlackout(on: boolean): boolean {
   blackoutActive = !!on
+  // A verdict from the previous throw must never sit under a fresh one — that
+  // is the same "you cannot tell what you are looking at" problem one level up.
+  clearBlackoutProbe()
   console.log(
     blackoutActive
       ? '[ContentBlackout] ON — the next new LEGO is now unreachable; PRACTISING should follow on the next round advance or within a minute'
@@ -70,4 +74,59 @@ export function setContentBlackout(on: boolean): boolean {
 /** Test/teardown helper. */
 export function resetContentBlackout(): void {
   blackoutActive = false
+  lastProbe = null
+}
+
+/**
+ * WHAT THE SWITCH ACTUALLY DID, in one line the person who threw it can read.
+ *
+ * Added 2026-08-31, after a live session that nobody could settle. Tom threw
+ * the switch while online, saw belts skip all the way to black, and said: "we
+ * do not know if practising mode really worked". He was right that he could not
+ * know — and neither could anyone else, because the switch had no way of
+ * reporting back. It raises a blackout and returns. Whether the mode then moved
+ * depended on an outcome computed several files away and shown nowhere.
+ *
+ * Two of the four outcomes are DESIGNED to leave the mode alone: 'no-next' (the
+ * round map has no round after this one — the end of the course) and 'skipped'
+ * (we never asked, or the failure was OUR 401/403/429/5xx rather than the
+ * learner's reach). Both are correct. Both are silent. And a silent correct
+ * no-op looks exactly like a switch that is not wired up.
+ *
+ * So the player writes the probe's verdict here and Settings renders it next to
+ * the toggle. The switch now answers the only question worth asking of it: did
+ * the mode move, and if not, why not.
+ */
+export type BlackoutProbeReport = {
+  /** The tier-3 outcome, verbatim. */
+  outcome: 'fetched' | 'failed' | 'no-next' | 'skipped'
+  /** Where the mode ended up after the state machine saw that outcome. */
+  practising: boolean
+  /** Plain English, for the person holding the phone. */
+  message: string
+  at: number
+}
+
+/** Written by LearningPlayer the moment the probe the switch provoked returns. */
+export function reportBlackoutProbe(
+  outcome: BlackoutProbeReport['outcome'],
+  practising: boolean,
+): void {
+  const message =
+    outcome === 'failed' ? 'Practising mode is ON — the next new LEGO is unreachable.'
+    : outcome === 'fetched' ? 'Content is reachable — practising mode is off.'
+    : outcome === 'no-next' ? "Could not engage: there is no next new LEGO from here — this is the end of the course's new content, so there is nothing for the blackout to take away. Skip back a belt and try again."
+    : 'Could not engage: the check was never made from this position. Play on for a round and it will try again.'
+  lastProbe = { outcome, practising, message, at: Date.now() }
+  console.log(`[ContentBlackout] probe said '${outcome}' → practising=${practising}: ${message}`)
+}
+
+/** Read by SettingsScreen to render the line under the toggle. */
+export function lastBlackoutProbe(): BlackoutProbeReport | null {
+  return lastProbe
+}
+
+/** Cleared with the switch, so a stale verdict never sits under a fresh throw. */
+export function clearBlackoutProbe(): void {
+  lastProbe = null
 }

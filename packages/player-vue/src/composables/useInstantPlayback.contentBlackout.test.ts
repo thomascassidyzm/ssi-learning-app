@@ -80,6 +80,22 @@ describe('content blackout — the admin practising-mode test switch', () => {
   })
   afterEach(() => resetContentBlackout())
 
+  it("says 'skipped' — never 'no-next' — when the cursor is not in the round map", async () => {
+    // 'no-next' is a claim about the CONTENT: there is nothing after this, the
+    // course has ended. A cursor we cannot find in the map is a claim about
+    // OURSELVES. Both leave the mode alone, so behaviour is unchanged — but
+    // conflating them made the practising telemetry lie about which happened,
+    // and that is precisely the read that had to be made after Tom's session
+    // and could not be (2026-08-31).
+    stubHealthyNetwork(NETWORK_COURSE)
+    const instant = await playerAtFirstRound(NETWORK_COURSE)
+    instant.setCurrentLegoId('S9999L99')
+    expect(await instant.prefetchTier3()).toBe('skipped')
+    // And the genuine end of the map still reads as the course's own end.
+    instant.setCurrentLegoId('S0002L01')
+    expect(await instant.prefetchTier3()).toBe('no-next')
+  })
+
   it('is off at rest, so no learner is ever in it by accident', () => {
     expect(isContentBlackoutActive()).toBe(false)
   })
