@@ -5,7 +5,7 @@ metadata:
   title: "Learner Profile / Mirror / Portrait"
   version: "1.1.0"
   date: "2026-08-03"
-  last_updated: "2026-08-19 — the explainer prose now reads live from Popty's published document, with the repo-authored copy as its silent fallback; A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
+  last_updated: "2026-08-31 — the percentile is REOPENED by founder ask and built as system RelativeStanding (the Library, k>=20 real-cohort gate, ranks course progress not time); previously 2026-08-19 — the explainer prose now reads live from Popty's published document, with the repo-authored copy as its silent fallback; A-176: the explainer is diagram-led and the diagram is the player's own phase pill; the player screen itself sits under the intro as a small tappable shot that opens full-width with its four things named; the streaks copy now states our choice honestly, without a claim we cannot know and without an opinion about anyone else's app"
   author: "SSi Team"
   status: "preview — shipped to dev on the unlinked /me route"
   source: "founder design session 2026-08-03"
@@ -33,6 +33,35 @@ ruling SupersedesGamificationMechanics:
     ruling goes further: numbers exist ONLY as descriptive insights the learner
     could count themselves — goes, minutes, milliseconds. A hidden formula still
     survives, but it produces an ESTIMATE OF WHERE THEY ARE, never a reward.
+
+ruling PercentileReopened:
+  date: "2026-08-31"
+  status: "REOPENS one line of the 2026-08-03 ruling above — read both together"
+  founder_ask: |
+    "maybe we also look at the learning app and see if we can improve the
+    gamification of it, without sacrificing our gamification done right
+    perspective - i.e. placing people in the top X % type thing"
+  what_this_changes:
+    percentile: "UN-DELETED, narrowly — see system RelativeStanding below"
+    top_5_leaderboard: "STILL DELETED — not re-opened, and not built"
+    visible_points_per_cycle: "STILL DELETED"
+    evolution_score: "STILL DELETED"
+  the_tension_stated_plainly: |
+    The 2026-08-03 ruling deleted the percentile with the reason "comparison is
+    not the instrument". The 2026-08-31 ask is for comparison. That is a genuine
+    reversal by the founder of his own ruling, not a reading of it, and it is
+    recorded here as such rather than reconciled away.
+  how_the_older_rationale_is_still_honoured: |
+    The surviving half of the 2026-08-03 reason — numbers are DESCRIPTIVE, never
+    a reward — is binding on the new system and shapes every choice in it. The
+    standing figure is not earned, does not accrue, has no formula to reverse-
+    engineer, and buys nothing. It is a description of where the learner is
+    standing among people like them, which is the same category as "goes" and
+    "minutes": a fact, not a prize.
+  cost_of_being_wrong_is_currently_zero: |
+    The honesty gate (k >= 20 real learners per cohort) means no real learner
+    sees a percentile on the live database today. So the reversal can be tasted
+    before it reaches anybody, and re-ruled at no cost.
 
 # =============================================================================
 # THE THREE LAYERS
@@ -76,6 +105,56 @@ layer EstimateLevel:
   surfaced_as: "a notional CEFR band with an interval that visibly narrows"
   never: "a test result; a pass/fail; a score"
   confidence: "from sample volume, saturating — the interval collapses as it settles"
+
+# =============================================================================
+# RELATIVE STANDING — the one comparison, added 2026-08-31
+# =============================================================================
+
+system RelativeStanding:
+  question_it_answers: "am I doing OK? — which is a real question learners have, and nothing else on any surface answers"
+  lives: "the Library (BrowseScreen), above Activity"
+  built: "api/me/standing.ts · components/me/StandingPanel.vue"
+  metric:
+    is: "course_enrollments.highest_completed_lego_id — how far through the course"
+    is_not: "minutes, sessions, goes, or any measure of time in the app"
+    why: |
+      Ranking on time rewards grinding over understanding, which the doctrine
+      forbids. Ranking on progress cannot: sitting in the app does not move it.
+  cohort:
+    rung_1: "same course AND same enrolment quarter — started the same thing at the same time"
+    rung_2: "same course, any start time"
+    rung_3: "NONE — it never pools across courses, because that comparison is not true"
+    floor: "k >= 20 eligible learners, or no number at all"
+    eligibility: "excludes is_demo, is_internal, is_class_entity, tester, ssi_admin"
+  three_properties_that_keep_it_doctrinal:
+    ranks_progress_not_time: "grinding cannot move it"
+    cannot_express_absence: |
+      highest_completed_lego_id is a HIGH-WATER MARK, so the learner's own value
+      never falls. There is no window and no decay. A windowed percentile would
+      be a streak in disguise — it would drop while the learner was away, which
+      hands the system the ability to say "you have slipped". This one cannot.
+    only_counts_who_you_are_ahead_of: "aheadOfPct — never a rank, never a 'behind N%'"
+  never:
+    - "a rank number"
+    - "a named or initialled peer — no top 5, at any cohort size"
+    - "a course position rendered as a figure (position is a LEGO, not a number)"
+    - "a percentage below the halfway mark — the collective line stands alone there"
+    - "any notification or email, ever"
+  asymmetry_is_deliberate: |
+    Everyone in a large-enough cohort gets the collective line ("you are one of
+    N people who started around the same time as you") because relatedness is
+    for everyone. The percentage is additional and appears only above the
+    halfway mark. "You are further along than 8% of people" is a shortfall
+    dressed as a statistic — the "not there yet" framing the doctrine bans.
+    Selective, never false.
+  measured_state_2026_08_31: |
+    Of 1,136 learner rows, 723 are demo, 76 are CLASS ENTITIES ("Grade 6A",
+    "Blwyddyn 5", "Year 7 Blue" — not people), 19 internal, 5 testers, 12
+    ssi_admins. That leaves 346 real individuals, 88 of whom have ever reached
+    a position, spread across 53 courses. NO cohort clears k=20; the largest
+    real single-course cohort is 19. So the panel renders nothing for every real
+    learner today, and lights up on its own when real cohorts arrive.
+  enforced_in: "api/me/standing.test.ts · components/me/StandingPanel.test.ts"
 
 # =============================================================================
 # THE PLAN

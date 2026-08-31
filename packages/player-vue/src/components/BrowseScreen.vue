@@ -7,6 +7,7 @@ import { courseTargetName } from '@/utils/courseDisplayName'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
+import StandingPanel from '@/components/me/StandingPanel.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
@@ -583,6 +584,14 @@ onMounted(() => {
       <section class="section how-this-works-section">
         <HowThisWorksLibrary :viewer-id="explainerViewerId" :is-guest="isGuest" />
       </section>
+
+      <!-- ── Where you are — the one comparison the doctrine allows.
+           Renders NOTHING unless the cohort of real learners who started this
+           course clears the k-anonymity floor, which is the honest default
+           today. No heading: a "Where you are" label sitting above an empty
+           space would announce a missing number, and the panel's whole job is
+           to be silent rather than assert one. -->
+      <StandingPanel :course-code="activeCourse?.course_code" />
 
       <!-- ── Section 3: Activity ── -->
       <section class="section">
