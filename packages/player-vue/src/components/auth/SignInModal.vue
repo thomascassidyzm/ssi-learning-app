@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
+import { CONFIG_UNAVAILABLE_MESSAGE } from '@/config/env'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 
 const { isOpen, inviteCodeMode, close } = useAuthModal()
@@ -24,6 +25,8 @@ const usePassword = ref(false)
 const step = ref<'code' | 'context' | 'email' | 'verify'>('email')
 const isLoading = ref(false)
 const error = ref('')
+// Sign-in succeeded but the pending code did not redeem — see handlePostAuth.
+const redeemFailed = ref(false)
 
 // Invite code input
 const codeInput = ref('')
@@ -46,6 +49,7 @@ watch(isOpen, (open) => {
     password.value = ''
     usePassword.value = false
     error.value = ''
+    redeemFailed.value = false
     codeInput.value = ''
     // Don't clear pendingCode on close — user may reopen to complete redemption.
     // It's cleared after successful redemption in handlePostAuth.
@@ -143,7 +147,7 @@ const contextDescription = computed(() => {
 const handleSendCode = async () => {
   const client = supabaseClient?.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
 
@@ -175,7 +179,7 @@ const handleSendCode = async () => {
 const handlePasswordSignIn = async () => {
   const client = supabaseClient?.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
 
@@ -214,7 +218,11 @@ const handleEmailSubmit = () => {
 
 const handleVerify = async () => {
   const client = supabaseClient?.value
-  if (!client) return
+  if (!client) {
+    // Was a bare `return` — the Verify button did nothing at all, forever.
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
+    return
+  }
 
   isLoading.value = true
   error.value = ''
@@ -251,36 +259,95 @@ const handleVerify = async () => {
   }
 }
 
-// Post-auth: redeem invite code if pending, then emit success
-const handlePostAuth = async () => {
-  if (pendingCode.value) {
-    try {
-      const client = supabaseClient?.value
-      if (client) {
-        const { data: { session } } = await client.auth.getSession()
-        const token = session?.access_token
-        if (token) {
-          const redeemResult = await redeemCode(token)
-          if (redeemResult.success) {
-            emit('success', { role: redeemResult.role, redirectTo: redeemResult.redirectTo })
-            close()
-            return
-          }
-          console.error('[AuthModal] Code redemption failed:', redeemResult.error)
-        }
-      }
-    } catch (err) {
-      console.error('[AuthModal] Code redemption error:', err)
-    }
+// Post-auth: redeem invite code if pending, then emit success.
+//
+// This is the MONEY PATH: the pending code may be a class place or an
+// entitlement someone has paid for. Until 2026-08-31 every failure here fell
+// straight through to `emit('success')` — the learner was told they were
+// signed in and in the class when they had been added to nothing and granted
+// nothing, and the only trace was a console line. Two variants of the same
+// hole: a redemption that ran and failed, and a MISSING Supabase client or
+// access token, where redemption was skipped entirely and success was still
+// declared.
+//
+// The full Redeem Code screen (views/RedeemCode.vue, doRedeem) has always
+// checked the result before declaring success. This path now behaves the same:
+// on failure it does NOT emit success, does NOT close, tells the learner
+// plainly what happened, and leaves the code PENDING so Try again can re-run
+// it. `useInviteCode.redeemCode` only clears pendingCode on success, so the
+// code survives untouched for the retry.
+type RedeemOutcome =
+  | { ok: true; role?: string; redirectTo?: string }
+  | { ok: false; reason: string }
+
+const redeemPendingCode = async (): Promise<RedeemOutcome> => {
+  try {
+    const client = supabaseClient?.value
+    if (!client) return { ok: false, reason: 'no_supabase_client' }
+    const { data: { session } } = await client.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { ok: false, reason: 'no_access_token' }
+    const result = await redeemCode(token)
+    if (result.success) return { ok: true, role: result.role, redirectTo: result.redirectTo }
+    return { ok: false, reason: result.error || 'redeem_failed' }
+  } catch (err: any) {
+    return { ok: false, reason: err?.message || 'redeem_threw' }
   }
-  emit('success')
+}
+
+// One version, deliberately. It is OUR failure, so it does not tell the
+// learner to check anything of theirs, and it says their code is not lost.
+const REDEEM_FAILED_MESSAGE =
+  "You're signed in, but we couldn't add your code to your account. Your code is safe — tap Try again."
+
+const handlePostAuth = async () => {
+  if (!pendingCode.value) {
+    emit('success')
+    close()
+    return
+  }
+
+  const outcome = await redeemPendingCode()
+  if (!outcome.ok) {
+    // console.error, not console.log — production strips log/info/debug via
+    // the vite esbuild pure list, which is why this class of failure has been
+    // invisible to us in the field.
+    console.error('[SignInModal] Code redemption failed after sign-in:', outcome.reason)
+    loginCodeAudit.codeRedemptionFailed(
+      email.value,
+      outcome.reason,
+      pendingCode.value?.codeKind ?? null,
+    )
+    redeemFailed.value = true
+    error.value = REDEEM_FAILED_MESSAGE
+    return
+  }
+
+  redeemFailed.value = false
+  emit('success', { role: outcome.role, redirectTo: outcome.redirectTo })
   close()
+}
+
+// Retry the redemption alone — the learner is already authenticated, so this
+// re-runs only the part that failed.
+const retryRedeem = async () => {
+  if (isLoading.value) return
+  isLoading.value = true
+  error.value = ''
+  try {
+    await handlePostAuth()
+  } finally {
+    isLoading.value = false
+  }
 }
 
 // Resend verification code
 const resendCode = async () => {
   const client = supabaseClient?.value
-  if (!client) return
+  if (!client) {
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
+    return
+  }
 
   showDeliveryHint.value = true
   try {
@@ -391,6 +458,24 @@ const handleClose = () => {
         </div>
       </Transition>
 
+      <!-- Sign-in worked, the code did not redeem. The code is still pending,
+           so this retries only the redemption. -->
+      <button
+        v-if="redeemFailed"
+        type="button"
+        class="submit-btn retry-redeem-btn"
+        :class="{ loading: isLoading }"
+        :disabled="isLoading"
+        @click="retryRedeem"
+      >
+        <span v-if="!isLoading">Try again</span>
+        <span v-else class="loading-spinner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+          </svg>
+        </span>
+      </button>
+
       <div class="input-group">
         <label for="auth-email" class="input-label">Email</label>
         <div class="input-wrapper" :class="{ focused: email, invalid: email && !isEmailValid }">
@@ -479,6 +564,24 @@ const handleClose = () => {
         </div>
       </Transition>
 
+      <!-- Sign-in worked, the code did not redeem. The code is still pending,
+           so this retries only the redemption. -->
+      <button
+        v-if="redeemFailed"
+        type="button"
+        class="submit-btn retry-redeem-btn"
+        :class="{ loading: isLoading }"
+        :disabled="isLoading"
+        @click="retryRedeem"
+      >
+        <span v-if="!isLoading">Try again</span>
+        <span v-else class="loading-spinner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+          </svg>
+        </span>
+      </button>
+
       <div class="input-group">
         <label for="auth-code" class="input-label">Verification Code</label>
         <div class="input-wrapper verification-input" :class="{ focused: verificationCode }">
@@ -537,6 +640,10 @@ const handleClose = () => {
 </template>
 
 <style scoped>
+.retry-redeem-btn {
+  margin-top: -0.5rem;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;

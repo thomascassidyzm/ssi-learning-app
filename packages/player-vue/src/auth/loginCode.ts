@@ -37,6 +37,13 @@ export const LOGIN_CODE_FAILED = 'login_code_failed'
  *  Kept distinct so `login_code_failed` never counts the double-tap it fixed. */
 export const LOGIN_CODE_ALREADY_SIGNED_IN = 'login_code_already_signed_in'
 
+/** Sign-in worked, but redeeming the pending invite/entitlement code did NOT.
+ *  This is the money path — the learner may have PAID for the entitlement the
+ *  redemption failed to grant — and it used to be invisible: the failure was
+ *  written to console and the modal then declared success anyway. Greppable on
+ *  purpose. */
+export const CODE_REDEMPTION_FAILED = 'code_redemption_failed'
+
 /** Stable screen slugs — the thing a future investigation greps for. */
 export type LoginCodeScreen =
   | 'sign-in-modal'
@@ -127,6 +134,23 @@ export function useLoginCodeAudit(screen: LoginCodeScreen) {
       emit(LOGIN_CODE_ALREADY_SIGNED_IN, {
         screen,
         email: (email || '').trim().toLowerCase() || null,
+      })
+    },
+    /**
+     * Post-auth code redemption failed. `reason` is a short internal slug or
+     * the server's own error string — NEVER the code itself, same rule as
+     * everything else in this file.
+     */
+    codeRedemptionFailed(
+      email: string | null | undefined,
+      reason: string,
+      codeKind?: string | null,
+    ): void {
+      emit(CODE_REDEMPTION_FAILED, {
+        screen,
+        email: (email || '').trim().toLowerCase() || null,
+        reason: (reason || 'unknown').slice(0, 120),
+        code_kind: codeKind ?? null,
       })
     },
   }
