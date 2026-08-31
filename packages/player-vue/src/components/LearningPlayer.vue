@@ -15788,6 +15788,29 @@ defineExpose({
 
       </div>
 
+      <!-- CONSOLIDATING banner. A DISTINCT state from infinite play, and
+           distinct from a failure: the app is playing what is already on the
+           device because it cannot reach new material right now. It must not
+           imply the learner has finished anything, and it must not read as an
+           error — so it is a calm status pill, not the amber audio-failure
+           chip, and it carries no action because there is nothing for the
+           learner to do. Playback never stops underneath it. Once new content
+           is reachable a real main-loop round clears the state and the pill
+           goes with it. Tom, 2026-08-31.
+           Lives in hero-text-pane, not the old .control-pane — that section
+           has been `display: none !important` since the hero-centric text
+           pane replaced it, so a banner placed there (as this one was,
+           2026-08-31) is never seen (found during staging promotion
+           verification the same day; fixed in place, same day). -->
+      <div
+        v-if="isConsolidating"
+        class="consolidating-banner"
+        role="status"
+        aria-live="polite"
+      >
+        {{ t('player.consolidatingBanner', "Consolidating — going back over what you’ve covered") }}
+      </div>
+
       <!-- Phase strip — a single pill divided into four segments. One
            continuous shape reads as "one cycle, four stages". Sits below
            the hero glass card. pointer-events: auto overrides the
@@ -16334,24 +16357,6 @@ defineExpose({
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
         <!-- Component tiles now rendered inside LegoAssembly -->
-      </div>
-
-      <!-- CONSOLIDATING banner. A DISTINCT state from infinite play, and
-           distinct from a failure: the app is playing what is already on the
-           device because it cannot reach new material right now. It must not
-           imply the learner has finished anything, and it must not read as an
-           error — so it is a calm status pill, not the amber audio-failure
-           chip, and it carries no action because there is nothing for the
-           learner to do. Playback never stops underneath it. Once new content
-           is reachable a real main-loop round clears the state and the pill
-           goes with it. Tom, 2026-08-31. -->
-      <div
-        v-if="isConsolidating"
-        class="consolidating-banner"
-        role="status"
-        aria-live="polite"
-      >
-        {{ t('player.consolidatingBanner', "Consolidating — going back over what you’ve covered") }}
       </div>
 
       <!-- Audio failure banner. Two halt cases:
