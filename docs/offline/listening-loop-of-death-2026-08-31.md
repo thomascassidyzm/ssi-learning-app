@@ -126,7 +126,66 @@ selection rule, including "bookends cached but no sentences ⇒ null" and
 
 ---
 
-## 4. Better × Simpler × Cheaper
+## 4. Verified offline, on the deployed build
+
+Not a mock. Playwright drives Chromium and `context.setOffline(true)` is CDP
+`Network.emulateNetworkConditions(offline: true)` — real network-layer
+disconnection, with the app's own service worker and IndexedDB still serving
+exactly as they would on a phone in airplane mode. Probe:
+`packages/player-vue/e2e/offline-listening-loop-repro.mjs` (written by worker
+#564, which first caught the silent march on the unfixed build).
+
+Scenario each run: boot online, warm ~90s of real audio, go genuinely offline,
+belt-skip 25 taps forward past the cached edge, then watch 120s.
+
+**On staging, after the fix:**
+
+```
+PASS — audio genuinely played online (real warm cache) :: 144 clips
+PASS — navigator.onLine flipped false
+PASS — forward belt-skip taps landed :: 25 taps
+[LearningPlayer] Listening lap has no audio on this device — skipping the exercise entirely (offline)
+[LearningPlayer] L1 cup 22 skipped — its audio isn't on this device
+[LearningPlayer] Listening lap trimmed to what's on this device: 8/36 plays
+[SimplePlayer] Offline and this clip is not on the device — skipping it without touching the network.
+PASS — no LISTENING-cycle stuck-loop-of-death
+```
+
+| | before | after |
+|---|---|---|
+| listening laps selected without their audio | yes — every clean boundary, forever | **none; excluded at selection** |
+| `Retrying audio (attempt 2/2)` over a dead network | on every failed clip | **none** |
+| cycles selected that could not sound | 6 | 3 |
+| longest silent march (app's own alarm) | 18 clips | 9 clips |
+
+The loop Tom hit is closed: no listening exercise is ever selected without its
+audio, and no path retries an unavailable asset.
+
+## 5. What is NOT fixed — stated plainly
+
+**The session can still go silent offline, for a different reason.** Three
+cycles still get selected whose audio is not on the device:
+`S0299L02_infsr_R6_1`, `S0299L02_infsr_R11_1`, `S0298L01_infsr_R16_1`. They are
+`infsr` cycles — INF PLAY revival rounds, built locally from course data after
+the belt-skip ran past the cached edge. In the 120s watch the pane sits on one
+phrase with nothing audible.
+
+They are now skipped without touching the network, so the retry storm and the
+30s timeouts are gone, and the count fell from six cycles to three and from
+eighteen consecutive silent clips to nine. But they should never have been
+*selected*, and that is still Tom's rule unmet.
+
+What the measurement says so far: the audio cache holds **103 real clips, all
+`lifecycle: persistent`, none zero-byte, ~3.1 MB** (read straight out of
+IndexedDB in the offline browser). Those three cycles are at seeds 298-299, far
+outside the warmed range — so `audioCache.persistent.has(id)` should answer
+FALSE and the cull should drop them. It does not, and the engine's
+"all cycles skipped by the runtime cull" log never appears. I have not isolated
+why. Worker **#592** is measuring it directly; I will not guess at it here.
+
+---
+
+## 6. Better × Simpler × Cheaper
 
 - **Better** — the failure mode it removes is the worst class in the app: a
   learner who cannot escape. It also deletes the silent-lap-counts-as-completed
@@ -140,7 +199,7 @@ selection rule, including "bookends cached but no sentences ⇒ null" and
 
 ---
 
-## 5. Open, for Tom
+## 7. Open, for Tom
 
 **Offline telemetry is dropped, so offline faults are invisible.** This one had to
 be reconstructed from a hole in a timeline plus Tom's testimony. A durable offline
