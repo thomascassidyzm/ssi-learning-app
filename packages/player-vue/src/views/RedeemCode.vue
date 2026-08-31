@@ -7,6 +7,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { useSchoolContext } from '../composables/schools/useSchoolContext'
 import { useAuthModal } from '../composables/useAuthModal'
 import { hasLiveSessionFor, useLoginCodeAudit } from '../auth/loginCode'
+import { CONFIG_UNAVAILABLE_MESSAGE } from '../config/env'
 
 // variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
 // §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
@@ -313,7 +314,7 @@ async function validateAndProceed(rawCode: string): Promise<void> {
 async function handlePersonalSignIn() {
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     step.value = 'invalid'
     return
   }
@@ -363,7 +364,7 @@ async function handlePupilSubmit() {
   if (!displayName.value.trim()) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
   isLoading.value = true
@@ -440,7 +441,7 @@ async function handlePossessionSubmit() {
   if (!isEmailValid.value) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
 
@@ -491,7 +492,7 @@ async function handleSendOtp() {
   if (!isEmailValid.value) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
 
@@ -520,7 +521,7 @@ async function handleVerifyOtp() {
   if (otpCode.value.length < 6) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
 
@@ -616,7 +617,7 @@ async function doRedeem() {
   try {
     const client = supabase.value
     if (!client) {
-      error.value = 'App not ready.'
+      error.value = CONFIG_UNAVAILABLE_MESSAGE
       step.value = 'auth'
       return
     }
