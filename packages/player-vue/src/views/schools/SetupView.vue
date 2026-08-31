@@ -91,7 +91,10 @@ async function saveSchool(): Promise<boolean> {
   }
   const school = activeSchool.value || currentSchool.value
   if (!school?.id) {
-    error.value = 'No school context — try signing back in.'
+    // Nothing is wrong with their session: the school row simply hasn't
+    // arrived yet, and a head who types her school's name faster than the
+    // fetch lands was being told to sign back in (dev walk, 2026-08-31).
+    error.value = "Still loading your school — give it a moment and press Continue again."
     return false
   }
   isSavingSchool.value = true
