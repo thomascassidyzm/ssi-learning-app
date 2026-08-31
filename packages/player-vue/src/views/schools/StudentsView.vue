@@ -114,7 +114,7 @@ const needsAttention = computed(() =>
 )
 
 const headlineSubtitle = computed(() =>
-  `${totalCount.value} students · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
+  `${totalCount.value} ${totalCount.value === 1 ? 'student' : 'students'} · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
 )
 
 function viewStudent(s: { learner_id: string; name?: string }) {
@@ -144,10 +144,15 @@ function exportCsv() {
   URL.revokeObjectURL(url)
 }
 
-const showInviteHint = ref(false)
+// "+ Invite students" used to print "Open a class to share it" and stop —
+// a button whose whole answer is the name of somewhere else, with no way
+// there (production walk, 2026-08-31: a new teacher with no class read it as
+// "you're doing this wrong" and had nowhere to go). Every class row on the
+// classes page carries its own Copy-link button, and a teacher with no
+// classes is told so there, so send them to the place that can actually
+// finish the job.
 function handleInvite() {
-  showInviteHint.value = true
-  setTimeout(() => { showInviteHint.value = false }, 5000)
+  router.push(schoolsLink('classes'))
 }
 
 onMounted(() => {
@@ -180,12 +185,6 @@ watch(selectedUser, (newUser) => {
       <span>Couldn't refresh this list — showing the last data loaded. {{ studentsError }}</span>
       <button type="button" class="btn-ghost" @click="fetchStudents()">Retry</button>
     </div>
-
-    <Transition name="fade">
-      <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
-        Students join classes using an invite link. Open a class to share it.
-      </div>
-    </Transition>
 
     <div class="filters-bar schools-card">
       <input
@@ -361,13 +360,6 @@ watch(selectedUser, (newUser) => {
   gap: 8px;
 }
 
-.invite-hint {
-  margin-bottom: 12px;
-  background: #fdf6df;
-  border-color: #f0d97a;
-  color: #5a3e10;
-  font-size: 13px;
-}
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

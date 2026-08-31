@@ -111,8 +111,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // schools.region_code is a FK to `regions` (a fixed 10-row list), so an
+    // unrecognised value fails the WHOLE update — which is how the setup
+    // wizard's free-text "Region" box took the school's NAME down with it and
+    // 500'd step 1 for every new head teacher (production, 2026-08-31). The
+    // name is the thing the caller came here for; a region we don't recognise
+    // is dropped, never fatal.
     const updates: Record<string, unknown> = { school_name: schoolName }
-    if (regionCode) updates.region_code = regionCode
+    if (regionCode) {
+      const { data: knownRegion } = await supabase
+        .from('regions')
+        .select('code')
+        .eq('code', regionCode.toLowerCase())
+        .maybeSingle()
+      if (knownRegion?.code) updates.region_code = knownRegion.code
+      else console.warn('[school/update-profile] ignoring unknown region_code:', regionCode)
+    }
     if (nameConfirmed !== undefined) updates.name_confirmed = nameConfirmed
     if (isTestSchoolName(schoolName)) updates.is_test = true
 

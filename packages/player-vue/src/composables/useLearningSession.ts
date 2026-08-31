@@ -40,12 +40,15 @@ export interface UseLearningSessionOptions {
   courseId?: MaybeRef<string | null | undefined>
   demoItems?: LearningItem[]
   /**
-   * True while the player is CONSOLIDATING — replaying already-covered
-   * material because new content could not be fetched. Suppresses LEGO
-   * progress writes only; usage telemetry is unaffected. Deliberate offline
-   * mode working through a downloaded look-ahead is NOT this.
+   * True while the player is PRACTISING — replaying already-covered material
+   * because the next NEW LEGO could not be fetched. Suppresses LEGO progress
+   * writes only; usage telemetry is unaffected. Being offline is NOT this: a
+   * downloaded look-ahead of genuinely new LEGOs plays and records normally.
    */
-  isConsolidating?: () => boolean
+  /** True while NO LEGO PROGRESS may be written: the PRACTISING mode, or a
+   *  recycled round on the playhead. The caller composes both — see
+   *  progressWritesSuppressed in LearningPlayer. */
+  isPractising?: () => boolean
 }
 
 export interface LearningSessionState {
@@ -67,7 +70,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const demoItems = options.demoItems ?? []
 
   /**
-   * CONSOLIDATING — replaying material because new content could not be
+   * PRACTISING — replaying material because the next new LEGO could not be
    * fetched (Tom's ruling, 2026-08-31). Splits this composable's two jobs:
    * USAGE keeps flowing (items practised, speaking opportunities, session
    * checkpoints, minutes) because the learner genuinely turned up and
@@ -78,7 +81,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
    * through a downloaded look-ahead of genuinely new LEGOs, is the real
    * learning flow and records everything — it just syncs later.
    */
-  const isConsolidating = () => options.isConsolidating?.() === true
+  const isPractising = () => options.isPractising?.() === true
 
   // Lazy accessors — these read refs at call time, not setup time
   const getProgressStore = () => unref(options.progressStore) ?? undefined
@@ -608,19 +611,21 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       return
     }
 
-    // LEGO PROGRESS STOPS HERE while consolidating — but everything above
+    // LEGO PROGRESS STOPS HERE while practising OR while a recycled round is
+    // on the playhead (the caller passes one predicate for both) — but
+    // everything above
     // (itemsPracticed, the opportunities delta, the session checkpoint, the
     // helix engine) has already run, which is the point: the learner's time
     // is recorded, their position is not.
     //
     // Not merely belt-and-braces: the recycle pool is drawn from the CACHED
-    // SCRIPT, which can hold look-ahead rounds. So a consolidating session can
+    // SCRIPT, which can hold look-ahead rounds. So a practising session can
     // surface a USE phrase belonging to a LEGO the learner has never reached —
     // and writing a lego_progress row for it, or ratcheting
     // highest_completed_seed to its seed, would be exactly the inflation the
     // mode exists to prevent.
-    if (isConsolidating()) {
-      console.log('[useLearningSession] CONSOLIDATING — usage recorded, LEGO progress not written for', item.lego.id)
+    if (isPractising()) {
+      console.log('[useLearningSession] PRACTISING — usage recorded, LEGO progress not written for', item.lego.id)
       return
     }
 

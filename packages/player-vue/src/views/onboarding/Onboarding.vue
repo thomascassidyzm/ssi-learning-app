@@ -1092,9 +1092,20 @@ async function continueIn() {
                identity instead (mirrors RedeemCode.vue's confirm step). -->
           <div v-if="isSignedIn" class="ob-field">
             <p class="ob-sub">Continuing as <strong>{{ signedInEmail }}</strong></p>
-            <button type="button" class="ob-link" :disabled="busy" @click="useDifferentEmail">
-              Not you? Sign out
-            </button>
+            <!-- A head who taps her old signup link a second time landed back
+                 on "which language will you teach?" with no way out but picking
+                 one again — the door never said "you already have a school"
+                 (production, 2026-08-31). The dashboard guard bounces anyone
+                 who isn't a member, so this is safe for any signed-in visitor. -->
+            <div class="ob-links">
+              <button type="button" class="ob-link" :disabled="busy" @click="goToDashboard">
+                Already set up? Go to your dashboard
+              </button>
+              <span class="ob-link-sep" aria-hidden="true">·</span>
+              <button type="button" class="ob-link" :disabled="busy" @click="useDifferentEmail">
+                Not you? Sign out
+              </button>
+            </div>
           </div>
 
           <div v-else class="ob-field">
@@ -2328,6 +2339,7 @@ async function continueIn() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: var(--space-3, 0.75rem);
 }
 .ob-link {

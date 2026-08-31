@@ -244,6 +244,22 @@ const showSetupBanner = computed(
     && (home.value?.node?.rollup?.learnerCount ?? 0) === 0,
 )
 
+// The banner survives finishing the wizard (a school with classes but no
+// pupils is still not running), so it must stop telling a head to do the four
+// things she has just done — "name it, invite your teachers…" reads as if the
+// wizard didn't save (production, 2026-08-31). Once a class exists, the only
+// thing left IS the pupils, so say that and point at the classes.
+const setupBannerDone = computed(() => (home.value?.node?.rollup?.classCount ?? 0) > 0)
+const setupBannerTo = computed(() => (setupBannerDone.value ? '/schools/classes' : '/schools/setup'))
+const setupBannerCopy = computed(() =>
+  setupBannerDone.value
+    ? 'Your classes are ready. The last step is your pupils — open a class and share its join link with them.'
+    : 'Set up your school in four quick steps — name it, invite your teachers, choose your courses and get your pupils into a class.',
+)
+const setupBannerCta = computed(() =>
+  setupBannerDone.value ? 'Go to your classes →' : 'Start setup →',
+)
+
 const showConfirmName = computed(
   () => isOwnSchoolNode.value && currentSchool.value?.name_confirmed === false,
 )
@@ -713,13 +729,12 @@ const listPayload = computed(() => {
             <p v-if="schoolNameError" class="first-run-error">{{ schoolNameError }}</p>
           </div>
 
-          <router-link v-if="showSetupBanner" to="/schools/setup" class="schools-card setup-banner">
+          <router-link v-if="showSetupBanner" :to="setupBannerTo" class="schools-card setup-banner">
             <span class="setup-banner-copy">
-              <span class="setup-banner-kicker">Get started</span>
-              Set up your school in four quick steps — name it, invite your
-              teachers, choose your courses and get your pupils into a class.
+              <span class="setup-banner-kicker">{{ setupBannerDone ? 'Last step' : 'Get started' }}</span>
+              {{ setupBannerCopy }}
             </span>
-            <span class="setup-banner-cta">Start setup →</span>
+            <span class="setup-banner-cta">{{ setupBannerCta }}</span>
           </router-link>
 
           <!-- STATS ROW -->

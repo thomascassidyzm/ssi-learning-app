@@ -41,7 +41,7 @@ const RouterLinkStub = {
   template: `<a :href="typeof to === 'string' ? to : ''"><slot /></a>`,
 }
 
-function schoolNodePayload(learnerCount: number) {
+function schoolNodePayload(learnerCount: number, classCount = 3) {
   return {
     kind: 'node',
     node: {
@@ -50,7 +50,7 @@ function schoolNodePayload(learnerCount: number) {
       label: 'school',
       is_demo: false,
       hasSchool: true,
-      rollup: { childGroupCount: 0, teacherCount: 2, classCount: 3, learnerCount },
+      rollup: { childGroupCount: 0, teacherCount: 2, classCount, learnerCount },
       commercial: null,
     },
     ancestors: [],
@@ -79,6 +79,7 @@ type Opts = {
   nameConfirmed?: boolean
   path?: string
   routeId?: string
+  classCount?: number
 }
 
 async function mountNode(opts: Opts = {}) {
@@ -88,13 +89,14 @@ async function mountNode(opts: Opts = {}) {
     nameConfirmed = false,
     path = `/org/${SCHOOL_ID}`,
     routeId = SCHOOL_ID,
+    classCount = 3,
   } = opts
 
   routeMock.params = { id: routeId }
   routeMock.query = {}
   routeMock.path = path
 
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => schoolNodePayload(learnerCount) })))
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => schoolNodePayload(learnerCount, classCount) })))
   setSchoolsClient(fakeClient())
 
   useSchoolContext().currentUser.value = {
@@ -143,8 +145,18 @@ describe('NodeHomeView — school-admin first run on their own school node', () 
     useSchoolContext().currentUser.value = null
   })
 
-  it('offers the setup wizard when the school has classes but ZERO pupils (Chepstow)', async () => {
-    const wrapper = await mountNode({ learnerCount: 0 })
+  // Chepstow: 3 classes made, no pupil ever invited. She has already done the
+  // wizard, so telling her to "name it, invite your teachers, choose your
+  // courses" reads as if none of it saved. The only thing left is the pupils.
+  it('points a school WITH classes and zero pupils at its classes, not the wizard', async () => {
+    const wrapper = await mountNode({ learnerCount: 0, classCount: 3 })
+    expect(setupLinks(wrapper).length).toBe(0)
+    expect(wrapper.findAll('a').filter((a: any) => a.attributes('href') === '/schools/classes').length).toBe(1)
+    expect(wrapper.text()).toContain('The last step is your pupils')
+  })
+
+  it('offers the setup wizard to a school with no classes at all', async () => {
+    const wrapper = await mountNode({ learnerCount: 0, classCount: 0 })
     expect(setupLinks(wrapper).length).toBe(1)
     expect(wrapper.text()).toContain('Start setup')
   })

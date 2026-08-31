@@ -21,6 +21,7 @@ import type {
   LearnerBaselineRecord,
 } from './types';
 import type { LearnerBaseline } from '../learning/types';
+import { reportCursorMove } from './cursorTelemetry';
 
 export interface ProgressStoreConfig {
   /** Supabase client instance */
@@ -258,7 +259,12 @@ export class ProgressStore implements IProgressStore {
     mode: 'main' | 'infplay',
     ratchetHighestTo?: { legoId: string; roundIndex: number }
   ): Promise<void> {
-    const { error } = await this.client
+    // `.select()` here is FREE observability, not an extra round-trip: this
+    // update does not touch the cursor columns, so the row it returns still
+    // holds the PRE-RATCHET cursor that the ratchet below is about to move.
+    // Without it, the one write that has actually relocated learners has no
+    // recorded "from". Failure to read it never blocks the mode write.
+    const { data: beforeRows, error } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
       .update({
@@ -266,10 +272,15 @@ export class ProgressStore implements IProgressStore {
         last_practiced_at: new Date().toISOString(),
       })
       .eq('learner_id', learnerId)
-      .eq('course_id', courseId);
+      .eq('course_id', courseId)
+      .select('last_completed_lego_id, last_completed_round_index');
     if (error) {
       throw new Error(`Failed to set mode: ${error.message}`);
     }
+    const before = (Array.isArray(beforeRows) ? beforeRows[0] : null) as
+      | { last_completed_lego_id: string | null; last_completed_round_index: number | null }
+      | null
+      | undefined;
 
     // First-ever INF PLAY entry: bump counter from 0/null to 1.
     // .or filter ensures we don't overwrite a non-zero lifetime count.
@@ -304,7 +315,12 @@ export class ProgressStore implements IProgressStore {
       // Forward-only via the .or filter — never lowers an existing
       // higher last_completed_lego_id.
       if (ratchetHighestTo) {
-        const { error: rErr } = await this.client
+        // `.select()` returns the rows the forward-only filter actually
+        // matched. Empty = the ratchet was a NO-OP (the learner was already
+        // at or past the final LEGO), which is a completely different fact
+        // from a ratchet that moved someone 1,386 rounds — and until now the
+        // two were indistinguishable from outside.
+        const { data: ratchetedRows, error: rErr } = await this.client
           .schema(this.schema)
           .from('course_enrollments')
           .update({
@@ -312,10 +328,20 @@ export class ProgressStore implements IProgressStore {
           })
           .eq('learner_id', learnerId)
           .eq('course_id', courseId)
-          .or(`last_completed_lego_id.is.null,last_completed_lego_id.lt.${ratchetHighestTo.legoId}`);
+          .or(`last_completed_lego_id.is.null,last_completed_lego_id.lt.${ratchetHighestTo.legoId}`)
+          .select('last_completed_lego_id, last_completed_round_index');
         if (rErr) {
           throw new Error(`Failed to ratchet last_lego on infplay entry: ${rErr.message}`);
         }
+        const moved = Array.isArray(ratchetedRows) && ratchetedRows.length > 0;
+        reportCursorMove({
+          kind: 'infplay_ratchet',
+          fromLegoId: before?.last_completed_lego_id ?? null,
+          fromRoundIndex: before?.last_completed_round_index ?? null,
+          toLegoId: moved ? ratchetHighestTo.legoId : (before?.last_completed_lego_id ?? null),
+          toRoundIndex: before?.last_completed_round_index ?? null,
+          moved,
+        });
       }
     }
   }
@@ -357,7 +383,12 @@ export class ProgressStore implements IProgressStore {
     learnerId: string,
     courseId: string,
     legoId: string,
-    roundIndex: number
+    roundIndex: number,
+    /** Observability only — never affects the write. `reason` names the
+     *  gesture ('belt_jump', 'jump_to_furthest', …) and `from` carries the
+     *  caller's known previous position so a regression is legible without a
+     *  pre-read round-trip on this path. */
+    opts?: { reason?: string; from?: { legoId: string | null; roundIndex: number | null } | null }
   ): Promise<void> {
     const { error } = await this.client
       .schema(this.schema)
@@ -378,6 +409,19 @@ export class ProgressStore implements IProgressStore {
     if (error) {
       throw new Error(`Failed to set enrollment cursor: ${error.message}`);
     }
+
+    // This method has NO forward-only guard by design — it is the one that
+    // can move a learner backwards — so every call is a real, non-linear
+    // move worth a row.
+    reportCursorMove({
+      kind: 'explicit_nav',
+      fromLegoId: opts?.from?.legoId ?? null,
+      fromRoundIndex: opts?.from?.roundIndex ?? null,
+      toLegoId: legoId,
+      toRoundIndex: roundIndex,
+      moved: true,
+      ...(opts?.reason ? { reason: opts.reason } : {}),
+    });
   }
 
   /**

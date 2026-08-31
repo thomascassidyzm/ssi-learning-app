@@ -30,6 +30,7 @@ vi.mock('../_utils/auditSchoolWriteRejection', () => ({
 }))
 
 let DB: {
+  regions: Array<{ code: string }>
   schools: Array<{ id: string; admin_user_id: string | null; school_name: string; region_code: string | null; name_confirmed: boolean | null }>
   user_tags: Array<{ user_id: string; tag_type: string; tag_value: string; role_in_context: string | null; removed_at: string | null }>
 }
@@ -82,6 +83,7 @@ beforeEach(async () => {
   syncNodeSpy.mockClear()
   handler = (await import('./update-profile')).default
   DB = {
+    regions: [{ code: 'wales' }, { code: 'scotland' }],
     schools: [{ id: 'school-1', admin_user_id: 'admin-a', school_name: 'Old Name', region_code: null, name_confirmed: null }],
     user_tags: [],
   }
@@ -136,6 +138,26 @@ describe('POST /api/school/update-profile', () => {
     DB.user_tags.push({ user_id: 'teacher-c', tag_type: 'school', tag_value: 'SCHOOL:school-1', role_in_context: 'teacher', removed_at: null })
     await handler(makeReq({ school_name: 'Hacked Name' }), makeRes())
     expect(syncNodeSpy).not.toHaveBeenCalled()
+  })
+
+  // schools.region_code is a FK to `regions`. An unrecognised value used to
+  // fail the WHOLE update — the setup wizard's free-text Region box 500'd
+  // step 1 and lost the school's name with it (production, 2026-08-31).
+  it('saves the name and DROPS an unrecognised region rather than failing', async () => {
+    authUserId = 'admin-a'
+    const res = makeRes()
+    await handler(makeReq({ school_name: 'Ysgol Bro Banw', region_code: 'Carmarthenshire' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.schools[0].school_name).toBe('Ysgol Bro Banw')
+    expect(DB.schools[0].region_code).toBe(null)
+  })
+
+  it('still stores a region it recognises, case-insensitively', async () => {
+    authUserId = 'admin-a'
+    const res = makeRes()
+    await handler(makeReq({ school_name: 'Ysgol Bro Banw', region_code: 'Wales' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.schools[0].region_code).toBe('wales')
   })
 
   it('400s a missing school_name', async () => {

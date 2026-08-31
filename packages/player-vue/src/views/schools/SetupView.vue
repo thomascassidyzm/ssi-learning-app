@@ -8,7 +8,15 @@
  * Arsenal display font).
  *
  * Persistence wiring:
- *   1. School         — UPDATE schools.school_name / region_code (live)
+ *   1. School         — UPDATE schools.school_name (live). NO region field: it
+ *                       was a free-text box writing schools.region_code, which is
+ *                       a FK to `regions` (10 rows: wales, scotland, ...). Anything
+ *                       a head actually types ("Carmarthenshire", even "Wales")
+ *                       violated the FK, so step 1 of the wizard 500'd with
+ *                       "Failed to update school" and took the school's NAME down
+ *                       with it. region_code is a legacy govt-admin scoping column
+ *                       superseded by group_id; a self-serve school never needs it.
+ *                       (Seen live on production, 2026-08-31 journey walk.)
  *   2. Add staff      — share the teacher/admin invite link (live codes); bulk
  *                       email-invite endpoint TBD (not wired)
  *   3. Choose courses — local selection that filters Step 4's course list;
@@ -52,7 +60,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { n: 1, title: 'Your school', desc: 'Name and region.' },
+  { n: 1, title: 'Your school', desc: 'What your school is called.' },
   { n: 2, title: 'Add staff', desc: 'Share your teacher invite link.' },
   { n: 3, title: 'Choose courses', desc: 'Pick which languages to use for classes.' },
   { n: 4, title: 'Create classes', desc: 'Set up your first classes.' },
@@ -67,13 +75,11 @@ const successMessage = ref<string | null>(null)
 // Step 1 — School profile
 // ---------------------------------------------------------------
 const schoolName = ref('')
-const schoolRegion = ref('')
 const isSavingSchool = ref(false)
 
 function hydrateSchoolForm() {
   const school = activeSchool.value || currentSchool.value
   schoolName.value = school?.school_name || currentUser.value?.school_name || ''
-  schoolRegion.value = school?.region_code || currentUser.value?.region_code || ''
 }
 
 const isStep1Valid = computed(() => schoolName.value.trim().length > 0)
@@ -85,7 +91,10 @@ async function saveSchool(): Promise<boolean> {
   }
   const school = activeSchool.value || currentSchool.value
   if (!school?.id) {
-    error.value = 'No school context — try signing back in.'
+    // Nothing is wrong with their session: the school row simply hasn't
+    // arrived yet, and a head who types her school's name faster than the
+    // fetch lands was being told to sign back in (dev walk, 2026-08-31).
+    error.value = "Still loading your school — give it a moment and press Continue again."
     return false
   }
   isSavingSchool.value = true
@@ -104,7 +113,6 @@ async function saveSchool(): Promise<boolean> {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         school_name: schoolName.value.trim(),
-        region_code: schoolRegion.value.trim() || undefined,
         // Typing the name here IS the confirmation — otherwise a leader who
         // completes the wizard is still shown the "Confirm your school's name"
         // first-run card afterwards, asking for something she has just done.
@@ -148,8 +156,25 @@ function inviteUrl(code: string): string {
 //          (a filter for Step 4 — does NOT grant access)
 // ---------------------------------------------------------------
 const selectedCourses = ref<Set<string>>(new Set())
+const coursesTouched = ref(false)
+
+// Start with everything the school HAS already ticked. A trial school has
+// exactly one course, so an empty default made this step a dead end: one
+// checkbox, Continue greyed out, nothing saying why (production, 2026-08-31).
+// The step is only a filter for step 4, so "all of them" is the honest
+// default — untick to narrow. Once the head has touched it, their choice
+// stands, including an empty one.
+watch(
+  effectiveCourseGrants,
+  (grants) => {
+    if (coursesTouched.value || !grants.length) return
+    selectedCourses.value = new Set(grants.map((g) => g.course_code))
+  },
+  { immediate: true },
+)
 
 function toggleCourse(code: string) {
+  coursesTouched.value = true
   if (selectedCourses.value.has(code)) selectedCourses.value.delete(code)
   else selectedCourses.value.add(code)
   // Reactive copy so Vue picks up Set mutation
@@ -371,16 +396,6 @@ onMounted(() => {
                 autocomplete="organization"
               />
             </label>
-            <label class="field">
-              <span class="field-label">Region</span>
-              <input
-                v-model="schoolRegion"
-                type="text"
-                class="field-input"
-                placeholder="Region"
-                autocomplete="address-level1"
-              />
-            </label>
           </div>
         </section>
 
@@ -441,9 +456,6 @@ onMounted(() => {
               />
               <div class="course-tile-body">
                 <div class="course-tile-name">{{ courseDisplayName(grant) }}</div>
-                <div class="course-tile-meta">
-                  <span class="course-tile-code">{{ grant.course_code }}</span>
-                </div>
               </div>
             </label>
           </div>

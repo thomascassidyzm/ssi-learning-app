@@ -24,7 +24,7 @@ export class ResumeResolutionError extends Error {
 }
 
 export interface RoundMapLike {
-  rounds: Array<{ legoId: string }>
+  rounds: Array<{ legoId: string, seed?: number }>
 }
 
 export interface ResumeStartDeps {
@@ -38,6 +38,8 @@ export interface ResumeStartDeps {
   fetchRoundMap: () => Promise<RoundMapLike>
   onCeilingFallback?: (cursorLegoId: string | null, anchorLegoId: string | null) => void
   onAnchorMissing?: (cursorLegoId: string) => void
+  /** The cursor's own LEGO is gone from the course; we landed on its seed. */
+  onSeedFallback?: (cursorLegoId: string | null, anchorLegoId: string | null) => void
 }
 
 /**
@@ -67,7 +69,17 @@ export async function resolveResumeStart(deps: ResumeStartDeps): Promise<string 
     // Only a learner with neither resolves fresh at R1.
     const map = await deps.fetchRoundMap()
     const findIndex = (legoId: string) => map.rounds.findIndex(r => r.legoId === legoId)
-    const { legoId: anchor, viaCeiling } = resolveResumeAnchor(lastCompletedLegoId, ceilingLegoId, findIndex)
+    // Seed fallback (Tom, 2026-08-31): a cursor whose LEGO the course no longer
+    // has lands on the first LEGO of the seed it was keyed to, ahead of the
+    // ceiling — the learner stays in the seed they were actually working on.
+    const firstLegoOfSeed = (seed: number) =>
+      map.rounds.find(r => r.seed === seed)?.legoId ?? null
+    const { legoId: anchor, viaCeiling, viaSeed } = resolveResumeAnchor(
+      lastCompletedLegoId, ceilingLegoId, findIndex, firstLegoOfSeed,
+    )
+    if (viaSeed) {
+      deps.onSeedFallback?.(lastCompletedLegoId, anchor)
+    }
     if (viaCeiling) {
       deps.onCeilingFallback?.(lastCompletedLegoId, anchor)
     }
