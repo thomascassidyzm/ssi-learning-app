@@ -5488,10 +5488,25 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
   let playsCompleted = 0
   let abortReason: 'completed' | 'audio_error' | 'cancelled' | 'safety_timeout' = 'completed'
 
+  // A LAYER-1 CUP IS NOT A POD DIALOGUE, and until now the record could not
+  // tell them apart. L1 laps are shaped into a PodLap and played down this
+  // exact path (see the L1 block in handleRoundBoundaryBody), so both emit
+  // `pod_lap_start` / `pod_lap_end` under the same name with the same fields.
+  //
+  // Tom, 2026-08-31, on a session showing "6 seed slots and 0 pods" while
+  // pod_lap events were plainly firing: the two readings look contradictory and
+  // they are not — the laps that fired were L1 cups. The only way to tell from
+  // the data was the `role` on the child audio_play rows ('ps'/'trans' = L1),
+  // which is not something anybody should have to know.
+  //
+  // One boolean, no behaviour change, and the two stop sharing a name.
+  const isLayer1Lap = lap.plays.length > 0 && lap.plays.every((p) => p.isLayer1 === true)
+
   logEvent('pod_lap_start', {
     podRound: lap.podRound,
     plays: lap.plays.length,
     omitIntro,
+    isLayer1: isLayer1Lap,
   })
 
   const handleSegmentResult = (
@@ -5596,6 +5611,7 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
     currentPodLapPlays.value = null
     logEvent('pod_lap_end', {
       podRound: lap.podRound,
+      isLayer1: isLayer1Lap,
       cancelled: podLapCancelled.value,
       skippedByUser: podLapSkippedByUser.value,
       stoppedByUser: userStoppedDuringLap.value,
