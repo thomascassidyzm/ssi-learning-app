@@ -114,8 +114,15 @@ const cohortLine = computed(() => {
     </p>
 
     <!-- The strip: the cohort ordered from earliest to furthest, the middle
-         marked, and you on it. No numbers — position is a LEGO, not a figure. -->
+         marked, and you on it. No numbers — position is a LEGO, not a figure.
+         It renders ONLY alongside the percentage. Caught by looking at the real
+         render: below the halfway mark, a strip with the marker over on the left
+         states the shortfall GRAPHICALLY, and more viscerally than a number
+         would. Suppressing the figure while drawing the picture would have been
+         a fig leaf, so below the mark the panel keeps the collective line and
+         nothing else. -->
     <div
+      v-if="showPercentage"
       class="strip"
       role="img"
       :aria-label="showPercentage
@@ -134,7 +141,9 @@ const cohortLine = computed(() => {
       </div>
     </div>
 
-    <p class="footnote">
+    <!-- The footnote explains the comparison, so it goes where the comparison
+         goes. Without the strip there is nothing for it to be about. -->
+    <p v-if="showPercentage" class="footnote">
       This compares how far through the course people have got — not how long
       anyone has spent in the app. It only ever goes up.
     </p>

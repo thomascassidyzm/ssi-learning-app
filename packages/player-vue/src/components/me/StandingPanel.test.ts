@@ -83,6 +83,27 @@ describe('StandingPanel — what it shows when it can', () => {
     expect(w.text()).not.toContain('further along than')
   })
 
+  it('drops the STRIP below the halfway mark too, not just the number', async () => {
+    // A strip with the marker on the left states the shortfall graphically —
+    // suppressing the figure while drawing the picture would be a fig leaf.
+    responder = () => standing({ aheadOfPct: 12 })
+    const w = mountPanel()
+    await settle()
+    expect(w.find('.strip').exists()).toBe(false)
+    expect(w.find('.strip-marker').exists()).toBe(false)
+    expect(w.find('.footnote').exists()).toBe(false)
+    // What remains is the collective line, and only that.
+    expect(w.text().trim()).toBe('You are one of 34 people who started this course around the same time as you.')
+  })
+
+  it('keeps the strip at and above the halfway mark', async () => {
+    responder = () => standing({ aheadOfPct: 50 })
+    const w = mountPanel()
+    await settle()
+    expect(w.find('.strip').exists()).toBe(true)
+    expect(w.text()).toContain('50%')
+  })
+
   it('uses the weaker wording when the cohort is the whole course', async () => {
     responder = () => standing({ cohortKind: 'course', cohortQuarter: null })
     const w = mountPanel()
