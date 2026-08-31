@@ -1692,3 +1692,79 @@ describe('SimplePlayer — A-22: a dead audio id (404 from the proxy) never stop
     expect(laterSkip.consecutiveSkips).toBe(1)
   })
 })
+
+/**
+ * THE ADVANCE CONTRACT A round_completed LISTENER MUST HONOUR.
+ *
+ * `advanceRound` emits `round_completed`, runs its listeners synchronously,
+ * and THEN reads `isPlaying` to decide what to do. A listener that wants to
+ * send the playhead somewhere else must leave isPlaying false and do the move
+ * later; one that resumes in the same tick hands advanceRound permission to
+ * walk forward from wherever the listener just moved to.
+ *
+ * That is not a hypothetical. PRACTISING mode's hold did exactly this: it
+ * paused, jumped back to practised material and resumed, all in the listener.
+ * Live on staging 2026-08-31 the hold fired, its telemetry named the right
+ * refused LEGO, and the learner heard that LEGO in full anyway — because
+ * advanceRound took `roundIndex + 1` from the round the hold had just jumped
+ * to. The decision was right and reached nobody.
+ *
+ * These two tests pin both halves of the contract so the next person to write
+ * a boundary listener finds the rule asserted rather than having to rediscover
+ * it on a real device.
+ */
+describe('SimplePlayer — what a round_completed listener may do', () => {
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const fourRounds = () =>
+    [makeRound('S0001L01'), makeRound('S0002L01'), makeRound('S0003L01'), makeRound('S0004L01')]
+
+  it('a listener that only PAUSES stops the advance dead — nothing starts', async () => {
+    const player = new SimplePlayer(fourRounds())
+    let fired = 0
+    player.on('round_completed', () => {
+      if (fired++ === 0) player.pause()
+    })
+
+    player.play()
+    // Run the first round out to its boundary.
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(fired).toBeGreaterThan(0)
+    expect(player.currentState.isPlaying).toBe(false)
+    // advanceRound parks the playhead idle so whoever paused owns the resume.
+    expect(player.currentState.phase).toBe('idle')
+  })
+
+  it('a listener that RESUMES in the same tick loses the position it just set', async () => {
+    // The bug, pinned. The listener jumps BACK to round 0 and resumes; because
+    // isPlaying is true again when advanceRound reads it, the engine takes
+    // roundIndex + 1 from that jump and walks forward off it instead.
+    const player = new SimplePlayer(fourRounds())
+    let fired = 0
+    player.on('round_completed', () => {
+      if (fired++ === 0) {
+        player.pause()
+        player.jumpToRound(0)
+        player.resume()
+      }
+    })
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    // NOT 0. The listener asked for 0 and the engine advanced off it anyway.
+    expect(player.currentState.roundIndex).not.toBe(0)
+  })
+})

@@ -132,6 +132,7 @@ type EventName =
   | 'session_complete'
   | 'audio_failed' // Browser needs a fresh user gesture to play audio (iOS autoplay).
   | 'interrupted' // Something OUTSIDE the app paused our element (see AudioInterruptedEvent).
+  | 'no_playable_content' // A jump found nothing playable from here on (see jumpToRound).
 type EventCallback = (data?: unknown) => void
 
 /**
@@ -1050,6 +1051,24 @@ export class SimplePlayer {
     return idx === -1 ? 0 : idx
   }
 
+  /**
+   * The first round at or after `fromIndex` that has at least one cycle the
+   * live cull will actually play. -1 when there is none.
+   *
+   * Exists because a jump used to land wherever it was aimed even when the
+   * cull plays nothing there. Offline that is the difference between "carry on
+   * with the material this device HAS" and Tom's report on 2026-08-31 — the
+   * next LEGO's text on screen, then the discovery that its audio isn't here.
+   */
+  private findNextPlayableRoundIndex(fromIndex: number): number {
+    for (let i = Math.max(0, fromIndex); i < this.rounds.length; i++) {
+      const r = this.rounds[i]
+      if (!r?.cycles?.length) continue
+      if (this.findNextPlayableCycleIndex(r, 0) !== -1) return i
+    }
+    return -1
+  }
+
   private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
     if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
@@ -1304,7 +1323,29 @@ export class SimplePlayer {
     // the clamped position when the mode plays nothing from here on, so a jump
     // never silently becomes a no-op.
     const forward = cycleCount > 0 ? this.findNextPlayableCycleIndex(round, clamped) : -1
-    const safeCycle = forward === -1 ? clamped : forward
+    // AVAILABILITY BEFORE THE LANDING (Tom, 2026-08-31: "the availability check
+    // happens too late. Move it ahead of the render"). If this round plays
+    // NOTHING under the live cull — offline, that means none of its audio is on
+    // the device — landing here anyway puts an unplayable cycle in
+    // `currentCycle`, which is what the learner then reads on screen before the
+    // app discovers it has no sound for it. Walk to the first round that does
+    // play something instead.
+    let landRound = index
+    let safeCycle = forward === -1 ? clamped : forward
+    if (forward === -1) {
+      const nextRound = this.findNextPlayableRoundIndex(index + 1)
+      if (nextRound !== -1) {
+        landRound = nextRound
+        safeCycle = this.findNextPlayableCycleIndex(this.rounds[nextRound], 0)
+        console.warn(`[SimplePlayer] jumpToRound(${index}): nothing playable there — landing on round ${nextRound} instead`)
+      } else {
+        // Nothing playable anywhere ahead. Keep the old fallback so a jump is
+        // never a silent no-op, but TELL the app, which owns what to do about
+        // it (recycle what's cached, or say so plainly to the learner).
+        console.warn(`[SimplePlayer] jumpToRound(${index}): nothing playable from here to the end of the queue`)
+        this.emit('no_playable_content', { fromRoundIndex: index })
+      }
+    }
     const wasPlaying = this.state.isPlaying
     this.stopForReposition()
     // LEAVING a cycle drops its hearings counter, so the cycle we land on gets
@@ -1314,7 +1355,7 @@ export class SimplePlayer {
     // WITHIN a cycle (skipToPhase, resume's restart) deliberately does not.
     this.currentCyclePlays = 0
     // Must set isPlaying: false so play() doesn't early-return
-    this.updateState({ roundIndex: index, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
+    this.updateState({ roundIndex: landRound, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }
