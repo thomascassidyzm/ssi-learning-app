@@ -86,6 +86,7 @@ import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
 import { nextPractisingState, type NextLegoFetchOutcome } from '../playback/practisingMode'
+import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
@@ -4749,16 +4750,64 @@ const isPractising = computed(() =>
  * out is the same near-edge prefetch, which fires once per round advance —
  * minutes apart — and that cadence is the recovery check.
  */
+/**
+ * What the probe was asked about, so a row on its own says where the learner
+ * stood. Read at report time rather than passed down, because both call sites
+ * (the near-edge watcher and the recovery heartbeat) already have it in refs.
+ */
+const practisingProbeContext = () => ({
+  outcomeLegoId: instantPlayback.currentLegoId?.value ?? null,
+  roundIndex: simplePlayer.roundIndex.value,
+  roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+  mode: currentMode.value,
+  online: isOnline.value,
+  // The admin test switch's own state. THE reason this telemetry exists: with
+  // it on the room this row is answering is "he threw the switch — did the
+  // mode move?", and without both halves on one row that question cannot be
+  // answered afterwards at all (2026-08-31).
+  testSwitch: isContentBlackoutActive(),
+  bundleCourse: isBundleBootstrapEnabled(courseCode.value),
+})
+
 const reportNextNewLegoFetch = (outcome: NextLegoFetchOutcome) => {
   const next = nextPractisingState(nextNewLegoUnreachable.value, outcome)
-  if (next === nextNewLegoUnreachable.value) return
+  // Tell the admin test switch what its own probe came back with, BEFORE the
+  // early return below — the case worth reporting most is the one where the
+  // mode did not move. Inert while the switch is off (nothing reads it).
+  if (isContentBlackoutActive() || outcome === 'fetched') reportBlackoutProbe(outcome, next)
+  if (next === nextNewLegoUnreachable.value) {
+    // THE OUTCOME THAT DID NOT MOVE THE MODE, and it is the one that cost an
+    // evening. 'no-next' (this LEGO has no successor in the round map — course
+    // end, OR a cursor the map does not contain) and 'skipped' (never asked,
+    // or our own 401/403/429/5xx) are both DESIGNED to leave the mode alone.
+    // Both are therefore silent, and a silent no-op is indistinguishable from
+    // a switch that is not wired up: Tom threw it, saw nothing, and no log
+    // anywhere in the system could say which of the two had happened.
+    //
+    // Only reported while the test switch is on. In ordinary play this fires
+    // on every round advance for the whole of a course's end, which is a
+    // shrug, not a signal — and telemetry nobody will read is a cost with no
+    // consumer.
+    if (isContentBlackoutActive()) {
+      console.warn(`[LearningPlayer] PRACTISING did not move: the probe said '${outcome}', which by design holds the mode where it is`)
+      logEvent('practising_probe_inert', { outcome, ...practisingProbeContext() })
+    }
+    return
+  }
   nextNewLegoUnreachable.value = next
   if (next) {
     console.log('[LearningPlayer] PRACTISING — the next new LEGO could not be fetched; playing from cache, position frozen')
+    // The mode has exactly one entry and one exit and, until now, no row on
+    // either. So "was he actually practising at 22:01?" was unanswerable from
+    // the record — which is precisely the question that was asked, of a live
+    // session, and could not be settled (2026-08-31). One row per transition:
+    // the mode moves a handful of times in a session at the very most.
+    logEvent('practising_enter', { outcome, ...practisingProbeContext() })
     cancelPendingCursor()
     startPractisingRecoveryProbe()
   } else {
     console.log('[LearningPlayer] PRACTISING over — the next new LEGO is reachable again; forward play resumes')
+    logEvent('practising_exit', { outcome, ...practisingProbeContext() })
     stopPractisingRecoveryProbe()
   }
 }
