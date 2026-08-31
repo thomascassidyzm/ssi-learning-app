@@ -533,6 +533,15 @@ function exportCsv() {
       <p class="empty-text schools-subtle">
         Create your first class to start teaching with SSi. Students join with a unique code.
       </p>
+      <!-- A teacher who has just joined an existing school through her head's
+           invite link sees this same screen, and her school's classes are
+           invisible to her until someone puts her on one. "Create your first
+           class" then reads as "make a duplicate of the class you were
+           invited to teach" (production walk, 2026-08-31). -->
+      <p v-if="isTeacher && !isSchoolAdmin" class="empty-text schools-subtle">
+        Joined a school that already has classes? A school leader has to put you on one —
+        ask them to add you, and it will appear here.
+      </p>
       <button v-if="!isAdminView" type="button" class="btn-play" @click="openCreateModal">
         + Create your first class
       </button>
