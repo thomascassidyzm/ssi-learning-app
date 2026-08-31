@@ -1244,6 +1244,29 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     return
   }
 
+  // SHAPE IS NOT PROOF. "No intro/debut/build cycle in this round" is the
+  // shape of an INF PLAY round, but it is also the shape of a main-loop
+  // round whose opening cycles never reached the round object — a mid-round
+  // resume, a mode that selects the builds out, a partial /cycles payload.
+  // The cost of getting it wrong is catastrophic and silent: the branch
+  // below stamps the cursor to the course's FINAL LEGO, so the learner's
+  // next boot resumes them at the end of the course in INF PLAY.
+  //
+  // That is what happened to a real learner on 2026-08-31 (round 13 of
+  // German, relaunched at round 1399), and 22 enrollments across 8 accounts
+  // carry the same phantom counter with course content still ahead of them.
+  //
+  // So confirm against the cursor-only model before acting: infinite-play is
+  // TRUE only when no is_new LEGO remains beyond the cursor. Shape proposes,
+  // the course's own content decides. A failed/offline check returns false
+  // and we stay in main — the safe direction, since a real INF PLAY learner
+  // simply re-enters on their next completed round.
+  const cursorForInfCheck = lastCompletedLegoIdRef.value ?? legoId
+  if (!(await hasReachedInfinitePlay(cursorForInfCheck, courseCode.value))) {
+    console.log('[LearningPlayer] Review-only round at', roundIndex, 'but new content remains past', cursorForInfCheck, '— NOT INF PLAY')
+    return
+  }
+
   // INF PLAY auto-entry (mid-session). Crossing from the last main-loop
   // round into the first infplay round flips current_mode here so the mode
   // flag lands without a session restart. setMode is idempotent (re-entry
