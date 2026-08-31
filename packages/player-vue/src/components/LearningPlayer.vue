@@ -2144,16 +2144,15 @@ simplePlayer.onCycleCompleted((cycle) => {
     }
     // Accumulate locally; flushed in one batch on pause/background/unmount.
     // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
-    // "No progress data at all in terms of LEGOs" includes the per-LEGO fire
-    // counts behind the brain view — recycled review would inflate them against
-    // LEGOs the learner is not actually working on right now.
-    if (!consolidatingBlocksProgressWrite('lego pairings')) {
-      pairingsTelemetry.recordCyclePlay({
-        learnerId: learnerId.value,
-        courseCode: courseCode.value,
-        legoIds: firedLegoIds,
-      })
-    }
+    // Pairings keep flowing while CONSOLIDATING. Tom, 2026-08-31: ordinary
+    // usage telemetry continues — this records what the learner HEARD, not a
+    // claim about how far through the course they are, and the brain view
+    // would go blank for the session otherwise.
+    pairingsTelemetry.recordCyclePlay({
+      learnerId: learnerId.value,
+      courseCode: courseCode.value,
+      legoIds: firedLegoIds,
+    })
   }
 
   // Close the VAD timing window for the cycle that just finished. Under
@@ -3892,6 +3891,12 @@ const learningSession = useLearningSession({
   learnerId: learnerId,
   courseId: courseCode,
   demoItems,
+  // Splits usage from progress inside recordCycleComplete: the learner's time,
+  // opportunities and session checkpoints keep flowing while consolidating;
+  // lego_progress and the highest_completed_seed ratchet do not.
+  // A getter, not the ref: this composable is constructed during setup, before
+  // the computed below it exists.
+  isConsolidating: () => isConsolidating.value,
 })
 
 // Use items from session (will be demo items if database not available)
@@ -4491,8 +4496,24 @@ const isRecycledRoundPlayback = computed(() =>
 //
 // It clears itself the instant a real main-loop round plays (see the round-entry
 // watcher below), and normal writing resumes with it.
+// Dev cheat (?consolidating=1): force the mode on so the banner and the
+// write-suppression can be seen without reproducing cache exhaustion.
+//
+// This exists because a live probe could NOT get the app into the state within
+// any budget worth spending (job #473, 6 runs, up to 7-minute offline windows):
+// the script pre-generates ~57 rounds ahead, so "forward material" is enormous
+// relative to any plausible warm-up, and the real trigger needs the AUDIO for
+// all of it to be missing too. A state that cannot be reached on demand cannot
+// be checked before shipping — so it gets a door, like ?fc and ?stream.
+const forceConsolidatingCheat = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('consolidating')
+  } catch { return false }
+})()
+
 const isConsolidating = computed(() =>
-  offlineRecycleBeltHeld.value && currentMode.value !== 'infplay'
+  forceConsolidatingCheat
+  || (offlineRecycleBeltHeld.value && currentMode.value !== 'infplay')
 )
 
 // M9 (pull-consistency map): the belt's playing position DERIVES from the
