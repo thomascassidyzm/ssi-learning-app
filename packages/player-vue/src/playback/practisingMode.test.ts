@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { nextPractisingState, chooseHeldRoundIndex, type NextLegoFetchOutcome } from './practisingMode'
+import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type NextLegoFetchOutcome } from './practisingMode'
 
 describe('practising mode — the next-new-LEGO trigger', () => {
   it('enters when the next new LEGO cannot be fetched', () => {
@@ -59,43 +59,86 @@ describe('practising mode — the next-new-LEGO trigger', () => {
   })
 })
 
-describe('chooseHeldRoundIndex — where the playhead goes instead of a new LEGO', () => {
-  // A round "introduces material" if it carries an intro/debut/build cycle.
-  const introduces = (r: { new?: boolean }) => r.new === true
-  // 0..9, where every third round is a new-LEGO round.
-  const rounds = Array.from({ length: 10 }, (_, i) => ({ i, new: i % 3 === 0 }))
+describe('choosePractisedPosition — where the playhead goes instead of a new LEGO', () => {
+  // The shape every ordinary main-loop round has, and the shape that broke the
+  // first version of this: intro, debut, builds, THEN the practised tail.
+  const mainLoop = (n: number) => ({
+    n,
+    cycles: [
+      { type: 'intro' }, { type: 'debut' }, { type: 'build' }, { type: 'build' },
+      { type: 'spaced_rep' }, { type: 'spaced_rep' }, { type: 'use' },
+    ],
+  })
+  // Ten of them, which is what a real learner's history looks like. Under the
+  // old round-shaped predicate this history offered NOTHING and the mode served
+  // a brand-new LEGO — the bug this file now pins shut.
+  const rounds = Array.from({ length: 10 }, (_, i) => mainLoop(i))
 
-  it('holds on the most recent review round behind the playhead', () => {
-    // From 7: 6 is new, 5 is review. 5 is the answer.
-    expect(chooseHeldRoundIndex(rounds, 7, 0, 40, introduces)).toBe(5)
+  it('lands on practised material even when EVERY round behind introduces a LEGO', () => {
+    // The regression test, in one line: Tom's own history is all main-loop
+    // rounds, and the answer must not be null.
+    const pos = choosePractisedPosition(rounds, 9, 0)
+    expect(pos).toEqual({ roundIndex: 8, cycleIndex: 4 })
   })
 
-  it('steps further back each time, so the hold is a rotation not a loop', () => {
-    const seen = [0, 1, 2, 3].map((step) => chooseHeldRoundIndex(rounds, 7, step, 40, introduces))
-    expect(seen).toEqual([5, 4, 2, 1])
-    // and it wraps rather than running off the end
-    expect(chooseHeldRoundIndex(rounds, 7, 4, 40, introduces)).toBe(5)
+  it('never lands on anything that introduces material', () => {
+    // Walk every step a long hold would take and assert the cycle it lands on,
+    // and every cycle after it in that round, is review.
+    for (let step = 0; step < 30; step++) {
+      const pos = choosePractisedPosition(rounds, 9, step)!
+      expect(pos).not.toBeNull()
+      const tail = rounds[pos.roundIndex].cycles.slice(pos.cycleIndex)
+      expect(tail.length).toBeGreaterThan(0)
+      expect(tail.some((c) => cycleIntroducesMaterial(c))).toBe(false)
+    }
   })
 
-  it('never reaches further back than the window', () => {
-    expect(chooseHeldRoundIndex(rounds, 9, 0, 2, introduces)).toBe(8)
-    // window of 1 from index 9 leaves only round 8, which is review
-    expect(chooseHeldRoundIndex(rounds, 9, 1, 1, introduces)).toBe(8)
+  it('rotates newest-first and wraps, so the hold is not one round on a loop', () => {
+    const seen = [0, 1, 2, 3].map((step) => choosePractisedPosition(rounds, 9, step)!.roundIndex)
+    expect(seen).toEqual([8, 7, 6, 5])
+    // nine rounds behind, so step 9 comes back to the newest
+    expect(choosePractisedPosition(rounds, 9, 9)!.roundIndex).toBe(8)
   })
 
-  it('says null when there is nothing practised behind the playhead', () => {
-    // The learner is three rounds into a session and all of them are new.
-    const allNew = [{ new: true }, { new: true }, { new: true }]
-    expect(chooseHeldRoundIndex(allNew, 3, 0, 40, introduces)).toBeNull()
-    // and at the very start of a session there is nothing behind at all
-    expect(chooseHeldRoundIndex(rounds, 0, 0, 40, introduces)).toBeNull()
-    expect(chooseHeldRoundIndex([], 5, 0, 40, introduces)).toBeNull()
+  it('counts the component cycles as new material, not as practice', () => {
+    // They belong to the LEGO being introduced. A hold that landed on one
+    // would be serving exactly what the mode exists to withhold.
+    expect(cycleIntroducesMaterial({ type: 'component_intro' })).toBe(true)
+    expect(cycleIntroducesMaterial({ type: 'component_practice' })).toBe(true)
+    expect(cycleIntroducesMaterial({ type: 'spaced_rep' })).toBe(false)
+    expect(cycleIntroducesMaterial({ type: 'use' })).toBe(false)
+    expect(cycleIntroducesMaterial({ type: 'listening' })).toBe(false)
+    expect(cycleIntroducesMaterial({ type: 'pod' })).toBe(false)
+  })
+
+  it('skips a round whose tail is not clean to the end', () => {
+    // Defensive: a round ordered review-then-build must not be entered at the
+    // review, because we play from there onwards and would reach the build.
+    const dirty = [
+      { cycles: [{ type: 'spaced_rep' }, { type: 'build' }] },
+      { cycles: [{ type: 'intro' }, { type: 'use' }] },
+    ]
+    expect(choosePractisedPosition(dirty, 2, 0)).toEqual({ roundIndex: 1, cycleIndex: 1 })
+  })
+
+  it('cannot run dry: replays the last completed round when nothing has a clean tail', () => {
+    // One round into a brand-new course. There is no practised tail anywhere,
+    // and the answer is still not "serve a new LEGO" — it is the round the
+    // learner has just done, whose LEGO they have already met.
+    const allNew = [{ cycles: [{ type: 'intro' }, { type: 'debut' }, { type: 'build' }] }]
+    expect(choosePractisedPosition(allNew, 1, 0)).toEqual({ roundIndex: 0, cycleIndex: 0 })
+  })
+
+  it('says null only when nothing at all has been completed', () => {
+    expect(choosePractisedPosition(rounds, 0, 0)).toBeNull()
+    expect(choosePractisedPosition([], 5, 0)).toBeNull()
   })
 
   it('never names a round the engine does not have', () => {
     // fromIndex past the end (a queue that shrank under us) must still be safe.
-    const r = chooseHeldRoundIndex(rounds, 999, 0, 40, introduces)
-    expect(r).not.toBeNull()
-    expect(r!).toBeLessThan(rounds.length)
+    const pos = choosePractisedPosition(rounds, 999, 0)
+    expect(pos).not.toBeNull()
+    expect(pos!.roundIndex).toBeLessThan(rounds.length)
+    expect(pos!.roundIndex).toBeGreaterThanOrEqual(0)
   })
 })
