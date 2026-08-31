@@ -221,6 +221,15 @@ const benchData = computed(() => {
   }
 })
 
+// An empty class has exactly one thing worth doing, and the invite link was
+// the LAST card of the rail — below the teachers panel, the roster, the course
+// journey, the belt distribution and the benchmark. On a phone that is the
+// bottom of the page (production walk, 2026-08-31). Observed-empty only: a
+// roster still loading, or one that failed, must not reorder the page.
+const rosterObservedEmpty = computed(
+  () => !classDetailLoading.value && !rosterError.value && !classDetailError.value && students.value.length === 0,
+)
+
 const filteredStudents = computed(() => {
   if (!searchQuery.value.trim()) return students.value
   const q = searchQuery.value.toLowerCase()
@@ -906,7 +915,7 @@ const deleteImpactLines = computed(() => {
         </div>
       </section>
 
-      <aside class="rail">
+      <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
         <div class="schools-card schools-card-pad rail-card">
           <div class="schools-kicker rail-kicker">Course Journey</div>
           <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
@@ -948,7 +957,7 @@ const deleteImpactLines = computed(() => {
         </div>
 
 
-        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
+        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card" :class="{ 'join-card-first': rosterObservedEmpty }">
           <div class="schools-kicker join-kicker">Invite students</div>
 
           <!-- Nothing copyable exists until the code does: a link with the code
@@ -1235,6 +1244,9 @@ const deleteImpactLines = computed(() => {
   flex-direction: column;
 }
 
+/* Empty class: the invite link leads the rail (and, on a phone, the page). */
+.join-card-first { order: -1; }
+
 .rail-kicker {
   margin-bottom: 8px;
 }
@@ -1416,6 +1428,9 @@ const deleteImpactLines = computed(() => {
 @media (max-width: 960px) {
   .detail { padding: 16px; }
   .body-grid { grid-template-columns: 1fr; }
+  /* One column: the rail stacks BELOW the roster, so on an empty class the
+     invite link would be the bottom of the page. Lift it above the roster. */
+  .rail-first { order: -1; }
   .roster { max-height: none; }
   .roster-scroll { overflow-x: auto; }
   .ssi-table { min-width: 640px; }

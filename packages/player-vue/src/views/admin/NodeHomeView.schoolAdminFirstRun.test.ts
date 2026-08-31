@@ -79,6 +79,7 @@ type Opts = {
   nameConfirmed?: boolean
   path?: string
   routeId?: string
+  classCount?: number
 }
 
 async function mountNode(opts: Opts = {}) {
