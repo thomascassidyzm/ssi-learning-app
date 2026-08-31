@@ -53,13 +53,55 @@ interface Standing {
 }
 
 const standing = ref<Standing | null>(null)
+const isSample = ref(false)
 const supabaseClient = inject<Ref<any> | null>('supabase', null)
+
+/**
+ * `?standing=72` renders the panel against a SAMPLE cohort at that percentage,
+ * labelled as sample data on its face.
+ *
+ * This exists because the honesty gate means the panel is invisible on real
+ * data (no cohort clears k=20 yet), so there is otherwise no way to look at the
+ * thing on a real phone at real size — and the command surface cannot serve
+ * images, so a screenshot cannot reach a phone either. Same spirit as the
+ * app's other URL cheats (?fc=1, ?stream, ?reset=1) and the same labelling
+ * convention as the /me panels' `source: 'mock'` line.
+ *
+ * It cannot silently mislead: it requires an explicit query parameter that
+ * nobody types by accident, and whatever it draws says "Sample data" under it.
+ */
+function sampleFromQuery(): Standing | null {
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('standing')
+  // An empty `?standing=` must NOT become 0% — Number('') is 0, which would
+  // silently render a sample panel for a parameter that said nothing.
+  if (raw === null || raw.trim() === '') return null
+  const pct = Number(raw)
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null
+  return {
+    aheadOfPct: Math.round(pct),
+    cohortSize: 34,
+    cohortKind: 'quarter',
+    cohortQuarter: '2026Q2',
+    medianSeed: 0,
+    seed: 0,
+  }
+}
 
 /** Below this, the panel stays collective and drops the percentage. See header. */
 const CELEBRATE_FROM_PCT = 50
 
 async function load(courseCode: string | null | undefined): Promise<void> {
   standing.value = null
+  isSample.value = false
+
+  const sample = sampleFromQuery()
+  if (sample) {
+    standing.value = sample
+    isSample.value = true
+    return
+  }
+
   if (!courseCode) return
   try {
     const sb = supabaseClient?.value
@@ -125,9 +167,7 @@ const cohortLine = computed(() => {
       v-if="showPercentage"
       class="strip"
       role="img"
-      :aria-label="showPercentage
-        ? `You are further along than ${standing.aheadOfPct}% of ${standing.cohortSize} people who started around the same time as you.`
-        : `Where you sit among ${standing.cohortSize} people who started around the same time as you.`"
+      :aria-label="`You are further along than ${standing.aheadOfPct}% of ${standing.cohortSize} people who started around the same time as you.`"
     >
       <div class="strip-track">
         <div class="strip-middle" aria-hidden="true"></div>
@@ -147,6 +187,8 @@ const cohortLine = computed(() => {
       This compares how far through the course people have got — not how long
       anyone has spent in the app. It only ever goes up.
     </p>
+
+    <p v-if="isSample" class="sample">Sample data — not your real numbers.</p>
   </section>
 </template>
 
@@ -228,6 +270,12 @@ const cohortLine = computed(() => {
   justify-content: space-between;
   font-size: var(--text-xs, 12px);
   color: var(--ink-tertiary, #8A8078);
+}
+.sample {
+  margin: 0;
+  font-size: var(--text-xs, 12px);
+  color: var(--ink-tertiary, #8A8078);
+  font-style: italic;
 }
 .footnote {
   margin: 0;

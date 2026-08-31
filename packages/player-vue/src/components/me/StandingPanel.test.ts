@@ -120,6 +120,53 @@ describe('StandingPanel — what it shows when it can', () => {
   })
 })
 
+describe('StandingPanel — the ?standing= sample preview', () => {
+  const withQuery = (q: string) => {
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: q },
+      writable: true,
+      configurable: true,
+    })
+  }
+  afterEach(() => withQuery(''))
+
+  it('renders a labelled sample cohort, without calling the API', async () => {
+    withQuery('?standing=72')
+    const w = mountPanel()
+    await settle()
+    expect(w.text()).toContain('72%')
+    expect(w.text()).toContain('Sample data — not your real numbers.')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('honours the halfway rule in the sample too', async () => {
+    withQuery('?standing=18')
+    const w = mountPanel()
+    await settle()
+    expect(w.find('.strip').exists()).toBe(false)
+    expect(w.text()).not.toContain('18%')
+    expect(w.text()).toContain('Sample data')
+  })
+
+  it('never labels a real standing as sample data', async () => {
+    responder = () => standing()
+    const w = mountPanel()
+    await settle()
+    expect(w.text()).not.toContain('Sample data')
+  })
+
+  it.each(['?standing=abc', '?standing=-5', '?standing=101', '?standing='])(
+    'ignores a nonsense value (%s) and falls through to the real API',
+    async (q) => {
+      withQuery(q)
+      const w = mountPanel()
+      await settle()
+      expect(fetch).toHaveBeenCalled()
+      expect(w.text()).not.toContain('Sample data')
+    }
+  )
+})
+
 describe('StandingPanel — the two things it must never render', () => {
   it('never shows a course position as a number', async () => {
     responder = () => standing({ seed: 88, medianSeed: 40 })
