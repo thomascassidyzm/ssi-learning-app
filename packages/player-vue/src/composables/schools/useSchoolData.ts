@@ -8,6 +8,7 @@ import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useSchoolContext } from './useSchoolContext'
 import { isDemoMode } from '../demo/demoMode'
+import { fetchSchoolRoster } from './schoolRoster'
 
 interface GroupSummary {
   group_id?: string
@@ -286,11 +287,9 @@ export function useSchoolData() {
           const token = session?.access_token
           if (!token) return
 
-          const res = await fetch('/api/school/roster', {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (!res.ok) throw new Error(`roster ${res.status}`)
-          data = ((await res.json()) as { school: any }).school
+          // Shared with useTeachersData/useStudentsData, which ask for the
+          // same payload at the same moment — see schoolRoster.ts.
+          data = ((await fetchSchoolRoster(token)) as { school: any }).school
         } else {
           const { data: viewData, error: fetchError } = await client
             .from('school_summary')
