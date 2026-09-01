@@ -59,29 +59,62 @@ of those, it says so in one line and cites the original ID.
 
 Tests: `api/_security/sec0901-x-audit-machinery.security.test.ts` — 10 passing.
 
-### SEC0901-X-01 — the enforcement finding is unchanged, and has got worse by exactly the elapsed time · **HIGH (enforcement)** · live-verified
+### SEC0901-X-01 — the nightly gate covers 8 of verify.yml's 9 checks; `@ssi/core`'s tests are the one it drops · **MEDIUM (coverage)** · verified
 
-Re-read from the GitHub Actions API on 2026-09-01. The last run of any workflow on this repository is
-still **2026-08-14T18:31Z**; the last *green* run is still 2026-08-11. Every run since is a `failure`
-carrying the billing annotation, not a test failure. Both workflows remain `active` and are simply never
-started.
+**Correction to the premise, ruled by Tom on 2026-08-31 and applied here.** GitHub Actions being dormant
+is **deliberate estate-wide policy, not a defect**. The 2026-08-29 audit filed it as a HIGH finding and
+this audit initially repeated that; both were wrong, and the finding is withdrawn rather than restated.
+The real gate is the nightly run on watson-1 (`command-surface/ops/ci-run.sh`, Tom's ruling 2026-08-29),
+and it demonstrably works: last night's run covered `dashboard@main` red and `learning-app@dev/staging/main`
+green, with the red chased and resolved by 02:11Z. That is a safety net functioning, not a gap.
 
-|  | commits with no gate executed |
-|---|---|
-| `dev` | **433** (was 225 on 08-29) |
-| `main` (production) | **247** (was 198) |
+So the question worth asking is the narrower one: **does the replacement cover what the workflows covered?**
+Answered check-by-check against `.github/workflows/verify.yml` and `auto-merge-claude.yml`, whose gate sets
+are identical to each other (9 steps each, verified line by line):
 
-So `pnpm test:api` — the gate on which every one of these seven audits' tripwires depends, and which now
-carries **24 security-test files** — has not run in CI for **18 days**. Nor has `lint`, `typecheck`,
-`typecheck:api`, or the player-vue suite. `auto-merge-claude.yml` is dead by the same cause.
+| verify.yml step | `ops/ci/ci-checks.sh` | |
+|---|---|---|
+| `pnpm install --frozen-lockfile` | `install` | ✅ |
+| `pnpm --filter @ssi/core build` | `core-build` | ✅ |
+| `pnpm --filter player-vue lint` | `player-lint` | ✅ |
+| `pnpm --filter player-vue typecheck` | `player-typecheck` | ✅ |
+| `pnpm typecheck:api` | `api-typecheck` | ✅ |
+| **`pnpm --filter @ssi/core test`** | **— absent —** | ❌ |
+| `pnpm --filter player-vue test` | `player-test` | ✅ |
+| `pnpm test:api` | `api-test` | ✅ |
+| `pnpm test:release-train` | `release-train-test` | ✅ |
 
-Run by hand on today's `dev` the API suite is **green: 133 files, 1,493 passing, 5 skipped, 8 todo**.
-The failure mode is conservative — nothing merges automatically — so the risk is drift and blindness,
-not an unreviewed auto-merge.
+**One check is missing, and it is the one verify.yml carries a comment explaining:**
 
-**Not fixed here, and not fixable here.** Restoring CI is a billing action on Tom's GitHub account:
-outward-facing, and squarely outside this run's rules. **The one thing that needs a human: GitHub →
-Billing & plans.** This is the third consecutive audit to say so.
+> *Core tests — the shared-selector parity guard lives in `@ssi/core` (`selectionParity.test.ts`);
+> without this step it would never run in CI, where the drift it guards would land.*
+
+That is a guard someone added deliberately, with a written reason, because nothing else would catch the
+drift. It is now the single check that no gate runs. `packages/core` holds **35 test files / 751 tests**,
+including `selectionParity.test.ts`, `pricing/access.test.ts` and `pricing/trial.test.ts` — entitlement and
+trial logic, which is the closest thing in that package to a security surface.
+
+**Two candidate excuses, both checked and both false.** It is not red: run on today's `dev` it is
+**35 files, 751 passing, 9 skipped, green in 4.5s**. And it does not hang the runner — `@ssi/core`'s script
+is bare `"test": "vitest"`, which would be watch mode on a TTY, but run non-TTY under cron with `CI` unset
+it exits 0 cleanly (measured, not assumed). So the omission looks like an oversight when the check list was
+transcribed, not a decision. **The fix is one line in `ops/ci/ci-checks.sh`**, alongside `player-test`:
+`run core-test "$PNPM8" --filter @ssi/core test -- --maxWorkers=2`. Not applied here — `ci-run.sh` is the
+estate's live gate and lives in another repo; this audit writes findings, not fixes.
+
+**A structural difference, stated descriptively rather than as a defect**, because it follows from the
+ruling rather than contradicting it: Actions gated *before* code landed (per-push on dev/staging/main, on
+every PR, and pre-merge on `claude/**` via `auto-merge-claude.yml`), whereas the nightly detects *after*
+it has landed, once a day, skipping any SHA unchanged since its last green. Nothing now checks a branch
+before it merges. That is a deliberate trade — detection in place of prevention, with a loud red notice as
+the compensating control — and last night showed the loud half working. It is worth knowing rather than
+worth fixing. The nightly is also *more* thorough in one respect: Actions skipped docs-only commits via
+`paths-ignore`; the nightly runs the full suite on whatever SHA it finds.
+
+**Where this leaves the tripwire convention.** Every one of these seven audits wrote its findings as tests
+on the assumption that something runs them. Something does: `api-test` is on the nightly, so the 24
+`*.security.test.ts` files are gated nightly on dev, staging and main. The convention is sound. The two
+gaps in it are the `@ssi/core` step above and SEC0901-X-02 below.
 
 ### SEC0901-X-02 — the two orphaned specs now guard *closed* findings · **MEDIUM**, and a correction to 08-29
 
