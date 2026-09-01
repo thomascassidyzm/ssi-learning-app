@@ -12,21 +12,26 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 function createMockClient(responses: Record<string, any>) {
-  let currentTable = ''
-  const handler: ProxyHandler<any> = {
-    get(_target, prop) {
-      if (prop === 'then') {
-        const resp = responses[currentTable] || { data: [], error: null }
-        return (resolve: any) => resolve(resp)
-      }
-      return vi.fn(() => new Proxy({}, handler))
+  // The table is captured PER BUILDER, not in one module-level variable. The
+  // shared-variable version silently mis-answered any code that had two
+  // queries in flight at once — whichever `from()` ran last decided what BOTH
+  // resolved to. The real Supabase client builds an independent builder per
+  // `from()`, so this now models it (found 2026-09-01 when fetchClassDetail's
+  // reads were parallelised).
+  const builderFor = (table: string): any => {
+    const handler: ProxyHandler<any> = {
+      get(_target, prop) {
+        if (prop === 'then') {
+          const resp = responses[table] || { data: [], error: null }
+          return (resolve: any) => resolve(resp)
+        }
+        return vi.fn(() => new Proxy({}, handler))
+      },
     }
+    return new Proxy({}, handler)
   }
   return {
-    from: vi.fn((table: string) => {
-      currentTable = table
-      return new Proxy({}, handler)
-    })
+    from: vi.fn((table: string) => builderFor(table)),
   } as any
 }
 

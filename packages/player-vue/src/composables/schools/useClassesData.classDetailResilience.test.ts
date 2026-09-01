@@ -26,21 +26,23 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 function createMockClient(responses: Record<string, any>) {
-  let currentTable = ''
-  const handler: ProxyHandler<any> = {
-    get(_target, prop) {
-      if (prop === 'then') {
-        const resp = responses[currentTable] || { data: [], error: null }
-        return (resolve: any) => resolve(resp)
-      }
-      return vi.fn(() => new Proxy({}, handler))
-    },
+  // Table captured PER BUILDER — the shared-variable version had whichever
+  // `from()` ran last decide what EVERY in-flight query resolved to, which is
+  // not how the real client behaves and hid parallel reads entirely.
+  const builderFor = (table: string): any => {
+    const handler: ProxyHandler<any> = {
+      get(_target, prop) {
+        if (prop === 'then') {
+          const resp = responses[table] || { data: [], error: null }
+          return (resolve: any) => resolve(resp)
+        }
+        return vi.fn(() => new Proxy({}, handler))
+      },
+    }
+    return new Proxy({}, handler)
   }
   return {
-    from: vi.fn((table: string) => {
-      currentTable = table
-      return new Proxy({}, handler)
-    }),
+    from: vi.fn((table: string) => builderFor(table)),
     auth: {
       getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })),
     },
