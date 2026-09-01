@@ -67,6 +67,11 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  // Passed straight through to ModeTray for the sector row.
+  courseCode: {
+    type: String,
+    default: ''
+  },
   // True when the currently playing cycle is part of a listening section
   // (LISTEN cluster, pod lap, or their bookends). Cues the skip button
   // visually so learners realise they can opt out — agency without
@@ -163,6 +168,7 @@ const handleSettings = () => {
       :isListeningMode="isListeningMode"
       :isPronunciationMode="isPronunciationMode"
       :isOfflineMode="isOfflineMode"
+      :courseCode="courseCode"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :hasRomanizedText="hasRomanizedText"

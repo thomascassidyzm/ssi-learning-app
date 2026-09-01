@@ -727,6 +727,7 @@ onMounted(() => {
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
+      :courseCode="activeCourse?.course_code || selectedCourse?.course_code || ''"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
