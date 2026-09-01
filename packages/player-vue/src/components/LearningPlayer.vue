@@ -26,6 +26,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
+import { roundsCarryNativeScript } from '../providers/roundsCarryNativeScript'
 import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds, collectListeningMetaPodAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
@@ -958,7 +959,36 @@ let audioCacheSource: AudioCacheSource | null = null
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
-const hasRomanizedText = ref(false)
+
+// Does this course have romanisation? Two independent answers, OR-ed, because
+// the network one cannot be reached on a plane.
+//
+// (1) The SCRIPT's own answer. The generated — and therefore the CACHED —
+//     script already carries the native glyphs alongside the roman text
+//     (`cycle.target.textNative`, set by generateLearningScript's nativeFields
+//     for every item whose LEGO has target_text_roman). So the rounds in hand
+//     answer the question with no round-trip, online or off. This is the
+//     source of truth offline; see the loadedRounds watcher below.
+// (2) The DB probe. Answers BEFORE any rounds have loaded (the tray can open
+//     on the resting state pre-first-play), and is the only answer for a
+//     course whose loaded rounds are somehow native-less. Requires network.
+//
+// Offline, (2) silently returns nothing and (1) carries it. Before this was
+// split, the single DB-backed ref stayed false on a cached/offline boot —
+// which both HID the pronunciation-guide row from the mode tray and dropped
+// the player back to roman-only text, because every native-render path below
+// gates on this flag (Tom, on a flight, 2026-09-01).
+const hasRomanizedFromScript = ref(false)
+const hasRomanizedFromProbe = ref(false)
+const hasRomanizedText = computed(() => hasRomanizedFromScript.value || hasRomanizedFromProbe.value)
+
+// Both signals are per-course facts: clear them the moment the course changes
+// so switching from a romanised course to a Latin-script one doesn't carry the
+// toggle across. Declared before the two producers so it runs first.
+watch(courseCode, () => {
+  hasRomanizedFromScript.value = false
+  hasRomanizedFromProbe.value = false
+})
 
 // Detect romanized text early (before play) via a lightweight DB check.
 // Watch BOTH courseCode and supabase as sources: supabase is injected as
@@ -969,13 +999,17 @@ const hasRomanizedText = ref(false)
 // script toggle hidden for jpn/kor/ara/etc. learners.
 watch([courseCode, supabase], async ([code, sb]) => {
   if (!code || !sb) return
-  const { count } = await sb
-    .from('course_legos')
-    .select('id', { count: 'exact', head: true })
-    .eq('course_code', code)
-    .not('target_text_roman', 'is', null)
-    .limit(1)
-  hasRomanizedText.value = (count ?? 0) > 0
+  try {
+    const { count } = await sb
+      .from('course_legos')
+      .select('id', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .not('target_text_roman', 'is', null)
+      .limit(1)
+    // Never write false over a true the script already established — offline
+    // this query fails, and a failure is "don't know", not "no romanisation".
+    if ((count ?? 0) > 0) hasRomanizedFromProbe.value = true
+  } catch { /* offline / transient — the script-derived signal covers it */ }
 }, { immediate: true })
 
 const courseTargetLang = computed(() => {
@@ -1923,6 +1957,20 @@ const resetApp = async () => {
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
 const loadedRounds = ref<any[]>([])
+
+// Signal (1) for hasRomanizedText, above: the rounds in hand answer "does this
+// course have romanisation?" without a network call, because toSimpleRounds
+// puts the native glyphs on every romanised cycle as `target.textNative` (and
+// `legoTargetTextNative` on the round). Those fields survive the IndexedDB
+// script cache untouched — setCachedScript JSON round-trips the whole rounds
+// blob — so a cached/offline boot has the answer already, which is the point.
+// Sticky within a course (cleared by the courseCode watcher above); a scan
+// stops at the first native glyph it finds.
+watch(loadedRounds, (rounds) => {
+  if (hasRomanizedFromScript.value) return
+  if (roundsCarryNativeScript(rounds as any[])) hasRomanizedFromScript.value = true
+}, { immediate: true })
+
 // Tracks the highest main-loop LEGO whose round has been completed this
 // session (or seeded from the DB ceiling on resume). Used by
 // saveRoundProgress to substitute the cursor on infinite-play rounds —
