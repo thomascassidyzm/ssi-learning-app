@@ -1,40 +1,35 @@
 /**
- * SEC0901-D-02 — the local (IndexedDB) course-bundle cache survives sign-out
- * and is not scoped to a learner identity, so a full paid-course bundle
- * cached by one account is handed straight back to whoever next uses the app
- * on that device — no re-authentication, no re-entitlement check.
+ * SEC0901-D-02 (REGRESSION TEST — was a characterization test) — the local
+ * (IndexedDB) course-bundle cache must be scoped to the learner identity that
+ * fetched it.
  *
- * `useCourseBundle.ts` already has a deliberate, well-commented guard for the
- * OPPOSITE direction: a guest's cached PREVIEW bundle is discarded once the
- * caller holds an auth token, so an upgrade-to-paid is never masked by a
- * stale preview cache (`cached?.bundle?.previewOnly && (await hasAuthToken())`).
- * There is no equivalent guard the other way: a cached FULL (non-preview)
- * bundle is served to any caller — anonymous, signed out, or signed in as a
- * DIFFERENT, unentitled account — as long as the version head-probe (which
- * itself carries no entitlement check; `bundle.ts`'s own comment says so)
- * still agrees on `contentVersion`/`scriptShapeVersion`. This is exactly the
- * shared-device scenario CLAUDE.md flags for this product ("this product
- * ships to SCHOOLS, so shared devices are the norm").
+ * HISTORY. This file was written by the 2026-09-01 audit as a CHARACTERIZATION
+ * test: it pinned the vulnerable behaviour (a full paid bundle cached by one
+ * account handed straight back to whoever next used the device) and its header
+ * said it "should go RED the day getCourseBundle re-validates entitlement for
+ * a cached FULL bundle the same way it already does for a cached PREVIEW one".
+ * That day is 2026-09-01. The assertions below are inverted accordingly: they
+ * now assert the FIXED behaviour, and they fail against the pre-fix code.
  *
- * Compounding evidence: `useAuth.ts`'s `signOut()` purges Supabase auth
- * storage, the role/subscription/entitlement caches, and the remembered
- * identity — but never calls `clearCachedBundle()`, which exists, is
- * exported, and is not imported anywhere else in the app (confirmed by grep
- * during this audit). The IndexedDB store (`ssi-bundle-cache`) is keyed by
- * `courseCode` alone, not by learner id.
+ * THE RULE UNDER TEST. `useCourseBundle` records `ownerId` — the identity that
+ * fetched the bundle — on the cached record, and serves a cached FULL
+ * (non-preview) bundle only back to that same identity. Anyone else, including
+ * a signed-out caller and including a record written before `ownerId` existed,
+ * falls through to the network and lets the server decide. This is the exact
+ * mirror of the pre-existing preview→paid guard, which is retained and still
+ * covered by the control test at the end.
  *
- * This is a CHARACTERIZATION test: it pins CURRENT behaviour and passes
- * today. It should go RED the day either (a) `getCourseBundle` re-validates
- * entitlement server-side for a cached FULL bundle the same way it already
- * does for a cached PREVIEW one, or (b) `signOut()` (or an equivalent
- * device-identity-change hook) calls `clearCachedBundle()` for every course —
- * red here means SEC0901-D-02 is closed.
+ * The revenue-protecting direction is covered too: the SAME identity must
+ * still be served from cache with no full re-fetch — otherwise the fix trades
+ * a leak for a multi-megabyte re-download on every boot.
  */
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const COURSE = 'spa_for_eng'
 const COURSE_2 = 'fra_for_eng'
+const COURSE_3 = 'ita_for_eng'
+const COURSE_4 = 'cym_for_eng'
 
 function fullBundleFixture(courseCode: string = COURSE) {
   return {
@@ -45,9 +40,7 @@ function fullBundleFixture(courseCode: string = COURSE) {
     generatorVersion: 1,
     mainLoopCount: 400,
     // The actual paid product: real known/target text for premium,
-    // past-preview LEGOs (seed 300 is well past the Yellow-belt ceiling of
-    // 19). This is what a signed-out / unentitled second user on the same
-    // device receives straight from disk in the vulnerable path below.
+    // past-preview LEGOs (seed 300 is well past the Yellow-belt ceiling of 19).
     legos: [
       {
         legoId: 'S0300L01',
@@ -86,13 +79,14 @@ function previewBundleFixture(courseCode: string = COURSE) {
   }
 }
 
-describe('SEC0901-D-02: useCourseBundle IndexedDB cache is not identity-scoped', () => {
+const headOk = { ok: true, json: async () => ({ contentVersion: 7, scriptShapeVersion: 1 }) }
+
+describe('SEC0901-D-02: the bundle cache is scoped to the identity that fetched it', () => {
   beforeEach(() => {
-    // Each test uses its own course code (COURSE / COURSE_2) as its IndexedDB
-    // key, so tests don't need to tear down the shared fake-indexeddb between
-    // runs — deleteDatabase() blocks forever here while any connection from a
-    // prior test is still open (fake-indexeddb doesn't fire onblocked the way
-    // this suite would need), which is exactly what hung this hook.
+    // Each test uses its own course code as its IndexedDB key, so tests don't
+    // need to tear down the shared fake-indexeddb between runs —
+    // deleteDatabase() blocks forever here while any connection from a prior
+    // test is still open.
     vi.resetModules()
   })
 
@@ -101,68 +95,113 @@ describe('SEC0901-D-02: useCourseBundle IndexedDB cache is not identity-scoped',
     vi.restoreAllMocks()
   })
 
-  it('a full bundle cached by a signed-in payer is served, unauthenticated, to whoever uses the app next', async () => {
+  it('a full bundle cached by a payer is NOT served to a signed-out caller on the same device', async () => {
     // ── "Session 1": paying learner, signed in, fetches and caches the full bundle. ──
     const mod1 = await import('./useCourseBundle')
     mod1.setCourseBundleAuthProvider(async () => 'payer-jwt')
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes('head=1')) {
-        return { ok: true, json: async () => ({ contentVersion: 7, scriptShapeVersion: 1 }) }
-      }
-      return { ok: true, json: async () => fullBundleFixture() }
-    })
-    vi.stubGlobal('fetch', fetchMock)
+    mod1.setCourseBundleIdentityProvider(async () => 'payer-auth-uid')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => (url.includes('head=1') ? headOk : { ok: true, json: async () => fullBundleFixture() })),
+    )
 
     const bundle1 = await mod1.getCourseBundle(COURSE)
-    expect(bundle1.previewOnly).toBeUndefined()
     expect(bundle1.legos[0].knownText).toContain('premium sentence')
-    // Persist happens in the background (fire-and-forget) — give the
-    // microtask/IDB transaction a tick to land before the next "session".
+    // Persist is fire-and-forget — give the IDB transaction a tick.
     await new Promise((r) => setTimeout(r, 20))
 
-    // ── "Session 2": app reloaded (fresh module graph, mirroring what a
-    // sign-out + navigation or a different learner opening the app produces
-    // in a real browser), NO auth token this time — signed out, or a
-    // different, unentitled account. IndexedDB is untouched: sign-out never
-    // clears it (see file header). ──
+    // ── "Session 2": app reloaded (fresh module graph), NO auth token — the
+    // learner closed the app without signing out, and the next person opened
+    // it. IndexedDB still holds session 1's record. ──
     vi.resetModules()
     const mod2 = await import('./useCourseBundle')
-    mod2.setCourseBundleAuthProvider(async () => null) // signed out / no token
-    const fetchMock2 = vi.fn(async (url: string) => {
-      if (url.includes('head=1')) {
-        // The head probe itself is NOT entitlement-gated (bundle.ts's own
-        // comment: "no entitlement check ... course-level constants"), so it
-        // agrees regardless of who's asking.
-        return { ok: true, json: async () => ({ contentVersion: 7, scriptShapeVersion: 1 }) }
-      }
-      throw new Error('should never re-fetch the full body — that is the point of this test')
-    })
-    vi.stubGlobal('fetch', fetchMock2)
+    mod2.setCourseBundleAuthProvider(async () => null)
+    mod2.setCourseBundleIdentityProvider(async () => null) // signed out
+    const fetch2 = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => previewBundleFixture(COURSE) },
+    )
+    vi.stubGlobal('fetch', fetch2)
 
     const bundle2 = await mod2.getCourseBundle(COURSE)
 
-    // THE FINDING: an unauthenticated caller (session 2) received the full,
-    // entitled, past-preview bundle straight from the on-disk cache — the
-    // actual paid course text — with no server round-trip to re-check
-    // entitlement beyond the entitlement-blind head probe.
-    expect(bundle2.previewOnly).toBeUndefined()
-    expect(bundle2.legos[0]?.knownText).toContain('premium sentence')
-    // Confirms this came from cache, not a fresh authenticated fetch.
-    expect(fetchMock2).toHaveBeenCalledTimes(1) // the head probe only
+    // THE FIX: the cached full bundle was NOT reused. The caller went to the
+    // server, and the server (which is the authority) issued the preview slice.
+    expect(bundle2.previewOnly).toBe(true)
+    expect(bundle2.legos).toHaveLength(0)
+    expect(fetch2.mock.calls.some(([url]) => !String(url).includes('head=1'))).toBe(true)
+
+    // And the offline fast path is not a way round the guard.
+    expect(await mod2.getCachedCourseBundle(COURSE)).not.toBeNull() // now owned by the guest
+    expect((await mod2.getCachedCourseBundle(COURSE))?.previewOnly).toBe(true)
   })
 
-  it('CONTROL — the opposite direction (cached preview, then a real token appears) IS guarded, by design', async () => {
-    // This is the asymmetry made explicit: the exact scenario the code
-    // comments say they protect against works correctly today.
+  it('a full bundle cached by one learner is NOT served to a DIFFERENT learner who signs in', async () => {
     const mod1 = await import('./useCourseBundle')
-    mod1.setCourseBundleAuthProvider(async () => null) // guest
+    mod1.setCourseBundleAuthProvider(async () => 'payer-jwt')
+    mod1.setCourseBundleIdentityProvider(async () => 'learner-A')
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) =>
-        url.includes('head=1')
-          ? { ok: true, json: async () => ({ contentVersion: 7, scriptShapeVersion: 1 }) }
-          : { ok: true, json: async () => previewBundleFixture(COURSE_2) }
-      )
+        url.includes('head=1') ? headOk : { ok: true, json: async () => fullBundleFixture(COURSE_3) },
+      ),
+    )
+    await mod1.getCourseBundle(COURSE_3)
+    await new Promise((r) => setTimeout(r, 20))
+
+    vi.resetModules()
+    const mod2 = await import('./useCourseBundle')
+    // Learner B is signed in — a real, valid session, just not the one that
+    // paid for this course. Sign-out clearing never ran (they never signed out).
+    mod2.setCourseBundleAuthProvider(async () => 'learner-B-jwt')
+    mod2.setCourseBundleIdentityProvider(async () => 'learner-B')
+    const fetch2 = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => previewBundleFixture(COURSE_3) },
+    )
+    vi.stubGlobal('fetch', fetch2)
+
+    const bundle2 = await mod2.getCourseBundle(COURSE_3)
+    expect(bundle2.previewOnly).toBe(true)
+    expect(bundle2.legos).toHaveLength(0)
+    expect(fetch2.mock.calls.some(([url]) => !String(url).includes('head=1'))).toBe(true)
+  })
+
+  it('NO REGRESSION — the SAME learner is still served from cache, with no full re-fetch', async () => {
+    const mod1 = await import('./useCourseBundle')
+    mod1.setCourseBundleAuthProvider(async () => 'payer-jwt')
+    mod1.setCourseBundleIdentityProvider(async () => 'payer-auth-uid')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.includes('head=1') ? headOk : { ok: true, json: async () => fullBundleFixture(COURSE_4) },
+      ),
+    )
+    await mod1.getCourseBundle(COURSE_4)
+    await new Promise((r) => setTimeout(r, 20))
+
+    vi.resetModules()
+    const mod2 = await import('./useCourseBundle')
+    mod2.setCourseBundleAuthProvider(async () => 'payer-jwt-refreshed') // token rotated
+    mod2.setCourseBundleIdentityProvider(async () => 'payer-auth-uid') // same person
+    const fetch2 = vi.fn(async (url: string) => {
+      if (url.includes('head=1')) return headOk
+      throw new Error('the same learner must NOT pay for a full re-download')
+    })
+    vi.stubGlobal('fetch', fetch2)
+
+    const bundle2 = await mod2.getCourseBundle(COURSE_4)
+    expect(bundle2.legos[0]?.knownText).toContain('premium sentence')
+    expect(fetch2).toHaveBeenCalledTimes(1) // the head probe only
+  })
+
+  it('CONTROL — the pre-existing preview→paid guard still works', async () => {
+    const mod1 = await import('./useCourseBundle')
+    mod1.setCourseBundleAuthProvider(async () => null) // guest
+    mod1.setCourseBundleIdentityProvider(async () => null)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.includes('head=1') ? headOk : { ok: true, json: async () => previewBundleFixture(COURSE_2) },
+      ),
     )
     const guestBundle = await mod1.getCourseBundle(COURSE_2)
     expect(guestBundle.previewOnly).toBe(true)
@@ -171,15 +210,13 @@ describe('SEC0901-D-02: useCourseBundle IndexedDB cache is not identity-scoped',
     vi.resetModules()
     const mod2 = await import('./useCourseBundle')
     mod2.setCourseBundleAuthProvider(async () => 'now-signed-in-payer-jwt')
+    mod2.setCourseBundleIdentityProvider(async () => 'now-a-payer')
     const refetch = vi.fn(async (url: string) =>
-      url.includes('head=1')
-        ? { ok: true, json: async () => ({ contentVersion: 7, scriptShapeVersion: 1 }) }
-        : { ok: true, json: async () => fullBundleFixture(COURSE_2) }
+      url.includes('head=1') ? headOk : { ok: true, json: async () => fullBundleFixture(COURSE_2) },
     )
     vi.stubGlobal('fetch', refetch)
 
     const bundle2 = await mod2.getCourseBundle(COURSE_2)
-    // The guard works: previewOnly + a token present forces a real re-fetch.
     expect(bundle2.previewOnly).toBeUndefined()
     expect(refetch).toHaveBeenCalled()
   })

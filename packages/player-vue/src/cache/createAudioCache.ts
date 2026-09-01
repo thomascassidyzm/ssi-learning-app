@@ -20,6 +20,21 @@ export function getAudioCache(options?: CreateAudioCacheOptions): AudioCache {
   return singleton
 }
 
+/**
+ * The live instance, if one has been created — for teardown paths that must
+ * close the IndexedDB connection before deleting the database (an open
+ * connection blocks `deleteDatabase`). Returns null rather than constructing
+ * one, so asking never costs an open.
+ */
+export function peekAudioCache(): AudioCache | null {
+  return singleton
+}
+
+/** Drop the singleton so the next getAudioCache() re-opens a fresh connection. */
+export function discardAudioCacheSingleton(): void {
+  singleton = null
+}
+
 /** Test-only — resets the singleton between specs. */
 export function resetAudioCacheForTesting(): void {
   singleton = null

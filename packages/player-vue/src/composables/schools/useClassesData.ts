@@ -445,15 +445,45 @@ export function useClassesData() {
         return
       }
 
+      // The remaining four reads depend on nothing but `classId` and the
+      // course code we now have, so they go out TOGETHER. They used to be four
+      // sequential awaits: measured on staging 2026-09-01 the roster read
+      // alone spends ~8s hitting the statement timeout, and the sparkline,
+      // the LEGO total and the teacher list each waited behind it for no
+      // reason. Same reads, same results, same panel-by-panel error handling —
+      // one wave instead of four round trips.
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+      sevenDaysAgo.setHours(0, 0, 0, 0)
+
+      const [
+        { data: progressData, error: progressError },
+        sessionsRes,
+        courseTotals,
+        teacherRead,
+      ] = await Promise.all([
+        client
+          .from('class_student_progress')
+          .select('*')
+          .eq('class_id', classId)
+          .order('student_name'),
+        // Sparkline is decoration — a failure here dims one chart, nothing else.
+        client
+          .from('class_sessions')
+          .select('started_at, cycles_completed')
+          .eq('class_id', classId)
+          .gte('started_at', sevenDaysAgo.toISOString())
+          .then(
+            (res) => res,
+            (err) => { console.error('Class sparkline fetch error:', err); return { data: null } },
+          ),
+        fetchCourseLegoTotals([classData.course_code].filter(Boolean)),
+        teachersByClassIdResult([classId]),
+      ])
+
       // Fetch student progress for this class. Its own panel, its own outcome:
       // this view can time out (57014) under a non-lead co-teacher's RLS plan,
       // and when it does the roster says so while the rest of the page lives.
-      const { data: progressData, error: progressError } = await client
-        .from('class_student_progress')
-        .select('*')
-        .eq('class_id', classId)
-        .order('student_name')
-
       if (progressError) {
         rosterError.value = progressError.message || 'Failed to fetch the roster'
         console.error('Class roster fetch error:', progressError)
@@ -481,21 +511,7 @@ export function useClassesData() {
       students.forEach(s => { belts[bucketBelt(s.seeds_completed || 0)]++ })
 
       // 7-day sparkline from class_sessions for this class
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-      sevenDaysAgo.setHours(0, 0, 0, 0)
-      // Sparkline is decoration — a failure here dims one chart, nothing else.
-      let sessionRows: Array<{ started_at: string | null; cycles_completed: number | null }> | null = null
-      try {
-        const res = await client
-          .from('class_sessions')
-          .select('started_at, cycles_completed')
-          .eq('class_id', classId)
-          .gte('started_at', sevenDaysAgo.toISOString())
-        sessionRows = res.data
-      } catch (err) {
-        console.error('Class sparkline fetch error:', err)
-      }
+      const sessionRows = sessionsRes.data as Array<{ started_at: string | null; cycles_completed: number | null }> | null
 
       const days = last7Days()
       const dayIndex = new Map(days.map((d, i) => [d, i]))
@@ -507,13 +523,11 @@ export function useClassesData() {
       })
 
       // Journey total: count LEGOs for this course
-      const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
       // Active teacher↔class relationships for this class (lead + co-taught).
       // Its own panel, its own outcome — and a FAILED read is reported, never
       // rendered as "no teachers are linked to this class yet".
-      const teacherRead = await teachersByClassIdResult([classId])
       const detailTeachers = teacherRead.map.get(classId) ?? []
       teachersError.value = teacherRead.error
       teachersLoaded.value = teacherRead.error === null

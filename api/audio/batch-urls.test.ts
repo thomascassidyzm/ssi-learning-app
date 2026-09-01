@@ -45,21 +45,65 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
 }))
 
 // supabase-js chains select().in() — both must return promise-resolving thenables.
+// Since SEC0901-D-01 (2026-09-01) the handler resolves the caller's real
+// entitlement state, so this mock describes the whole database, not just the
+// audio tables: the `good-session` bearer below belongs to a genuine PAYING
+// subscriber (active subscription, no end date). The unentitled-login case is
+// the finding itself and lives in batchUrlsEntitlementVsAuth.security.test.ts.
 vi.mock('@supabase/supabase-js', () => {
   function makeQuery(table: string) {
-    return {
-      select: () => ({
-        in: (_col: string, ids: string[]) => {
+    const state: Record<string, unknown> = {}
+    const rows = () => {
+      switch (table) {
+        case 'course_audio':
+        case 'shared_audio': {
           const source = table === 'course_audio' ? courseAudioRows : sharedAudioRows
-          const data = ids.map((id) => source[id]).filter(Boolean)
-          return Promise.resolve({ data, error: null })
-        },
-      }),
+          return { data: ((state.in as string[]) || []).map((id) => source[id]).filter(Boolean), error: null }
+        }
+        case 'courses':
+          return {
+            data: ((state.in as string[]) || []).map((code: string) => ({
+              course_code: code,
+              target_lang: code.startsWith('community_') ? 'cym' : 'fra',
+              pricing_tier: code.startsWith('community_') ? 'community' : 'premium',
+              is_community: code.startsWith('community_'),
+            })),
+            error: null,
+          }
+        default:
+          return { data: [], error: null }
+      }
     }
+    const single = () => {
+      switch (table) {
+        case 'learners':
+          return { data: { id: 'learner-1', platform_role: null, educational_role: null }, error: null }
+        case 'subscriptions':
+          return { data: { status: 'active', current_period_end: null }, error: null }
+        default:
+          return { data: null, error: null }
+      }
+    }
+    const q: any = {
+      select: () => q,
+      eq: (col: string, val: unknown) => {
+        state[col] = val
+        return q
+      },
+      is: () => q,
+      in: (_col: string, vals: string[]) => {
+        state.in = vals
+        return q
+      },
+      maybeSingle: () => Promise.resolve(single()),
+      then: (ok: any, err: any) => Promise.resolve(rows()).then(ok, err),
+    }
+    return q
   }
   return {
     createClient: () => ({
       from: (table: string) => makeQuery(table),
+      rpc: async () => ({ data: null, error: null }),
     }),
   }
 })
@@ -195,7 +239,7 @@ describe('POST /api/audio/batch-urls', () => {
     expect(json.denied).toContain(PREMIUM_PAST_PREVIEW_ID)
   })
 
-  it('verified session: premium past-preview audio gets a url', async () => {
+  it('verified, entitled session: premium past-preview audio gets a url', async () => {
     const res = makeRes()
     await handler(
       makeReq({ headers: { authorization: 'Bearer good-session' }, body: { audioIds: [PREMIUM_PAST_PREVIEW_ID] } }),

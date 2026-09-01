@@ -152,6 +152,14 @@ export interface AudioCache {
   ephemeral: EphemeralNamespace
 
   /**
+   * Close the IndexedDB connection. Optional on the contract because it is a
+   * teardown concern, not a caching one — but a caller that must DELETE the
+   * database (the identity-change purge in `audioCacheOwner.ts`, or a test)
+   * has to close first, since an open connection blocks `deleteDatabase`.
+   */
+  close?(): void
+
+  /**
    * `ready()` — await the in-memory id Sets being populated from IndexedDB.
    *
    * `has(id)` and `persistent.has(id)` are SYNCHRONOUS reads of Sets that fill

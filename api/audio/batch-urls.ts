@@ -12,21 +12,35 @@
  * (`resolveAudioEntitlement`), shared by both endpoints so they can never
  * disagree about what's gated.
  *
- * PLUS one gate the per-clip proxy cannot have (SECURITY, INPUT-01,
- * 2026-08-11): a premium past-preview id that presents no valid entitlement
- * token additionally requires a VERIFIED SUPABASE SESSION here. Rationale:
+ * PLUS one gate the per-clip proxy cannot have (SECURITY, INPUT-01
+ * 2026-08-11; tightened for SEC0901-D-01 2026-09-01): a premium past-preview
+ * id that presents no valid entitlement token additionally requires the CALLER
+ * TO ACTUALLY BE ENTITLED TO THAT COURSE — resolved server-side from the
+ * database by `resolveServerCourseAccess`, the same resolver
+ * `/api/courses/:code/bundle`, `/cycles` and `/infplay-cycles` already use.
+ * The rule is deliberately identical to those endpoints': if a caller can load
+ * the FULL (non-preview) bundle for a course, they get presigned URLs for that
+ * course's audio here, and if they cannot, they do not. Rationale:
  *   - The proxy is reached by `<audio src>`, which cannot set an Authorization
  *     header, so it must stay header-free and fail-open. This endpoint is
  *     fetch()-based and exists solely to serve the offline downloader, so it
  *     CAN carry a bearer — anonymous access to it buys a legitimate user
  *     nothing.
  *   - It is the bulk shape: 500 direct-to-S3 presigned URLs per request means
- *     an anonymous caller who enumerates audio uuids (freely handed out by
- *     /api/courses/:code/cycles) can pull the entire paid catalogue.
+ *     one leaked list of audio uuids would otherwise convert into unlimited
+ *     free bulk downloads for every account that redeemed it.
+ *   - Until 2026-09-01 this gate was `verifyAuthToken().valid` — pure
+ *     AUTHENTICATION. "Has a valid login" and "has ever paid" are different
+ *     properties, and a free OTP signup satisfied the first (SEC0901-D-01).
  *   - It does NOT depend on `ENTITLEMENT_ENFORCE`. That env var is absent in
  *     production and defaults fail-open, and arming it today would deny every
  *     paying subscriber (no subscriber token mint site exists yet). This gate
- *     is on unconditionally and cannot silently vanish with a config change.
+ *     is on unconditionally and cannot silently vanish with a config change —
+ *     it reads real subscription/entitlement rows, not a minted token.
+ *   - FAIL CLOSED: if the entitlement lookup itself errors, gated ids are
+ *     denied. An entitlement gate that fails open is not a gate. Denied ids
+ *     fall back to the per-clip proxy, so a DB blip degrades download speed
+ *     rather than breaking playback.
  * Free/community courses and preview seeds (≤ Yellow) are never `gated`, so
  * anonymous guests keep full offline download of everything they may have.
  *
@@ -54,7 +68,7 @@ import {
   s3Client,
   s3Bucket,
 } from '../_utils/audioAccess'
-import { verifyAuthToken } from '../_utils/auth'
+import { resolveServerCourseAccess, type CourseAccessInput } from '../_utils/courseAccess'
 
 const MAX_IDS_PER_REQUEST = 500
 const TTL_SECONDS = 300
@@ -105,12 +119,62 @@ export default async function handler(
     const supabase = createServiceSupabaseClient()
     const records = await lookupAudioRecordsBatch(supabase, validIds)
 
-    // Verified-session check, resolved AT MOST ONCE per request and only if a
-    // gated id is actually hit — a batch of free/preview clips costs nothing.
-    let sessionCheck: Promise<boolean> | null = null
-    const hasVerifiedSession = (): Promise<boolean> => {
-      if (!sessionCheck) sessionCheck = verifyAuthToken(req).then((r) => r.valid)
-      return sessionCheck
+    // Entitlement resolution, lazy and memoised. A batch of free/preview clips
+    // never touches it at all; a gated batch costs ONE `courses` read for every
+    // distinct course code in the request, plus one `resolveServerCourseAccess`
+    // per distinct course — not per id. 500 ids for one course is 1 + 1.
+    let coursesPromise: Promise<Map<string, CourseAccessInput>> | null = null
+    const loadCourseRows = (): Promise<Map<string, CourseAccessInput>> => {
+      if (!coursesPromise) {
+        coursesPromise = (async () => {
+          const codes = new Set<string>()
+          for (const { row } of records.values()) {
+            if (row.course_code) codes.add(row.course_code)
+          }
+          const map = new Map<string, CourseAccessInput>()
+          if (codes.size === 0) return map
+          const { data, error } = await supabase
+            .from('courses')
+            .select('course_code, target_lang, pricing_tier, is_community')
+            .in('course_code', [...codes])
+          if (error) throw error
+          for (const row of (data || []) as CourseAccessInput[]) map.set(row.course_code, row)
+          return map
+        })()
+      }
+      return coursesPromise
+    }
+
+    const accessByCourse = new Map<string, Promise<boolean>>()
+    /** Is this caller entitled to the FULL content of this course? */
+    const callerIsEntitledTo = (courseCode: string): Promise<boolean> => {
+      let pending = accessByCourse.get(courseCode)
+      if (!pending) {
+        pending = (async () => {
+          const rows = await loadCourseRows()
+          // A gated id whose `courses` row is missing is treated as PREMIUM,
+          // not left to be inferred. We only ever ask this question about ids
+          // `resolveAudioEntitlement` has already classified as premium and
+          // past the preview window, so "we couldn't find the course row" must
+          // not become "assume it's free" — that is a fail-open.
+          const course = rows.get(courseCode) ?? {
+            course_code: courseCode,
+            pricing_tier: 'premium',
+            is_community: false,
+            target_lang: null,
+          }
+          const access = await resolveServerCourseAccess(req, supabase, course)
+          return access.canAccess
+        })().catch((err) => {
+          console.error('[BatchAudioUrls] entitlement lookup failed — denying gated ids:', {
+            courseCode,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return false
+        })
+        accessByCourse.set(courseCode, pending)
+      }
+      return pending
     }
 
     const urls: Record<string, string> = {}
@@ -140,9 +204,11 @@ export default async function handler(
         }
         // `gated` = premium past preview with no valid entitlement token. The
         // shared resolver fails OPEN there (see its comments); on the bulk
-        // endpoint we close it behind a verified session instead. Denied ids
-        // fall back to the per-clip proxy, which keeps its own posture.
-        if (entitlement.gated && !(await hasVerifiedSession())) {
+        // endpoint we close it behind the caller's REAL, DB-resolved course
+        // entitlement instead (SEC0901-D-01) — the same answer
+        // /api/courses/:code/bundle gives. Denied ids fall back to the per-clip
+        // proxy, which keeps its own posture.
+        if (entitlement.gated && !(await callerIsEntitledTo(entry.row.course_code || ''))) {
           denied.push(id)
           return
         }

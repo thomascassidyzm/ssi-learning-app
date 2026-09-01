@@ -10,6 +10,7 @@ import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { isDemoMode } from '../demo/demoMode'
 import { teachersByClassId } from './classTeacherScope'
+import { fetchSchoolRoster } from './schoolRoster'
 
 async function authHeaders(): Promise<Record<string, string>> {
   const client = getSchoolsClient()
@@ -90,11 +91,9 @@ export function useTeachersData() {
         const token = session?.access_token
         if (!token) { teachers.value = []; return }
 
-        const res = await fetch('/api/school/roster', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) throw new Error(`roster ${res.status}`)
-        const { teachers: teacherRows } = (await res.json()) as { teachers: Teacher[] }
+        // Shared with useSchoolData/useStudentsData, which ask for the same
+        // payload at the same moment — see schoolRoster.ts.
+        const { teachers: teacherRows } = (await fetchSchoolRoster(token)) as { teachers: Teacher[] }
         teachers.value = teacherRows
         return
       }
