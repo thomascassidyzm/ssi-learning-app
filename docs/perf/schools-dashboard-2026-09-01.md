@@ -154,6 +154,10 @@ Confirmed 1 request on every schools surface after the change, except
 class-detail (below). The server-side roster aggregation now runs once per page
 load instead of four times.
 
+Re-verified live on `staging.saysomethingin.app` (build `1114e31`) after the
+promotion: **1** roster request on `/schools/students`, content on the glass in
+1,748ms, serial depth 8.
+
 Implementation: `composables/schools/schoolRoster.ts` — in-flight coalescing
 only, **no TTL cache**, so a Retry or a post-write refresh always hits the
 network and nothing shown can go stale. Pinned by
