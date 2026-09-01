@@ -129,6 +129,9 @@ interface LapPlayLike {
   /** Which sentence this play belongs to — the completeness unit. */
   sentenceIdx?: number | null
   audioId?: string | null
+  /** Seed-cup play segued onto a pod lap. Its sentenceIdx is a SEED number,
+   *  from a different numbering than the pod's sentence index. */
+  isLayer1?: boolean
 }
 
 interface LapLike {
@@ -164,8 +167,12 @@ export const filterLapToDeviceAudio = <T extends LapLike>(
   // A play with no sentenceIdx is its own unit — it can't be grouped with
   // anything, and grouping every such play together would let one missing clip
   // delete unrelated material.
+  // Layer-1 seed plays are keyed apart from pod sentences: on a segued pod lap
+  // both are present and both number from 1, so a shared key made pod sentence
+  // 211 and course seed 211 one completeness unit — one missing clip in either
+  // deleted the other. Different namespaces, different keys.
   const keyOf = (p: LapPlayLike, i: number) =>
-    p?.sentenceIdx == null ? `solo:${i}` : `s:${p.sentenceIdx}`
+    p?.sentenceIdx == null ? `solo:${i}` : `${p?.isLayer1 ? 'l1' : 's'}:${p.sentenceIdx}`
 
   const complete = new Map<string, boolean>()
   plays.forEach((p, i) => {

@@ -79,3 +79,38 @@ export const podBoundaryOutcome = (opts: {
   if (opts.forcePodPreviewCheat) return 'preview-resume'
   return opts.layer1Available ? 'fallback-layer1' : 'resume'
 }
+
+/**
+ * OFFLINE: THE WHOLE POD, OR NO POD.
+ *
+ * The download side already refuses to call a pod cached until every clip of it
+ * is (`fix(offline): the WHOLE pod first, not most of it`, 01b04769). This is
+ * the same rule at playback time, and it was missing.
+ *
+ * A pod-round lap is the dialogue pod with the round's Layer-1 seed cup segued
+ * on behind it, and offline the whole thing was filtered to what's on the
+ * device as ONE unit. So a learner whose pod audio hadn't been downloaded got
+ * the pod plays trimmed away sentence by sentence while the seed plays — older
+ * course audio, far more likely to be cached — survived. What played was a
+ * listening block that was all seed drill and no dialogue; it ran to
+ * completion, so the ratchet bumped, and a pod round they never heard was
+ * spent. Nothing recorded that the dialogue had gone missing.
+ *
+ * That is Tom's report on 2026-09-01, verbatim: "we're ONLY getting the
+ * listening SEEDS".
+ *
+ * So the pod is judged on its own, before the cup is segued on, and a pod that
+ * is not wholly on the device does not fire at all: it stays due, and the seed
+ * cup runs in its place.
+ *
+ * Bookends are not part of the judgement — a missing intro/outro chime costs
+ * the learner nothing, and `filterLapToDeviceAudio` already drops them safely.
+ */
+export const podIsWhollyOnDevice = (
+  lap: Pick<PodLap, 'plays'> | null | undefined,
+  filtered: Pick<PodLap, 'plays'> | null | undefined,
+): boolean => {
+  if (!lap) return false
+  if (!filtered) return false
+  return filtered.plays.length === lap.plays.length
+}
