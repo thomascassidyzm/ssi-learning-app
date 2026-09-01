@@ -242,38 +242,62 @@ async function j5(i) {
   await waitReady(page, null, Date.now() + 90000)
   await page.waitForTimeout(2000)
 
-  // A tap is measured end to end: arm the paint probe in the page, click,
-  // read the paint time, then poll for the destination being interactive.
-  const tap = async (label, clickFn, readySel) => {
+  // A tap is measured the way a thumb makes one: a real pointer event at the
+  // control's own centre coordinates. Playwright's .click() retries until the
+  // control is "actionable", which silently HIDES the case where something is
+  // sitting on top of the control — the first version of this journey reported
+  // a flat 8.0s "tap latency" that was purely its own retry loop. So we record
+  // WHICH element the tap actually landed on, and tap it regardless.
+  const tapAt = async (label, sel, readySel) => {
+    const geom = await page.evaluate((s) => {
+      const el = document.querySelector(s)
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height) return null
+      const cx = r.x + r.width / 2, cy = r.y + r.height / 2
+      const owns = (x, y) => { const t = document.elementFromPoint(x, y); return { ok: el.contains(t), hit: t ? String(t.className || t.tagName).slice(0, 60) : null } }
+      const centre = owns(cx, cy)
+      // If something is sitting on the control's centre, find a point the
+      // control genuinely owns so the LATENCY is still measurable — and keep
+      // the centre result, because that is the affordance finding.
+      let px = cx, py = cy
+      if (!centre.ok) {
+        outer: for (const fy of [0.5, 0.25, 0.75]) for (const fx of [0.15, 0.85, 0.3, 0.7]) {
+          const x = r.x + r.width * fx, y = r.y + r.height * fy
+          if (owns(x, y).ok) { px = x; py = y; break outer }
+        }
+      }
+      return { px, py, ownsCentre: centre.ok, hit: centre.hit, reachable: centre.ok || px !== cx || py !== cy }
+    }, sel)
+    if (!geom) return { label, error: `control ${sel} not on screen` }
     const probe = page.evaluate(() => window.__navProbe())
     const t0 = Date.now()
-    try { await clickFn() } catch (e) { return { label, error: String(e).slice(0, 160) } }
-    const painted = await probe.catch(() => null)
-    let interactiveMs = null
-    const dl = Date.now() + 20000
-    while (Date.now() < dl) {
-      if (await page.locator(readySel).first().isVisible().catch(() => false)) { interactiveMs = Date.now() - t0; break }
-      await page.waitForTimeout(30)
+    await page.mouse.click(geom.px, geom.py)
+    // Polled CONCURRENTLY with the paint probe: awaiting the probe first would
+    // make every interactive number inherit the probe's own settling time.
+    const interactive = (async () => {
+      const dl = Date.now() + 15000
+      while (Date.now() < dl) {
+        if (await page.locator(readySel).first().isVisible().catch(() => false)) return Date.now() - t0
+        await page.waitForTimeout(30)
+      }
+      return null
+    })()
+    const [painted, interactiveMs] = await Promise.all([probe.catch(() => null), interactive])
+    return {
+      label, paintedMs: painted?.paintedMs ?? null, paintKind: painted?.kind ?? null, interactiveMs,
+      tapLandedOnControl: geom.ownsCentre, tapActuallyHit: geom.hit, tappedOffCentreToReachIt: !geom.ownsCentre,
     }
-    return { label, paintedMs: painted?.paintedMs ?? null, paintKind: painted?.kind ?? null, interactiveMs }
   }
 
   const taps = []
-  taps.push(await tap('player → library', async () => {
-    await page.locator('.pill-btn').first().click({ timeout: 10000 })
-  }, '.course-row, .library-screen, .browse-screen'))
-  await page.waitForTimeout(1200)
-  taps.push(await tap('library → back to player', async () => {
-    await page.goBack()
-  }, '.center-btn'))
-  await page.waitForTimeout(1200)
-  taps.push(await tap('player → settings', async () => {
-    await page.locator('.pill-btn').last().click({ timeout: 10000 })
-  }, '.settings-panel, .settings-sheet, .mode-tray, [class*="settings"]'))
-  await page.waitForTimeout(1200)
-  taps.push(await tap('settings → close', async () => {
-    await page.locator('.pill-btn').last().click({ timeout: 10000 })
-  }, '.center-btn'))
+  taps.push(await tapAt('player → library', 'button[title="Library"]', '.settings-overlay .browse-screen, .settings-overlay .course-row'))
+  await page.waitForTimeout(1500)
+  taps.push(await tapAt('library → back to player', '.center-btn', '.center-btn:not(.is-return)'))
+  await page.waitForTimeout(1500)
+  taps.push(await tapAt('player → settings', 'button[title="Settings"]', '.settings-screen'))
+  await page.waitForTimeout(1500)
+  taps.push(await tapAt('settings → close', '.center-btn', '.center-btn:not(.is-return)'))
 
   const longTasks = await page.evaluate(() => window.__longTasks || []).catch(() => [])
   await page.screenshot({ path: `${OUT}run-${i}.png` }).catch(() => {})
@@ -281,7 +305,7 @@ async function j5(i) {
   writeFileSync(`${OUT}run-${i}.json`, JSON.stringify({ ...out, waterfall: rows.slice(0, 150) }, null, 2))
   await ctx.close(); rmSync(dir, { recursive: true, force: true })
   log(`\n── ${JOURNEY} run ${i} (${NETNAME}) ──`)
-  for (const t of taps) log(`  ${String(t.label).padEnd(28)} painted ${t.paintedMs ?? 'MISSING'}ms · interactive ${t.interactiveMs ?? 'NEVER'}ms${t.error ? ` · ${t.error}` : ''}`)
+  for (const t of taps) log(`  ${String(t.label).padEnd(28)} painted ${t.paintedMs ?? 'MISSING'}ms · interactive ${t.interactiveMs ?? 'NEVER'}ms${t.tapLandedOnControl === false ? ` · CENTRE OF CONTROL HIT "${t.tapActuallyHit}" INSTEAD — tapped off-centre to measure it` : ''}${t.error ? ` · ${t.error}` : ''}`)
   return out
 }
 

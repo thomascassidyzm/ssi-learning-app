@@ -1,0 +1,152 @@
+{
+ "journey": "j1",
+ "net": "slow3g",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 3,
+ "at": "2026-09-01T09:30:00.007Z",
+ "ready": {
+  "n": 3,
+  "median": 18205,
+  "min": 18153,
+  "max": 24060,
+  "spread": 1.33,
+  "all": [
+   18153,
+   18205,
+   24060
+  ]
+ },
+ "press": {
+  "n": 3,
+  "median": 26248,
+  "min": 26219,
+  "max": 32162,
+  "spread": 1.23,
+  "all": [
+   26219,
+   26248,
+   32162
+  ]
+ },
+ "firstWordHeard": {
+  "n": 3,
+  "median": 29024,
+  "min": 28683,
+  "max": 33090,
+  "spread": 1.15,
+  "all": [
+   28683,
+   29024,
+   33090
+  ]
+ },
+ "neverPlayedRuns": 0,
+ "unexplained": {
+  "n": 3,
+  "median": 6894,
+  "min": 6689,
+  "max": 7084,
+  "spread": 1.06,
+  "all": [
+   6689,
+   6894,
+   7084
+  ]
+ },
+ "legBusyMs": {
+  "other": {
+   "n": 3,
+   "median": 20904,
+   "min": 20626,
+   "max": 26196,
+   "spread": 1.27,
+   "all": [
+    20626,
+    20904,
+    26196
+   ]
+  },
+  "app-code": {
+   "n": 3,
+   "median": 21940,
+   "min": 18640,
+   "max": 21994,
+   "spread": 1.18,
+   "all": [
+    18640,
+    21940,
+    21994
+   ]
+  },
+  "courses-catalogue": {
+   "n": 3,
+   "median": 4054,
+   "min": 3949,
+   "max": 4246,
+   "spread": 1.08,
+   "all": [
+    3949,
+    4054,
+    4246
+   ]
+  },
+  "learner-progress": {
+   "n": 3,
+   "median": 7778,
+   "min": 6980,
+   "max": 7863,
+   "spread": 1.13,
+   "all": [
+    6980,
+    7778,
+    7863
+   ]
+  },
+  "course-bundle": {
+   "n": 3,
+   "median": 3922,
+   "min": 3893,
+   "max": 13882,
+   "spread": 3.57,
+   "all": [
+    3893,
+    3922,
+    13882
+   ]
+  },
+  "course-content": {
+   "n": 3,
+   "median": 13481,
+   "min": 9366,
+   "max": 13530,
+   "spread": 1.44,
+   "all": [
+    9366,
+    13481,
+    13530
+   ]
+  },
+  "round-map": {
+   "n": 1,
+   "median": 1084,
+   "min": 1084,
+   "max": 1084,
+   "spread": 1,
+   "all": [
+    1084
+   ]
+  },
+  "audio": {
+   "n": 3,
+   "median": 14688,
+   "min": 9056,
+   "max": 14884,
+   "spread": 1.64,
+   "all": [
+    9056,
+    14688,
+    14884
+   ]
+  }
+ }
+}

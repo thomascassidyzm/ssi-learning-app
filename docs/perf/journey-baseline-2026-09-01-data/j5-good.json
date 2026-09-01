@@ -1,0 +1,113 @@
+{
+ "journey": "j5",
+ "net": "good",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 3,
+ "at": "2026-09-01T09:59:47.121Z",
+ "taps": {
+  "player \u2192 library": {
+   "painted": {
+    "n": 3,
+    "median": 35,
+    "min": 31,
+    "max": 42,
+    "spread": 1.35,
+    "all": [
+     31,
+     35,
+     42
+    ]
+   },
+   "interactive": {
+    "n": 3,
+    "median": 48,
+    "min": 41,
+    "max": 50,
+    "spread": 1.22,
+    "all": [
+     41,
+     48,
+     50
+    ]
+   }
+  },
+  "library \u2192 back to player": {
+   "painted": {
+    "n": 3,
+    "median": 27,
+    "min": 27,
+    "max": 30,
+    "spread": 1.11,
+    "all": [
+     27,
+     27,
+     30
+    ]
+   },
+   "interactive": {
+    "n": 3,
+    "median": 14,
+    "min": 8,
+    "max": 16,
+    "spread": 2,
+    "all": [
+     8,
+     14,
+     16
+    ]
+   }
+  },
+  "player \u2192 settings": {
+   "painted": {
+    "n": 3,
+    "median": 34,
+    "min": 31,
+    "max": 37,
+    "spread": 1.19,
+    "all": [
+     31,
+     34,
+     37
+    ]
+   },
+   "interactive": {
+    "n": 3,
+    "median": 58,
+    "min": 56,
+    "max": 61,
+    "spread": 1.09,
+    "all": [
+     56,
+     58,
+     61
+    ]
+   }
+  },
+  "settings \u2192 close": {
+   "painted": {
+    "n": 3,
+    "median": 30,
+    "min": 30,
+    "max": 310,
+    "spread": 10.33,
+    "all": [
+     30,
+     30,
+     310
+    ]
+   },
+   "interactive": {
+    "n": 3,
+    "median": 9,
+    "min": 8,
+    "max": 9,
+    "spread": 1.13,
+    "all": [
+     8,
+     9,
+     9
+    ]
+   }
+  }
+ }
+}

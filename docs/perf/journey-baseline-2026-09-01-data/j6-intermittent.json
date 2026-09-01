@@ -1,0 +1,35 @@
+{
+ "journey": "j6",
+ "net": "intermittent",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 3,
+ "at": "2026-09-01T09:36:59.113Z",
+ "firstWordHeard": {
+  "n": 3,
+  "median": 3768,
+  "min": 3727,
+  "max": 3818,
+  "spread": 1.02,
+  "all": [
+   3727,
+   3768,
+   3818
+  ]
+ },
+ "longestSilence": {
+  "n": 3,
+  "median": 10034,
+  "min": 10015,
+  "max": 10050,
+  "spread": 1,
+  "all": [
+   10015,
+   10034,
+   10050
+  ]
+ },
+ "recoveredUntouched": 3,
+ "saidNothingRuns": 3,
+ "placeChangedRuns": 3,
+ "messages": []
+}

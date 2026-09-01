@@ -153,10 +153,16 @@ export const instrument = () => {
       // Ignore trivial text ticks (a clock, a progress %); wait for real
       // structural change, which is what a screen switch is.
       for (const m of muts) {
-        if (m.type === 'childList' && (m.addedNodes.length || m.removedNodes.length)) {
-          for (const n of m.addedNodes) {
-            if (n.nodeType === 1 && n.getBoundingClientRect && n.getBoundingClientRect().height > 40) return finish('structural')
-          }
+        if (m.type !== 'childList') continue
+        for (const n of m.addedNodes) {
+          if (n.nodeType === 1 && n.getBoundingClientRect && n.getBoundingClientRect().height > 40) return finish('structural')
+        }
+        // Closing a screen only REMOVES nodes, and a detached node has no
+        // rect to measure — so size it by whether it was a container. Without
+        // this every "close the overlay" tap reported a flat 8000ms, which
+        // was this probe's own timeout, not anything the learner waited for.
+        for (const n of m.removedNodes) {
+          if (n.nodeType === 1 && n.childElementCount > 0) return finish('structural-removal')
         }
       }
     })
