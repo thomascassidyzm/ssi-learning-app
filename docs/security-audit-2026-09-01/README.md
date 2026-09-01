@@ -235,6 +235,9 @@ disagreement is stated rather than silently overridden.
 | SEC0901-X-01 | the watson-1 nightly drops `pnpm --filter @ssi/core test` — 35 files / 751 tests, incl. the parity guard and the pricing suites | MEDIUM | open, one-line fix, another repo |
 | SEC0901-X-04 | SEC25-D-02 residual: a signed-in caller can read a known learner's per-course practice minutes | MEDIUM | open by prior decision, day 7 |
 | SEC0901-X-02 | the two `*.security-audit.ts` specs now guard *closed* findings and are collected by no gate | MEDIUM | open, two-line fix |
+| **SEC0901-D-02** | client bundle cache keyed by `courseCode` only and never cleared on sign-out — a subscriber's paid bundle is served to the next user of a shared school device | **HIGH** | **STILL LIVE** — §4; one-line fix |
+| **SEC0901-D-01** | `audio/batch-urls` gates bulk premium URLs on authentication, never entitlement | **HIGH** | STILL LIVE — §4; documented interim state, remedy is the subscriber mint |
+| SEC0901-D-03 | `bundle.ts` `private` + `s-maxage` — looked exploitable, measured not to be | INFO | pinned so it stays that way |
 | SEC0901-B-01 | `invite/create` validates `grants_class_id` only for `teacher`/`student` types | LOW | privileged-caller-only |
 | SEC0901-C-01 | `player-events.event_type` is length-capped but not allowlisted | LOW | self-attributed rows only |
 | SEC0901-C-03 | `groups/{table,tree,[id]/home}` leak raw `String(error)` on the 500 path | LOW | authenticated callers |
@@ -280,3 +283,60 @@ Recorded because "nothing found" is a result, and because the next audit should 
   audit did not run the player-vue suite except where an area added a test to it.
 - Deliberately not re-swept, having been done to death by five prior audits: injection as a *discovery*
   exercise, the privileged-gate roster, webhook signatures, join-code entropy, the DEFINER posture.
+
+---
+
+## 4. Coordinator verification of Area D's two HIGHs
+
+Both re-derived from source, because they are the two findings in this audit that touch paid content.
+
+### SEC0901-D-02 — confirmed exactly as filed, and it is the most actionable finding here
+
+`packages/player-vue/src/composables/useCourseBundle.ts:130` creates the IndexedDB store with
+`{ keyPath: 'courseCode' }` — one record per course, per **device**, with no learner in the key.
+`clearCachedBundle()` is exported at line 168 and has **zero non-test callers anywhere in `src/`**.
+`useAuth.signOut()` (line 821) is thorough about everything else — `purgeSupabaseAuthStorage()`,
+`forgetIdentity()`, `useUserRole().clear()`, `useSharedSubscription().clearCache()`,
+`useSharedUserEntitlements().clearCache()` — and never touches the bundle DB.
+
+So a paid course bundle cached by a subscriber survives sign-out and is served to the next person to use
+that device. This product ships to **schools**, where shared devices are the norm rather than the edge
+case. The file already carries a careful guard for the opposite direction (a guest who cached the 19-seed
+preview must not keep being served it after subscribing); this is the missing mirror of a guard the
+author was already thinking about. **The fix is one call to the function that already exists**, in
+`signOut()` alongside the other five cache clears.
+
+### SEC0901-D-01 — confirmed, but the fix is not a patch, and the report should say so
+
+Verified: `api/audio/batch-urls.ts:112` resolves its "verified session" gate as
+`verifyAuthToken(req).then((r) => r.valid)` — authentication, with no entitlement or subscription read
+anywhere in the handler. A free account that costs nothing to create does receive premium presigned URLs.
+Area D's narrowing of the 08-25 framing is right: bulk extraction is closed to *anonymous* callers, not to
+*unentitled* ones.
+
+**What Area D underplays, and it changes what to do about it:** this is not an oversight, it is a
+documented interim state, and the file says so in its own header —
+
+> *It does NOT depend on `ENTITLEMENT_ENFORCE`. That env var is absent in production and defaults
+> fail-open, and arming it today would deny every paying subscriber (no subscriber token mint site exists
+> yet). This gate is on unconditionally and cannot silently vanish with a config change.*
+
+`audioAccess.ts:451` carries the matching note: the strict path is waiting on *"whenever a SUBSCRIBER mint
+site appears"*. So the entitlement system this endpoint would check does not yet exist end-to-end, and
+`verifyAuthToken` was chosen deliberately as the strongest gate available that does not lock out every
+real subscriber. Filing this as "a missing entitlement check" would mis-describe it: **the remedy is
+building the subscriber token mint, then arming `ENTITLEMENT_ENFORCE=strict`** — a piece of product work
+and a sequencing decision, not a patch. What is worth recording is that until that lands, the effective
+access rule for the bulk audio path is *"anyone with an email address"*, and any statement anywhere that
+it is entitlement-gated is wrong.
+
+### On Area D's live probing
+
+Area D curled the deployed **`dev`** branch (read-only `GET`s, no auth, no writes) to check the R1
+edge-cache keying against reality rather than reasoning about it. That is inside this run's rules — dev is
+not production, nothing was mutated — and it is why the cache verdicts in that area are stated as
+measured rather than inferred: anonymous-within-preview genuinely caches (MISS→HIT→HIT), past-preview
+never enters cache, and any request carrying an `Authorization` header gets `x-vercel-cache: BYPASS`.
+`bundle.ts`'s `private` + `s-maxage` pairing looked exploitable and measurably is not — Vercel strips the
+shared-cache tokens whenever `private` is present. It is pinned by a test so that nobody later "tidies
+away" the apparently redundant `private` token and creates the server-side twin of SEC0901-D-02.
