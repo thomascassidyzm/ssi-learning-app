@@ -26,7 +26,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
-import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
+import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds, collectListeningMetaPodAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
@@ -78,6 +78,7 @@ import {
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
+import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -12538,16 +12539,22 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // "no listening content" apart from "couldn't check" — the latter must NOT
 // let the download report a false "complete" (2026-07-21 flight report:
 // Core silently missing from the offline bundle with no error shown).
-const collectListeningModeAudioIds = async (): Promise<string[] | null> => {
+// Returns the POD slice separately from the full set. The pod slice is the
+// only place the fine-known gloss clips and Take-G fusion slices appear — the
+// main-flow scheduler's row shape (SchedulerPodRow) carries neither — and they
+// are what the Listening overlay plays on a fusion rung. Keeping them apart is
+// what lets the download queue put the WHOLE pod up front (Tom 2026-09-01);
+// see playback/offlineDownloadOrder.ts.
+const collectListeningModeAudioIds = async (): Promise<{ all: string[]; pods: string[] } | null> => {
   const client = supabase.value
   const code = courseCode.value
-  if (!client || !code) return []
+  if (!client || !code) return { all: [], pods: [] }
   const meta = await fetchAndCacheListeningMeta(client, code)
   if (!meta) {
     console.warn('[Offline] listening metadata fetch failed — listening bundle skipped this run')
     return null
   }
-  return collectListeningMetaAudioIds(meta)
+  return { all: collectListeningMetaAudioIds(meta), pods: collectListeningMetaPodAudioIds(meta) }
 }
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
@@ -12567,8 +12574,13 @@ const collectListeningModeAudioIds = async (): Promise<string[] | null> => {
 // mid-course picker and the INF-PLAY single option) already call for
 // "everything besides the main-loop cycles". 'All' (USE phrases) is
 // deliberately excluded from the offline bundle — see collectListeningModeAudioIds.
-const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; auxIncomplete: boolean }> => {
+const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; podIds: string[]; auxIncomplete: boolean }> => {
   const ids = new Set<string>()
+  // Pod clips, tracked separately so the download queue can fetch the WHOLE pod
+  // first (Tom 2026-09-01). Every id here is ALSO in `ids` — the queue builder
+  // dedupes to the earliest tier, so appearing twice costs nothing and the
+  // totals, the progress accounting and "Ready ✓" keep meaning what they meant.
+  const podIds = new Set<string>()
   let auxIncomplete = false
   const provider = courseDataProvider.value
   if (provider) {
@@ -12592,13 +12604,14 @@ const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; auxIncomplet
       if (!podScheduler) return
       try {
         if (!podScheduler.isInitialized.value) await podScheduler.initialize()
+        const addPod = (id?: string | null) => { if (id) { ids.add(id); podIds.add(id) } }
         for (const s of podScheduler.podSentences.value ?? []) {
-          if (s?.target_audio_id) ids.add(s.target_audio_id)
-          if (s?.known_audio_id) ids.add(s.known_audio_id)
-          if (s?.explainer_audio_id) ids.add(s.explainer_audio_id)
+          addPod(s?.target_audio_id)
+          addPod(s?.known_audio_id)
+          addPod(s?.explainer_audio_id)
         }
-        if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
-        if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
+        addPod(podScheduler.introAudio.value?.id)
+        addPod(podScheduler.outroAudio.value?.id)
       } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
     })(),
     // Layer-1 listening (drained-seed fluency maintenance). Same treatment as
@@ -12625,14 +12638,15 @@ const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; auxIncomplet
       try {
         const found = await collectListeningModeAudioIds()
         if (found === null) { auxIncomplete = true; return }
-        for (const id of found) ids.add(id)
+        for (const id of found.all) ids.add(id)
+        for (const id of found.pods) podIds.add(id)
       } catch (e) {
         console.warn('[Offline] Listening mode (Core/All) enumerate failed:', e)
         auxIncomplete = true
       }
     })(),
   ])
-  return { ids: [...ids], auxIncomplete }
+  return { ids: [...ids], podIds: [...podIds], auxIncomplete }
 }
 
 const downloadForOffline = async (roundsAhead: number = Infinity) => {
@@ -12645,21 +12659,32 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const cycleIds = collectRoundsAudioIds(roundsAhead)
-  const { ids: auxIds, auxIncomplete } = await collectAuxiliaryAudioIds()  // commentary + pod pools
-  // Same insertion as the rolling filler, for the same reason: a deliberate
-  // download can be interrupted (signal goes, app closed, user leaves), and
-  // whatever landed before that is what the learner actually has. Listening
-  // sat at the very END of this list — behind every round of the course — so
-  // an interrupted download reliably had none of it. ALL of it now rides
-  // directly behind the first few rounds. The SET of ids is unchanged; only
-  // the order is, so the totals, the progress accounting and "Ready ✓" all
-  // mean exactly what they meant before.
-  const ids = [...new Set([
-    ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
-    ...collectAllListeningAudioIds(),
-    ...cycleIds,
-    ...auxIds,
-  ])]
+  const { ids: auxIds, podIds, auxIncomplete } = await collectAuxiliaryAudioIds()  // commentary + pod pools
+  // The learner chooses what percentage of the remaining course to take, and a
+  // download can be interrupted (signal goes, app closed, user walks away) — so
+  // a PARTIAL download is the normal case, and this order decides what it is.
+  //
+  // Tom, 2026-09-01: "Not first. But prioritised." Pods are woven THROUGH the
+  // course at an elevated rate, not stacked in front of it: a pods-first prefix
+  // would leave someone who stops early holding complete dialogues and nothing
+  // to play next. The course leads; pods take one slot in eight, about three
+  // times their natural share, so at any interruption the learner has the next
+  // stretch of course AND a disproportionately large share of the pods.
+  //
+  // Pods lead the promoted stream and the Layer-1 pool follows, so the pods are
+  // the part that survives a shallow take. The pod slice deliberately includes
+  // the fine-known glosses and Take-G fusion slices that only the listening
+  // metadata carries — without them, pod dialogue dies the moment a learner
+  // opens a fusion rung.
+  //
+  // The SET of ids is unchanged; only the order is, so the totals, the
+  // progress accounting and "Ready ✓" all mean exactly what they meant before.
+  const ids = buildOfflineDownloadQueue({
+    head: collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
+    priority: [...new Set([...podIds, ...collectAllListeningAudioIds()])],
+    main: cycleIds,
+    tail: auxIds,
+  })
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
@@ -13458,9 +13483,19 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
     collectInfPlayUseAudioIds(),
     collectAuxiliaryAudioIds(),
   ])
-  const { ids: auxIds, auxIncomplete } = auxResult
+  const { ids: auxIds, podIds, auxIncomplete } = auxResult
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  const ids = [...new Set([...useIds, ...auxIds])]
+  // Same woven pod priority as the mid-course download (Tom 2026-09-01: "Not
+  // first. But prioritised."). INF PLAY still plays pods, so they are pulled
+  // forward here too — through the USE phrases rather than in front of them,
+  // so an interrupted download always leaves something to play. Same set of
+  // ids as before; only the order changes.
+  const ids = buildOfflineDownloadQueue({
+    head: [],
+    priority: podIds,
+    main: useIds,
+    tail: auxIds,
+  })
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done

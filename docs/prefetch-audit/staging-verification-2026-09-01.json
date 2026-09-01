@@ -1,0 +1,62 @@
+{
+  "probe": "upfront-download-budget",
+  "ranAt": "2026-09-01T07:17:04.113Z",
+  "base": "https://staging.saysomethingin.app",
+  "course": "spa_for_eng",
+  "deviceProfile": "iPhone 13 (UA/viewport/DPR/touch), Chromium",
+  "buildNumber": "0ad8110",
+  "freshness": {
+    "swCount": 0,
+    "dbs": [],
+    "localStorageKeys": 0
+  },
+  "stallReason": null,
+  "timeline": {
+    "pressedAtMs": 4709,
+    "firstAudibleAtMs": 5115,
+    "windowEndMs": 65199,
+    "observationWindowMs": 60000
+  },
+  "firstLessonSrc": "blob:https://staging.saysomethingin.app/62f5407e-fa7a-4242-b218-232f185aa393",
+  "lessonPlayCalls": 22,
+  "wireBytes": {
+    "method": "CDP Network.loadingFinished.encodedDataLength, fresh profile, HTTP cache cleared",
+    "atFirstAudible": {
+      "audioMB": 1.33,
+      "audioRequests": 34,
+      "totalMB": 2.78
+    },
+    "atWindowEnd": {
+      "audioMB": 5.45,
+      "audioRequests": 179,
+      "totalMB": 6.9
+    }
+  },
+  "settingsNumber": {
+    "method": "IndexedDB 'ssi-audio-cache-v2'/'audio' summed by lifecycle — the same source as SettingsScreen's '{n} MB downloaded for offline'",
+    "atFirstAudible": {
+      "downloadedForOfflineMB": 0,
+      "persistentBytes": 409536,
+      "persistentCount": 15,
+      "ephemeralMB": 0,
+      "ephemeralCount": 0
+    },
+    "atWindowEnd": {
+      "downloadedForOfflineMB": 4,
+      "persistentBytes": 4489100,
+      "persistentCount": 152,
+      "ephemeralMB": 0,
+      "ephemeralCount": 0
+    }
+  },
+  "topAudioHosts": [
+    {
+      "host": "staging.saysomethingin.app",
+      "mb": 4.56
+    },
+    {
+      "host": "swfvymspfxmnfhevgdkg.supabase.co",
+      "mb": 0.89
+    }
+  ]
+}

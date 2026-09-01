@@ -586,6 +586,32 @@ export const isCachedListeningMetaStale = async (courseCode: string): Promise<bo
 }
 
 /**
+ * The POD slice of the listening metadata — pod turns (incl. per-sentence
+ * split clips, known glosses, explainers, Take-G fusion slices), the
+ * fine-known gloss clips those scenes use, and the listen bookends that top
+ * and tail a pod lap.
+ *
+ * Split out from `collectListeningMetaAudioIds` so the Offline Mode download
+ * can fetch pods FIRST (Tom's ruling, 2026-09-01): a learner who disconnects
+ * partway through a 1.86 GB course download should have COMPLETE dialogue
+ * pods rather than a scattering of everything. Core seed audio is deliberately
+ * NOT here — Core is the whole-course listening bundle, not a pod.
+ */
+export const collectListeningMetaPodAudioIds = (meta: CachedListeningMeta): string[] => {
+  const ids = new Set<string>()
+  const add = (id?: string | null) => { if (id) ids.add(id) }
+  for (const row of meta.podRows) {
+    add(row.target_audio_id); add(row.known_audio_id); add(row.explainer_audio_id)
+    for (const id of row.sentence_audio_ids || []) add(id)
+    for (const id of row.sentence_known_audio_ids || []) add(id)
+    for (const id of row.takeg_audio_ids || []) add(id)
+  }
+  for (const b of meta.bookends) add(b.id)
+  for (const id of Object.values(meta.fineKnowns)) add(id)
+  return [...ids]
+}
+
+/**
  * Every audio id the listening metadata references — the listening slice of
  * the offline audio bundle. Derived from the same rows we persist, so the
  * cached metadata can never point at un-downloaded audio: Core seed
