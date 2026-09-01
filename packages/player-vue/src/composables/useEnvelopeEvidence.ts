@@ -10,7 +10,7 @@
  * aggregator for free once every phrase sharing a LEGO emits to the same
  * `unitId`; this module's only job is one faithful per-cycle delta.
  *
- * `docs/adaptation/adaptation-v2-build-spec.md` §5.3 is the design authority;
+ * `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §5.3 is the design authority;
  * all weights are PROPOSED (config-tunable later, same as WP-1's mapping
  * table).
  *

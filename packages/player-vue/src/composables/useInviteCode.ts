@@ -178,7 +178,7 @@ export function useInviteCode() {
   }
 
   /**
-   * Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+   * Possession-based onboarding (archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md,
    * Option A) — no OTP round-trip. Creates the account + mints a session
    * server-side from possession of the (already-validated) pending invite
    * code alone. Caller still owns calling supabase.auth.setSession(...) with

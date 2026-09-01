@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref, computed, watch, nextTick } from 'vue'
 import { SimplePlayer, type PlaybackState, type Round } from './SimplePlayer'
 
-// REGRESSION: the phase-display mirror (M2, docs/player/pull-consistency-map.md).
+// REGRESSION: the phase-display mirror (M2, archive/docs-retired-2026-08-24/player/pull-consistency-map.md).
 // currentPhase in LearningPlayer used to be a writable ref fed by a two-hop
 // relay (engine → onPhaseChanged callback → pendingPhase ref → watcher) plus
 // two legacy-path writers — the same shape as the pre-878246ff isPlaying

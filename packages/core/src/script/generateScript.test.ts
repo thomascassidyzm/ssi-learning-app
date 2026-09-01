@@ -503,7 +503,7 @@ describe('generateScript — infplay mode', () => {
 
 // ===========================================================================
 // SEED-PHASE spaced-rep reviews (offsets ≥ 144) — parity item added in the
-// bundle-cutover Phase 1 promotion (docs/bundle-cutover-design.md §3).
+// bundle-cutover Phase 1 promotion (archive/docs-retired-2026-08-24/bundle-cutover-design.md §3).
 // ===========================================================================
 describe('generateScript — SEED-PHASE spaced-rep reviews (offset ≥ 144)', () => {
   it('main loop: offset 144 reviews the full parent seed sentence, not a use-phrase', () => {

@@ -1,9 +1,9 @@
 /**
  * PlayerConductor — the single owner of every SimplePlayer control transition
- * (pause/resume/stop/skip/jump/addRounds/...). See docs/player-decomposition-options.md
+ * (pause/resume/stop/skip/jump/addRounds/...). See archive/docs-retired-2026-08-24/player-decomposition-options.md
  * (Option 2) for the decision this implements.
  *
- * The disease this retires (docs/player-decomposition-options.md "The actual
+ * The disease this retires (archive/docs-retired-2026-08-24/player-decomposition-options.md "The actual
  * disease"): four bug classes, all from nobody owning "what state is
  * playback in right now, and who's allowed to change it":
  *   - fire-and-forget promises stranding the player paused (ed738a0f)

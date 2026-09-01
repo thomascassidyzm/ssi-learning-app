@@ -2,8 +2,8 @@
  * usePodAtomFusion — pure computation core for the Atom-Fusion Stage-one ladder.
  *
  * Computes a deterministic, serializable PLAY PLAN from a per-sentence atom
- * map (the Popty data contract — see docs/atom-fusion-introduction.md, fuller
- * v2 spec in the Popty repo at docs/architecture/atom-fusion-introduction.md)
+ * map (the Popty data contract — see archive/docs-retired-2026-08-24/atom-fusion-introduction.md, fuller
+ * v2 spec in the Popty repo at archive/docs-retired-2026-08-24/atom-fusion-introduction.md)
  * plus a few live config knobs. The plan is the whole Stage-one ladder for one
  * clause:
  *

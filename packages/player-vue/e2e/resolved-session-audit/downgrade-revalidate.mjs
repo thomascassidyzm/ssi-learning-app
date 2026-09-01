@@ -1,5 +1,5 @@
 // Mid-session role-downgrade regression (Trinity audit finding #2,
-// docs/trinity/admin.md): useUserRole's role refs used to be set ONCE at
+// archive/docs-retired-2026-08-24/trinity/admin.md): useUserRole's role refs used to be set ONCE at
 // sign-in and never re-polled, so a de-platformed ssi_admin kept full admin
 // UI on every screen until their next reload/sign-out. useAdminGate's
 // periodic re-validation (packages/player-vue/src/composables/useAdminGate.ts)

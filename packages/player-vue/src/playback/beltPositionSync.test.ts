@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref, computed, watch, nextTick } from 'vue'
 import { SimplePlayer, type PlaybackState, type Round } from './SimplePlayer'
 
-// REGRESSION: M9 of docs/player/pull-consistency-map.md — the belt position
+// REGRESSION: M9 of archive/docs-retired-2026-08-24/player/pull-consistency-map.md — the belt position
 // push. useBeltProgress.playingSeedNumber used to be pushed from ~15 scattered
 // LearningPlayer sites (round completion, belt-skip landings, INF-PLAY
 // entry/advance/back, five resume paths, deep-link jumps). A missed push left

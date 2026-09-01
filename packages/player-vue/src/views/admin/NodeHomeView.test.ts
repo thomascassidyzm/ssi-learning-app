@@ -1,6 +1,6 @@
 /**
  * Tests for NodeHomeView.vue — THE VIEW's one recursive node home
- * (docs/THE-VIEW.md). Pins the founder ruling: the SAME page grammar at
+ * (archive/docs-retired-2026-08-24/THE-VIEW.md). Pins the founder ruling: the SAME page grammar at
  * every level (org root / mid group / school / class) — map rail with
  * you-are-here, identity header, stats row, children list — plus the two
  * navigation rules: lenses are filters over the one view (query-driven,
@@ -307,7 +307,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(row.find('.child-spark').exists()).toBe(true)
     expect(row.text()).toContain('60m this wk')
     // Streaks are banned (founder ruling 2026-07-19,
-    // docs/gamification-done-right.md) — the word never renders.
+    // archive/docs-retired-2026-08-24/gamification-done-right.md) — the word never renders.
     expect(wrapper.text().toLowerCase()).not.toContain('streak')
     // Clicking does nothing: no navigation, no expansion.
     await row.find('.child-btn').trigger('click')

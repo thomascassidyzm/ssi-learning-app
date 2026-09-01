@@ -6,7 +6,7 @@
  *
  * Use case: school email gateways (Microsoft/Exchange Online education
  * tenants) silently quarantine our OTP mail — see
- * docs/schools/email-deliverability-plan.md. When a teacher can't receive
+ * archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md. When a teacher can't receive
  * the OTP, an admin mints this link out-of-band (Slack/WhatsApp/in person)
  * and the teacher clicks it to sign in directly.
  *

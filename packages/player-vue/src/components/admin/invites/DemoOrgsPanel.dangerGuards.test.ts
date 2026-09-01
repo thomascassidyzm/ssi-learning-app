@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 // Guard for demo-org Purge — the most destructive verb on the admin surface
-// (docs/admin-danger-verbs.md #6): the native confirm() is replaced by the
+// (archive/docs-retired-2026-08-24/admin-danger-verbs.md #6): the native confirm() is replaced by the
 // impact-preview ConfirmDeleteModal, escalating to type-the-name when the
 // tree has real recorded activity.
 

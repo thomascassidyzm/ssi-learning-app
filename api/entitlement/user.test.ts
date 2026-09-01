@@ -1,6 +1,6 @@
 /**
  * Tests for GET /api/entitlement/user — covers the class-coverage entitlement
- * cascade (docs/schools/group-commercial-model.md, "Student entitlement —
+ * cascade (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Student entitlement —
  * FINAL model") alongside the pre-existing user_entitlements / group-cascade
  * behaviour. resolveClassCourseCoverage itself is unit-tested in
  * api/_utils/classCoverage.test.ts; this file proves it's actually wired into

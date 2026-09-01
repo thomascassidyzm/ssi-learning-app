@@ -4,7 +4,7 @@
  * The service-role write path for the first-class-class model: add, remove, or
  * hand over a class's teachers. Teacher↔class is a time-bounded relationship in
  * `user_tags(tag_type='class', role_in_context='teacher')` (see
- * docs/methodology/class-first-class-citizen.md). The live `user_tags_insert`
+ * archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md). The live `user_tags_insert`
  * RLS policy forbids any non-god authenticated user from inserting a
  * `role_in_context='teacher'` tag, so privileged tag writes MUST come through a
  * service-role route — this one. Mirrors `create-class-join-code.ts`.

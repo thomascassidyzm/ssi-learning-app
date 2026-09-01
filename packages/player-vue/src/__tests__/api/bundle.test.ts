@@ -584,7 +584,7 @@ describe('GET /api/courses/:code/bundle', () => {
 // ---------------------------------------------------------------------------
 // Script artifact identity — scriptShape/scriptShapeVersion/generatorVersion,
 // seed text+audio, and the ?head=1 version probe (bundle-cutover Phase 1,
-// docs/bundle-cutover-design.md §2, §3).
+// archive/docs-retired-2026-08-24/bundle-cutover-design.md §2, §3).
 // ---------------------------------------------------------------------------
 describe('GET /api/courses/:code/bundle — script artifact identity', () => {
   beforeEach(() => {

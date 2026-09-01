@@ -1,5 +1,5 @@
 /**
- * Walkthrough compiler — the PURE validation half (docs/walkthrough-engine-scout.md §3).
+ * Walkthrough compiler — the PURE validation half (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3).
  *
  * Walks are hand-authored JSON (tools/walkthrough/walks/*.json — the DECISIONS);
  * this module is the DRIFT GATE between them and the live Vue source: a walk

@@ -2,7 +2,7 @@
 // ============================================================================
 // NodeRateEngine — THE LENS: the one Insight Engine scoped to ONE NODE.
 //
-// The analytics face of node home (docs/THE-VIEW.md): the entity is ALWAYS the
+// The analytics face of node home (archive/docs-retired-2026-08-24/THE-VIEW.md): the entity is ALWAYS the
 // node it was opened from (a class, a school, a group at any depth) and the
 // compare-to chain IS the map rail's ancestor path — parent's average by
 // default, then up the tree to the global cohorts. One component serves every

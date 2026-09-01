@@ -172,7 +172,7 @@ const invalidateStaleCaches = () => {
       // savePositionToLocalStorage's comment), and wiping them on every
       // build silently restarted every guest at round 1 (guests have no
       // server row to fall back to). Position authority ruling
-      // (docs/pwa-lifecycle-design.md §2.3) — only learner intent
+      // (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3) — only learner intent
       // (reset, sign-out) may clear a position key.
       // Clear stale belt version key (we use BUILD_VERSION now)
       if (key === 'ssi_app_version') {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // NodeMapRail — the MAP of the org with a visual indicator of where you are
-// (docs/THE-VIEW.md §1.1). Ancestor path from the org root down to here,
+// (archive/docs-retired-2026-08-24/THE-VIEW.md §1.1). Ancestor path from the org root down to here,
 // you-are-here lit, siblings one tap away, children below — the whole org
 // navigable up/down from any node without leaving the page. Same rail at
 // every level; this is the spine of THE VIEW.

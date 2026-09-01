@@ -1,6 +1,6 @@
 /**
  * bootHeal — the never-wedge boot ladder's decision logic (Stage 1,
- * docs/pwa-lifecycle-design.md §2.1). Enumerates the live states the inline
+ * archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.1). Enumerates the live states the inline
  * watchdog in index.html hand-mirrors, per the 5f4a8b1d lesson (verify every
  * state a sweep/ladder touches, don't just eyeball the happy path).
  */

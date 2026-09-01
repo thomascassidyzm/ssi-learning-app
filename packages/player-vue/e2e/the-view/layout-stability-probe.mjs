@@ -1,4 +1,4 @@
-// THE VIEW — org-switch layout-stability probe (docs/the-view/layout-stability-REPORT.md).
+// THE VIEW — org-switch layout-stability probe (archive/docs-retired-2026-08-24/the-view/layout-stability-REPORT.md).
 // Founder bug 2026-07-20: switching node via the map rail's "others at this level"
 // wobbles the page 3-4 times per switch. This probe drives a real admin session on a
 // DEPLOYED build, switches nodes through the rail exactly like the founder does, and

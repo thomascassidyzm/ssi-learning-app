@@ -15,7 +15,7 @@
  * Authorization: verifyAuthToken, then resolveVisibleScope must place classId
  * in the caller's classIds AND the caller's role must be teacher or
  * school_admin (govt_admin is excluded from play-as-class by design — see
- * usePlayAsClass.ts / docs/schools/group-commercial-model.md).
+ * usePlayAsClass.ts / archive/docs-retired-2026-08-24/schools/group-commercial-model.md).
  *
  * This mirrors the @ssi/core ProgressStore methods actually invoked during
  * play (same forward-only guards, same semantics) so a class's progress
@@ -315,7 +315,7 @@ async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, course
   if (error) throw new Error(`updateCurrentCycle failed: ${error.message}`)
 }
 
-// Practice-hours spine (LANE A, docs/the-view/play-as-class-REPORT.md §1.2):
+// Practice-hours spine (LANE A, archive/docs-retired-2026-08-24/the-view/play-as-class-REPORT.md §1.2):
 // the direct browser `sessions` insert in class mode is rejected by RLS
 // (sessions_own_insert requires learner_id = current_learner_id(), which
 // resolves to the STAFF row, never the class's) — so real class practice

@@ -5,7 +5,7 @@
  * `user_tags(tag_type='class', tag_value='CLASS:<uuid>', role_in_context='teacher')`,
  * surfaced by the `class_teachers` view. `classes.teacher_user_id` is a DEMOTED
  * denormalised LEAD POINTER, not ownership — see
- * docs/methodology/class-first-class-citizen.md.
+ * archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md.
  *
  * Every class-creation path must write BOTH. Writing only the pointer is
  * precisely how 47 of 62 live classes ended up with a lead and no relationship

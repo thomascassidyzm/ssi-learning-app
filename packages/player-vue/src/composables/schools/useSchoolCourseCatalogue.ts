@@ -2,7 +2,7 @@
  * useSchoolCourseCatalogue - the course list a school can create classes in.
  *
  * Sources the SAME model as TeacherDashboard/CreateClassModal (the current,
- * settled commercial model — docs/schools/group-commercial-model.md "Student
+ * settled commercial model — archive/docs-retired-2026-08-24/schools/group-commercial-model.md "Student
  * entitlement — FINAL model", 2026-07-15): schools don't hold per-course
  * `entitlement_grants` rows any more — a subscribed school gets the full live
  * catalogue, a trial school is locked to its one `schools.trial_course_code`.

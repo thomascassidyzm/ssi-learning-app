@@ -42,7 +42,7 @@ const tabs = computed<NavTab[]>(() => {
   // under the pointer.
   if (!currentUser.value) return []
   if (isGovtAdmin.value) {
-    // THE VIEW (docs/THE-VIEW.md) is the ONE frame for hierarchy leaders —
+    // THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md) is the ONE frame for hierarchy leaders —
     // the tabs point at the node surface (node home with the schools lens +
     // node insights), never the retired pre-hierarchy flat views. The old
     // tab set landed a group leader on the flat All-schools list and a

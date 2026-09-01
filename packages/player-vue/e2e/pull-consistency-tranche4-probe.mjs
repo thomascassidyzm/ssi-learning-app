@@ -1,5 +1,5 @@
 // Ad-hoc browser probe for pull-consistency tranche 4 (M3 position mirrors +
-// M9 belt derivation — see docs/player/pull-consistency-map.md). Runs the
+// M9 belt derivation — see archive/docs-retired-2026-08-24/player/pull-consistency-map.md). Runs the
 // guest flow against the deployed dev alias:
 //   M3: fresh cold start persists a position; reload cold-resumes from
 //       localStorage onto the SAME LEGO (the resume-labyrinth invariant);

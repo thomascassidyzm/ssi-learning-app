@@ -1,6 +1,6 @@
 /**
  * Tests for the server-side "school-goes-blind-at-expiry" coverage gate
- * (docs/schools/group-commercial-model.md, "Server-side enforcement of (4)").
+ * (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Server-side enforcement of (4)").
  */
 import { describe, it, expect } from 'vitest'
 import { filterActiveScope, isEntityCoverageExpired } from './schoolCoverageGate'

@@ -51,7 +51,7 @@ Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-ag
   - **Better:** does it genuinely improve the learner / teacher / leader outcome?
   - **Simpler:** fewer moving parts, fewer concepts, less surface to maintain — ideally it *deletes* something (reuses an existing lens/primitive instead of adding a parallel one).
   - **Cheaper:** less build, less runtime/infra, less ongoing operational cost. No new signal before its consumer exists.
-- **Be relentless about the narrative.** We don't just feel that something passes — we *write the three-bullet narrative* (see the worked example in `docs/methodology/tutor-insights.md` §6). If you can't write an honest Better/Simpler/Cheaper story, that's the signal to not do it, or to find the version that does pass.
+- **Be relentless about the narrative.** We don't just feel that something passes — we *write the three-bullet narrative* (see the worked example in `archive/docs-retired-2026-08-24/methodology/tutor-insights.md` §6). If you can't write an honest Better/Simpler/Cheaper story, that's the signal to not do it, or to find the version that does pass.
 - **This generalises an existing principle.** It is *Measuring Progress*' Principle 5 (`better × simpler × cheaper, and never build a signal before its consumer exists`), which already governs the metrics / Insight Engine work — now lifted to govern **all** decisions on this repo, not just analytics.
 
 ### Agent autonomy under BSC
@@ -259,7 +259,7 @@ ssi-learning-app/
 │   └── schools-dashboard/       # Doc-only dir (schools live in player-vue/src/views/schools/)
 ├── apml/                        # APML specifications
 │   ├── core/                    # Core data types
-│   ├── engine/                  # CycleOrchestrator spec
+│   ├── engine/                  # Cycle-orchestration spec (historical — no such class ships)
 │   ├── learning/                # Learning algorithm specs
 │   ├── persistence/             # Storage specs
 │   ├── interfaces/              # UI specs
@@ -313,16 +313,17 @@ The core learning mechanic is a **4-phase prompt-response cycle**:
 
 ### Engine Module
 
-**`CycleOrchestrator`** - State machine for one learning cycle
-```typescript
-import { CycleOrchestrator, CyclePhase } from '@ssi/core'
+> **Types only.** `packages/core/src/engine/` contains exactly two files —
+> `index.ts` and `types.ts`. There is **no `CycleOrchestrator` class in
+> `@ssi/core`**; `import { CycleOrchestrator } from '@ssi/core'` does not
+> resolve. The live 4-phase state machine is
+> `packages/player-vue/src/playback/SimplePlayer.ts`, and every transition on
+> it is owned by `packages/player-vue/src/playback/PlayerConductor.ts`. Start
+> there, not here. (Verified against the code 2026-08-30.)
 
-const orchestrator = new CycleOrchestrator(audioController, config)
-orchestrator.addEventListener((event) => {
-  // Handle phase_changed, item_completed, pause_started, etc.
-})
-await orchestrator.startItem(learningItem)
-```
+**`CyclePhase`, `ICycleOrchestrator`** - the phase enum and the interface a
+cycle state machine satisfies. `ICycleOrchestrator` is the shape SimplePlayer
+grew out of; it is documentation of the contract, not a factory.
 
 **`IAudioController`** - Interface for audio playback
 ```typescript
@@ -371,9 +372,14 @@ SEED (full sentence) → LEGO (learning unit) → PracticePhrase (practice item)
 
 ### Cache Module (PWA Critical)
 
-**`OfflineCache`** - IndexedDB-based audio storage
-**`DownloadManager`** - Smart pre-fetching
-**`AudioSource`** - Unified local/remote audio access
+> **Not in `@ssi/core`.** There is no `core/cache` module, and no
+> `OfflineCache` / `DownloadManager` / `AudioSource` class anywhere in the
+> repo. The real offline stack lives in **player-vue**:
+> `cache/AudioCache.ts` (tier-aware IndexedDB store `ssi-audio-cache-v2`),
+> `cache/createAudioCacheSource.ts`, `cache/resolvePlaybackUrl.ts`,
+> `playback/bulkAudioDownload.ts` (batch presigned-S3 download), and the
+> composables `useScriptCache.ts`, `useOfflineDownloadStatus.ts`,
+> `useOfflineLease.ts`. (Verified against the code 2026-08-30.)
 
 **PWA Caching Math (validated):**
 - ~4.8 MB per 30-min session (198 unique audio files)
@@ -395,7 +401,7 @@ SEED (full sentence) → LEGO (learning unit) → PracticePhrase (practice item)
 - **One theme, forced for everyone.** `composables/useTheme.ts` pins `data-theme="mist"`; `toggleTheme`/`setTheme` are no-ops and `isDark()` always returns false. The old dark theme (`cosmos`, formerly written up as "Moonlit Dojo" / "Deep Space Constellation") is **deprecated — do not reintroduce dark mode or a theme switcher.**
 - Light palette: warm-grey canvas (`--bg-primary: #e8e3dd`), white elevated surfaces, browser chrome `#D9D6D2`. Tokens in `styles/design-tokens.css` under `[data-theme="mist"]`.
 - A single belt-coloured accent (by current belt) carried through the UI — "Schindler's List" restraint.
-- Management/admin surfaces (everything outside the player) follow the **Frostwell Courtyard** canon — see `docs/frostwell-courtyard.md`.
+- Management/admin surfaces (everything outside the player) follow the **Frostwell Courtyard** canon — see `archive/docs-retired-2026-08-24/frostwell-courtyard.md`.
 
 ### Belt Progression System
 8 martial arts belts tracking seed completion:
@@ -444,7 +450,7 @@ Rules for any edge-anchored header/footer/FAB:
 
 ### DECISION: Atomic Audio Files (Not Pre-Rendered)
 
-The PWA uses **individual audio files per phrase** orchestrated by CycleOrchestrator, NOT pre-rendered session audio files.
+The PWA uses **individual audio files per phrase** orchestrated by SimplePlayer (see the Engine Module note above), NOT pre-rendered session audio files.
 
 #### Why NOT Pre-Rendered Long Audio Files
 
@@ -476,7 +482,7 @@ ATOMIC APPROACH:
 │  {uuid-target1}.mp3 (~25KB, 1-3s)                                      │
 │  {uuid-target2}.mp3 (~25KB, 1-3s)                                      │
 │                                                                         │
-│  CycleOrchestrator: play → timer → play → timer → play → next          │
+│  SimplePlayer: play → timer → play → timer → play → next               │
 │                                                                         │
 │  ✓ Flexible - adapt sequence in real-time                              │
 │  ✓ Small files - cache only what you need                              │
@@ -732,7 +738,7 @@ pnpm --filter @ssi/web dev
 > ⚠️ **Stale (last refreshed 2026-04-11).** For the live "what's next", see [`WORKLIST.md`](./WORKLIST.md) at repo root — that is the single source of truth for current directions, builds, and open questions. The list below is kept only as historical context.
 
 ### Completed
-- [x] CycleOrchestrator state machine
+- [x] 4-phase cycle state machine (shipped as `playback/SimplePlayer.ts`)
 - [x] 4-phase learning cycle
 - [x] RealAudioController (mobile-compatible)
 - [x] Vue player with the Mist theme (single forced light theme; dark mode deprecated)

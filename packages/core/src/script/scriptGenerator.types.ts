@@ -2,7 +2,7 @@
  * ScriptGenerator — unified main-loop + INF PLAY generator
  *
  * Lives in `@ssi/core` (moved from `player-vue/src/script/` in the
- * bundle-cutover Phase 1 promotion, docs/bundle-cutover-design.md §3/§5
+ * bundle-cutover Phase 1 promotion, archive/docs-retired-2026-08-24/bundle-cutover-design.md §3/§5
  * step 1) so both the client and a future server script-view (§3) call the
  * SAME function. `player-vue/src/script/scriptGenerator.types.ts`
  * re-exports from here.

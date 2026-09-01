@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Walkthrough compiler CLI (docs/walkthrough-engine-scout.md §3).
+ * Walkthrough compiler CLI (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3).
  *
  * Reads the hand-authored walks (tools/walkthrough/walks/*.json), runs the
  * drift gates in lib.mjs against the live Vue source, and emits the static

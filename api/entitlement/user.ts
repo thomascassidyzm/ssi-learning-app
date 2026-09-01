@@ -87,7 +87,7 @@ export default async function handler(
       console.error('[EntitlementUser] Cascade error (non-fatal):', cascadeErr)
     }
 
-    // Class-coverage entitlement (docs/schools/group-commercial-model.md,
+    // Class-coverage entitlement (archive/docs-retired-2026-08-24/schools/group-commercial-model.md,
     // "Student entitlement — FINAL model", 2026-07-15): a class-affiliated
     // student gets their class's course in full for as long as that class's
     // school has live platform coverage (trial or paid) — derived fresh on

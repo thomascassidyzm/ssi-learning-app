@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One live list of every outstanding way in — aggregated server-side from
 // invite_codes, entitlement_codes, email_access_grants, try_links (see
-// docs/invites-redesign/DESIGN.md's UnifiedInvite contract + GET/POST
+// archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md's UnifiedInvite contract + GET/POST
 // /api/admin/invites).
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'

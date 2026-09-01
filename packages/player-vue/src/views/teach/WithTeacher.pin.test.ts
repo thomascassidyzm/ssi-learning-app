@@ -4,7 +4,7 @@
  * course and tagged onto the class roster (CLASS:{id}, role student) via
  * linkLearnerToClass, mirroring the Paddle webhook's own writes. No refactor,
  * no behaviour change — baseline for THE-MODEL.md's group unpick
- * (docs/THE-MODEL.md, I7/I8 — affiliation + invite semantics).
+ * (archive/docs-retired-2026-08-24/THE-MODEL.md, I7/I8 — affiliation + invite semantics).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'

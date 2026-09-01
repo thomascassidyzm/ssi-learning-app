@@ -3,7 +3,7 @@
  *
  * The £5 rebate accrues per PAID TRANSACTION, so an annual £100 tutor student
  * would pay 12 months up front and accrue £5 once — the edge case flagged OPEN
- * in docs/DECISIONS.md (2026-08-02, tutor rebate ledger). The ruling closes the
+ * in archive/docs-retired-2026-08-24/DECISIONS.md (2026-08-02, tutor rebate ledger). The ruling closes the
  * annual door in the tutor lane instead of special-casing the ledger.
  *
  * SCHOOL classes keep BOTH £5/mo and £50/yr — that half is pinned here too, so

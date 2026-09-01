@@ -1,7 +1,7 @@
 /**
  * Tests for WP-1: behavioural evidence producers.
  *
- * Asserts the mapping table in `docs/adaptation/adaptation-v2-build-spec.md`
+ * Asserts the mapping table in `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md`
  * §3 against a fake EvidenceSink — one event in, one (or zero) evidence
  * records out, exact value/weight.
  */

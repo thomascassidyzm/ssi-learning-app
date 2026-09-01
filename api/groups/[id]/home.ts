@@ -1,5 +1,5 @@
 /**
- * GET /api/groups/:id/home — the NODE HOME payload (docs/THE-VIEW.md).
+ * GET /api/groups/:id/home — the NODE HOME payload (archive/docs-retired-2026-08-24/THE-VIEW.md).
  *
  * One endpoint serves the one recursive dashboard at every level. `:id` is
  * resolved in order: a group node id, a school id (bridged to its node via
@@ -304,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // (belt-bearing seeds/LEGO counts, last-7-days) so the class node home
     // is the page teachers teach from — the individual learner page is gone
     // (founder ruling 2026-07-19). No streaks anywhere: founder ruling
-    // 2026-07-19, reasoning in docs/gamification-done-right.md.
+    // 2026-07-19, reasoning in archive/docs-retired-2026-08-24/gamification-done-right.md.
     if (classRow) {
       const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }, { data: classSessions }, { data: classEnrollment }] = await Promise.all([
         svc.from('class_teachers').select('teacher_user_id, is_lead').eq('class_id', classRow.id),

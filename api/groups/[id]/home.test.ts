@@ -1,6 +1,6 @@
 /**
  * Tests for GET /api/groups/:id/home — THE VIEW's node-home payload
- * (docs/THE-VIEW.md). Pins: id resolution (group node / school id / class
+ * (archive/docs-retired-2026-08-24/THE-VIEW.md). Pins: id resolution (group node / school id / class
  * id → one page), the map rail (ancestors root→parent, siblings, children),
  * subtree stats via the shared resolver, lens payloads as filters (never
  * separate pages), and leader scope-trimming (a govt_admin never sees
@@ -248,7 +248,7 @@ describe('GET /api/groups/:id/home', () => {
     // Per-student teaching data (what the old roster table showed): seeds
     // (the belt input), LEGOs + last-7-days for the flat student row that
     // replaced the individual learner page. NO streak fields — streaks are
-    // banned (founder ruling 2026-07-19, docs/gamification-done-right.md).
+    // banned (founder ruling 2026-07-19, archive/docs-retired-2026-08-24/gamification-done-right.md).
     const asha = res.body.students.find((s: any) => s.name === 'Asha')
     expect(asha).toMatchObject({ seeds_completed: 25, legos_mastered: 60 })
     expect(asha.last7_minutes).toHaveLength(7)

@@ -1,7 +1,7 @@
 /**
  * useBrandWelcome - the global, language-independent first-boot brand moment.
  *
- * Per docs/first-boot-experience.md (2026-07-03 rethink): the old per-course
+ * Per archive/docs-retired-2026-08-24/first-boot-experience.md (2026-07-03 rethink): the old per-course
  * "welcome" lecture is being retired in favour of a few seconds of brand
  * sound + one localized text line, then straight into round 1. The coaching
  * story (meta-commentary instructions) owns the method explanation from

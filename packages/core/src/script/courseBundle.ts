@@ -2,7 +2,7 @@
  * CourseBundle — wire format for GET /api/courses/:code/bundle
  *
  * Lives in `@ssi/core` (moved from `player-vue/src/types/courseBundle.ts` in
- * the bundle-cutover Phase 1 promotion, docs/bundle-cutover-design.md §3/§5
+ * the bundle-cutover Phase 1 promotion, archive/docs-retired-2026-08-24/bundle-cutover-design.md §3/§5
  * step 1) — the shared generator and its bundle types stay together, and
  * neither the server (api/) nor the client depend on player-vue for the wire
  * format. `player-vue/src/types/courseBundle.ts` re-exports from here.
@@ -218,7 +218,7 @@ export interface BundlePhrase {
  * One seed — the full source sentence from which LEGOs are extracted.
  *
  * `knownText`/`targetText`/`targetTextNative`/`audio` are additive
- * (bundle-cutover Phase 1, docs/bundle-cutover-design.md §3 parity item 2):
+ * (bundle-cutover Phase 1, archive/docs-retired-2026-08-24/bundle-cutover-design.md §3 parity item 2):
  * they carry the seed's own known/target audio+text so the shared generator
  * can emit SEED-PHASE spaced-rep reviews (offsets ≥ `SEED_PHASE_START_OFFSET`
  * — the full parent seed sentence, not a use-phrase). Absent on courses/rows
