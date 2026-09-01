@@ -181,6 +181,31 @@ export async function clearCachedBundle(courseCode: string): Promise<void> {
   })
 }
 
+/**
+ * Drop every cached bundle, whoever cached it.
+ *
+ * The mirror of the `previewOnly` guard in `getCourseBundle`: that one stops a
+ * guest's preview surviving an upgrade to paid, this one stops a payer's FULL
+ * bundle surviving a sign-out on a shared device (schools ship to shared
+ * devices). The store is keyed by course alone, so sign-out cannot name the
+ * courses a departing learner cached — it has to clear the lot.
+ */
+export async function clearAllCachedBundles(): Promise<void> {
+  session.clear()
+  const db = await openDb()
+  if (!db) return
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(STORE, 'readwrite')
+      tx.objectStore(STORE).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // NETWORK
 // ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { clearAllCachedBundles } from '@/composables/useCourseBundle'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
@@ -850,6 +851,12 @@ export function useAuth(): AuthState & AuthActions {
     useUserRole().clear()
     useSharedSubscription().clearCache()
     useSharedUserEntitlements().clearCache()
+    // The cached course bundle goes too: it is keyed by course, not by learner,
+    // so a payer's full bundle would otherwise be served verbatim to whoever
+    // signs in next on a shared device (SEC0901-D-02). Awaited, unlike the
+    // network call above: callers reload straight after sign-out, and a clear
+    // that has not committed by then leaves the leak exactly where it was.
+    await clearAllCachedBundles()
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
     // Set directly rather than relying on the SIGNED_OUT event's own
