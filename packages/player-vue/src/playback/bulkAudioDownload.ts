@@ -30,6 +30,30 @@
  * before anything is counted failed. A transient tail (10 of 9,742 timing
  * out in one moment) must never conclude a download — that was the founder
  * 99.9%-then-dead-end report, 2026-07-31.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * OFFLINE MODE OPT-IN ONLY. Tom's ruling, 2026-09-01:
+ *
+ *   "Should be progressively loaded, yes. Never upfront loaded."
+ *   "Because people still have the option if they choose to select the
+ *    Offline Mode itself."
+ *
+ * There are exactly TWO ways audio reaches a device, and this module is the
+ * second one:
+ *
+ *   1. PROGRESSIVE — warmed behind/just-ahead of the learner as they play
+ *      (SimplePlayer.prefetchNextCycle, LearningPlayer's rolling filler,
+ *      the pod/Layer-1 next-lap warms). Automatic, position-scoped, gentle.
+ *      NOTHING in that path may call into this module.
+ *   2. DELIBERATE — this module. A heavy, course-scale download the learner
+ *      ASKED FOR by turning Offline Mode on. Chosen, never imposed.
+ *
+ * The boundary is enforced, not merely documented: `deps.offlineModeOptIn`
+ * is a REQUIRED parameter and is checked before any fetch. A new caller
+ * cannot compile without confronting it, and cannot run without an actual
+ * learner opt-in behind it. Regression net:
+ * `bulkAudioDownload.optIn.test.ts` and `progressivePrefetch.boundary.test.ts`.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 import { resolveSupabase } from '../composables/schools/client'
@@ -42,6 +66,18 @@ export interface BatchUrlsResult {
 }
 
 export interface BulkAudioDownloadDeps {
+  /**
+   * THE OPT-IN GATE. Must return true, or `bulkDownloadAudio` refuses to fetch
+   * a single byte. See the `OFFLINE MODE OPT-IN ONLY` block at the top of this
+   * file for Tom's ruling (2026-09-01) and why this parameter is required
+   * rather than conventional.
+   *
+   * The only legitimate implementation is a read of the learner's own explicit
+   * Offline Mode selection (`() => offlineActive.value` in LearningPlayer).
+   * `() => true` is NOT an implementation — it is the accident this gate
+   * exists to stop.
+   */
+  offlineModeOptIn: () => boolean
   /** POST /api/audio/batch-urls for one chunk of ids. Null = endpoint-level failure. */
   fetchBatchUrls: (ids: string[]) => Promise<BatchUrlsResult | null>
   /** Store bytes fetched from an arbitrary (presigned) URL under `id`. */
@@ -137,6 +173,19 @@ export async function bulkDownloadAudio(
   deps: BulkAudioDownloadDeps,
   counters: BulkAudioDownloadCounters,
 ): Promise<BulkDownloadResult> {
+  // THE GATE (Tom's ruling, 2026-09-01 — see the file header). A bulk download
+  // runs ONLY behind the learner's own explicit Offline Mode selection. No
+  // opt-in, no bytes: return as a clean cancellation so any caller that somehow
+  // got here degrades to streaming rather than breaking.
+  if (!deps.offlineModeOptIn()) {
+    console.warn(
+      '[bulkAudioDownload] refused: no Offline Mode opt-in. Bulk downloading is ' +
+      'reachable only from the learner\'s explicit Offline Mode selection ' +
+      "(Tom's ruling, 2026-09-01). Progressive warming is the automatic path.",
+    )
+    return { completed: false, failedIds: [] }
+  }
+
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
 
   let pending = ids
