@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
@@ -7,7 +7,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
-import { isContentBlackoutActive, setContentBlackout, lastBlackoutProbe } from '../playback/contentBlackout'
+import { practisingOverrideActive, setPractisingOverride } from '../playback/practisingOverride'
 import { useTestDoorPermission } from '../composables/useTestDoorPermission'
 import { useOrgLeadership } from '../composables/useOrgLeadership'
 import { useRouter } from 'vue-router'
@@ -415,12 +415,12 @@ const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
 const showListeningAudit = ref(false) // Reveal the 9-stage progression audit mode in Listening → Dialogues
 
-// PRACTISING-MODE TEST SWITCH (admin only). Not a display preference and not a
-// mock: it makes the next new LEGO genuinely unfetchable, so the real trigger
-// fires and what appears is the real feature. Source of truth is the module in
-// playback/contentBlackout.ts, which is in memory only and off at every app
-// start, so this ref is seeded from it rather than from localStorage.
-const simulateContentBlackout = ref(isContentBlackoutActive())
+// PRACTISING-MODE TEST SWITCH (admin only). Not a display preference: it
+// forces `isPractising` on directly, live, wherever the learner is standing.
+// Source of truth is the module in playback/practisingOverride.ts, which is
+// in memory only and off at every app start, so this ref is seeded from it
+// rather than from localStorage.
+const simulatePractisingOverride = ref(practisingOverrideActive.value)
 
 // THE GATE IS A PERMISSION, NOT A TRICK (Tom, 2026-08-31). `isAdmin` above is
 // the client's own belief about its role, and useUserRole rehydrates that from
@@ -1017,8 +1017,8 @@ onMounted(async () => {
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
   showListeningAudit.value = localStorage.getItem('ssi-listening-audit') === 'true'
-  // Deliberately NOT from localStorage — the blackout never survives a restart.
-  simulateContentBlackout.value = isContentBlackoutActive()
+  // Deliberately NOT from localStorage — the override never survives a restart.
+  simulatePractisingOverride.value = practisingOverrideActive.value
 
   // Ask the server whether this account may operate the test doors. Only worth
   // a round trip for someone whose client already thinks it is an admin — an
@@ -1040,53 +1040,28 @@ onMounted(async () => {
 })
 
 /**
- * Turn the practising-mode test switch on or off.
+ * Turn PRACTISING mode on or off — DIRECTLY (Tom's ruling, 2026-09-01).
  *
- * ON makes the content unreachable and then gets out of the way: the player's
- * own next-new-LEGO fetch fails, reports 'failed', and the mode raises itself.
- * OFF restores it and the same fetch succeeds, so the mode ends itself and
- * forward play resumes from a position that never moved.
+ * The old switch worked by making the next new LEGO unreachable and waiting
+ * for the player's own fetch to notice and fail — a network simulation that
+ * could only ever be answered at a round boundary, from a position the fetch
+ * had actually been asked about. On a live device that showed up as "Could
+ * not engage: the check was never made from this position" — honest, but
+ * still not what was asked for.
  *
- * The event is not what causes the mode — it only asks the player to run its
- * real probe NOW rather than at the next round advance, which could be minutes
- * away. Without it the switch would appear not to work for whoever tapped it.
+ * This switch IS the flag. `setPractisingOverride` sets `isPractising`
+ * synchronously; the player's direct per-cycle filter
+ * (`cycleIntroducesMaterial` in `shouldSkipCycle`) reads it live on every
+ * step. There is no fetch to wait for and nothing to poll — the effect is not
+ * a downstream consequence of the toggle, it IS the toggle.
  */
-/**
- * The switch's own verdict, polled while the panel is open.
- *
- * `lastBlackoutProbe()` is a plain module value, not a ref — the player writes
- * it from a code path that must stay free of this component. A 500ms poll for
- * as long as a settings panel is open is cheaper than plumbing reactivity
- * through the playback layer for one admin control, and it cannot go stale in
- * a way anybody would notice.
- */
-const blackoutProbe = ref(lastBlackoutProbe())
-let blackoutProbeTimer: ReturnType<typeof setInterval> | null = null
-
-const toggleContentBlackout = () => {
+const togglePractisingOverride = () => {
   // Belt and braces with the v-if: the row cannot be tapped without the grant,
   // and the handler refuses without it too, so a stray call path can't arm it.
   if (!testDoorsAllowed.value) return
-  simulateContentBlackout.value = setContentBlackout(!simulateContentBlackout.value)
-  // setContentBlackout cleared the previous verdict; mirror that immediately so
-  // the line does not show the LAST throw's answer under THIS one.
-  blackoutProbe.value = null
-  dispatchSettingChanged('simulateContentBlackout', simulateContentBlackout.value)
-  // The player answers the event with the real probe. It is a network round
-  // trip, so watch for the verdict rather than reading it on the next tick.
-  if (blackoutProbeTimer) clearInterval(blackoutProbeTimer)
-  let ticks = 0
-  blackoutProbeTimer = setInterval(() => {
-    blackoutProbe.value = lastBlackoutProbe()
-    // 30s: long enough to cover the 9s fetch budget twice over, short enough
-    // that a panel left open all session is not polling forever.
-    if (blackoutProbe.value || ++ticks > 60) {
-      clearInterval(blackoutProbeTimer!)
-      blackoutProbeTimer = null
-    }
-  }, 500)
+  simulatePractisingOverride.value = setPractisingOverride(!simulatePractisingOverride.value)
+  dispatchSettingChanged('simulatePractisingOverride', simulatePractisingOverride.value)
 }
-onBeforeUnmount(() => { if (blackoutProbeTimer) clearInterval(blackoutProbeTimer) })
 
 const toggleListeningMode = () => {
   showListeningMode.value = !showListeningMode.value
@@ -2324,24 +2299,15 @@ const confirmReset = async () => {
 
           <!-- The practising-mode test switch. Last in the section, admin-gated
                with everything else here, and worded so it cannot be mistaken for
-               a learner setting. It does not fake the banner — it takes the
-               content away and lets the real trigger fire. -->
-          <div v-if="testDoorsAllowed" class="setting-row clickable" @click="toggleContentBlackout">
+               a learner setting. Direct and synchronous — there is nothing to
+               poll, so the toggle state itself is the whole verdict. -->
+          <div v-if="testDoorsAllowed" class="setting-row clickable" @click="togglePractisingOverride">
             <div class="setting-info">
               <span class="setting-label">Practising Mode (test)</span>
-              <span class="setting-desc">Makes the next new LEGO unreachable, so the real practising trigger fires. Play carries on from the cache and your position is frozen while it holds. Turn it off here to watch normal play resume. Resets itself when the app restarts.</span>
-              <!-- WHAT IT ACTUALLY DID. Two of the four outcomes leave the mode
-                   alone by design, so without this line a correct no-op and a
-                   broken switch look identical — which is exactly how a live
-                   session came to be unsettleable (2026-08-31). -->
-              <span
-                v-if="blackoutProbe"
-                class="setting-verdict"
-                :class="{ 'is-engaged': blackoutProbe.practising, 'is-inert': !blackoutProbe.practising && simulateContentBlackout }"
-              >{{ blackoutProbe.message }}</span>
-              <span v-else-if="simulateContentBlackout" class="setting-verdict">Checking…</span>
+              <span class="setting-desc">While this is on you will only get material you have already met — no new LEGOs. Turn it off to resume new material. Resets itself when the app restarts.</span>
+              <span v-if="simulatePractisingOverride" class="setting-verdict is-engaged">Practising mode is ON — only already-met material is playing.</span>
             </div>
-            <div class="toggle-switch" :class="{ 'is-on': simulateContentBlackout }">
+            <div class="toggle-switch" :class="{ 'is-on': simulatePractisingOverride }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>
@@ -2834,7 +2800,6 @@ const confirmReset = async () => {
   color: var(--text-muted);
 }
 .setting-verdict.is-engaged { color: var(--success, #22c55e); }
-.setting-verdict.is-inert { color: var(--warning, #d97706); }
 
 .setting-status.error {
   color: var(--error, #ef4444);

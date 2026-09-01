@@ -87,6 +87,7 @@ import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlos
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
 import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type PractisedPosition, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
+import { practisingOverrideActive } from '../playback/practisingOverride'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -4762,8 +4763,14 @@ const forcePractisingCheat = (() => {
 // one. Never by an offline/degraded signal, and never by the shape of a round.
 const nextNewLegoUnreachable = ref(false)
 
+// The admin override (`practisingOverride.ts`) is a direct, synchronous flag
+// — Tom's ruling 2026-09-01: the switch must engage instantly, from wherever
+// the learner is standing, with no fetch and no probe in between. It is read
+// live here exactly like the auto-detected trigger, so both paths end up
+// driving the SAME `isPractising` and therefore the SAME direct cycle filter
+// (see `shouldSkipCycle` below).
 const isPractising = computed(() =>
-  forcePractisingCheat || nextNewLegoUnreachable.value
+  forcePractisingCheat || practisingOverrideActive.value || nextNewLegoUnreachable.value
 )
 
 /**
@@ -11040,6 +11047,23 @@ simplePlayer.setRuntimeOverrides({
     // the instant the mode moves — so a toggle re-decides the round in flight
     // before its next step, with no rebuild and no reload.
     if (modeSelectsCycleOut(cycle)) return true
+
+    // PRACTISING — DIRECT SELECTION, not a sabotaged fetch (Tom's ruling,
+    // 2026-09-01). The old design withheld new LEGOs by making the next one
+    // unreachable and waiting for a trigger elsewhere to notice — which could
+    // only ever act at a round boundary, and only once the trigger had
+    // actually fired from THIS position. "IN PRACTISING MODE, SERVE NOTHING
+    // NEW" is a selection rule, not a network condition, so it is asserted
+    // right here, live, per cycle, exactly where every other selection rule
+    // already lives. `cycleIntroducesMaterial` is the SAME predicate that
+    // already decided this question for the round-boundary hold below
+    // (practisingHoldPlayhead) — one definition of "new", read twice.
+    //
+    // Engages the instant `isPractising` goes true, wherever the learner is
+    // standing, including mid-round: the very next step this hook is asked
+    // about already skips. Disengages the instant it goes false: the very
+    // next step already doesn't. No round boundary, no position dependency.
+    if (isPractising.value && cycleIntroducesMaterial(cycle)) return true
 
     // INF PLAY safety net: drop cycles whose audio isn't in the warm-
     // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
