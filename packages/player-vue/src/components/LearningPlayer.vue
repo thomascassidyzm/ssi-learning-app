@@ -11092,19 +11092,7 @@ simplePlayer.setRuntimeOverrides({
       // "cached" for a BLANK url, so an audio-less intro — cycle 0 of the round a
       // resume lands on — was the one cycle guaranteed to survive the filter, and
       // played four phases of silence with its text on screen. Tom's first phrase.
-      // SCRATCH PROBE (diagnostic only — not for commit): record exactly what
-      // .has(id) answered per required clip, for the isolate-one-fact task.
-      const __probeRequired = requiredClipUrls(cycle as any)
-      const __probeResults = __probeRequired.map((u) => {
-        const id = (typeof u === 'string' ? (u.match(/\/api\/audio\/([^?]+)/)?.[1] ?? null) : null)
-        return { url: u, id, hasCached: id ? audioCache.persistent.has(id) : null }
-      })
-      const passed = isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))
-      try {
-        ;(window as any).__cullProbeLog = (window as any).__cullProbeLog || []
-        ;(window as any).__cullProbeLog.push({ at: Date.now(), cycleId: (cycle as any)?.id, legoId: (cycle as any)?.legoId, type: (cycle as any)?.type, passed, results: __probeResults })
-      } catch { /* scratch probe, never break playback */ }
-      if (!passed) {
+      if (!isCyclePlayableOffline(cycle as any, (id) => audioCache.persistent.has(id))) {
         return true
       }
     }
@@ -12199,19 +12187,45 @@ const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
  *      runtime from whatever has drained by the learner's position, so the
  *      clips cannot be predicted; the pool is bounded, so cache it whole.
  *
- * Measured 2026-09-01 on spa_for_eng: served pod 571 clips / 45 min, L1 pool
- * 1,334 clips / 80 min — 1,905 clips, ~2 hours of listening, ~28.7 MB. The
- * LEGO audio for the same course is ~48 MB and the course carries 16,325
- * practice phrases, so this is a small single-digit fraction of the whole and
- * it is the part a learner can just loop through when nothing new is reachable.
+ * SIZE, MEASURED PROPERLY (spa_for_eng, 2026-09-01). An earlier note here said
+ * ~28.7 MB. That was wrong twice over and is corrected: the bitrate assumed was
+ * ~32 kbps when the real corpus median is 12.36 bytes/ms (~99 kbps, a 2.5s clip
+ * ≈ 30 KB — cross-checked against 103 clips read straight out of a device's
+ * IndexedDB at 30,073 bytes each), and the per-sentence stage renders were
+ * missed entirely.
+ *
+ *   served pod, core clips        571 clips   45.2 min   31.9 MB
+ *   served pod, sentence renders  496 clips   15.8 min   11.2 MB
+ *   Layer-1 pool (668 seeds)    1,334 clips   80.5 min   56.9 MB
+ *   ─────────────────────────────────────────────────────────────
+ *   ALL LISTENING               2,401 clips  141.5 min  100.1 MB
+ *
+ * That is NOT small, and it is fetched ahead of most of the learner's course.
+ * It is here because Tom ruled it explicitly ("listening exercises - ALL of
+ * them - need to be promoted earlier") with the number put in front of him
+ * rather than the set quietly trimmed to fit the claim. If the data cost turns
+ * out to matter more than the offline coverage, the honest lever is to scope
+ * this collector — not to pretend the number is smaller.
  */
 const collectAllListeningAudioIds = (): string[] => {
   const ids = new Set<string>()
+  // Some columns hold a single id, others an array (or an array of arrays) of
+  // the per-sentence stage renders a lap can play — the breakdown ladder, not
+  // just the whole-sentence clip. Missing those was how "all of them" quietly
+  // meant 571 clips instead of 1,067.
+  const addAny = (v: unknown): void => {
+    if (typeof v === 'string' && v) ids.add(v)
+    else if (Array.isArray(v)) for (const x of v) addAny(x)
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) addAny(x)
+  }
   if (podScheduler?.isInitialized.value) {
     for (const r of (podScheduler.podSentences.value ?? []) as any[]) {
-      if (r?.target_audio_id) ids.add(r.target_audio_id)
-      if (r?.known_audio_id) ids.add(r.known_audio_id)
-      if (r?.explainer_audio_id) ids.add(r.explainer_audio_id)
+      addAny(r?.target_audio_id)
+      addAny(r?.known_audio_id)
+      addAny(r?.explainer_audio_id)
+      addAny(r?.note_audio_id)
+      addAny(r?.sentence_audio_ids)
+      addAny(r?.sentence_known_audio_ids)
     }
     if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
     if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
@@ -12408,9 +12422,11 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
     // reordered relative to itself. What gets pushed later is the REMAINDER of
     // the rolling span's cycles — rounds 4..N ahead of the cursor — which is
     // the right thing to yield, because the learner cannot reach them before
-    // the head rounds are played, and because the listening pools are bounded
-    // — 1,905 clips / ~28.7 MB / ~2 hours on spa_for_eng, measured
-    // 2026-09-01 — while the span tail grows with the course.
+    // the head rounds are played, and because the listening pools are BOUNDED
+    // — 2,401 clips / ~100 MB / ~2.4 hours on spa_for_eng, measured
+    // 2026-09-01 — while the span tail grows with the course. Bounded is not
+    // the same as small: see collectAllListeningAudioIds for the real figure
+    // and why it is stated rather than trimmed.
     const ordered = [
       ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
       ...collectAllListeningAudioIds(),
