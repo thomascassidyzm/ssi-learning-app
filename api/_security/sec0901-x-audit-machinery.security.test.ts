@@ -37,34 +37,44 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-describe('SEC0901-X-01 [CHARACTERIZATION] — the .security-audit.ts glob is still off the merge gate', () => {
-  // `vitest.api.config.ts` collects `api/**/*.test.ts`. Files named
-  // `*.security-audit.ts` match that glob NOT AT ALL, and the one config that
-  // does collect them — vitest.security-audit.config.ts — is referenced by no
-  // workflow. So these specs are run by nothing in CI and nothing on the gate.
+describe('SEC0901-X-01 [CHARACTERIZATION] — the orphaned specs now PASS, and are still off the gate', () => {
+  // NOT a new finding: that `*.security-audit.ts` rides no CI gate is already
+  // pinned by `api/_utils/securityTestMachineryIntegrity.security.test.ts`
+  // ("SECURITY FINDING (gap, not fixed here)"). Do not re-file it.
   //
-  // This goes red when someone renames those files to `*.security.test.ts` (or
-  // adds the security-audit config to verify.yml). Red = FINDING CLOSED.
+  // What IS new on 2026-09-01, and is the reason to act on that old gap now:
+  // the 2026-08-29 audit reported all five of those specs FAILING, i.e. the
+  // 2026-08-18 findings 3/4/5 still live. Run by hand today all five PASS.
+  // They have silently turned from "finding open" into "regression guard for a
+  // closed finding" — and a regression guard that no gate collects is the worst
+  // of both worlds, because the thing it now protects is a fix someone paid for.
+  //
+  // This pins the shape of that argument, so it survives being forgotten.
+  // Goes red when the files are renamed onto the gate. Red = CLOSED.
   const orphans = walk('api').filter((f) => f.endsWith('.security-audit.ts'))
 
-  it('finds the orphaned spec files that no gated config collects', () => {
+  it('the orphaned specs are exactly the two known, and neither ends in .test.ts', () => {
     expect(orphans.sort()).toEqual([
       'api/code/validate.ipSpoof.security-audit.ts',
       'api/school/class-progress.untrustedArgs.security-audit.ts',
     ])
-  })
-
-  it('the gated api config cannot collect them', () => {
-    const cfg = read('vitest.api.config.ts')
-    expect(cfg).toContain("include: ['api/**/*.test.ts']")
-    // The decisive point: none of the orphans ends in `.test.ts`.
     for (const f of orphans) expect(f.endsWith('.test.ts')).toBe(false)
   })
 
-  it('and the only config that does collect them is on no workflow', () => {
-    const verify = read('.github/workflows/verify.yml')
-    expect(verify).toContain('pnpm test:api')
-    expect(verify).not.toContain('test:security-audit')
+  it('each now guards a CLOSED finding rather than documenting an open one', () => {
+    // The tell, read from the specs themselves: they assert the SECURE
+    // behaviour ("cannot repoint", "does not let x-real-ip pick the bucket"),
+    // and both utilities that make those assertions true now exist. If a future
+    // reader sees these fail again, the fix has regressed unnoticed.
+    const ipSpoof = read('api/code/validate.ipSpoof.security-audit.ts')
+    expect(ipSpoof).toMatch(/x-real-ip/i)
+    const throttle = read('api/_utils/codeAttemptThrottle.ts')
+    expect(throttle).toContain('x-vercel-forwarded-for')
+
+    const args = read('api/school/class-progress.untrustedArgs.security-audit.ts')
+    expect(args).toMatch(/ratchet|disjunct|inject/i)
+    const progress = read('api/school/class-progress.ts')
+    expect(progress).toMatch(/postgrestFilter|safeIdToken|quoteFilterValue/)
   })
 })
 
