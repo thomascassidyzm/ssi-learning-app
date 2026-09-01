@@ -80,7 +80,7 @@ import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
-import { seguePodWithLayer1, podBoundaryOutcome } from '../playback/podSegue'
+import { seguePodWithLayer1, podBoundaryOutcome, podIsWhollyOnDevice } from '../playback/podSegue'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -6231,6 +6231,22 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
           console.warn(`[cheat] pod=1: no lap at current position, falling back to nearest pod ${lap.podRound}`)
         }
       }
+      // OFFLINE: THE WHOLE POD, OR NO POD (Tom 2026-09-01, "we're ONLY getting
+      // the listening SEEDS"). Judged on the pod ALONE, before the seed cup is
+      // segued on: filtering the segued lap as one unit trimmed the dialogue
+      // away play by play while the seed plays survived, played the remains as
+      // a listening block, and — because that block completed — ratcheted past
+      // a pod the learner never heard. See playback/podSegue.ts.
+      // Falls into the composed-nothing branch below, which logs the boundary
+      // and gives the learner their seed cup instead. The ratchet is untouched,
+      // so the pod is still due once its audio is on the device.
+      let podUnavailableOffline = false
+      if (lap && !podIsWhollyOnDevice(lap, lapPlayableNow(lap))) {
+        console.warn(`[LearningPlayer] Pod lap ${lap.podRound} not fired — its dialogue isn't wholly on this device. Ratchet unchanged; the listening work still has to be done.`)
+        noteListeningSkippedOffline('pod', lap.podRound, lap.plays.length)
+        lap = null
+        podUnavailableOffline = true
+      }
       if (lap) {
         // SEGUE LAYER 2 → LAYER 1. On a pod round the cup wheel is also turning,
         // so instead of two separately-bracketed listening blocks (intro/seeds/
@@ -6369,6 +6385,9 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
             completedPodRounds: podScheduler.completedPodRounds.value ?? null,
             podSentences: podScheduler.podSentences.value.length,
             fallback: outcome === 'fallback-layer1' ? 'layer1_cup' : 'none',
+            // 'offline_incomplete' = a lap WAS composed, but its dialogue isn't
+            // wholly on this device. Distinguishes the two silences.
+            reason: podUnavailableOffline ? 'offline_incomplete' : 'composed_nothing',
           })
           console.warn(
             `[LearningPlayer] Pod boundary at round ${(completedRoundIndex || 0) + 1} composed no lap`

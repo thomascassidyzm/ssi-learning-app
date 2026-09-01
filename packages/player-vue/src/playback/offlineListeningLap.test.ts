@@ -133,3 +133,40 @@ describe('roundTeachesOffline — the belt-skip gate', () => {
     }
   })
 })
+
+/**
+ * SEGUED POD LAPS: two numbering systems in one lap.
+ *
+ * Pod sentence indices and Layer-1 seed numbers both start at 1 and both ride
+ * in `sentenceIdx`. Keyed together, pod sentence 211 and course seed 211 became
+ * one completeness unit — so one missing clip on either side deleted the other.
+ */
+describe('filterLapToDeviceAudio — pod plays and seed-cup plays are different units', () => {
+  const podSentence = (idx: number, prefix: string) =>
+    sandwich(idx, prefix).map((p) => ({ ...p, isLayer1: false }))
+  const seedSentence = (idx: number, prefix: string) =>
+    sandwich(idx, prefix).map((p) => ({ ...p, isLayer1: true }))
+
+  it('a missing pod sentence does not delete the seed sentence that shares its number', () => {
+    const lap = {
+      intro: null,
+      outro: null,
+      plays: [...podSentence(211, 'pod'), ...seedSentence(211, 'seed')],
+    }
+    // Only the seed clips are on the device — the pod's are not.
+    const out = filterLapToDeviceAudio(lap, onDevice('seed-ps', 'seed-trans', 'seed-ps2', 'seed-ps3'))
+    expect(out).not.toBeNull()
+    expect(out!.plays.map((p: any) => p.audioId)).toEqual(['seed-ps', 'seed-trans', 'seed-ps2', 'seed-ps3'])
+  })
+
+  it('a missing seed sentence does not delete the pod sentence that shares its number', () => {
+    const lap = {
+      intro: null,
+      outro: null,
+      plays: [...podSentence(211, 'pod'), ...seedSentence(211, 'seed')],
+    }
+    const out = filterLapToDeviceAudio(lap, onDevice('pod-ps', 'pod-trans', 'pod-ps2', 'pod-ps3'))
+    expect(out).not.toBeNull()
+    expect(out!.plays.map((p: any) => p.audioId)).toEqual(['pod-ps', 'pod-trans', 'pod-ps2', 'pod-ps3'])
+  })
+})
