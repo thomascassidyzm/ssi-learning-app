@@ -72,6 +72,18 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  hasSectorThread: {
+    type: Boolean,
+    default: false
+  },
+  isSectorActive: {
+    type: Boolean,
+    default: false
+  },
+  sectorDesc: {
+    type: String,
+    default: ''
+  },
   // True when the currently playing cycle is part of a listening section
   // (LISTEN cluster, pod lap, or their bookends). Cues the skip button
   // visually so learners realise they can opt out — agency without
@@ -82,7 +94,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleOffline', 'openSector', 'toggleSector', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -169,6 +181,9 @@ const handleSettings = () => {
       :isPronunciationMode="isPronunciationMode"
       :isOfflineMode="isOfflineMode"
       :courseCode="courseCode"
+      :hasSectorThread="hasSectorThread"
+      :isSectorActive="isSectorActive"
+      :sectorDesc="sectorDesc"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :hasRomanizedText="hasRomanizedText"
@@ -178,6 +193,8 @@ const handleSettings = () => {
       @toggleListening="emit('toggleListening')"
       @togglePronunciation="emit('togglePronunciation')"
       @toggleOffline="emit('toggleOffline')"
+      @openSector="(code) => emit('openSector', code)"
+      @toggleSector="emit('toggleSector')"
     />
 
     <div class="nav-backdrop"></div>
