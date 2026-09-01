@@ -69,10 +69,28 @@ describe('ProgressModal — a belt we cannot serve is not tappable', () => {
     const chip = wrapper.findAll('.map-chip')
       .find((c) => c.attributes('aria-label')?.startsWith(`${BELTS[3].name} belt`))!
     expect(chip.attributes('disabled')).toBeDefined()
-    // and it SAYS why, rather than looking broken
-    expect(chip.attributes('aria-label')).toContain('unavailable')
+    // and it SAYS why, rather than looking broken. This used to assert the
+    // literal word "unavailable"; since 2026-09-01 the chip carries the SAME
+    // sentence the belt-skip action would show if you got past it, so the
+    // assertion is now about it explaining itself rather than about one word.
+    expect(chip.attributes('aria-label')).toMatch(/isn't downloaded|isn't on this device|can't reach/)
     await chip.trigger('click')
     expect(wrapper.emitted('skipToBelt')).toBeUndefined()
+  })
+
+  it('shows the reason the ACTION would give, when one is supplied', async () => {
+    const reason = "You're practising what you've already covered — green belt needs new material we can't reach right now."
+    const wrapper = render({
+      isOffline: true,
+      offlineUnavailableBeltNames: unreachable,
+      beltUnavailableReasons: new Map([[BELTS[3].name, reason]]),
+    })
+    const chip = wrapper.findAll('.map-chip')
+      .find((c) => c.attributes('aria-label')?.includes('practising'))
+    // The pill and the action can no longer disagree about why.
+    expect(chip).toBeDefined()
+    expect(chip!.attributes('disabled')).toBeDefined()
+    expect(chip!.attributes('title')).toBe(reason)
   })
 
   it('leaves the belts we DO have on the device fully tappable', async () => {

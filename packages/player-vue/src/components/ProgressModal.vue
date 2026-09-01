@@ -59,6 +59,13 @@ const props = defineProps<{
   // and stay fully tappable offline — only this set greys out. Ignored
   // (and every belt tappable) when isOffline is false.
   offlineUnavailableBeltNames?: Set<string>
+  /** Belt name → the plain reason it can't be served right now, from the same
+   *  function the belt-skip action uses. Optional: without it the chips fall
+   *  back to the generic not-downloaded wording. */
+  beltUnavailableReasons?: Map<string, string>
+  /** One line explaining WHY belts are locked, when the cause isn't simply
+   *  "not downloaded" — e.g. practising mode. Overrides the offline wording. */
+  beltUnavailableHint?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -178,6 +185,12 @@ const isCurrentBelt = (belt: Belt) => belt.name === props.currentBelt.name
 // NOT every non-current belt (that was the "everything greyed out" bug).
 const isBeltUnavailableOffline = (belt: Belt) =>
   !!props.isOffline && !!props.offlineUnavailableBeltNames?.has(belt.name)
+
+// The reason this belt can't be served, in the words the action would use.
+// Falls back to the old not-downloaded line when no reason map is supplied.
+const beltUnavailableReason = (belt: Belt) =>
+  props.beltUnavailableReasons?.get(belt.name)
+  ?? `${belt.name} belt isn't downloaded — reconnect to jump there`
 
 // Only warn about connectivity when it would actually block a jump — most
 // offline sessions have every belt up to position downloaded, so the old
@@ -377,8 +390,8 @@ onUnmounted(() => {
                   }"
                   :style="{ '--chip-color': belt.color }"
                   :disabled="isCurrentBelt(belt) || isSkipping || isBeltUnavailableOffline(belt)"
-                  :title="isBeltUnavailableOffline(belt) ? `${belt.name} belt isn't downloaded — reconnect to jump there` : `Jump to ${belt.name} belt`"
-                  :aria-label="isBeltUnavailableOffline(belt) ? `${belt.name} belt — not downloaded, unavailable offline` : `Jump to ${belt.name} belt`"
+                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
+                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
@@ -436,9 +449,9 @@ onUnmounted(() => {
             </div>
 
             <p class="belt-strip-hint">{{ hasUndownloadedBelt
-              ? (offlineReadyUpToBeltName
+              ? (beltUnavailableHint || (offlineReadyUpToBeltName
                 ? `offline — belts up to ${offlineReadyUpToBeltName} ready to play; beyond needs a connection`
-                : 'offline — locked belts aren\'t downloaded; connect to jump there')
+                : 'offline — locked belts aren\'t downloaded; connect to jump there'))
               : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
           </section>
         </div>
