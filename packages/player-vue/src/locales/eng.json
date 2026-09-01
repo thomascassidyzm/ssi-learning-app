@@ -19,7 +19,37 @@
     "listeningDesc": "Audio only, no speaking",
     "easy": "Easy",
     "fast": "Fast",
-    "learningModeLabel": "Learning mode"
+    "learningModeLabel": "Learning mode",
+    "sector": "For your work",
+    "sectorDesc": "Runs alongside your course"
+  },
+  "sector": {
+    "title": "For your work",
+    "subtitle": "Pick what fits and it runs alongside your course from the start.",
+    "loading": "Looking for walks…",
+    "errorTitle": "That did not load",
+    "errorBody": "Have another go in a moment.",
+    "retry": "Try again",
+    "emptyTitle": "Nothing here yet for this language",
+    "emptyBody": "The first walks are being built. Your course carries on as normal.",
+    "opensAfter": "Opens after",
+    "roleTitle": "Which part do you play?",
+    "roleSubtitle": "Pick the one closest to you. You can change it whenever you like.",
+    "start": "Start",
+    "back": "Back",
+    "close": "Close",
+    "roles": {
+      "general": "General",
+      "patient": "Patient",
+      "nurse": "Nurse",
+      "doctor": "Doctor"
+    },
+    "roleDescs": {
+      "general": "A bit of everything"
+    },
+    "walks": {
+      "health": "Health"
+    }
   },
   "courseSelector": {
     "title": "Choose Your Course",

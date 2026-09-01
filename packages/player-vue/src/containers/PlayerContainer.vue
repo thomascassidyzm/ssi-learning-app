@@ -29,6 +29,8 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useCheckout } from '@/composables/useCheckout'
+import { useSectorThread } from '@/composables/useSectorThread'
+import SectorPicker from '@/components/SectorPicker.vue'
 
 // Inject from App
 const supabaseClient = inject('supabase')
@@ -319,6 +321,68 @@ const closeExplorerOverlay = () => {
 
 // Real learner progress from shared belt progress (created by LearningPlayer)
 const beltProgress = computed(() => getSharedBeltProgress())
+
+// ── The sector thread — the helix's second strand ──────────────────────────
+// The mode tray owns the row, SectorPicker owns the two steps, useSectorThread
+// owns the data; this is the seam between them, and it lives here because this
+// is where BottomNav is mounted and where the current course code is known.
+// Nothing here schedules anything: choosing a walk writes the thread row, and
+// the merge scheduler picks it up when a segment has content to interleave.
+const sectorCourseCodeForPicker = computed(
+  () => activeCourse.value?.course_code || selectedCourse.value?.course_code || ''
+)
+const showSectorPicker = ref(false)
+const {
+  sectors: sectorOptions,
+  loadingSectors,
+  sectorsError,
+  activeThread: activeSectorThread,
+  loadSectors,
+  loadThreads,
+  chooseSector,
+  setThreadActive,
+} = useSectorThread()
+
+// The tray's desc line: the walk and role in words, never a code.
+const sectorDesc = computed(() => {
+  const thread = activeSectorThread.value
+  if (!thread) return ''
+  const walk = sectorOptions.value.find(s => s.sectorCourseCode === thread.sectorCourseCode)
+  const name = walk?.slug ? walk.slug.charAt(0).toUpperCase() + walk.slug.slice(1) : ''
+  return name ? `${name} — ${thread.role}` : thread.role
+})
+
+const openSectorPicker = async (courseCode) => {
+  showSectorPicker.value = true
+  const code = courseCode || sectorCourseCodeForPicker.value
+  if (!code) return
+  await Promise.all([loadSectors(code), loadThreads(code)])
+}
+
+const handleSectorChoose = async (choice) => {
+  const code = sectorCourseCodeForPicker.value
+  if (!code) return
+  try {
+    await chooseSector(code, choice.sectorCourseCode, choice.role)
+    showSectorPicker.value = false
+  } catch (err) {
+    // Loud, never swallowed: the picker keeps its own error line.
+    console.error('[sector] choose failed', err)
+  }
+}
+
+// The tray toggle parks or resumes the chosen walk. Parking is never
+// destructive — the thread's cursor stays exactly where it was.
+const handleSectorToggle = async () => {
+  const thread = activeSectorThread.value
+  const code = sectorCourseCodeForPicker.value
+  if (!thread || !code) return
+  try {
+    await setThreadActive(code, thread.sectorCourseCode, !thread.active)
+  } catch (err) {
+    console.error('[sector] toggle failed', err)
+  }
+}
 
 // Belt CSS vars for cascading to BottomNav and other siblings
 const containerBeltVars = computed(() => {
@@ -727,6 +791,10 @@ onMounted(() => {
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
+      :courseCode="sectorCourseCodeForPicker"
+      :hasSectorThread="!!activeSectorThread"
+      :isSectorActive="!!activeSectorThread?.active"
+      :sectorDesc="sectorDesc"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
@@ -737,11 +805,29 @@ onMounted(() => {
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
       @toggleOffline="handleToggleOffline"
+      @openSector="openSectorPicker"
+      @toggleSector="handleSectorToggle"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"
       @closeOverlays="closeLibrary(); closeSettings(); showCourseSelector = false"
       @closeAuth="closeAuth"
+    />
+
+    <!-- Sector walk + role picker. Body-teleported inside the component, the
+         way the offline depth picker is: one popup at a time, and the tray has
+         already closed itself by the time this opens. -->
+    <SectorPicker
+      :open="showSectorPicker"
+      :sectors="sectorOptions"
+      :loading="loadingSectors"
+      :error="sectorsError"
+      :coreHighestLegoId="beltProgress?.highestLegoId?.value ?? null"
+      :currentSectorCourseCode="activeSectorThread?.sectorCourseCode ?? null"
+      :currentRole="activeSectorThread?.role ?? null"
+      @close="showSectorPicker = false"
+      @retry="openSectorPicker(sectorCourseCodeForPicker)"
+      @choose="handleSectorChoose"
     />
 
     <!-- Gear icon removed — settings now accessible from bottom pill -->
