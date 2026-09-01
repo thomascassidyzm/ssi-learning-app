@@ -12125,10 +12125,13 @@ const collectPodSpanAudioIds = (spanMs: number): string[] => {
  * A FEW ROUNDS — the head of the rolling fill, enough to start practising
  * immediately. Tom, 2026-08-31: "we should put a few ROUNDS in the cache and
  * then, pretty soon after - get the entire listening exercises into the cache
- * for POD1" — later escalated to ALL listening. This is the "few rounds"
- * half; collectAllListeningAudioIds is the other. Counted in ROUNDS rather
- * than milliseconds because that is the unit he named and the unit a learner
- * feels.
+ * for POD1". Counted in ROUNDS rather than milliseconds because that is the
+ * unit he named and the unit a learner feels.
+ *
+ * This is position-scoped by construction (it walks forward from the cursor),
+ * which is why it stays in the automatic path under Tom's 2026-09-01 ruling.
+ * The "entire listening exercises" half of that 08-31 note now lives ONLY in
+ * the Offline Mode download — see collectAllListeningAudioIds.
  */
 const PREFETCH_HEAD_ROUNDS = 3
 const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
@@ -12149,8 +12152,21 @@ const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
 }
 
 /**
- * ALL THE LISTENING — every clip either listening surface can play, warmed
- * early rather than just-in-time.
+ * ALL THE LISTENING — every clip either listening surface can play.
+ *
+ * OFFLINE MODE ONLY. Tom's ruling, 2026-09-01: "Should be progressively
+ * loaded, yes. Never upfront loaded. Because people still have the option if
+ * they choose to select the Offline Mode itself." This collector is
+ * corpus-wide — it is not scoped to the learner's position and never shrinks
+ * — so it is exactly the "upfront loaded" shape that ruling forbids in the
+ * automatic path. It was spliced into fillBuffer's rolling warm until
+ * 2026-09-01 and is now called from downloadForOffline alone.
+ *
+ * DO NOT re-add this to fillBuffer, warmBurst, or anything that fires without
+ * the learner choosing Offline Mode. The automatic path warms the pod lap and
+ * the Layer-1 lap DUE IN THE SPAN (collectPodSpanAudioIds /
+ * collectLayer1SpanAudioIds), which is the progressive shape.
+ * Regression net: progressivePrefetch.boundary.test.ts.
  *
  * Tom, 2026-09-01, escalating his own earlier ruling: "listening exercises -
  * ALL of them - need to be promoted earlier". The first version of this
@@ -12184,12 +12200,10 @@ const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
  *   ─────────────────────────────────────────────────────────────
  *   ALL LISTENING               2,401 clips  141.5 min  100.1 MB
  *
- * That is NOT small, and it is fetched ahead of most of the learner's course.
- * It is here because Tom ruled it explicitly ("listening exercises - ALL of
- * them - need to be promoted earlier") with the number put in front of him
- * rather than the set quietly trimmed to fit the claim. If the data cost turns
- * out to matter more than the offline coverage, the honest lever is to scope
- * this collector — not to pretend the number is smaller.
+ * That is NOT small — and it is the reason this belongs behind the learner's
+ * own Offline Mode choice rather than in the automatic warm. 100 MB is a
+ * decision a person on a metered connection is entitled to make for
+ * themselves; the Offline Mode tray is where they make it.
  */
 const collectAllListeningAudioIds = (): string[] => {
   const ids = new Set<string>()
@@ -12392,31 +12406,35 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
     // front-to-back, so position in this array IS the priority. Dedupe across
     // all entries so a clip shared by a cycle and a lap is fetched once.
     //
-    // The order was [cycles…, pods…, L1…] — every cycle of the whole rolling
-    // span ahead of any listening clip, and listening itself only ever the
-    // NEXT lap if one happened to fall inside the span. Tom, 2026-08-31: "I do
-    // not think we included the listening exercises early enough in the
-    // download ahead of time cache" ... "put a few ROUNDS in the cache and
-    // then, pretty soon after - get the entire listening exercises into the
-    // cache for POD1".
+    // LISTENING IS PROMOTED, BUT POSITION-SCOPED. Two of Tom's rulings meet
+    // here and both are honoured:
     //
-    // So ONE insertion point changes. ALL the listening moves up behind the
-    // first few rounds (Tom, 2026-09-01: "listening exercises - ALL of them -
-    // need to be promoted earlier"); nothing is removed and nothing else is
-    // reordered relative to itself. What gets pushed later is the REMAINDER of
-    // the rolling span's cycles — rounds 4..N ahead of the cursor — which is
-    // the right thing to yield, because the learner cannot reach them before
-    // the head rounds are played, and because the listening pools are BOUNDED
-    // — 2,401 clips / ~100 MB / ~2.4 hours on spa_for_eng, measured
-    // 2026-09-01 — while the span tail grows with the course. Bounded is not
-    // the same as small: see collectAllListeningAudioIds for the real figure
-    // and why it is stated rather than trimmed.
+    //   2026-08-31: "I do not think we included the listening exercises early
+    //   enough in the download ahead of time cache" - so listening sits ahead
+    //   of the rolling span's cycle tail, not behind it. That is the ORDER
+    //   below: head rounds, then the pod lap and the Layer-1 lap due inside
+    //   the span, then rounds 4..N of cycles. The learner cannot reach those
+    //   later cycles before the head rounds are played, so they are the right
+    //   thing to yield.
+    //
+    //   2026-09-01: "Should be progressively loaded, yes. Never upfront
+    //   loaded. Because people still have the option if they choose to select
+    //   the Offline Mode itself." - so what gets promoted is the listening
+    //   DUE IN THIS SPAN, never the whole listening corpus. The corpus-wide
+    //   collector (collectAllListeningAudioIds - 2,401 clips / ~100 MB on
+    //   spa_for_eng, measured 2026-09-01) USED to be spliced in right here,
+    //   and it fired on the very first burst, before the learner had played a
+    //   single cycle. That is upfront bulk by any reading, so it is gone from
+    //   this path. It still runs, unchanged, in downloadForOffline - where the
+    //   learner asked for it.
+    //
+    // Everything in this list is scoped to the cursor and rolls forward with
+    // it. Nothing here is course-wide or corpus-wide. Keep it that way.
     const ordered = [
       ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
-      ...collectAllListeningAudioIds(),
-      ...collectSpanAudioIds(spanMs),
       ...collectPodSpanAudioIds(spanMs),
       ...collectLayer1SpanAudioIds(spanMs),
+      ...collectSpanAudioIds(spanMs),
     ]
     const seen = new Set<string>()
     const missing = ordered.filter((id) => {
@@ -12617,6 +12635,9 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
+      // Tom's ruling, 2026-09-01: bulk downloading is reachable ONLY from the
+      // learner's own Offline Mode selection. offlineActive IS that selection.
+      offlineModeOptIn: () => offlineActive.value,
       fetchBatchUrls: fetchBatchAudioUrls,
       ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
       ensure: (id) => audioCache.persistent.ensure(id),
@@ -12717,7 +12738,10 @@ const scheduleOfflineStragglerRetry = (missingIds: string[], attempt = 0) => {
     const { completed, failedIds: stillMissing } = await bulkDownloadAudio(
       missing,
       {
-        fetchBatchUrls: fetchBatchAudioUrls,
+        // Tom's ruling, 2026-09-01: bulk downloading is reachable ONLY from the
+      // learner's own Offline Mode selection. offlineActive IS that selection.
+      offlineModeOptIn: () => offlineActive.value,
+      fetchBatchUrls: fetchBatchAudioUrls,
         ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
         ensure: (id) => audioCache.persistent.ensure(id),
         isCancelled: () => !offlineActive.value,
@@ -13407,6 +13431,9 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   const { completed, failedIds } = await bulkDownloadAudio(
     missing,
     {
+      // Tom's ruling, 2026-09-01: bulk downloading is reachable ONLY from the
+      // learner's own Offline Mode selection. offlineActive IS that selection.
+      offlineModeOptIn: () => offlineActive.value,
       fetchBatchUrls: fetchBatchAudioUrls,
       ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
       ensure: (id) => audioCache.persistent.ensure(id),

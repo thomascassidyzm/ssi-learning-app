@@ -1828,147 +1828,12 @@ function emitListeningTick() {
   logEvent('listening_tick', { view: view.value })
 }
 
-const packState = ref('idle') // 'idle' | 'downloading' | 'complete' | 'error'
-const packTotal = ref(0)
-const packDone = ref(0)
-
-const packKey = computed(() => `listening-pack:${props.courseCode}:${props.upToSeed ?? 'all'}`)
-
-const packPercent = computed(() => {
-  if (packTotal.value === 0) return 0
-  return Math.round((packDone.value / packTotal.value) * 100)
-})
-
-const checkPackComplete = () => {
-  try {
-    if (localStorage.getItem(packKey.value) === 'complete') {
-      packState.value = 'complete'
-    }
-  } catch {
-    // localStorage may be blocked — fine, just skip the persisted flag
-  }
-}
-
-const fetchAllAudioIds = async () => {
-  if (!supabase?.value || !props.courseCode) return []
-
-  let query = supabase.value
-    .from('course_practice_phrases')
-    .select('target1_audio_id, target2_audio_id')
-    .eq('course_code', props.courseCode)
-    .in('phrase_role', ['use', 'eternal_eligible'])
-    // Without an explicit limit this defaults to ~1000 rows; the USE +
-    // eternal_eligible pool runs to ~5000 on big courses, so the listening
-    // download pack was missing most of its audio ids. 10000 sits under the
-    // server max-rows and above the real pool.
-    .limit(10000)
-
-  if (props.upToSeed) {
-    query = query.lt('seed_number', props.upToSeed)
-  }
-
-  const { data, error: fetchError } = await query
-  if (fetchError) throw fetchError
-
-  // A-86: the offline pack must be downloaded and CACHED under the versioned
-  // ref, or a revised clip lands in IndexedDB under its bare uuid and the
-  // player never finds it.
-  const revisedRefs = await getRevisedAudioRefs(supabase.value, props.courseCode)
-  const ids = new Set()
-  for (const row of stampRowAudioRefs(revisedRefs, data || [])) {
-    if (row.target1_audio_id) ids.add(row.target1_audio_id)
-    if (row.target2_audio_id) ids.add(row.target2_audio_id)
-  }
-  return Array.from(ids)
-}
-
-const PACK_CONCURRENCY = 5
-
-const downloadListeningPack = async () => {
-  logEvent('tap_listening_download', {
-    upToSeed: props.upToSeed ?? null,
-    currentState: packState.value,
-  })
-
-  if (packState.value === 'downloading') {
-    logEvent('listening_pack_skip', { reason: 'already_downloading' })
-    return
-  }
-
-  let cacheFailures = 0
-  try {
-    packState.value = 'downloading'
-    packDone.value = 0
-    packTotal.value = 0
-
-    const ids = await fetchAllAudioIds()
-    packTotal.value = ids.length
-    logEvent('listening_pack_start', { totalIds: ids.length })
-
-    if (ids.length === 0) {
-      packState.value = 'complete'
-      try { localStorage.setItem(packKey.value, 'complete') } catch {}
-      logEvent('listening_pack_end', { reason: 'no_ids', total: 0, failures: 0 })
-      return
-    }
-
-    // Filter out already-cached IDs (sync check against AudioCache's
-    // in-memory id Set — no IndexedDB round-trip).
-    const missing = []
-    for (const id of ids) {
-      if (audioCache.persistent.has(id)) {
-        packDone.value++
-      } else {
-        missing.push(id)
-      }
-    }
-    logEvent('listening_pack_progress', {
-      total: ids.length,
-      alreadyCached: ids.length - missing.length,
-      toFetch: missing.length,
-    })
-
-    // audioCache.persistent.ensure fetches via /api/audio/<id> and stores
-    // the blob in IndexedDB ssi-audio-cache-v2. The SW (CacheFirst on
-    // /api/audio/*) also caches en route, giving belt-and-braces
-    // durability. In-flight de-dupe means multiple ensure() calls for
-    // the same id collapse into one fetch.
-    for (let i = 0; i < missing.length; i += PACK_CONCURRENCY) {
-      if (packState.value !== 'downloading') {
-        logEvent('listening_pack_end', { reason: 'cancelled', total: ids.length, failures: cacheFailures, completed: packDone.value })
-        return
-      }
-
-      const batch = missing.slice(i, i + PACK_CONCURRENCY)
-      await Promise.all(batch.map(async (id) => {
-        try {
-          await audioCache.persistent.ensure(id)
-        } catch (err) {
-          cacheFailures++
-          console.warn('[ListeningOverlay] Failed to cache', id, err)
-        } finally {
-          packDone.value++
-        }
-      }))
-    }
-
-    packState.value = 'complete'
-    try { localStorage.setItem(packKey.value, 'complete') } catch {}
-    logEvent('listening_pack_end', {
-      reason: 'complete',
-      total: ids.length,
-      failures: cacheFailures,
-    })
-  } catch (err) {
-    console.error('[ListeningOverlay] Pack download failed:', err)
-    packState.value = 'error'
-    logEvent('listening_pack_end', {
-      reason: 'error',
-      message: (err && err.message) || String(err),
-      failures: cacheFailures,
-    })
-  }
-}
+// (Removed 2026-09-01: `downloadListeningPack` — a corpus-wide bulk download
+// of every listening clip. Its UI button went in 2026-05-20 and nothing has
+// called it since; it sat here as a loaded gun pointing at Tom's ruling of
+// 2026-09-01, "Should be progressively loaded, yes. Never upfront loaded."
+// The learner's route to the same bytes is Offline Mode, which downloads the
+// listening pools already. In git if it is ever wanted back.)
 
 // ============================================================================
 // Lifecycle
@@ -1986,7 +1851,6 @@ onMounted(async () => {
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
   listeningTickTimer = setInterval(emitListeningTick, LISTENING_TICK_MS)
-  checkPackComplete()
 })
 
 onUnmounted(() => {
@@ -1995,10 +1859,6 @@ onUnmounted(() => {
   clearMediaSession()
   if (listeningTickTimer) { clearInterval(listeningTickTimer); listeningTickTimer = null }
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  // Cancel any in-flight pack download
-  if (packState.value === 'downloading') {
-    packState.value = 'idle'
-  }
 })
 
 // Sync playback speed with audio controller
@@ -2055,9 +1915,10 @@ watch(
       <div class="top-progress-fill" :style="{ width: progressPercent + '%' }"></div>
     </div>
 
-    <!-- (Offline download button removed 2026-05-20 — being moved to
-         Settings. packState / packPercent / downloadListeningPack are
-         retained in <script> for the eventual relocation.) -->
+    <!-- (Offline download button removed 2026-05-20; its script-side
+         machinery removed 2026-09-01 — the learner's route to these bytes is
+         Offline Mode, which already downloads the listening pools. See the
+         note in <script>.) -->
 
     <!-- Top-level view tabs: Dialogues / Core / All.
          Dialogues = Layer 2 pod scenes for the course (default).

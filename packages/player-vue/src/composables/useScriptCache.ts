@@ -584,41 +584,13 @@ export const getCachedAudio = async (url: string): Promise<Response | null> => {
   }
 }
 
-// Preload audio for upcoming items (call this during learning)
-export const preloadAudioBatch = async (urls: string[]): Promise<void> => {
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME)
-
-    // Check what's already cached
-    const uncached = await Promise.all(
-      urls.map(async (url) => {
-        const existing = await cache.match(url)
-        return existing ? null : url
-      })
-    )
-
-    // Fetch uncached URLs in parallel
-    const toFetch = uncached.filter(Boolean) as string[]
-    if (toFetch.length === 0) return
-
-    await Promise.all(
-      toFetch.map(async (url) => {
-        try {
-          const response = await fetch(url)
-          if (response.ok) {
-            await cache.put(url, response.clone())
-          }
-        } catch {
-          // Individual failures don't block others
-        }
-      })
-    )
-
-    console.log('[ScriptCache] Preloaded', toFetch.length, 'audio files')
-  } catch (err) {
-    console.warn('[ScriptCache] Audio preload failed:', err)
-  }
-}
+// (Removed 2026-09-01: `preloadAudioBatch` — an unbounded "fetch this whole
+// list of URLs into the Cache API" helper with no callers anywhere in src.
+// Under Tom's ruling of 2026-09-01 the automatic path warms position-scoped
+// content only ("Should be progressively loaded, yes. Never upfront loaded"),
+// and anything course-scale goes through the Offline Mode download. A
+// general-purpose bulk preloader sitting in the shared cache module is an
+// invitation to break that boundary by accident. In git if wanted back.)
 
 // Get cache stats
 export const getAudioCacheStats = async (): Promise<{ count: number; estimatedMB: number }> => {
@@ -943,7 +915,6 @@ export function useScriptCache() {
     // New audio caching functions
     cacheAudio,
     getCachedAudio,
-    preloadAudioBatch,
     getAudioCacheStats
   }
 }

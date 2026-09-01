@@ -17,6 +17,9 @@ function makeDeps(overrides: Partial<BulkAudioDownloadDeps> = {}): BulkAudioDown
     ensure: async () => {},
     isCancelled: () => false,
     isPlaying: () => false,
+    // The default fixture is an opted-in learner; the gate itself is covered
+    // by bulkAudioDownload.optIn.test.ts.
+    offlineModeOptIn: () => true,
     sleep: async () => {},  // straggler-round backoff is instant in tests
     ...overrides,
   }
