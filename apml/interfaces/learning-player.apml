@@ -370,6 +370,25 @@ TILE_ASSEMBLY:
       recognition builds from exposure. Default ON (scriptMode 'roman').
     control: "ModeTray.vue — Aa (guide shown) / 文 (characters only)"
     prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
+    availability: |
+      hasRomanizedText decides BOTH whether ModeTray renders the control at all
+      (v-if) and whether the player prefers the native glyphs over the roman
+      text (currentDisplay / visibleTexts / displayedComponents / the tiling).
+      One flag, two consequences — so a false value hides the control AND
+      silently downgrades the learner to romanisation-only.
+      It is the OR of two independent signals (LearningPlayer.vue):
+        script — providers/roundsCarryNativeScript.ts over loadedRounds. The
+          generated AND cached script carry the native glyphs on every romanised
+          cycle (target.textNative, round.legoTargetTextNative), so this answers
+          with no network call and works from an already-cached script on a
+          device. Latched per courseCode (nativeSeenForCourse).
+        probe — a course_legos count of non-null target_text_roman. Answers
+          before any rounds have loaded; requires network. It may only ever set
+          the flag TRUE: offline the query fails, and a failed query means
+          "don't know", not "no romanisation".
+      Before this split (fixed 2026-09-01) the probe was the only signal, so a
+      cached/offline boot hid the toggle and rendered roman-only text — found by
+      Tom playing Chinese from cache on a flight.
 
 ## ============================================================================
 ## LEARNING MODE — EASY / FAST (2026-08-06)
@@ -1412,7 +1431,7 @@ LIBRARY_ACTIVITY_TILES:
                   for the progress modal."
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-08-31 (PRACTISING: an IN-APP, TAP-ONLY door into the mode gated on a SERVER-VERIFIED ssi_admin privilege — a permission, not a trick — Settings > Developer > "Practising Mode (test)" — because a query string cannot be typed into an installed PWA, and because the query-string door was a fake that showed the banner without exercising the trigger; the new one takes the CONTENT away, declining the network, the cycles cache AND the whole-course bundle, and lets the real trigger, the real write suppression and the real recovery fire; earlier same day: the recycled-playback SUPPRESSION FLOOR restored underneath the mode — a recycled round can never write the cursor, whatever the mode says; our own 401/403/429/5xx no longer freeze a learner's position; earlier same day: INF PLAY OBSERVABILITY: infplay_enter/exit and cursor_move, so a chosen ∞ and a machine ∞ stop looking identical; plus course_enrollments.updated_at, the first thing that dates a cursor at all)
+## GENERATED: 2026-01-18 — Last updated: 2026-09-01 (SCRIPT TOGGLE OFFLINE: hasRomanizedText is now the OR of a script-derived signal and the DB probe, so a cached/offline boot keeps the pronunciation-guide control AND the native glyphs — see script_toggle.availability; previously 2026-08-31: PRACTISING: an IN-APP, TAP-ONLY door into the mode gated on a SERVER-VERIFIED ssi_admin privilege — a permission, not a trick — Settings > Developer > "Practising Mode (test)" — because a query string cannot be typed into an installed PWA, and because the query-string door was a fake that showed the banner without exercising the trigger; the new one takes the CONTENT away, declining the network, the cycles cache AND the whole-course bundle, and lets the real trigger, the real write suppression and the real recovery fire; earlier same day: the recycled-playback SUPPRESSION FLOOR restored underneath the mode — a recycled round can never write the cursor, whatever the mode says; our own 401/403/429/5xx no longer freeze a learner's position; earlier same day: INF PLAY OBSERVABILITY: infplay_enter/exit and cursor_move, so a chosen ∞ and a machine ∞ stop looking identical; plus course_enrollments.updated_at, the first thing that dates a cursor at all)
 ## Previously: 2026-08-19 (Library activity tiles: Phrases spoken now has a server-side home — lifetime, all-courses, tab-close-safe; see LIBRARY_ACTIVITY_TILES)
 ## Previously: 2026-08-18 (glyph coverage is now LANGUAGE-scoped: DM Sans stays the default and the brand, and only the 15 languages it cannot spell flip — whole runs, never single letters — to Noto Sans; see typography.glyph_coverage)
 ## Previously: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)

@@ -978,17 +978,22 @@ const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCod
 // which both HID the pronunciation-guide row from the mode tray and dropped
 // the player back to roman-only text, because every native-render path below
 // gates on this flag (Tom, on a flight, 2026-09-01).
-const hasRomanizedFromScript = ref(false)
+// Latched per course rather than as a bare boolean, so the answer is always
+// tied to the course it was observed for. A plain sticky boolean is wrong here:
+// courseCode can settle AFTER the rounds land (it resolves from the bundle /
+// the learner's saved preference), and a "clear on course change" reset then
+// wipes a true that nothing re-computes, because the rounds themselves have not
+// changed since. Measured: that ordering hid the toggle on a local offline boot
+// while passing on dev, purely on timing. Watching BOTH inputs re-checks.
+const nativeSeenForCourse = ref<string | null>(null)
+const hasRomanizedFromScript = computed(() =>
+  !!courseCode.value && nativeSeenForCourse.value === courseCode.value)
 const hasRomanizedFromProbe = ref(false)
 const hasRomanizedText = computed(() => hasRomanizedFromScript.value || hasRomanizedFromProbe.value)
 
-// Both signals are per-course facts: clear them the moment the course changes
-// so switching from a romanised course to a Latin-script one doesn't carry the
-// toggle across. Declared before the two producers so it runs first.
-watch(courseCode, () => {
-  hasRomanizedFromScript.value = false
-  hasRomanizedFromProbe.value = false
-})
+// The probe's answer is a per-course fact too — clear it on a course switch so
+// a romanised course doesn't lend its toggle to a Latin-script one.
+watch(courseCode, () => { hasRomanizedFromProbe.value = false })
 
 // Detect romanized text early (before play) via a lightweight DB check.
 // Watch BOTH courseCode and supabase as sources: supabase is injected as
@@ -1964,11 +1969,12 @@ const loadedRounds = ref<any[]>([])
 // `legoTargetTextNative` on the round). Those fields survive the IndexedDB
 // script cache untouched — setCachedScript JSON round-trips the whole rounds
 // blob — so a cached/offline boot has the answer already, which is the point.
-// Sticky within a course (cleared by the courseCode watcher above); a scan
-// stops at the first native glyph it finds.
-watch(loadedRounds, (rounds) => {
-  if (hasRomanizedFromScript.value) return
-  if (roundsCarryNativeScript(rounds as any[])) hasRomanizedFromScript.value = true
+// Latched against the course it was observed for (nativeSeenForCourse, above),
+// so it survives a late courseCode resolution and drops automatically on a
+// course switch. A scan stops at the first native glyph it finds.
+watch([courseCode, loadedRounds], ([code, rounds]) => {
+  if (!code || nativeSeenForCourse.value === code) return
+  if (roundsCarryNativeScript(rounds as any[])) nativeSeenForCourse.value = code
 }, { immediate: true })
 
 // Tracks the highest main-loop LEGO whose round has been completed this
