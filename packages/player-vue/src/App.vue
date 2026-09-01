@@ -27,6 +27,7 @@ import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
   NETWORK_TIMEOUT,
+  BACKGROUND_FETCH_TIMEOUT_MS,
   wireNetworkRecovery,
 } from './config/networkGate'
 import { waitForCatalogue, usableCatalogue } from './config/catalogueWait'
