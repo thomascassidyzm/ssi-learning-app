@@ -170,3 +170,52 @@ the delta is otherwise good. Stated because a security report is only as good as
 discipline, and this one nearly shipped nine.
 
 ---
+
+---
+
+## 2. Coordinator verification of SEC0901-A-01 — independently confirmed, and the framing sharpened
+
+Area A's headline is the only finding in this audit whose blast radius is irreversible, so the
+coordinator re-derived it from the source rather than relaying it. **It is real, and the chain holds at
+every link.** Three facts the area report did not state, each of which makes it worse rather than better:
+
+**1. There is no uniqueness constraint to collide against.** `public.groups` carries exactly two
+constraints — `groups_pkey PRIMARY KEY (id)` and `groups_parent_id_fkey` — and `idx_groups_path` is a
+plain non-unique btree. Two root groups may hold a byte-identical `path`. `compute_group_path()` is a
+pure slugify of `name` with no dedupe.
+
+**2. The one control that looks like it would stop this is a UX warning the caller can switch off.**
+`api/onboarding/provision.ts:264` reads:
+
+```ts
+if (!existingGroupId && !confirm_duplicate) {
+  const duplicates = await findSiblingSlugCollisions(supabase, org_name, null)
+  if (duplicates.length > 0) { res.status(409).json(duplicateNameBody(...)); return }
+}
+```
+
+So the precondition is not "find a way past a check" — it is **one extra field in the request body**,
+`confirm_duplicate: true`, on an endpoint gated by nothing but `verifyAuthToken`. The comment above it says
+the warning *"fails open — a warning is a nicety, a blocked signup is a lost customer"*, which is a
+perfectly good product decision that happens to be load-bearing for this bug in a way nobody intended.
+
+**3. Nothing downstream narrows the blast radius.** `_utils/demoSchoolTeardown.ts` contains **no
+`is_demo` / `is_test` filter of any kind**. It passes the resolved id list straight to
+`deleteInChunks(supabase, 'groups', 'id', groupIds)` and `supabase.auth.admin.deleteUser(uid)`. The demo
+flags that would have made this survivable exist on `learners` and are used elsewhere in the codebase —
+they are simply not consulted here.
+
+**Where the coordinator would reframe it.** Area A presents this as an attack, and rates it HIGH rather
+than CRITICAL because it needs an admin's unrelated routine action to fire. That reasoning is sound as
+far as it goes, but it undersells the finding, because **the attacker is the least likely way this
+happens.** A deliberate attacker gains almost nothing: the org destroyed is their own throwaway. The
+realistic trigger is an *accident* — a genuine customer names their organisation something a demo org is
+already called, clicks past a duplicate-name warning that exists to be clicked past, and is then hard-
+deleted, auth accounts and all, by an admin doing correct routine maintenance months later. No attacker
+is required, no one involved does anything wrong, and there is no audit trail that would explain it
+afterwards. Read that way it is a **data-loss defect that will eventually fire on its own**, and that,
+not the attack, is the argument for fixing it. The fix is unchanged and is the same one-line move already
+applied at three sibling sites: walk `parent_id` via `groupSubtree.descendantIds`, never match
+`groups.path`.
+
+Not fixed here — findings and tests only.
