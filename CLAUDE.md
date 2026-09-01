@@ -2,6 +2,10 @@
 
 > **Welcome, future agent!** This document contains everything you need to work effectively on the SSi Learning App without creating chaos.
 
+## 🚨 CODE IS GOSPEL
+
+**Documentation in this repo is historical artifact — out of date BY DESIGN — and is never an authority for any decision.** Before acting on any claim found in a doc (including audits, build docs, README content, this file), verify it against the running code and the live DB. If the code can't answer the question, **ASK TOM** — one plain question — rather than trusting a doc. Today's specimen: agents burned a morning trusting docs about explainer clips and voice casting that the code contradicted.
+
 ## CRITICAL: Branch Policy
 
 Three-tier promotion flow (set up 2026-05-24). **ALL work goes to `dev`. NEVER push to `staging` or `main` directly.**
@@ -372,8 +376,8 @@ SEED (full sentence) → LEGO (learning unit) → PracticePhrase (practice item)
 **PWA Caching Math (validated):**
 - ~4.8 MB per 30-min session (198 unique audio files)
 - Spaced repetition reuses already-cached audio
-- Safari 1GB limit = 200x headroom for full course
-- 17 seconds to buffer 30 mins ahead on 3G
+- **"200x headroom" was wrong — measured 2026-09-01: a full-course Offline Mode download (spa_for_eng, configured voice only) is ≈1.86 GB, ~1.9x OVER Safari's ~1GB PWA limit, not 200x under it. It doesn't fit. A full-course download is a real design constraint, not a solved problem — needs a decision (partial/rolling download windows, or similar) before it's promised to learners as "download the whole course."**
+- 17 seconds to buffer 30 mins ahead on 3G (per-session progressive caching, unaffected by the full-course figure above)
 
 ### Persistence Module
 
@@ -582,7 +586,7 @@ Text update is instantaneous on phase change. No drift possible.
    ```
 
 ### Safari Limitations (Acceptable)
-- 1GB storage limit (200x more than needed for one course)
+- 1GB storage limit — **measured 2026-09-01: a full spa_for_eng course at its configured voice is ≈1.86 GB, ~1.9x over this limit, not "200x more than needed." A full-course Offline Mode download does not currently fit.**
 - No push notifications (not needed for learning)
 - No background audio control (acceptable)
 
