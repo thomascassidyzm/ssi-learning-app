@@ -78,7 +78,7 @@ import {
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
-import { orderOfflineDownloadTiers } from '../playback/offlineDownloadOrder'
+import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -12644,32 +12644,31 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const cycleIds = collectRoundsAudioIds(roundsAhead)
   const { ids: auxIds, podIds, auxIncomplete } = await collectAuxiliaryAudioIds()  // commentary + pod pools
-  // A deliberate download can be interrupted (signal goes, app closed, user
-  // walks away), and whatever landed before that is what the learner actually
-  // has — so this order decides what a PARTIAL download is. Declared as tiers
-  // rather than left to the order two spreads happened to be written in.
+  // The learner chooses what percentage of the remaining course to take, and a
+  // download can be interrupted (signal goes, app closed, user walks away) — so
+  // a PARTIAL download is the normal case, and this order decides what it is.
   //
-  //   1. a few rounds — enough to start practising immediately
-  //   2. THE WHOLE POD — every turn, plus the fine-known glosses and Take-G
-  //      fusion slices only the listening metadata carries. Tom, 2026-09-01:
-  //      "once Offline Mode is selected, the PODS are all downloaded". Those
-  //      metadata-only clips used to sit in tier 4, behind the entire course,
-  //      so an interrupted download gave pod dialogue that died on a fusion
-  //      rung (2,027 fine-known + 42 Take-G clips for spa_for_eng, measured
-  //      live 2026-09-01).
-  //   3. the rest of the listening pool (Layer-1) and then the course cycles
-  //   4. everything else — commentary, Core, and the pod ids already taken
-  //      by tier 2, which the dedupe drops.
+  // Tom, 2026-09-01: "Not first. But prioritised." Pods are woven THROUGH the
+  // course at an elevated rate, not stacked in front of it: a pods-first prefix
+  // would leave someone who stops early holding complete dialogues and nothing
+  // to play next. The course leads; pods take one slot in eight, about three
+  // times their natural share, so at any interruption the learner has the next
+  // stretch of course AND a disproportionately large share of the pods.
+  //
+  // Pods lead the promoted stream and the Layer-1 pool follows, so the pods are
+  // the part that survives a shallow take. The pod slice deliberately includes
+  // the fine-known glosses and Take-G fusion slices that only the listening
+  // metadata carries — without them, pod dialogue dies the moment a learner
+  // opens a fusion rung.
   //
   // The SET of ids is unchanged; only the order is, so the totals, the
   // progress accounting and "Ready ✓" all mean exactly what they meant before.
-  const ids = orderOfflineDownloadTiers(
-    collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
-    podIds,
-    collectAllListeningAudioIds(),
-    cycleIds,
-    auxIds,
-  )
+  const ids = buildOfflineDownloadQueue({
+    head: collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
+    priority: [...new Set([...podIds, ...collectAllListeningAudioIds()])],
+    main: cycleIds,
+    tail: auxIds,
+  })
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
@@ -13470,10 +13469,17 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   ])
   const { ids: auxIds, podIds, auxIncomplete } = auxResult
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  // Same pods-first priority as the mid-course download (Tom 2026-09-01). INF
-  // PLAY still plays pods, so an interrupted download must leave them whole
-  // here too. Same set of ids as before — only the order changes.
-  const ids = orderOfflineDownloadTiers(podIds, useIds, auxIds)
+  // Same woven pod priority as the mid-course download (Tom 2026-09-01: "Not
+  // first. But prioritised."). INF PLAY still plays pods, so they are pulled
+  // forward here too — through the USE phrases rather than in front of them,
+  // so an interrupted download always leaves something to play. Same set of
+  // ids as before; only the order changes.
+  const ids = buildOfflineDownloadQueue({
+    head: [],
+    priority: podIds,
+    main: useIds,
+    tail: auxIds,
+  })
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
