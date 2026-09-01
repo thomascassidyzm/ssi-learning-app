@@ -16,6 +16,7 @@ import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { clearAllCachedBundles } from '@/composables/useCourseBundle'
+import { reconcileAudioCacheOwner } from '@/cache/audioCacheOwner'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
@@ -519,6 +520,14 @@ export function useAuth(): AuthState & AuthActions {
     const previousUser = supabaseUser.value
     supabaseUser.value = user
 
+    // Cached audio bytes are keyed by audio id, not by learner — so a device
+    // that changes hands would otherwise hand the next person the previous
+    // learner's downloaded premium audio (SEC0901-D-02's amplification). Purge
+    // ONLY on a genuine identity change; a same-account sign-out/sign-in keeps
+    // an Offline Mode download that can run to gigabytes. Fire-and-forget: no
+    // auth path should wait on IndexedDB.
+    if (user) void reconcileAudioCacheOwner(user.id)
+
     if (user && !previousUser) {
       // User just signed in
       isLoading.value = true
@@ -613,6 +622,9 @@ export function useAuth(): AuthState & AuthActions {
 
       if (result && 'data' in result && result.data.session?.user) {
         supabaseUser.value = result.data.session.user
+        // Restored session: onAuthStateChange may not fire for it, so reconcile
+        // the audio-cache owner here too (idempotent — see handleAuthChange).
+        void reconcileAudioCacheOwner(result.data.session.user.id)
         // ensureLearnerExists handles the syncRealRoleCache call internally
         // (it has the raw DB row with platform_role / educational_role).
         // toLearnerRecord strips those fields from the returned object, so

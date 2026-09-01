@@ -17,7 +17,11 @@
  * scriptShapeVersion }`, so a returning learner spends one tiny request to
  * confirm the cached bundle is current and otherwise goes fully offline.
  * `previewOnly` is IN the key deliberately: a learner who subscribes must not
- * keep playing the sliced preview bundle they cached as a guest.
+ * keep playing the sliced preview bundle they cached as a guest. The record
+ * also carries `ownerId` — the identity that fetched it — and a cached FULL
+ * bundle is served only back to that same identity, which is the mirror of the
+ * preview rule and what keeps a payer's paid course off the next person's
+ * session on a shared device (SEC0901-D-02).
  *
  * Storage is IndexedDB, not localStorage — a bundle is hundreds of KB and
  * localStorage's ~5 MB budget is already carrying scripts, round maps and
@@ -57,6 +61,16 @@ interface CachedBundle {
   courseCode: string
   cacheKey: string
   cachedAt: number
+  /**
+   * The learner identity that fetched this bundle — `null` for a signed-out
+   * caller. The IndexedDB store is keyed by course alone (one record per
+   * course per DEVICE), so this field is what makes the record learner-scoped:
+   * a cached FULL bundle is only valid for the identity it was fetched under
+   * (SEC0901-D-02). A record written before this field existed has no
+   * `ownerId` property at all and is treated as unknown-owner, i.e. invalid
+   * for any full bundle — one re-fetch, once.
+   */
+  ownerId?: string | null
   bundle: CourseBundle
 }
 
@@ -68,8 +82,45 @@ interface CachedBundle {
 
 let authTokenProvider: (() => Promise<string | null>) | null = null
 
+/**
+ * Who the current caller is (the Supabase auth uid), or null when signed out.
+ *
+ * Separate from the token provider on purpose: a token rotates on every
+ * refresh, so it cannot identify the owner of a cached record — the uid can.
+ */
+let identityProvider: (() => Promise<string | null>) | null = null
+
 export function setCourseBundleAuthProvider(fn: (() => Promise<string | null>) | null): void {
   authTokenProvider = fn
+}
+
+export function setCourseBundleIdentityProvider(fn: (() => Promise<string | null>) | null): void {
+  identityProvider = fn
+}
+
+/** The caller's identity for cache-ownership purposes. Null = signed out. */
+async function currentIdentityId(): Promise<string | null> {
+  if (!identityProvider) return null
+  try {
+    return (await identityProvider()) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Is this cached record valid for the caller in front of us?
+ *
+ * A PREVIEW bundle is the free window, identical for everyone, so ownership
+ * does not matter (the existing preview→paid guard handles the other
+ * direction). A FULL bundle is paid content and is only ever valid for the
+ * identity that fetched it — including "no identity", so a signed-out or
+ * different learner on a shared device falls through to the network and lets
+ * the server decide. This is the exact mirror of the preview guard below.
+ */
+function cachedOwnerMatches(cached: CachedBundle, current: string | null): boolean {
+  if (!Object.prototype.hasOwnProperty.call(cached, 'ownerId')) return false
+  return (cached.ownerId ?? null) === current
 }
 
 /** True when a signed-in session token is available for this fetch. */
@@ -290,6 +341,14 @@ export async function getCourseBundle(
     // happily agree. If we now have a token, re-fetch and let the server say.
     if (cached?.bundle?.previewOnly && (await hasAuthToken())) {
       // fall through to the network fetch below
+    } else if (
+      cached?.bundle &&
+      !cached.bundle.previewOnly &&
+      !cachedOwnerMatches(cached, await currentIdentityId())
+    ) {
+      // SEC0901-D-02: a FULL bundle cached by someone else (or by a signed-in
+      // learner, now being asked for by a signed-out one) is paid content this
+      // caller has not been granted. Fall through and let the server say.
     } else if (cached?.bundle) {
       if (opts.skipVersionCheck) return cached.bundle
       const head = await probeBundleVersion(courseCode, apiBase)
@@ -316,6 +375,7 @@ export async function getCourseBundle(
       courseCode,
       cacheKey: bundleCacheKey(identityOf(bundle)),
       cachedAt: Date.now(),
+      ownerId: await currentIdentityId(),
       bundle,
     })
     return bundle
@@ -334,5 +394,9 @@ export async function getCourseBundle(
 /** Cached copy only — no network, ever. For offline play and boot fast paths. */
 export async function getCachedCourseBundle(courseCode: string): Promise<CourseBundle | null> {
   const cached = await readCached(courseCode)
-  return cached?.bundle ?? null
+  if (!cached?.bundle) return null
+  // Same ownership rule as getCourseBundle — an offline fast path must not be
+  // the way round the guard (SEC0901-D-02).
+  if (!cached.bundle.previewOnly && !cachedOwnerMatches(cached, await currentIdentityId())) return null
+  return cached.bundle
 }

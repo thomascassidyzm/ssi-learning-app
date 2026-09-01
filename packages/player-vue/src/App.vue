@@ -12,7 +12,7 @@ import {
   setInstantPlaybackAuthProvider,
   isBundleBootstrapEnabled,
 } from './composables/useInstantPlayback'
-import { setCourseBundleAuthProvider, getCourseBundle } from './composables/useCourseBundle'
+import { setCourseBundleAuthProvider, setCourseBundleIdentityProvider, getCourseBundle } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -313,6 +313,20 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
     // the same reason: an anonymous fetch hands a signed-in paid learner the
     // sliced preview bundle instead of the course.
     setCourseBundleAuthProvider(accessToken)
+    // ...and who the caller IS, which the token cannot say (it rotates on
+    // every refresh). The cached full bundle is only served back to the
+    // identity that fetched it (SEC0901-D-02) — same local getSession() read,
+    // no extra network.
+    setCourseBundleIdentityProvider(async () => {
+      const client = supabaseClient.value
+      if (!client) return null
+      try {
+        const { data } = await client.auth.getSession()
+        return data.session?.user?.id ?? null
+      } catch {
+        return null
+      }
+    })
 
     // Start the bundle download at the EARLIEST moment we can name a course.
     // Everything that used to kick it off — course-list resolution, the
