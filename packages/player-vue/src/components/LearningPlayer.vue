@@ -79,6 +79,7 @@ import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
+import { seguePodWithLayer1, podBoundaryOutcome } from '../playback/podSegue'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -6140,6 +6141,10 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // off completed_pod_rounds + 1, NOT main round arithmetic. Only advances
   // the ratchet when the lap plays to completion.
   // ============================================
+  // Set when the pod claimed this boundary and composed nothing: the seed
+  // drill runs anyway rather than the learner getting silence (Tom 2026-09-01
+  // — "do not let a pod build failure take the seed drill down with it").
+  let podFellBackToLayer1 = false
   if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
     // Look one round ahead: if the round about to start will end with a
     // pod, warm its audio now. The round gives ~5 min of runway —
@@ -6173,33 +6178,29 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         }
       }
       if (lap) {
-        // SEGUE LAYER 1 → LAYER 2. On a pod round the cup wheel is also turning,
+        // SEGUE LAYER 2 → LAYER 1. On a pod round the cup wheel is also turning,
         // so instead of two separately-bracketed listening blocks (intro/seeds/
-        // outro, then intro/pod/outro), prepend THIS round's L1 cup seeds onto the
-        // FRONT of the pod lap and play it as ONE lap: single intro bookend → L1
-        // seeds → pod → single outro bookend (Tom 2026-06-16, "just segue them").
+        // outro, then intro/pod/outro), THIS round's L1 cup seeds ride on the
+        // BACK of the pod lap and play as ONE lap: single intro bookend → pod →
+        // L1 seeds → single outro bookend (Tom 2026-06-16, "just segue them").
+        // POD FIRST (Tom 2026-09-01): the seed cup was in front until now and it
+        // is the part that grows without limit — 17 clips became 76 fleet-wide
+        // and 164 for a heavy learner, i.e. 7-9 minutes of drill before any
+        // dialogue, so anyone tapping out early never reached the pod. With the
+        // pod leading, a learner's history no longer decides whether they hear
+        // dialogue today. See playback/podSegue.ts.
         // The standalone L1 block below is gated on !pod so it won't also fire.
         // Skipped in INF PLAY (L1 doesn't run there) — pod plays alone, as before.
         // ALSO skipped while ?pod=1's own forced fire is in flight
-        // (podPreviewPending) — a real L1 cup segued onto the front made a
-        // clean pod-only preview read as "L1 material, dialogues after"
-        // (field report). The preview should show a PURE pod lap; segue
-        // resumes normally once the cheat has fired its one shot.
+        // (podPreviewPending) — a real L1 cup segued onto the pod made a
+        // clean pod-only preview read as a mixed block (field report). The
+        // preview should show a PURE pod lap; segue resumes normally once the
+        // cheat has fired its one shot.
         let lapToPlay = lap
         if (!podPreviewPending && l1Scheduler && l1Scheduler.isInitialized.value && currentMode.value !== 'infplay') {
           const l1Cup = l1Scheduler.nextLap((completedRoundIndex || 0) + 1)
           if (l1Cup && l1Cup.plays.length > 0) {
-            const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
-              sentenceIdx: p.seedNumber,
-              stage: 0,
-              playRole: p.role, // 'ps' | 'trans' — drives the gap matrix + known/target text
-              audioId: p.audioId,
-              text: p.text,
-              playbackSpeed: p.playbackSpeed,
-              glueToNextChunk: false,
-              isLayer1: true,
-            }))
-            lapToPlay = { ...lap, plays: [...l1AsPodPlays, ...lap.plays] }
+            lapToPlay = seguePodWithLayer1(lap, l1Cup.plays)
             console.log(`[LearningPlayer] Seguing L1 cup ${l1Cup.cupIndex} (${l1Cup.bucketSize} seeds) into pod lap ${lap.podRound}`)
           }
         }
@@ -6283,13 +6284,50 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
         } else {
           simplePlayer.resume()
         }
-      } else if (forcePodPreviewCheat) {
-        // Forced this boundary (podCadenceFiresAtRound above) but no lap was
-        // available yet (e.g. pod content not authored for this seed range) —
-        // the synchronous pre-pause in onRoundCompleted already paused for
-        // this attempt, so undo it here rather than stranding the player.
-        // podPreviewFired stays false, so the next boundary tries again.
-        simplePlayer.resume()
+      } else {
+        // The pod claimed this boundary (cadence fired, and onRoundCompleted
+        // already pre-paused the player for it) but composed nothing.
+        const layer1Available = !!l1Scheduler
+          && l1Scheduler.isInitialized.value
+          && currentMode.value !== 'infplay'
+        const outcome = podBoundaryOutcome({
+          hasLap: false,
+          forcePodPreviewCheat,
+          layer1Available,
+        })
+        if (outcome === 'preview-resume') {
+          // Forced this boundary (podCadenceFiresAtRound above) but no lap was
+          // available yet (e.g. pod content not authored for this seed range) —
+          // the synchronous pre-pause in onRoundCompleted already paused for
+          // this attempt, so undo it here rather than stranding the player.
+          // podPreviewFired stays false, so the next boundary tries again.
+          simplePlayer.resume()
+        } else {
+          // Until 2026-09-01 this case wrote NOTHING — no event, no error —
+          // AND suppressed the Layer-1 cup (the pod owned the slot), so the
+          // learner got silence on a listening boundary and we could never
+          // tell a pod that was never due from one that came due and quietly
+          // produced nothing. Both halves are fixed here: the boundary is
+          // logged, and the seed drill still runs.
+          logEvent('pod_lap_unavailable', {
+            completedRoundIndex,
+            roundNumber: (completedRoundIndex || 0) + 1,
+            completedPodRounds: podScheduler.completedPodRounds.value ?? null,
+            podSentences: podScheduler.podSentences.value.length,
+            fallback: outcome === 'fallback-layer1' ? 'layer1_cup' : 'none',
+          })
+          console.warn(
+            `[LearningPlayer] Pod boundary at round ${(completedRoundIndex || 0) + 1} composed no lap`
+            + (outcome === 'fallback-layer1'
+              ? ' — falling back to the Layer-1 seed cup'
+              : ' — no Layer-1 fallback available, resuming'),
+          )
+          if (outcome === 'fallback-layer1') {
+            podFellBackToLayer1 = true
+          } else {
+            simplePlayer.resume()
+          }
+        }
       }
     }
   }
@@ -6305,7 +6343,11 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
   // See docs/methodology/layer1-listening-cups.md.
   // ============================================
-  if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
+  // podFellBackToLayer1: the pod claimed this boundary and produced nothing —
+  // the cup runs in its place (it would otherwise have been suppressed by
+  // l1FiresThisBoundary's !podFiresThisBoundary gate).
+  let l1LapPlayed = false
+  if (l1Scheduler && (l1FiresThisBoundary || podFellBackToLayer1) && !beltJustEarned.value) {
     const completedMainRound = (completedRoundIndex || 0) + 1
 
     // Warm the NEXT L1 lap's audio if the upcoming round ends in one and no
@@ -6361,8 +6403,14 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       if (!l1LapToPlay) {
         console.warn(`[LearningPlayer] L1 cup ${l1Lap.cupIndex} skipped — its audio isn't on this device`)
         noteListeningSkippedOffline('l1', completedMainRound, l1AsPodLap.plays.length)
+        // On a pod-failure fallback the player is ALREADY paused (the pod
+        // boundary pre-pause in onRoundCompleted), and this return jumps the
+        // unstick guard at the end — so resume here or the learner is stranded
+        // in silence with no way back.
+        if (podFellBackToLayer1) simplePlayer.resume()
         return
       }
+      l1LapPlayed = true
       simplePlayer.pause()
       await playPodLap(l1LapToPlay, false) // L1 has no ratchet — nothing to persist.
 
@@ -6394,6 +6442,14 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
       }
       podLapSkippedByUser.value = false
     }
+  }
+
+  // Pod failed AND the seed cup had nothing to pour: the boundary pre-pause
+  // (onRoundCompleted) would otherwise leave the player stranded, silent, with
+  // no way back. Unstick it.
+  if (podFellBackToLayer1 && !l1LapPlayed) {
+    console.warn('[LearningPlayer] Pod-failure fallback found no Layer-1 cup either — resuming')
+    simplePlayer.resume()
   }
 
   // Fallback: Show visual encouragement if no audio commentary played
