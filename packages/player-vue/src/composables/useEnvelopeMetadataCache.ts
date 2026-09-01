@@ -12,7 +12,7 @@
  * data yet) is cached as `null` so repeated lookups for the same id don't
  * re-fetch; the delta producer (WP-8) treats `null`/`undefined` as a no-op.
  *
- * `docs/adaptation/adaptation-v2-build-spec.md` §5.2 is the design authority.
+ * `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §5.2 is the design authority.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'

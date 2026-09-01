@@ -216,7 +216,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
       // profile.user_id (which IS the auth uid → matches nothing here).
       // NB: cross-user reads may still be RLS-blocked client-side; the proper
       // fix is a SECURITY DEFINER RPC like the platform-analytics path — see
-      // docs/admin-user-stats-rebuild-brief.md.
+      // archive/docs-retired-2026-08-24/admin-user-stats-rebuild-brief.md.
       if (learnerId) {
         const { data: eventRows, error: eventError } = await client
           .from('player_events')

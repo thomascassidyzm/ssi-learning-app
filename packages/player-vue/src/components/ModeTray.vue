@@ -27,12 +27,26 @@ const props = defineProps({
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
   hasRomanizedText: { type: Boolean, default: false },
+  // Sector helix. A sector walk is a thread of material about the learner's own
+  // line of work that runs ALONGSIDE the core course from the start — the whole
+  // point is immediacy, so the row is here in the tray a learner already opens
+  // mid-session, not buried in settings.
+  //   hasSectorThread — the learner has already chosen a walk
+  //   isSectorActive  — that thread is currently interleaving
+  //   sectorDesc      — the chosen walk and role, in words, for the desc line
+  // The course the sector walks belong to — the picker needs it to ask which
+  // walks exist for this language.
+  courseCode: { type: String, default: '' },
+  hasSectorThread: { type: Boolean, default: false },
+  isSectorActive: { type: Boolean, default: false },
+  sectorDesc: { type: String, default: '' },
   isNativeScript: { type: Boolean, default: false },
   isVisible: { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript',
+  'openSector', 'toggleSector'
 ])
 
 const isOpen = ref(false)
@@ -172,6 +186,25 @@ const handleOffline = () => {
   emit('toggleOffline')
   closeTray()
 }
+
+// Sector: the label side opens the full-screen picker, exactly as Offline hands
+// off to the depth picker — emit, then closeTray(), because the tray lives in
+// the bottom-nav's z-index layer and a still-open tray paints over a
+// body-teleported dialog. One popup at a time.
+const handleSector = () => {
+  emit('openSector', props.courseCode)
+  closeTray()
+}
+
+// The toggle side parks or restarts an already-chosen thread. Never destructive:
+// off just stops it interleaving, the cursor keeps its place. Tapping the toggle
+// with no walk chosen yet is the same as tapping the label — there is nothing to
+// park, so open the picker.
+const handleSectorToggle = () => {
+  if (!props.hasSectorThread) { handleSector(); return }
+  emit('toggleSector')
+  closeTray()
+}
 </script>
 
 <template>
@@ -262,6 +295,42 @@ const handleOffline = () => {
             <div class="tray-toggle-knob"></div>
           </div>
         </button>
+
+        <div class="tray-divider"></div>
+
+        <!-- Sector walk — material for the learner's own line of work, running
+             alongside the core course rather than after it. The label opens the
+             picker; the toggle parks or restarts a walk already chosen. -->
+        <div
+          class="tray-item tray-item-sector"
+          :class="{ active: isSectorActive }"
+          role="group"
+          :aria-label="t('modes.sector')"
+        >
+          <button class="tray-item-main" @click="handleSector">
+            <div class="tray-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 20c0-6 4-9 8-9s8 3 8 9"/>
+                <path d="M4 4c0 6 4 9 8 9s8-3 8-9"/>
+                <path d="M4 4h16M4 20h16"/>
+              </svg>
+            </div>
+            <div class="tray-label">
+              <span class="tray-name">{{ t('modes.sector') }}</span>
+              <span class="tray-desc">{{ sectorDesc || t('modes.sectorDesc') }}</span>
+            </div>
+          </button>
+          <button
+            class="tray-toggle-btn"
+            :aria-pressed="isSectorActive"
+            :aria-label="t('modes.sector')"
+            @click="handleSectorToggle"
+          >
+            <span class="tray-toggle" :class="{ on: isSectorActive }">
+              <span class="tray-toggle-knob"></span>
+            </span>
+          </button>
+        </div>
 
         <div class="tray-divider"></div>
 
@@ -548,6 +617,49 @@ const handleOffline = () => {
 .tray-toggle.on .tray-toggle-knob {
   transform: translateX(16px);
 }
+
+
+/* Sector row — the only two-control row in the tray: the label side opens the
+   picker, the toggle side parks the thread. The wrapper keeps .tray-item's box
+   so it sits flush with its neighbours; the padding moves to the children so
+   both halves have a full-height hit area. */
+.tray-item-sector {
+  padding: 0;
+  gap: 0;
+}
+.tray-item-sector:hover { background: transparent; }
+.tray-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 4px 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 12px 0 0 12px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tray-toggle-btn {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 0 12px 12px 0;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tray-item-main:hover,
+.tray-toggle-btn:hover { background: rgba(0, 0, 0, 0.04); }
+.tray-item-main:active,
+.tray-toggle-btn:active { background: rgba(0, 0, 0, 0.08); }
 
 /* Backdrop */
 .tray-backdrop {

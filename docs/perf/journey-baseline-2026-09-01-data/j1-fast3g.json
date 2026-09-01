@@ -1,0 +1,153 @@
+{
+ "journey": "j1",
+ "net": "fast3g",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 4,
+ "at": "2026-09-01T08:56:32.186Z",
+ "ready": {
+  "n": 4,
+  "median": 6727,
+  "min": 6691,
+  "max": 6793,
+  "spread": 1.02,
+  "all": [
+   6691,
+   6691,
+   6762,
+   6793
+  ]
+ },
+ "press": {
+  "n": 4,
+  "median": 8589,
+  "min": 8533,
+  "max": 8702,
+  "spread": 1.02,
+  "all": [
+   8533,
+   8535,
+   8643,
+   8702
+  ]
+ },
+ "firstWordHeard": {
+  "n": 4,
+  "median": 8950,
+  "min": 8947,
+  "max": 9013,
+  "spread": 1.01,
+  "all": [
+   8947,
+   8948,
+   8951,
+   9013
+  ]
+ },
+ "neverPlayedRuns": 0,
+ "unexplained": {
+  "n": 4,
+  "median": 1686,
+  "min": 1572,
+  "max": 1725,
+  "spread": 1.1,
+  "all": [
+   1572,
+   1660,
+   1712,
+   1725
+  ]
+ },
+ "legBusyMs": {
+  "other": {
+   "n": 4,
+   "median": 7296,
+   "min": 7222,
+   "max": 7376,
+   "spread": 1.02,
+   "all": [
+    7222,
+    7239,
+    7353,
+    7376
+   ]
+  },
+  "app-code": {
+   "n": 4,
+   "median": 5371,
+   "min": 5344,
+   "max": 5490,
+   "spread": 1.03,
+   "all": [
+    5344,
+    5369,
+    5372,
+    5490
+   ]
+  },
+  "courses-catalogue": {
+   "n": 4,
+   "median": 1097,
+   "min": 1096,
+   "max": 1118,
+   "spread": 1.02,
+   "all": [
+    1096,
+    1097,
+    1097,
+    1118
+   ]
+  },
+  "learner-progress": {
+   "n": 4,
+   "median": 2203,
+   "min": 2160,
+   "max": 2272,
+   "spread": 1.05,
+   "all": [
+    2160,
+    2197,
+    2208,
+    2272
+   ]
+  },
+  "course-bundle": {
+   "n": 4,
+   "median": 3361,
+   "min": 3254,
+   "max": 3402,
+   "spread": 1.05,
+   "all": [
+    3254,
+    3353,
+    3368,
+    3402
+   ]
+  },
+  "course-content": {
+   "n": 4,
+   "median": 2363,
+   "min": 2353,
+   "max": 2529,
+   "spread": 1.07,
+   "all": [
+    2353,
+    2357,
+    2369,
+    2529
+   ]
+  },
+  "audio": {
+   "n": 4,
+   "median": 2760,
+   "min": 2694,
+   "max": 2821,
+   "spread": 1.05,
+   "all": [
+    2694,
+    2711,
+    2808,
+    2821
+   ]
+  }
+ }
+}

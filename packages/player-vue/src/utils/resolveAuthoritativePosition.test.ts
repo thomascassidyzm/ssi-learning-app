@@ -1,6 +1,6 @@
 /**
  * resolveAuthoritativePosition — the position authority ruling
- * (docs/pwa-lifecycle-design.md §2.3). Enumerates the live data states
+ * (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3). Enumerates the live data states
  * per the design's mandate before this was wired into resolveStartLegoId
  * (the 5f4a8b1d lesson: sweeps/guards fail on the rows you didn't picture).
  */

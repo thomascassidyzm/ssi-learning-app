@@ -1,6 +1,6 @@
 /**
  * Tests for resolveClassCourseCoverage — the FINAL student-entitlement
- * derivation (docs/schools/group-commercial-model.md, "Student entitlement —
+ * derivation (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Student entitlement —
  * FINAL model"): a class-affiliated student gets their class's course while
  * (and only while) that class's school has live platform coverage.
  */

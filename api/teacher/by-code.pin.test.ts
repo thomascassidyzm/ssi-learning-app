@@ -4,7 +4,7 @@
  * Pins CURRENT behaviour of the public class-join gateway that WithTeacher.vue
  * (route /with/:code) calls before a learner joins a class. No refactor, no
  * behaviour change — characterizes what ships today so THE-MODEL.md's group
- * unpick can be built against a known-good baseline (docs/THE-MODEL.md).
+ * unpick can be built against a known-good baseline (archive/docs-retired-2026-08-24/THE-MODEL.md).
  *
  * Covers: school-class vs tutor-class branching, free vs paid course tier,
  * unavailable-vs-not-found distinction, seat accounting.

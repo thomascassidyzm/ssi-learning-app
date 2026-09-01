@@ -14,7 +14,7 @@
  * Wire format: see `packages/core/src/script/courseBundle.ts`
  * (`packages/player-vue/src/types/courseBundle.ts` re-exports it).
  *
- * `?head=1` — version probe (bundle-cutover Phase 1, docs/bundle-cutover-design.md
+ * `?head=1` — version probe (bundle-cutover Phase 1, archive/docs-retired-2026-08-24/bundle-cutover-design.md
  * §3): returns `{ contentVersion, scriptShapeVersion }` only, skipping every
  * query except `courses` + `algorithm_config`. Replaces round-map.ts's version
  * role and `checkContentVersion`'s direct `courses` read.

@@ -10,7 +10,7 @@ import { computed, type Ref } from 'vue'
  * id are rejected by RLS (`sessions_own_insert` requires
  * learner_id = current_learner_id(), which resolves to the STAFF's own row,
  * never the class's) — real play-as-class produced ZERO `sessions` rows for
- * the class identity (docs/the-view/play-as-class-REPORT.md §1.2). Class
+ * the class identity (archive/docs-retired-2026-08-24/the-view/play-as-class-REPORT.md §1.2). Class
  * mode routes through the server-mediated /api/school/class-progress
  * endpoint instead, which resolves the class's learner id server-side —
  * same pattern as useClassProgressStore.ts.

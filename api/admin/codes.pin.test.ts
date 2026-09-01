@@ -5,7 +5,7 @@
  * is_active toggle's authorization rules (ssi_admin may toggle either table;
  * non-admins may only toggle an invite_codes row they created, never
  * entitlement_codes). No refactor, no behaviour change — baseline for
- * THE-MODEL.md's group unpick (docs/THE-MODEL.md, I8 — invites mint people
+ * THE-MODEL.md's group unpick (archive/docs-retired-2026-08-24/THE-MODEL.md, I8 — invites mint people
  * only, and stay server-mediated).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'

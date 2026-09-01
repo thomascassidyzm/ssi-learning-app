@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 // Guard for the bulk allowlist grant — the highest-blast-radius verb in the
-// app (docs/admin-danger-verbs.md #5): submit must open a review step showing
+// app (archive/docs-retired-2026-08-24/admin-danger-verbs.md #5): submit must open a review step showing
 // the exact parsed count and emails; only the review's button commits.
 
 vi.mock('@/composables/useUserRole', () => ({

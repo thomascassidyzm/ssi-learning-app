@@ -3,7 +3,7 @@
 import { buildSilentWavDataUri } from './silentWav'
 
 // Cycle/Round moved to `@ssi/core` (bundle-cutover Phase 1,
-// docs/bundle-cutover-design.md §3, §5 step 1) — canonical source is
+// archive/docs-retired-2026-08-24/bundle-cutover-design.md §3, §5 step 1) — canonical source is
 // `packages/core/src/script/playerTypes.ts`, so the shared generator can
 // produce them without depending on player-vue. Re-exported here so every
 // existing `from '../playback/SimplePlayer'` import keeps working.
@@ -859,7 +859,7 @@ export class SimplePlayer {
    * from this after each queue mutation (a PULL of engine truth), never
    * rebuilt by re-implementing the insertion logic on the outside (a push
    * mirror). The duplicated-algorithm mirror was the INF-PLAY text/audio
-   * shear bug class — see M4 in docs/player/pull-consistency-map.md.
+   * shear bug class — see M4 in archive/docs-retired-2026-08-24/player/pull-consistency-map.md.
    * Shallow copy: Round objects are treated as immutable throughout.
    */
   get roundsSnapshot(): Round[] {

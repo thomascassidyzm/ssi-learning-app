@@ -26,6 +26,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
+import { roundsCarryNativeScript } from '../providers/roundsCarryNativeScript'
 import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds, collectListeningMetaPodAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
@@ -826,7 +827,7 @@ const learnerDefaultsForced = computed(() =>
 // and renders the first cycle from the new endpoints.
 const instantPlayback = useInstantPlayback(courseCode, {
   resolveStartLegoId: async () => {
-    // Position authority ruling (docs/pwa-lifecycle-design.md §2.3,
+    // Position authority ruling (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3,
     // 2026-07-09): the server enrollment row is authoritative for a
     // signed-in learner; localStorage is a device CACHE trusted only
     // when strictly fresher than the server's last_practiced_at. A
@@ -944,7 +945,36 @@ let audioCacheSource: AudioCacheSource | null = null
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
-const hasRomanizedText = ref(false)
+
+// Does this course have romanisation? Two independent answers, OR-ed, because
+// the network one cannot be reached on a plane.
+//
+// (1) The SCRIPT's own answer. The generated — and therefore the CACHED —
+//     script already carries the native glyphs alongside the roman text
+//     (`cycle.target.textNative`, set by generateLearningScript's nativeFields
+//     for every item whose LEGO has target_text_roman). So the rounds in hand
+//     answer the question with no round-trip, online or off. This is the
+//     source of truth offline; see the loadedRounds watcher below.
+// (2) The DB probe. Answers BEFORE any rounds have loaded (the tray can open
+//     on the resting state pre-first-play), and is the only answer for a
+//     course whose loaded rounds are somehow native-less. Requires network.
+//
+// Offline, (2) silently returns nothing and (1) carries it. Before this was
+// split, the single DB-backed ref stayed false on a cached/offline boot —
+// which both HID the pronunciation-guide row from the mode tray and dropped
+// the player back to roman-only text, because every native-render path below
+// gates on this flag (Tom, on a flight, 2026-09-01).
+const hasRomanizedFromScript = ref(false)
+const hasRomanizedFromProbe = ref(false)
+const hasRomanizedText = computed(() => hasRomanizedFromScript.value || hasRomanizedFromProbe.value)
+
+// Both signals are per-course facts: clear them the moment the course changes
+// so switching from a romanised course to a Latin-script one doesn't carry the
+// toggle across. Declared before the two producers so it runs first.
+watch(courseCode, () => {
+  hasRomanizedFromScript.value = false
+  hasRomanizedFromProbe.value = false
+})
 
 // Detect romanized text early (before play) via a lightweight DB check.
 // Watch BOTH courseCode and supabase as sources: supabase is injected as
@@ -955,13 +985,17 @@ const hasRomanizedText = ref(false)
 // script toggle hidden for jpn/kor/ara/etc. learners.
 watch([courseCode, supabase], async ([code, sb]) => {
   if (!code || !sb) return
-  const { count } = await sb
-    .from('course_legos')
-    .select('id', { count: 'exact', head: true })
-    .eq('course_code', code)
-    .not('target_text_roman', 'is', null)
-    .limit(1)
-  hasRomanizedText.value = (count ?? 0) > 0
+  try {
+    const { count } = await sb
+      .from('course_legos')
+      .select('id', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .not('target_text_roman', 'is', null)
+      .limit(1)
+    // Never write false over a true the script already established — offline
+    // this query fails, and a failure is "don't know", not "no romanisation".
+    if ((count ?? 0) > 0) hasRomanizedFromProbe.value = true
+  } catch { /* offline / transient — the script-derived signal covers it */ }
 }, { immediate: true })
 
 const courseTargetLang = computed(() => {
@@ -1021,7 +1055,7 @@ const activeProgressStore = useClassAwareProgressStore(
   supabase as unknown as Ref<any>,
 )
 
-// Practice-hours spine (LANE A, docs/the-view/play-as-class-REPORT.md §1.2):
+// Practice-hours spine (LANE A, archive/docs-retired-2026-08-24/the-view/play-as-class-REPORT.md §1.2):
 // same server-mediated routing as activeProgressStore above, but for the
 // `sessions` insert/checkpoint/end — RLS rejects a direct browser write
 // targeting the class's learner id, so class mode routes through
@@ -1924,6 +1958,20 @@ const resetApp = async () => {
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
 const loadedRounds = ref<any[]>([])
+
+// Signal (1) for hasRomanizedText, above: the rounds in hand answer "does this
+// course have romanisation?" without a network call, because toSimpleRounds
+// puts the native glyphs on every romanised cycle as `target.textNative` (and
+// `legoTargetTextNative` on the round). Those fields survive the IndexedDB
+// script cache untouched — setCachedScript JSON round-trips the whole rounds
+// blob — so a cached/offline boot has the answer already, which is the point.
+// Sticky within a course (cleared by the courseCode watcher above); a scan
+// stops at the first native glyph it finds.
+watch(loadedRounds, (rounds) => {
+  if (hasRomanizedFromScript.value) return
+  if (roundsCarryNativeScript(rounds as any[])) hasRomanizedFromScript.value = true
+}, { immediate: true })
+
 // Tracks the highest main-loop LEGO whose round has been completed this
 // session (or seeded from the DB ceiling on resume). Used by
 // saveRoundProgress to substitute the cursor on infinite-play rounds —
@@ -3741,7 +3789,7 @@ const loadPositionFromLocalStorage = () => {
     }
 
     // No age-based expiry here (deleted per the position authority
-    // ruling, docs/pwa-lifecycle-design.md §2.3): for a signed-in
+    // ruling, archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3): for a signed-in
     // learner, staleness is now handled by the freshness comparison in
     // resolveAuthoritativePosition (server wins once it's fresher, no
     // arbitrary cutoff needed); for a guest, an age cutoff only meant a
@@ -4225,7 +4273,7 @@ const podScheduler = supabase?.value
 // non-pod boundary once ≥1 seed/cup is available; pours one cup of a 30-slot
 // wheel of *introduced* seeds. Pure function of (catalogue, round, learner,
 // cluster templates) → resume-safe with no persisted state.
-// See useLayer1Scheduler.ts + docs/methodology/layer1-listening-cups.md.
+// See useLayer1Scheduler.ts + archive/docs-retired-2026-08-24/methodology/layer1-listening-cups.md.
 // ============================================
 // Dev cheat (?l1test): shrink the wheel so the cup model's milestones (fill,
 // cluster at 5/cup, re-cluster, freeze) are reachable by hand instead of after
@@ -5961,7 +6009,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
 
   // ============================================
   // ADAPTATION V2 — rate-policy plan for the round about to start (WP-3,
-  // `docs/adaptation/adaptation-v2-build-spec.md` §4/§6).
+  // `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §4/§6).
   //
   // Kill switch: `enabled:false` skips this block entirely — no evidence
   // read, no curvature computed, no adaptation_plan log line ("disables even
@@ -6341,7 +6389,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
-  // See docs/methodology/layer1-listening-cups.md.
+  // See archive/docs-retired-2026-08-24/methodology/layer1-listening-cups.md.
   // ============================================
   // podFellBackToLayer1: the pod claimed this boundary and produced nothing —
   // the cup runs in its place (it would otherwise have been suppressed by
@@ -7188,7 +7236,7 @@ const isBeltScreenReady = computed(() => contributionSettled.value || !!contribu
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
-// First-ever-boot brand moment (docs/first-boot-experience.md, 2026-07-03 rethink):
+// First-ever-boot brand moment (archive/docs-retired-2026-08-24/first-boot-experience.md, 2026-07-03 rethink):
 // a global, language-independent welcome sound + one localized text line, shown
 // as the FIRST awakening message instead of a random one. Set once in onMounted
 // for a genuine first-ever visitor; consumed (and cleared) the first time the
@@ -7645,7 +7693,7 @@ const formattedSessionTime = computed(() => {
 // one — reusing the SAME 5-min resume window (resumeConfig.cycleResetMinutes),
 // so one threshold governs both where you resume AND whether the sitting
 // continues. Persisted per-course so reopening within the window resumes the
-// same number. Cosmetic — never block playback. See docs/sessions-and-days-active.md
+// same number. Cosmetic — never block playback. See archive/docs-retired-2026-08-24/sessions-and-days-active.md
 const sittingKey = () => `ssi:sitting:${courseCode.value || 'unknown'}`
 function saveSitting(): void {
   try {
@@ -7946,7 +7994,7 @@ function jumpToCyclePhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2') {
     cycleType: cycle?.type ?? null,
     legoId: cycle?.legoId ?? null,
     // POSITION (where in the script it played) — logged alongside ownership
-    // per docs/position-and-ownership-model.md; the two diverge for spaced-rep
+    // per archive/docs-retired-2026-08-24/position-and-ownership-model.md; the two diverge for spaced-rep
     // reviews. roundNumber is ABSOLUTE (never the session-relative roundIndex);
     // slot is the cycle's index within the round.
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
@@ -14125,7 +14173,7 @@ onMounted(async () => {
   const playerReadySignal = new Promise<void>((resolve) => { resolvePlayerReady = resolve })
 
   // Global brand welcome moment — once per device, first-ever visit only.
-  // See docs/first-boot-experience.md and useBrandWelcome.ts (asset swap point).
+  // See archive/docs-retired-2026-08-24/first-boot-experience.md and useBrandWelcome.ts (asset swap point).
   if (!isReturnUser && !hasSeenBrandWelcome()) {
     brandMomentPending.value = true
     playBrandWelcome()
@@ -14320,19 +14368,9 @@ onMounted(async () => {
         console.warn('[LearningPlayer] Failed to load algorithm configs, using defaults:', err)
       })
 
-      // ============================================
-      // Bundle load (cache-based-content-loading)
-      // ============================================
-      // Fire the bundle fetch as early as possible so the rolling
-      // audio filler (fillBuffer / expandScript) has the longest
-      // possible runway ahead of the playhead. Does NOT block the
-      // existing bootstrap path — both run concurrently. Bundle fetch
-      // is cache-first (localStorage), typically resolves in <10ms for
-      // returning learners.
-      //
-      // Failures are non-fatal: if the bundle endpoint is down or the
-      // course isn't migrated to the new format yet, the existing
-      // instant-playback + warm-up path continues to work unchanged.
+      // The course bundle is fetched at app boot (App.vue -> getCourseBundle)
+      // and again by fullScriptFromBundle above; nothing is fired from here.
+
       // Kick off course-final-LEGO resolution as early as possible so
       // wouldEnterInfplay has the data ready when the learner first
       // sees the forward-skip button. Cheap (one indexed query), cached.

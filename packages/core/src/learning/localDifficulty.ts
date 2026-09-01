@@ -3,7 +3,7 @@
  *
  * Difficulty is not a property of a phrase — it is a property of *(this learner
  * × this unit), now*, and it moves as the learner's map fills in (Principle 4,
- * `docs/methodology/metrics-architecture.md` §4 "Sensing difficulty locally").
+ * `archive/docs-retired-2026-08-24/methodology/metrics-architecture.md` §4 "Sensing difficulty locally").
  * We discern it by running the curvature sensor (B1) **locally** — per LEGO,
  * per word, and especially per *boundary* (the join between units, where
  * retrieval-while-still-producing tends to catch people).

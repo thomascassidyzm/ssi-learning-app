@@ -1,6 +1,6 @@
 /**
  * Class-coverage entitlement — the FINAL student-entitlement model
- * (docs/schools/group-commercial-model.md, "Student entitlement — FINAL
+ * (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Student entitlement — FINAL
  * model", 2026-07-15): a class-affiliated student gets their class's course
  * in full for exactly as long as that class's school has live platform
  * coverage (trial or paid) — no student-level clock, no student-level state,

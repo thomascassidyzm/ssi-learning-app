@@ -1,7 +1,7 @@
 // AUDIO-REF STAMP PROBE — verifies the returning-learner cache fast path
 // serves REVISED German audio as versioned refs (<uuid>.vN), not bare uuids.
 //
-// Context: docs/audio-ref-bypass-audit-2026-08-06.md. Fix on dev
+// Context: archive/docs-retired-2026-08-24/audio-ref-bypass-audit-2026-08-06.md. Fix on dev
 // (51fca851 / a89f982a / 126cdec9): generateLearningScript now stamps
 // revised-clip ids via providers/revisedAudioRefs.ts before they land in the
 // script cache. The bug this guards against: a returning learner's

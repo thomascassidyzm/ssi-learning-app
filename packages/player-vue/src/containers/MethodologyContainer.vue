@@ -6,13 +6,13 @@
  * unresolved role cache; useAdminGate is this container's own reactive
  * gate — same shape as AdminContainer, so a cold-cache non-admin deep link
  * is denied before any child page renders, and a mid-session downgrade
- * revokes access live (Trinity audit, docs/trinity/admin.md). Mirrors the
+ * revokes access live (Trinity audit, archive/docs-retired-2026-08-24/trinity/admin.md). Mirrors the
  * AdminContainer pattern otherwise: dark top bar signals "internal tooling"
  * mode, schools-tokens + schools-design.css provide the visual language so
  * everything looks native to the rest of the admin surface.
  *
  * Pages explain the metrics architecture from
- * docs/methodology/metrics-architecture.md using real (anonymised) learner
+ * archive/docs-retired-2026-08-24/methodology/metrics-architecture.md using real (anonymised) learner
  * data — spec by demonstration. See §9 of the methodology spec for the
  * audience framing.
  */

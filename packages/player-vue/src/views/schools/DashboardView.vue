@@ -35,7 +35,7 @@ function handleTryMission() {
   startMission('find-struggling-student', router)
 }
 
-// THE VIEW (docs/THE-VIEW.md): a group/region leader's landing IS their top
+// THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md): a group/region leader's landing IS their top
 // node's home — the same recursive node surface the admin sees, server-scoped
 // to their subtree, mounted at /org/:id. The group dashboard below
 // remains only for legacy leaders with no group (region_code-only rows) and

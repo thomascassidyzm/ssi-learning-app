@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// NodeChildrenList — the CHILDREN LIST of THE VIEW (docs/THE-VIEW.md §1.4):
+// NodeChildrenList — the CHILDREN LIST of THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md §1.4):
 // whatever this node's children are, in the SAME row grammar at every depth.
 // The founder's lenses (All groups / All schools / All teachers / All
 // classes) are filters over this one list — each lens maps its payload onto
@@ -154,7 +154,7 @@ const rows = computed<Row[]>(() => {
     // teacher needs on the one row, no click — health flag, last practised,
     // course-journey position, belt, LEGOs, hours, last 7 days. There is no
     // individual learner page and no expansion. No streak — streaks are
-    // banned (docs/gamification-done-right.md).
+    // banned (archive/docs-retired-2026-08-24/gamification-done-right.md).
     return (p.students || []).map((s: any): Row => ({
       key: s.learner_id,
       name: s.name,

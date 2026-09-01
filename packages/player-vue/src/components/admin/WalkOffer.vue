@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// WalkOffer — the quiet "Show me" affordance (docs/walkthrough-engine-scout.md
+// WalkOffer — the quiet "Show me" affordance (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md
 // §3.4). One text link per walk that matches the host's persona × place ×
 // kind, styled like HowThisWorks' toggle. Nothing renders when no walk
 // matches; nothing EVER auto-plays — a walk runs only because the user

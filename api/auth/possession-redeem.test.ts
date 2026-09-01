@@ -1,6 +1,6 @@
 /**
  * Tests for POST /api/auth/possession-redeem — possession-based invite
- * onboarding (docs/schools/email-deliverability-plan.md, Option A).
+ * onboarding (archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md, Option A).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'

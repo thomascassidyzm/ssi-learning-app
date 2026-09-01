@@ -1,0 +1,152 @@
+{
+ "journey": "j2",
+ "net": "good",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 4,
+ "at": "2026-09-01T09:14:07.785Z",
+ "ready": {
+  "n": 4,
+  "median": 1505,
+  "min": 1231,
+  "max": 1928,
+  "spread": 1.57,
+  "all": [
+   1231,
+   1258,
+   1751,
+   1928
+  ]
+ },
+ "press": {
+  "n": 4,
+  "median": 1626,
+  "min": 1357,
+  "max": 2054,
+  "spread": 1.51,
+  "all": [
+   1357,
+   1381,
+   1870,
+   2054
+  ]
+ },
+ "firstWordHeard": {
+  "n": 4,
+  "median": 1993,
+  "min": 1674,
+  "max": 2382,
+  "spread": 1.42,
+  "all": [
+   1674,
+   1696,
+   2290,
+   2382
+  ]
+ },
+ "neverPlayedRuns": 0,
+ "unexplained": {
+  "n": 4,
+  "median": 451,
+  "min": 432,
+  "max": 738,
+  "spread": 1.71,
+  "all": [
+   432,
+   445,
+   456,
+   738
+  ]
+ },
+ "legBusyMs": {
+  "other": {
+   "n": 4,
+   "median": 1378,
+   "min": 1218,
+   "max": 1518,
+   "spread": 1.25,
+   "all": [
+    1218,
+    1264,
+    1491,
+    1518
+   ]
+  },
+  "round-map": {
+   "n": 4,
+   "median": 1401,
+   "min": 1191,
+   "max": 1937,
+   "spread": 1.63,
+   "all": [
+    1191,
+    1250,
+    1552,
+    1937
+   ]
+  },
+  "learner-progress": {
+   "n": 4,
+   "median": 753,
+   "min": 535,
+   "max": 917,
+   "spread": 1.71,
+   "all": [
+    535,
+    702,
+    803,
+    917
+   ]
+  },
+  "courses-catalogue": {
+   "n": 4,
+   "median": 303,
+   "min": 285,
+   "max": 412,
+   "spread": 1.45,
+   "all": [
+    285,
+    286,
+    320,
+    412
+   ]
+  },
+  "course-content": {
+   "n": 4,
+   "median": 1185,
+   "min": 1164,
+   "max": 1638,
+   "spread": 1.41,
+   "all": [
+    1164,
+    1170,
+    1199,
+    1638
+   ]
+  },
+  "cycles": {
+   "n": 3,
+   "median": 708,
+   "min": 7,
+   "max": 1363,
+   "spread": 194.71,
+   "all": [
+    7,
+    708,
+    1363
+   ]
+  },
+  "audio": {
+   "n": 4,
+   "median": 705,
+   "min": 614,
+   "max": 1095,
+   "spread": 1.78,
+   "all": [
+    614,
+    674,
+    736,
+    1095
+   ]
+  }
+ }
+}

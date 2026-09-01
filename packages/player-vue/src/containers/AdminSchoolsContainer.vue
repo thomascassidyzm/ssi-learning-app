@@ -12,7 +12,7 @@
  * it) — useAdminGate is its OWN reactive access gate; the org tables this
  * reads (schools/…) are RLS-off by design, so this gate is the enforcement,
  * not a redundant check on top of the router guard (Trinity audit finding
- * #1, docs/trinity/admin.md).
+ * #1, archive/docs-retired-2026-08-24/trinity/admin.md).
  */
 import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'

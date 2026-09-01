@@ -8,7 +8,7 @@
  * That property (a second producer plugs in with no scheduler edits) is this
  * module's acceptance test.
  *
- * `docs/adaptation/adaptation-v2-build-spec.md` §2 is the design authority;
+ * `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §2 is the design authority;
  * `packages/player-vue/public/docs/metrics-vision.html` wins on conflict.
  *
  * INPUT CONVENTION (matches `localDifficulty.ts`): higher `value` = more

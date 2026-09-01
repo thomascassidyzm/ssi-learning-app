@@ -8,7 +8,7 @@
  *   - summary stats (median, % over 30h, % over 100h, etc.)
  *
  * Used by the /methodology/empirical-baseline explainer page (see
- * docs/methodology/metrics-architecture.md §2). Read-only, no caching beyond
+ * archive/docs-retired-2026-08-24/methodology/metrics-architecture.md §2). Read-only, no caching beyond
  * the lifetime of the composable instance.
  */
 

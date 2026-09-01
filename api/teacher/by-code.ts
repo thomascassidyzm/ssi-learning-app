@@ -5,7 +5,7 @@
  * the student-side attribution gateway at /with/{code}.
  *
  * Deliberate: a class may have several teachers (the class_teachers
- * relationship — docs/methodology/class-first-class-citizen.md), but this is a
+ * relationship — archive/docs-retired-2026-08-24/methodology/class-first-class-citizen.md), but this is a
  * public join page and one name reads better than a list, so it names the lead
  * only — `classes.teacher_user_id`, the denormalised lead pointer. Co-teachers
  * are intentionally not listed here. The `teacher` key in the response is kept

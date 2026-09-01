@@ -1,5 +1,5 @@
 // Deployed-dev walk — the self-explaining dashboard rendered for real
-// (docs/self-explaining-dashboard.md; evidence run 2026-07-27).
+// (archive/docs-retired-2026-08-24/self-explaining-dashboard.md; evidence run 2026-07-27).
 //
 //   node e2e/explainer/deployed-walk.mjs
 //

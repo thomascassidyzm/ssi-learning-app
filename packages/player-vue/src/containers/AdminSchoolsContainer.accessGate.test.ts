@@ -6,7 +6,7 @@ import AdminSchoolsContainer from './AdminSchoolsContainer.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 
-// Trinity audit finding #1 (docs/trinity/admin.md): /admin/schools/:id
+// Trinity audit finding #1 (archive/docs-retired-2026-08-24/trinity/admin.md): /admin/schools/:id
 // renders OUTSIDE AdminContainer with NO admin-role check of its own — it
 // relied entirely on the deferring global router guard. A cold-cache
 // non-admin deep-linking here fired the school-scoped query and could see

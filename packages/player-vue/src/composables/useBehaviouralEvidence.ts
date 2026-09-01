@@ -7,7 +7,7 @@
  * stream (`@ssi/core` `learning/evidence.ts`, WP-0) at the emit site — no
  * round-trip through `player_events`; the DB copy stays the analytics record.
  *
- * `docs/adaptation/adaptation-v2-build-spec.md` §3 is the design authority for
+ * `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §3 is the design authority for
  * the mapping table below; all values are PROPOSED (config-tunable later).
  *
  * This module holds only the `EvidenceSink` interface — it has no opinion on

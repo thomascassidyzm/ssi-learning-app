@@ -25,7 +25,7 @@
  *   4. Create classes — useClassesData.createClass (live)
  *
  * Course sourcing: schools no longer hold per-course `entitlement_grants`
- * rows (superseded 2026-07-15, docs/schools/group-commercial-model.md
+ * rows (superseded 2026-07-15, archive/docs-retired-2026-08-24/schools/group-commercial-model.md
  * "Student entitlement — FINAL model") — a subscribed school gets the full
  * live catalogue, a trial school is locked to its one trial_course_code.
  * Steps 3/4 read from useSchoolCourseCatalogue, the SAME source

@@ -1,5 +1,5 @@
 // Ad-hoc browser probe for pull-consistency tranche 3 (7 mirrors migrated in
-// commit range b242bd1b..8de10d18, see docs/player/pull-consistency-map.md).
+// commit range b242bd1b..8de10d18, see archive/docs-retired-2026-08-24/player/pull-consistency-map.md).
 // Covers what's reachable via the guest flow without admin/service-role auth:
 //   M1 welcome -> first-cycle text handoff
 //   M2 phase pill (is-active) + voice-2 text through a full round

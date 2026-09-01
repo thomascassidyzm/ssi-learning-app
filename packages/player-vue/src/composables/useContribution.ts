@@ -34,7 +34,7 @@ function emptyTimeframe(): ContributionTimeframe {
 // (Previously a frozen per-language OFFSET: raw all-time was once schools-test-
 // polluted AND the table wasn't anon-readable, so we showed an approximation.
 // The pollution is no longer dominant and the SELECT grant is in — so we read
-// the true number. See docs/sessions-and-days-active.md.)
+// the true number. See archive/docs-retired-2026-08-24/sessions-and-days-active.md.)
 
 export function useContribution(client: Ref<SupabaseClient | null>) {
   const data = ref<ContributionData | null>(null)

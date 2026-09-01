@@ -1,5 +1,5 @@
 /**
- * REGRESSION: the queue mirror (M4, docs/player/pull-consistency-map.md).
+ * REGRESSION: the queue mirror (M4, archive/docs-retired-2026-08-24/player/pull-consistency-map.md).
  *
  * useSimplePlayer.roundsRef used to re-implement SimplePlayer's insertion/
  * splice algorithms by hand — one copy per mutation method (addRounds,

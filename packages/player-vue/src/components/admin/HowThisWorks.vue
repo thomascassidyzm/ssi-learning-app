@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // HowThisWorks — the self-explaining dashboard's reference surface
-// (docs/self-explaining-dashboard.md §6). One quiet text link; tap → an
+// (archive/docs-retired-2026-08-24/self-explaining-dashboard.md §6). One quiet text link; tap → an
 // inline card with the persona×place explanation from the compiled pack.
 // Static data, zero requests, nothing opens uninvited.
 //
@@ -28,7 +28,7 @@ const props = withDefaults(defineProps<{
 }>(), { invitations: () => [], nodeId: '', viewerId: 'anon' })
 
 // Quiet per-persona×place "Show me" links into the walkthrough pack
-// (docs/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
+// (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
 const walks = computed(() => walksFor(props.persona, 'node-home', props.kind))
 
 const open = ref(false)

@@ -67,6 +67,23 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  // Passed straight through to ModeTray for the sector row.
+  courseCode: {
+    type: String,
+    default: ''
+  },
+  hasSectorThread: {
+    type: Boolean,
+    default: false
+  },
+  isSectorActive: {
+    type: Boolean,
+    default: false
+  },
+  sectorDesc: {
+    type: String,
+    default: ''
+  },
   // True when the currently playing cycle is part of a listening section
   // (LISTEN cluster, pod lap, or their bookends). Cues the skip button
   // visually so learners realise they can opt out — agency without
@@ -77,7 +94,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleOffline', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleOffline', 'openSector', 'toggleSector', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -163,6 +180,10 @@ const handleSettings = () => {
       :isListeningMode="isListeningMode"
       :isPronunciationMode="isPronunciationMode"
       :isOfflineMode="isOfflineMode"
+      :courseCode="courseCode"
+      :hasSectorThread="hasSectorThread"
+      :isSectorActive="isSectorActive"
+      :sectorDesc="sectorDesc"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :hasRomanizedText="hasRomanizedText"
@@ -172,6 +193,8 @@ const handleSettings = () => {
       @toggleListening="emit('toggleListening')"
       @togglePronunciation="emit('togglePronunciation')"
       @toggleOffline="emit('toggleOffline')"
+      @openSector="(code) => emit('openSector', code)"
+      @toggleSector="emit('toggleSector')"
     />
 
     <div class="nav-backdrop"></div>
@@ -213,6 +236,9 @@ const handleSettings = () => {
           'is-return': isReturnMode,
           'is-disabled': isPlayDisabled,
         }"
+        :aria-disabled="isPlayDisabled ? 'true' : 'false'"
+        :aria-busy="isPlayDisabled ? 'true' : 'false'"
+        :aria-label="isPlayDisabled ? 'Loading' : undefined"
         @click="handlePlayTap"
       >
         <div class="center-btn-inner">
@@ -222,6 +248,12 @@ const handleSettings = () => {
           <svg v-else-if="isReturnMode" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
           </svg>
+          <!-- Not ready yet: a spinner, NOT a faded play triangle. The faded
+               triangle read as a tappable Play button that silently did
+               nothing — the exact bad case reported on Fast 3G, where the wait
+               is long enough for a learner to try it several times. A spinner
+               says "working", which is the truth. -->
+          <span v-else-if="isPlayDisabled" class="center-btn-spinner" aria-hidden="true"></span>
           <svg v-else viewBox="0 0 24 24" fill="currentColor">
             <polygon points="7 3 20 12 7 21 7 3"/>
           </svg>
@@ -433,6 +465,29 @@ const handleSettings = () => {
 
 .center-btn.is-disabled .center-btn-inner {
   opacity: 0.6;
+}
+
+/* The spinner must not also be dimmed by the not-ready fade — the fade is
+   there to say "not tappable", the spinner is there to say "working", and at
+   0.6 × the pulse the second message stops being legible. */
+.center-btn.is-disabled .center-btn-inner:has(> .center-btn-spinner) {
+  opacity: 1;
+}
+
+/* The loading cue itself. Sized to the icon it replaces so the button doesn't
+   change shape when the real Play arrow arrives. */
+.center-btn-spinner {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: center-btn-spin 0.9s linear infinite;
+}
+
+@keyframes center-btn-spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes play-pulse {

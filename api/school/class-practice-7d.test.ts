@@ -1,6 +1,6 @@
 /**
  * Tests for GET /api/school/class-practice-7d, focused on the coverage gate
- * (docs/schools/group-commercial-model.md, "Server-side enforcement of (4)").
+ * (archive/docs-retired-2026-08-24/schools/group-commercial-model.md, "Server-side enforcement of (4)").
  * resolveVisibleScope is mocked; the LSO aggregation itself is straightforward
  * summation already exercised implicitly here.
  */

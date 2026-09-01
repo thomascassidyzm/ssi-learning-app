@@ -11,7 +11,7 @@
  * proven against real traffic (Paddle checkout and presigned-S3 audio could not
  * be exercised end-to-end before shipping). The ENFORCED CSP carries
  * `frame-ancestors 'none'` only — the clickjacking half, which cannot break a
- * page load. See docs/security-headers-2026-08-11.md.
+ * page load. See archive/docs-retired-2026-08-24/security-headers-2026-08-11.md.
  *
  * Why it matters here specifically:
  *  - `Content-Security-Policy`: the app has three v-html sinks and an admin

@@ -1,0 +1,142 @@
+{
+ "journey": "j1",
+ "net": "highlatency",
+ "base": "https://staging.saysomethingin.app",
+ "runs": 3,
+ "at": "2026-09-01T09:30:31.053Z",
+ "ready": {
+  "n": 3,
+  "median": 8605,
+  "min": 8276,
+  "max": 8625,
+  "spread": 1.04,
+  "all": [
+   8276,
+   8605,
+   8625
+  ]
+ },
+ "press": {
+  "n": 3,
+  "median": 8655,
+  "min": 8375,
+  "max": 8722,
+  "spread": 1.04,
+  "all": [
+   8375,
+   8655,
+   8722
+  ]
+ },
+ "firstWordHeard": {
+  "n": 3,
+  "median": 8964,
+  "min": 8790,
+  "max": 9137,
+  "spread": 1.04,
+  "all": [
+   8790,
+   8964,
+   9137
+  ]
+ },
+ "neverPlayedRuns": 0,
+ "unexplained": {
+  "n": 3,
+  "median": 351,
+  "min": 327,
+  "max": 360,
+  "spread": 1.1,
+  "all": [
+   327,
+   351,
+   360
+  ]
+ },
+ "legBusyMs": {
+  "other": {
+   "n": 3,
+   "median": 8637,
+   "min": 8430,
+   "max": 8786,
+   "spread": 1.04,
+   "all": [
+    8430,
+    8637,
+    8786
+   ]
+  },
+  "app-code": {
+   "n": 3,
+   "median": 3875,
+   "min": 3765,
+   "max": 3875,
+   "spread": 1.03,
+   "all": [
+    3765,
+    3875,
+    3875
+   ]
+  },
+  "courses-catalogue": {
+   "n": 3,
+   "median": 2440,
+   "min": 2385,
+   "max": 2522,
+   "spread": 1.06,
+   "all": [
+    2385,
+    2440,
+    2522
+   ]
+  },
+  "learner-progress": {
+   "n": 3,
+   "median": 6716,
+   "min": 5484,
+   "max": 6853,
+   "spread": 1.25,
+   "all": [
+    5484,
+    6716,
+    6853
+   ]
+  },
+  "course-content": {
+   "n": 3,
+   "median": 3652,
+   "min": 3137,
+   "max": 3816,
+   "spread": 1.22,
+   "all": [
+    3137,
+    3652,
+    3816
+   ]
+  },
+  "course-bundle": {
+   "n": 3,
+   "median": 1127,
+   "min": 1102,
+   "max": 1222,
+   "spread": 1.11,
+   "all": [
+    1102,
+    1127,
+    1222
+   ]
+  },
+  "audio": {
+   "n": 3,
+   "median": 1615,
+   "min": 1502,
+   "max": 1630,
+   "spread": 1.09,
+   "all": [
+    1502,
+    1615,
+    1630
+   ]
+  }
+ }
+}

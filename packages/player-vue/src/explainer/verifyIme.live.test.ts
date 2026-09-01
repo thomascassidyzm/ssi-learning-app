@@ -2,14 +2,14 @@
 /**
  * LIVE verification walk — the self-explaining dashboard's noticing rules
  * against the REAL IME Demo Programme tree on deployed dev
- * (docs/self-explaining-dashboard.md §5; evidence run 2026-07-27).
+ * (archive/docs-retired-2026-08-24/self-explaining-dashboard.md §5; evidence run 2026-07-27).
  *
  * Gated: runs only with IME_LIVE=1 (network + a real possession redemption).
  *
  *   IME_LIVE=1 pnpm --filter player-vue exec vitest run src/explainer/verifyIme.live.test.ts
  *
  * Auth is the product's own front door: the IME Programme Leader PERSONAL
- * link (docs/the-view/ime-invite-pack.md, code QJM-868) — the link IS the
+ * link (archive/docs-retired-2026-08-24/the-view/ime-invite-pack.md, code QJM-868) — the link IS the
  * login, repeatable until revoked. The walk redeems it, fetches the same
  * /api/groups/:id/home payloads the dashboard renders at programme, region,
  * school and class depth, and runs the SHIPPED evaluator + pack over each —

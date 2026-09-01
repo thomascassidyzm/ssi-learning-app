@@ -1,0 +1,724 @@
+{
+ "provenance": {
+  "core": {
+   "course": "spa_for_eng",
+   "source": "live course_legos, read 2026-09-01",
+   "seeds": "1-14"
+  },
+  "sector": {
+   "segment": "spa_health_for_eng",
+   "role": "general",
+   "source": "ssi-dashboard-v7-clean docs/sector-pods/health-general-seed-set-2026-08-31.md on main, §5 cut lines, parsed mechanically",
+   "seeds": "HG01-HG14",
+   "note": "KNOWN SIDE ONLY. No target realisation exists for any sector segment anywhere in the estate; the pair overlay is an unstarted authoring job. target is null throughout and is printed as an em dash."
+  }
+ },
+ "core": [
+  {
+   "seed": 1,
+   "index": 1,
+   "legoId": "S0001L01",
+   "known": "I want",
+   "target": "quiero",
+   "isNew": true
+  },
+  {
+   "seed": 1,
+   "index": 2,
+   "legoId": "S0001L02",
+   "known": "to speak",
+   "target": "hablar",
+   "isNew": true
+  },
+  {
+   "seed": 1,
+   "index": 3,
+   "legoId": "S0001L03",
+   "known": "Spanish",
+   "target": "español",
+   "isNew": true
+  },
+  {
+   "seed": 1,
+   "index": 4,
+   "legoId": "S0001L04",
+   "known": "with you",
+   "target": "contigo",
+   "isNew": true
+  },
+  {
+   "seed": 1,
+   "index": 5,
+   "legoId": "S0001L05",
+   "known": "now",
+   "target": "ahora",
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 1,
+   "legoId": "S0002L01",
+   "known": "to learn",
+   "target": "aprender",
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 2,
+   "legoId": "S0002L02",
+   "known": "I'm trying to",
+   "target": "estoy intentando",
+   "isNew": true
+  },
+  {
+   "seed": 3,
+   "index": 1,
+   "legoId": "S0003L01",
+   "known": "how",
+   "target": "cómo",
+   "isNew": true
+  },
+  {
+   "seed": 3,
+   "index": 2,
+   "legoId": "S0003L02",
+   "known": "frequently",
+   "target": "frecuentemente",
+   "isNew": true
+  },
+  {
+   "seed": 3,
+   "index": 3,
+   "legoId": "S0003L03",
+   "known": "as frequently as possible",
+   "target": "lo más frecuentemente posible",
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 1,
+   "legoId": "S0004L01",
+   "known": "in",
+   "target": "en",
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 2,
+   "legoId": "S0004L02",
+   "known": "something",
+   "target": "algo",
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 3,
+   "legoId": "S0004L03",
+   "known": "to say",
+   "target": "decir",
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 1,
+   "legoId": "S0005L01",
+   "known": "to practise",
+   "target": "practicar",
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 2,
+   "legoId": "S0005L02",
+   "known": "I'm going to",
+   "target": "voy a",
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 3,
+   "legoId": "S0005L03",
+   "known": "speaking",
+   "target": "hablando",
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 4,
+   "legoId": "S0005L04",
+   "known": "with someone else",
+   "target": "con otra persona",
+   "isNew": true
+  },
+  {
+   "seed": 6,
+   "index": 1,
+   "legoId": "S0006L01",
+   "known": "to remember",
+   "target": "recordar",
+   "isNew": true
+  },
+  {
+   "seed": 6,
+   "index": 2,
+   "legoId": "S0006L02",
+   "known": "a word",
+   "target": "una palabra",
+   "isNew": true
+  },
+  {
+   "seed": 7,
+   "index": 1,
+   "legoId": "S0007L01",
+   "known": "to try",
+   "target": "intentar",
+   "isNew": true
+  },
+  {
+   "seed": 7,
+   "index": 2,
+   "legoId": "S0007L02",
+   "known": "today",
+   "target": "hoy",
+   "isNew": true
+  },
+  {
+   "seed": 7,
+   "index": 3,
+   "legoId": "S0007L03",
+   "known": "as hard as I can",
+   "target": "todo lo que pueda",
+   "isNew": true
+  },
+  {
+   "seed": 8,
+   "index": 1,
+   "legoId": "S0008L01",
+   "known": "to explain",
+   "target": "explicar",
+   "isNew": true
+  },
+  {
+   "seed": 8,
+   "index": 2,
+   "legoId": "S0008L02",
+   "known": "what I mean",
+   "target": "lo que quiero decir",
+   "isNew": true
+  },
+  {
+   "seed": 9,
+   "index": 1,
+   "legoId": "S0009L01",
+   "known": "I speak",
+   "target": "hablo",
+   "isNew": true
+  },
+  {
+   "seed": 9,
+   "index": 2,
+   "legoId": "S0009L02",
+   "known": "a little",
+   "target": "un poco de",
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 1,
+   "legoId": "S0010L01",
+   "known": "I can",
+   "target": "puedo",
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 2,
+   "legoId": "S0010L02",
+   "known": "I'm not sure",
+   "target": "no estoy seguro de",
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 3,
+   "legoId": "S0010L03",
+   "known": "if",
+   "target": "si",
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 4,
+   "legoId": "S0010L04",
+   "known": "the whole sentence",
+   "target": "toda la frase",
+   "isNew": true
+  },
+  {
+   "seed": 11,
+   "index": 1,
+   "legoId": "S0011L01",
+   "known": "I'd like",
+   "target": "me gustaría",
+   "isNew": true
+  },
+  {
+   "seed": 11,
+   "index": 2,
+   "legoId": "S0011L02",
+   "known": "to be able to",
+   "target": "poder",
+   "isNew": true
+  },
+  {
+   "seed": 11,
+   "index": 3,
+   "legoId": "S0011L03",
+   "known": "after you finish",
+   "target": "después de que termines",
+   "isNew": true
+  },
+  {
+   "seed": 12,
+   "index": 1,
+   "legoId": "S0012L01",
+   "known": "tomorrow",
+   "target": "mañana",
+   "isNew": true
+  },
+  {
+   "seed": 12,
+   "index": 2,
+   "legoId": "S0012L02",
+   "known": "to guess",
+   "target": "adivinar",
+   "isNew": true
+  },
+  {
+   "seed": 12,
+   "index": 3,
+   "legoId": "S0012L03",
+   "known": "what's going to happen",
+   "target": "lo que va a pasar",
+   "isNew": true
+  },
+  {
+   "seed": 12,
+   "index": 4,
+   "legoId": "S0012L04",
+   "known": "I wouldn't like",
+   "target": "no me gustaría",
+   "isNew": true
+  },
+  {
+   "seed": 13,
+   "index": 1,
+   "legoId": "S0013L01",
+   "known": "very well",
+   "target": "Muy bien",
+   "isNew": true
+  },
+  {
+   "seed": 13,
+   "index": 2,
+   "legoId": "S0013L02",
+   "known": "you speak",
+   "target": "hablas",
+   "isNew": true
+  },
+  {
+   "seed": 14,
+   "index": 1,
+   "legoId": "S0014L01",
+   "known": "all day",
+   "target": "todo el día",
+   "isNew": true
+  }
+ ],
+ "sector": [
+  {
+   "seed": 1,
+   "index": 1,
+   "legoId": "S0001L01",
+   "known": "if I say",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 1,
+   "index": 2,
+   "legoId": "S0001L02",
+   "known": "anything that isn't clear",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 1,
+   "index": 3,
+   "legoId": "S0001L03",
+   "known": "please stop me",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 1,
+   "index": 4,
+   "legoId": "S0001L04",
+   "known": "I'll say it again",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 1,
+   "legoId": "S0002L01",
+   "known": "this isn't my first language",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 2,
+   "legoId": "S0002L02",
+   "known": "so",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 2,
+   "index": 3,
+   "legoId": "S0002L03",
+   "known": "if you have any trouble understanding me",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 4,
+   "legoId": "S0002L04",
+   "known": "just let me know",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 2,
+   "index": 5,
+   "legoId": "S0002L05",
+   "known": "I'll explain myself more clearly",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 2,
+   "index": 6,
+   "legoId": "S0002L06",
+   "known": "it's really important that you understand everything",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 3,
+   "index": 1,
+   "legoId": "S0003L01",
+   "known": "if we get stuck",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 3,
+   "index": 2,
+   "legoId": "S0003L02",
+   "known": "I can call someone",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 3,
+   "index": 3,
+   "legoId": "S0003L03",
+   "known": "who speaks it more confidently than me",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 1,
+   "legoId": "S0004L01",
+   "known": "if I use a word you don't know",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 2,
+   "legoId": "S0004L02",
+   "known": "just say",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 4,
+   "index": 3,
+   "legoId": "S0004L03",
+   "known": "I won't be offended",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 1,
+   "legoId": "S0005L01",
+   "known": "if there's ever",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 5,
+   "index": 2,
+   "legoId": "S0005L02",
+   "known": "a word that doesn't make sense",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 3,
+   "legoId": "S0005L03",
+   "known": "just ask",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 5,
+   "index": 4,
+   "legoId": "S0005L04",
+   "known": "it's never a silly question",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 6,
+   "index": 1,
+   "legoId": "S0006L01",
+   "known": "that's completely sensible",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 6,
+   "index": 2,
+   "legoId": "S0006L02",
+   "known": "exactly the right instinct",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 6,
+   "index": 3,
+   "legoId": "S0006L03",
+   "known": "clarity matters most here",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 7,
+   "index": 1,
+   "legoId": "S0007L01",
+   "known": "none taken at all",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 7,
+   "index": 2,
+   "legoId": "S0007L02",
+   "known": "you've done me a favour",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 8,
+   "index": 1,
+   "legoId": "S0008L01",
+   "known": "through work, mostly",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 8,
+   "index": 2,
+   "legoId": "S0008L02",
+   "known": "a little bit every day",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 8,
+   "index": 3,
+   "legoId": "S0008L03",
+   "known": "I've been at it",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 8,
+   "index": 4,
+   "legoId": "S0008L04",
+   "known": "about a year now",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 9,
+   "index": 1,
+   "legoId": "S0009L01",
+   "known": "I'm from the Philippines",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 9,
+   "index": 2,
+   "legoId": "S0009L02",
+   "known": "I've been here",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 9,
+   "index": 3,
+   "legoId": "S0009L03",
+   "known": "three years now",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 10,
+   "index": 1,
+   "legoId": "S0010L01",
+   "known": "the weather",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 10,
+   "index": 2,
+   "legoId": "S0010L02",
+   "known": "takes some getting used to",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 3,
+   "legoId": "S0010L03",
+   "known": "the people are kind",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 4,
+   "legoId": "S0010L04",
+   "known": "now then",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 10,
+   "index": 5,
+   "legoId": "S0010L05",
+   "known": "let's have a look at you",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 11,
+   "index": 1,
+   "legoId": "S0011L01",
+   "known": "right",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 11,
+   "index": 2,
+   "legoId": "S0011L02",
+   "known": "shall we make a start",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 11,
+   "index": 3,
+   "legoId": "S0011L03",
+   "known": "just stop me",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 11,
+   "index": 4,
+   "legoId": "S0011L04",
+   "known": "if I lose you",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 12,
+   "index": 1,
+   "legoId": "S0012L01",
+   "known": "right",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 12,
+   "index": 2,
+   "legoId": "S0012L02",
+   "known": "what can I do for you today",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 13,
+   "index": 1,
+   "legoId": "S0013L01",
+   "known": "so",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 13,
+   "index": 2,
+   "legoId": "S0013L02",
+   "known": "what's brought you in today",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 14,
+   "index": 1,
+   "legoId": "S0014L01",
+   "known": "of course",
+   "target": null,
+   "isNew": false
+  },
+  {
+   "seed": 14,
+   "index": 2,
+   "legoId": "S0014L02",
+   "known": "she's very welcome",
+   "target": null,
+   "isNew": true
+  },
+  {
+   "seed": 14,
+   "index": 3,
+   "legoId": "S0014L03",
+   "known": "two pairs of ears are better than one",
+   "target": null,
+   "isNew": true
+  }
+ ]
+}

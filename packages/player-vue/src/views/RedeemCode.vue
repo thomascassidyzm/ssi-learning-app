@@ -36,7 +36,7 @@ const enrolledCourses = inject<{ value: any[] } | null>('enrolledCourses', null)
 const { validateCode, redeemCode, possessionRedeem, linkPossessionRedeem, pendingCode, clearPendingCode, validationError, validationThrottled } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
-// Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+// Possession-based onboarding (archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md,
 // Option A): these invite types skip the OTP round-trip entirely by default
 // — the invite link itself is already the trust boundary. Mirrors the
 // server-side allowlist in api/auth/possession-redeem.ts; ssi_admin/tester/

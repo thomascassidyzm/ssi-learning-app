@@ -1,7 +1,7 @@
 // IME invite pack (2026-07-20) — mint six role-scoped links from the IME demo
 // tree on DEPLOYED dev, redeem each in a fresh incognito context, screenshot
 // the capture screen + the landing surface + the account identity. Evidence
-// for docs/the-view/ime-invite-pack.md.
+// for archive/docs-retired-2026-08-24/the-view/ime-invite-pack.md.
 //   node --env-file=../../.env --env-file=../../.env.local \
 //     e2e/the-view/ime-invite-pack.mjs            (from packages/player-vue)
 import { mkdirSync, writeFileSync } from 'node:fs'

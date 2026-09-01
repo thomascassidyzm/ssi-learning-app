@@ -25,7 +25,7 @@ const page = await ctx.newPage()
 
 await page.goto(BASE + '/', { waitUntil: 'load' })
 // A second load: with clientsClaim false everywhere (2026-08-07 — no worker
-// may claim a live page, see docs/pwa-lifecycle-design.md §2.1a) the first
+// may claim a live page, see archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.1a) the first
 // visit installs the SW but is never controlled by it. Every returning visit
 // is, which is the state this probe is about.
 await page.evaluate(() => navigator.serviceWorker.ready)

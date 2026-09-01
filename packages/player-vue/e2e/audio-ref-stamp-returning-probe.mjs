@@ -3,7 +3,7 @@
 // (<uuid>.vN) and that the stamping is done CLIENT-SIDE by the fix, not by the
 // server /cycles route that was already stamping before it.
 //
-// Context: docs/audio-ref-bypass-audit-2026-08-06.md; fix 51fca851 / a89f982a /
+// Context: archive/docs-retired-2026-08-24/audio-ref-bypass-audit-2026-08-06.md; fix 51fca851 / a89f982a /
 // 126cdec9 (providers/revisedAudioRefs.ts + generateLearningScript.ts).
 //
 // WHY A SECOND PROBE. audio-ref-stamp-probe.mjs shows stamped refs post-reload,

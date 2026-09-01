@@ -74,7 +74,7 @@ const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
-// THE VIEW — the one recursive node home (docs/THE-VIEW.md)
+// THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
@@ -501,7 +501,7 @@ const routes: RouteRecordRaw[] = [
         // Canonical invites surface (2026-07-17 rethink): one create card
         // (org / direct / demo) + one live list, replacing the
         // creation/list halves of Access, Demos and Try Links. See
-        // docs/invites-redesign/DESIGN.md.
+        // archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md.
         path: 'invites',
         name: 'admin-invites',
         component: () => import('@/views/admin/AdminInvites.vue'),
@@ -635,7 +635,7 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // carries AdminTopBar — the floating Back pill overlapped it
     children: [
       {
-        // THE VIEW (docs/THE-VIEW.md): the school's landing IS node home —
+        // THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md): the school's landing IS node home —
         // same recursive page as every other level. Deep school tools stay
         // at the sibling sub-routes below.
         path: '',
@@ -684,7 +684,7 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // carries AdminTopBar — no floating Back pill on top
     children: [
       {
-        // THE VIEW (docs/THE-VIEW.md): the group's landing IS node home.
+        // THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md): the group's landing IS node home.
         path: '',
         name: 'admin-group-dashboard',
         component: NodeHomeView,
@@ -707,7 +707,7 @@ const routes: RouteRecordRaw[] = [
   },
   // Standalone admin read-views
   {
-    // THE VIEW (docs/THE-VIEW.md): class level gets the same node home —
+    // THE VIEW (archive/docs-retired-2026-08-24/THE-VIEW.md): class level gets the same node home —
     // map rail, identity (lead + co-teachers, read-only), students as
     // children (with the full teaching data in-row). Deliberately the SAME
     // container + view pair as /admin/groups/:id so drilling group → class
@@ -785,7 +785,7 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Install App' },
   },
   // Methodology explainer pages — admin-gated initially. See
-  // docs/methodology/metrics-architecture.md §9 (Methodology explainer pages).
+  // archive/docs-retired-2026-08-24/methodology/metrics-architecture.md §9 (Methodology explainer pages).
   // Spec-by-demonstration: each page renders a working visualisation of a
   // principle from the metrics-architecture spec using real (anonymised)
   // learner data. Settings toggles will link here to demystify what each

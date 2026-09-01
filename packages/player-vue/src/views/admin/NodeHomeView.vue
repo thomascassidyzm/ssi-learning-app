@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// NodeHomeView — THE VIEW's one recursive NODE HOME (docs/THE-VIEW.md).
+// NodeHomeView — THE VIEW's one recursive NODE HOME (archive/docs-retired-2026-08-24/THE-VIEW.md).
 // The same page at every level of the org tree: MAP RAIL · IDENTITY HEADER ·
 // STATS ROW · CHILDREN LIST (lenses are filters, not pages) · VERBS.
 // Mounted at /admin/groups/:id, /admin/schools/:id and /admin/classes/:id —
@@ -389,7 +389,7 @@ const stats = computed(() => {
 // NodeActionBar.vue, which calls the endpoints and emits `changed` → fetchHome.
 
 // THE LENS: "See insights" on every node — the Insight Engine opens scoped to
-// THIS node, parent's average as the default mirror (docs/THE-VIEW.md sibling).
+// THIS node, parent's average as the default mirror (archive/docs-retired-2026-08-24/THE-VIEW.md sibling).
 const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
@@ -470,7 +470,7 @@ const enrichedStudents = computed(() => {
   }))
 })
 
-// ─── The self-explaining dashboard (docs/self-explaining-dashboard.md):
+// ─── The self-explaining dashboard (archive/docs-retired-2026-08-24/self-explaining-dashboard.md):
 // persona is what the mount already knows; place is the payload's own kind. ───
 const explainerPersona = computed<'admin' | 'leader'>(() => (member.value ? 'leader' : 'admin'))
 // Neutral dressing gets its own 'org' explanation — no school-speak.

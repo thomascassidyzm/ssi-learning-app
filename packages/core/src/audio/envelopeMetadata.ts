@@ -18,7 +18,7 @@
  * downstream step (smoothing, scipy-style prominence peak-finding, width) is
  * identical arithmetic.
  *
- * `docs/adaptation/adaptation-v2-build-spec.md` §5.1 is the design authority.
+ * `archive/docs-retired-2026-08-24/adaptation/adaptation-v2-build-spec.md` §5.1 is the design authority.
  */
 
 import CONSTANTS from './envelope-extractor-v1.json';

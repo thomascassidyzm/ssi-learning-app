@@ -1,6 +1,6 @@
 /**
  * GET /api/groups/:id/rate-compare — THE LENS: the Insight Engine scoped to
- * ONE NODE of the org tree (docs/THE-VIEW.md's analytics sibling).
+ * ONE NODE of the org tree (archive/docs-retired-2026-08-24/THE-VIEW.md's analytics sibling).
  *
  *   ?course_code=<code>   optional — defaults to the subtree's busiest course
  *                          BY RECENT PRACTICE (founder rule 2026-07-20: never
@@ -64,7 +64,7 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const MAX_COHORT_IDS = 2000
 
-// ─── Windows (docs/the-lens/windows-measures-REPORT.md contract; labels
+// ─── Windows (archive/docs-retired-2026-08-24/the-lens/windows-measures-REPORT.md contract; labels
 // re-ruled 2026-07-19: ROLLING day-unit windows anchored to now — Today /
 // Last 7 days / Last 30 days / All time. No calendar definitions ("this
 // week" / "this term" were ambiguous). ───

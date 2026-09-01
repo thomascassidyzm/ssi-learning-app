@@ -788,7 +788,7 @@ const addEmailSuccess = ref(false)
 const verifiedEmails = computed(() => auth?.learner?.value?.verified_emails || [])
 const primaryEmail = computed(() => auth?.user?.value?.email || '')
 
-// Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+// Possession-based onboarding (archive/docs-retired-2026-08-24/schools/email-deliverability-plan.md,
 // Option A): an account created via api/auth/possession-redeem.ts never
 // proved its typed email is receive-capable. verified_emails can't record
 // that on its own (ensureLearnerExists in useAuth.ts unconditionally

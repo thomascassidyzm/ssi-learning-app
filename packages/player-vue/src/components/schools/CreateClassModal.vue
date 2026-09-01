@@ -39,7 +39,7 @@ const courseCode = ref('')
 
 // Full live+beta course catalogue, fetched from the same `courses` table the
 // learner app's CourseSelector queries \u2014 a class can teach ANY of the ~74
-// catalogue courses, not a hardcoded shortlist (docs/schools/group-commercial-model.md).
+// catalogue courses, not a hardcoded shortlist (archive/docs-retired-2026-08-24/schools/group-commercial-model.md).
 const catalogueCourses = ref([])
 const isLoadingCatalogue = ref(false)
 const catalogueError = ref('')

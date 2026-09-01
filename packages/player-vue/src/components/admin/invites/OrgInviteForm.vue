@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Into an organisation — pick WHO (role) x WHERE (org-tree node) x LIMITS,
-// per docs/invites-redesign/DESIGN.md. Reuse-not-duplicate for teacher /
+// per archive/docs-retired-2026-08-24/invites-redesign/DESIGN.md. Reuse-not-duplicate for teacher /
 // school-admin-join (surfaces the school's standing codes instead of
 // minting a new one); demo-leaf for learner joins, restricted to demo
 // nodes only (real-class learner links belong to teachers).

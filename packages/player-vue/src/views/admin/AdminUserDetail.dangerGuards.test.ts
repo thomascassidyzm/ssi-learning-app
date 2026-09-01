@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
 
-// Guards for the ssi_admin danger verbs on this view (docs/admin-danger-verbs.md):
+// Guards for the ssi_admin danger verbs on this view (archive/docs-retired-2026-08-24/admin-danger-verbs.md):
 //  - role selects STAGE instead of committing on @change; only Apply writes
 //  - "Skip to end of trial" is a two-tap arm/confirm
 // See AdminUserDetail.signinLink.test.ts for the mount/stub idiom.

@@ -1,0 +1,53 @@
+-- 20260901c_content_edit_identity_ENFORCE.sql — NOT APPLIED. DO NOT RUN YET.
+--
+-- The second half of Tom's 2026-09-01 ruling: "NOT NULL going forward".
+--
+-- 20260901_content_edit_identity.sql added last_edit_event_id as NULLABLE,
+-- because on the day it shipped there were still writers that had not been
+-- routed through the choke point (pipeline services, phase8, the tools/ sweeps),
+-- and a constraint that fires on UPDATE would have broken them mid-course.
+--
+-- A NOT VALID CHECK is the right instrument for the flip: Postgres enforces it
+-- on every INSERT and every UPDATE from the moment it is added, and does NOT
+-- scan or reject the existing rows. So the 423 unattributed eng_for_hin seeds
+-- and every other pre-2026-09-01 row keep their honest NULL, and nothing new can
+-- ever be written without an event to point at. It also takes no long lock.
+--
+-- ─── PRECONDITION — run this first, expect zero rows ────────────────────────
+--
+--   -- 1. No surface has written undeclared for a fortnight:
+--   SELECT surface, count(*) FROM content_edit_events
+--   WHERE actor_id = 'undeclared-loopback'
+--     AND occurred_at > now() - interval '14 days'
+--   GROUP BY 1 ORDER BY 2 DESC;
+--
+--   -- 2. Content is actually being stamped, not just logged — if this is 0 the
+--   --    handlers are recording events but not writing the id onto the rows:
+--   SELECT count(*) FROM course_seeds
+--   WHERE last_edit_event_id IS NOT NULL AND updated_at > now() - interval '14 days';
+--
+-- Also set CONTENT_EDIT_IDENTITY_MODE=enforce on both services BEFORE running
+-- this, and leave it a few days: the application refusal is a 401 a caller can
+-- read and fix, and a constraint violation is a 500 they cannot.
+
+BEGIN;
+
+ALTER TABLE public.course_seeds
+  ADD CONSTRAINT course_seeds_edit_is_attributed
+  CHECK (last_edit_event_id IS NOT NULL) NOT VALID;
+
+ALTER TABLE public.course_legos
+  ADD CONSTRAINT course_legos_edit_is_attributed
+  CHECK (last_edit_event_id IS NOT NULL) NOT VALID;
+
+ALTER TABLE public.course_practice_phrases
+  ADD CONSTRAINT course_practice_phrases_edit_is_attributed
+  CHECK (last_edit_event_id IS NOT NULL) NOT VALID;
+
+-- Deliberately NOT followed by VALIDATE CONSTRAINT. Validating would demand that
+-- every pre-existing row carry an event id, and the only way to satisfy that is
+-- to invent attribution for edits the system never captured. Tom ruled that out
+-- explicitly. These constraints stay NOT VALID for ever; that is the design, not
+-- an unfinished step.
+
+COMMIT;

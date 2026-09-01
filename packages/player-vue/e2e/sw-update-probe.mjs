@@ -1,7 +1,7 @@
 // SW UPDATE PROBE — the real old→new update path, end to end.
 //
 // Two prod-mode builds are made outside this script (different build numbers,
-// in /tmp/pwa-old and /tmp/pwa-new — see docs/pwa-update-crash-2026-08-07.md).
+// in /tmp/pwa-old and /tmp/pwa-new — see archive/docs-retired-2026-08-24/pwa-update-crash-2026-08-07.md).
 // A tiny static server serves ONE directory whose contents we swap mid-run:
 // exactly what a Vercel deploy does to a running client — the old hashed
 // chunks stop existing on the origin.

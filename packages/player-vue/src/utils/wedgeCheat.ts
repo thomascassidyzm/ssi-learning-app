@@ -1,5 +1,5 @@
 /**
- * `?wedge=1` dev cheat (docs/pwa-lifecycle-design.md §3, T6/T7) — lets a
+ * `?wedge=1` dev cheat (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §3, T6/T7) — lets a
  * tester deliberately corrupt two precached JS chunks so they can watch the
  * boot watchdog (utils/bootHeal.ts) recover without waiting for a real
  * browser-update wedge. "An escape hatch nobody can rehearse is an escape
