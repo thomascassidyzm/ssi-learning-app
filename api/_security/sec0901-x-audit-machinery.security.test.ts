@@ -1,19 +1,20 @@
 /**
- * SEC0901-X — coordinator: is the security machinery still enforced, and are the
+ * SEC0901-X — coordinator: is the security machinery enforced, and are the
  * previous audits' open items still open?
  *
- * The 2026-08-29 audit's headline (SEC29-X-01) was not a vulnerability in a
- * handler. It was that NOTHING RUNS THE TESTS: six audits had written their
- * findings as tests on the convention "a characterization goes red when the
- * finding is fixed", and that convention rests entirely on something executing
- * them. GitHub Actions has not started a job on this repository since
- * 2026-08-14 (billing), so it does not.
+ * Six audits wrote their findings as tests on the convention "a characterization
+ * goes red when the finding is fixed". That convention rests on something
+ * running them, and something does: Tom's ruling of 2026-08-29 moved CI off
+ * GitHub Actions onto a nightly run on watson-1
+ * (`command-surface/ops/ci-run.sh`), which runs `pnpm test:api` against dev,
+ * staging and main. The dormant Actions workflows are deliberate estate policy,
+ * NOT a defect — do not file them as one (Tom, 2026-08-31).
  *
- * These tests are the part of that finding that CAN live in the repo: they pin
- * the repo-side facts — which globs are gated, which schema grants exist —
- * so that a change to any of them is visible to whoever next runs the suite by
- * hand. They deliberately assert nothing about GitHub, which is not knowable
- * offline.
+ * These tests pin the repo-side facts that convention depends on — which globs
+ * are gated, which schema grants exist — so a change to any of them is visible
+ * to the nightly. They deliberately assert nothing about GitHub or about the
+ * nightly's own script, neither of which lives in this repo; the coverage
+ * comparison between the two gates is prose, in the audit README.
  *
  * Read the labels: [SECURE-ASSERTION] pins a control that holds today and goes
  * red if it regresses. [CHARACTERIZATION] pins insecure or unfinished behaviour
@@ -38,7 +39,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe('SEC0901-X-01 [CHARACTERIZATION] — the orphaned specs now PASS, and are still off the gate', () => {
-  // NOT a new finding: that `*.security-audit.ts` rides no CI gate is already
+  // NOT a new finding: that `*.security-audit.ts` rides no gate is already
   // pinned by `api/_utils/securityTestMachineryIntegrity.security.test.ts`
   // ("SECURITY FINDING (gap, not fixed here)"). Do not re-file it.
   //

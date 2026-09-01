@@ -5,8 +5,9 @@ checkout was never disturbed.
 
 **Rules this audit ran under:** findings and tests only. No production behaviour was changed, no fix was
 applied, nothing was promoted, no money moved, no email or OTP was sent, no TTS was generated, nothing was
-deleted, no live-DB write was made. The only production contact was two read-only calls: `gh run list`
-against the GitHub Actions API, to re-verify the enforcement finding below.
+deleted, no live-DB write was made. The only production contact was read-only: `gh run list`
+against the GitHub Actions API, and reading `command-surface/ops/ci-run.sh` and `ops/ci/ci-checks.sh`
+to compare the nightly gate's coverage against the workflows it replaced (SEC0901-X-01).
 
 ---
 
@@ -17,7 +18,7 @@ This is the **seventh** security audit of this repo in three weeks.
 | Audit | Where it lives | State |
 |---|---|---|
 | 2026-08-11 | 6 area reports, ~1,100 tests | branch `sec/audit-2026-08-11`, still unmerged |
-| 2026-08-18 | `docs/security/api-audit-2026-08-18.md`, 5 specs | on `dev`; **run by nothing** |
+| 2026-08-18 | `docs/security/api-audit-2026-08-18.md`, 5 specs | on `dev`; collected by no gated config (SEC0901-X-02) |
 | 2026-08-22 | `docs/security-audit-2026-08-22/` | merged |
 | 2026-08-25 | `docs/security-audit-2026-08-25/` | merged |
 | 2026-08-25 **remediation** | `security/remediation-2026-08-25` | **now merged to `dev`** — the change that makes this audit worth running |
@@ -127,8 +128,11 @@ closed them: `api/_utils/postgrestFilter.ts` provides `quoteFilterValue`/`safeId
 
 That changes what those two files are. They have turned from *open findings* into *regression guards for
 fixes somebody already paid for* — and they are collected by no gated config, so nothing would notice
-them going red again. That the `*.security-audit.ts` glob rides no CI gate is **already filed and already
+them going red again. That the `*.security-audit.ts` glob rides no gate is **already filed and already
 pinned** by `api/_utils/securityTestMachineryIntegrity.security.test.ts`; this audit does not re-file it.
+It is worth restating only that the change of gate did not change this: the watson-1 nightly runs
+`pnpm test:api`, which cannot collect them, and does not run `pnpm test:security-audit` at all — so these
+two files are as ungated under the new arrangement as they were under the old one.
 What it adds is the reason it now matters more: renaming those two files to `*.security.test.ts` is a
 two-line change that puts three closed findings under permanent guard.
 
