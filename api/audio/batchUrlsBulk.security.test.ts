@@ -12,6 +12,13 @@
  * `ENTITLEMENT_ENFORCE`, which is absent in production and defaults fail-open.
  * These tests lock that closed, prove free/preview content is unaffected, and
  * lock the input caps that bound the blast radius.
+ *
+ * TIGHTENED 2026-09-01 (SEC0901-D-01): "verified session" was authentication
+ * only, which a free OTP signup satisfies. The gate now resolves the caller's
+ * real subscription/entitlement state via `resolveServerCourseAccess`. This
+ * suite's signed-in fixture is therefore a genuine PAYING subscriber, and its
+ * Supabase mock describes the entitlement tables the handler now reads. The
+ * caps, TTL, per-id checks and CORS assertions below are unchanged.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -86,17 +93,69 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
     Promise.resolve(`https://ssi-audio.s3.amazonaws.com/${cmd.Key}?X-Amz-Expires=${opts.expiresIn}`),
 }))
 
+/**
+ * The service-role client. Since SEC0901-D-01 (2026-09-01) the handler resolves
+ * the caller's REAL entitlement state, so this mock has to describe a database,
+ * not just an audio table: `signedInReq` below is a genuine PAYING subscriber
+ * (active subscription, no end date), which is what "no regression for real
+ * downloaders" has always been trying to say. The unentitled-but-authenticated
+ * case — the finding itself — is covered in
+ * `batchUrlsEntitlementVsAuth.security.test.ts`, not duplicated here.
+ */
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    from: (table: string) => ({
-      select: () => ({
-        in: (_col: string, ids: string[]) =>
-          Promise.resolve({
-            data: table === 'course_audio' ? ids.map((id) => courseAudioRows[id]).filter(Boolean) : [],
-            error: null,
-          }),
-      }),
-    }),
+    from: (table: string) => {
+      const state: Record<string, unknown> = {}
+      const rows = () => {
+        switch (table) {
+          case 'course_audio':
+            return {
+              data: ((state.in as string[]) || []).map((id) => courseAudioRows[id]).filter(Boolean),
+              error: null,
+            }
+          case 'courses':
+            return {
+              data: ((state.in as string[]) || []).map((code) => ({
+                course_code: code,
+                target_lang: code.startsWith('community_') ? 'cym' : 'fra',
+                pricing_tier: code.startsWith('community_') ? 'community' : 'premium',
+                is_community: code.startsWith('community_'),
+              })),
+              error: null,
+            }
+          case 'user_entitlements':
+            return { data: [], error: null }
+          default:
+            return { data: [], error: null }
+        }
+      }
+      const single = () => {
+        switch (table) {
+          case 'learners':
+            return { data: { id: 'learner-1', platform_role: null, educational_role: null }, error: null }
+          case 'subscriptions':
+            return { data: { status: 'active', current_period_end: null }, error: null }
+          default:
+            return { data: null, error: null }
+        }
+      }
+      const q: any = {
+        select: () => q,
+        eq: (col: string, val: unknown) => {
+          state[col] = val
+          return q
+        },
+        is: () => q,
+        in: (_col: string, vals: string[]) => {
+          state.in = vals
+          return q
+        },
+        maybeSingle: () => Promise.resolve(single()),
+        then: (ok: any, err: any) => Promise.resolve(rows()).then(ok, err),
+      }
+      return q
+    },
+    rpc: async () => ({ data: null, error: null }),
   }),
 }))
 
@@ -130,7 +189,11 @@ function anonymousReq(body: unknown): VercelRequest {
   return { method: 'POST', query: {}, headers: {}, cookies: {}, body } as unknown as VercelRequest
 }
 
-/** A signed-in learner: the offline downloader's real caller. */
+/**
+ * A signed-in, ENTITLED learner (see the Supabase mock: active subscription) —
+ * the offline downloader's real caller. Since SEC0901-D-01 a valid session
+ * alone is no longer sufficient, so this fixture has to be a payer.
+ */
 function signedInReq(body: unknown): VercelRequest {
   return {
     method: 'POST',
@@ -164,7 +227,7 @@ describe('POST /api/audio/batch-urls — unauthenticated bulk extraction (INPUT-
     expect(json.denied).toHaveLength(500)
   })
 
-  it('INPUT-01: a verified session still gets its presigned URLs (no regression for real downloaders)', async () => {
+  it('INPUT-01: a verified, ENTITLED session still gets its presigned URLs (no regression for real downloaders)', async () => {
     const res = makeRes()
     await handler(signedInReq({ audioIds: PREMIUM_IDS }), res)
 
