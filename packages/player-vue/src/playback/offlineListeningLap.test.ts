@@ -74,3 +74,62 @@ describe('filterLapToDeviceAudio', () => {
     expect(filterLapToDeviceAudio({ plays: [] }, () => true)).toBeNull()
   })
 })
+
+/**
+ * BELT SKIP MUST NOT OFFER A BELT THE DEVICE CANNOT TEACH.
+ *
+ * Tom, 2026-08-31: "perhaps belt skip should NOT work when unexpected offline
+ * and no new LEGOS are available." The specimen is his own Blue-belt landing
+ * round, S0084L01 ("dijo"): its review cycles were cached, its debut was not,
+ * and `some(playable)` called that available.
+ */
+import { roundTeachesOffline, NEW_LEGO_CYCLE_TYPES } from './offlinePlayable'
+
+const cyc = (type: string, ids: string[]) => ({
+  type,
+  known: { audioUrl: `/api/audio/${ids[0]}` },
+  target: { voice1Url: `/api/audio/${ids[1]}`, voice2Url: `/api/audio/${ids[2]}` },
+})
+
+describe('roundTeachesOffline — the belt-skip gate', () => {
+  it("Tom's case: cached review cycles do NOT make a belt available", () => {
+    const round = [
+      cyc('debut', ['d1', 'd2', 'd3']),          // the new LEGO — NOT on device
+      cyc('spaced_rep', ['r1', 'r2', 'r3']),     // older material — cached
+    ]
+    expect(roundTeachesOffline(round, onDevice('r1', 'r2', 'r3'))).toBe(false)
+  })
+
+  it('is true only when EVERY teaching cycle is complete on the device', () => {
+    const round = [
+      cyc('intro', ['i1', 'i2', 'i3']),
+      cyc('debut', ['d1', 'd2', 'd3']),
+      cyc('build', ['b1', 'b2', 'b3']),
+    ]
+    const all = onDevice('i1', 'i2', 'i3', 'd1', 'd2', 'd3', 'b1', 'b2', 'b3')
+    expect(roundTeachesOffline(round, all)).toBe(true)
+    // one clip of one build missing → the LEGO can't be taught
+    const missingOne = onDevice('i1', 'i2', 'i3', 'd1', 'd2', 'd3', 'b1', 'b2')
+    expect(roundTeachesOffline(round, missingOne)).toBe(false)
+  })
+
+  it('review-only rounds are never "available" — no new LEGOs there', () => {
+    const round = [cyc('spaced_rep', ['r1', 'r2', 'r3']), cyc('use', ['u1', 'u2', 'u3'])]
+    expect(roundTeachesOffline(round, () => true)).toBe(false)
+  })
+
+  it('an absent or empty round fails closed', () => {
+    expect(roundTeachesOffline([], () => true)).toBe(false)
+    expect(roundTeachesOffline(null, () => true)).toBe(false)
+    expect(roundTeachesOffline(undefined, () => true)).toBe(false)
+  })
+
+  it('listening and pod cycles are not teaching cycles', () => {
+    for (const t of ['listening', 'pod', 'listen_intro', 'listen_outro', 'spaced_rep', 'use']) {
+      expect(NEW_LEGO_CYCLE_TYPES.has(t)).toBe(false)
+    }
+    for (const t of ['intro', 'debut', 'build']) {
+      expect(NEW_LEGO_CYCLE_TYPES.has(t)).toBe(true)
+    }
+  })
+})

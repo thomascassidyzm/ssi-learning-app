@@ -122,7 +122,7 @@ import { useOfflineLease } from '../composables/useOfflineLease'
 import { markOfflineInfPlayEngaged, dismissOfflineInfPlayNotice, offlineInfPlayNoticeVisible, markOfflineNothingPlayable, dismissOfflineNothingPlayableNotice, offlineNothingPlayableVisible } from '../composables/useOfflineInfPlayNotice'
 import { isNetworkPresumedDown } from '../config/networkGate'
 import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
-import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio } from '../playback/offlinePlayable'
+import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio, roundTeachesOffline } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
@@ -10531,7 +10531,53 @@ const handleActivateInfPlay = async () => {
 }
 
 // Jump to any belt (from ProgressModal)
+/**
+ * The one-line reason a blocked belt-skip shows the learner, and the timer
+ * that clears it. Deliberately a plain sentence, not a dialog: the learner
+ * tapped a control, the control declined, and they need to know why in the
+ * time it takes to read it.
+ */
+const beltBlockedMessage = ref<string | null>(null)
+let beltBlockedTimer: ReturnType<typeof setTimeout> | null = null
+const showBeltBlockedMessage = (text: string): void => {
+  beltBlockedMessage.value = text
+  if (beltBlockedTimer) clearTimeout(beltBlockedTimer)
+  beltBlockedTimer = setTimeout(() => { beltBlockedMessage.value = null }, 5000)
+}
+onUnmounted(() => { if (beltBlockedTimer) clearTimeout(beltBlockedTimer) })
+
 const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
+  // NEVER OFFER WHAT THE DEVICE CANNOT DELIVER — the belt-skip half of Tom's
+  // rule (2026-08-31): "perhaps belt skip should NOT work when unexpected
+  // offline and no new LEGOS are available". The belt chips already draw
+  // themselves locked from offlineUnavailableBeltNames; this is the ACTION
+  // saying no as well, because the chips are not the only way in — the
+  // chevrons and the jump modal all funnel through here, and a stale chip
+  // state must not be able to start a jump into content that isn't here.
+  //
+  // Going back to a belt BEHIND the learner is always allowed: the ladder is
+  // downloaded contiguously from the start, and retreating is how someone
+  // who is drowning gets relief. Only forward jumps are gated.
+  const goingForward = belt.seedsRequired > (playingBelt.value?.seedsRequired ?? 0)
+  if (goingForward && cannotFetchNewContent() && !beltNewLegosOnDevice(belt)) {
+    logEvent('belt_skip_blocked_offline', {
+      toBelt: belt.name,
+      fromBelt: playingBelt.value?.name ?? null,
+      targetSeed: belt.seedsRequired,
+      deliberateOffline: offlineActive.value,
+    })
+    // The message differs by HOW we came to be offline — Tom asked for that
+    // distinction and only that: a learner who chose Offline mode is being
+    // told what their download doesn't include, while a learner whose signal
+    // went is being told what this device happens to have. The BLOCK is
+    // identical either way.
+    showBeltBlockedMessage(offlineActive.value
+      ? `${belt.name} belt isn't in your offline download — reconnect to add it.`
+      : `You're offline and ${belt.name} belt isn't on this device yet.`)
+    console.warn(`[LearningPlayer] Belt skip to ${belt.name} refused — offline and its new LEGOs aren't on this device`)
+    return
+  }
+
   // Belt is the biggest manual difficulty dial (Principle 1) and the loudest
   // stickability signal there is — belt-back = drowning/consolidating, a dropout
   // precursor. Every belt move (chevron, pill, and the jump modal) routes through
@@ -11878,36 +11924,45 @@ const offlinePlaybackActive = (): boolean =>
  */
 const cannotFetchNewContent = (): boolean => offlinePlaybackActive() || isPractising.value
 
-// Which belts the pill nav must grey out while offline. A belt is available
-// offline iff its landing round (the belt's first LEGO, via findRoundIndex-
-// ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
-// persistent cache — not merely a loaded round object. cachedRounds (script
-// structure) races well ahead of audioCache (the heavy bytes): background
-// script expansion can populate rounds for belts whose audio was never
-// fetched, so a round-presence-only check under-greys and a tapped pill
-// would land on silence. Mirrors shouldSkipCycle's own offline audio-
-// presence check (the engine's own bar for "playable offline"), so a pill
-// reads available exactly when landing there would actually produce sound.
-// White belt (seedsRequired 0, the course start) is always present.
+/**
+ * Are this belt's NEW LEGOs actually on the device?
+ *
+ * Tom, 2026-08-31, after belt-skipping to Blue in airplane mode and landing in
+ * the loop: "perhaps belt skip should NOT work when unexpected offline and no
+ * new LEGOS are available".
+ *
+ * The previous test was `cycles.some(playable)` over the landing round — ONE
+ * cached cycle anywhere in the round marked the whole belt available. His Blue
+ * belt landing round is S0084L01 ("dijo"), and its spaced-repetition cycles
+ * draw on older material that WAS cached, so the belt read green while the
+ * thing it exists to teach was not on the phone at all. He tapped it, and the
+ * app spent thirteen minutes parked on a LEGO it could not sound.
+ *
+ * So the question is asked about the new-LEGO cycles specifically, and it is
+ * asked of ALL of them: a partially-cached debut is a LEGO you cannot be
+ * taught. No such cycles at all (round absent, or nothing but review) is also
+ * a no — fail closed, as everywhere else in the offline path.
+ */
+const beltNewLegosOnDevice = (belt: { seedsRequired: number }): boolean => {
+  const rounds = cachedRounds.value || []
+  // Resolve the target LEGO id against the live engine's own rounds queue,
+  // then look IT up (by value, not by index) in cachedRounds — the same
+  // index would point at a different round in each array if the two have
+  // diverged (see findLegoIdForBeltThreshold's doc comment).
+  const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
+  if (!targetLegoId) return false
+  const round = rounds.find((r: any) => r?.legoId === targetLegoId) as any
+  return roundTeachesOffline((round?.cycles || []) as any[], (id) => audioCache.persistent.has(id))
+}
+
+// Which belts the pill nav must grey out while offline. White belt
+// (seedsRequired 0, the course start) is always present.
 const offlineUnavailableBeltNames = computed<Set<string>>(() => {
   if (!cannotFetchNewContent()) return new Set()
-  const rounds = cachedRounds.value || []
   const names = new Set<string>()
   for (const belt of BELTS) {
     if (belt.seedsRequired === 0) continue
-    // Resolve the target LEGO id against the live engine's own rounds queue,
-    // then look IT up (by value, not by index) in cachedRounds — the same
-    // index would point at a different round in each array if the two have
-    // diverged (see findLegoIdForBeltThreshold's doc comment).
-    const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(belt.seedsRequired)
-    const round = targetLegoId ? rounds.find((r: any) => r?.legoId === targetLegoId) : null
-    const cycles = (round as any)?.cycles || []
-    // Same fail-closed gate the engine uses, so a pill reads available exactly
-    // when landing there would actually produce sound — a blank-url cycle no
-    // longer makes a belt look reachable and then hand the learner silence.
-    const hasPlayableCycle = cycles.some((c: any) =>
-      isCyclePlayableOffline(c, (id) => audioCache.persistent.has(id)))
-    if (!hasPlayableCycle) names.add(belt.name)
+    if (!beltNewLegosOnDevice(belt)) names.add(belt.name)
   }
   return names
 })
@@ -12044,6 +12099,70 @@ const collectPodSpanAudioIds = (spanMs: number): string[] => {
   if (lap.intro?.id) ids.add(lap.intro.id)
   if (lap.outro?.id) ids.add(lap.outro.id)
   for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
+  return [...ids]
+}
+
+/**
+ * A FEW ROUNDS — the head of the rolling fill, enough to start practising
+ * immediately. Tom, 2026-08-31: "we should put a few ROUNDS in the cache and
+ * then, pretty soon after - get the entire listening exercises into the cache
+ * for POD1". This is the "few rounds" half; collectPod1ListeningAudioIds is
+ * the other. Counted in ROUNDS rather than milliseconds because that is the
+ * unit he named and the unit a learner feels.
+ */
+const PREFETCH_HEAD_ROUNDS = 3
+const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  const end = Math.min(rounds.length, start + roundCount)
+  const ids = new Set<string>()
+  const add = (url?: string) => {
+    const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
+    if (m) ids.add(m[1])
+  }
+  for (let i = start; i < end; i++) {
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
+    }
+  }
+  return [...ids]
+}
+
+/**
+ * THE WHOLE OF POD 1 — every clip its listening needs.
+ *
+ * Tom, 2026-08-31: "the listening exercises - these should have been
+ * prioritised as cache content - since it is not a huge amount of content and
+ * it is pretty valuable to just loop through when offline" ... "get the entire
+ * listening exercises into the cache for POD1".
+ *
+ * POD 1 IS THE WHOLE SERVED POD, NOT ITS FIRST SCENE. `podSentences` is
+ * already scoped to one `pod_id` by the scheduler (`resolveServedPod` — the
+ * literal `pod-1` for courses authored since 2026-08-22, `pod-0` for the ~68
+ * older ones), so "the entire listening exercises for POD1" is simply all of
+ * it. Measured 2026-09-01: spa_for_eng `pod-1` is 231 sentences across 22
+ * scenes = 571 clips, 45 minutes of audio, ~10.3 MB. Scene 1 alone is four
+ * sentences and one minute — not something anyone could "just loop through",
+ * which is what settles the reading.
+ *
+ * The existing filler only ever warmed the NEXT lap, and only when one fell
+ * inside the rolling span (collectPodSpanAudioIds). So a learner who lost
+ * signal before their first pod round had no listening on the device at all —
+ * precisely the state that made "play what you have" mean "play almost
+ * nothing". This warms pod 1 whole, and early.
+ */
+const collectPod1ListeningAudioIds = (): string[] => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return []
+  const ids = new Set<string>()
+  for (const r of (podScheduler.podSentences.value ?? []) as any[]) {
+    if (r?.target_audio_id) ids.add(r.target_audio_id)
+    if (r?.known_audio_id) ids.add(r.known_audio_id)
+    if (r?.explainer_audio_id) ids.add(r.explainer_audio_id)
+  }
+  // The bookends every lap opens and closes with — tiny, shared across laps,
+  // and a pod without them can't be presented properly.
+  if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
+  if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
   return [...ids]
 }
 
@@ -12210,13 +12329,29 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
     await ensureLiveSpanLoaded(spanMs)
     // PRIORITY ORDER is structural (Tom's "fill faster than we consume; never
     // starve cycles" invariant, satisfied without rate measurement): build ONE
-    // ordered missing-list as [cycles…, pods…, L1…]. The sequential
-    // missing-only worker(s) drain it front-to-back, so every uncached cycle is
-    // warmed before any pod, and every pod before any L1 listening clip. Pods
-    // and L1 are the EXTRAS that ride the same gentle filler — they only get
-    // bytes once the cycle buffer ahead is already warm. dedupe across all
-    // three so a clip shared by a cycle and a lap is fetched once.
+    // ordered missing-list; the sequential missing-only worker(s) drain it
+    // front-to-back, so position in this array IS the priority. Dedupe across
+    // all entries so a clip shared by a cycle and a lap is fetched once.
+    //
+    // The order was [cycles…, pods…, L1…] — every cycle of the whole rolling
+    // span ahead of any listening clip, and listening itself only ever the
+    // NEXT lap if one happened to fall inside the span. Tom, 2026-08-31: "I do
+    // not think we included the listening exercises early enough in the
+    // download ahead of time cache" ... "put a few ROUNDS in the cache and
+    // then, pretty soon after - get the entire listening exercises into the
+    // cache for POD1".
+    //
+    // So ONE insertion point changes. Pod 1 moves up behind the first few
+    // rounds; nothing is removed and nothing else is reordered relative to
+    // itself. What gets pushed later is the REMAINDER of the rolling span's
+    // cycles — rounds 4..N ahead of the cursor — which is the right thing to
+    // yield, because the learner cannot reach them before the head rounds are
+    // played, and because pod 1 is bounded — 571 clips / ~10.3 MB / 45 minutes
+    // of listening on spa_for_eng, measured 2026-09-01 — while the span tail
+    // grows with the course.
     const ordered = [
+      ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
+      ...collectPod1ListeningAudioIds(),
       ...collectSpanAudioIds(spanMs),
       ...collectPodSpanAudioIds(spanMs),
       ...collectLayer1SpanAudioIds(spanMs),
@@ -12391,7 +12526,20 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const cycleIds = collectRoundsAudioIds(roundsAhead)
   const { ids: auxIds, auxIncomplete } = await collectAuxiliaryAudioIds()  // commentary + pod pools
-  const ids = [...new Set([...cycleIds, ...auxIds])]
+  // Same insertion as the rolling filler, for the same reason: a deliberate
+  // download can be interrupted (signal goes, app closed, user leaves), and
+  // whatever landed before that is what the learner actually has. Listening
+  // sat at the very END of this list — behind every round of the course — so
+  // an interrupted download reliably had none of it. Pod 1 now rides directly
+  // behind the first few rounds. The SET of ids is unchanged; only the order
+  // is, so the totals, the progress accounting and "Ready ✓" all mean exactly
+  // what they meant before.
+  const ids = [...new Set([
+    ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
+    ...collectPod1ListeningAudioIds(),
+    ...cycleIds,
+    ...auxIds,
+  ])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
@@ -16485,6 +16633,16 @@ defineExpose({
           </button>
         </div>
       </div>
+    </div>
+  </Transition>
+
+  <!-- A belt-skip the device can't honour, said in one line. Reuses the
+       between-rounds tip toast: it sits above the nav, clears itself, and
+       never takes the screen — the learner asked for something, they get told
+       why not, and play carries on underneath. -->
+  <Transition name="fade">
+    <div v-if="beltBlockedMessage" class="mode-tip" role="status" aria-live="polite">
+      <span>{{ beltBlockedMessage }}</span>
     </div>
   </Transition>
 

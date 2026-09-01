@@ -126,7 +126,164 @@ selection rule, including "bookends cached but no sentences ⇒ null" and
 
 ---
 
-## 4. Better × Simpler × Cheaper
+## 4. Verified offline, on the deployed build
+
+Not a mock. Playwright drives Chromium and `context.setOffline(true)` is CDP
+`Network.emulateNetworkConditions(offline: true)` — real network-layer
+disconnection, with the app's own service worker and IndexedDB still serving
+exactly as they would on a phone in airplane mode. Probe:
+`packages/player-vue/e2e/offline-listening-loop-repro.mjs` (written by worker
+#564, which first caught the silent march on the unfixed build).
+
+Scenario each run: boot online, warm ~90s of real audio, go genuinely offline,
+belt-skip 25 taps forward past the cached edge, then watch 120s.
+
+**On staging, after the fix:**
+
+```
+PASS — audio genuinely played online (real warm cache) :: 144 clips
+PASS — navigator.onLine flipped false
+PASS — forward belt-skip taps landed :: 25 taps
+[LearningPlayer] Listening lap has no audio on this device — skipping the exercise entirely (offline)
+[LearningPlayer] L1 cup 22 skipped — its audio isn't on this device
+[LearningPlayer] Listening lap trimmed to what's on this device: 8/36 plays
+[SimplePlayer] Offline and this clip is not on the device — skipping it without touching the network.
+PASS — no LISTENING-cycle stuck-loop-of-death
+```
+
+| | before | after |
+|---|---|---|
+| listening laps selected without their audio | yes — every clean boundary, forever | **none; excluded at selection** |
+| `Retrying audio (attempt 2/2)` over a dead network | on every failed clip | **none** |
+| cycles selected that could not sound | 6 | 3 |
+| longest silent march (app's own alarm) | 18 clips | 9 clips |
+
+The loop Tom hit is closed: no listening exercise is ever selected without its
+audio, and no path retries an unavailable asset.
+
+## 5. The marker: "dijo" — and the root cause it exposed
+
+Tom pinned the session himself: he came back online at the LEGO **"dijo"**
+(he said). That is `S0084L01` — and **seed 84 is the Blue belt landing round**
+(Blue = 80 seeds).
+
+His telemetry resumes at 21:47:52 on exactly that LEGO, `S0084L01_debut`,
+`cacheHit: false`. So the app had been **parked on "dijo" for the whole
+thirteen-minute window, unable to sound it**, and played it the instant the
+radio returned. The marker turns the hole in the timeline into a fact: the
+loop was Blue belt's landing round, and *the belt skip put him there*.
+
+Which is what Tom said it was: *"I skipped ahead to blue belt - perhaps belt
+skip should NOT work when unexpected offline and no new LEGOS are available."*
+
+### Why the belt was offered at all
+
+The belt chips already drew themselves locked offline. The bug was one word in
+the predicate behind them:
+
+```ts
+const hasPlayableCycle = cycles.some((c) => isCyclePlayableOffline(c, …))
+```
+
+`.some()` over the landing round — **one** cached cycle anywhere in it marked
+the whole belt available. `S0084L01`'s spaced-repetition cycles draw on older
+material that *was* on his phone, so Blue read green while "dijo" itself was
+not there.
+
+Now the question is asked of the cycles that **teach** the new LEGO
+(`intro`/`debut`/`build`/`component_*`), and of **all** of them — a half-cached
+debut is a LEGO you cannot be taught. No teaching cycles at all is also a no.
+`roundTeachesOffline` in `playback/offlinePlayable.ts`, with his case as its
+first test.
+
+The **action** refuses too, not just the control: `handleSkipToBelt` is the one
+funnel every belt move goes through, so a stale chip cannot start a jump into
+content that isn't here. Backward jumps are never blocked — the ladder is
+downloaded contiguously and retreating is how someone drowning gets relief.
+Only the **wording** splits on how we came to be offline, as he asked:
+
+> deliberate: *"Yellow belt isn't in your offline download — reconnect to add it."*
+> unexpected: *"You're offline and yellow belt isn't on this device yet."*
+
+## 6. Prefetch priority — one insertion, inside the existing sequence
+
+Tom: *"we already had a sequence and a logic, but I do not think we included
+the listening exercises early enough in the download ahead of time cache."*
+Correct on both counts. There are two ordered lists; neither was replaced.
+
+**(a) What the sequence was.** The rolling filler (`fillBuffer`) builds one
+ordered missing-list and drains it front-to-back, so position *is* priority:
+
+1. `collectSpanAudioIds(spanMs)` — every cycle clip in the whole rolling span ahead
+2. `collectPodSpanAudioIds(spanMs)` — the next pod lap, **only if one falls inside the span**
+3. `collectLayer1SpanAudioIds(spanMs)` — L1 cups due in that span
+
+The deliberate download (`downloadForOffline`) had its own: all round clips to
+the chosen depth, then `collectAuxiliaryAudioIds()` (commentary, pod pool, L1
+pool, Core/All listening) — listening **last**.
+
+**(b) Where listening sat, and where it sits now.** It was last in both, and in
+the filler it was also *span-scoped* — so a learner who lost signal before
+their first pod round had **no listening on the device at all**. It now sits
+second, directly behind the first three rounds:
+
+1. `collectHeadRoundsAudioIds(3)` — a few rounds, enough to start practising
+2. **`collectPod1ListeningAudioIds()` — the entire pod 1**
+3. the rest of the span's cycles
+4. `collectPodSpanAudioIds` / `collectLayer1SpanAudioIds`, untouched
+
+**(c) What got pushed later.** Only the **remainder of the rolling span's
+cycles** — rounds 4..N ahead of the cursor. That is the right thing to yield:
+the learner cannot reach them until the head rounds are played, and pod 1 is
+bounded while the span tail grows with the course. Nothing was removed, and the
+*set* of ids is unchanged in both paths, so totals, progress and "Ready ✓" mean
+exactly what they meant.
+
+### How big pod 1 actually is (measured 2026-09-01)
+
+| | sentences | scenes | clips | audio | size (est. @32 kbps) |
+|---|---|---|---|---|---|
+| `spa_for_eng:pod-1` | 231 | 22 | **571** | **45.2 min** | **~10.3 MB** |
+| `fra_for_eng:pod-1` | 231 | 22 | 573 | 44.7 min | ~10.2 MB |
+| `pol_for_eng:pod-0` | 142 | 15 | 283 | 19.9 min | ~4.6 MB |
+| scene 1 only (spa) | 4 | 1 | 12 | 1.0 min | ~0.2 MB |
+
+**Pod 1 is the whole served pod, not its first scene.** `podSentences` is
+already scoped to one `pod_id` by `resolveServedPod`. Scene 1 is four sentences
+and one minute — nobody could "just loop through" that, which settles the
+reading. Against a course of ~1,475 LEGOs, 571 clips is roughly 3% — genuinely
+small, and it is 45 minutes of listening. Tom's judgement holds: cheap, and no
+reason to be clever about it.
+
+## 7. Verified offline after all three parts
+
+Same rig, same genuinely-offline browser, dev deployment:
+
+```
+PASS — audio genuinely played online :: 693 clips        (was 144 — pod 1 arriving early)
+PASS — navigator.onLine flipped false
+[LearningPlayer] Belt skip to yellow refused — offline and its new LEGOs aren't on this device
+PASS — no cycle got stuck repeating with genuine silence :: 30 genuine plays
+PASS — no LISTENING-cycle stuck-loop-of-death
+PASS — no sustained silent march :: max consecutive skips=0, failing cycleIds=0
+PASS — audio kept genuinely sounding through the whole watch window
+```
+
+| | first measurement | after listening + engine + jump fixes | after the belt block |
+|---|---|---|---|
+| cycles selected that couldn't sound | 6 | 3 | **0** |
+| longest silent march | 18 clips | 9 clips | **0** |
+| genuine audio plays in 120s offline | 0 | 0 | **30** |
+| clips warm after 90s online | 144 | 144 | **693** |
+
+The residual silent march that survived the first three fixes is **gone** — and
+it went for the reason Tom named rather than one I found: stop the belt skip
+landing on content the device does not hold, and nothing downstream ever has to
+cope with it. His diagnosis was the root cause.
+
+---
+
+## 6. Better × Simpler × Cheaper
 
 - **Better** — the failure mode it removes is the worst class in the app: a
   learner who cannot escape. It also deletes the silent-lap-counts-as-completed
@@ -140,7 +297,7 @@ selection rule, including "bookends cached but no sentences ⇒ null" and
 
 ---
 
-## 5. Open, for Tom
+## 7. Open, for Tom
 
 **Offline telemetry is dropped, so offline faults are invisible.** This one had to
 be reconstructed from a hole in a timeline plus Tom's testimony. A durable offline
