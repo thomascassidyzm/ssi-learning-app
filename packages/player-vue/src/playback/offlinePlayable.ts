@@ -184,3 +184,48 @@ export const filterLapToDeviceAudio = <T extends LapLike>(
     plays: kept,
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BELT AVAILABILITY OFFLINE
+//
+// Tom, 2026-08-31, after belt-skipping to Blue in airplane mode and landing in
+// the loop: "perhaps belt skip should NOT work when unexpected offline and no
+// new LEGOS are available".
+//
+// His Blue-belt landing round is S0084L01 — "dijo", he said — and the old test
+// was `cycles.some(playable)`: ONE cached cycle anywhere in that round marked
+// the whole belt available. Its spaced-repetition cycles draw on older
+// material that WAS on his phone, so the belt read green while the LEGO it
+// exists to teach was not there at all. He tapped it, and the app spent
+// thirteen minutes parked on a phrase it could not sound.
+//
+// So the question is asked about the cycles that TEACH the new LEGO, and it is
+// asked of ALL of them: a half-cached debut is a LEGO you cannot be taught.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Cycle types that teach a round's own new LEGO, rather than recycling older
+ *  material. `spaced_rep`, `use`, `listening`, `pod` and the listen bookends
+ *  are deliberately absent — reaching only those is reaching no new LEGOs. */
+export const NEW_LEGO_CYCLE_TYPES: ReadonlySet<string> = new Set([
+  'intro', 'debut', 'build', 'component_intro', 'component_practice',
+])
+
+interface TypedCycle extends PlayableCycle {
+  type?: string | null
+}
+
+/**
+ * Can a learner actually be taught this round's new LEGO from what is on the
+ * device? FAILS CLOSED: no teaching cycles at all (round absent, or nothing
+ * but review) is NO, exactly like a missing clip.
+ */
+export const roundTeachesOffline = (
+  cycles: readonly (TypedCycle | null | undefined)[] | null | undefined,
+  hasCachedAudio: HasCachedAudio,
+): boolean => {
+  const teaching = (cycles ?? []).filter(
+    (c): c is TypedCycle => !!c && NEW_LEGO_CYCLE_TYPES.has(String(c.type)),
+  )
+  if (teaching.length === 0) return false
+  return teaching.every((c) => isCyclePlayableOffline(c, hasCachedAudio))
+}
