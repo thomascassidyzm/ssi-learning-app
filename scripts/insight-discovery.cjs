@@ -200,7 +200,16 @@ ${JSON.stringify(digest, null, 1)}
       method: 'POST', headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ generated_at: digest.generated_at, window_days: WINDOW_DAYS, source: digest.source, digest, findings }),
     })
-    console.log(r.ok ? `\nwrote to insight_discoveries (source=${digest.source})` : `\nWRITE FAILED ${r.status}: ${await r.text()}`)
+    if (r.ok) {
+      console.log(`\nwrote to insight_discoveries (source=${digest.source})`)
+    } else {
+      // Fail LOUDLY. Until 2026-08-31 this only printed, and the process still exited 0,
+      // so insight-discovery-cron.sh logged "OK" for 36 consecutive nights while every
+      // write 401'd on a revoked service-role key — the table's last row was 2026-07-25 and
+      // nothing anywhere said so. A dump nobody can trust is worse than no dump.
+      console.error(`\nWRITE FAILED ${r.status}: ${await r.text()}`)
+      process.exit(1)
+    }
   }
 
   console.log(`\n=== ${digest.source.toUpperCase()} digest — ${WINDOW_DAYS}d ===`)
