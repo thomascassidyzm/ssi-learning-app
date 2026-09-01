@@ -219,3 +219,64 @@ applied at three sibling sites: walk `parent_id` via `groupSubtree.descendantIds
 `groups.path`.
 
 Not fixed here — findings and tests only.
+
+---
+
+## 3. The areas, in one table
+
+Full detail in each area's own report. Severity is this audit's, after coordinator review; where the
+coordinator disagreed with an area's own rating, the area's reasoning is preserved in its report and the
+disagreement is stated rather than silently overridden.
+
+| ID | What | Sev | State |
+|---|---|---|---|
+| **SEC0901-A-01** | `_utils/demoSchoolGraph.resolveGroupSubtreeIds` resolves an org subtree by `groups.path` slug, feeding an unfiltered hard-delete + auth-account deletion | **HIGH** | **STILL LIVE** — §2 above |
+| SEC0901-A-04b | `_utils/mintRateLimit.ts` still hand-rolls the spoofable `x-forwarded-for` bucket key that `codeAttemptThrottle` was fixed for | MEDIUM | STILL LIVE (per-IP backstop only; per-user limit unspoofable) |
+| SEC0901-X-01 | the watson-1 nightly drops `pnpm --filter @ssi/core test` — 35 files / 751 tests, incl. the parity guard and the pricing suites | MEDIUM | open, one-line fix, another repo |
+| SEC0901-X-04 | SEC25-D-02 residual: a signed-in caller can read a known learner's per-course practice minutes | MEDIUM | open by prior decision, day 7 |
+| SEC0901-X-02 | the two `*.security-audit.ts` specs now guard *closed* findings and are collected by no gate | MEDIUM | open, two-line fix |
+| SEC0901-B-01 | `invite/create` validates `grants_class_id` only for `teacher`/`student` types | LOW | privileged-caller-only |
+| SEC0901-C-01 | `player-events.event_type` is length-capped but not allowlisted | LOW | self-attributed rows only |
+| SEC0901-C-03 | `groups/{table,tree,[id]/home}` leak raw `String(error)` on the 500 path | LOW | authenticated callers |
+| SEC0901-B-02 | `schoolSeats` cap is read-then-decide with no lock | LOW | **unproven** — no concurrency harness was built |
+| SEC0901-B-03 | `try-link/create` returns raw DB errors | INFO | admin-only |
+| SEC29-X-04 | anon-key fallback instead of fail-closed | INFO | **5 → 3**; `round-map` and `audioAccess` now fail closed |
+
+### What held — the half of an audit that is not bad news
+
+Recorded because "nothing found" is a result, and because the next audit should not re-sweep these:
+
+- **The TENANCY-01 class is genuinely closed at three of four sites.** `invites.ts`,
+  `orgPlatform.countSubtreeMembers` and `school/rate-compare.ts` (all four call sites) now walk
+  `parent_id` via `descendantIds`/`fetchSubtree`. Only `demoSchoolGraph` was missed.
+- **`postgrestFilter.ts` adoption is a closed class, not a lucky one.** Every real `.or()`/`.filter()`
+  call site in `api/` is either using the sanitiser or structurally safe (regex-anchored digits,
+  UUID-validated, or bound params). Area A checked them individually.
+- **`cronAuth.ts` is correct** — constant-time, fails closed on every deployed env — and is adopted at
+  both real cron routes.
+- **All five code-guessing throttles** (`code/validate`, `code/redeem`, `auth/possession-redeem`,
+  `try-link/validate`, `teacher/by-code`) key on the platform-attested bucket.
+- **No IDOR, no mass assignment, no unauthorised write on any rewritten tenant endpoint** (Area C, 14
+  endpoints). Every request-supplied id is re-checked against the caller's server-resolved scope; the
+  coordinator independently re-verified `school/roster.ts` and `player-events.ts`'s identity resolution,
+  including the play-as-class attribution exception, which is authorised via `resolveVisibleScope` rather
+  than asserted by the client.
+- **`me/standing.ts`'s k-anonymity and eligibility gates apply uniformly** to both the count and the
+  distribution, with no cross-cohort probing lever found.
+- **`glossSegments.ts` survived a 200k-character pathological input** with no catastrophic backtracking,
+  and is not currently an XSS sink.
+- **`test-doors.ts`'s central claim is true**: 8 of the 14 doors were source-traced and none writes to the
+  server or to progress.
+- **No secrets in the delta.** A scan of all 4,484 added lines for live keys, AWS ids, JWTs and private
+  keys came back clean.
+
+### Gaps — what this audit did not cover, and why
+
+- No live-DB probing and no timing measurement: verified by code inspection instead. SEC0901-B-02's seat
+  race is therefore **unproven** — it needs a concurrency harness nobody built.
+- Areas B and C left specific threads: the `grants_class_id` read-side through `code/validate.ts`, and
+  6 of the 14 test doors that rested on doc evidence rather than independent source tracing.
+- Client-side coverage is thin by construction — the api vitest project cannot reach most of it, and this
+  audit did not run the player-vue suite except where an area added a test to it.
+- Deliberately not re-swept, having been done to death by five prior audits: injection as a *discovery*
+  exercise, the privileged-gate roster, webhook signatures, join-code entropy, the DEFINER posture.
