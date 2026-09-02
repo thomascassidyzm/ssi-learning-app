@@ -38,6 +38,8 @@
 export const COVERAGE_LANGUAGES: Record<string, { alias?: string; missing: string; chars: number }> = {
   hin: { alias: 'hi', missing: 'all Devanagari (58 codepoints)', chars: 206590 },
   mar: { alias: 'mr', missing: 'all Devanagari (57 codepoints)', chars: 106066 },
+  tel: { alias: 'te', missing: 'all Telugu (52 codepoints)', chars: 133758 },
+  kan: { alias: 'kn', missing: 'all Kannada (52 codepoints)', chars: 93108 },
   nep: { alias: 'ne', missing: 'all Devanagari (50 codepoints)', chars: 58855 },
   ell: { alias: 'el', missing: 'all Greek (44 codepoints)', chars: 44555 },
   ukr: { alias: 'uk', missing: 'all Cyrillic (44 codepoints)', chars: 44467 },
@@ -90,6 +92,15 @@ const ALIASES: Record<string, string> = { cmn: 'zho' }
  * Adding coverage means importing the matching Noto script family (Noto Sans
  * Arabic, Bengali, Gurmukhi, Devanagari is already inside Noto Sans, etc.),
  * which is a per-family webfont cost and a separate decision.
+ *
+ * That decision was taken for TELUGU and KANNADA on 2026-09-02, when they
+ * became interface languages: a translated UI that renders as tofu is a
+ * half-shipped feature, and the whole of a Kannada learner's chrome — not just
+ * their course text — was going to hit the hole. Noto Sans Kannada and Noto
+ * Sans Telugu are now vendored (scripts/vendor-fonts.mjs) and sit after Noto
+ * Sans in --font-coverage. Cost is 215 KB of ext/, unicode-range gated, so it
+ * is paid only by a learner actually painting one of those two scripts. The
+ * other holes below are unchanged: none of them is an interface language.
  */
 export const NO_COVERED_FONT: Record<string, string> = {
   ara: 'Arabic (39 codepoints)',
@@ -101,8 +112,6 @@ export const NO_COVERED_FONT: Record<string, string> = {
   pan: 'Gurmukhi (52)',
   guj: 'Gujarati (51)',
   tam: 'Tamil (41)',
-  tel: 'Telugu (52)',
-  kan: 'Kannada (52)',
   sin: 'Sinhala (50)',
   tha: 'Thai (52)',
   zho: 'Han (149) — Noto Sans JP is loaded but carries Japanese glyph forms, wrong for a Chinese course',

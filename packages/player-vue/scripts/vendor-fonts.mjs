@@ -72,6 +72,8 @@ const SHEETS = [
   // Space Mono (no variable build exists — static 400/700).
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..700' +
     '&family=Noto+Sans:wght@400..700' +
+    '&family=Noto+Sans+Kannada:wght@400..700' +
+    '&family=Noto+Sans+Telugu:wght@400..700' +
     '&family=JetBrains+Mono:wght@300..600' +
     '&family=Noto+Sans+JP:wght@300..900' +
     '&family=Space+Mono:wght@400;700&display=swap',
@@ -94,6 +96,21 @@ const KEEP_SUBSETS = new Set([
   'greek-ext',
   'devanagari',
   'vietnamese',
+  'kannada',
+  'telugu',
+])
+
+/**
+ * Families vendored ONLY for the script they are named after. Noto Sans Kannada
+ * and Noto Sans Telugu exist in the stack because Noto Sans cannot spell those
+ * two scripts; they sit AFTER Noto Sans in --font-coverage, so every Latin
+ * character is already served before the browser reaches them and their own
+ * latin/latin-ext subsets could never be fetched. 90 KB of files no browser
+ * would ever ask for.
+ */
+const SCRIPT_ONLY_FAMILIES = new Map([
+  ['Noto Sans Kannada', 'kannada'],
+  ['Noto Sans Telugu', 'telugu'],
 ])
 
 /** Precached: the UI's own faces, Latin only. Everything else is runtime. */
@@ -136,7 +153,13 @@ const main = async () => {
   const all = []
   for (const sheet of SHEETS) all.push(...parseFaces(await fetchText(sheet)))
 
-  const kept = all.filter(f => KEEP_SUBSETS.has(f.subset) && f.url && f.unicodeRange)
+  const kept = all.filter(
+    f =>
+      KEEP_SUBSETS.has(f.subset) &&
+      f.url &&
+      f.unicodeRange &&
+      (!SCRIPT_ONLY_FAMILIES.has(f.family) || SCRIPT_ONLY_FAMILIES.get(f.family) === f.subset),
+  )
   if (!kept.length) throw new Error('parsed no @font-face blocks — did the css2 format change?')
 
   const bytes = { core: 0, ext: 0 }
