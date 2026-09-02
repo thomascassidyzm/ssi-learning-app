@@ -27,8 +27,13 @@
  *     both win.
  *   - 48-hour expiry, checked in the same claim.
  *   - per-IP throttling on the SHARED bucket (api/_utils/codeAttemptThrottle),
- *     so this endpoint is no better an enumeration oracle than its siblings,
- *     and checked BEFORE any lookup.
+ *     checked BEFORE any lookup. REDEEM_PER_IP_LIMIT, not PER_IP_LIMIT: this
+ *     is a REDEMPTION endpoint sitting behind a school's single NAT'd address,
+ *     and the mint limit would lock out the eleventh teacher in a staffroom
+ *     holding a perfectly good code — the exact failure that constant was
+ *     raised to prevent. It still bounds enumeration with room to spare: the
+ *     30^8 keyspace here is ~48,000x the ABC-123 one that number was chosen
+ *     against, so 120 per quarter-hour is nowhere near it.
  *   - every attempt, refusals included, audit-logged with a hashed IP.
  *   - the code is never compared in the clear: we look up its sha256.
  *   - a refusal never says WHICH of expired / used / unknown it was. All three
@@ -44,7 +49,7 @@ import {
   hashIp,
   isIpOverLimit,
   logAttempt,
-  PER_IP_LIMIT,
+  REDEEM_PER_IP_LIMIT,
 } from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -78,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     // Throttle FIRST — before the lookup, so a sweeper never gets to spend our
     // database on guesses.
-    if (await isIpOverLimit(supabase, ipHash, PER_IP_LIMIT)) {
+    if (await isIpOverLimit(supabase, ipHash, REDEEM_PER_IP_LIMIT)) {
       await logAttempt(supabase, LABEL, { ipHash, outcome: 'rate_limited_ip' })
       res.status(429).json({ success: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
       return

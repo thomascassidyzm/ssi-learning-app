@@ -221,6 +221,16 @@ describe('POST /api/auth/access-code-redeem', () => {
     }
   })
 
+  it('throttles on the REDEEM limit, not the mint one — a staffroom shares one IP', async () => {
+    const { REDEEM_PER_IP_LIMIT, PER_IP_LIMIT, isIpOverLimit } = await import('../_utils/codeAttemptThrottle')
+    const res = makeRes()
+    await handler(makeReq('POST', { code: GOOD_CODE }), res)
+    expect(REDEEM_PER_IP_LIMIT).toBeGreaterThan(PER_IP_LIMIT)
+    // The eleventh teacher in a staffroom holds a good code; the mint limit
+    // would refuse them.
+    expect(vi.mocked(isIpOverLimit).mock.calls[0][2]).toBe(REDEEM_PER_IP_LIMIT)
+  })
+
   it('429s before it looks anything up, when the IP is over its limit', async () => {
     overLimit = true
     const res = makeRes()
