@@ -81,13 +81,7 @@
   --font-body: var(--font-brand);
   /* The exception font, never the default: applied per-language, to the whole
    * string, so a word is never split across two typefaces. */
-  /* Noto Sans carries Greek, Cyrillic, Devanagari and the Latin diacritics, but
-   * NOT Kannada or Telugu — those are separate Noto script families. They sit
-   * after Noto Sans, so every character Noto Sans can spell still comes from
-   * Noto Sans and only the Kannada/Telugu letters reach past it. Both are
-   * unicode-range gated (public/fonts/fonts.css), so a learner who never paints
-   * those scripts never downloads a byte of them. */
-  --font-coverage: 'Noto Sans', 'Noto Sans Kannada', 'Noto Sans Telugu', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-coverage: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Noto Sans JP', 'DM Sans', sans-serif;
   /* Mono is code, IDs and QA textareas only — it never renders course text, so
    * JetBrains Mono's own gaps (Ṣ ṣ ǹ) are not a live break and are left to the
@@ -364,10 +358,10 @@
 }
 
 :lang(ben), :lang(bg), :lang(bn), :lang(bul), :lang(cmn), :lang(el), :lang(ell),
-:lang(hi), :lang(hin), :lang(kan), :lang(kn), :lang(mar), :lang(mk), :lang(mkd),
-:lang(mr), :lang(ne), :lang(nep), :lang(pa), :lang(pan), :lang(rgn), :lang(ru),
-:lang(rus), :lang(scn), :lang(se), :lang(sme), :lang(te), :lang(tel), :lang(uk),
-:lang(ukr), :lang(yo), :lang(yor), :lang(zh), :lang(zho) {
+:lang(hi), :lang(hin), :lang(mar), :lang(mk), :lang(mkd), :lang(mr), :lang(ne),
+:lang(nep), :lang(pa), :lang(pan), :lang(rgn), :lang(ru), :lang(rus), :lang(scn),
+:lang(se), :lang(sme), :lang(uk), :lang(ukr), :lang(yo), :lang(yor), :lang(zh),
+:lang(zho) {
   --font-body: var(--font-coverage);
   --font-known-line: var(--font-coverage);
   /* Display headings need the switch too. `--font-display` is set on :root, and
