@@ -24,6 +24,7 @@ import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpda
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
 import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
+import { sendSignInCode } from '../auth/sendSignInCode'
 
 const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
 
@@ -852,10 +853,7 @@ const handleSendAddEmailOtp = async () => {
   try {
     // Use Supabase Auth to send an OTP to the new email
     // This creates an auth user for this email if one doesn't exist
-    const { error: otpError } = await supabase.value.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true },
-    })
+    const { error: otpError } = await sendSignInCode(supabase.value, email)
     if (otpError) {
       addEmailError.value = otpError.message || 'Failed to send verification code'
     } else {

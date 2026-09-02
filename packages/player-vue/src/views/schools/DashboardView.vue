@@ -14,6 +14,7 @@ import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
+import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -407,6 +408,9 @@ async function handlePlayClass(cls: ClassInfo) {
 
 <template>
   <div class="dashboard-view">
+    <!-- A password is the one way back in that needs no inbox. -->
+    <SchoolsPasswordPrompt />
+
     <!-- Govt drill-down breadcrumb -->
     <nav v-if="breadcrumb" class="dashboard-breadcrumb">
       <button class="breadcrumb-back" @click="clearViewingSchool">

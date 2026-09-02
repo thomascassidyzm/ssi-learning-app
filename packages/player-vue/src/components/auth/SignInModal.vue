@@ -6,8 +6,9 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
 import { CONFIG_UNAVAILABLE_MESSAGE } from '@/config/env'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
+import { sendSignInCode } from '../../auth/sendSignInCode'
 
-const { isOpen, inviteCodeMode, close } = useAuthModal()
+const { isOpen, inviteCodeMode, passwordMode, close } = useAuthModal()
 const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
 
 const emit = defineEmits<{
@@ -43,6 +44,7 @@ onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 watch(isOpen, (open) => {
   if (open) {
     step.value = inviteCodeMode.value ? 'code' : 'email'
+    usePassword.value = passwordMode.value
   } else {
     email.value = ''
     verificationCode.value = ''
@@ -141,8 +143,9 @@ const contextDescription = computed(() => {
   return ''
 })
 
-// ── Supabase OTP flow ──
-// signInWithOtp handles both sign-in AND sign-up automatically
+// ── Sign-in code flow ──
+// sendSignInCode handles both sign-in AND sign-up automatically, and mails our own
+// code email rather than Supabase's template — see auth/sendSignInCode.ts.
 
 const handleSendCode = async () => {
   const client = supabaseClient?.value
@@ -155,7 +158,7 @@ const handleSendCode = async () => {
   error.value = ''
 
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
 
     if (otpError) {
       error.value = otpError.message || 'Unable to send code. Please try again.'
@@ -356,7 +359,7 @@ const resendCode = async () => {
 
   showDeliveryHint.value = true
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
       error.value = 'Unable to resend code. Please try again.'
     } else {
