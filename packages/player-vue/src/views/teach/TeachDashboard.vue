@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
@@ -632,15 +633,15 @@ async function submitRecipient() {
     <!-- Page header -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Welcome, {{ teacher.display_name }}.</h1>
+        <h1 class="frost-display">{{ t('teach.welcomeName', 'Welcome, {name}.').replace('{name}', teacher.display_name) }}</h1>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ classes.length }}</span>
-            of {{ MAX_CLASSES }} classes used
+            {{ t('teach.ofClassesUsed', 'of {max} classes used').replace('{max}', String(MAX_CLASSES)) }}
           </span>
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ totalStudents }}</span>
-            paying students
+            {{ t('teach.payingStudents', 'paying students') }}
           </span>
         </div>
       </div>
@@ -650,33 +651,32 @@ async function submitRecipient() {
           :disabled="atClassCap"
           @click="openAddClass"
         >
-          + New class
+          + {{ t('schools.newClass', 'New class') }}
         </Button>
       </div>
     </header>
 
     <!-- At-cap notice -->
     <FrostCard v-if="atClassCap" variant="panel" class="cap-notice">
-      You've reached the {{ MAX_CLASSES }}-class maximum included in your teacher
-      plan. Archive a class to add another.
+      {{ t('teach.atCapNotice', "You've reached the {max}-class maximum included in your teacher plan. Archive a class to add another.").replace('{max}', String(MAX_CLASSES)) }}
     </FrostCard>
 
     <!-- Stones row: classes used / students / monthly estimate / accrued -->
     <div class="stone-row">
       <FrostCard variant="stone" tone="blue">
-        <span class="stone-label">Classes</span>
+        <span class="stone-label">{{ t('schools.classes', 'Classes') }}</span>
         <span class="stone-value frost-mono-nums">{{ classes.length }}<span class="stone-suffix">/ {{ MAX_CLASSES }}</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="green">
-        <span class="stone-label">Paying students</span>
+        <span class="stone-label">{{ t('teach.payingStudentsCap', 'Paying students') }}</span>
         <span class="stone-value frost-mono-nums">{{ totalStudents }}</span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Earning rate</span>
-        <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">/ mo</span></span>
+        <span class="stone-label">{{ t('teach.earningRate', 'Earning rate') }}</span>
+        <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">{{ t('teach.perMo', '/ mo') }}</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Accrued balance</span>
+        <span class="stone-label">{{ t('teach.accruedBalance', 'Accrued balance') }}</span>
         <span class="stone-value frost-mono-nums">£{{ accruedPounds }}</span>
       </FrostCard>
     </div>
@@ -684,14 +684,12 @@ async function submitRecipient() {
     <!-- Subscription / billing -->
     <FrostCard variant="panel" class="section-panel">
       <div class="section-head">
-        <span class="frost-section-title">Teacher plan</span>
+        <span class="frost-section-title">{{ t('teach.teacherPlan', 'Teacher plan') }}</span>
         <p v-if="!hasSubscription" class="section-sub">
-          You're on your 1 month free trial. Then it's £{{ TEACHER_MONTHLY_PRICE }}/month —
-          your dashboard pauses if the trial lapses. Cancel anytime.
+          {{ t('teach.trialSub', "You're on your 1 month free trial. Then it's £{price}/month — your dashboard pauses if the trial lapses. Cancel anytime.").replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
         </p>
         <p v-else class="section-sub">
-          £{{ TEACHER_MONTHLY_PRICE }}/month — up to {{ MAX_CLASSES }} classes,
-          unlimited students per class up to {{ MAX_STUDENTS_PER_CLASS }} each.
+          {{ t('teach.planSub', '£{price}/month — up to {classes} classes, unlimited students per class up to {students} each.').replace('{price}', String(TEACHER_MONTHLY_PRICE)).replace('{classes}', String(MAX_CLASSES)).replace('{students}', String(MAX_STUDENTS_PER_CLASS)) }}
         </p>
       </div>
 
@@ -700,15 +698,13 @@ async function submitRecipient() {
       <div v-if="!hasSubscription" class="subscription-cta">
         <div class="price-block">
           <span class="price-amount frost-mono-nums">£{{ TEACHER_MONTHLY_PRICE }}</span>
-          <span class="price-period">/ month</span>
+          <span class="price-period">{{ t('withTeacher.perMonth', '/ month') }}</span>
         </div>
         <p class="sub-blurb">
-          You earn £{{ COMMISSION_PER_STUDENT }} per student — three paying
-          students cover your £{{ TEACHER_MONTHLY_PRICE }} subscription. Every
-          student after that is profit.
+          {{ t('teach.commissionBlurb', 'You earn £{commission} per student — three paying students cover your £{price} subscription. Every student after that is profit.').replace('{commission}', String(COMMISSION_PER_STUDENT)).replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
         </p>
         <Button variant="primary" :loading="isStartingTrial" :disabled="!teacher?.id" @click="startTrial">
-          Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
+          {{ t('teach.subscribePrice', 'Subscribe — £{price}/month').replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
         </Button>
       </div>
 
@@ -720,8 +716,8 @@ async function submitRecipient() {
         class="sub-status-row past-due"
       >
         <div>
-          <p class="sub-status-label">Payment failed</p>
-          <p class="sub-status-sub">Your card was declined. Please update your payment method.</p>
+          <p class="sub-status-label">{{ t('teach.paymentFailed', 'Payment failed') }}</p>
+          <p class="sub-status-sub">{{ t('teach.cardDeclined', 'Your card was declined. Please update your payment method.') }}</p>
         </div>
         <Button variant="primary" :loading="isOpeningPortal" @click="openPortal">
           Update payment method
@@ -730,25 +726,25 @@ async function submitRecipient() {
 
       <div v-else-if="subscriptionStatus === 'cancelled'" class="sub-status-row">
         <div>
-          <p class="sub-status-label">Cancelled</p>
+          <p class="sub-status-label">{{ t('teach.cancelled', 'Cancelled') }}</p>
           <p v-if="nextChargeDate" class="sub-status-sub">
             Access continues until <strong>{{ nextChargeDate }}</strong>.
           </p>
         </div>
         <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
-          Manage subscription
+          {{ t('upgrade.manageSubscription', 'Manage subscription') }}
         </Button>
       </div>
 
       <div v-else class="sub-status-row">
         <div>
-          <p class="sub-status-label">Active</p>
+          <p class="sub-status-label">{{ t('settings.subActive', 'Active') }}</p>
           <p v-if="nextChargeDate" class="sub-status-sub">
             Next charge: <strong>{{ nextChargeDate }}</strong>
           </p>
         </div>
         <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
-          Manage subscription
+          {{ t('upgrade.manageSubscription', 'Manage subscription') }}
         </Button>
       </div>
     </FrostCard>
@@ -756,29 +752,29 @@ async function submitRecipient() {
     <!-- Inline create-class panel (§5.4: 2-field form = inline panel) -->
     <FrostCard v-if="isAddingClass" variant="panel" class="section-panel inline-form-panel">
       <div class="section-head">
-        <span class="frost-section-title">New class</span>
-        <p class="section-sub">Each class gets its own share link and roster.</p>
+        <span class="frost-section-title">{{ t('schools.newClass', 'New class') }}</span>
+        <p class="section-sub">{{ t('teach.newClassSub', 'Each class gets its own share link and roster.') }}</p>
       </div>
 
       <form class="inline-form" @submit.prevent="submitAddClass">
         <div class="inline-fields">
           <div class="field">
-            <label for="new-class-name">Class name</label>
+            <label for="new-class-name">{{ t('schools.className', 'Class name') }}</label>
             <input
               id="new-class-name"
               v-model="newClassName"
               type="text"
-              placeholder="e.g. Tuesday Beginners"
+              :placeholder="t('teach.classNamePlaceholder', 'e.g. Tuesday Beginners')"
               required
               autofocus
             />
           </div>
           <div class="field">
-            <label for="new-class-course">Course</label>
+            <label for="new-class-course">{{ t('schools.course', 'Course') }}</label>
             <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
             <p v-if="courseLocked" class="locked-course">
               {{ courseLabelFor(newClassCourse) }}
-              <span class="locked-hint">Subscribe to teach more languages</span>
+              <span class="locked-hint">{{ t('teach.subscribeMoreLanguages', 'Subscribe to teach more languages') }}</span>
             </p>
             <select v-else id="new-class-course" v-model="newClassCourse" required>
               <option v-for="c in availableCourses" :key="c.code" :value="c.code">
@@ -791,14 +787,14 @@ async function submitRecipient() {
         <div v-if="createClassError" class="error">{{ createClassError }}</div>
 
         <div class="inline-actions">
-          <Button type="button" variant="ghost" @click="closeAddClass">Cancel</Button>
+          <Button type="button" variant="ghost" @click="closeAddClass">{{ t('common.cancel', 'Cancel') }}</Button>
           <Button
             type="submit"
             variant="primary"
             :loading="isCreatingClass"
             :disabled="!newClassName.trim() || !newClassCourse || isCreatingClass"
           >
-            Create class
+            {{ t('schools.createClass', 'Create class') }}
           </Button>
         </div>
       </form>
@@ -822,7 +818,7 @@ async function submitRecipient() {
               <span class="class-stat-value frost-mono-nums">
                 {{ rosterByClass[cls.id]?.length || 0 }}
               </span>
-              of {{ MAX_STUDENTS_PER_CLASS }} students
+              {{ t('teach.ofStudents', 'of {max} students').replace('{max}', String(MAX_STUDENTS_PER_CLASS)) }}
             </span>
           </div>
           <Button
@@ -831,7 +827,7 @@ async function submitRecipient() {
             class="class-play-btn"
             @click="playAsClass(cls)"
           >
-            ▶ Play as class
+            ▶ {{ t('schools.playAsClass', 'Play as class') }}
           </Button>
         </header>
 
@@ -856,10 +852,10 @@ async function submitRecipient() {
           <table class="roster-table">
             <thead>
               <tr>
-                <th>Student</th>
-                <th>Seeds</th>
-                <th>LEGOs mastered</th>
-                <th>Last active</th>
+                <th>{{ t('schools.student', 'Student') }}</th>
+                <th>{{ t('browser.seeds', 'Seeds') }}</th>
+                <th>{{ t('teach.legosMasteredHeader', 'LEGOs mastered') }}</th>
+                <th>{{ t('schools.lastActive', 'Last active') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -877,8 +873,8 @@ async function submitRecipient() {
         <div v-else class="empty">
           <div class="empty-ghost">students</div>
           <div class="empty-copy">
-            <strong>No students yet</strong>
-            <p>Share the link above to start filling this roster.</p>
+            <strong>{{ t('schools.noStudentsYet', 'No students yet') }}</strong>
+            <p>{{ t('teach.shareLinkRoster', 'Share the link above to start filling this roster.') }}</p>
           </div>
         </div>
       </FrostCard>
@@ -889,42 +885,39 @@ async function submitRecipient() {
       <div class="empty">
         <div class="empty-ghost">classes</div>
         <div class="empty-copy">
-          <strong>No classes yet</strong>
+          <strong>{{ t('schools.noClassesYetTitle', 'No classes yet') }}</strong>
           <p>
-            Create your first class to get a share link. Every student who joins
-            via that link earns you £{{ COMMISSION_PER_STUDENT }}/month.
+            {{ t('teach.noClassesBody', 'Create your first class to get a share link. Every student who joins via that link earns you £{commission}/month.').replace('{commission}', String(COMMISSION_PER_STUDENT)) }}
           </p>
         </div>
-        <Button variant="primary" @click="openAddClass">+ New class</Button>
+        <Button variant="primary" @click="openAddClass">+ {{ t('schools.newClass', 'New class') }}</Button>
       </div>
     </FrostCard>
 
     <!-- Earnings -->
     <FrostCard variant="panel" class="section-panel earnings-panel">
       <div class="section-head">
-        <span class="frost-section-title">Earnings</span>
+        <span class="frost-section-title">{{ t('teach.earnings', 'Earnings') }}</span>
         <p class="section-sub">
-          You earn £{{ COMMISSION_PER_STUDENT }}/student/month. Paid monthly by Wise
-          once your balance passes £{{ payoutThresholdPounds }} and the refund period
-          has completed.
+          {{ t('teach.earningsSub', 'You earn £{commission}/student/month. Paid monthly by Wise once your balance passes £{threshold} and the refund period has completed.').replace('{commission}', String(COMMISSION_PER_STUDENT)).replace('{threshold}', String(payoutThresholdPounds)) }}
         </p>
       </div>
 
       <div class="earnings-grid">
         <div class="earnings-block">
-          <span class="earnings-label">Accrued balance</span>
+          <span class="earnings-label">{{ t('teach.accruedBalance', 'Accrued balance') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ accruedPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Pending payout</span>
+          <span class="earnings-label">{{ t('teach.pendingPayout', 'Pending payout') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ pendingPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Lifetime paid</span>
+          <span class="earnings-label">{{ t('teach.lifetimePaid', 'Lifetime paid') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ lifetimePaidPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Threshold to payout</span>
+          <span class="earnings-label">{{ t('teach.thresholdToPayout', 'Threshold to payout') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ payoutThresholdPounds }}</span>
         </div>
       </div>
@@ -935,7 +928,7 @@ async function submitRecipient() {
 
       <!-- Per-student-month rebate statement (hidden until the ledger has lines) -->
       <div v-if="statement && statement.length" class="statement">
-        <span class="statement-title">Statement</span>
+        <span class="statement-title">{{ t('teach.statement', 'Statement') }}</span>
         <div v-for="month in statement" :key="month.service_month" class="statement-month">
           <div class="statement-month-head">
             <span>{{ statementMonthLabel(month.service_month) }}</span>
@@ -951,9 +944,7 @@ async function submitRecipient() {
 
       <div v-if="payoutError" class="error">{{ payoutError }}</div>
       <div v-if="payoutQueued" class="payout-queued">
-        Payout queued for the next monthly run. We'll send the part of your
-        balance whose refund period has completed to your Wise account. Anything
-        still inside its refund period stays held and goes out on a later run.
+        {{ t('teach.payoutQueued', "Payout queued for the next monthly run. We'll send the part of your balance whose refund period has completed to your Wise account. Anything still inside its refund period stays held and goes out on a later run.") }}
       </div>
 
       <div class="payout-actions">
@@ -963,31 +954,30 @@ async function submitRecipient() {
           :loading="isRequestingPayout"
           @click="requestPayout"
         >
-          {{ payoutRecipient ? 'Request Wise payout' : 'Set up Wise payout' }}
+          {{ payoutRecipient ? t('teach.requestPayout', 'Request Wise payout') : t('teach.setUpPayout', 'Set up Wise payout') }}
         </Button>
         <p v-if="!canRequestPayout" class="payout-hint">
-          Paid monthly once your balance passes £{{ payoutThresholdPounds }} and
-          the refund period has completed.
+          {{ t('teach.payoutHint', 'Paid monthly once your balance passes £{threshold} and the refund period has completed.').replace('{threshold}', String(payoutThresholdPounds)) }}
         </p>
       </div>
 
       <form v-if="showRecipientForm" class="recipient-form" @submit.prevent="submitRecipient">
         <p class="section-sub">
-          Enter your UK bank details. Payouts are sent in GBP via Wise.
+          {{ t('teach.bankDetailsSub', 'Enter your UK bank details. Payouts are sent in GBP via Wise.') }}
         </p>
         <div class="field">
-          <label for="rcp-name">Account holder name</label>
+          <label for="rcp-name">{{ t('teach.accountHolderName', 'Account holder name') }}</label>
           <input
             id="rcp-name"
             v-model="recipientForm.account_holder_name"
             type="text"
-            placeholder="As it appears on your account"
+            :placeholder="t('teach.asItAppears', 'As it appears on your account')"
             required
           />
         </div>
         <div class="inline-fields">
           <div class="field">
-            <label for="rcp-sort">Sort code</label>
+            <label for="rcp-sort">{{ t('teach.sortCode', 'Sort code') }}</label>
             <input
               id="rcp-sort"
               v-model="recipientForm.sortCode"
@@ -998,7 +988,7 @@ async function submitRecipient() {
             />
           </div>
           <div class="field">
-            <label for="rcp-acct">Account number</label>
+            <label for="rcp-acct">{{ t('teach.accountNumber', 'Account number') }}</label>
             <input
               id="rcp-acct"
               v-model="recipientForm.accountNumber"
@@ -1010,8 +1000,8 @@ async function submitRecipient() {
           </div>
         </div>
         <div class="inline-actions">
-          <Button type="button" variant="ghost" @click="showRecipientForm = false">Cancel</Button>
-          <Button type="submit" variant="primary" :loading="isSavingRecipient">Save payout details</Button>
+          <Button type="button" variant="ghost" @click="showRecipientForm = false">{{ t('common.cancel', 'Cancel') }}</Button>
+          <Button type="submit" variant="primary" :loading="isSavingRecipient">{{ t('teach.savePayoutDetails', 'Save payout details') }}</Button>
         </div>
       </form>
     </FrostCard>
