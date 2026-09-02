@@ -7,6 +7,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { useSchoolContext } from '../composables/schools/useSchoolContext'
 import { useAuthModal } from '../composables/useAuthModal'
 import { hasLiveSessionFor, useLoginCodeAudit } from '../auth/loginCode'
+import { sendSignInCode } from '../auth/sendSignInCode'
 
 // variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
 // §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
@@ -513,7 +514,7 @@ async function handleSendOtp() {
   error.value = ''
 
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
       error.value = otpError.message || 'Unable to send code. Please try again.'
       return
@@ -611,7 +612,7 @@ async function handleResendOtp() {
 
   showDeliveryHint.value = true
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
       error.value = 'Unable to resend code. Please try again.'
     } else {
