@@ -18,7 +18,7 @@ type TeacherStatus = 'active' | 'invited'
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
-const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher } = useTeachersData()
+const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 const {
   classes,
@@ -138,6 +138,40 @@ async function handleRemoveTeacher(userId: string, name: string) {
   } else {
     removeError.value = `Could not remove ${name}: ${result.error}`
     console.error(`[TeachersView] remove-staff failed for ${name}:`, result.error)
+  }
+}
+
+// ── Sign-in link (the rescue for a teacher our email can't reach) ─────────
+// Welsh school gateways (Hwb / Microsoft EOP) silently quarantine our code
+// email, so a teacher can sit outside their own account indefinitely. Their
+// own admin can hand them a working link instead — face to face, on Teams, on
+// paper. Anything but our email.
+const signinLinkFor = ref<{ user_id: string; name: string; link: string; email: string } | null>(null)
+const signinLinkBusy = ref('')
+const signinLinkError = ref('')
+const signinLinkCopied = ref(false)
+
+async function handleSigninLink(userId: string, name: string) {
+  signinLinkBusy.value = userId
+  signinLinkError.value = ''
+  signinLinkCopied.value = false
+  const result = await createStaffSigninLink(userId)
+  signinLinkBusy.value = ''
+  if (result.link) {
+    signinLinkFor.value = { user_id: userId, name, link: result.link, email: result.email || '' }
+  } else {
+    signinLinkError.value = `Couldn't create a sign-in link for ${name}: ${result.error}`
+  }
+}
+
+async function copySigninLink() {
+  if (!signinLinkFor.value) return
+  try {
+    await navigator.clipboard.writeText(signinLinkFor.value.link)
+    signinLinkCopied.value = true
+    setTimeout(() => { signinLinkCopied.value = false }, 2000)
+  } catch {
+    /* the link is on screen and selectable — copying is a convenience */
   }
 }
 
@@ -283,6 +317,31 @@ watch(selectedUser, (newUser) => {
       <div v-if="removeError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
         {{ removeError }}
       </div>
+
+      <div v-if="signinLinkError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
+        {{ signinLinkError }}
+      </div>
+
+      <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
+        <div class="schools-kicker">Sign-in link for {{ signinLinkFor.name }}</div>
+        <p class="signin-link-body">
+          Give this link to {{ signinLinkFor.name }} in person, on Teams, or however
+          you normally reach them. Opening it signs them straight in as themselves
+          &mdash; no email needed.
+        </p>
+        <div class="signin-link-row">
+          <code class="signin-link-url">{{ signinLinkFor.link }}</code>
+          <button type="button" class="btn-play btn-small" @click="copySigninLink">
+            {{ signinLinkCopied ? 'Copied' : 'Copy' }}
+          </button>
+        </div>
+        <p class="signin-link-caveat schools-subtle">
+          It works once, and only for about an hour. Anyone who opens it becomes
+          {{ signinLinkFor.name }}, so send it to them directly and don't post it
+          anywhere shared. Need another? Just tap Sign-in link again.
+        </p>
+        <button type="button" class="btn-ghost btn-small" @click="signinLinkFor = null">Done</button>
+      </div>
     </Transition>
 
     <div v-if="teachers.length > 0" class="schools-card table-card">
@@ -335,6 +394,21 @@ watch(selectedUser, (newUser) => {
                 @click="openAssign({ user_id: t.user_id, name: t.name })"
               >
                 Assign to a class
+              </button>
+              <!-- Email verification is not a door. If our code email never
+                   reaches this teacher (Hwb and other school gateways eat it),
+                   their own admin hands them a link instead. Offered on every
+                   row, admins included — an admin locked out is stuck the same
+                   way a teacher is. -->
+              <button
+                v-if="canManageStaff"
+                type="button"
+                class="btn-ghost btn-small signin-link-btn"
+                :disabled="signinLinkBusy === t.user_id"
+                data-walk="teacher-signin-link"
+                @click="handleSigninLink(t.user_id, t.name)"
+              >
+                {{ signinLinkBusy === t.user_id ? 'Creating…' : 'Sign-in link' }}
               </button>
               <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
                    deliberately refuses an admin, so a school can't lose its own
@@ -438,6 +512,40 @@ watch(selectedUser, (newUser) => {
 </template>
 
 <style scoped>
+/* Sign-in link rescue panel */
+.signin-link-panel {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.signin-link-body {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.signin-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.signin-link-url {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  background: var(--bg-primary, #e8e3dd);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.signin-link-caveat {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .teachers {
   padding: 22px 28px 32px;
   max-width: 1320px;

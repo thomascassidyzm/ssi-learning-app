@@ -21,6 +21,10 @@
  * touches invite_codes.use_count or any role/grant logic.
  *
  * Security rails:
+ *   - an address whose account is an EMPTY SHELL (never signed in, never
+ *     confirmed, no role, no invite — the residue of an OTP that was
+ *     requested and never arrived) IS adopted rather than refused: there is
+ *     no account there to take over, and refusing it was itself the wall.
  *   - invite-code TYPES only (teacher/school_admin/school_admin_join/
  *     govt_admin/student) — ssi_admin/tester/god codes can't use this path.
  *   - an email that already has an account is NEVER minted a session here —
@@ -110,6 +114,71 @@ function isAlreadyRegisteredError(error: any): boolean {
 /** Thin label-binding wrapper over the shared audit writer. */
 async function logAttempt(supabase: SupabaseClient, fields: AttemptFields): Promise<void> {
   return logAttemptRow(supabase, '[PossessionRedeem]', fields)
+}
+
+/**
+ * An account is a SHELL if nobody has ever been inside it: no completed
+ * sign-in, no confirmed email, and a learner row carrying no role, no
+ * platform role and no redeemed invite. Adopting one hands a session to
+ * whoever holds a valid invite code — which is exactly what that code does
+ * for a brand-new address anyway, so this opens no capability that did not
+ * already exist. Returns null (refuse) on ANY doubt.
+ */
+async function tryAdoptShellAccount(
+  supabase: SupabaseClient,
+  email: string,
+): Promise<{ userId: string; session: { access_token: string; refresh_token: string } } | null> {
+  try {
+    // generateLink is also our lookup: for an address that already has an
+    // account it returns that user alongside the token, sending nothing.
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+    })
+    const existingId = (linkData as any)?.user?.id as string | undefined
+    const hashedToken = (linkData as any)?.properties?.hashed_token as string | undefined
+    if (linkError || !existingId || !hashedToken) return null
+
+    // Re-read the user authoritatively rather than trusting the link payload.
+    const { data: fetched } = await supabase.auth.admin.getUserById(existingId)
+    const user = fetched?.user
+    if (!user) return null
+    if (user.last_sign_in_at) return null
+    if (user.email_confirmed_at) return null
+
+    const { data: learner, error: learnerErr } = await supabase
+      .from('learners')
+      .select('educational_role, platform_role, invite_code_id')
+      .eq('user_id', existingId)
+      .maybeSingle()
+    // A read error is doubt, and doubt refuses.
+    if (learnerErr) return null
+    if (learner && (learner.educational_role || learner.platform_role || learner.invite_code_id)) return null
+
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: 'magiclink',
+    })
+    if (verifyError || !verifyData?.session) return null
+
+    // Carry the same "never proved mailbox receipt" marker a fresh possession
+    // account gets, so the add-your-email nudge behaves identically.
+    await supabase.auth.admin
+      .updateUserById(existingId, { user_metadata: { ...(user.user_metadata || {}), onboarded_via: 'possession' } })
+      .catch(() => {})
+
+    return {
+      userId: existingId,
+      session: {
+        access_token: verifyData.session.access_token,
+        refresh_token: verifyData.session.refresh_token,
+      },
+    }
+  } catch (err) {
+    console.warn('[PossessionRedeem] shell adoption check failed:', err)
+    return null
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -334,8 +403,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (createError || !created?.user) {
       if (isAlreadyRegisteredError(createError)) {
+        // --- EMPTY SHELL ADOPTION ---------------------------------------
+        // Asking for an OTP CREATES the auth user before the code is typed.
+        // So a teacher whose gateway eats the mail ends up owning an account
+        // they have never once been inside — and from that moment their
+        // invite code stops working too ("an account already exists"), which
+        // is the wall closing behind them. Measured live 2026-09-02: 81
+        // accounts in this state, the newest minted that morning.
+        //
+        // If the existing account is a SHELL — never signed in, never
+        // confirmed, no role, no invite, nothing to take — adopting it is not
+        // account takeover, because there is no account there yet. It is the
+        // same fresh start the code was always going to give them, on the row
+        // their own aborted attempt left behind.
+        //
+        // Anything with a heartbeat (one completed sign-in, a confirmed
+        // email, a role, a redeemed invite) is refused exactly as before.
+        const adopted = await tryAdoptShellAccount(supabase, normalizedEmail)
+        if (adopted) {
+          await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'adopted_shell', authUserId: adopted.userId })
+          res.status(200).json({
+            success: true,
+            adopted: true,
+            session: { access_token: adopted.session.access_token, refresh_token: adopted.session.refresh_token },
+          })
+          return
+        }
         await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'already_registered' })
-        // Never mint a session for a pre-existing email through this
+        // Never mint a session for a LIVE pre-existing account through this
         // unauthenticated path — that would be account takeover.
         res.status(409).json({ success: false, reason: 'already_registered', error: 'An account already exists for this email. Please sign in instead.' })
         return

@@ -89,6 +89,12 @@ function makeInviteValidationBuilder() {
 
 let getUserByIdResult: any = { data: { user: null }, error: null }
 let getUserByIdArg: string | undefined
+// --- Shell-adoption (tryAdoptShellAccount) fixtures ---
+// The learners row read during the shell check, independent of the
+// containment-lookup default stub below (which always returns null/null).
+let shellLearnerRow: any = null
+let shellLearnerErr: any = null
+let updateUserByIdCalls: any[] = []
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (_url: string, key: string) => {
@@ -103,6 +109,9 @@ vi.mock('@supabase/supabase-js', () => ({
       from: (table: string) => {
         if (table === 'possession_mint_attempts') return makeAttemptsBuilder()
         if (table === 'invite_code_validation') return makeInviteValidationBuilder()
+        if (table === 'learners') {
+          return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: shellLearnerRow, error: shellLearnerErr }) }) }) }
+        }
         return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }
       },
       auth: {
@@ -110,6 +119,10 @@ vi.mock('@supabase/supabase-js', () => ({
           createUser: (arg: any) => { createUserArg = arg; return Promise.resolve(createUserResult) },
           generateLink: (arg: any) => { generateLinkArg = arg; return Promise.resolve(generateLinkResult) },
           getUserById: (id: string) => { getUserByIdArg = id; return Promise.resolve(getUserByIdResult) },
+          updateUserById: (id: string, patch: any) => {
+            updateUserByIdCalls.push({ id, patch })
+            return Promise.resolve({ data: null, error: null })
+          },
           deleteUser: (id: string) => {
             deleteUserCalls.push(id)
             return Promise.resolve({ error: null })
@@ -148,6 +161,11 @@ describe('POST /api/auth/possession-redeem', () => {
     createUserArg = undefined
     generateLinkArg = undefined
     rateCounts = { ip: 0, code: 0 }
+    shellLearnerRow = null
+    shellLearnerErr = null
+    updateUserByIdCalls = []
+    getUserByIdResult = { data: { user: null }, error: null }
+    getUserByIdArg = undefined
     inviteRow = {
       id: 'invite-1',
       code: 'TEACH-1',
@@ -438,6 +456,117 @@ describe('POST /api/auth/possession-redeem', () => {
       await handler(makeReq({ code: 'PERS-1', linkAuth: true }), res)
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
+    })
+  })
+
+  // --- Empty-shell adoption (tryAdoptShellAccount): when createUser hits
+  // "already registered", an address whose account is an untouched shell
+  // (never signed in, never confirmed, no role/platform/invite) is adopted
+  // rather than refused. Anything with a heartbeat stays refused — this is
+  // the account-takeover boundary, so the refusal cases must be thorough. ---
+  describe('empty-shell adoption on already-registered', () => {
+    beforeEach(() => {
+      createUserResult = { data: { user: null }, error: { code: 'email_exists', message: 'A user with this email address has already been registered' } }
+      generateLinkResult = { data: { user: { id: 'shell-user-1' }, properties: { hashed_token: 'shell-token-1' } }, error: null }
+      getUserByIdResult = {
+        data: { user: { id: 'shell-user-1', last_sign_in_at: null, email_confirmed_at: null, user_metadata: {} } },
+        error: null,
+      }
+      shellLearnerRow = null
+      shellLearnerErr = null
+      verifyOtpResult = { data: { session: { access_token: 'shell-at', refresh_token: 'shell-rt' } }, error: null }
+    })
+
+    it('ADOPTS a true empty shell: 200, adopted:true, a session, and an adopted_shell audit outcome', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.adopted).toBe(true)
+      expect(res._json.session).toEqual({ access_token: 'shell-at', refresh_token: 'shell-rt' })
+      expect(attempts.some((a) => a.outcome === 'adopted_shell' && a.auth_user_id === 'shell-user-1')).toBe(true)
+    })
+
+    it('REFUSES (409, already_registered, no session) when the account has a completed sign-in', async () => {
+      getUserByIdResult.data.user.last_sign_in_at = '2026-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.success).toBe(false)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the account has a confirmed email', async () => {
+      getUserByIdResult.data.user.email_confirmed_at = '2026-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the learners row already carries an educational_role', async () => {
+      shellLearnerRow = { educational_role: 'teacher', platform_role: null, invite_code_id: null }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the learners row already carries a platform_role', async () => {
+      shellLearnerRow = { educational_role: null, platform_role: 'ssi_admin', invite_code_id: null }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the learners row already carries an invite_code_id', async () => {
+      shellLearnerRow = { educational_role: null, platform_role: null, invite_code_id: 'some-invite' }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the learners lookup itself errors (doubt refuses)', async () => {
+      shellLearnerErr = { message: 'connection reset' }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when the adoption generateLink call fails', async () => {
+      generateLinkResult = { data: null, error: { message: 'boom' } }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('REFUSES (409, already_registered, no session) when verifyOtp returns no session', async () => {
+      verifyOtpResult = { data: { session: null }, error: { message: 'boom' } }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
     })
   })
 })

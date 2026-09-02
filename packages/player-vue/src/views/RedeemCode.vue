@@ -19,6 +19,7 @@ const props = withDefaults(defineProps<{ variant?: 'bare' | 'landing' }>(), { va
 
 const route = useRoute()
 const router = useRouter()
+const { open: openAuthModal } = useAuthModal()
 const auth = inject<any>('auth', null)
 const supabase = inject<any>('supabase', ref(null))
 const loginCodeAudit = useLoginCodeAudit('redeem-code')
@@ -482,8 +483,18 @@ function switchToEmailCode() {
   step.value = 'auth'
 }
 
+// Take them to the sign-in modal in password mode — the one return route
+// that never touches an inbox, for an account that already exists.
+async function goToPasswordSignIn() {
+  // The player home mounts the sign-in modal; open it already on the password
+  // form so they never see "we'll send you a code" again.
+  await router.push('/')
+  openAuthModal({ password: true })
+}
+
 // Already-registered fallback (security rail: possession never signs in as
-// a pre-existing account) — send that account a real sign-in code instead.
+// a LIVE pre-existing account — an empty shell IS adopted server-side) —
+// send that account a real sign-in code instead.
 async function handleSignInInstead() {
   step.value = 'auth'
   error.value = ''
@@ -935,11 +946,22 @@ function goHome() {
         <div v-else-if="step === 'already-registered'" class="redeem-section">
           <p class="detail-text">An account already exists for <strong>{{ email }}</strong>.</p>
           <button class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading" @click="handleSignInInstead">
-            Sign in instead
+            Email me a code
+          </button>
+          <!-- Never a dead end. "Email me a code" is the wall for exactly the
+               people this page exists for, so the two routes that need no
+               inbox at all sit right next to it. -->
+          <button type="button" class="link-action" :disabled="isLoading" @click="goToPasswordSignIn">
+            Sign in with a password instead
           </button>
           <button type="button" class="link-action" :disabled="isLoading" @click="step = 'details'; error = ''">
             Use a different email
           </button>
+          <p class="detail-text detail-text--muted">
+            If your school email never delivers our codes, ask whoever runs your
+            school&rsquo;s account to open Teachers and tap <strong>Sign-in link</strong>
+            next to your name. That link signs you in with no email at all.
+          </p>
         </div>
 
         <!-- Email input (step === 'auth') — the OTP-gated path: secondary for
@@ -1198,6 +1220,13 @@ function goHome() {
   color: var(--text-secondary, #aaa);
   margin: 0;
   font-size: 0.9375rem;
+}
+
+.detail-text--muted {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  opacity: 0.85;
 }
 
 .status-text {
