@@ -1,6 +1,6 @@
 # The sign-in code email — rewritten so filters stop eating it
 
-**Date:** 2026-09-02 · **Branch:** `email/signin-code-deliverability` · **Status:** on `dev`, wording awaiting Tom
+**Date:** 2026-09-02 · **Branch:** `email/signin-code-deliverability` · **Status:** on `dev` and `staging`, verified live on both. Wording awaiting Tom.
 
 ## Where the template actually lived
 
@@ -81,7 +81,7 @@ and `renderSignInCodeEmail` takes one more argument to carry it.
   through the unchanged client call `verifyOtp({ email, token, type: 'email' })` → real session.
 - Minting for an address with **no account creates the account**, so this matches
   `signInWithOtp`'s default `shouldCreateUser: true`. No sign-up path regresses.
-- **A real send, end to end, through the deployed dev route:** `POST /api/auth/send-code`
+- **A real send, end to end, on BOTH the dev and staging deployments:** `POST /api/auth/send-code`
   → `{"sent":true}` → mail landed in a disposable inbox → the code in that mail signed in through
   `verifyOtp`. Raw headers below.
 - **How long a code actually lasts:** still valid at 11 minutes, refused at 62 — Supabase's
