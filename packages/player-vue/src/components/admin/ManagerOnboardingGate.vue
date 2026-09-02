@@ -38,17 +38,6 @@ import { detectFromBrowser, installFraming } from '@/utils/installPlatform'
 
 const props = defineProps<{
   isOpen: boolean
-  /**
-   * Let the password walk be escaped. Default FALSE, which is the org lane's
-   * behaviour unchanged — a manager who arrived by magic link has no other way
-   * back in, so that gate has never had a skip and still does not.
-   *
-   * The teacher return route (views/JoinWithCode.vue) opts IN to a skip on
-   * purpose: a teacher redeeming an access code in the middle of a lesson must
-   * be able to get on with their day, and their admin can always mint another
-   * code. Blocking them there would be the same wall we are dismantling.
-   */
-  allowSkip?: boolean
   /** Re-voice the opening beat when "a link in an email" is not how they got here. */
   whyCopy?: string
 }>()
@@ -130,19 +119,17 @@ const wantsInstall = computed(() =>
 )
 
 /**
- * The install walk always offers an escape. The password walk offers one only
- * where the caller asked for it (see `allowSkip`), and never on the terminal
- * beat, where the only verb left is "Done".
+ * The password walk never offers an escape; the install walk always does.
+ *
+ * This held for the org lane from the start, and as of Tom's ruling of
+ * 2026-09-02 it holds for the teacher return route too. A teacher who skips
+ * has a session on ONE device and nothing else — the next dead session or new
+ * phone locks them out again, and what is behind that door by then is their
+ * CLASSES and their students' records, not five minutes of their own time.
+ * Redemption is also the only moment we are guaranteed their attention with a
+ * reason that obviously matters to them. So: no skip, no dismiss, no later.
  */
-const dismissible = computed(
-  () => phase.value === 'install' || (!!props.allowSkip && currentBeat.value !== 'done'),
-)
-
-/** Skipping the password walk is simply leaving; skipping install is remembered. */
-function onSkip(): void {
-  if (phase.value === 'password') emit('close')
-  else skipInstall()
-}
+const dismissible = computed(() => phase.value === 'install')
 
 const showBack = computed(() => beat.value > 0 && currentBeat.value !== 'done')
 
@@ -241,7 +228,7 @@ function skipInstall(): void {
             :dismissible="dismissible"
             @back="back"
             @next="advance"
-            @skip="onSkip"
+            @skip="skipInstall"
           >
             <!-- The doing, inside the card — the step is the form. -->
             <form
@@ -278,18 +265,7 @@ function skipInstall(): void {
               <button type="submit" class="gate-submit-proxy" tabindex="-1" aria-hidden="true"></button>
             </form>
 
-            <!--
-              An escape in WORDS, not just the × in the corner. Only where the
-              caller opted in (allowSkip): a teacher redeeming an access code
-              between lessons has to be able to get on with their day, and a
-              close glyph is not something a hurried person reads as "you may
-              leave". The org lane passes no allowSkip and so still has neither.
-            -->
-            <div v-if="allowSkip && phase === 'password' && currentBeat !== 'done'" class="gate-aside">
-              <button type="button" class="gate-notnow" @click="emit('close')">Not now &mdash; remind me later</button>
-            </div>
-
-            <div v-else-if="phase === 'install' && currentBeat === 'do'" class="gate-aside">
+            <div v-if="phase === 'install' && currentBeat === 'do'" class="gate-aside">
               <button type="button" class="gate-notnow" @click="skipInstall">Not now</button>
             </div>
           </WalkCard>

@@ -270,15 +270,49 @@ try {
   log(/password/i.test(gateText) && /permanent|way back/i.test(gateText),
       'the very first screen after getting in offers the permanent way back',
       gateText.replace(/\s+/g, ' ').slice(0, 140))
-  // Skippable on purpose: a teacher mid-lesson must be able to get on.
-  const skippable = await tp.evaluate(() => /Not now/i.test(document.body.innerText))
-  log(skippable, 'the credential screen can be escaped IN WORDS — an offer, never a wall')
+  // COMPULSORY on purpose (Tom's ruling, 2026-09-02). A teacher who skips has
+  // a session on one device and nothing more; what is behind that door the
+  // next time it dies is their students' records. So there must be no skip
+  // link, no dismiss control, and no close glyph on this phase.
+  const escapes = await tp.evaluate(() => ({
+    words: /not now|skip|later|maybe/i.test(document.body.innerText),
+    closeBtn: document.querySelectorAll('.walk-close').length,
+  }))
+  log(!escapes.words && escapes.closeBtn === 0,
+      'the credential screen is COMPULSORY — no skip, no dismiss, no close glyph',
+      `words=${escapes.words} closeButtons=${escapes.closeBtn}`)
+
+  // ...and it is worded around getting back to your classes, not around
+  // security, because that is the true reason as well as the persuasive one.
+  const framing = await tp.evaluate(() => document.body.innerText)
+  log(/classes/i.test(framing) && !/secure|security|protect your account/i.test(framing),
+      'it is worded around getting back to your classes, not around security',
+      framing.replace(/\s+/g, ' ').slice(0, 120))
+  // WalkCard escapes its copy before rendering, so an HTML entity in the walk
+  // text reaches the teacher as literal "&rsquo;". Caught on screen, not by a
+  // unit test, and worth pinning.
+  log(!/&[a-z]+;/i.test(framing),
+      'no raw HTML entity is showing through on the screen a teacher reads',
+      (framing.match(/&[a-z]+;/i) || ['none'])[0])
 
   // 7a-ii. SINGLE USE, proved from the browser's side: the same code again.
   const replay = await post('/api/auth/access-code-redeem', { code: liveCode })
   log(replay.status === 404 && !replay.json.session,
       'the code the teacher just spent cannot be spent again',
       `status=${replay.status}`)
+
+  // Set the password for real, the only way past this screen, and confirm the
+  // walk carries them onward by itself.
+  const pw = `E2e-return-${Date.now()}`
+  await tp.click('.walk-next, .walk-card button:has-text("Next")').catch(() => {})
+  await tp.waitForTimeout(1500)
+  await tp.fill('#gate-password', pw).catch(() => {})
+  await tp.fill('#gate-confirm', pw).catch(() => {})
+  await tp.screenshot({ path: `${SHOTS}/1b2-credential-form.png`, fullPage: false })
+  const usernameForManager = await tp.inputValue('#gate-username').catch(() => '')
+  log(/@/.test(usernameForManager),
+      'the form names the account, so the device password manager can save it',
+      usernameForManager)
 
   await tp.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await tp.waitForTimeout(8000)
