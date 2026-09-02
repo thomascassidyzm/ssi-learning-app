@@ -60,12 +60,44 @@ const loadedLocales: Record<string, Record<string, any>> = { eng }
 // localStorage key for persisting locale preference
 const LOCALE_STORAGE_KEY = 'ssi-locale'
 
+/**
+ * Where the stored locale came from: a person picked it, or we guessed.
+ *
+ * A deep link to a course INFERS an interface language from that course's
+ * known language (utils/deepLinkLocale.ts) — a good guess, because clicking
+ * "Spanish for Hindi speakers" says more about what you read than a browser
+ * header does. But a guess must never overwrite a choice, so the two have to
+ * be told apart, and one string can't do that.
+ *
+ * A stored locale with NO source key is treated as CHOSEN. Until this key
+ * existed the only writer was the Settings language picker, so every legacy
+ * value in the wild is a deliberate pick and inherits the stronger status.
+ */
+const LOCALE_SOURCE_KEY = 'ssi-locale-source'
+
+export type LocaleSource = 'chosen' | 'inferred'
+
 // Load saved locale or default to English
 const getSavedLocale = (): string => {
   try {
     return localStorage.getItem(LOCALE_STORAGE_KEY) || 'eng'
   } catch {
     return 'eng'
+  }
+}
+
+/**
+ * True when the current interface language is a person's own decision, and
+ * therefore off-limits to inference. False when nothing is stored at all, or
+ * when what's stored was itself inferred by an earlier deep link.
+ */
+export const hasChosenLocale = (): boolean => {
+  try {
+    if (!localStorage.getItem(LOCALE_STORAGE_KEY)) return false
+    return localStorage.getItem(LOCALE_SOURCE_KEY) !== 'inferred'
+  } catch {
+    // No storage — nothing can have been chosen, so nothing is protected.
+    return false
   }
 }
 
@@ -79,20 +111,37 @@ const currentLocale: Ref<string> = ref(savedLocale)
 const currentMessages: Ref<Record<string, any>> = ref(eng)
 
 /**
+ * Is there a translated interface for this language code?
+ *
+ * The answer is exactly "do we ship a locale chunk for it", which is what
+ * LOCALE_LOADERS already is — so inference asks this rather than keeping a
+ * second list that could drift from the files on disk.
+ */
+export const isSupportedLocale = (langCode: string | null | undefined): boolean =>
+  !!langCode && Object.prototype.hasOwnProperty.call(LOCALE_LOADERS, langCode)
+
+/**
  * Set the current locale. Persists to localStorage and fetches the
  * locale chunk on demand if it isn't already loaded. Async because
  * non-English locales are dynamic imports; existing callers don't
  * await the promise (fire-and-forget is fine — currentMessages is
  * reactive so the UI re-renders when the chunk lands).
  */
-export const setLocale = async (langCode: string): Promise<void> => {
+export const setLocale = async (
+  langCode: string,
+  source: LocaleSource = 'chosen',
+): Promise<void> => {
   const loader = LOCALE_LOADERS[langCode]
   if (!loader) return // unknown locale — keep current
 
   // Persist the choice immediately so a quick refresh keeps the
   // preference even if the chunk download hasn't completed yet.
+  // `source` defaults to 'chosen' so every existing call site — all of
+  // which are a person tapping a language — keeps its stronger status
+  // without being touched.
   try {
     localStorage.setItem(LOCALE_STORAGE_KEY, langCode)
+    localStorage.setItem(LOCALE_SOURCE_KEY, source)
   } catch {
     // localStorage might be unavailable
   }
