@@ -19,7 +19,37 @@
     "listeningDesc": "Sain yn unig, dim siarad",
     "easy": "Hawdd",
     "fast": "Cyflym",
-    "learningModeLabel": "Modd dysgu"
+    "learningModeLabel": "Modd dysgu",
+    "sector": "Ar gyfer dy waith",
+    "sectorDesc": "Yn rhedeg ochr yn ochr â'th gwrs"
+  },
+  "sector": {
+    "title": "Ar gyfer dy waith",
+    "subtitle": "Dewisa beth sy'n gweddu ac mae'n rhedeg ochr yn ochr â'th gwrs o'r dechrau.",
+    "loading": "Chwilio am feysydd…",
+    "errorTitle": "Wnaeth hynny ddim llwytho",
+    "errorBody": "Rho gynnig arall arni mewn eiliad.",
+    "retry": "Ail-geisio",
+    "emptyTitle": "Dim byd yma eto ar gyfer yr iaith hon",
+    "emptyBody": "Mae'r meysydd cyntaf yn cael eu hadeiladu. Mae dy gwrs yn parhau fel arfer.",
+    "opensAfter": "Yn agor ar ôl",
+    "roleTitle": "Pa ran wyt ti'n ei chwarae?",
+    "roleSubtitle": "Dewisa'r un agosaf atat ti. Cei ei newid pryd bynnag y mynni.",
+    "start": "Dechrau",
+    "back": "Yn ôl",
+    "close": "Cau",
+    "roles": {
+      "general": "Cyffredinol",
+      "patient": "Claf",
+      "nurse": "Nyrs",
+      "doctor": "Meddyg"
+    },
+    "roleDescs": {
+      "general": "Ychydig o bopeth"
+    },
+    "walks": {
+      "health": "Iechyd"
+    }
   },
   "courseSelector": {
     "title": "Dewis Eich Cwrs",

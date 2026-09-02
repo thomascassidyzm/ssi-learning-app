@@ -19,7 +19,37 @@
     "nativeOnly": "Yalnız orijinal əlifba",
     "offline": "Oflayn rejim",
     "offlineDesc": "Yüklənmiş səsdən oynadın",
-    "pronunciation": "Tələffüz"
+    "pronunciation": "Tələffüz",
+    "sector": "İşin üçün",
+    "sectorDesc": "Kursunla yanaşı gedir"
+  },
+  "sector": {
+    "title": "İşin üçün",
+    "subtitle": "Sənə uyğun olanı seç, o da lap əvvəldən kursunla yanaşı gedəcək.",
+    "loading": "Sahələr axtarılır…",
+    "errorTitle": "Bu yüklənmədi",
+    "errorBody": "Bir azdan yenidən cəhd et.",
+    "retry": "Yenidən cəhd edin",
+    "emptyTitle": "Bu dil üçün hələ burada heç nə yoxdur",
+    "emptyBody": "İlk sahələr hazırlanır. Kursun həmişəki kimi davam edir.",
+    "opensAfter": "Açılır:",
+    "roleTitle": "Hansı rolu oynayırsan?",
+    "roleSubtitle": "Sənə ən yaxın olanı seç. İstədiyin vaxt dəyişə bilərsən.",
+    "start": "Başla",
+    "back": "Geri",
+    "close": "Bağla",
+    "roles": {
+      "general": "Ümumi",
+      "patient": "Xəstə",
+      "nurse": "Tibb bacısı",
+      "doctor": "Həkim"
+    },
+    "roleDescs": {
+      "general": "Hər şeydən bir az"
+    },
+    "walks": {
+      "health": "Sağlamlıq"
+    }
   },
   "courseSelector": {
     "title": "Kursunuzu seçin",

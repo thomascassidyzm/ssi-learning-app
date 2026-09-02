@@ -19,7 +19,37 @@
     "nativeOnly": "Tik originali rašyba",
     "offline": "Neprisijungimo režimas",
     "offlineDesc": "Groti iš atsisiųsto garso",
-    "pronunciation": "Tarimas"
+    "pronunciation": "Tarimas",
+    "sector": "Tavo darbui",
+    "sectorDesc": "Eina kartu su tavo kursu"
+  },
+  "sector": {
+    "title": "Tavo darbui",
+    "subtitle": "Pasirink, kas tinka, ir tai eis kartu su tavo kursu nuo pat pradžių.",
+    "loading": "Ieškoma sričių…",
+    "errorTitle": "Nepavyko įkelti",
+    "errorBody": "Pabandyk dar kartą po akimirkos.",
+    "retry": "Bandyti dar kartą",
+    "emptyTitle": "Šiai kalbai čia dar nieko nėra",
+    "emptyBody": "Pirmosios sritys dar kuriamos. Tavo kursas tęsiasi kaip įprasta.",
+    "opensAfter": "Atsidaro po",
+    "roleTitle": "Kokį vaidmenį atlieki?",
+    "roleSubtitle": "Pasirink tau artimiausią. Gali pakeisti bet kada.",
+    "start": "Pradėti",
+    "back": "Atgal",
+    "close": "Uždaryti",
+    "roles": {
+      "general": "Bendra",
+      "patient": "Pacientas",
+      "nurse": "Slaugytojas",
+      "doctor": "Gydytojas"
+    },
+    "roleDescs": {
+      "general": "Po truputį visko"
+    },
+    "walks": {
+      "health": "Sveikata"
+    }
   },
   "courseSelector": {
     "title": "Pasirink kursą",

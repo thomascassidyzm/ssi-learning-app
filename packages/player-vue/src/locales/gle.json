@@ -19,7 +19,37 @@
     "listeningDesc": "Fuaim amháin, gan labhairt",
     "easy": "Easy",
     "fast": "Fast",
-    "learningModeLabel": "Learning mode"
+    "learningModeLabel": "Learning mode",
+    "sector": "Do do chuid oibre",
+    "sectorDesc": "Ritheann sé taobh le do chúrsa"
+  },
+  "sector": {
+    "title": "Do do chuid oibre",
+    "subtitle": "Roghnaigh an rud a oireann duit agus ritheann sé taobh le do chúrsa ón tús.",
+    "loading": "Ag cuardach réimsí…",
+    "errorTitle": "Níor luchtaigh sé sin",
+    "errorBody": "Bain triail eile as i gceann nóiméid.",
+    "retry": "Bain triail eile as",
+    "emptyTitle": "Níl aon rud anseo don teanga seo go fóill",
+    "emptyBody": "Tá na chéad réimsí á dtógáil. Leanann do chúrsa ar aghaidh mar is gnách.",
+    "opensAfter": "Osclaíonn sé tar éis",
+    "roleTitle": "Cén ról atá agat?",
+    "roleSubtitle": "Roghnaigh an ceann is gaire duit. Is féidir leat é a athrú am ar bith.",
+    "start": "Tosaigh",
+    "back": "Ar ais",
+    "close": "Dún",
+    "roles": {
+      "general": "Ginearálta",
+      "patient": "Othar",
+      "nurse": "Altra",
+      "doctor": "Dochtúir"
+    },
+    "roleDescs": {
+      "general": "Beagán de gach rud"
+    },
+    "walks": {
+      "health": "Sláinte"
+    }
   },
   "courseSelector": {
     "title": "Roghnaigh do Chúrsa",

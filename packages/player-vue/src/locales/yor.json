@@ -19,7 +19,37 @@
     "nativeOnly": "Ìwé abínibí nìkan",
     "offline": "Ipò aláìláyélujára",
     "offlineDesc": "Ṣe ìdún láti inú ohùn tí a ti gbé sílẹ̀",
-    "pronunciation": "Bí a ṣe ń pè é"
+    "pronunciation": "Bí a ṣe ń pè é",
+    "sector": "Fún iṣẹ́ rẹ",
+    "sectorDesc": "Ó ń lọ pẹ̀lú ẹ̀kọ́ rẹ"
+  },
+  "sector": {
+    "title": "Fún iṣẹ́ rẹ",
+    "subtitle": "Yan èyí tó bá ọ mu, yóò sì máa lọ pẹ̀lú ẹ̀kọ́ rẹ láti ìbẹ̀rẹ̀.",
+    "loading": "Ń wá àwọn agbègbè…",
+    "errorTitle": "Èyí kò kó wọlé",
+    "errorBody": "Gbìyànjú lẹ́ẹ̀kan sí i láìpẹ́.",
+    "retry": "Gbìyànjú lẹ́ẹ̀kan sí i",
+    "emptyTitle": "Kò sí ohunkóhun níbí fún èdè yìí síbẹ̀",
+    "emptyBody": "Àwọn agbègbè àkọ́kọ́ ṣì wà nínú ìmúra. Ẹ̀kọ́ rẹ ń tẹ̀síwájú bí ìṣáájú.",
+    "opensAfter": "Ó máa ṣí lẹ́yìn",
+    "roleTitle": "Ipa wo ni o ń kó?",
+    "roleSubtitle": "Yan èyí tó sún mọ́ ọ jù. O lè yí i padà nígbàkúùgbà.",
+    "start": "Bẹ̀rẹ̀",
+    "back": "Padà",
+    "close": "Pa",
+    "roles": {
+      "general": "Gbogbogbò",
+      "patient": "Aláìsàn",
+      "nurse": "Nọ́ọ̀sì",
+      "doctor": "Dókítà"
+    },
+    "roleDescs": {
+      "general": "Díẹ̀ nínú ohun gbogbo"
+    },
+    "walks": {
+      "health": "Ìlera"
+    }
   },
   "courseSelector": {
     "title": "Yan Ẹ̀kọ́ Rẹ",

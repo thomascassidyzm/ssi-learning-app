@@ -19,7 +19,37 @@
     "listeningDesc": "Audio uniquement, sans parler",
     "easy": "Facile",
     "fast": "Rapide",
-    "learningModeLabel": "Mode d'apprentissage"
+    "learningModeLabel": "Mode d'apprentissage",
+    "sector": "Pour votre travail",
+    "sectorDesc": "En parallèle de votre cours"
+  },
+  "sector": {
+    "title": "Pour votre travail",
+    "subtitle": "Choisissez ce qui vous correspond et cela accompagne votre cours dès le départ.",
+    "loading": "Recherche de domaines…",
+    "errorTitle": "Le chargement a échoué",
+    "errorBody": "Réessayez dans un instant.",
+    "retry": "Réessayer",
+    "emptyTitle": "Rien ici pour cette langue pour l'instant",
+    "emptyBody": "Les premiers domaines sont en préparation. Votre cours continue normalement.",
+    "opensAfter": "S'ouvre après",
+    "roleTitle": "Quel rôle jouez-vous ?",
+    "roleSubtitle": "Choisissez celui qui vous ressemble le plus. Vous pouvez en changer quand vous voulez.",
+    "start": "Commencer",
+    "back": "Retour",
+    "close": "Fermer",
+    "roles": {
+      "general": "Général",
+      "patient": "Patient",
+      "nurse": "Infirmier",
+      "doctor": "Médecin"
+    },
+    "roleDescs": {
+      "general": "Un peu de tout"
+    },
+    "walks": {
+      "health": "Santé"
+    }
   },
   "courseSelector": {
     "title": "Choisissez votre cours",
