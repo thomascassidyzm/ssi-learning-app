@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute } from 'vue-router'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
@@ -852,14 +853,14 @@ async function continueIn() {
         <Transition name="ob-line" mode="out-in">
           <p class="ob-evolve" :key="step + (selectedCourseLabel || '')">
             <template v-if="step === 'choose'">
-              {{ isOrgDoor ? `Set your organisation up for free, then test drive it for ${ORG_TRIAL_DAYS} days — every language, as many learners as you like, no card.` : "Pick your language and we'll open the door — no card, no catch." }}
+              {{ isOrgDoor ? t('onboarding.orgTestDrive', 'Set your organisation up for free, then test drive it for {days} days — every language, as many learners as you like, no card.').replace('{days}', String(ORG_TRIAL_DAYS)) : t('onboarding.pickLanguageDoor', "Pick your language and we'll open the door — no card, no catch.") }}
             </template>
             <template v-else-if="step === 'otp'">
-              One code stands between you and
-              <strong>{{ selectedCourseLabel || (isOrgDoor ? 'your organisation' : 'your first words') }}</strong>.
+              {{ t('onboarding.oneCodeStands', 'One code stands between you and') }}
+              <strong>{{ selectedCourseLabel || (isOrgDoor ? t('onboarding.yourOrganisation', 'your organisation') : t('onboarding.yourFirstWords', 'your first words')) }}</strong>.
             </template>
             <template v-else>
-              Welcome. <strong>{{ selectedCourseLabel || 'Your organisation' }}</strong> is yours to begin.
+              {{ t('onboarding.welcome', 'Welcome.') }} <strong>{{ selectedCourseLabel || t('onboarding.yourOrganisationCap', 'Your organisation') }}</strong> {{ t('onboarding.isYoursToBegin', 'is yours to begin.') }}
             </template>
           </p>
         </Transition>
@@ -885,20 +886,20 @@ async function continueIn() {
           <p v-if="redirectNotice" class="ob-redirect-notice">{{ redirectNotice }}</p>
           <p v-if="offerLine" class="ob-trial">{{ offerLine }}</p>
 
-          <h1 class="ob-title">{{ isOrgDoor ? "What's your organisation called?" : 'Which language will you teach?' }}</h1>
+          <h1 class="ob-title">{{ isOrgDoor ? t('onboarding.orgCalledTitle', "What's your organisation called?") : t('onboarding.whichLanguageTitle', 'Which language will you teach?') }}</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
 
           <!-- ORG DOOR: no language/course picker at all — an org is class-less
                and its trial covers every language, so the only thing to ask
                for here is its name. -->
           <div v-if="isOrgDoor" class="ob-field">
-            <label class="ob-label" for="ob-org-name">Organisation name</label>
+            <label class="ob-label" for="ob-org-name">{{ t('onboarding.orgName', 'Organisation name') }}</label>
             <input
               id="ob-org-name"
               v-model="orgName"
               type="text"
               class="ob-input"
-              placeholder="e.g. Cardiff Council"
+              :placeholder="t('onboarding.orgNamePlaceholder', 'e.g. Cardiff Council')"
               autocomplete="organization"
               @keyup.enter="isSignedIn ? continueSignedIn() : (canSend && sendCode())"
             />
@@ -920,7 +921,7 @@ async function continueIn() {
               aria-haspopup="listbox"
               @click="openTarget"
             >
-              <span class="ob-known-label">You'll teach</span>
+              <span class="ob-known-label">{{ t('onboarding.youllTeach', "You'll teach") }}</span>
               <span class="ob-known-value">{{ pickerValueLabel }}</span>
               <svg class="ob-known-caret" :class="{ open: targetOpen }" viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M5 8l5 5 5-5" />
@@ -934,8 +935,8 @@ async function continueIn() {
                 v-model="targetQuery"
                 type="search"
                 class="ob-input ob-known-search"
-                placeholder="Search languages…"
-                aria-label="Search taught languages"
+                :placeholder="t('onboarding.searchLanguages', 'Search languages…')"
+                :aria-label="t('onboarding.searchTaughtLanguages', 'Search taught languages')"
                 autofocus
               />
               <ul class="ob-known-opts">
@@ -952,7 +953,7 @@ async function continueIn() {
                       {{ o.name }}
                       <!-- The attractive signal: languages on the year-long
                            school offer, visible at the choice point. -->
-                      <span v-if="o.yearFree || yearTrialTargets.has(o.value)" class="ob-tier">Free for a year</span>
+                      <span v-if="o.yearFree || yearTrialTargets.has(o.value)" class="ob-tier">{{ t('onboarding.freeForAYear', 'Free for a year') }}</span>
                     </span>
                     <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />
@@ -960,7 +961,7 @@ async function continueIn() {
                   </button>
                 </li>
                 <li v-if="!visibleTargetOptions.length" class="ob-known-empty">
-                  No languages match “{{ targetQuery }}”.
+                  {{ t('onboarding.noLanguagesMatch', 'No languages match “{query}”.').replace('{query}', targetQuery) }}
                 </li>
               </ul>
             </div>
@@ -973,10 +974,10 @@ async function continueIn() {
           <template v-if="!isOrgDoor">
           <div v-if="selectedCourseObj" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
-              <span class="ob-claim-eyebrow">You're teaching</span>
+              <span class="ob-claim-eyebrow">{{ t('onboarding.youreTeaching', "You're teaching") }}</span>
               <span class="ob-claim-endonym">{{ courseLabel(selectedCourseObj) }}</span>
               <span class="ob-claim-echo">
-                Free for {{ selectedTrialDays }} days
+                {{ t('onboarding.freeForDays', 'Free for {days} days').replace('{days}', String(selectedTrialDays)) }}
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
@@ -989,7 +990,7 @@ async function continueIn() {
                 type="button"
                 class="ob-claim-change"
                 @click="selectedCourse = ''"
-              >Change language</button>
+              >{{ t('onboarding.changeLanguage', 'Change language') }}</button>
             </FrostCard>
           </div>
 
@@ -997,8 +998,8 @@ async function continueIn() {
                available" copy for a transient 500 sends a real school away. -->
           <div v-else-if="catalogueError" class="ob-field">
             <p class="ob-muted">
-              We couldn't load the language list.
-              <button type="button" class="ob-link" @click="retryCatalogue">Try again</button>
+              {{ t('onboarding.catalogueError', "We couldn't load the language list.") }}
+              <button type="button" class="ob-link" @click="retryCatalogue">{{ t('onboarding.tryAgain', 'Try again') }}</button>
             </p>
           </div>
 
@@ -1012,7 +1013,7 @@ async function continueIn() {
                  ("thought you just said I was teaching English? what other
                  course?" — Aran, 2026-07-16). This dropdown is the learners'
                  HOME language, not another course; framed as that directly. -->
-            <legend class="ob-label">Your learners mainly speak</legend>
+            <legend class="ob-label">{{ t('onboarding.learnersMainlySpeak', 'Your learners mainly speak') }}</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
                  list AND filter with the search box. -->
@@ -1021,8 +1022,8 @@ async function continueIn() {
                 v-model="langQuery"
                 type="search"
                 class="ob-input ob-lang-search"
-                placeholder="Search languages…"
-                aria-label="Search languages"
+                :placeholder="t('onboarding.searchLanguages', 'Search languages…')"
+                :aria-label="t('onboarding.searchLanguagesAria', 'Search languages')"
               />
               <div v-if="visibleCourses.length" class="ob-lang-list" role="radiogroup">
                 <label
@@ -1046,9 +1047,9 @@ async function continueIn() {
                   </svg>
                 </label>
               </div>
-              <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
-              <p v-else-if="langQuery" class="ob-muted">No languages match “{{ langQuery }}”.</p>
-              <p v-else class="ob-muted">No languages available for this signup yet.</p>
+              <p v-else-if="!coursesLoaded" class="ob-muted">{{ t('onboarding.loadingLanguages', 'Loading languages…') }}</p>
+              <p v-else-if="langQuery" class="ob-muted">{{ t('onboarding.noLanguagesMatch', 'No languages match “{query}”.').replace('{query}', langQuery) }}</p>
+              <p v-else class="ob-muted">{{ t('onboarding.noLanguagesAvailable', 'No languages available for this signup yet.') }}</p>
             </template>
 
             <!-- SHORT showcase (heritage set): a few considered cards. -->
@@ -1075,24 +1076,24 @@ async function continueIn() {
                   </svg>
                 </label>
               </div>
-              <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
-              <p v-else class="ob-muted">No languages available for this signup yet.</p>
+              <p v-else-if="!coursesLoaded" class="ob-muted">{{ t('onboarding.loadingLanguages', 'Loading languages…') }}</p>
+              <p v-else class="ob-muted">{{ t('onboarding.noLanguagesAvailable', 'No languages available for this signup yet.') }}</p>
             </template>
           </fieldset>
 
           <!-- Heritage door with nothing selected: with 0 deployed heritage
                courses there is no picker at all, so say so instead of leaving
                a silent blank form with Send permanently disabled. -->
-          <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+          <p v-else-if="!coursesLoaded" class="ob-muted">{{ t('onboarding.loadingLanguages', 'Loading languages…') }}</p>
           <p v-else-if="!targetOptions.length" class="ob-muted">
-            No languages available for this signup yet.
+            {{ t('onboarding.noLanguagesAvailable', 'No languages available for this signup yet.') }}
           </p>
           </template>
 
           <!-- Already signed in: no email/OTP capture — greet and confirm
                identity instead (mirrors RedeemCode.vue's confirm step). -->
           <div v-if="isSignedIn" class="ob-field">
-            <p class="ob-sub">Continuing as <strong>{{ signedInEmail }}</strong></p>
+            <p class="ob-sub">{{ t('onboarding.continuingAs', 'Continuing as') }} <strong>{{ signedInEmail }}</strong></p>
             <!-- A head who taps her old signup link a second time landed back
                  on "which language will you teach?" with no way out but picking
                  one again — the door never said "you already have a school"
@@ -1100,23 +1101,23 @@ async function continueIn() {
                  who isn't a member, so this is safe for any signed-in visitor. -->
             <div class="ob-links">
               <button type="button" class="ob-link" :disabled="busy" @click="goToDashboard">
-                Already set up? Go to your dashboard
+                {{ t('onboarding.alreadySetUp', 'Already set up? Go to your dashboard') }}
               </button>
               <span class="ob-link-sep" aria-hidden="true">·</span>
               <button type="button" class="ob-link" :disabled="busy" @click="useDifferentEmail">
-                Not you? Sign out
+                {{ t('onboarding.notYouSignOut', 'Not you? Sign out') }}
               </button>
             </div>
           </div>
 
           <div v-else class="ob-field">
-            <label class="ob-label" for="ob-email">Your email</label>
+            <label class="ob-label" for="ob-email">{{ t('onboarding.yourEmail', 'Your email') }}</label>
             <input
               id="ob-email"
               v-model="email"
               type="email"
               class="ob-input"
-              placeholder="you@example.com"
+              :placeholder="t('onboarding.emailPlaceholder', 'you@example.com')"
               autocomplete="email"
               @keyup.enter="sendCode"
             />
@@ -1133,7 +1134,7 @@ async function continueIn() {
             :disabled="(isOrgDoor ? !orgName.trim() : !selectedCourse) || busy"
             @click="continueSignedIn"
           >
-            Continue
+            {{ t('session.continue', 'Continue') }}
           </Button>
           <template v-else>
             <Button
@@ -1144,22 +1145,22 @@ async function continueIn() {
               :disabled="!canSend"
               @click="sendCode"
             >
-              Send my code
+              {{ t('onboarding.sendMyCode', 'Send my code') }}
             </Button>
-            <p class="ob-fine">We'll email you a 6-digit code to confirm your account.</p>
+            <p class="ob-fine">{{ t('onboarding.sixDigitFine', "We'll email you a 6-digit code to confirm your account.") }}</p>
           </template>
         </section>
 
         <!-- STEP 2: OTP -->
         <section v-else-if="step === 'otp'" key="otp" class="ob-step">
-          <p class="ob-trial ob-trial-quiet">Almost there</p>
-          <h1 class="ob-title">Check your email</h1>
+          <p class="ob-trial ob-trial-quiet">{{ t('onboarding.almostThere', 'Almost there') }}</p>
+          <h1 class="ob-title">{{ t('onboarding.checkYourEmail', 'Check your email') }}</h1>
           <p class="ob-sub">
-            Enter the 6-digit code we sent to <strong>{{ email }}</strong>.
+            {{ t('onboarding.enterSixDigit', 'Enter the 6-digit code we sent to') }} <strong>{{ email }}</strong>.
           </p>
 
           <div class="ob-field">
-            <label class="ob-label" for="ob-otp">Confirmation code</label>
+            <label class="ob-label" for="ob-otp">{{ t('onboarding.confirmationCode', 'Confirmation code') }}</label>
             <div
               class="ob-otp-wrap"
               :class="{ 'is-full': otp.trim().length >= 6 }"
@@ -1184,13 +1185,13 @@ async function continueIn() {
                 autocomplete="one-time-code"
                 maxlength="6"
                 class="ob-otp-input"
-                aria-label="Confirmation code"
+                :aria-label="t('onboarding.confirmationCode', 'Confirmation code')"
                 aria-describedby="ob-otp-hint"
                 @keyup.enter="verify"
               />
             </div>
             <p id="ob-otp-hint" class="ob-fine ob-fine-left">
-              Paste the whole code — we'll sort it out.
+              {{ t('onboarding.pasteWholeCode', "Paste the whole code — we'll sort it out.") }}
             </p>
           </div>
 
@@ -1201,8 +1202,8 @@ async function continueIn() {
           <div v-if="orgDuplicateWarning" class="ob-warning" role="alert">
             <p class="ob-warning-text">{{ orgDuplicateWarning }}</p>
             <div class="ob-warning-actions">
-              <Button variant="secondary" size="md" :disabled="busy" @click="renameOrgFromWarning">Change the name</Button>
-              <Button variant="primary" size="md" :loading="busy" @click="confirmDuplicateOrg">Go ahead anyway</Button>
+              <Button variant="secondary" size="md" :disabled="busy" @click="renameOrgFromWarning">{{ t('onboarding.changeTheName', 'Change the name') }}</Button>
+              <Button variant="primary" size="md" :loading="busy" @click="confirmDuplicateOrg">{{ t('onboarding.goAheadAnyway', 'Go ahead anyway') }}</Button>
             </div>
           </div>
 
@@ -1217,7 +1218,7 @@ async function continueIn() {
             :loading="busy"
             @click="goToDashboard"
           >
-            Go to your school dashboard
+            {{ t('onboarding.goToSchoolDashboard', 'Go to your school dashboard') }}
           </Button>
           <Button
             v-else
@@ -1228,22 +1229,19 @@ async function continueIn() {
             :disabled="otp.trim().length < 6 || busy"
             @click="verify"
           >
-            Confirm &amp; start
+            {{ t('onboarding.confirmAndStart', 'Confirm and start') }}
           </Button>
 
           <div class="ob-links">
-            <button type="button" class="ob-link" @click="changeEmail">Change email</button>
+            <button type="button" class="ob-link" @click="changeEmail">{{ t('onboarding.changeEmail', 'Change email') }}</button>
             <span class="ob-link-sep" aria-hidden="true">·</span>
-            <button type="button" class="ob-link" :disabled="busy" @click="sendCode">Resend code</button>
+            <button type="button" class="ob-link" :disabled="busy" @click="sendCode">{{ t('onboarding.resendCode', 'Resend code') }}</button>
           </div>
 
           <Transition name="fade">
             <div v-if="showDeliveryHint" class="ob-delivery-hint">
               <p>
-                Still nothing? School email filters often block these codes outright.
-                Try entering a personal email address instead — you can add your school
-                email later — or ask whoever sent your invite to re-share the link.
-                Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+                {{ t('onboarding.deliveryHint', 'Still nothing? School email filters often block these codes outright. Try entering a personal email address instead — you can add your school email later — or ask whoever sent your invite to re-share the link. Still stuck? Email') }} <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
               </p>
             </div>
           </Transition>
@@ -1261,46 +1259,46 @@ async function continueIn() {
 
           <!-- Returning user: straight welcome-back, no finishing form. -->
           <template v-if="isReturning">
-            <h1 class="ob-title ob-title-done">Welcome back</h1>
-            <p class="ob-sub">You're already set up — let's get you back to your dashboard.</p>
+            <h1 class="ob-title ob-title-done">{{ t('onboarding.welcomeBack', 'Welcome back') }}</h1>
+            <p class="ob-sub">{{ t('onboarding.alreadySetUpSub', "You're already set up — let's get you back to your dashboard.") }}</p>
             <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
             <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
-              Go to my dashboard
+              {{ t('onboarding.goToMyDashboard', 'Go to my dashboard') }}
             </Button>
           </template>
 
           <!-- New user: confirm + optional details. -->
           <template v-else>
-            <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
+            <h1 class="ob-title ob-title-done">{{ t('onboarding.courseIsReady', '{course} is ready').replace('{course}', selectedCourseLabel) }}</h1>
             <p v-if="trialEndLabel" class="ob-sub">
-              Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
+              {{ t('onboarding.freeUntil', 'Free until') }} <strong class="ob-date">{{ trialEndLabel }}</strong>. {{ t('onboarding.noCardNeeded', 'No card needed to start.') }}
             </p>
             <p v-else class="ob-sub">
-              Your account is ready — no card needed to start.
+              {{ t('onboarding.accountReady', 'Your account is ready — no card needed to start.') }}
             </p>
 
             <div class="ob-finishing">
-              <p class="ob-finishing-head">A couple of details <span>(optional)</span></p>
+              <p class="ob-finishing-head">{{ t('onboarding.coupleOfDetails', 'A couple of details') }} <span>{{ t('onboarding.optional', '(optional)') }}</span></p>
 
               <div class="ob-field">
-                <label class="ob-label" for="ob-name">Your name</label>
+                <label class="ob-label" for="ob-name">{{ t('settings.yourNamePlaceholder', 'Your name') }}</label>
                 <input
                   id="ob-name"
                   v-model="displayName"
                   type="text"
                   class="ob-input"
-                  placeholder="What shall we call you?"
+                  :placeholder="t('onboarding.whatShallWeCallYou', 'What shall we call you?')"
                 />
               </div>
 
               <div v-if="cfg.collectInstitution" class="ob-field">
-                <label class="ob-label" for="ob-inst">School / institution</label>
+                <label class="ob-label" for="ob-inst">{{ t('onboarding.schoolInstitution', 'School / institution') }}</label>
                 <input
                   id="ob-inst"
                   v-model="institution"
                   type="text"
                   class="ob-input"
-                  placeholder="e.g. Ysgol Gymraeg…"
+                  :placeholder="t('onboarding.institutionPlaceholder', 'e.g. Ysgol Gymraeg…')"
                 />
               </div>
             </div>
@@ -1308,9 +1306,9 @@ async function continueIn() {
             <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
             <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
-              Continue
+              {{ t('session.continue', 'Continue') }}
             </Button>
-            <p class="ob-fine">You can change these anytime in your settings.</p>
+            <p class="ob-fine">{{ t('onboarding.changeAnytime', 'You can change these anytime in your settings.') }}</p>
           </template>
         </section>
       </Transition>

@@ -14,6 +14,7 @@
  * checkout, no state.
  */
 import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { t } from '@/composables/useI18n'
 import { partnerDoorCopy } from './partners'
 
 const props = defineProps<{ partner: string }>()

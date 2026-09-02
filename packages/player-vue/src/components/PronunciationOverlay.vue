@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { t } from '@/composables/useI18n'
 import { dirFor } from '@ssi/core'
 import {
   extractPitchContour,

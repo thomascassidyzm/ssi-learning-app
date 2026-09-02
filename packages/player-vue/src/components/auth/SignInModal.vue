@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject, onUnmounted } from 'vue'
+import { t } from '@/composables/useI18n'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -307,7 +308,7 @@ const handleClose = () => {
   <AuthModal :is-open="isOpen" :title="stepTitle" @close="handleClose">
     <!-- Code Entry Step (invite code flow) -->
     <div v-if="step === 'code'" class="auth-form">
-      <p class="code-intro">Enter your invite or access code below.</p>
+      <p class="code-intro">{{ t('auth.enterCodeIntro', 'Enter your invite or access code below.') }}</p>
 
       <Transition name="error">
         <div v-if="validationError" class="error-message">
@@ -321,14 +322,14 @@ const handleClose = () => {
       </Transition>
 
       <div class="input-group">
-        <label for="invite-code" class="input-label">Invite Code</label>
+        <label for="invite-code" class="input-label">{{ t('auth.inviteCode', 'Invite code') }}</label>
         <div class="input-wrapper code-input-wrapper" :class="{ focused: codeInput }">
           <input
             id="invite-code"
             :value="codeInput"
             @input="handleCodeInput"
             type="text"
-            placeholder="ABC-123"
+            :placeholder="t('settings.codePlaceholder', 'ABC-123')"
             autocomplete="off"
             maxlength="7"
           />
@@ -342,7 +343,7 @@ const handleClose = () => {
         :disabled="codeInput.length < 5 || isValidating"
         @click="handleValidateCode"
       >
-        <span v-if="!isValidating">Validate Code</span>
+        <span v-if="!isValidating">{{ t('auth.validateCode', 'Validate code') }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
@@ -351,8 +352,8 @@ const handleClose = () => {
       </button>
 
       <p class="switch-mode">
-        Don't have a code?
-        <button type="button" @click="step = 'email'">Continue without a code</button>
+        {{ t('auth.dontHaveCode', "Don't have a code?") }}
+        <button type="button" @click="step = 'email'">{{ t('auth.continueWithoutCode', 'Continue without a code') }}</button>
       </p>
     </div>
 
@@ -364,14 +365,14 @@ const handleClose = () => {
       </div>
 
       <button type="button" class="submit-btn" @click="step = 'email'">
-        Continue
+        {{ t('session.continue', 'Continue') }}
       </button>
 
       <button type="button" class="back-btn" @click="clearPendingCode(); codeInput = ''; step = 'code'">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
-        Use a different code
+        {{ t('auth.useDifferentCode', 'Use a different code') }}
       </button>
     </div>
 
@@ -380,7 +381,7 @@ const handleClose = () => {
       <!-- Entitlement context banner -->
       <div v-if="entitlementBanner" class="entitlement-banner">
         {{ entitlementBanner }}
-        <span class="entitlement-sub">Sign in to activate</span>
+        <span class="entitlement-sub">{{ t('auth.signInToActivate', 'Sign in to activate') }}</span>
       </div>
 
       <Transition name="error">
@@ -395,7 +396,7 @@ const handleClose = () => {
       </Transition>
 
       <div class="input-group">
-        <label for="auth-email" class="input-label">Email</label>
+        <label for="auth-email" class="input-label">{{ t('auth.email', 'Email') }}</label>
         <div class="input-wrapper" :class="{ focused: email, invalid: email && !isEmailValid }">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -405,7 +406,7 @@ const handleClose = () => {
             id="auth-email"
             v-model="email"
             type="email"
-            placeholder="you@example.com"
+            :placeholder="t('onboarding.emailPlaceholder', 'you@example.com')"
             autocomplete="email"
             required
           />
@@ -414,7 +415,7 @@ const handleClose = () => {
 
       <!-- Password input (when using password mode) -->
       <div v-if="usePassword" class="input-group">
-        <label for="auth-password" class="input-label">Password</label>
+        <label for="auth-password" class="input-label">{{ t('auth.password', 'Password') }}</label>
         <div class="input-wrapper" :class="{ focused: password }">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -424,14 +425,14 @@ const handleClose = () => {
             id="auth-password"
             v-model="password"
             type="password"
-            placeholder="Your password"
+            :placeholder="t('auth.yourPassword', 'Your password')"
             autocomplete="current-password"
             required
           />
         </div>
       </div>
 
-      <p v-if="!usePassword" class="otp-hint">We'll send you a code</p>
+      <p v-if="!usePassword" class="otp-hint">{{ t('auth.wellSendCode', "We'll send you a code") }}</p>
 
       <button
         type="submit"
@@ -439,7 +440,7 @@ const handleClose = () => {
         :class="{ loading: isLoading }"
         :disabled="usePassword ? (!canSubmitEmail || !password) : !canSubmitEmail"
       >
-        <span v-if="!isLoading">{{ usePassword ? 'Sign In' : 'Continue' }}</span>
+        <span v-if="!isLoading">{{ usePassword ? t('auth.signIn', 'Sign in') : t('session.continue', 'Continue') }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
@@ -449,12 +450,12 @@ const handleClose = () => {
 
       <p class="switch-mode">
         <button type="button" @click="usePassword = !usePassword; error = ''; password = ''">
-          {{ usePassword ? 'Use email code instead' : 'Use password instead' }}
+          {{ usePassword ? t('auth.useEmailCode', 'Use email code instead') : t('auth.usePassword', 'Use password instead') }}
         </button>
       </p>
 
       <p v-if="!pendingCode" class="got-code-link">
-        <button type="button" @click="step = 'code'">Got an access code?</button>
+        <button type="button" @click="step = 'code'">{{ t('auth.gotAccessCode', 'Got an access code?') }}</button>
       </p>
     </form>
 
@@ -467,7 +468,7 @@ const handleClose = () => {
             <path d="M22 6l-10 7L2 6"/>
           </svg>
         </div>
-        <p>We've sent a code to</p>
+        <p>{{ t('auth.sentCodeTo', "We've sent a code to") }}</p>
         <p class="verification-email">{{ email }}</p>
       </div>
 
@@ -483,7 +484,7 @@ const handleClose = () => {
       </Transition>
 
       <div class="input-group">
-        <label for="auth-code" class="input-label">Verification Code</label>
+        <label for="auth-code" class="input-label">{{ t('auth.verificationCode', 'Verification code') }}</label>
         <div class="input-wrapper verification-input" :class="{ focused: verificationCode }">
           <input
             id="auth-code"
@@ -505,7 +506,7 @@ const handleClose = () => {
         :class="{ loading: isLoading }"
         :disabled="verificationCode.length < 6 || isLoading"
       >
-        <span v-if="!isLoading">Verify</span>
+        <span v-if="!isLoading">{{ t('settings.verify', 'Verify') }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
@@ -514,17 +515,14 @@ const handleClose = () => {
       </button>
 
       <p class="resend-code">
-        Didn't receive the code?
-        <button type="button" @click="resendCode">Resend</button>
+        {{ t('auth.didntReceive', "Didn't receive the code?") }}
+        <button type="button" @click="resendCode">{{ t('auth.resend', 'Resend') }}</button>
       </p>
 
       <Transition name="error">
         <div v-if="showDeliveryHint" class="delivery-hint">
           <p>
-            Still nothing? School email filters often block these codes outright.
-            Try entering a personal email address instead — you can add your school
-            email later — or ask whoever sent your invite to re-share the link.
-            Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+            {{ t('onboarding.deliveryHint', 'Still nothing? School email filters often block these codes outright. Try entering a personal email address instead — you can add your school email later — or ask whoever sent your invite to re-share the link. Still stuck? Email') }} <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
           </p>
         </div>
       </Transition>
@@ -533,7 +531,7 @@ const handleClose = () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
-        Back
+        {{ t('common.back', 'Back') }}
       </button>
     </form>
   </AuthModal>

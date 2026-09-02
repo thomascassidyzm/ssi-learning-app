@@ -6,6 +6,7 @@
  * Submits feedback directly to the tester_feedback Supabase table.
  */
 import { ref, computed, inject } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { envLabel, triggerPreviewCheat, type PreviewTriggerParam } from '@/composables/usePreviewTriggers'

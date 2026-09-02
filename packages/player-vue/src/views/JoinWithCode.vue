@@ -29,6 +29,7 @@
  * never about security. That is the true reason as well as the persuasive one.
  */
 import { computed, inject, onMounted, ref } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute, useRouter } from 'vue-router'
 import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 
@@ -138,14 +139,13 @@ onMounted(() => {
   <div class="join-page">
     <div class="join-card">
       <template v-if="step === 'entry' || step === 'redeeming'">
-        <h1 class="join-title">Your way in</h1>
+        <h1 class="join-title">{{ t('join.title', 'Your way in') }}</h1>
         <p class="join-lede">
-          Someone at your school made you an access code. Type it in below &mdash;
-          no email, no waiting.
+          {{ t('join.lede', 'Someone at your school made you an access code. Type it in below — no email, no waiting.') }}
         </p>
 
         <form class="join-form" @submit.prevent="submit">
-          <label class="join-label" for="join-code">Access code</label>
+          <label class="join-label" for="join-code">{{ t('join.accessCode', 'Access code') }}</label>
           <input
             id="join-code"
             v-model="prettyCode"
@@ -155,24 +155,23 @@ onMounted(() => {
             autocapitalize="characters"
             autocomplete="one-time-code"
             spellcheck="false"
-            placeholder="ABCD-EFGH"
+            :placeholder="t('join.codePlaceholder', 'ABCD-EFGH')"
             :disabled="step === 'redeeming'"
           />
           <p v-if="error" class="join-error" role="alert">{{ error }}</p>
           <button type="submit" class="join-submit" :disabled="!canSubmit">
-            {{ step === 'redeeming' ? 'Signing you in…' : 'Sign me in' }}
+            {{ step === 'redeeming' ? t('join.signingYouIn', 'Signing you in…') : t('join.signMeIn', 'Sign me in') }}
           </button>
         </form>
 
         <p class="join-foot">
-          Codes last two days and work once. If yours has run out, whoever gave
-          it to you can make another straight away.
+          {{ t('join.foot', 'Codes last two days and work once. If yours has run out, whoever gave it to you can make another straight away.') }}
         </p>
       </template>
 
       <template v-else>
-        <h1 class="join-title">You&rsquo;re in</h1>
-        <p class="join-lede">Setting up your way back to your classes.</p>
+        <h1 class="join-title">{{ t('join.youreIn', 'You’re in') }}</h1>
+        <p class="join-lede">{{ t('join.settingUp', 'Setting up your way back to your classes.') }}</p>
       </template>
     </div>
 

@@ -7,6 +7,7 @@
  * action here is one tap, no password/email/birthday from a child ever.
  */
 import { ref, computed, watch } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useFamilyManagement } from '@/composables/useFamilyManagement'
 
 const props = defineProps<{ isOpen: boolean }>()
