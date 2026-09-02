@@ -39,9 +39,15 @@ const props = defineProps<{
    */
   rowActionLabel?: string
   rowActionWalk?: string
+  /** A second, independent per-row verb — same contract as the first. */
+  rowAction2Label?: string
+  rowAction2Walk?: string
 }>()
 
-const emit = defineEmits<{ (e: 'row-action', rowKey: string): void }>()
+const emit = defineEmits<{
+  (e: 'row-action', rowKey: string): void
+  (e: 'row-action-2', rowKey: string): void
+}>()
 
 const router = useRouter()
 const route = useRoute()
@@ -224,6 +230,13 @@ function open(row: Row): void {
         :data-walk="rowActionWalk"
         @click="emit('row-action', row.key)"
       >{{ rowActionLabel }}</button>
+      <button
+        v-if="rowAction2Label"
+        type="button"
+        class="child-row-action"
+        :data-walk="rowAction2Walk"
+        @click="emit('row-action-2', row.key)"
+      >{{ rowAction2Label }}</button>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
       <slot name="empty">Nothing here yet.</slot>
@@ -234,8 +247,18 @@ function open(row: Row): void {
 <style scoped>
 .child-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .child-row + .child-row { border-top: 1px solid rgba(44, 38, 34, 0.06); }
-.child-row { display: flex; align-items: center; }
-.child-row .child-btn { flex: 1; min-width: 0; }
+.child-row { display: flex; align-items: center; flex-wrap: wrap; }
+.child-row .child-btn { flex: 1 1 100%; min-width: 0; }
+
+/* Two row verbs beside a name is fine on a laptop and squeezes the name off a
+   phone. Below the fold of a narrow screen the verbs wrap under the person
+   they belong to, which is also the order you read them in. */
+@media (min-width: 560px) {
+  .child-row .child-btn { flex: 1 1 auto; }
+}
+@media (max-width: 559px) {
+  .child-row-action { margin-left: var(--space-4); margin-bottom: 8px; }
+}
 
 .child-row-action {
   flex: none; margin-right: var(--space-4); font: inherit; font-size: var(--text-sm);
