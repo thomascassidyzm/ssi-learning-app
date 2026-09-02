@@ -224,7 +224,10 @@ try {
   if (await btn.count()) {
     await btn.click()
     await ap.waitForTimeout(4000)
-    await ap.screenshot({ path: `${SHOTS}/3-signin-link-panel.png`, fullPage: true })
+    const panelEl = ap.locator('.signin-link-panel').first()
+    if (await panelEl.count()) await panelEl.scrollIntoViewIfNeeded()
+    await ap.waitForTimeout(1200)
+    await ap.screenshot({ path: `${SHOTS}/3-signin-link-panel.png`, fullPage: false })
     const panel = await ap.evaluate(() => /Hand this to/i.test(document.body.innerText))
     log(panel, 'the admin sees a copyable sign-in link with its plain-language caveat')
   } else {
