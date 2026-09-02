@@ -364,6 +364,15 @@
 :lang(zho) {
   --font-body: var(--font-coverage);
   --font-known-line: var(--font-coverage);
+  /* Display headings need the switch too. `--font-display` is set on :root, and
+   * an inherited custom property is not reached by the `font-family` line
+   * below — the same trap `--font-known-line` above already documents. So a
+   * heading naming var(--font-display) kept resolving to Noto Sans JP / DM
+   * Sans, neither of which spells Devanagari, and the player's course-name
+   * heading rendered as tofu boxes on a Hindi interface while every body
+   * string on the same screen was fine (staging, 2026-09-02, once deep links
+   * started sending real visitors to a Hindi UI). */
+  --font-display: var(--font-coverage);
   font-family: var(--font-coverage);
 }
 
