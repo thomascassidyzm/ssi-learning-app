@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
@@ -7,10 +8,10 @@ import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: 'profile', label: 'School profile' },
-  { id: 'locale', label: 'Localisation' },
-  { id: 'data', label: 'Data & privacy' },
-  { id: 'billing', label: 'Billing' },
+  { id: 'profile', label: t('schoolSettings.profile', 'School profile') },
+  { id: 'locale', label: t('schoolSettings.localisation', 'Localisation') },
+  { id: 'data', label: t('schoolSettings.dataPrivacy', 'Data & privacy') },
+  { id: 'billing', label: t('schoolSettings.billing', 'Billing') },
 ]
 
 const isAdminView = inject<boolean>('isAdminView', false)
@@ -52,26 +53,26 @@ const localizationSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 const dataToggles = ref<{ id: string; title: string; desc: string; value: boolean }[]>([
   {
     id: 'analytics',
-    title: 'Share anonymised analytics with the SSi team',
-    desc: 'Helps us improve recommendations across schools.',
+    title: t('schoolSettings.toggleAnalytics', 'Share anonymised analytics with the SSi team'),
+    desc: t('schoolSettings.toggleAnalyticsDesc', 'Helps us improve recommendations across schools.'),
     value: true,
   },
   {
     id: 'messaging',
-    title: 'Allow students to message each other',
-    desc: 'Disabled by default in school accounts.',
+    title: t('schoolSettings.toggleMessaging', 'Allow students to message each other'),
+    desc: t('schoolSettings.toggleMessagingDesc', 'Disabled by default in school accounts.'),
     value: false,
   },
   {
     id: 'realnames',
-    title: 'Show student real names to other students',
-    desc: 'When off, only first name + initial is shown.',
+    title: t('schoolSettings.toggleRealNames', 'Show student real names to other students'),
+    desc: t('schoolSettings.toggleRealNamesDesc', 'When off, only first name + initial is shown.'),
     value: true,
   },
   {
     id: 'retention',
-    title: 'Retain inactive accounts after 12 months',
-    desc: 'Otherwise we delete them automatically.',
+    title: t('schoolSettings.toggleRetention', 'Retain inactive accounts after 12 months'),
+    desc: t('schoolSettings.toggleRetentionDesc', 'Otherwise we delete them automatically.'),
     value: false,
   },
 ])
@@ -347,7 +348,7 @@ function toggleDataItem(id: string) {
 
 <template>
   <main class="settings-screen">
-    <h1 class="arsenal page-title">Settings</h1>
+    <h1 class="arsenal page-title">{{ t('settings.title', 'Settings') }}</h1>
 
     <div class="settings-layout">
       <aside class="schools-card section-nav">
@@ -365,57 +366,57 @@ function toggleDataItem(id: string) {
 
       <div class="settings-content">
         <section v-if="activeSection === 'profile'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">School profile</h2>
+          <h2 class="arsenal panel-title">{{ t('schoolSettings.profile', 'School profile') }}</h2>
           <label class="field">
-            <span class="field-label">School name</span>
+            <span class="field-label">{{ t('setup.schoolName', 'School name') }}</span>
             <input v-model="schoolNameEdit" class="field-input" type="text" :readonly="!canEditSchool" />
           </label>
           <label class="field">
-            <span class="field-label">Type</span>
-            <input value="Bilingual immersion · primary + lower secondary" class="field-input" type="text" readonly />
-            <span class="field-hint">Type is set by your group administrator.</span>
+            <span class="field-label">{{ t('schoolSettings.type', 'Type') }}</span>
+            <input :value="t('schoolSettings.typeValue', 'Bilingual immersion · primary + lower secondary')" class="field-input" type="text" readonly />
+            <span class="field-hint">{{ t('schoolSettings.typeHint', 'Type is set by your group administrator.') }}</span>
           </label>
           <div class="field-row">
             <label class="field">
-              <span class="field-label">City</span>
+              <span class="field-label">{{ t('schoolSettings.city', 'City') }}</span>
               <input v-model="city" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
             <label class="field">
-              <span class="field-label">Region</span>
+              <span class="field-label">{{ t('schoolSettings.region', 'Region') }}</span>
               <input v-model="region" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
           </div>
           <label class="field">
-            <span class="field-label">Contact email</span>
+            <span class="field-label">{{ t('schoolSettings.contactEmail', 'Contact email') }}</span>
             <input v-model="schoolEmailEdit" class="field-input" type="email" :readonly="!canEditSchool" />
           </label>
           <label class="field">
-            <span class="field-label">About</span>
-            <textarea v-model="about" rows="3" class="field-input field-textarea" placeholder="A short description of your school." :readonly="!canEditSchool" />
+            <span class="field-label">{{ t('schoolSettings.about', 'About') }}</span>
+            <textarea v-model="about" rows="3" class="field-input field-textarea" :placeholder="t('schoolSettings.aboutPlaceholder', 'A short description of your school.')" :readonly="!canEditSchool" />
           </label>
-          <p v-if="!canEditSchool" class="field-hint">Only a school admin can edit the school profile.</p>
+          <p v-if="!canEditSchool" class="field-hint">{{ t('schoolSettings.adminOnly', 'Only a school admin can edit the school profile.') }}</p>
           <div v-if="canEditSchool" class="panel-actions">
             <button type="button" class="btn-play" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
-              {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+              {{ profileSaveStatus === 'saving' ? t('common.saving', 'Saving…') : profileSaveStatus === 'saved' ? t('common.saved', 'Saved') : t('schoolSettings.saveChanges', 'Save changes') }}
             </button>
-            <button type="button" class="btn-ghost">Cancel</button>
+            <button type="button" class="btn-ghost">{{ t('common.cancel', 'Cancel') }}</button>
           </div>
         </section>
 
         <section v-else-if="activeSection === 'locale'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Localisation</h2>
+          <h2 class="arsenal panel-title">{{ t('schoolSettings.localisation', 'Localisation') }}</h2>
           <label class="field">
-            <span class="field-label">Default interface language</span>
+            <span class="field-label">{{ t('schoolSettings.defaultLanguage', 'Default interface language') }}</span>
             <select v-model="language" class="field-input">
               <option value="en">English</option>
               <option value="cy">Cymraeg (Welsh)</option>
               <option value="es">Español (Spanish)</option>
               <option value="br">Brezhoneg (Breton)</option>
             </select>
-            <span class="field-hint">Teachers and students can override individually.</span>
+            <span class="field-hint">{{ t('schoolSettings.overrideHint', 'Teachers and students can override individually.') }}</span>
           </label>
           <label class="field">
-            <span class="field-label">Time zone</span>
+            <span class="field-label">{{ t('schoolSettings.timezone', 'Time zone') }}</span>
             <select v-model="timezone" class="field-input">
               <option value="Europe/London">Europe/London</option>
               <option value="Europe/Paris">Europe/Paris</option>
@@ -425,16 +426,16 @@ function toggleDataItem(id: string) {
             </select>
           </label>
           <label class="field">
-            <span class="field-label">Week starts on</span>
+            <span class="field-label">{{ t('schoolSettings.weekStartsOn', 'Week starts on') }}</span>
             <select v-model="weekStart" class="field-input">
-              <option value="Monday">Monday</option>
-              <option value="Sunday">Sunday</option>
+              <option value="Monday">{{ t('schoolSettings.monday', 'Monday') }}</option>
+              <option value="Sunday">{{ t('schoolSettings.sunday', 'Sunday') }}</option>
             </select>
           </label>
           <div class="toggle-row">
             <div>
-              <div class="toggle-title">Show flags on courses</div>
-              <div class="toggle-desc">Display country flags next to course names.</div>
+              <div class="toggle-title">{{ t('schoolSettings.showFlags', 'Show flags on courses') }}</div>
+              <div class="toggle-desc">{{ t('schoolSettings.showFlagsDesc', 'Display country flags next to course names.') }}</div>
             </div>
             <button
               type="button"
@@ -448,63 +449,63 @@ function toggleDataItem(id: string) {
           </div>
           <div v-if="!isAdminView" class="panel-actions">
             <button type="button" class="btn-play" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
-              {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+              {{ localizationSaveStatus === 'saving' ? t('common.saving', 'Saving…') : localizationSaveStatus === 'saved' ? t('common.saved', 'Saved') : t('schoolSettings.saveChanges', 'Save changes') }}
             </button>
           </div>
         </section>
 
         <section v-else-if="activeSection === 'data'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Data &amp; privacy</h2>
+          <h2 class="arsenal panel-title">{{ t('schoolSettings.dataPrivacy', 'Data & privacy') }}</h2>
           <div
-            v-for="t in dataToggles"
-            :key="t.id"
+            v-for="tg in dataToggles"
+            :key="tg.id"
             class="toggle-row toggle-row-bordered"
           >
             <div>
-              <div class="toggle-title">{{ t.title }}</div>
-              <div class="toggle-desc">{{ t.desc }}</div>
+              <div class="toggle-title">{{ tg.title }}</div>
+              <div class="toggle-desc">{{ tg.desc }}</div>
             </div>
             <button
               type="button"
               class="toggle"
-              :class="{ on: t.value }"
-              :aria-pressed="t.value"
-              @click="toggleDataItem(t.id)"
+              :class="{ on: tg.value }"
+              :aria-pressed="tg.value"
+              @click="toggleDataItem(tg.id)"
             >
               <span class="toggle-thumb" />
             </button>
           </div>
           <div class="panel-actions data-actions">
             <button type="button" class="btn-ghost" :disabled="isExporting" @click="handleExportData">
-              {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
+              {{ isExporting ? t('schoolSettings.preparing', 'Preparing…') : t('schoolSettings.downloadAll', 'Download all data (.csv)') }}
             </button>
           </div>
 
           <div v-if="canEditSchool" class="danger-zone">
-            <h3 class="danger-zone-title">Danger zone</h3>
+            <h3 class="danger-zone-title">{{ t('schoolSettings.dangerZone', 'Danger zone') }}</h3>
             <div class="toggle-row toggle-row-bordered">
               <div>
-                <div class="toggle-title">Delete this school</div>
-                <div class="toggle-desc">Permanently deletes the school, its classes and enrolments. Cannot be undone.</div>
+                <div class="toggle-title">{{ t('schoolSettings.deleteThisSchool', 'Delete this school') }}</div>
+                <div class="toggle-desc">{{ t('schoolSettings.deleteSchoolDesc', 'Permanently deletes the school, its classes and enrolments. Cannot be undone.') }}</div>
               </div>
-              <button type="button" class="btn-danger" @click="openDeleteSchoolModal">Delete school</button>
+              <button type="button" class="btn-danger" @click="openDeleteSchoolModal">{{ t('schoolSettings.deleteSchool', 'Delete school') }}</button>
             </div>
           </div>
         </section>
 
         <section v-else-if="activeSection === 'billing'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Billing</h2>
+          <h2 class="arsenal panel-title">{{ t('schoolSettings.billing', 'Billing') }}</h2>
           <div class="plan-card">
-            <div class="schools-kicker plan-kicker">Current plan</div>
+            <div class="schools-kicker plan-kicker">{{ t('schoolSettings.currentPlan', 'Current plan') }}</div>
             <div class="arsenal plan-title">{{ planLine }}</div>
-            <div class="plan-meta">£{{ PRICE_PER_SEAT_GBP }} per teacher seat / month.</div>
+            <div class="plan-meta">{{ t('schoolSettings.perSeatMonth', '£{price} per teacher seat / month.').replace('{price}', String(PRICE_PER_SEAT_GBP)) }}</div>
           </div>
 
           <!-- Subscription + seats are managed on the canonical Upgrade page so
                there's a single payment surface (no duplicated checkout logic). -->
           <div class="panel-actions">
             <router-link to="/schools/upgrade" class="btn-play">
-              {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
+              {{ isSubscribed ? t('schoolSettings.manageSubSeats', 'Manage subscription and seats →') : t('schoolSettings.subscribeSeats', 'Subscribe / choose seats →') }}
             </router-link>
             <!-- Paddle portal: invoices, card updates, cancellation. -->
             <button
@@ -514,7 +515,7 @@ function toggleDataItem(id: string) {
               :disabled="isOpeningPortal"
               @click="openBillingPortal"
             >
-              {{ isOpeningPortal ? 'Opening…' : 'Billing & invoices' }}
+              {{ isOpeningPortal ? t('settings.opening', 'Opening…') : t('schoolSettings.billingInvoices', 'Billing and invoices') }}
             </button>
           </div>
           <p v-if="portalError" class="portal-error" role="alert">{{ portalError }}</p>
@@ -524,7 +525,7 @@ function toggleDataItem(id: string) {
 
     <ConfirmDeleteModal
       :is-open="showDeleteSchoolModal"
-      title="Delete school"
+      :title="t('schoolSettings.deleteSchool', 'Delete school')"
       :target-name="deleteSchoolImpact?.schoolName || activeSchool?.school_name || ''"
       :impact-lines="deleteSchoolImpactLines"
       :require-typed-confirm="!!deleteSchoolImpact?.hasRealActivity"
