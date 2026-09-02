@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { openInApp } from '../composables/useInAppBrowser'
+import { t } from '@/composables/useI18n'
 import { ref, inject, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
@@ -492,7 +493,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <!-- Loading spinner while auth or the role cache initialises -->
     <div v-if="isAuthLoading || isRoleLoading" class="schools-loading">
       <div class="loading-spinner"></div>
-      <p>Loading...</p>
+      <p>{{ t('loading.loadingEllipsis', 'Loading…') }}</p>
     </div>
 
     <!-- Login / no-access — two-pane brand + form layout -->
@@ -502,19 +503,17 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         <header class="brand-logo brand-text">
           <span class="logo-mark">S</span>
           <span class="logo-text">
-            SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>
+            SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">{{ t('settings.schools', 'Schools') }}</span>
           </span>
         </header>
 
         <div class="brand-body">
-          <div class="brand-kicker">Welcome back</div>
+          <div class="brand-kicker">{{ t('onboarding.welcomeBack', 'Welcome back') }}</div>
           <h1 class="arsenal brand-headline">
-            Welcome back.<br />Your classes are waiting.
+            {{ t('schools.loginHeadline1', 'Welcome back.') }}<br />{{ t('schools.loginHeadline2', 'Your classes are waiting.') }}
           </h1>
           <p class="brand-lede">
-            Sign in to see how your class is doing, play a session together, or jump into the
-            analytics for the week. We work on Chromebooks, tablets and phones — and we never
-            store student passwords.
+            {{ t('schools.loginLede', 'Sign in to see how your class is doing, play a session together, or jump into the analytics for the week. We work on Chromebooks, tablets and phones — and we never store student passwords.') }}
           </p>
         </div>
 
@@ -528,7 +527,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             class="brand-footer-link"
             @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')"
           >
-            ← Back to saysomethingin.com
+            {{ t('schools.backToSite', '← Back to saysomethingin.com') }}
           </a>
         </footer>
       </aside>
@@ -542,15 +541,15 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             class="login-form"
             @submit.prevent="handleSignInSubmit"
           >
-            <h2 class="arsenal form-title">Sign in</h2>
+            <h2 class="arsenal form-title">{{ t('auth.signIn', 'Sign in') }}</h2>
             <p class="form-lede">
               {{ usePassword
-                ? 'Enter the email your school registered with us, and your password.'
-                : "Enter the email address your school registered with us. We'll send a single-use code." }}
+                ? t('schools.loginLedePassword', 'Enter the email your school registered with us, and your password.')
+                : t('schools.loginLedeCode', "Enter the email address your school registered with us. We'll send a single-use code.") }}
             </p>
 
             <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
-              Your session has expired — please sign in again.
+              {{ t('schools.sessionExpired', 'Your session has expired — please sign in again.') }}
             </div>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
@@ -558,22 +557,22 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <label class="form-field">
-              <span class="form-label">School email</span>
+              <span class="form-label">{{ t('schools.schoolEmail', 'School email') }}</span>
               <input
                 v-model="loginEmail"
                 type="email"
-                placeholder="you@school.edu"
+                :placeholder="t('schools.schoolEmailPlaceholder', 'you@school.edu')"
                 autocomplete="email"
                 autofocus
               />
             </label>
 
             <label v-if="usePassword" class="form-field">
-              <span class="form-label">Password</span>
+              <span class="form-label">{{ t('auth.password', 'Password') }}</span>
               <input
                 v-model="loginPassword"
                 type="password"
-                placeholder="Your password"
+                :placeholder="t('auth.yourPassword', 'Your password')"
                 autocomplete="current-password"
               />
             </label>
@@ -583,8 +582,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               class="btn-play btn-play--block"
               :disabled="!isEmailValid || isLoginLoading || (usePassword && !loginPassword)"
             >
-              <template v-if="usePassword">{{ isLoginLoading ? 'Signing in…' : 'Sign in →' }}</template>
-              <template v-else>{{ isLoginLoading ? 'Sending…' : 'Send me a code →' }}</template>
+              <template v-if="usePassword">{{ isLoginLoading ? t('schools.signingIn', 'Signing in…') : t('schools.signInArrow', 'Sign in →') }}</template>
+              <template v-else>{{ isLoginLoading ? t('common.sending', 'Sending…') : t('schools.sendMeACode', 'Send me a code →') }}</template>
             </button>
 
             <!-- Two peer routes in, not one route and a wall. -->
@@ -594,16 +593,12 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
                 class="form-secondary"
                 @click="usePassword = !usePassword; loginError = ''; loginPassword = ''"
               >
-                {{ usePassword ? 'Email me a code instead' : 'Use a password instead' }}
+                {{ usePassword ? t('schools.emailMeCodeInstead', 'Email me a code instead') : t('auth.usePassword', 'Use password instead') }}
               </button>
             </div>
 
             <p class="form-footnote">
-              Codes from us are often blocked by school email filters. If yours never
-              arrives, ask whoever runs your school&rsquo;s account to open your school
-              and tap <strong>Access code</strong> next to your name. They can read the
-              code out to you &mdash; no email at all, and you can set a password the
-              moment you are in.
+              {{ t('schools.codeFilterFootnotePre', 'Codes from us are often blocked by school email filters. If yours never arrives, ask whoever runs your school’s account to open your school and tap') }} <strong>{{ t('join.accessCode', 'Access code') }}</strong> {{ t('schools.codeFilterFootnotePost', 'next to your name. They can read the code out to you — no email at all, and you can set a password the moment you are in.') }}
             </p>
           </form>
 
@@ -613,9 +608,9 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             class="login-form"
             @submit.prevent="handleVerifyOtp"
           >
-            <h2 class="arsenal form-title">Check your email</h2>
+            <h2 class="arsenal form-title">{{ t('onboarding.checkYourEmail', 'Check your email') }}</h2>
             <p class="form-lede">
-              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It expires in about an hour.
+              {{ t('schools.weSentCodeTo', 'We sent a 6-digit code to') }} <strong>{{ loginEmail }}</strong>. {{ t('schools.expiresInHour', 'It expires in about an hour.') }}
             </p>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
@@ -623,7 +618,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <label class="form-field">
-              <span class="form-label">Verification code</span>
+              <span class="form-label">{{ t('auth.verificationCode', 'Verification code') }}</span>
               <input
                 v-model="loginOtp"
                 type="text"
@@ -642,7 +637,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               class="btn-play btn-play--block"
               :disabled="loginOtp.length < 6 || isLoginLoading"
             >
-              {{ isLoginLoading ? 'Verifying…' : 'Verify and sign in →' }}
+              {{ isLoginLoading ? t('settings.verifying', 'Verifying…') : t('schools.verifyAndSignIn', 'Verify and sign in →') }}
             </button>
 
             <div class="form-secondary-row">
@@ -652,22 +647,19 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
                 :disabled="isLoginLoading"
                 @click="handleResendCode"
               >
-                Resend code
+                {{ t('onboarding.resendCode', 'Resend code') }}
               </button>
               <button type="button" class="form-secondary" @click="handleBackToEmail">
-                Use a different email
+                {{ t('redeem.useDifferentEmail', 'Use a different email') }}
               </button>
             </div>
 
             <!-- Never a dead end: name the routes that need no inbox. -->
             <div v-if="showDeliveryHint" class="form-alert form-alert--info" role="status">
-              Still nothing? School email filters block these codes outright, and
-              there is nothing you can do at your end about it. Two ways in that
-              need no email: sign in with a
-              <button type="button" class="form-inline-link" @click="handleBackToEmail(); usePassword = true">password</button>,
-              if you have set one &mdash; or ask whoever runs your school&rsquo;s
-              account to open your school and tap <strong>Access code</strong> next
-              to your name, and read it out to you. Still stuck?
+              {{ t('schools.deliveryHintPre', 'Still nothing? School email filters block these codes outright, and there is nothing you can do at your end about it. Two ways in that need no email: sign in with a') }}
+              <button type="button" class="form-inline-link" @click="handleBackToEmail(); usePassword = true">{{ t('auth.password', 'Password').toLowerCase() }}</button>,
+              {{ t('schools.deliveryHintMid', 'if you have set one — or ask whoever runs your school’s account to open your school and tap') }} <strong>{{ t('join.accessCode', 'Access code') }}</strong>
+              {{ t('schools.deliveryHintPost', 'next to your name, and read it out to you. Still stuck?') }}
               <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
             </div>
           </form>
@@ -678,12 +670,11 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             class="login-form"
             @submit.prevent="handleRedeemCode"
           >
-            <span class="no-access-pill">● No school access yet</span>
-            <h2 class="arsenal form-title">You're signed in, but…</h2>
+            <span class="no-access-pill">● {{ t('schools.noAccessPill', 'No school access yet') }}</span>
+            <h2 class="arsenal form-title">{{ t('schools.signedInBut', "You're signed in, but…") }}</h2>
             <p class="form-lede">
-              We couldn't find a school account linked to
-              <strong>{{ authedEmail || 'this address' }}</strong>. Ask your school admin for a
-              join code, or set up a new school below.
+              {{ t('schools.noSchoolFoundPre', "We couldn't find a school account linked to") }}
+              <strong>{{ authedEmail || t('schools.thisAddress', 'this address') }}</strong>. {{ t('schools.noSchoolFoundPost', 'Ask your school admin for a join code, or set up a new school below.') }}
             </p>
 
             <div v-if="joinCodeError" class="form-alert form-alert--error" role="alert">
@@ -694,11 +685,11 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <label v-if="!joinCodeSuccess" class="form-field">
-              <span class="form-label">Join code from your school</span>
+              <span class="form-label">{{ t('schools.joinCodeLabel', 'Join code from your school') }}</span>
               <input
                 v-model="joinCode"
                 type="text"
-                placeholder="e.g. KMP-7Q3X"
+                :placeholder="t('schools.joinCodePlaceholder', 'e.g. KMP-7Q3X')"
                 class="join-code-input"
                 autofocus
               />
@@ -710,21 +701,21 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               class="btn-play btn-play--block"
               :disabled="!joinCode.trim() || isJoinCodeLoading"
             >
-              {{ isJoinCodeLoading ? 'Checking…' : 'Join school →' }}
+              {{ isJoinCodeLoading ? t('schools.checking', 'Checking…') : t('schools.joinSchool', 'Join school →') }}
             </button>
 
             <div class="form-divider" />
             <a href="/schools1" class="form-secondary form-secondary--link">
-              I'm setting up a new school →
+              {{ t('schools.settingUpNewSchool', "I'm setting up a new school →") }}
             </a>
             <router-link to="/tutors/dashboard" class="form-secondary form-secondary--link">
-              I'm a tutor — go to my dashboard →
+              {{ t('schools.imATutor', "I'm a tutor — go to my dashboard →") }}
             </router-link>
             <a href="/" class="form-secondary form-secondary--link">
-              Just here to learn → go to the app
+              {{ t('schools.justHereToLearn', 'Just here to learn → go to the app') }}
             </a>
             <button type="button" class="form-escape-link" @click="handleSignOut">
-              Not your account? Sign out
+              {{ t('schools.notYourAccount', 'Not your account? Sign out') }}
             </button>
           </form>
         </div>
@@ -734,12 +725,11 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <!-- Platform trial / subscription expired — pay IN-APP (no dead-end). -->
     <div v-else-if="showExpired" class="schools-expired">
       <div class="expired-card">
-        <span class="expired-pill">● Trial ended</span>
+        <span class="expired-pill">● {{ t('schools.trialEnded', 'Trial ended') }}</span>
         <!-- "trial", not "month": free/Welsh-track schools get a full year. -->
-        <h1 class="arsenal expired-headline">Your free trial has ended</h1>
+        <h1 class="arsenal expired-headline">{{ t('schools.trialEndedHeadline', 'Your free trial has ended') }}</h1>
         <p class="expired-lede">
-          Subscribe below to keep your classes, analytics and student progress.
-          Your data is safe — nothing is deleted.
+          {{ t('schools.trialEndedLede', 'Subscribe below to keep your classes, analytics and student progress. Your data is safe — nothing is deleted.') }}
         </p>
         <UpgradeView />
       </div>
@@ -775,8 +765,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
            visible sign something needs attention, so admins fix the card before
            the terminal lockout. -->
       <div v-if="ctx.platformPastDue.value" class="schools-past-due-banner">
-        ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
-        <router-link to="/schools/upgrade">Manage billing</router-link>
+        ⚠️ {{ t('schools.pastDueBanner', "There's a problem with your school's payment. Please update your card to avoid losing access.") }}
+        <router-link to="/schools/upgrade">{{ t('schools.manageBilling', 'Manage billing') }}</router-link>
       </div>
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
