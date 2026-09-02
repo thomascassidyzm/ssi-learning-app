@@ -614,7 +614,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
           >
             <h2 class="arsenal form-title">Check your email</h2>
             <p class="form-lede">
-              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It expires in 10 minutes.
+              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It expires in about an hour.
             </p>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
