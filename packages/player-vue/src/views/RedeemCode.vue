@@ -960,8 +960,8 @@ function goHome() {
           </button>
           <p class="detail-text detail-text--muted">
             If your school email never delivers our codes, ask whoever runs your
-            school&rsquo;s account to open Teachers and tap <strong>Sign-in link</strong>
-            next to your name. That link signs you in with no email at all.
+            school&rsquo;s account to open Teachers and tap <strong>Access code</strong>
+            next to your name. They can read it out to you &mdash; no email at all.
           </p>
         </div>
 

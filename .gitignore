@@ -87,3 +87,9 @@ packages/player-vue/e2e/schools-nav/viewas-*.png
 !.env.example
 *.pem
 *.key
+
+# scratch helpers from the teacher-return-route worktree (local only)
+.psqlrun.sh
+.dbq.mjs
+.run.sh
+.ddl-staff-access-codes.sql

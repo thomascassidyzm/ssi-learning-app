@@ -36,7 +36,22 @@ import {
 } from '@/composables/useManagerOnboarding'
 import { detectFromBrowser, installFraming } from '@/utils/installPlatform'
 
-const props = defineProps<{ isOpen: boolean }>()
+const props = defineProps<{
+  isOpen: boolean
+  /**
+   * Let the password walk be escaped. Default FALSE, which is the org lane's
+   * behaviour unchanged — a manager who arrived by magic link has no other way
+   * back in, so that gate has never had a skip and still does not.
+   *
+   * The teacher return route (views/JoinWithCode.vue) opts IN to a skip on
+   * purpose: a teacher redeeming an access code in the middle of a lesson must
+   * be able to get on with their day, and their admin can always mint another
+   * code. Blocking them there would be the same wall we are dismantling.
+   */
+  allowSkip?: boolean
+  /** Re-voice the opening beat when "a link in an email" is not how they got here. */
+  whyCopy?: string
+}>()
 const emit = defineEmits<{ close: []; passworded: [] }>()
 
 const auth = inject<any>('auth', null)
@@ -85,7 +100,13 @@ const beat = ref(0)
 
 const walk = computed(() => (phase.value === 'password' ? PASSWORD_WALK : INSTALL_WALK.value))
 const currentBeat = computed<Beat>(() => walk.value.beats[beat.value] ?? 'why')
-const say = computed(() => walk.value.say[currentBeat.value])
+const say = computed(() => {
+  if (phase.value === 'password' && currentBeat.value === 'why' && props.whyCopy) return props.whyCopy
+  return walk.value.say[currentBeat.value]
+})
+
+/** Shown to the password manager so it saves against the right account. */
+const accountEmail = computed<string>(() => auth?.user?.value?.email ?? '')
 
 const password = ref('')
 const confirm = ref('')
@@ -108,8 +129,20 @@ const wantsInstall = computed(() =>
   shouldPromptInstall({ standalone: platform.isStandalone, dismissed: dismissed.value }),
 )
 
-/** The password walk never offers an escape; the install walk always does. */
-const dismissible = computed(() => phase.value === 'install')
+/**
+ * The install walk always offers an escape. The password walk offers one only
+ * where the caller asked for it (see `allowSkip`), and never on the terminal
+ * beat, where the only verb left is "Done".
+ */
+const dismissible = computed(
+  () => phase.value === 'install' || (!!props.allowSkip && currentBeat.value !== 'done'),
+)
+
+/** Skipping the password walk is simply leaving; skipping install is remembered. */
+function onSkip(): void {
+  if (phase.value === 'password') emit('close')
+  else skipInstall()
+}
 
 const showBack = computed(() => beat.value > 0 && currentBeat.value !== 'done')
 
@@ -208,13 +241,28 @@ function skipInstall(): void {
             :dismissible="dismissible"
             @back="back"
             @next="advance"
-            @skip="skipInstall"
+            @skip="onSkip"
           >
             <!-- The doing, inside the card — the step is the form. -->
             <form
               v-if="phase === 'password' && currentBeat === 'do'"
               class="gate-form" @submit.prevent="advance"
             >
+              <!--
+                The account this password belongs to, for the DEVICE'S OWN
+                password manager. Without a username field alongside, iCloud
+                Keychain and Google Password Manager either decline to save or
+                save against the wrong entry — and then the password does not
+                autofill on the new laptop, which is the entire scenario this
+                walk exists for. Visible rather than hidden on purpose: a
+                manager will not offer to save a credential it cannot see, and
+                it also tells the teacher which account they are setting.
+              -->
+              <label class="gate-label" for="gate-username">Your account</label>
+              <input
+                id="gate-username" :value="accountEmail" type="email" class="frost-input gate-username"
+                autocomplete="username" readonly tabindex="-1"
+              />
               <label class="gate-label" for="gate-password">New password</label>
               <input
                 id="gate-password" v-model="password" type="password" class="frost-input"
@@ -230,6 +278,17 @@ function skipInstall(): void {
               <button type="submit" class="gate-submit-proxy" tabindex="-1" aria-hidden="true"></button>
             </form>
 
+            <!--
+              An escape in WORDS, not just the × in the corner. Only where the
+              caller opted in (allowSkip): a teacher redeeming an access code
+              between lessons has to be able to get on with their day, and a
+              close glyph is not something a hurried person reads as "you may
+              leave". The org lane passes no allowSkip and so still has neither.
+            -->
+            <div v-if="allowSkip && phase === 'password' && currentBeat !== 'done'" class="gate-aside">
+              <button type="button" class="gate-notnow" @click="emit('close')">Not now &mdash; remind me later</button>
+            </div>
+
             <div v-else-if="phase === 'install' && currentBeat === 'do'" class="gate-aside">
               <button type="button" class="gate-notnow" @click="skipInstall">Not now</button>
             </div>
@@ -241,6 +300,12 @@ function skipInstall(): void {
 </template>
 
 <style scoped>
+.gate-username {
+  /* Present and readable — a password manager ignores what it cannot see —
+     but visibly not the field being filled in. */
+  opacity: 0.6;
+  pointer-events: none;
+}
 .gate-overlay {
   position: fixed;
   inset: 0;

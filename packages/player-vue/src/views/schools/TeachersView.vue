@@ -146,7 +146,7 @@ async function handleRemoveTeacher(userId: string, name: string) {
 // email, so a teacher can sit outside their own account indefinitely. Their
 // own admin can hand them a working link instead — face to face, on Teams, on
 // paper. Anything but our email.
-const signinLinkFor = ref<{ user_id: string; name: string; link: string; email: string } | null>(null)
+const signinLinkFor = ref<{ user_id: string; name: string; code: string; joinUrl: string; email: string } | null>(null)
 const signinLinkBusy = ref('')
 const signinLinkError = ref('')
 const signinLinkCopied = ref(false)
@@ -157,17 +157,17 @@ async function handleSigninLink(userId: string, name: string) {
   signinLinkCopied.value = false
   const result = await createStaffSigninLink(userId)
   signinLinkBusy.value = ''
-  if (result.link) {
-    signinLinkFor.value = { user_id: userId, name, link: result.link, email: result.email || '' }
+  if (result.code && result.joinUrl) {
+    signinLinkFor.value = { user_id: userId, name, code: result.code, joinUrl: result.joinUrl, email: result.email || '' }
   } else {
-    signinLinkError.value = `Couldn't create a sign-in link for ${name}: ${result.error}`
+    signinLinkError.value = `Couldn't create an access code for ${name}: ${result.error}`
   }
 }
 
 async function copySigninLink() {
   if (!signinLinkFor.value) return
   try {
-    await navigator.clipboard.writeText(signinLinkFor.value.link)
+    await navigator.clipboard.writeText(signinLinkFor.value.joinUrl)
     signinLinkCopied.value = true
     setTimeout(() => { signinLinkCopied.value = false }, 2000)
   } catch {
@@ -323,22 +323,23 @@ watch(selectedUser, (newUser) => {
       </div>
 
       <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
-        <div class="schools-kicker">Sign-in link for {{ signinLinkFor.name }}</div>
+        <div class="schools-kicker">Access code for {{ signinLinkFor.name }}</div>
         <p class="signin-link-body">
-          Give this link to {{ signinLinkFor.name }} in person, on Teams, or however
-          you normally reach them. Opening it signs them straight in as themselves
-          &mdash; no email needed.
+          Read this out to {{ signinLinkFor.name }}, write it down, or paste it into
+          Teams &mdash; however you normally reach them. They go to
+          <strong>saysomethingin.app/join</strong> and type it in. No email needed.
         </p>
+        <div class="signin-link-code">{{ signinLinkFor.code }}</div>
         <div class="signin-link-row">
-          <code class="signin-link-url">{{ signinLinkFor.link }}</code>
+          <code class="signin-link-url">{{ signinLinkFor.joinUrl }}</code>
           <button type="button" class="btn-play btn-small" @click="copySigninLink">
-            {{ signinLinkCopied ? 'Copied' : 'Copy' }}
+            {{ signinLinkCopied ? 'Copied' : 'Copy link' }}
           </button>
         </div>
         <p class="signin-link-caveat schools-subtle">
-          It works once, and only for about an hour. Anyone who opens it becomes
-          {{ signinLinkFor.name }}, so send it to them directly and don't post it
-          anywhere shared. Need another? Just tap Sign-in link again.
+          It works once, and lasts two days. Whoever uses it becomes
+          {{ signinLinkFor.name }}, so give it to them directly and don't post it
+          anywhere shared. Need another? Just tap Access code again.
         </p>
         <button type="button" class="btn-ghost btn-small" @click="signinLinkFor = null">Done</button>
       </div>
@@ -408,7 +409,7 @@ watch(selectedUser, (newUser) => {
                 data-walk="teacher-signin-link"
                 @click="handleSigninLink(t.user_id, t.name)"
               >
-                {{ signinLinkBusy === t.user_id ? 'Creating…' : 'Sign-in link' }}
+                {{ signinLinkBusy === t.user_id ? 'Creating…' : 'Access code' }}
               </button>
               <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
                    deliberately refuses an admin, so a school can't lose its own
@@ -523,6 +524,21 @@ watch(selectedUser, (newUser) => {
   margin: 0;
   font-size: 0.9375rem;
   line-height: 1.45;
+}
+/* The code is the artefact: read aloud, copied off a screen, written on a
+   slip. It is set big and widely tracked so none of that is a squint. */
+.signin-link-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(1.5rem, 8vw, 2rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  margin-bottom: 0.625rem;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+  background: var(--bg-primary, #e8e3dd);
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 .signin-link-row {
   display: flex;

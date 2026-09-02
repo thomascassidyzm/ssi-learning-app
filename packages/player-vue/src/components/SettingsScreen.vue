@@ -1778,23 +1778,25 @@ const confirmReset = async () => {
 
           <div class="divider"></div>
 
-          <!-- Unverified primary email (possession-onboarded accounts only) —
-               a background nicety, never a gate: the account already works
-               fully without this. -->
+          <!-- A way to reach you — NOT "verification" (Tom's ruling,
+               2026-09-02). For a teacher who arrived on an admin-issued access
+               code, the admin already did the verifying; we are only asking for
+               a route back if they lose the device. So this never says
+               "unverified", never says "verify", and above all never gates
+               anything: the account works completely without it. -->
           <div v-if="isEmailUnverified" class="setting-row">
             <div class="setting-info">
               <span class="setting-label">
-                {{ isPrimaryEmailPlaceholder ? 'Add your email' : primaryEmail }}
-                <span v-if="!isPrimaryEmailPlaceholder" class="unverified-badge">unverified</span>
+                {{ isPrimaryEmailPlaceholder ? 'A way to reach you' : primaryEmail }}
               </span>
-              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Add an email so you can sign in on another device' : "We haven't confirmed you can receive mail at this address yet" }}</span>
+              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Somewhere we can reach you if you ever lose this device. Nothing else gets sent there.' : "If your school blocks our mail, add a personal address too — that's your way back in if you lose this device." }}</span>
               <!-- Outcome shown HERE, at the button that was pressed. The form
                    itself is below a collapsed section and off-screen on a phone. -->
               <span v-if="verifyingPrimary && addEmailError" class="setting-status error">{{ addEmailError }}</span>
               <span v-else-if="verifyingPrimary && addEmailStep === 'otp'" class="setting-status">Code sent — enter it below</span>
             </div>
             <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
-              {{ isSendingOtp ? 'Sending...' : (isPrimaryEmailPlaceholder ? 'Add email' : 'Verify now') }}
+              {{ isSendingOtp ? 'Sending...' : 'Add email' }}
             </button>
           </div>
 

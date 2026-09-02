@@ -601,8 +601,9 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             <p class="form-footnote">
               Codes from us are often blocked by school email filters. If yours never
               arrives, ask whoever runs your school&rsquo;s account to open your school
-              and tap <strong>Sign-in link</strong> next to your name &mdash; that signs
-              you in with no email at all.
+              and tap <strong>Access code</strong> next to your name. They can read the
+              code out to you &mdash; no email at all, and you can set a password the
+              moment you are in.
             </p>
           </form>
 
@@ -665,8 +666,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               need no email: sign in with a
               <button type="button" class="form-inline-link" @click="handleBackToEmail(); usePassword = true">password</button>,
               if you have set one &mdash; or ask whoever runs your school&rsquo;s
-              account to open your school and tap <strong>Sign-in link</strong> next
-              to your name. Still stuck?
+              account to open your school and tap <strong>Access code</strong> next
+              to your name, and read it out to you. Still stuck?
               <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
             </div>
           </form>

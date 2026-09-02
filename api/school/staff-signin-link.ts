@@ -31,15 +31,33 @@
  *     audit table can't be read (AUTH-CORE-07 — a quota that evaporates when
  *     the DB misbehaves is not a quota).
  *
- * The link is a real Supabase magic link: single-use, ~1h expiry, and whoever
- * clicks it becomes that user. That caveat is load bearing and is shown in the
- * UI, not buried here.
+ * WHAT IS HANDED OVER (changed 2026-09-02, Tom's ruling): a SHORT TYPEABLE
+ * CODE, not a Supabase `action_link`. The design assumes the artefact travels
+ * out of band — Teams, a screen, a printed slip, a voice across a staffroom —
+ * and a ~200-character URL does not survive any of those. So this mints an
+ * 8-character code (api/_utils/accessCode.ts), stores only its hash, and hands
+ * back both the code and a short `/join/CODE` URL so whichever channel the
+ * admin actually has will work.
+ *
+ * It is single-use and expires in 48 hours, and minting a new one for the same
+ * person KILLS any earlier live code — a stale slip in a shared inbox is worth
+ * nothing. Redemption is api/auth/access-code-redeem.ts.
+ *
+ * Whoever holds the code becomes that user, once. That caveat is load bearing
+ * and is shown in the UI, not buried here.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { getAppOrigin } from '../_utils/appOrigin'
+import {
+  ACCESS_CODE_TTL_MS,
+  accessCodeUrl,
+  formatAccessCode,
+  generateAccessCode,
+  hashAccessCode,
+} from '../_utils/accessCode'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -184,7 +202,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    // --- Mint. generateLink sends nothing; it returns the URL to us. ---
+    // --- Confirm the target is a real account before minting anything. ---
+    // The code signs THIS user in, so an account with no address on file has
+    // nothing for redemption to mint a session against.
     const { data: targetUser, error: userErr } = await supabase.auth.admin.getUserById(targetUserId)
     const email = targetUser?.user?.email
     if (userErr || !email) {
@@ -192,15 +212,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: { redirectTo: getAppOrigin(req) },
+    // --- Kill any earlier live code for this person. ---
+    // Reissue is the floor under this whole design ("the admin can always
+    // reissue"), and it must mean the OLD one stops working — otherwise every
+    // reissue leaves another live credential loose in a shared inbox. Expiring
+    // rather than deleting keeps the audit trail intact.
+    const { error: supersedeErr } = await supabase
+      .from('staff_access_codes')
+      .update({ expires_at: new Date().toISOString() })
+      .eq('target_user_id', targetUserId)
+      .is('redeemed_at', null)
+      .gt('expires_at', new Date().toISOString())
+    if (supersedeErr) {
+      // Refuse rather than leave two live codes out for one person.
+      console.error('[school/staff-signin-link] supersede failed — refusing:', supersedeErr.message)
+      res.status(503).json({ error: 'Please try again in a moment.' })
+      return
+    }
+
+    const code = generateAccessCode()
+    const expiresAt = new Date(Date.now() + ACCESS_CODE_TTL_MS).toISOString()
+    const { error: insertErr } = await supabase.from('staff_access_codes').insert({
+      code_hash: hashAccessCode(code),
+      target_user_id: targetUserId,
+      school_id: callerSchoolId,
+      created_by: auth.userId,
+      expires_at: expiresAt,
     })
-    const actionLink = (linkData as any)?.properties?.action_link
-    if (linkError || !actionLink) {
-      console.error('[school/staff-signin-link] generateLink failed:', linkError)
-      res.status(500).json({ error: 'Could not create a sign-in link. Please try again.' })
+    if (insertErr) {
+      console.error('[school/staff-signin-link] code insert failed:', insertErr.message)
+      res.status(500).json({ error: 'Could not create an access code. Please try again.' })
       return
     }
 
@@ -230,7 +271,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       console.warn('[school/staff-signin-link] audit insert threw:', auditErr)
     }
 
-    res.status(200).json({ success: true, action_link: actionLink, email })
+    res.status(200).json({
+      success: true,
+      access_code: formatAccessCode(code),
+      join_url: accessCodeUrl(getAppOrigin(req), code),
+      expires_at: expiresAt,
+      email,
+    })
   } catch (err) {
     console.error('[school/staff-signin-link] Error:', err)
     res.status(500).json({ error: 'Internal server error' })
