@@ -8,6 +8,14 @@ import router from './router'
 import { shouldReloadForPreloadError } from './utils/bootHeal'
 import { loadWebFonts } from './utils/loadWebFonts'
 import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
+import { applyDeepLinkLocale } from './utils/deepLinkLocale'
+
+// A deep link to a course sets the interface language to that course's KNOWN
+// language — the one the visitor already speaks — unless they have chosen a
+// language for themselves. Runs here, before createApp, so the first paint is
+// already right rather than flashing English and repainting.
+// See utils/deepLinkLocale.ts for the inference-never-overrides rule.
+if (typeof location !== 'undefined') applyDeepLinkLocale(location.search)
 
 // Cold-start boot marks (all from navigation start via performance.now()).
 // mainExec = the main bundle (Vue + App + its static dep tree) has finished
