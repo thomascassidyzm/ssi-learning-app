@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
@@ -223,7 +224,7 @@ if (typeof document !== 'undefined') {
       <button
         type="button"
         class="nav-toggle"
-        aria-label="Menu"
+        :aria-label="t('schools.menu', 'Menu')"
         aria-haspopup="true"
         :aria-expanded="mobileNavOpen"
         @click="toggleMobileNav"
@@ -256,7 +257,7 @@ if (typeof document !== 'undefined') {
            the standalone label yields its space to the chip. -->
       <span v-if="!isPlayingAsClass && schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
 
-      <nav class="tabs" aria-label="Schools sections">
+      <nav class="tabs" :aria-label="t('schools.sections', 'Schools sections')">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -267,7 +268,7 @@ if (typeof document !== 'undefined') {
         </router-link>
       </nav>
 
-      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
+      <nav v-if="mobileNavOpen" class="mobile-nav" :aria-label="t('schools.sections', 'Schools sections')">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -294,13 +295,13 @@ if (typeof document !== 'undefined') {
         v-if="!isOnPlayerRoute"
         to="/"
         class="learn-btn"
-        title="Learn — your own practice"
-        aria-label="Learn — your own practice"
+        :title="t('schools.learnYourOwn', 'Learn — your own practice')"
+        :aria-label="t('schools.learnYourOwn', 'Learn — your own practice')"
       >
         <svg class="learn-btn__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M2.5 1.2 10 6 2.5 10.8Z" fill="currentColor" />
         </svg>
-        <span class="learn-btn__label">Learn</span>
+        <span class="learn-btn__label">{{ t('schools.learn', 'Learn') }}</span>
       </router-link>
 
       <div class="user-menu">
@@ -313,7 +314,7 @@ if (typeof document !== 'undefined') {
           <span class="caret">▾</span>
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
-          <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">School settings</router-link>
+          <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.schoolSettings', 'School settings') }}</router-link>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
                existed, the only exit in the menu was "Sign out", which reads
@@ -321,8 +322,8 @@ if (typeof document !== 'undefined') {
                session (founder incident, 2026-07-18). -->
           <!-- Same affordance as the Learn button, so it follows the same rule:
                not offered while you're already in the player (2026-08-06). -->
-          <router-link v-if="!isOnPlayerRoute" to="/" class="menu-item" @click="closeMenu">My player</router-link>
-          <button type="button" class="menu-item" @click="signOut">Sign out</button>
+          <router-link v-if="!isOnPlayerRoute" to="/" class="menu-item" @click="closeMenu">{{ t('schools.myPlayer', 'My player') }}</router-link>
+          <button type="button" class="menu-item" @click="signOut">{{ t('settings.signOut', 'Sign out') }}</button>
         </div>
       </div>
     </div>

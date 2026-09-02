@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { t } from '@/composables/useI18n'
 
 interface Props {
   /** v-model value */
@@ -101,7 +102,7 @@ const classes = computed(() => [
       type="button"
       class="search-clear"
       @click="handleClear"
-      aria-label="Clear search"
+      :aria-label="t('schools.clearSearch', 'Clear search')"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/>

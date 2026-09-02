@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { t } from '@/composables/useI18n'
 
 interface FilterOption {
   value: string | number
@@ -138,7 +139,7 @@ const classes = computed(() => [
         type="button"
         class="filter-clear"
         @click="clearSelection"
-        aria-label="Clear filter"
+        :aria-label="t('schools.clearFilter', 'Clear filter')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>

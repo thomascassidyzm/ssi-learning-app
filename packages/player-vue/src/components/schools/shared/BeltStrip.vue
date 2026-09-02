@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps<{
   distribution: Record<string, number>
@@ -23,7 +24,7 @@ const segments = computed(() =>
     class="belt-strip"
     :style="{ height: `${props.height ?? 6}px`, borderRadius: `${(props.height ?? 6) / 2}px` }"
     role="img"
-    aria-label="Belt distribution"
+    :aria-label="t('schools.beltDistribution', 'Belt distribution')"
   >
     <div
       v-for="seg in segments"

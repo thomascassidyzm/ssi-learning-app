@@ -20,6 +20,7 @@
  * Dismissible, per-user, and it never nags twice in a session.
  */
 import { computed, inject, ref } from 'vue'
+import { t } from '@/composables/useI18n'
 import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 import { hasPasswordFlag } from '@/composables/useManagerOnboarding'
 
@@ -63,16 +64,14 @@ function onPassworded() {
 <template>
   <div v-if="show" class="pw-prompt schools-card schools-card-pad">
     <div class="pw-text">
-      <div class="schools-kicker">Set a password</div>
+      <div class="schools-kicker">{{ t('schools.setPasswordTitle', 'Set a password') }}</div>
       <p class="pw-body">
-        Right now the only way back into this account is a code emailed to you &mdash;
-        and school email filters often swallow those. A password takes ten seconds
-        and always works.
+        {{ t('schools.setPasswordBody', 'Right now the only way back into this account is a code emailed to you — and school email filters often swallow those. A password takes ten seconds and always works.') }}
       </p>
     </div>
     <div class="pw-actions">
-      <button type="button" class="btn-play btn-small" @click="gateOpen = true">Set a password</button>
-      <button type="button" class="btn-ghost btn-small" @click="dismiss">Not now</button>
+      <button type="button" class="btn-play btn-small" @click="gateOpen = true">{{ t('schools.setPasswordTitle', 'Set a password') }}</button>
+      <button type="button" class="btn-ghost btn-small" @click="dismiss">{{ t('install.notNow', 'Not now') }}</button>
     </div>
   </div>
   <ManagerOnboardingGate :is-open="gateOpen" @passworded="onPassworded" @close="gateOpen = false" />

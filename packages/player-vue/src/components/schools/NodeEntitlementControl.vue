@@ -6,6 +6,7 @@
 // its own course catalogue, and posts its own save — the host panel only
 // needs to pass {nodeId, nodeType}.
 import { ref, computed, watch, onMounted } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useAdminClient } from '@/composables/useAdminClient'
 import FrostCard from './shared/FrostCard.vue'
 import Button from './shared/Button.vue'
@@ -207,21 +208,21 @@ onMounted(() => {
 <template>
   <FrostCard variant="panel" class="node-entitlement">
     <div class="facet-head">
-      <span class="schools-kicker">Courses</span>
-      <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>Trial</span>
-      <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>Paid</span>
-      <span v-else class="status-pill tone-muted"><span class="status-dot"></span>Not set</span>
+      <span class="schools-kicker">{{ t('profile.courses', 'Courses') }}</span>
+      <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>{{ t('schools.trial', 'Trial') }}</span>
+      <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>{{ t('schools.paid', 'Paid') }}</span>
+      <span v-else class="status-pill tone-muted"><span class="status-dot"></span>{{ t('schools.notSet', 'Not set') }}</span>
     </div>
 
-    <p v-if="isLoading" class="facet-hint">Loading…</p>
+    <p v-if="isLoading" class="facet-hint">{{ t('loading.loadingEllipsis', 'Loading…') }}</p>
     <template v-else>
       <p v-if="displayState === 'trial' && currentTrialCourse" class="current-summary">
-        {{ currentTrialCourse.label }} — expires {{ formatExpiry(currentGrant?.expires_at ?? null) }}
+        {{ t('schools.courseExpires', '{course} — expires {date}').replace('{course}', currentTrialCourse.label).replace('{date}', formatExpiry(currentGrant?.expires_at ?? null)) }}
       </p>
-      <p v-else-if="displayState === 'paid'" class="current-summary">All courses, no expiry.</p>
-      <p v-else class="facet-hint">No course access set yet.</p>
+      <p v-else-if="displayState === 'paid'" class="current-summary">{{ t('schools.allCoursesNoExpiry', 'All courses, no expiry.') }}</p>
+      <p v-else class="facet-hint">{{ t('schools.noCourseAccess', 'No course access set yet.') }}</p>
 
-      <div class="state-toggle" role="radiogroup" aria-label="Course access state">
+      <div class="state-toggle" role="radiogroup" :aria-label="t('schools.courseAccessState', 'Course access state')">
         <button
           type="button"
           class="state-option"
@@ -230,7 +231,7 @@ onMounted(() => {
           :aria-checked="pendingState === 'trial'"
           @click="pendingState = 'trial'"
         >
-          Trial
+          {{ t('schools.trial', 'Trial') }}
         </button>
         <button
           type="button"
@@ -240,12 +241,12 @@ onMounted(() => {
           :aria-checked="pendingState === 'paid'"
           @click="pendingState = 'paid'"
         >
-          Paid
+          {{ t('schools.paid', 'Paid') }}
         </button>
       </div>
 
       <div v-if="pendingState === 'trial'" class="trial-picker">
-        <SearchBox v-model="courseSearch" placeholder="Search courses…" size="sm" block />
+        <SearchBox v-model="courseSearch" :placeholder="t('schools.searchCourses', 'Search courses…')" size="sm" block />
         <div class="course-list">
           <button
             v-for="c in filteredCourses"
@@ -257,19 +258,19 @@ onMounted(() => {
           >
             {{ courseLabel(c) }}
           </button>
-          <p v-if="filteredCourses.length === 0" class="facet-hint">No courses match.</p>
+          <p v-if="filteredCourses.length === 0" class="facet-hint">{{ t('schools.noCoursesMatchPlain', 'No courses match.') }}</p>
         </div>
         <p v-if="pendingCourseCode && courseByCode.get(pendingCourseCode)" class="expiry-preview">
-          Auto-expiry: {{ trialDaysFor(courseByCode.get(pendingCourseCode)!) }} days from save
+          {{ t('schools.autoExpiry', 'Auto-expiry: {days} days from save').replace('{days}', String(trialDaysFor(courseByCode.get(pendingCourseCode)!))) }}
         </p>
       </div>
-      <p v-else class="facet-hint">Every live course, no per-course selection.</p>
+      <p v-else class="facet-hint">{{ t('schools.everyLiveCourse', 'Every live course, no per-course selection.') }}</p>
 
       <p v-if="error" class="form-error">{{ error }}</p>
 
       <div class="facet-actions">
         <Button variant="primary" size="sm" :loading="isSaving" :disabled="isSaving" @click="save">
-          {{ isSaving ? 'Saving…' : 'Save' }}
+          {{ isSaving ? t('common.saving', 'Saving…') : t('common.save', 'Save') }}
         </Button>
       </div>
     </template>

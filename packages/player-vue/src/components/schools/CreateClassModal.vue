@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
+import { t } from '@/composables/useI18n'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 import LanguageFlag from './shared/LanguageFlag.vue'
@@ -193,8 +194,8 @@ const handleSubmit = () => {
           </div>
 
           <header class="modal-header">
-            <h2 id="modal-title" class="modal-title">Create New Class</h2>
-            <button class="modal-close" @click="handleClose" aria-label="Close modal">
+            <h2 id="modal-title" class="modal-title">{{ t('schools.createNewClass', 'Create new class') }}</h2>
+            <button class="modal-close" @click="handleClose" :aria-label="t('schools.closeModal', 'Close modal')">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -203,21 +204,21 @@ const handleSubmit = () => {
 
           <form class="modal-body" @submit.prevent="handleSubmit">
             <div class="form-group">
-              <label class="form-label" for="className">Class Name</label>
+              <label class="form-label" for="className">{{ t('schools.className', 'Class name') }}</label>
               <input
                 id="className"
                 v-model="className"
                 type="text"
                 class="form-input"
-                placeholder="e.g., Year 7 Welsh"
+                :placeholder="t('schools.classNamePlaceholder', 'e.g. Year 7 Welsh')"
                 autocomplete="off"
                 required
               />
-              <p class="form-hint">Choose a name that helps you identify this class</p>
+              <p class="form-hint">{{ t('schools.classNameHint', 'Choose a name that helps you identify this class') }}</p>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="courseCode">Course / Language</label>
+              <label class="form-label" for="courseCode">{{ t('schools.courseLanguage', 'Course / language') }}</label>
               <!-- Trial: locked to the one signed-up language. -->
               <template v-if="courseLocked">
                 <p class="form-locked"><LanguageFlag :code="courseList[0].code" :size="18" /> {{ courseList[0].name }}</p>
@@ -234,7 +235,7 @@ const handleSubmit = () => {
                 >
                   <LanguageFlag :code="selectedCourse.code" :size="18" />
                   <span>{{ selectedCourse.name }}</span>
-                  <span class="course-picker-change">Change</span>
+                  <span class="course-picker-change">{{ t('onboarding.changeLanguage', 'Change language') }}</span>
                 </button>
                 <input
                   v-else
@@ -242,7 +243,7 @@ const handleSubmit = () => {
                   v-model="courseSearch"
                   type="text"
                   class="form-input"
-                  :placeholder="isLoadingCatalogue ? 'Loading courses…' : 'Search courses…'"
+                  :placeholder="isLoadingCatalogue ? t('schools.loadingCourses', 'Loading courses…') : t('schools.searchCourses', 'Search courses…')"
                   autocomplete="off"
                   :disabled="isLoadingCatalogue"
                   required
@@ -257,7 +258,7 @@ const handleSubmit = () => {
                     </button>
                   </li>
                   <li v-if="filteredCourses.length === 0" class="course-picker-empty">
-                    No courses match "{{ courseSearch }}"
+                    {{ t('schools.noCoursesMatch', 'No courses match “{query}”').replace('{query}', courseSearch) }}
                   </li>
                 </ul>
                 <p v-if="catalogueError" class="form-hint">{{ catalogueError }}</p>
@@ -270,13 +271,13 @@ const handleSubmit = () => {
                 <path d="M12 16v-4"/>
                 <path d="M12 8h.01"/>
               </svg>
-              <p>A unique invite link will be generated automatically. Students click it to join your class.</p>
+              <p>{{ t('schools.inviteLinkInfo', 'A unique invite link will be generated automatically. Students click it to join your class.') }}</p>
             </div>
           </form>
 
           <footer class="modal-footer">
             <button type="button" class="btn-cancel" @click="handleClose">
-              Cancel
+              {{ t('common.cancel', 'Cancel') }}
             </button>
             <button
               type="submit"
@@ -285,7 +286,7 @@ const handleSubmit = () => {
               @click="handleSubmit"
             >
               <span v-if="submitting" class="btn-spinner"></span>
-              <span v-else>Create Class</span>
+              <span v-else>{{ t('schools.createClass', 'Create class') }}</span>
             </button>
           </footer>
         </div>

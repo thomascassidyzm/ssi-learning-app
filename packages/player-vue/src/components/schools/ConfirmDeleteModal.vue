@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { t } from '@/composables/useI18n'
 
 // Reusable in-app confirmation for destructive schools-hierarchy deletes
 // (class / school / group self-serve delete) — replaces browser
@@ -57,7 +58,7 @@ function handleConfirm() {
 
           <header class="modal-header">
             <h2 id="delete-modal-title" class="modal-title">{{ title }}</h2>
-            <button class="modal-close" type="button" @click="handleClose" aria-label="Cancel">
+            <button class="modal-close" type="button" @click="handleClose" :aria-label="t('common.cancel', 'Cancel')">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -76,11 +77,11 @@ function handleConfirm() {
                 <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
-              <p>This cannot be undone.</p>
+              <p>{{ t('schools.cannotBeUndone', 'This cannot be undone.') }}</p>
             </div>
 
             <div v-if="requireTypedConfirm" class="form-group">
-              <label class="form-label" for="confirmName">Type the name exactly to confirm</label>
+              <label class="form-label" for="confirmName">{{ t('schools.typeNameToConfirm', 'Type the name exactly to confirm') }}</label>
               <input
                 id="confirmName"
                 v-model="typedName"
@@ -96,7 +97,7 @@ function handleConfirm() {
           </div>
 
           <footer class="modal-footer">
-            <button type="button" class="btn-cancel" :disabled="submitting" @click="handleClose">Cancel</button>
+            <button type="button" class="btn-cancel" :disabled="submitting" @click="handleClose">{{ t('common.cancel', 'Cancel') }}</button>
             <button type="button" class="btn-delete" :disabled="!canConfirm" @click="handleConfirm">
               <span v-if="submitting" class="btn-spinner"></span>
               <span v-else>{{ confirmLabel }}</span>

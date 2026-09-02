@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -51,22 +52,22 @@ const isSignedIn = computed(() => auth?.isAuthenticated.value ?? false)
 const user = computed(() => auth?.user.value ?? null)
 
 const baseTabs: NavTab[] = [
-  { name: 'dashboard', path: '/schools', label: 'Dashboard' },
-  { name: 'teachers', path: '/schools/teachers', label: 'Teachers' },
-  { name: 'students', path: '/schools/students', label: 'Students' },
-  { name: 'classes', path: '/schools/classes', label: 'Classes' },
+  { name: 'dashboard', path: '/schools', label: t('schools.dashboard', 'Dashboard') },
+  { name: 'teachers', path: '/schools/teachers', label: t('schools.teachers', 'Teachers') },
+  { name: 'students', path: '/schools/students', label: t('schools.students', 'Students') },
+  { name: 'classes', path: '/schools/classes', label: t('schools.classes', 'Classes') },
   // "Insights" is the one word for the Insight Engine door everywhere (the
   // destination was already THE LENS's teacher wrapper).
-  { name: 'analytics', path: '/schools/analytics', label: 'Insights' },
+  { name: 'analytics', path: '/schools/analytics', label: t('schools.insights', 'Insights') },
 ]
 
 const tabs = computed(() => {
   const result: NavTab[] = []
   // Solo tutors get a single always-visible Upgrade link (the canonical pay page).
-  if (props.mode === 'teach') return [{ name: 'teach-upgrade', path: '/tutors/dashboard/upgrade', label: 'Upgrade' }]
+  if (props.mode === 'teach') return [{ name: 'teach-upgrade', path: '/tutors/dashboard/upgrade', label: t('schools.upgrade', 'Upgrade') }]
   // Preview/demo: show the full teacher tab set (incl. Insights) without a role.
   if (props.forceTabs) {
-    return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]
+    return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: t('schools.insights', 'Insights') }]
   }
   if (isGovtAdmin.value) {
     // Nav unification (2026-07-29): a group-scoped leader's Schools door is
@@ -74,8 +75,8 @@ const tabs = computed(() => {
     // flat /schools/all survives only for legacy no-group govt_admin rows.
     const groupId = (selectedUser.value as any)?.group_id as string | undefined
     result.push(groupId
-      ? { name: 'all-schools', path: `/org/${groupId}?lens=schools`, label: 'Schools' }
-      : { name: 'all-schools', path: '/schools/all', label: 'Schools' })
+      ? { name: 'all-schools', path: `/org/${groupId}?lens=schools`, label: t('settings.schools', 'Schools') }
+      : { name: 'all-schools', path: '/schools/all', label: t('settings.schools', 'Schools') })
   }
   // Show school-owner tabs for actual school roles, or when god is
   // actively impersonating a user with a school context.
@@ -87,10 +88,10 @@ const tabs = computed(() => {
     const schoolId = (selectedUser.value as any)?.school_id as string | undefined
     if (isSchoolAdmin.value && schoolId) {
       result.push(
-        { name: 'dashboard', path: `/org/${schoolId}`, label: 'Dashboard' },
-        { name: 'students', path: '/schools/students', label: 'Students' },
-        { name: 'classes', path: '/schools/classes', label: 'Classes' },
-        { name: 'analytics', path: `/org/${schoolId}/insights`, label: 'Insights' },
+        { name: 'dashboard', path: `/org/${schoolId}`, label: t('schools.dashboard', 'Dashboard') },
+        { name: 'students', path: '/schools/students', label: t('schools.students', 'Students') },
+        { name: 'classes', path: '/schools/classes', label: t('schools.classes', 'Classes') },
+        { name: 'analytics', path: `/org/${schoolId}/insights`, label: t('schools.insights', 'Insights') },
       )
     } else {
       result.push(...baseTabs)
@@ -167,7 +168,7 @@ const closeMobileMenu = () => {
 </script>
 
 <template>
-  <nav class="top-nav" :aria-label="props.mode === 'teach' ? 'Teach navigation' : 'Schools navigation'">
+  <nav class="top-nav" :aria-label="props.mode === 'teach' ? t('schools.teachNav', 'Teach navigation') : t('schools.schoolsNav', 'Schools navigation')">
     <!-- Logo -->
     <router-link :to="logoHref" class="logo" :aria-label="props.mode === 'teach' ? 'SaySomethingin — Teach' : 'SaySomethingin — Schools'">
       <img class="logo-img" src="/ssi-web-logo.svg" alt="SaySomethingin" />
@@ -202,7 +203,7 @@ const closeMobileMenu = () => {
     <div v-else class="nav-tabs-spacer" aria-hidden="true"></div>
 
     <!-- Mobile Menu Button (stays during a class session — the way home) -->
-    <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
+    <button class="mobile-menu-btn" @click="toggleMobileMenu" :aria-label="t('schools.menu', 'Menu')">
       <svg v-if="!isMobileMenuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
         <line x1="4" y1="7" x2="20" y2="7"/>
         <line x1="4" y1="12" x2="20" y2="12"/>
@@ -221,7 +222,7 @@ const closeMobileMenu = () => {
         <svg class="chip-btn-glyph" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3l8 3v6c0 4.5-3.3 8.2-8 9-4.7-.8-8-4.5-8-9V6z"/>
         </svg>
-        Admin
+        {{ t('schools.admin', 'Admin') }}
       </button>
 
       <!-- Learn Button (into the immersive player, hidden in demo + on every
@@ -231,16 +232,16 @@ const closeMobileMenu = () => {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span>Learn something new yourself</span>
+        <span>{{ t('schools.learnSomethingNew', 'Learn something new yourself') }}</span>
       </button>
 
       <!-- Auth Buttons (when not signed in) -->
       <template v-if="isLoaded && !isSignedIn">
         <button class="auth-btn auth-btn--secondary" @click="emit('signIn')">
-          Sign In
+          {{ t('auth.signIn', 'Sign in') }}
         </button>
         <button class="auth-btn auth-btn--primary" @click="emit('signUp')">
-          Get Started
+          {{ t('schools.getStarted', 'Get started') }}
         </button>
       </template>
 
@@ -260,7 +261,7 @@ const closeMobileMenu = () => {
           <button
             class="user-menu"
             @click="toggleUserMenu"
-            aria-label="User menu"
+            :aria-label="t('schools.userMenu', 'User menu')"
             :aria-expanded="isUserMenuOpen"
           >
             <span class="user-avatar">{{ userInitials }}</span>
@@ -279,7 +280,7 @@ const closeMobileMenu = () => {
                   <circle cx="12" cy="12" r="3"/>
                   <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
                 </svg>
-                Settings
+                {{ t('settings.title', 'Settings') }}
               </router-link>
               <!-- Leaving the dashboard is a navigation, never an identity
                    sign-out — roles are additive facets of one account (see
@@ -288,7 +289,7 @@ const closeMobileMenu = () => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 12l9-9 9 9M5 10v10h14V10"/>
                 </svg>
-                My player
+                {{ t('schools.myPlayer', 'My player') }}
               </router-link>
               <button class="user-dropdown-item logout" @click="handleSignOut">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -296,7 +297,7 @@ const closeMobileMenu = () => {
                   <polyline points="16 17 21 12 16 7"/>
                   <line x1="21" y1="12" x2="9" y2="12"/>
                 </svg>
-                Sign Out
+                {{ t('settings.signOut', 'Sign out') }}
               </button>
             </div>
           </Transition>
@@ -329,7 +330,7 @@ const closeMobileMenu = () => {
         class="mobile-menu-item"
         @click="closeMobileMenu"
       >
-        Admin
+        {{ t('schools.admin', 'Admin') }}
       </router-link>
       <router-link
         v-if="!isDemoMode && !isOnPlayerRoute"
@@ -337,7 +338,7 @@ const closeMobileMenu = () => {
         class="mobile-menu-item mobile-menu-learn"
         @click="closeMobileMenu"
       >
-        My Learning
+        {{ t('schools.myLearning', 'My learning') }}
       </router-link>
     </div>
   </Transition>

@@ -6,6 +6,7 @@
 // (2026-07-16). This never replaces fixing the actual root cause; it just
 // means the NEXT one shows a recoverable card instead of a blank screen.
 import { ref, watch, onErrorCaptured } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -30,9 +31,9 @@ function reload() {
 
 <template>
   <div v-if="caughtError" class="schools-error-card" role="alert">
-    <h2 class="arsenal">Something went wrong</h2>
-    <p>This page hit an error and couldn't finish loading. Your data is safe.</p>
-    <button type="button" class="btn-play" @click="reload">Reload</button>
+    <h2 class="arsenal">{{ t('errors.somethingWentWrong', 'Something went wrong') }}</h2>
+    <p>{{ t('errors.pageErrorBody', "This page hit an error and couldn't finish loading. Your data is safe.") }}</p>
+    <button type="button" class="btn-play" @click="reload">{{ t('common.reload', 'Reload') }}</button>
   </div>
   <slot v-else />
 </template>

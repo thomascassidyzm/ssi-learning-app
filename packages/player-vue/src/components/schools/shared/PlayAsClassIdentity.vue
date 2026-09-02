@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/composables/useI18n'
 /**
  * PlayAsClassIdentity — the SLIM in-nav chip shown in the top bar while a
  * play-as-class session is live. Names the class ("Playing as 6S") so a
@@ -24,14 +25,14 @@ defineEmits<{ exit: [] }>()
 </script>
 
 <template>
-  <div class="pac" role="status" aria-live="polite" :aria-label="`Playing as ${className}`">
+  <div class="pac" role="status" aria-live="polite" :aria-label="t('schools.playingAsAria', 'Playing as {name}').replace('{name}', className)">
     <span class="pac-live" aria-hidden="true"></span>
     <span class="pac-text">
-      <span class="pac-kicker">Playing&nbsp;as</span>
+      <span class="pac-kicker">{{ t('schools.playingAs', 'Playing as') }}</span>
       <strong class="pac-class">{{ className }}</strong>
       <span v-if="schoolName" class="pac-school" :title="schoolName">{{ schoolName }}</span>
     </span>
-    <button type="button" class="pac-exit" @click="$emit('exit')">End session</button>
+    <button type="button" class="pac-exit" @click="$emit('exit')">{{ t('schools.endSession', 'End session') }}</button>
   </div>
 </template>
 
