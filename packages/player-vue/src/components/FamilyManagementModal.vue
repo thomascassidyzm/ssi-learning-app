@@ -100,34 +100,34 @@ function statusLabel(m: { status: string; is_child_account: boolean }): string {
 
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="family-overlay" role="dialog" aria-modal="true" aria-label="Family" @click.self="emit('close')">
+    <div v-if="isOpen" class="family-overlay" role="dialog" aria-modal="true" :aria-label="t('family.title', 'Family')" @click.self="emit('close')">
       <div class="family-card" @click.stop>
         <header class="family-bar">
-          <span class="family-title">Family</span>
-          <button type="button" class="family-close" aria-label="Close" @click="emit('close')">✕</button>
+          <span class="family-title">{{ t('family.title', 'Family') }}</span>
+          <button type="button" class="family-close" :aria-label="t('common.close', 'Close')" @click="emit('close')">✕</button>
         </header>
 
         <div class="family-scroll">
-          <p class="family-seats">{{ state.seatsUsed }} of {{ state.seatCap }} seats used (including you)</p>
+          <p class="family-seats">{{ t('family.seatsUsed', '{used} of {cap} seats used, including you').replace('{used}', String(state.seatsUsed)).replace('{cap}', String(state.seatCap)) }}</p>
           <p v-if="error" class="family-error">{{ error }}</p>
 
           <!-- Sign-in link / QR panel — shown right after add-child, or on re-mint -->
           <div v-if="activeSignInLink" class="link-panel">
             <p class="link-panel-label">{{ activeSignInLinkLabel }}</p>
-            <img v-if="qrDataUrl" :src="qrDataUrl" alt="Sign-in QR code" class="qr-img" />
+            <img v-if="qrDataUrl" :src="qrDataUrl" :alt="t('family.qrAlt', 'Sign-in QR code')" class="qr-img" />
             <div class="link-row">
               <input :value="activeSignInLink" readonly class="link-input" @focus="($event.target as HTMLInputElement).select()" />
-              <button type="button" class="text-btn" @click="copyLink">Copy</button>
+              <button type="button" class="text-btn" @click="copyLink">{{ t('common.copy', 'Copy') }}</button>
             </div>
-            <button type="button" class="text-btn text-btn--secondary" @click="closeLinkPanel">Done</button>
+            <button type="button" class="text-btn text-btn--secondary" @click="closeLinkPanel">{{ t('common.done', 'Done') }}</button>
           </div>
 
           <!-- Members list -->
           <ul v-if="state.members.length" class="member-list">
             <li v-for="m in state.members" :key="m.id" class="member-row">
               <div class="member-info">
-                <span class="member-name">{{ m.display_name || m.invited_email || 'Member' }}</span>
-                <span class="member-status">{{ statusLabel(m) }}<template v-if="m.is_child_account"> · Child account</template></span>
+                <span class="member-name">{{ m.display_name || m.invited_email || t('family.member', 'Member') }}</span>
+                <span class="member-status">{{ statusLabel(m) }}<template v-if="m.is_child_account"> · {{ t('family.childAccount', 'Child account') }}</template></span>
               </div>
               <div class="member-actions">
                 <button
@@ -135,30 +135,30 @@ function statusLabel(m: { status: string; is_child_account: boolean }): string {
                   type="button"
                   class="text-btn"
                   @click="reMintLink(m.id, m.display_name || 'this child')"
-                >Get sign-in link</button>
-                <button type="button" class="text-btn text-btn--danger" @click="handleRemove(m.id)">Remove</button>
+                >{{ t('family.getSignInLink', 'Get sign-in link') }}</button>
+                <button type="button" class="text-btn text-btn--danger" @click="handleRemove(m.id)">{{ t('common.remove', 'Remove') }}</button>
               </div>
             </li>
           </ul>
-          <p v-else-if="!isLoading" class="family-empty">No one added yet.</p>
+          <p v-else-if="!isLoading" class="family-empty">{{ t('family.noneYet', 'No one added yet.') }}</p>
 
           <!-- Add actions -->
-          <div v-if="seatsFull" class="family-full">Family is full ({{ state.seatCap }} seats including you).</div>
+          <div v-if="seatsFull" class="family-full">{{ t('family.full', 'Family is full — {cap} seats including you.').replace('{cap}', String(state.seatCap)) }}</div>
           <template v-else>
             <div class="add-section">
-              <button v-if="!showChildForm" type="button" class="add-btn" @click="showChildForm = true">+ Add a child</button>
+              <button v-if="!showChildForm" type="button" class="add-btn" @click="showChildForm = true">+ {{ t('family.addChild', 'Add a child') }}</button>
               <form v-else class="add-form" @submit.prevent="submitChild">
-                <input v-model="childNameInput" type="text" placeholder="First name" maxlength="40" class="add-input" />
-                <button type="submit" class="text-btn" :disabled="!childNameInput.trim() || childBusy">{{ childBusy ? '...' : 'Add' }}</button>
-                <button type="button" class="text-btn text-btn--secondary" @click="showChildForm = false">Cancel</button>
+                <input v-model="childNameInput" type="text" :placeholder="t('family.firstName', 'First name')" maxlength="40" class="add-input" />
+                <button type="submit" class="text-btn" :disabled="!childNameInput.trim() || childBusy">{{ childBusy ? '…' : t('install.add', 'Add') }}</button>
+                <button type="button" class="text-btn text-btn--secondary" @click="showChildForm = false">{{ t('common.cancel', 'Cancel') }}</button>
               </form>
             </div>
             <div class="add-section">
-              <button v-if="!showEmailForm" type="button" class="add-btn" @click="showEmailForm = true">+ Invite by email</button>
+              <button v-if="!showEmailForm" type="button" class="add-btn" @click="showEmailForm = true">+ {{ t('family.inviteByEmail', 'Invite by email') }}</button>
               <form v-else class="add-form" @submit.prevent="submitEmail">
-                <input v-model="emailInput" type="email" placeholder="email@example.com" class="add-input" />
-                <button type="submit" class="text-btn" :disabled="!emailInput.trim() || emailBusy">{{ emailBusy ? '...' : 'Invite' }}</button>
-                <button type="button" class="text-btn text-btn--secondary" @click="showEmailForm = false">Cancel</button>
+                <input v-model="emailInput" type="email" :placeholder="t('family.emailPlaceholder', 'email@example.com')" class="add-input" />
+                <button type="submit" class="text-btn" :disabled="!emailInput.trim() || emailBusy">{{ emailBusy ? '…' : t('family.invite', 'Invite') }}</button>
+                <button type="button" class="text-btn text-btn--secondary" @click="showEmailForm = false">{{ t('common.cancel', 'Cancel') }}</button>
               </form>
             </div>
           </template>

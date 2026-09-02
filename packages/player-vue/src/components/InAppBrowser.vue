@@ -15,6 +15,7 @@
  * That has been a real shipped bug in this repo.
  */
 import { ref, watch, onBeforeUnmount } from 'vue'
+import { t } from '@/composables/useI18n'
 import {
   useInAppBrowser,
   FRAME_LOAD_TIMEOUT_MS,
@@ -72,7 +73,7 @@ onBeforeUnmount(() => {
         <span class="iab-title">{{ target.title }}</span>
         <span class="iab-host">{{ hostLabel(target.url) }}</span>
       </div>
-      <button type="button" class="iab-close" aria-label="Close" @click="closeInApp">
+      <button type="button" class="iab-close" :aria-label="t('common.close', 'Close')" @click="closeInApp">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18" />
@@ -84,9 +85,9 @@ onBeforeUnmount(() => {
     <div class="iab-body">
       <!-- The honest degradation. Never a silent blank sheet. -->
       <div v-if="loadFailed && !frameLoaded" class="iab-fallback">
-        <p class="iab-fallback-line">This one opens in your browser.</p>
+        <p class="iab-fallback-line">{{ t('browser.opensInYourBrowser', 'This one opens in your browser.') }}</p>
         <button type="button" class="iab-fallback-btn" @click="escapeToBrowser">
-          Open {{ hostLabel(target.url) }}
+          {{ t('browser.openHost', 'Open {host}').replace('{host}', hostLabel(target.url)) }}
         </button>
       </div>
 

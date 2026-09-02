@@ -589,7 +589,7 @@ async function sendCode() {
     // canSend doesn't check client readiness — clicking Send while it's still
     // injecting previously no-opped with zero signal (trinity ledger LA
     // onboarding L10).
-    error.value = "Still connecting — please try again in a moment."
+    error.value = t('errors.stillConnecting', "Still connecting — please try again in a moment.")
     return
   }
   const isResend = step.value === 'otp'
@@ -752,9 +752,9 @@ async function continueIn() {
       if (!profileRes.ok) {
         error.value = profileData?.error || "Some details didn't save — you can set them later."
       } else if (inst && !profileData?.institution_saved) {
-        error.value = "Your school name didn't save — you can set it later in School settings."
+        error.value = t('errors.schoolNameNotSaved', "Your school name didn't save — you can set it later in School settings.")
       } else if (dn && profileData?.display_name_saved === false) {
-        error.value = "Your name didn't save — you can set it later in your profile."
+        error.value = t('errors.nameNotSaved', "Your name didn't save — you can set it later in your profile.")
       }
       // Stop here so the message above is actually visible — a full-page
       // navigation right after setting it would erase it unseen. The user

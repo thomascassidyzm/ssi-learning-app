@@ -908,7 +908,7 @@ const progressPercent = computed(() => {
 
 const loadPhrases = async (offset = 0) => {
   if (!supabase?.value || !props.courseCode) {
-    error.value = 'Database not configured'
+    error.value = t('errors.dbNotConfigured', 'Database not configured')
     isLoading.value = false
     console.warn('[ListeningOverlay] No supabase or courseCode:', { supabase: !!supabase?.value, courseCode: props.courseCode })
     return
@@ -1020,7 +1020,7 @@ const loadPhrases = async (offset = 0) => {
     }
   } catch (err) {
     console.error('[ListeningOverlay] Load error:', err)
-    error.value = 'Failed to load phrases'
+    error.value = t('errors.failedLoadPhrases', 'Failed to load phrases')
   } finally {
     isLoading.value = false
     isLoadingMore.value = false
@@ -1047,7 +1047,7 @@ const loadMoreIfNeeded = async () => {
  */
 const loadSeeds = async () => {
   if (!supabase?.value || !props.courseCode) {
-    error.value = 'Database not configured'
+    error.value = t('errors.dbNotConfigured', 'Database not configured')
     isLoading.value = false
     return
   }

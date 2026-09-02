@@ -240,7 +240,7 @@ onMounted(async () => {
     // genuinely broken. Bare /redeem with no code is the whiteboard case —
     // offer manual entry instead of a dead end.
     if (props.variant === 'landing') {
-      error.value = "This link is missing its invite code — check the link you were sent, or ask for a new one."
+      error.value = t('errors.linkMissingCode', "This link is missing its invite code — check the link you were sent, or ask for a new one.")
       step.value = 'invalid'
       return
     }
@@ -319,7 +319,7 @@ async function validateAndProceed(rawCode: string): Promise<void> {
 async function handlePersonalSignIn() {
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     step.value = 'invalid'
     return
   }
@@ -355,7 +355,7 @@ async function handlePersonalSignIn() {
     error.value = result.error || 'This link could not sign you in. Ask for a new one.'
     step.value = 'invalid'
   } catch {
-    error.value = 'This link could not sign you in. Ask for a new one.'
+    error.value = t('errors.linkCouldNotSignIn', 'This link could not sign you in. Ask for a new one.')
     step.value = 'invalid'
   }
 }
@@ -369,7 +369,7 @@ async function handlePupilSubmit() {
   if (!displayName.value.trim()) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
   isLoading.value = true
@@ -446,7 +446,7 @@ async function handlePossessionSubmit() {
   if (!isEmailValid.value) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
 
@@ -507,7 +507,7 @@ async function handleSendOtp() {
   if (!isEmailValid.value) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
 
@@ -536,7 +536,7 @@ async function handleVerifyOtp() {
   if (otpCode.value.length < 6) return
   const client = supabase.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
 
@@ -615,12 +615,12 @@ async function handleResendOtp() {
   try {
     const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
-      error.value = 'Unable to resend code. Please try again.'
+      error.value = t('errors.unableResend', 'Unable to resend code. Please try again.')
     } else {
       error.value = ''
     }
   } catch {
-    error.value = 'Unable to resend code. Please try again.'
+    error.value = t('errors.unableResend', 'Unable to resend code. Please try again.')
   }
 }
 
@@ -632,7 +632,7 @@ async function doRedeem() {
   try {
     const client = supabase.value
     if (!client) {
-      error.value = 'App not ready.'
+      error.value = t('errors.appNotReadyShort', 'App not ready.')
       step.value = 'auth'
       return
     }
@@ -693,7 +693,7 @@ async function doRedeem() {
       step.value = 'auth'
     }
   } catch {
-    error.value = 'Something went wrong'
+    error.value = t('errors.somethingWentWrong', 'Something went wrong')
     step.value = 'auth'
   }
 }

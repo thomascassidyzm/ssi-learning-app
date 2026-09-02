@@ -497,7 +497,9 @@
   "browser": {
     "courseBrowser": "Course browser",
     "seeds": "Seeds",
-    "belt": "Belt"
+    "belt": "Belt",
+    "opensInYourBrowser": "This one opens in your browser.",
+    "openHost": "Open {host}"
   },
   "report": {
     "reportAnIssue": "Report an issue",
@@ -701,7 +703,9 @@
     "search": "Search",
     "back": "Back",
     "next": "Next",
-    "done": "Done"
+    "done": "Done",
+    "copy": "Copy",
+    "remove": "Remove"
   },
   "progress": {
     "youreIn": "you're in",
@@ -953,5 +957,57 @@
     "deliveryHintPossessionPre": "Still nothing? School email filters often block these codes outright.",
     "goBackSkipCode": "Go back and skip the email code",
     "deliveryHintPossessionPost": "— you won't need to wait for anything. Still stuck? Email"
+  },
+  "family": {
+    "title": "Family",
+    "seatsUsed": "{used} of {cap} seats used, including you",
+    "qrAlt": "Sign-in QR code",
+    "member": "Member",
+    "childAccount": "Child account",
+    "getSignInLink": "Get sign-in link",
+    "noneYet": "No one added yet.",
+    "full": "Family is full — {cap} seats including you.",
+    "addChild": "Add a child",
+    "firstName": "First name",
+    "inviteByEmail": "Invite by email",
+    "emailPlaceholder": "email@example.com",
+    "invite": "Invite"
+  },
+  "feedback": {
+    "reportAria": "Report feedback",
+    "thanks": "Thanks! We'll look into this.",
+    "sendFeedback": "Send feedback",
+    "whatHappened": "What happened?",
+    "extraDetail": "Any extra detail — optional",
+    "screenshotAlt": "Screenshot preview",
+    "removeScreenshot": "Remove screenshot",
+    "attachScreenshot": "Attach screenshot",
+    "preview": "Preview"
+  },
+  "pronunciation": {
+    "easier": "Easier",
+    "harder": "Harder",
+    "loadingPhrases": "Loading phrases…",
+    "tapPlayToStart": "Tap play to start",
+    "phrasesAvailable": "{count} phrases available, short → long"
+  },
+  "errors": {
+    "dbNotConfigured": "Database not configured",
+    "failedLoadPhrases": "Failed to load phrases",
+    "failedLoadCourses": "Failed to load courses",
+    "appNotReady": "App not ready. Please try again.",
+    "appNotReadyShort": "App not ready.",
+    "unableResend": "Unable to resend code. Please try again.",
+    "stillStartingUp": "The app is still starting up. Give it a moment and try again.",
+    "couldNotReach": "Could not reach us just now. Check your connection and try again.",
+    "linkMissingCode": "This link is missing its invite code — check the link you were sent, or ask for a new one.",
+    "linkCouldNotSignIn": "This link could not sign you in. Ask for a new one.",
+    "somethingWentWrong": "Something went wrong",
+    "somethingWentWrongRetry": "Something went wrong. Please try again.",
+    "noTryLinkCode": "No try link code provided",
+    "micRequired": "Microphone access is required for pronunciation practice",
+    "stillConnecting": "Still connecting — please try again in a moment.",
+    "schoolNameNotSaved": "Your school name didn't save — you can set it later in School settings.",
+    "nameNotSaved": "Your name didn't save — you can set it later in your profile."
   }
 }

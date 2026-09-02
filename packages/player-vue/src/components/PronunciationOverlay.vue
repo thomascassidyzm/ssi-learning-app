@@ -154,7 +154,7 @@ const isActive = computed(() => phase.value !== 'idle')
 
 const loadPhrases = async (offset = 0) => {
   if (!supabase?.value || !props.courseCode) {
-    error.value = 'Database not configured'
+    error.value = t('errors.dbNotConfigured', 'Database not configured')
     isLoading.value = false
     return
   }
@@ -236,7 +236,7 @@ const loadPhrases = async (offset = 0) => {
     }
   } catch (err) {
     console.error('[PronunciationOverlay] Load error:', err)
-    error.value = 'Failed to load phrases'
+    error.value = t('errors.failedLoadPhrases', 'Failed to load phrases')
   } finally {
     isLoading.value = false
     isLoadingMore.value = false
@@ -315,7 +315,7 @@ const initializeAudio = async () => {
     return true
   } catch (err) {
     console.error('[PronunciationOverlay] Audio init failed:', err)
-    error.value = 'Microphone access is required for pronunciation practice'
+    error.value = t('errors.micRequired', 'Microphone access is required for pronunciation practice')
     return false
   }
 }
@@ -658,7 +658,7 @@ onUnmounted(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          Easier
+          {{ t('pronunciation.easier', 'Easier') }}
         </button>
         <div class="difficulty-dots">
           <span
@@ -673,7 +673,7 @@ onUnmounted(() => {
           :disabled="sensitivityIndex >= SENSITIVITY_PRESETS.length - 1"
           @click="sensitivityIndex = Math.min(SENSITIVITY_PRESETS.length - 1, sensitivityIndex + 1)"
         >
-          Harder
+          {{ t('pronunciation.harder', 'Harder') }}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
@@ -700,13 +700,13 @@ onUnmounted(() => {
     <!-- Loading State -->
     <div v-if="isLoading" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading phrases...</p>
+      <p>{{ t('pronunciation.loadingPhrases', 'Loading phrases…') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state" @click.stop>
       <p>{{ error }}</p>
-      <button @click="loadPhrases()">Retry</button>
+      <button @click="loadPhrases()">{{ t('courseSelector.retry', 'Retry') }}</button>
     </div>
 
     <!-- Main Content -->
@@ -771,10 +771,10 @@ onUnmounted(() => {
               <polyline points="1 4 1 10 7 10"/>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
             </svg>
-            Retry
+            {{ t('courseSelector.retry', 'Retry') }}
           </button>
           <button class="action-btn action-btn--next" @click.stop="handleSkip">
-            Next
+            {{ t('common.next', 'Next') }}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -789,8 +789,8 @@ onUnmounted(() => {
             <polyline points="18 15 12 9 6 15"/>
           </svg>
         </div>
-        <p>Tap play to start</p>
-        <p class="phrase-count">{{ totalCount }} phrases available (short → long)</p>
+        <p>{{ t('pronunciation.tapPlayToStart', 'Tap play to start') }}</p>
+        <p class="phrase-count">{{ t('pronunciation.phrasesAvailable', '{count} phrases available, short → long').replace('{count}', String(totalCount)) }}</p>
       </div>
     </div>
   </div>

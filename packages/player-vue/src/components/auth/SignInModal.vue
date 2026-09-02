@@ -147,7 +147,7 @@ const contextDescription = computed(() => {
 const handleSendCode = async () => {
   const client = supabaseClient?.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
 
@@ -179,7 +179,7 @@ const handleSendCode = async () => {
 const handlePasswordSignIn = async () => {
   const client = supabaseClient?.value
   if (!client) {
-    error.value = 'App not ready. Please try again.'
+    error.value = t('errors.appNotReady', 'App not ready. Please try again.')
     return
   }
 
@@ -290,12 +290,12 @@ const resendCode = async () => {
   try {
     const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
-      error.value = 'Unable to resend code. Please try again.'
+      error.value = t('errors.unableResend', 'Unable to resend code. Please try again.')
     } else {
       error.value = ''
     }
   } catch (err: any) {
-    error.value = 'Unable to resend code. Please try again.'
+    error.value = t('errors.unableResend', 'Unable to resend code. Please try again.')
   }
 }
 

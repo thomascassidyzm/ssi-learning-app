@@ -72,7 +72,7 @@ async function submit(): Promise<void> {
   if (!canSubmit.value) return
   const client = supabase.value
   if (!client) {
-    error.value = 'The app is still starting up. Give it a moment and try again.'
+    error.value = t('errors.stillStartingUp', 'The app is still starting up. Give it a moment and try again.')
     return
   }
   step.value = 'redeeming'
@@ -113,7 +113,7 @@ async function submit(): Promise<void> {
     step.value = 'credential'
     gateOpen.value = true
   } catch {
-    error.value = 'Could not reach us just now. Check your connection and try again.'
+    error.value = t('errors.couldNotReach', 'Could not reach us just now. Check your connection and try again.')
     step.value = 'entry'
   }
 }

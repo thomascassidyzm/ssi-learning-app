@@ -380,7 +380,7 @@ const fetchCourses = async () => {
     allCourses.value = (coursesRes.data || []).map(c => ({ ...c, lego_count: legoCounts.get(c.course_code) ?? null }))
   } catch (e) {
     console.error('Failed to fetch courses:', e)
-    error.value = 'Failed to load courses'
+    error.value = t('errors.failedLoadCourses', 'Failed to load courses')
     allCourses.value = []
   } finally {
     isLoading.value = false

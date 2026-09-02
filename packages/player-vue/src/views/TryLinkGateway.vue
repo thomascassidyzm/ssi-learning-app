@@ -15,7 +15,7 @@ onMounted(async () => {
 
   if (!code) {
     status.value = 'error'
-    errorMessage.value = 'No try link code provided'
+    errorMessage.value = t('errors.noTryLinkCode', 'No try link code provided')
     return
   }
 
@@ -56,7 +56,7 @@ onMounted(async () => {
     }, 1200)
   } catch (err) {
     status.value = 'error'
-    errorMessage.value = 'Something went wrong. Please try again.'
+    errorMessage.value = t('errors.somethingWentWrongRetry', 'Something went wrong. Please try again.')
   }
 })
 </script>

@@ -255,7 +255,7 @@ async function submitFeedback() {
       class="feedback-fab"
       :class="{ dragging: isDragging }"
       :style="fabStyle"
-      aria-label="Report feedback"
+      :aria-label="t('feedback.reportAria', 'Report feedback')"
       @pointerdown="onFabPointerDown"
       @click="!hasMoved && openPanel()"
       @dragstart.prevent
@@ -286,14 +286,14 @@ async function submitFeedback() {
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2d9cdb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <p>Thanks! We'll look into this.</p>
+          <p>{{ t('feedback.thanks', "Thanks! We'll look into this.") }}</p>
         </div>
 
         <!-- Form -->
         <template v-else>
           <div class="feedback-header">
-            <h3>Send Feedback</h3>
-            <button class="feedback-close" aria-label="Close" @click="closePanel">
+            <h3>{{ t('feedback.sendFeedback', 'Send feedback') }}</h3>
+            <button class="feedback-close" :aria-label="t('common.close', 'Close')" @click="closePanel">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -320,7 +320,7 @@ async function submitFeedback() {
               v-model="title"
               type="text"
               class="feedback-input"
-              placeholder="What happened?"
+              :placeholder="t('feedback.whatHappened', 'What happened?')"
               maxlength="200"
               autofocus
             />
@@ -329,7 +329,7 @@ async function submitFeedback() {
             <textarea
               v-model="description"
               class="feedback-textarea"
-              placeholder="Any extra detail... (optional)"
+              :placeholder="t('feedback.extraDetail', 'Any extra detail — optional')"
               rows="3"
               maxlength="2000"
             />
@@ -338,10 +338,10 @@ async function submitFeedback() {
             <div class="feedback-screenshot-zone">
               <template v-if="screenshotPreview">
                 <div class="feedback-screenshot-preview">
-                  <img :src="screenshotPreview" alt="Screenshot preview" />
+                  <img :src="screenshotPreview" :alt="t('feedback.screenshotAlt', 'Screenshot preview')" />
                   <button
                     class="feedback-screenshot-remove"
-                    aria-label="Remove screenshot"
+                    :aria-label="t('feedback.removeScreenshot', 'Remove screenshot')"
                     @click="removeScreenshot"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -365,7 +365,7 @@ async function submitFeedback() {
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <polyline points="21 15 16 10 5 21" />
                   </svg>
-                  <span>Attach screenshot</span>
+                  <span>{{ t('feedback.attachScreenshot', 'Attach screenshot') }}</span>
                 </label>
               </template>
               <p v-if="screenshotError" class="feedback-screenshot-error">{{ screenshotError }}</p>
@@ -373,7 +373,7 @@ async function submitFeedback() {
 
             <!-- Preview triggers (dev/staging only) -->
             <div v-if="showPreviewTriggers" class="feedback-preview-group">
-              <p class="feedback-preview-label">Preview</p>
+              <p class="feedback-preview-label">{{ t('feedback.preview', 'Preview') }}</p>
               <div class="feedback-preview-pills">
                 <button
                   v-for="trigger in previewTriggers"
