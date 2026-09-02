@@ -47,6 +47,7 @@
  *      can pay IN-APP instead of hitting a mailto dead-end.
  */
 import { ref, computed, inject, watch, type Ref } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
 import { useOrgCheckout } from '@/composables/useOrgCheckout'
@@ -556,15 +557,13 @@ watch(currentUser, (user) => {
       <!-- ── Org lane: per-seat (govt_admin group-leader) ── -->
       <template v-if="isOrgLane">
         <h1 class="upgrade-title arsenal">
-          {{ isOrgSubscribed ? 'Manage your seats' : 'Subscribe your organisation' }}
+          {{ isOrgSubscribed ? t('upgrade.manageSeats', 'Manage your seats') : t('upgrade.subscribeOrg', 'Subscribe your organisation') }}
         </h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} per learner seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
-          One subscription covers every seat and every language. Add seats any time — each seat
-          belongs to one named learner for the period you've paid for.
+          {{ t('upgrade.orgLede', "£{monthly} per learner seat / month, or £{annual}/year. One subscription covers every seat and every language. Add seats any time — each seat belongs to one named learner for the period you've paid for.").replace('{monthly}', String(PRICE_PER_SEAT_GBP)).replace('{annual}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
-        <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" :aria-label="t('upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -572,7 +571,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -580,16 +579,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('upgrade.annualUnavailable', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row">
-          <span class="field-label">Learner seats</span>
+          <span class="field-label">{{ t('upgrade.learnerSeats', 'Learner seats') }}</span>
           <div class="seat-stepper">
             <button type="button" class="seat-btn" :disabled="orgSeatCount <= 1 || checkoutOpen" @click="setOrgSeats(orgSeatCount - 1)">−</button>
             <input
@@ -607,19 +606,19 @@ watch(currentUser, (user) => {
 
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
         <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note">
-          {{ orgMemberCount ?? 0 }} learner{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
-          {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
+          {{ ((orgMemberCount ?? 0) === 1 ? t('upgrade.learnersJoinedOne', '{count} learner joined') : t('upgrade.learnersJoinedMany', '{count} learners joined')).replace('{count}', String(orgMemberCount ?? 0)) }} ·
+          {{ ((orgPaidSeats ?? orgSeatCount) === 1 ? t('upgrade.seatsPaidOne', '{count} seat paid') : t('upgrade.seatsPaidMany', '{count} seats paid')).replace('{count}', String(orgPaidSeats ?? orgSeatCount)) }}
           <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
-            — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more learner{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
+            — {{ (((orgMemberCount ?? 0) - orgPaidSeats) === 1 ? t('upgrade.moreLearnersOne', '{count} more learner joined than paid seats') : t('upgrade.moreLearnersMany', '{count} more learners joined than paid seats')).replace('{count}', String((orgMemberCount ?? 0) - orgPaidSeats)) }}
           </span>
         </p>
         <!-- Not yet subscribed: the same honesty, against what's ABOUT to be
              billed — the stepper seeded from the real member count. -->
         <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note">
-          {{ orgMemberCount }} learner{{ orgMemberCount === 1 ? '' : 's' }} joined ·
-          subscribing for {{ orgSeats }} seat{{ orgSeats === 1 ? '' : 's' }}
+          {{ (orgMemberCount === 1 ? t('upgrade.learnersJoinedOne', '{count} learner joined') : t('upgrade.learnersJoinedMany', '{count} learners joined')).replace('{count}', String(orgMemberCount)) }} ·
+          {{ (orgSeats === 1 ? t('upgrade.subscribingForOne', 'subscribing for {count} seat') : t('upgrade.subscribingForMany', 'subscribing for {count} seats')).replace('{count}', String(orgSeats)) }}
           <span v-if="orgSeats < (orgMemberCount ?? 0)" class="seats-over-note">
-            — {{ (orgMemberCount ?? 0) - orgSeats }} learner{{ (orgMemberCount ?? 0) - orgSeats === 1 ? '' : 's' }} without a seat
+            — {{ (((orgMemberCount ?? 0) - orgSeats) === 1 ? t('upgrade.withoutSeatOne', '{count} learner without a seat') : t('upgrade.withoutSeatMany', '{count} learners without a seat')).replace('{count}', String((orgMemberCount ?? 0) - orgSeats)) }}
           </span>
         </p>
 
@@ -634,7 +633,7 @@ watch(currentUser, (user) => {
           :disabled="isUpdatingOrgSeats || orgSeatCount === orgPaidSeats"
           @click="updateOrgSeats"
         >
-          {{ isUpdatingOrgSeats ? 'Updating…' : orgSeatCount === orgPaidSeats ? `${orgSeatCount} seats (current)` : `Update to ${orgSeatCount} seats — £${orgMonthlyTotalGbp}/mo` }}
+          {{ isUpdatingOrgSeats ? t('upgrade.updating', 'Updating…') : orgSeatCount === orgPaidSeats ? t('upgrade.seatsCurrent', '{count} seats (current)').replace('{count}', String(orgSeatCount)) : t('upgrade.updateToSeats', 'Update to {count} seats — £{total}/mo').replace('{count}', String(orgSeatCount)).replace('{total}', String(orgMonthlyTotalGbp)) }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
         <button
@@ -654,14 +653,13 @@ watch(currentUser, (user) => {
           {{ isSubscribed ? 'Manage your seats' : 'Subscribe your school' }}
         </h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} per teacher seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
-          One subscription covers every teacher seat — add or remove seats any time.
+          {{ t('upgrade.schoolLede', '£{monthly} per teacher seat / month, or £{annual}/year. One subscription covers every teacher seat — add or remove seats any time.').replace('{monthly}', String(PRICE_PER_SEAT_GBP)).replace('{annual}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
         <!-- Monthly / annual toggle. Stays usable WHILE the inline checkout is
              open (switching re-prices it in place); only hidden for the
              already-subscribed seat-edit path. -->
-        <div v-if="!isSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div v-if="!isSubscribed" class="billing-toggle" role="tablist" :aria-label="t('upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -669,7 +667,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -677,16 +675,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('upgrade.annualUnavailable', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row">
-          <span class="field-label">Teacher seats</span>
+          <span class="field-label">{{ t('upgrade.teacherSeats', 'Teacher seats') }}</span>
           <div class="seat-stepper">
             <button type="button" class="seat-btn" :disabled="seatCount <= 1 || checkoutOpen" @click="setSeats(seatCount - 1)">−</button>
             <input
@@ -704,20 +702,20 @@ watch(currentUser, (user) => {
 
         <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
         <p v-if="isSubscribed" class="upgrade-note seats-actual-note">
-          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
-          {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
+          {{ (joinedTeacherCount === 1 ? t('upgrade.teachersJoinedOne', '{count} teacher joined') : t('upgrade.teachersJoinedMany', '{count} teachers joined')).replace('{count}', String(joinedTeacherCount)) }} ·
+          {{ ((paidSeats ?? seatCount) === 1 ? t('upgrade.seatsPaidOne', '{count} seat paid') : t('upgrade.seatsPaidMany', '{count} seats paid')).replace('{count}', String(paidSeats ?? seatCount)) }}
           <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
-            — {{ joinedTeacherCount - paidSeats }} more teacher{{ joinedTeacherCount - paidSeats === 1 ? '' : 's' }} joined than paid seats
+            — {{ ((joinedTeacherCount - paidSeats) === 1 ? t('upgrade.moreTeachersOne', '{count} more teacher joined than paid seats') : t('upgrade.moreTeachersMany', '{count} more teachers joined than paid seats')).replace('{count}', String(joinedTeacherCount - paidSeats)) }}
           </span>
         </p>
         <!-- Not yet subscribed: same honesty, against what's ABOUT to be billed
              — the stepper is seeded from this joined count, and the admin can
              still step it anywhere they like. -->
         <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note">
-          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
-          subscribing for {{ seats }} seat{{ seats === 1 ? '' : 's' }}
+          {{ (joinedTeacherCount === 1 ? t('upgrade.teachersJoinedOne', '{count} teacher joined') : t('upgrade.teachersJoinedMany', '{count} teachers joined')).replace('{count}', String(joinedTeacherCount)) }} ·
+          {{ (seats === 1 ? t('upgrade.subscribingForOne', 'subscribing for {count} seat') : t('upgrade.subscribingForMany', 'subscribing for {count} seats')).replace('{count}', String(seats)) }}
           <span v-if="seats < joinedTeacherCount" class="seats-over-note">
-            — {{ joinedTeacherCount - seats }} teacher{{ joinedTeacherCount - seats === 1 ? '' : 's' }} without a seat
+            — {{ ((joinedTeacherCount - seats) === 1 ? t('upgrade.teacherWithoutSeatOne', '{count} teacher without a seat') : t('upgrade.teacherWithoutSeatMany', '{count} teachers without a seat')).replace('{count}', String(joinedTeacherCount - seats)) }}
           </span>
         </p>
 
@@ -732,7 +730,7 @@ watch(currentUser, (user) => {
           :disabled="isUpdatingSeats || seatCount === paidSeats"
           @click="updateSeats"
         >
-          {{ isUpdatingSeats ? 'Updating…' : seatCount === paidSeats ? `${seatCount} seats (current)` : `Update to ${seatCount} seats — £${monthlyTotalGbp}/mo` }}
+          {{ isUpdatingSeats ? t('upgrade.updating', 'Updating…') : seatCount === paidSeats ? t('upgrade.seatsCurrent', '{count} seats (current)').replace('{count}', String(seatCount)) : t('upgrade.updateToSeats', 'Update to {count} seats — £{total}/mo').replace('{count}', String(seatCount)).replace('{total}', String(monthlyTotalGbp)) }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
         <button
@@ -742,20 +740,19 @@ watch(currentUser, (user) => {
           :disabled="!schoolId || isOpeningCheckout || !schoolSubLoaded"
           @click="subscribeSchool"
         >
-          {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
+          {{ !schoolSubLoaded ? t('loading.loadingEllipsis', 'Loading…') : isOpeningCheckout ? t('settings.opening', 'Opening…') : t('upgrade.subscribePrice', 'Subscribe — £{total}{period}').replace('{total}', String(schoolTotalGbp)).replace('{period}', periodSuffix) }}
         </button>
       </template>
 
       <!-- ── Tutor lane: single seat ── -->
       <template v-else>
-        <h1 class="upgrade-title arsenal">Subscribe</h1>
+        <h1 class="upgrade-title arsenal">{{ t('upgrade.subscribe', 'Subscribe') }}</h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year) for your
-          tutoring dashboard. Your students pay separately — three paying students cover your subscription.
+          {{ t('upgrade.tutorLede', '£{monthly} / month, or £{annual}/year, for your tutoring dashboard. Your students pay separately — three paying students cover your subscription.').replace('{monthly}', String(PRICE_PER_SEAT_GBP)).replace('{annual}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
         <!-- Toggle stays usable while the inline checkout is open (re-prices it). -->
-        <div class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div class="billing-toggle" role="tablist" :aria-label="t('upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -763,7 +760,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -771,16 +768,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('upgrade.annualUnavailable', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row seat-row--single">
-          <span class="field-label">Your subscription</span>
+          <span class="field-label">{{ t('upgrade.yourSubscription', 'Your subscription') }}</span>
           <span class="seat-total">£{{ tutorTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
         </div>
         <p v-if="tutorError" class="upgrade-error">{{ tutorError }}</p>
@@ -791,7 +788,7 @@ watch(currentUser, (user) => {
           class="btn-play btn-play--block upgrade-cta"
           @click="openTutorPortal"
         >
-          Manage subscription
+          {{ t('upgrade.manageSubscription', 'Manage subscription') }}
         </button>
         <button
           v-else-if="!checkoutOpen"
