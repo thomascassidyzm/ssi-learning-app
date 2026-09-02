@@ -12,7 +12,7 @@ import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
@@ -357,17 +357,17 @@ function exportCsv() {
       </div>
       <div class="page-head-actions">
         <button v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
-          Export CSV
+          {{ t('schools.exportCsv', 'Export CSV') }}
         </button>
         <button v-if="!isAdminView" type="button" class="btn-play" @click="openCreateModal">
-          + New class
+          + {{ t('schools.newClass', 'New class') }}
         </button>
       </div>
     </div>
 
     <div v-if="classesError" class="fetch-error-banner">
-      <span>Couldn't refresh this list — showing the last data loaded. {{ classesError }}</span>
-      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
+      <span>{{ t('schools.refreshListFailed', "Couldn't refresh this list — showing the last data loaded.") }} {{ classesError }}</span>
+      <button type="button" class="btn-ghost" @click="refresh">{{ t('courseSelector.retry', 'Retry') }}</button>
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>
@@ -379,28 +379,28 @@ function exportCsv() {
         <span class="summary-dot" style="background: var(--schools-success)" />
         <div>
           <div class="arsenal summary-number">{{ healthCounts['excellent'] || 0 }}</div>
-          <div class="summary-label">Excellent</div>
+          <div class="summary-label">{{ t('schools.excellent', 'Excellent') }}</div>
         </div>
       </div>
       <div class="summary-card schools-card">
         <span class="summary-dot" style="background: #8a8479" />
         <div>
           <div class="arsenal summary-number">{{ healthCounts['good'] || 0 }}</div>
-          <div class="summary-label">Good</div>
+          <div class="summary-label">{{ t('schools.good', 'Good') }}</div>
         </div>
       </div>
       <div class="summary-card schools-card">
         <span class="summary-dot" style="background: var(--schools-red)" />
         <div>
           <div class="arsenal summary-number">{{ healthCounts['needs-attention'] || 0 }}</div>
-          <div class="summary-label">Needs eyes</div>
+          <div class="summary-label">{{ t('schools.needsEyes', 'Needs eyes') }}</div>
         </div>
       </div>
       <div class="summary-card schools-card">
         <span class="summary-dot" style="background: var(--schools-fg)" />
         <div>
-          <div class="arsenal summary-number">{{ courses.length }} {{ courses.length === 1 ? 'course' : 'courses' }}</div>
-          <div class="summary-label">Across</div>
+          <div class="arsenal summary-number">{{ (courses.length === 1 ? t('schools.courseCountOne', '{count} course') : t('schools.courseCountMany', '{count} courses')).replace('{count}', String(courses.length)) }}</div>
+          <div class="summary-label">{{ t('schools.across', 'Across') }}</div>
         </div>
       </div>
     </div>
@@ -408,31 +408,31 @@ function exportCsv() {
     <!-- Filters -->
     <div v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
       <label class="filter">
-        <span class="filter-label">Course</span>
+        <span class="filter-label">{{ t('schools.course', 'Course') }}</span>
         <select v-model="courseFilter" class="filter-select">
-          <option value="all">All courses</option>
+          <option value="all">{{ t('schools.allCourses', 'All courses') }}</option>
           <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
         </select>
       </label>
 
       <label class="filter">
-        <span class="filter-label">Health</span>
+        <span class="filter-label">{{ t('schools.health', 'Health') }}</span>
         <select v-model="healthFilter" class="filter-select">
-          <option value="all">All</option>
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="needs-attention">Needs attention</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{{ t('listening.all', 'All') }}</option>
+          <option value="excellent">{{ t('schools.excellent', 'Excellent') }}</option>
+          <option value="good">{{ t('schools.good', 'Good') }}</option>
+          <option value="needs-attention">{{ t('schools.needsAttention', 'Needs attention') }}</option>
+          <option value="inactive">{{ t('schools.inactive', 'Inactive') }}</option>
         </select>
       </label>
 
       <div class="filter filter-sort">
-        <span class="filter-label">Sort</span>
+        <span class="filter-label">{{ t('schools.sort', 'Sort') }}</span>
         <select v-model="sortKey" class="filter-select">
-          <option value="name">Name</option>
-          <option value="students">Students</option>
-          <option value="hours">Hours/wk</option>
-          <option value="journey">Avg seeds</option>
+          <option value="name">{{ t('schools.name', 'Name') }}</option>
+          <option value="students">{{ t('schools.students', 'Students') }}</option>
+          <option value="hours">{{ t('schools.hoursPerWk', 'Hours/wk') }}</option>
+          <option value="journey">{{ t('schools.avgSeeds', 'Avg seeds') }}</option>
         </select>
       </div>
     </div>
@@ -442,15 +442,15 @@ function exportCsv() {
       <table class="ssi-table">
         <thead>
           <tr>
-            <th>Class</th>
-            <th>Course</th>
-            <th>Students</th>
-            <th>Belt</th>
-            <th>Avg seeds</th>
-            <th>Hours/wk</th>
-            <th>Activity</th>
-            <th>Health</th>
-            <th>Share</th>
+            <th>{{ t('schools.class', 'Class') }}</th>
+            <th>{{ t('schools.course', 'Course') }}</th>
+            <th>{{ t('schools.students', 'Students') }}</th>
+            <th>{{ t('browser.belt', 'Belt') }}</th>
+            <th>{{ t('schools.avgSeeds', 'Avg seeds') }}</th>
+            <th>{{ t('schools.hoursPerWk', 'Hours/wk') }}</th>
+            <th>{{ t('schools.activity', 'Activity') }}</th>
+            <th>{{ t('schools.health', 'Health') }}</th>
+            <th>{{ t('schools.share', 'Share') }}</th>
             <th></th>
           </tr>
         </thead>
@@ -492,7 +492,7 @@ function exportCsv() {
               </button>
             </td>
             <td class="cell-action">
-              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.playAsClass', 'Play as class') }}</button>
             </td>
           </tr>
         </tbody>
@@ -501,25 +501,25 @@ function exportCsv() {
 
     <!-- Filtered-empty state (classes exist but filters hide them) -->
     <div v-else-if="enrichedClasses.length > 0" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No classes match those filters</h3>
-      <p class="empty-text schools-subtle">Try widening the course or health filter.</p>
+      <h3 class="arsenal empty-title">{{ t('schools.noClassesMatchFilters', 'No classes match those filters') }}</h3>
+      <p class="empty-text schools-subtle">{{ t('schools.tryWideningCourseHealth', 'Try widening the course or health filter.') }}</p>
       <button
         type="button"
         class="btn-ghost"
         @click="() => { courseFilter = 'all'; healthFilter = 'all' }"
       >
-        Reset filters
+        {{ t('schools.resetFilters', 'Reset filters') }}
       </button>
     </div>
 
     <!-- Still loading, nothing cached yet -->
     <div v-else-if="classesLoading" class="empty-state schools-card schools-card-pad">
-      <p class="schools-subtle">Loading your classes…</p>
+      <p class="schools-subtle">{{ t('schools.loadingClasses', 'Loading your classes…') }}</p>
     </div>
 
     <!-- Fetch failed -->
     <div v-else-if="classesError" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">Couldn't load classes</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.couldntLoadClasses', "Couldn't load classes") }}</h3>
       <p class="empty-text schools-subtle">{{ classesError }}</p>
     </div>
 
@@ -527,15 +527,15 @@ function exportCsv() {
          "No classes yet" is a claim about the world; it may only be made once
          a read has actually come back clean and empty (classesLoaded). -->
     <div v-else-if="!classesLoaded" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">Couldn't load classes</h3>
-      <p class="empty-text schools-subtle">We didn't get an answer for this list. Try refreshing.</p>
+      <h3 class="arsenal empty-title">{{ t('schools.couldntLoadClasses', "Couldn't load classes") }}</h3>
+      <p class="empty-text schools-subtle">{{ t('schools.noAnswerForList', "We didn't get an answer for this list. Try refreshing.") }}</p>
     </div>
 
     <!-- No classes at all -->
     <div v-else class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No classes yet</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.noClassesYetTitle', 'No classes yet') }}</h3>
       <p class="empty-text schools-subtle">
-        Create your first class to start teaching with SSi. Students join with a unique code.
+        {{ t('schools.createFirstClassBody', 'Create your first class to start teaching with SSi. Students join with a unique code.') }}
       </p>
       <!-- A teacher who has just joined an existing school through her head's
            invite link sees this same screen, and her school's classes are
@@ -543,11 +543,10 @@ function exportCsv() {
            class" then reads as "make a duplicate of the class you were
            invited to teach" (production walk, 2026-08-31). -->
       <p v-if="isTeacher && !isSchoolAdmin" class="empty-text schools-subtle">
-        Joined a school that already has classes? A school leader has to put you on one —
-        ask them to add you, and it will appear here.
+        {{ t('schools.joinedExistingSchool', 'Joined a school that already has classes? A school leader has to put you on one — ask them to add you, and it will appear here.') }}
       </p>
       <button v-if="!isAdminView" type="button" class="btn-play" @click="openCreateModal">
-        + Create your first class
+        + {{ t('schools.createFirstClass', 'Create your first class') }}
       </button>
     </div>
 

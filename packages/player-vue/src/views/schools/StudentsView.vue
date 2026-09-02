@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
@@ -168,22 +169,22 @@ watch(selectedUser, (newUser) => {
   <main class="students">
     <div class="page-head">
       <div class="page-head-text">
-        <h1 class="arsenal page-title">Students</h1>
+        <h1 class="arsenal page-title">{{ t('schools.students', 'Students') }}</h1>
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
       </div>
       <div class="page-head-actions">
         <button v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
-          Export CSV
+          {{ t('schools.exportCsv', 'Export CSV') }}
         </button>
         <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
-          + Invite students
+          + {{ t('schools.inviteStudents', 'Invite students') }}
         </button>
       </div>
     </div>
 
     <div v-if="studentsError" class="fetch-error-banner">
-      <span>Couldn't refresh this list — showing the last data loaded. {{ studentsError }}</span>
-      <button type="button" class="btn-ghost" @click="fetchStudents()">Retry</button>
+      <span>{{ t('schools.refreshListFailed', "Couldn't refresh this list — showing the last data loaded.") }} {{ studentsError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchStudents()">{{ t('courseSelector.retry', 'Retry') }}</button>
     </div>
 
     <div class="filters-bar schools-card">
@@ -191,35 +192,35 @@ watch(selectedUser, (newUser) => {
         v-model="searchQuery"
         type="search"
         class="filters-search"
-        placeholder="Search by name..."
+        :placeholder="t('schools.searchByName', 'Search by name…')"
       />
       <label class="filter">
-        <span class="filter-label">Class</span>
+        <span class="filter-label">{{ t('schools.class', 'Class') }}</span>
         <select v-model="classFilter" class="filter-select">
-          <option value="all">All classes</option>
+          <option value="all">{{ t('schools.allClasses', 'All classes') }}</option>
           <option v-for="opt in classOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
       </label>
       <label class="filter">
-        <span class="filter-label">Belt</span>
+        <span class="filter-label">{{ t('browser.belt', 'Belt') }}</span>
         <select v-model="beltFilter" class="filter-select">
-          <option value="all">All</option>
-          <option value="white">White</option>
-          <option value="yellow">Yellow</option>
-          <option value="orange">Orange</option>
-          <option value="green">Green</option>
-          <option value="blue">Blue</option>
-          <option value="black">Black</option>
+          <option value="all">{{ t('listening.all', 'All') }}</option>
+          <option value="white">{{ t('belt.white', 'White') }}</option>
+          <option value="yellow">{{ t('belt.yellow', 'Yellow') }}</option>
+          <option value="orange">{{ t('belt.orange', 'Orange') }}</option>
+          <option value="green">{{ t('belt.green', 'Green') }}</option>
+          <option value="blue">{{ t('belt.blue', 'Blue') }}</option>
+          <option value="black">{{ t('belt.black', 'Black') }}</option>
         </select>
       </label>
       <label class="filter">
-        <span class="filter-label">Health</span>
+        <span class="filter-label">{{ t('schools.health', 'Health') }}</span>
         <select v-model="healthFilter" class="filter-select">
-          <option value="all">All</option>
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="needs-attention">Needs attention</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{{ t('listening.all', 'All') }}</option>
+          <option value="excellent">{{ t('schools.excellent', 'Excellent') }}</option>
+          <option value="good">{{ t('schools.good', 'Good') }}</option>
+          <option value="needs-attention">{{ t('schools.needsAttention', 'Needs attention') }}</option>
+          <option value="inactive">{{ t('schools.inactive', 'Inactive') }}</option>
         </select>
       </label>
     </div>
@@ -228,13 +229,13 @@ watch(selectedUser, (newUser) => {
       <table class="ssi-table">
         <thead>
           <tr>
-            <th>Student</th>
-            <th>Class</th>
-            <th>Belt</th>
-            <th>LEGOs</th>
-            <th>Hours/wk</th>
-            <th>Health</th>
-            <th>Last active</th>
+            <th>{{ t('schools.student', 'Student') }}</th>
+            <th>{{ t('schools.class', 'Class') }}</th>
+            <th>{{ t('browser.belt', 'Belt') }}</th>
+            <th>{{ t('schools.legos', 'LEGOs') }}</th>
+            <th>{{ t('schools.hoursPerWk', 'Hours/wk') }}</th>
+            <th>{{ t('schools.health', 'Health') }}</th>
+            <th>{{ t('schools.lastActive', 'Last active') }}</th>
             <th></th>
           </tr>
         </thead>
@@ -245,7 +246,7 @@ watch(selectedUser, (newUser) => {
                 <div class="avatar">{{ s.initials }}</div>
                 <div class="student-info">
                   <div class="student-name">{{ s.name }}</div>
-                  <div class="student-sub schools-subtle">{{ s.legos_mastered }} LEGOs mastered</div>
+                  <div class="student-sub schools-subtle">{{ t('schools.legosMastered', '{count} LEGOs mastered').replace('{count}', String(s.legos_mastered)) }}</div>
                 </div>
               </div>
             </td>
@@ -276,7 +277,7 @@ watch(selectedUser, (newUser) => {
             </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
             <td class="cell-action">
-              <a href="#" class="cell-link" @click.prevent="viewStudent(s)">View &rarr;</a>
+              <a href="#" class="cell-link" @click.prevent="viewStudent(s)">{{ t('schools.view', 'View') }} &rarr;</a>
             </td>
           </tr>
         </tbody>
@@ -284,30 +285,30 @@ watch(selectedUser, (newUser) => {
     </div>
 
     <div v-else-if="enrichedStudents.length > 0" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No students match those filters</h3>
-      <p class="empty-text schools-subtle">Try widening the class, belt or health filter.</p>
+      <h3 class="arsenal empty-title">{{ t('schools.noStudentsMatchFilters', 'No students match those filters') }}</h3>
+      <p class="empty-text schools-subtle">{{ t('schools.tryWideningStudents', 'Try widening the class, belt or health filter.') }}</p>
       <button
         type="button"
         class="btn-ghost"
         @click="() => { searchQuery = ''; classFilter = 'all'; beltFilter = 'all'; healthFilter = 'all' }"
       >
-        Reset filters
+        {{ t('schools.resetFilters', 'Reset filters') }}
       </button>
     </div>
 
     <div v-else-if="studentsLoading" class="empty-state schools-card schools-card-pad">
-      <p class="schools-subtle">Loading students…</p>
+      <p class="schools-subtle">{{ t('schools.loadingStudents', 'Loading students…') }}</p>
     </div>
 
     <div v-else-if="studentsError" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">Couldn't load students</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.couldntLoadStudents', "Couldn't load students") }}</h3>
       <p class="empty-text schools-subtle">{{ studentsError }}</p>
     </div>
 
     <div v-else class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No students yet</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.noStudentsYet', 'No students yet') }}</h3>
       <p class="empty-text schools-subtle">
-        Once students join your classes via their invite link, they'll appear here.
+        {{ t('schools.noStudentsBody', "Once students join your classes via their invite link, they'll appear here.") }}
       </p>
     </div>
   </main>
