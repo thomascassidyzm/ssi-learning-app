@@ -16,6 +16,13 @@ import eng from '../locales/eng.json'
 
 const MESSAGE = (eng as Record<string, any>).player.offlinePracticeBody
 
+/** How ProgressModal builds a belt chip's label: the belt's own translated name. */
+const JUMP_LABEL = (belt: string): string =>
+  (eng as Record<string, any>).progress.jumpToBelt.replace(
+    '{belt}',
+    (eng as Record<string, any>).belt[belt] ?? belt,
+  )
+
 const emptyWindow = { minutes: 0, learners: 0 }
 const data = {
   targetLanguage: 'cym',
@@ -99,7 +106,9 @@ describe('ProgressModal — a belt we cannot serve is not tappable', () => {
       offlineUnavailableBeltNames: unreachable,
     })
     const chip = wrapper.findAll('.map-chip')
-      .find((c) => c.attributes('aria-label') === `Jump to ${BELTS[2].name} belt`)!
+      // The label is built from the TRANSLATED belt name (belt.orange -> "Orange"),
+      // so derive it the way the component does rather than hardcoding English.
+      .find((c) => c.attributes('aria-label') === JUMP_LABEL(BELTS[2].name))!
     expect(chip.attributes('disabled')).toBeUndefined()
     await chip.trigger('click')
     expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
