@@ -17,6 +17,7 @@
  * whole vocabulary.
  */
 import { computed } from 'vue'
+import { t } from '@/composables/useI18n'
 import type { LearnerProfile } from '@/composables/useLearnerProfile'
 
 const props = defineProps<{ mirror: LearnerProfile['mirror'] }>()
@@ -89,21 +90,21 @@ const directionLine = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">How quickly it comes</h2>
+    <h2 class="title">{{ t('me.mirrorTitle', 'How quickly it comes') }}</h2>
 
     <div class="readout">
       <div class="now">
         <span class="now-value">{{ seconds(mirror.latencyNowMs) }}</span>
-        <span class="now-label">to answer, lately</span>
+        <span class="now-label">{{ t('me.toAnswerLately', 'to answer, lately') }}</span>
       </div>
       <div v-if="mirror.latencyEarlyMs" class="then">
         <span class="then-value">{{ seconds(mirror.latencyEarlyMs) }}</span>
-        <span class="then-label">when you started</span>
+        <span class="then-label">{{ t('me.whenYouStarted', 'when you started') }}</span>
       </div>
     </div>
 
     <figure v-if="hasCurve" class="chart">
-      <svg :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="`Response time trend: ${seconds(mirror.latencyEarlyMs)} when you started, ${seconds(mirror.latencyNowMs)} lately`">
+      <svg :viewBox="`0 0 ${W} ${H}`" role="img" :aria-label="t('me.responseTrendAria', 'Response time trend: {early} when you started, {now} lately').replace('{early}', seconds(mirror.latencyEarlyMs)).replace('{now}', seconds(mirror.latencyNowMs))">
         <!-- recessive baseline -->
         <line :x1="PAD" :y1="H - PAD" :x2="W - PAD" :y2="H - PAD" class="axis" />
         <path :d="linePath" class="line" />
@@ -111,18 +112,18 @@ const directionLine = computed(() => {
         <circle v-if="endPoint" :cx="endPoint.x" :cy="endPoint.y" r="4.5" class="endpoint" />
       </svg>
       <figcaption class="caption">
-        <span class="key-measured">Measured</span>
-        <span class="key-projected">Where this is heading</span>
+        <span class="key-measured">{{ t('me.measured', 'Measured') }}</span>
+        <span class="key-projected">{{ t('me.whereHeading', 'Where this is heading') }}</span>
       </figcaption>
     </figure>
 
     <p class="direction">{{ directionLine }}</p>
 
     <p v-if="mirror.unitsSteady > 0" class="steady">
-      {{ mirror.unitsSteady }} things now come back without you reaching for them.
+      {{ t('me.thingsComeBack', '{count} things now come back without you reaching for them.').replace('{count}', String(mirror.unitsSteady)) }}
     </p>
 
-    <p v-if="mirror.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="mirror.source === 'mock'" class="sample">{{ t('me.sampleDataYet', 'Sample data — not your real numbers yet.') }}</p>
   </section>
 </template>
 

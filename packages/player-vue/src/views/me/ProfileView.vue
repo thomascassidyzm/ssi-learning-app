@@ -25,6 +25,7 @@
  * could know 'streak: 0', the data model would be wrong — so it cannot.
  */
 import { onMounted, computed, inject, type Ref } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useLearnerProfile, suggestedMode } from '@/composables/useLearnerProfile'
 import AdherencePanel from '@/components/me/AdherencePanel.vue'
 import MirrorPanel from '@/components/me/MirrorPanel.vue'
@@ -68,13 +69,13 @@ onMounted(() => {
 <template>
   <div class="me">
     <header class="head">
-      <h1 class="head-title">You</h1>
+      <h1 class="head-title">{{ t('me.you', 'You') }}</h1>
       <p v-if="hasMock" class="head-note">
-        Some of this is sample data while your own numbers build up. It says so where it applies.
+        {{ t('me.someSampleData', 'Some of this is sample data while your own numbers build up. It says so where it applies.') }}
       </p>
     </header>
 
-    <div v-if="loading && !profile" class="loading">Just a moment…</div>
+    <div v-if="loading && !profile" class="loading">{{ t('me.justAMoment', 'Just a moment…') }}</div>
 
     <template v-else-if="profile">
       <AdherencePanel :adherence="profile.adherence" />
@@ -96,7 +97,7 @@ onMounted(() => {
     </template>
 
     <footer class="foot">
-      <router-link to="/" class="foot-link">Back to learning</router-link>
+      <router-link to="/" class="foot-link">{{ t('me.backToLearning', 'Back to learning') }}</router-link>
     </footer>
   </div>
 </template>

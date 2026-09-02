@@ -40,6 +40,7 @@
  * does not need even that — everything it has to say is on the face of it.
  */
 import { ref, computed, watch, inject, type Ref } from 'vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps<{ courseCode?: string | null }>()
 
@@ -150,9 +151,9 @@ const cohortLine = computed(() => {
     <p class="cohort">{{ cohortLine }}</p>
 
     <p v-if="showPercentage" class="hero">
-      You are further along than
+      {{ t('me.furtherAlongThan', 'You are further along than') }}
       <span class="hero-number">{{ standing.aheadOfPct }}%</span>
-      of them.
+      {{ t('me.ofThem', 'of them.') }}
     </p>
 
     <!-- The strip: the cohort ordered from earliest to furthest, the middle
@@ -167,28 +168,27 @@ const cohortLine = computed(() => {
       v-if="showPercentage"
       class="strip"
       role="img"
-      :aria-label="`You are further along than ${standing.aheadOfPct}% of ${standing.cohortSize} people who started around the same time as you.`"
+      :aria-label="t('me.standingAria', 'You are further along than {pct}% of {count} people who started around the same time as you.').replace('{pct}', String(standing.aheadOfPct)).replace('{count}', String(standing.cohortSize))"
     >
       <div class="strip-track">
         <div class="strip-middle" aria-hidden="true"></div>
         <div class="strip-marker" :style="{ left: markerPct + '%' }" aria-hidden="true">
-          <span class="strip-you">You</span>
+          <span class="strip-you">{{ t('me.you', 'You') }}</span>
         </div>
       </div>
       <div class="strip-ends" aria-hidden="true">
-        <span>just started</span>
-        <span>furthest along</span>
+        <span>{{ t('me.justStarted', 'just started') }}</span>
+        <span>{{ t('me.furthestAlong', 'furthest along') }}</span>
       </div>
     </div>
 
     <!-- The footnote explains the comparison, so it goes where the comparison
          goes. Without the strip there is nothing for it to be about. -->
     <p v-if="showPercentage" class="footnote">
-      This compares how far through the course people have got — not how long
-      anyone has spent in the app. It only ever goes up.
+      {{ t('me.standingFootnote', 'This compares how far through the course people have got — not how long anyone has spent in the app. It only ever goes up.') }}
     </p>
 
-    <p v-if="isSample" class="sample">Sample data — not your real numbers.</p>
+    <p v-if="isSample" class="sample">{{ t('me.sampleData', 'Sample data — not your real numbers.') }}</p>
   </section>
 </template>
 

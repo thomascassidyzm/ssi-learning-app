@@ -27,6 +27,7 @@
  * since this panel is itself called How this works.
  */
 import { ref, computed, nextTick } from 'vue'
+import { t } from '@/composables/useI18n'
 import { walksFor, searchWalks, walkTopic, startWalk } from '@/walkthrough/useWalkthrough'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 import HowThisWorksLearner from '@/components/me/HowThisWorksLearner.vue'
@@ -75,12 +76,12 @@ async function openSearch(): Promise<void> {
   <section class="hl">
     <button type="button" class="hl-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
       <span v-if="throbbing && !open" class="hl-dot" aria-hidden="true"></span>
-      {{ open ? 'Close' : 'How this works' }}
+      {{ open ? t('common.close', 'Close') : t('me.howThisWorks', 'How this works') }}
     </button>
     <transition name="hl-fade">
       <div v-if="open" class="hl-card">
-        <span class="hl-kicker">How this works</span>
-        <p class="hl-intro">Take a look round the app, right here on your own page.</p>
+        <span class="hl-kicker">{{ t('me.howThisWorks', 'How this works') }}</span>
+        <p class="hl-intro">{{ t('me.htwIntro', 'Take a look round the app, right here on your own page.') }}</p>
 
         <div v-if="walks.length" class="hl-chips">
           <button
@@ -92,7 +93,7 @@ async function openSearch(): Promise<void> {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" />
             </svg>
-            Search
+            {{ t('common.search', 'Search') }}
           </button>
         </div>
 
@@ -109,7 +110,7 @@ async function openSearch(): Promise<void> {
          sticky Library header no matter how high its own z-index goes. -->
     <Teleport to="body">
     <transition name="hl-pop">
-      <div v-if="searchOpen" class="hl-pop" role="dialog" aria-label="How this works — search">
+      <div v-if="searchOpen" class="hl-pop" role="dialog" :aria-label="t('me.htwSearchAria', 'How this works — search')">
         <div class="hl-pop-scrim" @click="searchOpen = false"></div>
         <div class="hl-pop-panel">
           <div class="hl-pop-bar">
@@ -118,10 +119,10 @@ async function openSearch(): Promise<void> {
             </svg>
             <input
               ref="queryInput" v-model="query" type="search" class="hl-pop-input"
-              placeholder="What would you like to know?"
+              :placeholder="t('me.htwSearchPlaceholder', 'What would you like to know?')"
               @keydown.esc="searchOpen = false"
             />
-            <button type="button" class="hl-pop-close" aria-label="Close search" @click="searchOpen = false">&#x2715;</button>
+            <button type="button" class="hl-pop-close" :aria-label="t('me.closeSearch', 'Close search')" @click="searchOpen = false">&#x2715;</button>
           </div>
           <div v-if="results.length" class="hl-pop-list">
             <button
@@ -132,7 +133,7 @@ async function openSearch(): Promise<void> {
               {{ w.title }}
             </button>
           </div>
-          <p v-else class="hl-pop-empty">Nothing on that one yet — try another word.</p>
+          <p v-else class="hl-pop-empty">{{ t('me.htwNoResults', 'Nothing on that one yet — try another word.') }}</p>
         </div>
       </div>
     </transition>

@@ -17,6 +17,7 @@
  * (feedback_ssi_position_is_lego_not_seed).
  */
 import { computed } from 'vue'
+import { t } from '@/composables/useI18n'
 import type { LearnerProfile } from '@/composables/useLearnerProfile'
 
 const props = defineProps<{ portrait: LearnerProfile['portrait'] }>()
@@ -36,16 +37,16 @@ const confidenceLine = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">Roughly where you are</h2>
+    <h2 class="title">{{ t('me.portraitTitle', 'Roughly where you are') }}</h2>
 
     <div class="estimate">
       <span class="band">{{ portrait.cefr.band }}</span>
       <span v-if="isRange" class="interval">
-        somewhere between {{ portrait.cefr.low }} and {{ portrait.cefr.high }}
+        {{ t('me.somewhereBetween', 'somewhere between {low} and {high}').replace('{low}', portrait.cefr.low).replace('{high}', portrait.cefr.high) }}
       </span>
     </div>
 
-    <div class="confidence" role="img" :aria-label="`Estimate confidence ${confidencePct} percent`">
+    <div class="confidence" role="img" :aria-label="t('me.confidenceAria', 'Estimate confidence {pct} percent').replace('{pct}', String(confidencePct))">
       <div class="confidence-track">
         <div class="confidence-fill" :style="{ width: `${confidencePct}%` }"></div>
       </div>
@@ -53,17 +54,16 @@ const confidenceLine = computed(() => {
     </div>
 
     <p class="explain">
-      This is our best guess, not a test — worked out from how hard the material has got
-      and how it is going for you at that level. It is not something you can pass or fail.
+      {{ t('me.portraitExplain', 'This is our best guess, not a test — worked out from how hard the material has got and how it is going for you at that level. It is not something you can pass or fail.') }}
     </p>
 
     <div v-if="portrait.positionTarget" class="position">
-      <span class="position-kicker">The last thing you said</span>
+      <span class="position-kicker">{{ t('me.lastThingYouSaid', 'The last thing you said') }}</span>
       <p class="position-target">{{ portrait.positionTarget }}</p>
       <p v-if="portrait.positionKnown" class="position-known">{{ portrait.positionKnown }}</p>
     </div>
 
-    <p v-if="portrait.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="portrait.source === 'mock'" class="sample">{{ t('me.sampleDataYet', 'Sample data — not your real numbers yet.') }}</p>
   </section>
 </template>
 

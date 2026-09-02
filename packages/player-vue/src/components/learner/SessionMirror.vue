@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { t } from '@/composables/useI18n'
+
 interface Props {
   pointsEarned: number
   newPhrases: number
@@ -11,15 +13,15 @@ const props = defineProps<Props>()
 
 <template>
   <div class="session-mirror">
-    <div class="mirror-header">This Session</div>
+    <div class="mirror-header">{{ t('session.thisSession', 'This session') }}</div>
     <div class="mirror-stats">
       <div class="mirror-stat">
         <span class="mirror-stat-value mirror-stat-value--points">+{{ pointsEarned }}</span>
-        <span class="mirror-stat-label">Points earned</span>
+        <span class="mirror-stat-label">{{ t('session.pointsEarned', 'Points earned') }}</span>
       </div>
       <div class="mirror-stat">
         <span class="mirror-stat-value">{{ newPhrases }}</span>
-        <span class="mirror-stat-label">New phrases</span>
+        <span class="mirror-stat-label">{{ t('session.newPhrases', 'New phrases') }}</span>
       </div>
       <div class="mirror-stat">
         <span
@@ -29,13 +31,13 @@ const props = defineProps<Props>()
           }"
         >
           <template v-if="responseTimeDelta && responseTimeDelta > 0">
-            {{ responseTimeDelta }}% faster
+            {{ t('session.percentFaster', '{pct}% faster').replace('{pct}', String(responseTimeDelta)) }}
           </template>
           <template v-else>
-            steady
+            {{ t('session.steady', 'steady') }}
           </template>
         </span>
-        <span class="mirror-stat-label">Response time</span>
+        <span class="mirror-stat-label">{{ t('session.responseTime', 'Response time') }}</span>
       </div>
     </div>
   </div>

@@ -12,6 +12,7 @@
  * count themselves — goes, minutes. Never points, never a score.
  */
 import { computed } from 'vue'
+import { t } from '@/composables/useI18n'
 import type { LearnerProfile } from '@/composables/useLearnerProfile'
 
 const props = defineProps<{ adherence: LearnerProfile['adherence'] }>()
@@ -33,20 +34,20 @@ const greeting = computed(() => {
 
     <div class="hero">
       <span class="hero-number">{{ adherence.goesThisWeek.toLocaleString() }}</span>
-      <span class="hero-label">goes this week</span>
+      <span class="hero-label">{{ t('me.goesThisWeek', 'goes this week') }}</span>
     </div>
 
     <p class="detail">
-      <span>{{ adherence.speakingMinutesThisWeek }} minutes speaking</span>
+      <span>{{ t('me.minutesSpeaking', '{count} minutes speaking').replace('{count}', String(adherence.speakingMinutesThisWeek)) }}</span>
       <span class="dot" aria-hidden="true">·</span>
-      <span>{{ adherence.listeningMinutesThisWeek }} minutes listening</span>
+      <span>{{ t('me.minutesListening', '{count} minutes listening').replace('{count}', String(adherence.listeningMinutesThisWeek)) }}</span>
     </p>
 
     <p class="footnote">
-      A go is one time you opened your mouth and had a crack at it. That is the whole game.
+      {{ t('me.goFootnote', 'A go is one time you opened your mouth and had a crack at it. That is the whole game.') }}
     </p>
 
-    <p v-if="adherence.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="adherence.source === 'mock'" class="sample">{{ t('me.sampleDataYet', 'Sample data — not your real numbers yet.') }}</p>
   </section>
 </template>
 

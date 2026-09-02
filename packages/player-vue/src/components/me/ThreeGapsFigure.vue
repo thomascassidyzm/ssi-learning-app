@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/composables/useI18n'
 /**
  * ThreeGapsFigure — "What a go is".
  *
@@ -25,7 +26,7 @@
       viewBox="-5 0 340 104"
       fill="none"
       role="img"
-      aria-label="Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick."
+      :aria-label="t('figure.threeGapsAria', 'Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick.')"
     >
       <!-- The three gaps, bracketed to the same width: nothing about the shape
            of the gap changes according to how it went. -->
@@ -51,11 +52,11 @@
         <path d="M162 82 l5 6 l10 -13" />
         <path d="M272 82 l5 6 l10 -13" />
       </g>
-      <text class="xf-ink2" x="59" y="18" text-anchor="middle" font-size="10.5">it arrives</text>
-      <text class="xf-ink2" x="169" y="18" text-anchor="middle" font-size="10.5">it half arrives</text>
-      <text class="xf-ink2" x="279" y="18" text-anchor="middle" font-size="10.5">it comes out wrong</text>
+      <text class="xf-ink2" x="59" y="18" text-anchor="middle" font-size="10.5">{{ t('figure.itArrives', 'it arrives') }}</text>
+      <text class="xf-ink2" x="169" y="18" text-anchor="middle" font-size="10.5">{{ t('figure.itHalfArrives', 'it half arrives') }}</text>
+      <text class="xf-ink2" x="279" y="18" text-anchor="middle" font-size="10.5">{{ t('figure.itComesOutWrong', 'it comes out wrong') }}</text>
     </svg>
-    <figcaption class="xf-claim">All three are a go.</figcaption>
+    <figcaption class="xf-claim">{{ t('figure.allThreeAreAGo', 'All three are a go.') }}</figcaption>
   </figure>
 </template>
 

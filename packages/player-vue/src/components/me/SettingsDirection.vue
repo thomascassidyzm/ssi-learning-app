@@ -10,7 +10,7 @@
  * the same choices, not a parallel settings store.
  */
 import { ref, computed } from 'vue'
-import { setLocale } from '@/composables/useI18n'
+import { setLocale, t } from '@/composables/useI18n'
 
 const LANGUAGES = [
   { code: 'eng', label: 'English' },
@@ -63,13 +63,13 @@ const restLine = computed(() =>
 
 <template>
   <section class="panel">
-    <h2 class="title">Settings, the quiet version</h2>
-    <p class="lede">Three things actually change how you learn. Everything else just needs to work.</p>
+    <h2 class="title">{{ t('me.settingsQuietTitle', 'Settings, the quiet version') }}</h2>
+    <p class="lede">{{ t('me.settingsQuietLede', 'Three things actually change how you learn. Everything else just needs to work.') }}</p>
 
     <div class="pref">
       <div class="pref-head">
-        <span class="pref-label">Language you read in</span>
-        <span class="pref-desc">The words around the lesson — not what you're learning.</span>
+        <span class="pref-label">{{ t('me.prefLanguage', 'Language you read in') }}</span>
+        <span class="pref-desc">{{ t('me.prefLanguageDesc', "The words around the lesson — not what you're learning.") }}</span>
       </div>
       <div class="chip-row">
         <button
@@ -85,8 +85,8 @@ const restLine = computed(() =>
 
     <div class="pref">
       <div class="pref-head">
-        <span class="pref-label">How fast things play</span>
-        <span class="pref-desc">Slows the language you're learning down. Never the explanations.</span>
+        <span class="pref-label">{{ t('me.prefSpeed', 'How fast things play') }}</span>
+        <span class="pref-desc">{{ t('me.prefSpeedDesc', "Slows the language you're learning down. Never the explanations.") }}</span>
       </div>
       <div class="chip-row">
         <button
@@ -103,8 +103,8 @@ const restLine = computed(() =>
     <div class="pref">
       <div class="pref-row" @click="togglePacing">
         <div class="pref-head">
-          <span class="pref-label">Give me a moment</span>
-          <span class="pref-desc">Listens for when you start talking and waits accordingly. Nothing is recorded.</span>
+          <span class="pref-label">{{ t('me.prefPacing', 'Give me a moment') }}</span>
+          <span class="pref-desc">{{ t('me.prefPacingDesc', 'Listens for when you start talking and waits accordingly. Nothing is recorded.') }}</span>
         </div>
         <div class="toggle-switch" :class="{ 'is-on': pacingOn }">
           <div class="toggle-track"><div class="toggle-thumb"></div></div>
@@ -119,7 +119,7 @@ const restLine = computed(() =>
       <li v-for="c in restCategories" :key="c">{{ c }}</li>
     </ul>
     <p v-if="showRest" class="sketch-note">
-      A direction sketch only — these labels aren't live controls here yet.
+      {{ t('me.sketchNote', "A direction sketch only — these labels aren't live controls here yet.") }}
     </p>
   </section>
 </template>

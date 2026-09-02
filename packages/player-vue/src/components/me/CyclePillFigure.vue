@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/composables/useI18n'
 /**
  * CyclePillFigure — a still portrait of the player's phase pill, for the
  * explainer to point at.
@@ -56,14 +57,12 @@
       </div>
     </div>
     <div class="cpf-labels" aria-hidden="true">
-      <span class="cpf-label cpf-label--prompt">you hear it</span>
-      <span class="cpf-label cpf-label--pause">your turn</span>
-      <span class="cpf-label cpf-label--voices">then twice, properly</span>
+      <span class="cpf-label cpf-label--prompt">{{ t('figure.youHearIt', 'you hear it') }}</span>
+      <span class="cpf-label cpf-label--pause">{{ t('figure.yourTurn', 'your turn') }}</span>
+      <span class="cpf-label cpf-label--voices">{{ t('figure.twiceProperly', 'then twice, properly') }}</span>
     </div>
     <figcaption class="cpf-caption">
-      One go, as it looks on the player screen: you hear the phrase, then the
-      wide middle stretch is your turn to say it out loud, then two different
-      voices say it properly.
+      {{ t('figure.cyclePillCaption', 'One go, as it looks on the player screen: you hear the phrase, then the wide middle stretch is your turn to say it out loud, then two different voices say it properly.') }}
     </figcaption>
   </figure>
 </template>

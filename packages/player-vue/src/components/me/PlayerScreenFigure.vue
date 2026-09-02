@@ -31,6 +31,7 @@
  * locked while open.
  */
 import { ref, watch, onBeforeUnmount } from 'vue'
+import { t } from '@/composables/useI18n'
 import playerScreen from '@/assets/explainer/player-screen.jpg'
 
 /**
@@ -39,10 +40,10 @@ import playerScreen from '@/assets/explainer/player-screen.jpg'
  * its middle — dead centre buries the icon the learner is being pointed at.
  */
 const CALLOUTS = [
-  { x: 54, y: 27.9, text: 'One go: you hear it, then your turn, then twice properly.' },
-  { x: 81, y: 83, text: 'Offline downloads live here.' },
-  { x: 11, y: 90.5, text: 'Every course you have.' },
-  { x: 43.5, y: 90, text: 'The only button that matters.' },
+  { x: 54, y: 27.9, text: t('figure.calloutOneGo', 'One go: you hear it, then your turn, then twice properly.') },
+  { x: 81, y: 83, text: t('figure.calloutOffline', 'Offline downloads live here.') },
+  { x: 11, y: 90.5, text: t('figure.calloutCourses', 'Every course you have.') },
+  { x: 43.5, y: 90, text: t('figure.calloutPlay', 'The only button that matters.') },
 ]
 
 const open = ref(false)
@@ -71,14 +72,14 @@ onBeforeUnmount(() => {
   <div class="psf">
     <button type="button" class="psf-thumb" @click="open = true">
       <img class="psf-thumb-img" :src="playerScreen" alt="" aria-hidden="true" width="640" height="1385" />
-      <span class="psf-thumb-label">Show me the screen</span>
+      <span class="psf-thumb-label">{{ t('figure.showMeTheScreen', 'Show me the screen') }}</span>
     </button>
 
     <Teleport to="body">
-      <div v-if="open" class="psf-sheet" role="dialog" aria-modal="true" aria-label="The player screen">
+      <div v-if="open" class="psf-sheet" role="dialog" aria-modal="true" :aria-label="t('figure.thePlayerScreen', 'The player screen')">
         <header class="psf-header">
-          <span class="psf-title">The player screen</span>
-          <button type="button" class="psf-close" aria-label="Close" @click="open = false">
+          <span class="psf-title">{{ t('figure.thePlayerScreen', 'The player screen') }}</span>
+          <button type="button" class="psf-close" :aria-label="t('common.close', 'Close')" @click="open = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />

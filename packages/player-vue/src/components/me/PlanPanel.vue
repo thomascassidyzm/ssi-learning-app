@@ -17,6 +17,7 @@
  * Progress is stated only as what is already behind them.
  */
 import { ref, computed, onMounted } from 'vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps<{ plan: { hoursDone: number; targetHours: number; source: 'real' | 'mock' } }>()
 
@@ -125,21 +126,20 @@ const coveredPct = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">How you want to do it</h2>
+    <h2 class="title">{{ t('me.planTitle', 'How you want to do it') }}</h2>
 
     <div class="hero">
       <span class="hero-number">{{ hoursLabel }}</span>
-      <span class="hero-label">hours in</span>
+      <span class="hero-label">{{ t('me.hoursIn', 'hours in') }}</span>
     </div>
     <p class="behind">{{ behindYou }}</p>
 
-    <div class="trail" role="img" :aria-label="`${hoursLabel} hours done so far`">
+    <div class="trail" role="img" :aria-label="t('me.hoursDoneSoFar', '{hours} hours done so far').replace('{hours}', String(hoursLabel))">
       <div class="trail-covered" :style="{ width: `${coveredPct}%` }"></div>
     </div>
 
     <p class="intro">
-      Thirty hours is the stretch that matters. How you climb it is completely up to you — same
-      mountain, different routes up.
+      {{ t('me.thirtyHoursIntro', 'Thirty hours is the stretch that matters. How you climb it is completely up to you — same mountain, different routes up.') }}
     </p>
 
     <div v-if="picking" class="routes">
@@ -159,18 +159,18 @@ const coveredPct = computed(() => {
     </div>
 
     <div v-else-if="chosen" class="chosen">
-      <span class="chosen-kicker">Your route</span>
+      <span class="chosen-kicker">{{ t('me.yourRoute', 'Your route') }}</span>
       <p class="chosen-name">{{ chosen.name }}</p>
       <p class="chosen-shape">{{ chosen.shape }}</p>
-      <p class="chosen-job">From here you have one job, and it is a small one: press play.</p>
+      <p class="chosen-job">{{ t('me.oneJob', 'From here you have one job, and it is a small one: press play.') }}</p>
       <button type="button" class="change" @click="reopen">
-        Fancy a different route? Pick again any time.
+        {{ t('me.pickAgain', 'Fancy a different route? Pick again any time.') }}
       </button>
     </div>
 
     <p class="thirty">{{ thirtyLine }}</p>
 
-    <p v-if="plan.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="plan.source === 'mock'" class="sample">{{ t('me.sampleDataYet', 'Sample data — not your real numbers yet.') }}</p>
   </section>
 </template>
 
