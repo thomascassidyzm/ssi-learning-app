@@ -128,9 +128,30 @@ fully compromised. Neither can climb out of a school, and both leave a trail.
 ## Verified in a real browser, phone-sized
 
 `packages/player-vue/e2e/_entry-without-email-verify.mjs`, against the deployed dev build,
-on a synthetic school torn down afterwards. Eleven checks, including the ones that must
-fail: a live account is still refused (409), a teacher at another school is refused (404),
-and a group leader wearing a teacher tag is refused (403).
+on a synthetic school torn down afterwards. **11 of 11 checks pass**, including the ones
+that must fail: a live account is still refused (409), a teacher at another school is
+refused (404), and a group leader wearing a teacher tag is refused (403).
+
+The browser found three things no unit test would have:
+
+- The `/schools` front door had one button. That is item 3 above, and I only saw it
+  because I looked at the screen a teacher looks at.
+- `TeachersView` is retired for school-scoped admins — they land on the node home with the
+  teachers lens — so my first Sign-in link button sat on a page most of them never see. It
+  moved to the node home.
+- Two row verbs side by side squeezed the teacher's name down to its first letter at
+  390px, and the panel opened below the fold, so tapping the button appeared to do
+  nothing. Both fixed and re-shot.
+
+Known duplication, deliberately left: on the node home the existing "Your account" card
+already says "No password yet". Mine says the same at the TOP of the page, which is the
+entire point — the passive card below the fold is why nobody has ever set one. Both
+disappear the moment a password exists.
+
+One environment note: a minted link carries `redirect_to` for the origin it was minted
+from, and Supabase only honours allow-listed origins. On the dev alias the link lands on
+production instead; on production and staging it lands where it should. Worth a glance
+during the staging soak.
 
 ## Tests
 

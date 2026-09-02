@@ -4,7 +4,7 @@
 // STATS ROW · CHILDREN LIST (lenses are filters, not pages) · VERBS.
 // Mounted at /admin/groups/:id, /admin/schools/:id and /admin/classes/:id —
 // one endpoint (/api/groups/:id/home) resolves whichever id it's given.
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -549,6 +549,7 @@ const assignLoadError = computed(() =>
 // rescue was an ssi_admin minting a link by hand. Their own leader can do it
 // from the row where they are already standing.
 const signinLinkFor = ref<{ name: string; link: string } | null>(null)
+const signinLinkPanelEl = ref<HTMLElement | null>(null)
 const signinLinkBusy = ref('')
 const signinLinkError = ref('')
 const signinLinkCopied = ref(false)
@@ -563,6 +564,10 @@ async function openSigninLink(userId: string): Promise<void> {
   signinLinkBusy.value = ''
   if (result.link) signinLinkFor.value = { name, link: result.link }
   else signinLinkError.value = `Couldn't create a sign-in link for ${name}: ${result.error}`
+  // The panel renders below a long page; without this the admin taps and
+  // nothing appears to happen.
+  await nextTick()
+  signinLinkPanelEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 async function copySigninLink(): Promise<void> {
@@ -922,9 +927,9 @@ const listPayload = computed(() => {
       </div>
     </template>
 
-        <div v-if="signinLinkError" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
+        <div v-if="signinLinkError" ref="signinLinkPanelEl" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
 
-    <div v-if="signinLinkFor" class="signin-link-panel">
+    <div v-if="signinLinkFor" ref="signinLinkPanelEl" class="signin-link-panel">
       <div class="signin-link-kicker">Sign-in link for {{ signinLinkFor.name }}</div>
       <p class="signin-link-body">
         Hand this to {{ signinLinkFor.name }} in person, on Teams, however you
