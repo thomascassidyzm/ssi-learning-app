@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
@@ -282,35 +283,35 @@ watch(selectedUser, (newUser) => {
   <main class="teachers">
     <div class="page-head">
       <div class="page-head-text">
-        <h1 class="arsenal page-title">Teachers</h1>
+        <h1 class="arsenal page-title">{{ t('schools.teachers', 'Teachers') }}</h1>
         <p class="page-subtitle schools-subtle">{{ subtitle }}</p>
       </div>
       <div class="page-head-actions">
         <button v-if="teachers.length > 0" type="button" class="btn-ghost" @click="exportCsv">
-          Export CSV
+          {{ t('schools.exportCsv', 'Export CSV') }}
         </button>
         <button v-if="canManageStaff" type="button" class="btn-ghost" @click="handleBulkImport">
-          Bulk import CSV
+          {{ t('schools.bulkImportCsv', 'Bulk import CSV') }}
         </button>
         <button v-if="canManageStaff" type="button" class="btn-play" @click="handleInvite">
-          + Invite teacher
+          + {{ t('schools.inviteTeacher', 'Invite teacher') }}
         </button>
       </div>
     </div>
 
     <div v-if="teachersError" class="fetch-error-banner">
-      <span>Couldn't refresh this list — showing the last data loaded. {{ teachersError }}</span>
-      <button type="button" class="btn-ghost" @click="fetchTeachers()">Retry</button>
+      <span>{{ t('schools.refreshListFailed', "Couldn't refresh this list — showing the last data loaded.") }} {{ teachersError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchTeachers()">{{ t('courseSelector.retry', 'Retry') }}</button>
     </div>
 
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
-        Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.
+        {{ t('schools.bulkImportSoon', 'Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.') }}
       </div>
     </Transition>
     <Transition name="fade">
       <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
-        Copy the teacher invite link below and share it however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
+        {{ t('schools.copyInviteHint', 'Copy the teacher invite link below and share it however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.') }}
       </div>
     </Transition>
     <Transition name="fade">
@@ -323,25 +324,22 @@ watch(selectedUser, (newUser) => {
       </div>
 
       <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
-        <div class="schools-kicker">Access code for {{ signinLinkFor.name }}</div>
+        <div class="schools-kicker">{{ t('schools.accessCodeFor', 'Access code for {name}').replace('{name}', signinLinkFor.name) }}</div>
         <p class="signin-link-body">
-          Read this out to {{ signinLinkFor.name }}, write it down, or paste it into
-          Teams &mdash; however you normally reach them. They go to
-          <strong>saysomethingin.app/join</strong> and type it in. No email needed.
+          {{ t('schools.accessCodeBody', 'Read this out to {name}, write it down, or paste it into Teams — however you normally reach them. They go to').replace('{name}', signinLinkFor.name) }}
+          <strong>saysomethingin.app/join</strong> {{ t('schools.accessCodeBodyPost', 'and type it in. No email needed.') }}
         </p>
         <div class="signin-link-code">{{ signinLinkFor.code }}</div>
         <div class="signin-link-row">
           <code class="signin-link-url">{{ signinLinkFor.joinUrl }}</code>
           <button type="button" class="btn-play btn-small" @click="copySigninLink">
-            {{ signinLinkCopied ? 'Copied' : 'Copy link' }}
+            {{ signinLinkCopied ? t('schools.copied', 'Copied') : t('schools.copyLink', 'Copy link') }}
           </button>
         </div>
         <p class="signin-link-caveat schools-subtle">
-          It works once, and lasts two days. Whoever uses it becomes
-          {{ signinLinkFor.name }}, so give it to them directly and don't post it
-          anywhere shared. Need another? Just tap Access code again.
+          {{ t('schools.accessCodeCaveat', "It works once, and lasts two days. Whoever uses it becomes {name}, so give it to them directly and don't post it anywhere shared. Need another? Just tap Access code again.").replace('{name}', signinLinkFor.name) }}
         </p>
-        <button type="button" class="btn-ghost btn-small" @click="signinLinkFor = null">Done</button>
+        <button type="button" class="btn-ghost btn-small" @click="signinLinkFor = null">{{ t('common.done', 'Done') }}</button>
       </div>
     </Transition>
 
@@ -349,38 +347,38 @@ watch(selectedUser, (newUser) => {
       <table class="ssi-table">
         <thead>
           <tr>
-            <th>Teacher</th>
-            <th>Role</th>
-            <th>Classes</th>
-            <th>Students</th>
-            <th>Student hours</th>
-            <th>Own practice</th>
-            <th>Status</th>
+            <th>{{ t('schools.teacher', 'Teacher') }}</th>
+            <th>{{ t('schools.role', 'Role') }}</th>
+            <th>{{ t('schools.classes', 'Classes') }}</th>
+            <th>{{ t('schools.students', 'Students') }}</th>
+            <th>{{ t('schools.studentHours', 'Student hours') }}</th>
+            <th>{{ t('schools.ownPractice', 'Own practice') }}</th>
+            <th>{{ t('schools.status', 'Status') }}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="t in filtered" :key="t.user_id">
+          <tr v-for="tr_ in filtered" :key="tr_.user_id">
             <td>
               <div class="teacher-cell">
-                <div class="avatar">{{ t.initials }}</div>
+                <div class="avatar">{{ tr_.initials }}</div>
                 <div class="teacher-info">
-                  <div class="teacher-name">{{ t.name }}</div>
-                  <div class="teacher-sub schools-subtle">Joined {{ t.joined_at ? new Date(t.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'recently' }}</div>
+                  <div class="teacher-name">{{ tr_.name }}</div>
+                  <div class="teacher-sub schools-subtle">{{ t('schools.joinedOn', 'Joined {date}').replace('{date}', tr_.joined_at ? new Date(tr_.joined_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : t('schools.recently', 'recently')) }}</div>
                 </div>
               </div>
             </td>
             <td>
-              <span class="role-pill" :class="{ admin: t.role === 'Admin' }">{{ t.role }}</span>
+              <span class="role-pill" :class="{ admin: tr_.role === 'Admin' }">{{ tr_.role }}</span>
             </td>
-            <td>{{ t.classes }}</td>
-            <td>{{ t.students }}</td>
-            <td>{{ t.hours7d }}h</td>
-            <td>{{ formatOwnPractice(t.ownMinutes) }}</td>
+            <td>{{ tr_.classes }}</td>
+            <td>{{ tr_.students }}</td>
+            <td>{{ tr_.hours7d }}h</td>
+            <td>{{ formatOwnPractice(tr_.ownMinutes) }}</td>
             <td>
-              <span class="status-cell" :class="t.status">
+              <span class="status-cell" :class="tr_.status">
                 <span class="status-dot" />
-                {{ t.status === 'active' ? 'Active' : 'Pending invite' }}
+                {{ tr_.status === 'active' ? t('settings.subActive', 'Active') : t('schools.pendingInvite', 'Pending invite') }}
               </span>
             </td>
             <td class="cell-action">
@@ -392,9 +390,9 @@ watch(selectedUser, (newUser) => {
                 type="button"
                 class="btn-ghost btn-small assign-btn"
                 data-walk="teacher-assign-classes"
-                @click="openAssign({ user_id: t.user_id, name: t.name })"
+                @click="openAssign({ user_id: tr_.user_id, name: tr_.name })"
               >
-                Assign to a class
+                {{ t('schools.assignToClass', 'Assign to a class') }}
               </button>
               <!-- Email verification is not a door. If our code email never
                    reaches this teacher (Hwb and other school gateways eat it),
@@ -405,28 +403,28 @@ watch(selectedUser, (newUser) => {
                 v-if="canManageStaff"
                 type="button"
                 class="btn-ghost btn-small signin-link-btn"
-                :disabled="signinLinkBusy === t.user_id"
+                :disabled="signinLinkBusy === tr_.user_id"
                 data-walk="teacher-signin-link"
-                @click="handleSigninLink(t.user_id, t.name)"
+                @click="handleSigninLink(tr_.user_id, tr_.name)"
               >
-                {{ signinLinkBusy === t.user_id ? 'Creating…' : 'Access code' }}
+                {{ signinLinkBusy === tr_.user_id ? t('schools.creating', 'Creating…') : t('join.accessCode', 'Access code') }}
               </button>
               <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
                    deliberately refuses an admin, so a school can't lose its own
                    admin through the staff list) — so don't offer the control. -->
               <button
-                v-if="canManageStaff && t.role !== 'Admin'"
+                v-if="canManageStaff && tr_.role !== 'Admin'"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
-                @click="handleRemoveTeacher(t.user_id, t.name)"
+                @click="handleRemoveTeacher(tr_.user_id, tr_.name)"
               >
-                Remove
+                {{ t('common.remove', 'Remove') }}
               </button>
             </td>
           </tr>
           <tr v-if="filtered.length === 0">
             <td colspan="8" class="empty-row">
-              No teachers match "{{ searchQuery }}".
+              {{ t('schools.noTeachersMatch', 'No teachers match “{query}”.').replace('{query}', searchQuery) }}
             </td>
           </tr>
         </tbody>
@@ -434,39 +432,39 @@ watch(selectedUser, (newUser) => {
     </div>
 
     <div v-else-if="teachersLoading" class="empty-state schools-card schools-card-pad">
-      <p class="schools-subtle">Loading teachers…</p>
+      <p class="schools-subtle">{{ t('schools.loadingTeachers', 'Loading teachers…') }}</p>
     </div>
 
     <div v-else-if="teachersError" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">Couldn't load teachers</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.couldntLoadTeachers', "Couldn't load teachers") }}</h3>
       <p class="empty-text schools-subtle">{{ teachersError }}</p>
     </div>
 
     <div v-else class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No teachers yet</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.noTeachersYet', 'No teachers yet') }}</h3>
       <p class="empty-text schools-subtle">
-        Share the invite link below to add teachers to your school.
+        {{ t('schools.noTeachersBody', 'Share the invite link below to add teachers to your school.') }}
       </p>
     </div>
 
     <!-- Tip cards + join link panel -->
     <div class="tip-grid">
       <div class="schools-card schools-card-pad tip-card">
-        <div class="schools-kicker">Tip &mdash; invite links</div>
+        <div class="schools-kicker">{{ t('schools.tipInviteLinks', 'Tip — invite links') }}</div>
         <p class="tip-body">
-          Anyone who clicks your teacher invite link appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.
+          {{ t('schools.tipInviteLinksBody', 'Anyone who clicks your teacher invite link appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.') }}
         </p>
       </div>
       <div class="schools-card schools-card-pad tip-card">
-        <div class="schools-kicker">Tip &mdash; roles</div>
+        <div class="schools-kicker">{{ t('schools.tipRoles', 'Tip — roles') }}</div>
         <p class="tip-body">
-          Admins manage staff, classes and settings. Teachers see only their own classes. Switch role any time from a teacher's row.
+          {{ t('schools.tipRolesBody', "Admins manage staff, classes and settings. Teachers see only their own classes. Switch role any time from a teacher's row.") }}
         </p>
       </div>
       <div v-if="canManageStaff" class="schools-card schools-card-pad join-card">
-        <div class="schools-kicker join-kicker">Invite teachers</div>
+        <div class="schools-kicker join-kicker">{{ t('schools.inviteTeachers', 'Invite teachers') }}</div>
         <p class="join-body">
-          Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
+          {{ t('schools.shareStaffLink', 'Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.') }}
         </p>
         <InviteLinkField :url="teacherJoinLink" />
 
@@ -476,12 +474,12 @@ watch(selectedUser, (newUser) => {
           class="btn-text join-show-code"
           @click="showCode = true"
         >
-          Show code instead
+          {{ t('schools.showCodeInstead', 'Show code instead') }}
         </button>
         <template v-else>
           <div class="join-code">{{ teacherJoinCode }}</div>
           <p class="join-body join-body-small">
-            For writing on a whiteboard — teachers enter it at
+            {{ t('schools.whiteboardHelpTeachers', 'For writing on a whiteboard — teachers enter it at') }}
             <strong>saysomethingin.com/redeem</strong>.
           </p>
           <button
