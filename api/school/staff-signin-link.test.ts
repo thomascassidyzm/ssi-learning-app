@@ -1,9 +1,14 @@
 /**
  * Tests for POST /api/school/staff-signin-link — a school admin minting a
- * magic-link for their own staff when the OTP email never arrives (Hwb
+ * short ACCESS CODE for their own staff when the OTP email never arrives (Hwb
  * mail-gateway rescue). The containment checks are the security-critical
  * part: a school admin must never mint their way into a bigger role or
  * another school.
+ *
+ * Since 2026-09-02 what is minted is an 8-character code (Tom's ruling: the
+ * hand-over is out of band, so the artefact has to be typeable), NOT a
+ * Supabase action_link. "Did we mint?" is therefore asserted on rows written
+ * to staff_access_codes rather than on generateLink calls.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -26,14 +31,15 @@ let rateErr: any
 let insertedEvents: any[]
 let getUserByIdResult: any
 let getUserByIdArg: string | undefined
-let generateLinkResult: any
-let generateLinkArg: any
-let generateLinkCalls: number
+let codeInserts: any[]
+let codeInsertErr: any
+let supersedeCalls: any[][]
+let supersedeErr: any
 
 function makeQueryBuilder(table: string) {
   const calls: any[] = []
   const builder: any = {}
-  for (const m of ['select', 'eq', 'in', 'is', 'gte', 'order', 'limit', 'contains']) {
+  for (const m of ['select', 'eq', 'in', 'is', 'gte', 'gt', 'order', 'limit', 'contains', 'update']) {
     builder[m] = (...args: any[]) => {
       calls.push([m, ...args])
       return builder
@@ -68,6 +74,12 @@ function makeQueryBuilder(table: string) {
   // Queries awaited without a terminal .maybeSingle()/.single() resolve
   // through the thenable builder itself.
   builder.then = (resolve: any, reject: any) => {
+    if (table === 'staff_access_codes') {
+      // The only awaited-without-terminal query on this table is the
+      // supersede UPDATE that kills any earlier live code for the target.
+      supersedeCalls.push(calls)
+      return Promise.resolve({ error: supersedeErr }).then(resolve, reject)
+    }
     if (table === 'user_tags') {
       return Promise.resolve({ data: targetOtherTags, error: null }).then(resolve, reject)
     }
@@ -78,6 +90,10 @@ function makeQueryBuilder(table: string) {
   }
 
   builder.insert = (obj: any) => {
+    if (table === 'staff_access_codes') {
+      codeInserts.push(obj)
+      return Promise.resolve({ error: codeInsertErr })
+    }
     insertedEvents.push(obj)
     return Promise.resolve({ error: null })
   }
@@ -93,11 +109,6 @@ vi.mock('@supabase/supabase-js', () => ({
         getUserById: (id: string) => {
           getUserByIdArg = id
           return Promise.resolve(getUserByIdResult)
-        },
-        generateLink: (arg: any) => {
-          generateLinkArg = arg
-          generateLinkCalls += 1
-          return Promise.resolve(generateLinkResult)
         },
       },
     },
@@ -133,9 +144,10 @@ beforeEach(async () => {
   insertedEvents = []
   getUserByIdResult = { data: { user: { id: 'target-1', email: 'target@school.example' } }, error: null }
   getUserByIdArg = undefined
-  generateLinkResult = { data: { properties: { action_link: 'https://staging.saysomethingin.app/auth/confirm?token=abc' } }, error: null }
-  generateLinkArg = undefined
-  generateLinkCalls = 0
+  codeInserts = []
+  codeInsertErr = null
+  supersedeCalls = []
+  supersedeErr = null
   handler = (await import('./staff-signin-link')).default
 })
 
@@ -172,7 +184,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it('resolves caller adminship via a school-admin user_tags row when schools.admin_user_id is not set', async () => {
@@ -188,7 +200,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(404)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it('403 CONTAINMENT: refuses a target whose educational_role is govt_admin', async () => {
@@ -196,7 +208,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it.each(['ssi_admin', 'god'])('403 CONTAINMENT: refuses a target whose platform_role is %s', async (platformRole) => {
@@ -204,7 +216,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it('403 CONTAINMENT: refuses a target who also holds an active school tag for a DIFFERENT school', async () => {
@@ -212,7 +224,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it('429s when the caller has already minted PER_CALLER_LIMIT links in the window', async () => {
@@ -220,7 +232,7 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(429)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
   it('503s when the rate-limit query itself errors, and fails CLOSED (does not mint)', async () => {
@@ -228,24 +240,70 @@ describe('POST /api/school/staff-signin-link', () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(503)
-    expect(generateLinkCalls).toBe(0)
+    expect(codeInserts).toHaveLength(0)
   })
 
-  it('returns 200 with action_link and email, and calls generateLink with type magiclink', async () => {
+  it('returns 200 with a typeable access code, a /join URL and an expiry, and audits the mint', async () => {
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.success).toBe(true)
-    expect(res.body.action_link).toBe('https://staging.saysomethingin.app/auth/confirm?token=abc')
+    // ABCD-EFGH: the whole point is that a person can read this down a phone.
+    expect(res.body.access_code).toMatch(/^[2-9A-HJ-NP-TV-Z]{4}-[2-9A-HJ-NP-TV-Z]{4}$/)
+    expect(res.body.join_url).toBe(`https://staging.saysomethingin.app/join/${res.body.access_code}`)
+    expect(new Date(res.body.expires_at).getTime()).toBeGreaterThan(Date.now())
     expect(res.body.email).toBe('target@school.example')
-    expect(generateLinkArg.type).toBe('magiclink')
-    expect(generateLinkArg.email).toBe('target@school.example')
+    // The code itself never reaches the database — only its hash.
+    expect(codeInserts).toHaveLength(1)
+    expect(codeInserts[0].code_hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(JSON.stringify(codeInserts[0])).not.toContain(res.body.access_code.replace('-', ''))
+    expect(codeInserts[0]).toMatchObject({
+      target_user_id: 'target-1',
+      school_id: 'school-1',
+      created_by: 'admin-1',
+    })
     expect(getUserByIdArg).toBe('target-1')
     expect(insertedEvents).toHaveLength(1)
     expect(insertedEvents[0]).toMatchObject({
       event_type: 'school_signin_link_minted',
       payload: { actor_user_id: 'admin-1', target_user_id: 'target-1', school_id: 'school-1', self: false },
     })
+  })
+
+  it('kills any earlier live code for the same person before minting a new one', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+    expect(res.statusCode).toBe(200)
+    // Reissue must mean the OLD one stops working, or every reissue leaves
+    // another live credential loose in a shared inbox.
+    expect(supersedeCalls).toHaveLength(1)
+    const flat = JSON.stringify(supersedeCalls[0])
+    expect(flat).toContain('target_user_id')
+    expect(flat).toContain('redeemed_at')
+  })
+
+  it('503s and mints NOTHING when the supersede write fails', async () => {
+    supersedeErr = { message: 'connection reset' }
+    const res = makeRes()
+    await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+    expect(res.statusCode).toBe(503)
+    expect(codeInserts).toHaveLength(0)
+  })
+
+  it('500s when the code row cannot be written — no code is handed back', async () => {
+    codeInsertErr = { message: 'unique violation' }
+    const res = makeRes()
+    await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.access_code).toBeUndefined()
+  })
+
+  it('two mints in a row produce different codes', async () => {
+    const a = makeRes()
+    await handler(makeReq('POST', { target_user_id: 'target-1' }), a)
+    const b = makeRes()
+    await handler(makeReq('POST', { target_user_id: 'target-1' }), b)
+    expect(a.body.access_code).not.toBe(b.body.access_code)
   })
 
   it('self-service: target_user_id === caller id skips the staff-tag lookup and still mints', async () => {
@@ -265,10 +323,5 @@ describe('POST /api/school/staff-signin-link', () => {
     expect(res.statusCode).toBe(404)
   })
 
-  it('500s when generateLink fails', async () => {
-    generateLinkResult = { data: null, error: { message: 'boom' } }
-    const res = makeRes()
-    await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
-    expect(res.statusCode).toBe(500)
-  })
+
 })

@@ -36,7 +36,22 @@ import {
 } from '@/composables/useManagerOnboarding'
 import { detectFromBrowser, installFraming } from '@/utils/installPlatform'
 
-const props = defineProps<{ isOpen: boolean }>()
+const props = defineProps<{
+  isOpen: boolean
+  /**
+   * Let the password walk be escaped. Default FALSE, which is the org lane's
+   * behaviour unchanged — a manager who arrived by magic link has no other way
+   * back in, so that gate has never had a skip and still does not.
+   *
+   * The teacher return route (views/JoinWithCode.vue) opts IN to a skip on
+   * purpose: a teacher redeeming an access code in the middle of a lesson must
+   * be able to get on with their day, and their admin can always mint another
+   * code. Blocking them there would be the same wall we are dismantling.
+   */
+  allowSkip?: boolean
+  /** Re-voice the opening beat when "a link in an email" is not how they got here. */
+  whyCopy?: string
+}>()
 const emit = defineEmits<{ close: []; passworded: [] }>()
 
 const auth = inject<any>('auth', null)
@@ -85,7 +100,10 @@ const beat = ref(0)
 
 const walk = computed(() => (phase.value === 'password' ? PASSWORD_WALK : INSTALL_WALK.value))
 const currentBeat = computed<Beat>(() => walk.value.beats[beat.value] ?? 'why')
-const say = computed(() => walk.value.say[currentBeat.value])
+const say = computed(() => {
+  if (phase.value === 'password' && currentBeat.value === 'why' && props.whyCopy) return props.whyCopy
+  return walk.value.say[currentBeat.value]
+})
 
 const password = ref('')
 const confirm = ref('')
@@ -108,8 +126,20 @@ const wantsInstall = computed(() =>
   shouldPromptInstall({ standalone: platform.isStandalone, dismissed: dismissed.value }),
 )
 
-/** The password walk never offers an escape; the install walk always does. */
-const dismissible = computed(() => phase.value === 'install')
+/**
+ * The install walk always offers an escape. The password walk offers one only
+ * where the caller asked for it (see `allowSkip`), and never on the terminal
+ * beat, where the only verb left is "Done".
+ */
+const dismissible = computed(
+  () => phase.value === 'install' || (!!props.allowSkip && currentBeat.value !== 'done'),
+)
+
+/** Skipping the password walk is simply leaving; skipping install is remembered. */
+function onSkip(): void {
+  if (phase.value === 'password') emit('close')
+  else skipInstall()
+}
 
 const showBack = computed(() => beat.value > 0 && currentBeat.value !== 'done')
 
@@ -208,7 +238,7 @@ function skipInstall(): void {
             :dismissible="dismissible"
             @back="back"
             @next="advance"
-            @skip="skipInstall"
+            @skip="onSkip"
           >
             <!-- The doing, inside the card — the step is the form. -->
             <form

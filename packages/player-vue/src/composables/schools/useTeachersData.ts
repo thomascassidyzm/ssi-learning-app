@@ -20,18 +20,33 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers
 }
 
+export interface StaffAccessCode {
+  /** ABCD-EFGH — what an admin reads out or writes on a slip. */
+  code: string | null
+  /** The same code as a tappable /join URL, for whoever has a channel for links. */
+  joinUrl: string | null
+  expiresAt: string | null
+  email: string | null
+  error: string | null
+}
+
 /**
- * Mint a sign-in link for a colleague — server-mediated
+ * Mint an ACCESS CODE for a colleague — server-mediated
  * (api/school/staff-signin-link.ts). The rescue for a teacher whose school
  * mail gateway eats our code email: the admin standing next to them hands
- * over a working link on any channel that isn't our email.
+ * over something that works, on any channel that isn't our email.
+ *
+ * A short code rather than a URL (Tom's ruling, 2026-09-02) because the
+ * hand-over is out of band by design — Teams, a screen, a printed slip, a
+ * voice across a staffroom — and a ~200-character Supabase link survives none
+ * of those. Both forms come back so whichever channel the admin actually has
+ * will work.
  *
  * Module-level rather than a composable method so the node surface can call
  * it without instantiating the whole teachers data layer at setup time.
  */
-export async function createStaffSigninLink(
-  targetUserId: string,
-): Promise<{ link: string | null; email: string | null; error: string | null }> {
+export async function createStaffSigninLink(targetUserId: string): Promise<StaffAccessCode> {
+  const empty = { code: null, joinUrl: null, expiresAt: null, email: null }
   try {
     const headers = await authHeaders()
     const res = await fetch('/api/school/staff-signin-link', {
@@ -40,10 +55,16 @@ export async function createStaffSigninLink(
       body: JSON.stringify({ target_user_id: targetUserId }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) return { link: null, email: null, error: data?.error || `Request failed: ${res.status}` }
-    return { link: data.action_link ?? null, email: data.email ?? null, error: null }
+    if (!res.ok) return { ...empty, error: data?.error || `Request failed: ${res.status}` }
+    return {
+      code: data.access_code ?? null,
+      joinUrl: data.join_url ?? null,
+      expiresAt: data.expires_at ?? null,
+      email: data.email ?? null,
+      error: null,
+    }
   } catch (err) {
-    return { link: null, email: null, error: err instanceof Error ? err.message : 'Failed to create a sign-in link' }
+    return { ...empty, error: err instanceof Error ? err.message : 'Failed to create an access code' }
   }
 }
 

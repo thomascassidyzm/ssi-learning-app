@@ -762,6 +762,18 @@ const routes: RouteRecordRaw[] = [
     props: { variant: 'landing' },
     meta: { title: 'Bring SSi to your group' },
   },
+  // The teacher return route (Tom's ruling 2026-09-02). A school admin mints a
+  // short access code for a colleague our email cannot reach; this is where it
+  // is spent. Deliberately the shortest path we could give it — the whole
+  // point is that a person can read "/join" and eight characters down a phone
+  // or off a printed slip. :code? is optional so both the tappable
+  // /join/ABCD-EFGH and a bare /join with the code typed in resolve.
+  {
+    path: '/join/:code?',
+    name: 'join-with-code',
+    component: () => import('@/views/JoinWithCode.vue'),
+    meta: { title: 'Sign in with your access code' },
+  },
   // Try link gateway (no auth required — zero-friction course preview)
   {
     path: '/try/:code',

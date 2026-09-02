@@ -548,7 +548,7 @@ const assignLoadError = computed(() =>
 // tenants generally — never receives our code email, and until now their only
 // rescue was an ssi_admin minting a link by hand. Their own leader can do it
 // from the row where they are already standing.
-const signinLinkFor = ref<{ name: string; link: string } | null>(null)
+const signinLinkFor = ref<{ name: string; code: string; joinUrl: string } | null>(null)
 const signinLinkPanelEl = ref<HTMLElement | null>(null)
 const signinLinkBusy = ref('')
 const signinLinkError = ref('')
@@ -562,8 +562,8 @@ async function openSigninLink(userId: string): Promise<void> {
   signinLinkCopied.value = false
   const result = await createStaffSigninLink(userId)
   signinLinkBusy.value = ''
-  if (result.link) signinLinkFor.value = { name, link: result.link }
-  else signinLinkError.value = `Couldn't create a sign-in link for ${name}: ${result.error}`
+  if (result.code && result.joinUrl) signinLinkFor.value = { name, code: result.code, joinUrl: result.joinUrl }
+  else signinLinkError.value = `Couldn't create an access code for ${name}: ${result.error}`
   // The panel renders below a long page; without this the admin taps and
   // nothing appears to happen.
   await nextTick()
@@ -573,7 +573,7 @@ async function openSigninLink(userId: string): Promise<void> {
 async function copySigninLink(): Promise<void> {
   if (!signinLinkFor.value) return
   try {
-    await navigator.clipboard.writeText(signinLinkFor.value.link)
+    await navigator.clipboard.writeText(signinLinkFor.value.joinUrl)
     signinLinkCopied.value = true
     setTimeout(() => { signinLinkCopied.value = false }, 2000)
   } catch {
@@ -890,7 +890,7 @@ const listPayload = computed(() => {
                 :payload="listPayload"
                 :row-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
                 row-action-walk="teacher-assign-classes"
-                :row-action2-label="canAssignTeachers ? 'Sign-in link' : undefined"
+                :row-action2-label="canAssignTeachers ? 'Access code' : undefined"
                 row-action2-walk="teacher-signin-link"
                 @row-action="openAssign"
                 @row-action-2="openSigninLink"
@@ -930,20 +930,21 @@ const listPayload = computed(() => {
         <div v-if="signinLinkError" ref="signinLinkPanelEl" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
 
     <div v-if="signinLinkFor" ref="signinLinkPanelEl" class="signin-link-panel">
-      <div class="signin-link-kicker">Sign-in link for {{ signinLinkFor.name }}</div>
+      <div class="signin-link-kicker">Access code for {{ signinLinkFor.name }}</div>
       <p class="signin-link-body">
-        Hand this to {{ signinLinkFor.name }} in person, on Teams, however you
-        normally reach them. Opening it signs them in as themselves &mdash; no
-        email needed.
+        Read this out, write it down, or paste it into Teams &mdash; however you
+        normally reach {{ signinLinkFor.name }}. They go to
+        <strong>saysomethingin.app/join</strong> and type it in. No email needed.
       </p>
+      <div class="signin-link-code">{{ signinLinkFor.code }}</div>
       <div class="signin-link-row">
-        <code class="signin-link-url">{{ signinLinkFor.link }}</code>
-        <button type="button" class="signin-link-copy" @click="copySigninLink">{{ signinLinkCopied ? 'Copied' : 'Copy' }}</button>
+        <code class="signin-link-url">{{ signinLinkFor.joinUrl }}</code>
+        <button type="button" class="signin-link-copy" @click="copySigninLink">{{ signinLinkCopied ? 'Copied' : 'Copy link' }}</button>
       </div>
       <p class="signin-link-caveat">
-        It works once, and only for about an hour. Anyone who opens it becomes
-        {{ signinLinkFor.name }}, so send it straight to them and don&rsquo;t post
-        it anywhere shared.
+        It works once, and lasts two days. Whoever uses it becomes
+        {{ signinLinkFor.name }}, so give it straight to them and don&rsquo;t post
+        it anywhere shared. You can make another any time.
       </p>
       <button type="button" class="signin-link-done" @click="signinLinkFor = null">Done</button>
     </div>
@@ -977,6 +978,21 @@ const listPayload = computed(() => {
 .signin-link-kicker { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
 .signin-link-body { margin: 0; font-size: 0.9375rem; line-height: 1.45; }
 .signin-link-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+/* The code is the artefact — it gets read aloud and copied off a screen, so it
+   is set big, monospaced and widely tracked. Everything else on this panel is
+   support for it. */
+.signin-link-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(1.5rem, 8vw, 2rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+  background: var(--bg-primary, #e8e3dd);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
 .signin-link-url {
   flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; font-size: 0.75rem;
   padding: 0.5rem 0.625rem; border-radius: 8px;
