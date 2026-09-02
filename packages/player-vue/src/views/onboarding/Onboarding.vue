@@ -19,6 +19,7 @@ import {
   type LiveCourse,
 } from '@/lib/onboardingTracks'
 import '@/styles/schools-tokens.css'
+import { sendSignInCode } from '../../auth/sendSignInCode'
 
 // track is set per route (/schools1 /tutors /orgs) via router props.
 // (/schools2 retired 2026-08-02 — it is now a pure redirect to /schools1.)
@@ -595,7 +596,7 @@ async function sendCode() {
   error.value = ''
   requiresCheckout.value = false
   try {
-    const { error: e } = await supabase.value.auth.signInWithOtp({ email: email.value.trim() })
+    const { error: e } = await sendSignInCode(supabase.value, email.value)
     if (e) {
       error.value = e.message || 'Could not send your code'
       return

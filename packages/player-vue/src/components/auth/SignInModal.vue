@@ -5,6 +5,7 @@ import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
+import { sendSignInCode } from '../../auth/sendSignInCode'
 
 const { isOpen, inviteCodeMode, close } = useAuthModal()
 const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
@@ -151,7 +152,7 @@ const handleSendCode = async () => {
   error.value = ''
 
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
 
     if (otpError) {
       error.value = otpError.message || 'Unable to send code. Please try again.'
@@ -284,7 +285,7 @@ const resendCode = async () => {
 
   showDeliveryHint.value = true
   try {
-    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    const { error: otpError } = await sendSignInCode(client, email.value)
     if (otpError) {
       error.value = 'Unable to resend code. Please try again.'
     } else {

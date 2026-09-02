@@ -11,6 +11,7 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
+import { sendSignInCode } from '../auth/sendSignInCode'
 
 // Supabase + auth from App.vue
 const supabase = inject('supabase', ref(null)) as any
@@ -100,9 +101,7 @@ async function handleSendOtp() {
   loginError.value = ''
 
   try {
-    const { error } = await supabase.value.auth.signInWithOtp({
-      email: loginEmail.value.trim(),
-    })
+    const { error } = await sendSignInCode(supabase.value, loginEmail.value)
     if (error) {
       loginError.value = error.message || 'Unable to send code'
       return
