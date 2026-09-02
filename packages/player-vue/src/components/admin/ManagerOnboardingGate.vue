@@ -278,6 +278,17 @@ function skipInstall(): void {
               <button type="submit" class="gate-submit-proxy" tabindex="-1" aria-hidden="true"></button>
             </form>
 
+            <!--
+              An escape in WORDS, not just the × in the corner. Only where the
+              caller opted in (allowSkip): a teacher redeeming an access code
+              between lessons has to be able to get on with their day, and a
+              close glyph is not something a hurried person reads as "you may
+              leave". The org lane passes no allowSkip and so still has neither.
+            -->
+            <div v-if="allowSkip && phase === 'password' && currentBeat !== 'done'" class="gate-aside">
+              <button type="button" class="gate-notnow" @click="emit('close')">Not now &mdash; remind me later</button>
+            </div>
+
             <div v-else-if="phase === 'install' && currentBeat === 'do'" class="gate-aside">
               <button type="button" class="gate-notnow" @click="skipInstall">Not now</button>
             </div>

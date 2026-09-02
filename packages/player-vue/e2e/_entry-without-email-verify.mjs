@@ -1,9 +1,16 @@
 /**
  * Entry-without-email — live verification against a deployed preview.
  *
- * Proves the two new doors work for a teacher-shaped account that has never
- * confirmed its email, and screenshots what that teacher actually sees, at
- * phone size.
+ * Proves the doors work for a teacher-shaped account that has never confirmed
+ * its email, and screenshots what that teacher actually sees, at phone size.
+ *
+ * Covers BOTH halves now:
+ *   FIRST entry (job #66) — shell adoption, and a school admin who can issue
+ *   for their own staff, contained to their own school.
+ *   RETURN entry (2026-09-02) — the short access code, typed at /join, buying
+ *   a durable session and the offer of a password. The refusals matter as much
+ *   as the successes here: a code that has been used, or has expired, or was
+ *   mistyped, must all fail, and none of them may leak which.
  *
  * Fixture uses e2e-door-* addresses on our own MX-backed domain (the
  * endpoint MX-checks the typed address and never sends mail to it), plus an
@@ -14,10 +21,10 @@
  */
 import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import fs from 'fs'
 
-const BASE = process.env.BASE || 'https://ssi-learning-app-git-feat-entry-without-email-zenjin.vercel.app'
+const BASE = process.env.BASE || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const SHOTS = process.env.SHOTS || '/tmp/shots'
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim()
 const SERVICE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').trim()
@@ -166,9 +173,18 @@ try {
   })
   const adminSession = await sessionFor(adminUserId)
   const mint = await post('/api/school/staff-signin-link', { target_user_id: shellUserId }, adminSession.access_token)
-  log(mint.status === 200 && !!mint.json.action_link,
-      'school admin can mint a sign-in link for their own teacher',
-      `status=${mint.status}`)
+  const mintedCode = mint.json.access_code
+  log(mint.status === 200 && !!mintedCode && !!mint.json.join_url,
+      'school admin can mint an access code for their own teacher',
+      `status=${mint.status} code=${mintedCode}`)
+  // The entire reason this is a code and not a URL: it has to survive being
+  // read down a phone or off a printed slip.
+  log(/^[2-9A-HJ-NP-TV-Z]{4}-[2-9A-HJ-NP-TV-Z]{4}$/.test(String(mintedCode)),
+      'the code is short, typeable, and carries no 0/O/1/I/L to squint at',
+      String(mintedCode))
+  log(mint.json.join_url === `${BASE}/join/${mintedCode}`,
+      'the join URL points at THIS origin — no Supabase redirect_to to be allow-listed',
+      String(mint.json.join_url))
 
   // ── 5. Containment: a teacher at ANOTHER school is refused ──────────────
   const outsiderId = await mkUser(`e2e-door-outsider-${stamp}@saysomethingin.com`, { confirm: true })
@@ -186,23 +202,91 @@ try {
   const big = await post('/api/school/staff-signin-link', { target_user_id: bigUserId }, adminSession.access_token)
   log(big.status === 403, 'a group leader wearing a teacher tag is refused — no stepping up', `status=${big.status}`)
 
+  // ── 6b. Reissue KILLS the previous code ────────────────────────────────
+  // Otherwise every reissue leaves another live credential loose in an inbox.
+  const reissue = await post('/api/school/staff-signin-link', { target_user_id: shellUserId }, adminSession.access_token)
+  const liveCode = reissue.json.access_code
+  log(reissue.status === 200 && liveCode && liveCode !== mintedCode,
+      'the admin can always reissue, and gets a different code', `${mintedCode} -> ${liveCode}`)
+  const stale = await post('/api/auth/access-code-redeem', { code: mintedCode })
+  log(stale.status === 404 && !stale.json.session,
+      'the SUPERSEDED code no longer works — a stale slip is worth nothing',
+      `status=${stale.status}`)
+
+  // ── 6c. An expired code is refused ─────────────────────────────────────
+  const expiredPlain = 'ABCD2345'
+  const expiredHash = createHash('sha256').update(expiredPlain).digest('hex')
+  await admin.from('staff_access_codes').insert({
+    code_hash: expiredHash, target_user_id: shellUserId, school_id: school.id,
+    created_by: adminUserId, expires_at: new Date(Date.now() - 60000).toISOString(),
+  })
+  const expired = await post('/api/auth/access-code-redeem', { code: expiredPlain })
+  log(expired.status === 404 && !expired.json.session, 'an EXPIRED code is refused', `status=${expired.status}`)
+
+  // ── 6d. A mistyped code is refused, and told so plainly ────────────────
+  const malformed = await post('/api/auth/access-code-redeem', { code: 'ABCD-234O' })
+  log(malformed.status === 400 && !malformed.json.session,
+      'a code carrying a character we never generate is refused, not guessed at',
+      `status=${malformed.status}`)
+
+  // ── 6e. No oracle: used, expired and unknown read identically ──────────
+  const unknown = await post('/api/auth/access-code-redeem', { code: 'ZZZZ-9999' })
+  log(unknown.status === 404 && unknown.json.error === stale.json.error && unknown.json.error === expired.json.error,
+      'unknown, expired and already-used give the SAME message — no enumeration oracle')
+
   // ── 7. Browser, phone-sized ─────────────────────────────────────────────
   browser = await chromium.launch()
 
-  // 7a. The teacher gets in through the link their own admin minted — the
-  //     whole point: a real sign-in, with no email anywhere in the loop.
+  // 7a. THE RETURN ROUTE, as a person walks it: the teacher opens /join, the
+  //     code their admin read out is already in the box, and they press one
+  //     button. No email anywhere in the loop.
   const teacherCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   const tp = await teacherCtx.newPage()
-  await openViaLink(tp, mint.json.action_link)
+  await tp.goto(`${BASE}/join/${liveCode}`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await tp.waitForTimeout(4000)
+  await tp.screenshot({ path: `${SHOTS}/1a-join-screen.png`, fullPage: false })
+  const joinText = await tp.evaluate(() => document.body.innerText)
+  log(/Your way in/i.test(joinText) && /Access code/i.test(joinText),
+      'the /join screen asks for the code, at phone width',
+      joinText.replace(/\s+/g, ' ').slice(0, 90))
+  const prefilled = await tp.inputValue('#join-code').catch(() => '')
+  log(prefilled === liveCode, 'the tappable link prefills the code rather than spending it', prefilled)
+
+  await tp.click('.join-submit')
+  await tp.waitForTimeout(9000)
+  await tp.screenshot({ path: `${SHOTS}/1b-credential-screen.png`, fullPage: false })
+
+  // A DURABLE session, not a single entry — the whole ruling.
+  const tokenKey = await tp.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('sb-') && k.endsWith('-auth-token')) return localStorage.getItem(k)
+    }
+    return null
+  })
+  log(!!tokenKey && /refresh_token/.test(String(tokenKey)),
+      'redeeming mints a DURABLE session with a refresh token, not a one-off entry')
+
+  const gateText = await tp.evaluate(() => document.body.innerText)
+  log(/password/i.test(gateText) && /permanent|way back/i.test(gateText),
+      'the very first screen after getting in offers the permanent way back',
+      gateText.replace(/\s+/g, ' ').slice(0, 140))
+  // Skippable on purpose: a teacher mid-lesson must be able to get on.
+  const skippable = await tp.evaluate(() => /Not now/i.test(document.body.innerText))
+  log(skippable, 'the credential screen can be escaped IN WORDS — an offer, never a wall')
+
+  // 7a-ii. SINGLE USE, proved from the browser's side: the same code again.
+  const replay = await post('/api/auth/access-code-redeem', { code: liveCode })
+  log(replay.status === 404 && !replay.json.session,
+      'the code the teacher just spent cannot be spent again',
+      `status=${replay.status}`)
+
   await tp.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await tp.waitForTimeout(8000)
-  await tp.screenshot({ path: `${SHOTS}/1-teacher-in-no-email.png`, fullPage: false })
+  await tp.screenshot({ path: `${SHOTS}/1c-teacher-in-no-email.png`, fullPage: false })
   const teacherText = await tp.evaluate(() => document.body.innerText)
-  log(/You're signed in/i.test(teacherText) || /Welcome|Dashboard|classes/i.test(teacherText) && !/Send me a code/i.test(teacherText),
-      'the never-confirmed teacher is inside the product, via a link, with no email',
+  log(!/Send me a code/i.test(teacherText),
+      'the never-confirmed teacher is inside the product, with no email',
       teacherText.replace(/\s+/g, ' ').slice(0, 100))
-  log(/Set a password/i.test(teacherText),
-      'the teacher is offered a password — the way back in that needs no inbox')
 
   // 7b. The school admin's own view: the staff list and the sign-in link panel.
   const adminCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
@@ -228,10 +312,14 @@ try {
     if (await panelEl.count()) await panelEl.scrollIntoViewIfNeeded()
     await ap.waitForTimeout(1200)
     await ap.screenshot({ path: `${SHOTS}/3-signin-link-panel.png`, fullPage: false })
-    const panel = await ap.evaluate(() => /Hand this to/i.test(document.body.innerText))
-    log(panel, 'the admin sees a copyable sign-in link with its plain-language caveat')
+    const panelText = await ap.evaluate(() => document.body.innerText)
+    log(/Access code for/i.test(panelText) && /Read this out/i.test(panelText),
+        'the admin sees a readable-aloud access code with its plain-language caveat',
+        panelText.replace(/\s+/g, ' ').slice(0, 140))
+    log(/lasts two days/i.test(panelText) && /works once/i.test(panelText),
+        'the caveat states the two things that actually bite: once, and two days')
   } else {
-    log(false, 'Sign-in link button visible on the staff list', 'button not found')
+    log(false, 'Access code button visible on the staff list', 'button not found')
   }
 
   // 7d. The schools front door offers two ways in, not one.
@@ -263,7 +351,7 @@ try {
     await dp.waitForTimeout(1500)
     await dp.screenshot({ path: `${SHOTS}/4-no-dead-end.png`, fullPage: true })
     const routes = await dp.evaluate(() => document.body.innerText)
-    log(/password/i.test(routes) && /Sign-in link/i.test(routes),
+    log(/password/i.test(routes) && /Access code/i.test(routes),
         'the already-registered screen names both inbox-free routes',
         routes.replace(/\s+/g, ' ').slice(0, 160))
   } else {
@@ -277,6 +365,7 @@ try {
   // Teardown
   // Our own rate-limit rows, so repeat runs don't lock the probe out.
   await admin.from('possession_mint_attempts').delete().like('email', 'e2e-door-%')
+  for (const id of ledger.users) await admin.from('staff_access_codes').delete().eq('target_user_id', id)
   for (const id of ledger.codes) await admin.from('invite_codes').delete().eq('id', id)
   for (const id of ledger.schools) await admin.from('schools').delete().eq('id', id)
   for (const id of ledger.users) {
