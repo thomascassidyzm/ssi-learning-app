@@ -161,6 +161,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // Mark the account the way every other inbox-free arrival is marked, so
+    // SettingsScreen's "a way to reach you" row appears for them. Somebody who
+    // needed an access code is, by definition, somebody whose address we have
+    // never seen mail reach — which is exactly what this flag means. It is a
+    // nudge and never a gate, so a failure here is not worth refusing over.
+    await supabase.auth.admin
+      .updateUserById(targetUserId, {
+        user_metadata: { ...(targetUser?.user?.user_metadata || {}), onboarded_via: 'possession' },
+      })
+      .catch(() => {})
+
     await logAttempt(supabase, LABEL, { ipHash, outcome: 'access_code_minted', email, authUserId: targetUserId })
 
     // Whether the client should put the set-a-credential screen in front of

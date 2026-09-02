@@ -105,6 +105,9 @@ const say = computed(() => {
   return walk.value.say[currentBeat.value]
 })
 
+/** Shown to the password manager so it saves against the right account. */
+const accountEmail = computed<string>(() => auth?.user?.value?.email ?? '')
+
 const password = ref('')
 const confirm = ref('')
 const error = ref('')
@@ -245,6 +248,21 @@ function skipInstall(): void {
               v-if="phase === 'password' && currentBeat === 'do'"
               class="gate-form" @submit.prevent="advance"
             >
+              <!--
+                The account this password belongs to, for the DEVICE'S OWN
+                password manager. Without a username field alongside, iCloud
+                Keychain and Google Password Manager either decline to save or
+                save against the wrong entry — and then the password does not
+                autofill on the new laptop, which is the entire scenario this
+                walk exists for. Visible rather than hidden on purpose: a
+                manager will not offer to save a credential it cannot see, and
+                it also tells the teacher which account they are setting.
+              -->
+              <label class="gate-label" for="gate-username">Your account</label>
+              <input
+                id="gate-username" :value="accountEmail" type="email" class="frost-input gate-username"
+                autocomplete="username" readonly tabindex="-1"
+              />
               <label class="gate-label" for="gate-password">New password</label>
               <input
                 id="gate-password" v-model="password" type="password" class="frost-input"
@@ -271,6 +289,12 @@ function skipInstall(): void {
 </template>
 
 <style scoped>
+.gate-username {
+  /* Present and readable — a password manager ignores what it cannot see —
+     but visibly not the field being filled in. */
+  opacity: 0.6;
+  pointer-events: none;
+}
 .gate-overlay {
   position: fixed;
   inset: 0;

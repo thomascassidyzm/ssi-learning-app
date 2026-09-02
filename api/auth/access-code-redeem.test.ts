@@ -31,6 +31,7 @@ let getUserByIdResult: any
 let generateLinkResult: any
 let verifyOtpResult: any
 let verifyOtpArg: any
+let updatedUsers: any[]
 
 function makeQueryBuilder(table: string) {
   const calls: any[] = []
@@ -64,6 +65,10 @@ vi.mock('@supabase/supabase-js', () => ({
       admin: {
         getUserById: () => Promise.resolve(getUserByIdResult),
         generateLink: () => Promise.resolve(generateLinkResult),
+        updateUserById: (id: string, attrs: any) => {
+          updatedUsers.push({ id, attrs })
+          return Promise.resolve({ data: null, error: null })
+        },
       },
     },
   }),
@@ -99,6 +104,7 @@ beforeEach(async () => {
     error: null,
   }
   verifyOtpArg = undefined
+  updatedUsers = []
   handler = (await import('./access-code-redeem')).default
 })
 
@@ -119,6 +125,16 @@ describe('POST /api/auth/access-code-redeem', () => {
     // nothing" — the client must be told to put the credential screen up.
     expect(res.body.needs_credential).toBe(true)
     expect(loggedAttempts.some((a) => a.outcome === 'access_code_minted')).toBe(true)
+  })
+
+  it('marks the account so the "a way to reach you" nudge reaches them', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { code: GOOD_CODE }), res)
+    expect(res.statusCode).toBe(200)
+    // Somebody who needed an access code is by definition somebody whose
+    // address we have never seen mail reach.
+    expect(updatedUsers).toHaveLength(1)
+    expect(updatedUsers[0].attrs.user_metadata.onboarded_via).toBe('possession')
   })
 
   it('does not ask again when the account already has a password', async () => {
