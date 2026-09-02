@@ -139,8 +139,9 @@ const contextDescription = computed(() => {
   return ''
 })
 
-// ── Supabase OTP flow ──
-// signInWithOtp handles both sign-in AND sign-up automatically
+// ── Sign-in code flow ──
+// sendSignInCode handles both sign-in AND sign-up automatically, and mails our own
+// code email rather than Supabase's template — see auth/sendSignInCode.ts.
 
 const handleSendCode = async () => {
   const client = supabaseClient?.value
