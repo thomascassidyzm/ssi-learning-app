@@ -39,9 +39,15 @@ const props = defineProps<{
    */
   rowActionLabel?: string
   rowActionWalk?: string
+  /** A second, independent per-row verb — same contract as the first. */
+  rowAction2Label?: string
+  rowAction2Walk?: string
 }>()
 
-const emit = defineEmits<{ (e: 'row-action', rowKey: string): void }>()
+const emit = defineEmits<{
+  (e: 'row-action', rowKey: string): void
+  (e: 'row-action-2', rowKey: string): void
+}>()
 
 const router = useRouter()
 const route = useRoute()
@@ -224,6 +230,13 @@ function open(row: Row): void {
         :data-walk="rowActionWalk"
         @click="emit('row-action', row.key)"
       >{{ rowActionLabel }}</button>
+      <button
+        v-if="rowAction2Label"
+        type="button"
+        class="child-row-action"
+        :data-walk="rowAction2Walk"
+        @click="emit('row-action-2', row.key)"
+      >{{ rowAction2Label }}</button>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
       <slot name="empty">Nothing here yet.</slot>

@@ -20,6 +20,33 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers
 }
 
+/**
+ * Mint a sign-in link for a colleague — server-mediated
+ * (api/school/staff-signin-link.ts). The rescue for a teacher whose school
+ * mail gateway eats our code email: the admin standing next to them hands
+ * over a working link on any channel that isn't our email.
+ *
+ * Module-level rather than a composable method so the node surface can call
+ * it without instantiating the whole teachers data layer at setup time.
+ */
+export async function createStaffSigninLink(
+  targetUserId: string,
+): Promise<{ link: string | null; email: string | null; error: string | null }> {
+  try {
+    const headers = await authHeaders()
+    const res = await fetch('/api/school/staff-signin-link', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { link: null, email: null, error: data?.error || `Request failed: ${res.status}` }
+    return { link: data.action_link ?? null, email: data.email ?? null, error: null }
+  } catch (err) {
+    return { link: null, email: null, error: err instanceof Error ? err.message : 'Failed to create a sign-in link' }
+  }
+}
+
 export interface Teacher {
   user_id: string
   learner_id: string
@@ -260,28 +287,6 @@ export function useTeachersData() {
       return { ok: true, error: null }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove teacher' }
-    }
-  }
-
-  // Mint a sign-in link for a colleague — server-mediated
-  // (api/school/staff-signin-link.ts). The rescue for a teacher whose school
-  // mail gateway eats our code email: the admin standing next to them hands
-  // over a working link on any channel that isn't our email.
-  async function createStaffSigninLink(
-    targetUserId: string,
-  ): Promise<{ link: string | null; email: string | null; error: string | null }> {
-    try {
-      const headers = await authHeaders()
-      const res = await fetch('/api/school/staff-signin-link', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ target_user_id: targetUserId }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) return { link: null, email: null, error: data?.error || `Request failed: ${res.status}` }
-      return { link: data.action_link ?? null, email: data.email ?? null, error: null }
-    } catch (err) {
-      return { link: null, email: null, error: err instanceof Error ? err.message : 'Failed to create a sign-in link' }
     }
   }
 

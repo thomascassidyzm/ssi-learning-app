@@ -10,7 +10,9 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
+import { createStaffSigninLink } from '@/composables/schools/useTeachersData'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import {
   applyAssignmentDiff,
   computeAssignmentDiff,
@@ -541,6 +543,39 @@ const assignLoadError = computed(() =>
     : ''
 )
 
+// ── Sign-in link (the way in that needs no inbox) ──────────────────────────
+// A teacher behind a school mail gateway — Hwb, and Microsoft education
+// tenants generally — never receives our code email, and until now their only
+// rescue was an ssi_admin minting a link by hand. Their own leader can do it
+// from the row where they are already standing.
+const signinLinkFor = ref<{ name: string; link: string } | null>(null)
+const signinLinkBusy = ref('')
+const signinLinkError = ref('')
+const signinLinkCopied = ref(false)
+
+async function openSigninLink(userId: string): Promise<void> {
+  const t = (home.value?.teachers || []).find((x: any) => x.user_id === userId)
+  const name = t?.name || 'this teacher'
+  signinLinkBusy.value = userId
+  signinLinkError.value = ''
+  signinLinkCopied.value = false
+  const result = await createStaffSigninLink(userId)
+  signinLinkBusy.value = ''
+  if (result.link) signinLinkFor.value = { name, link: result.link }
+  else signinLinkError.value = `Couldn't create a sign-in link for ${name}: ${result.error}`
+}
+
+async function copySigninLink(): Promise<void> {
+  if (!signinLinkFor.value) return
+  try {
+    await navigator.clipboard.writeText(signinLinkFor.value.link)
+    signinLinkCopied.value = true
+    setTimeout(() => { signinLinkCopied.value = false }, 2000)
+  } catch {
+    /* the link is on screen and selectable — copying is a convenience */
+  }
+}
+
 function openAssign(userId: string): void {
   const t = (home.value?.teachers || []).find((x: any) => x.user_id === userId)
   if (!t) return
@@ -847,7 +882,10 @@ const listPayload = computed(() => {
                 :payload="listPayload"
                 :row-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
                 row-action-walk="teacher-assign-classes"
+                :row-action2-label="canAssignTeachers ? 'Sign-in link' : undefined"
+                row-action2-walk="teacher-signin-link"
                 @row-action="openAssign"
+                @row-action-2="openSigninLink"
               >
                 <template #empty>
                   {{ isClass ? 'No students in this class yet.' : (neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.')) }}
@@ -881,7 +919,31 @@ const listPayload = computed(() => {
       </div>
     </template>
 
-    <AssignClassesModal
+        <!-- A password is the one way back in that needs no inbox. -->
+    <SchoolsPasswordPrompt />
+
+    <div v-if="signinLinkError" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
+
+    <div v-if="signinLinkFor" class="signin-link-panel">
+      <div class="signin-link-kicker">Sign-in link for {{ signinLinkFor.name }}</div>
+      <p class="signin-link-body">
+        Hand this to {{ signinLinkFor.name }} in person, on Teams, however you
+        normally reach them. Opening it signs them in as themselves &mdash; no
+        email needed.
+      </p>
+      <div class="signin-link-row">
+        <code class="signin-link-url">{{ signinLinkFor.link }}</code>
+        <button type="button" class="signin-link-copy" @click="copySigninLink">{{ signinLinkCopied ? 'Copied' : 'Copy' }}</button>
+      </div>
+      <p class="signin-link-caveat">
+        It works once, and only for about an hour. Anyone who opens it becomes
+        {{ signinLinkFor.name }}, so send it straight to them and don&rsquo;t post
+        it anywhere shared.
+      </p>
+      <button type="button" class="signin-link-done" @click="signinLinkFor = null">Done</button>
+    </div>
+
+<AssignClassesModal
       :is-open="!!assignTarget"
       :teacher-name="assignTarget?.name ?? ''"
       :classes="assignClasses"
@@ -897,6 +959,31 @@ const listPayload = computed(() => {
 </template>
 
 <style scoped>
+.signin-link-error,
+.signin-link-panel {
+  margin: 0.75rem 0;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  background: var(--bg-elevated, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.signin-link-error { color: var(--error, #c23a3a); }
+.signin-link-panel { display: flex; flex-direction: column; gap: 0.6rem; }
+.signin-link-kicker { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+.signin-link-body { margin: 0; font-size: 0.9375rem; line-height: 1.45; }
+.signin-link-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.signin-link-url {
+  flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; font-size: 0.75rem;
+  padding: 0.5rem 0.625rem; border-radius: 8px;
+  background: var(--bg-primary, #e8e3dd); border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.signin-link-copy,
+.signin-link-done {
+  padding: 0.45rem 0.85rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.12); background: transparent; font-size: 0.875rem;
+}
+.signin-link-caveat { margin: 0; font-size: 0.8125rem; line-height: 1.4; opacity: 0.75; }
+
 .node-home { display: flex; flex-direction: column; gap: var(--space-5); }
 
 /* Org trial banner — always-visible upgrade entry point during the trial. */

@@ -98,6 +98,21 @@ const loginOtp = ref('')
 const loginStep = ref<'email' | 'otp'>('email')
 const loginError = ref('')
 const isLoginLoading = ref(false)
+// Email verification is not a door. This screen used to offer exactly one way
+// in — "send me a code" — which is a wall for every teacher behind Hwb or a
+// Microsoft education tenant, because that code is quarantined and never
+// arrives. A password needs no inbox at all, so it sits here as a peer route.
+const usePassword = ref(false)
+const loginPassword = ref('')
+// School gateways swallow OTP mail silently: nothing bounces, nothing a
+// teacher can whitelist. Reveal the fallback after a wait, or immediately on
+// resend — that click already IS the signal something is wrong.
+const showDeliveryHint = ref(false)
+let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
+function armDeliveryHint() {
+  if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+  deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
+}
 
 // Set by useAuth.recoverDeadSession when a server-revoked session couldn't
 // be refreshed and the user was routed here — a calm "sign in again", never
@@ -190,6 +205,32 @@ watch(
   { immediate: true },
 )
 
+async function handleSignInSubmit() {
+  if (usePassword.value) return handlePasswordSignIn()
+  return handleSendOtp()
+}
+
+async function handlePasswordSignIn() {
+  if (!isEmailValid.value || !loginPassword.value || !supabase.value) return
+  isLoginLoading.value = true
+  loginError.value = ''
+  try {
+    const { error } = await supabase.value.auth.signInWithPassword({
+      email: loginEmail.value.trim(),
+      password: loginPassword.value,
+    })
+    if (error) {
+      loginError.value = error.message || 'That email and password did not match.'
+      return
+    }
+    // useAuth's onAuthStateChange picks it up from here, same as the OTP path.
+  } catch (err: any) {
+    loginError.value = err.message || 'Unable to sign in'
+  } finally {
+    isLoginLoading.value = false
+  }
+}
+
 async function handleSendOtp() {
   if (!isEmailValid.value || !supabase.value) return
   isLoginLoading.value = true
@@ -204,6 +245,7 @@ async function handleSendOtp() {
       return
     }
     loginStep.value = 'otp'
+    armDeliveryHint()
   } catch (err: any) {
     loginError.value = err.message || 'Unable to send code'
   } finally {
@@ -249,6 +291,13 @@ function handleBackToEmail() {
   loginStep.value = 'email'
   loginOtp.value = ''
   loginError.value = ''
+  showDeliveryHint.value = false
+  if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+}
+
+function handleResendCode() {
+  showDeliveryHint.value = true
+  void handleSendOtp()
 }
 
 // Join code state (inline, no modal)
@@ -492,11 +541,13 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
           <form
             v-if="showLogin && loginStep === 'email'"
             class="login-form"
-            @submit.prevent="handleSendOtp"
+            @submit.prevent="handleSignInSubmit"
           >
             <h2 class="arsenal form-title">Sign in</h2>
             <p class="form-lede">
-              Enter the email address your school registered with us. We'll send a single-use code.
+              {{ usePassword
+                ? 'Enter the email your school registered with us, and your password.'
+                : "Enter the email address your school registered with us. We'll send a single-use code." }}
             </p>
 
             <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
@@ -518,13 +569,42 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               />
             </label>
 
+            <label v-if="usePassword" class="form-field">
+              <span class="form-label">Password</span>
+              <input
+                v-model="loginPassword"
+                type="password"
+                placeholder="Your password"
+                autocomplete="current-password"
+              />
+            </label>
+
             <button
               type="submit"
               class="btn-play btn-play--block"
-              :disabled="!isEmailValid || isLoginLoading"
+              :disabled="!isEmailValid || isLoginLoading || (usePassword && !loginPassword)"
             >
-              {{ isLoginLoading ? 'Sending…' : 'Send me a code →' }}
+              <template v-if="usePassword">{{ isLoginLoading ? 'Signing in…' : 'Sign in →' }}</template>
+              <template v-else>{{ isLoginLoading ? 'Sending…' : 'Send me a code →' }}</template>
             </button>
+
+            <!-- Two peer routes in, not one route and a wall. -->
+            <div class="form-secondary-row">
+              <button
+                type="button"
+                class="form-secondary"
+                @click="usePassword = !usePassword; loginError = ''; loginPassword = ''"
+              >
+                {{ usePassword ? 'Email me a code instead' : 'Use a password instead' }}
+              </button>
+            </div>
+
+            <p class="form-footnote">
+              Codes from us are often blocked by school email filters. If yours never
+              arrives, ask whoever runs your school&rsquo;s account to open your school
+              and tap <strong>Sign-in link</strong> next to your name &mdash; that signs
+              you in with no email at all.
+            </p>
           </form>
 
           <!-- OTP step -->
@@ -570,13 +650,25 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
                 type="button"
                 class="form-secondary"
                 :disabled="isLoginLoading"
-                @click="handleSendOtp"
+                @click="handleResendCode"
               >
                 Resend code
               </button>
               <button type="button" class="form-secondary" @click="handleBackToEmail">
                 Use a different email
               </button>
+            </div>
+
+            <!-- Never a dead end: name the routes that need no inbox. -->
+            <div v-if="showDeliveryHint" class="form-alert form-alert--info" role="status">
+              Still nothing? School email filters block these codes outright, and
+              there is nothing you can do at your end about it. Two ways in that
+              need no email: sign in with a
+              <button type="button" class="form-inline-link" @click="handleBackToEmail(); usePassword = true">password</button>,
+              if you have set one &mdash; or ask whoever runs your school&rsquo;s
+              account to open your school and tap <strong>Sign-in link</strong> next
+              to your name. Still stuck?
+              <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
             </div>
           </form>
 
@@ -738,6 +830,22 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 </template>
 
 <style scoped>
+.form-footnote {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+.form-inline-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .schools-container {
   height: 100vh;
   position: relative;
