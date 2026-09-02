@@ -73,9 +73,12 @@ export const SITE_URL = 'https://www.saysomethingin.com'
  * How long a code lasts, in words.
  *
  * This is Supabase Auth's `MAILER_OTP_EXP` for this project, which lives in
- * the hosted dashboard rather than in this repo. Measured live 2026-09-02: a
- * minted code still verified 11 minutes after issue (so the in-app "expires in
- * 10 minutes" line in SchoolsContainer.vue is wrong). One string, one place to
+ * the hosted dashboard rather than in this repo, so it was measured rather
+ * than read. Live against production, 2026-09-02: a minted code still
+ * verified at 11 minutes and was refused at 62 — consistent with GoTrue's
+ * one-hour default, and with the "expires in about an hour" already used for
+ * admin-issued sign-in links. SchoolsContainer.vue said "10 minutes"; that
+ * was wrong and is corrected in the same commit. One string, one place to
  * change it if the dashboard value is ever adjusted.
  */
 export const CODE_LIFETIME = 'about an hour'

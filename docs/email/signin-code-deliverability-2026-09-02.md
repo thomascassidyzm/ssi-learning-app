@@ -81,7 +81,32 @@ and `renderSignInCodeEmail` takes one more argument to carry it.
   through the unchanged client call `verifyOtp({ email, token, type: 'email' })` → real session.
 - Minting for an address with **no account creates the account**, so this matches
   `signInWithOtp`'s default `shouldCreateUser: true`. No sign-up path regresses.
+- **A real send, end to end, through the deployed dev route:** `POST /api/auth/send-code`
+  → `{"sent":true}` → mail landed in a disposable inbox → the code in that mail signed in through
+  `verifyOtp`. Raw headers below.
+- **How long a code actually lasts:** still valid at 11 minutes, refused at 62 — Supabase's
+  one-hour default. The schools sign-in screen said "expires in 10 minutes"; that was wrong and is
+  corrected.
 - Every probe account created was deleted afterwards.
+
+### The received message, from the raw source
+
+```
+Return-Path: <…@send.contact.saysomethingin.app>
+DKIM-Signature: v=1; a=rsa-sha256; s=resend; d=contact.saysomethingin.app; …
+DKIM-Signature: v=1; a=rsa-sha256; s=shh3fegw…; d=amazonses.com; …
+From: SaySomethingin <hello@contact.saysomethingin.app>
+Reply-To: admin@saysomethingin.com
+Subject: Your sign-in code for SaySomethingin
+Content-Type: multipart/alternative; boundary="--_NmP-13e124a493740754-Part_1"
+  ├── Content-Type: text/plain; charset=utf-8
+  └── Content-Type: text/html;  charset=utf-8
+```
+
+Both parts present. DKIM signed on our own domain, and the envelope domain
+(`send.contact.saysomethingin.app`) is under the same organisational domain as the From address, so
+SPF and DKIM both align for DMARC. `spf1 include:amazonses.com ~all` is published on the envelope
+domain and the `resend._domainkey` selector is live.
 
 **Verified locally:** both parts present and equivalent (unit tests assert the code, the recipient
 address, the purpose/expiry/not-you/reply lines, exactly one unwrapped link, and the absence of
@@ -89,20 +114,13 @@ address, the purpose/expiry/not-you/reply lines, exactly one unwrapped link, and
 Gates green: `typecheck:api`, `test:api` (1636), `player-vue typecheck`, `player-vue test` (2923),
 `player-vue lint` (0 errors).
 
-**NOT verified — an explicit gap.** There is **no `RESEND_API_KEY` for the SaySomethingin account
-on this box**, so no real send from `contact.saysomethingin.app` was possible and there is **no
-Authentication-Results line in this report**. (A Resend key found in the estate belongs to a
-different project's account and is refused for this domain — checked, 403.) The verification that
-still has to happen, by someone holding the key or on the staging deployment:
-
-```bash
-curl -sX POST https://staging.saysomethingin.app/api/auth/send-code \
-  -H 'Content-Type: application/json' -d '{"email":"<a disposable inbox>"}'
-# then in the received message, check:
-#   Authentication-Results: … spf=pass … dkim=pass … dmarc=pass
-#   Content-Type: multipart/alternative   (both parts present)
-#   Reply-To: admin@saysomethingin.com
-```
+**NOT verified — an explicit gap.** There is **no `Authentication-Results` line** in this report.
+The disposable inbox used for the live test runs Haraka, which does not stamp one, and there is no
+`RESEND_API_KEY` for the SaySomethingin account on this box to send anywhere else from. What is
+here instead is the substance a verifier would check: the DKIM signature on our own domain, and an
+envelope domain that aligns with the From address. **The one thing still worth doing is a send to a
+real Microsoft/Outlook mailbox and reading its `Authentication-Results` header**, because Microsoft
+is the filter that was binning us and only its own verdict settles it.
 
 ## Still worth worrying about
 
@@ -118,7 +136,12 @@ curl -sX POST https://staging.saysomethingin.app/api/auth/send-code \
 4. **The old Supabase template stays as the fallback.** It should not be deleted — but it also
    should not be edited on the assumption that it is what learners see, because after this it
    mostly is not.
-5. **DMARC.** SPF and DKIM pass. Whether `saysomethingin.app` publishes a DMARC record with a
-   policy — and alignment on the `contact.` subdomain — is worth a check; Microsoft weighs it.
+5. **DMARC is `p=none`, and this is the biggest remaining lever.** `_dmarc.saysomethingin.app`
+   publishes `v=DMARC1; p=none;` — no enforcement, and no `rua` address, so nobody is receiving
+   aggregate reports either. Microsoft weighs DMARC enforcement in scoring, and a school tenant
+   with strict inbound policy weighs it heavily. Alignment already passes, so moving to
+   `p=quarantine` costs nothing in deliverability and buys score — but it is a DNS change on the
+   live domain and therefore Tom's call, not mine. Suggested order: add `rua=`, watch a fortnight,
+   then `p=quarantine`.
 6. **Content scoring is a hypothesis, well-supported but not proven.** The proof is the Hwb
    completion rate after this ships. Worth re-running the census a fortnight after promotion.
