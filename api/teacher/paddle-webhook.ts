@@ -29,7 +29,8 @@
  *   transaction.paid (any subscription kind)
  *     → if associated subscription is student-via-teacher, accrue teacher
  *       commission (= flat £5 / 500 pence per transaction) to the current
- *       month's row in teacher_commissions
+ *       month's row in teacher_commissions — UNLESS the sale is in a
+ *       rebate-excluded region (India; see ../_utils/rebateRegion.ts)
  *
  * Status mapping: Paddle's trialing/active/past_due/paused/canceled → our
  * subscriptions.status enum (active | past_due | cancelled | none).
@@ -50,6 +51,7 @@ import { paddle, webhookSecret } from '../_utils/paddle'
 import { leaderGroupId } from '../_utils/orgPlatform'
 import { holdsLivePlatformEntitlement, wouldStealLiveBinding } from '../_utils/billingBinding'
 import { verifyBillingIntent } from '../_utils/billingIntent'
+import { rebateRegionDecision } from '../_utils/rebateRegion'
 
 // Paddle signature verification requires the raw, unmodified request body.
 // Disable Vercel's default body parser on this endpoint.
@@ -1669,6 +1671,24 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
     return
   }
 
+  // REGION EXCLUSION (Tom's ruling, 2026-09-02): "no rebates for India — pricing
+  // model is much less anyway - and there's no possibility of us recovering
+  // transactions costs." Paddle country pricing can bill far below the £15 list
+  // price on the same price id, so a flat £5 rebate on a discounted sale can
+  // exceed what was collected. Enforced HERE, at the point the rebate is
+  // computed — not in pricing config — so it holds however prices are set up.
+  // A failed country lookup throws: the handler 500s and Paddle retries rather
+  // than paying a rebate we could not check.
+  const region = await rebateRegionDecision(data)
+  if (region.excluded) {
+    console.log(
+      '[paddle-webhook] transaction.paid in a rebate-excluded region — no commission accrued:',
+      data.id,
+      region.reason
+    )
+    return
+  }
+
   // Resolve teacher via class.teacher_user_id → learners.user_id → teachers.id
   const { data: cls, error: clsErr } = await supabase
     .from('classes')
@@ -1997,6 +2017,28 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
   if (!referral || referral.locked_price_pence !== 1000) {
     console.log('[paddle-webhook] adjustment: entitlement', entitlementChange + 'ed,', 'no commission to adjust:', data.id)
     return
+  }
+
+  // REGION EXCLUSION mirror: an excluded-region sale never accrued, so there is
+  // nothing to reverse and nothing to re-accrue. Skipping both keeps the ledger
+  // symmetric with handleTransactionPaidEvent — without this, a refund on an
+  // Indian sale would claw back £5 that was never paid. The adjustment payload
+  // carries no address, so the underlying transaction is read for the country.
+  try {
+    const adjustedTxn = data.transactionId ? await paddle.transactions.get(data.transactionId) : null
+    const adjRegion = await rebateRegionDecision(adjustedTxn)
+    if (adjRegion.excluded) {
+      console.log(
+        '[paddle-webhook] adjustment in a rebate-excluded region — no commission to adjust:',
+        data.id,
+        adjRegion.reason
+      )
+      return
+    }
+  } catch (e: any) {
+    // Money-safe under uncertainty: if we cannot establish the region, do not
+    // move rebate money either way. Throw so Paddle retries the adjustment.
+    throw new Error(`rebate region check failed for adjustment ${data.id}: ${e?.message}`)
   }
 
   // Resolve teacher via class.teacher_user_id → learners.user_id → teachers.id.

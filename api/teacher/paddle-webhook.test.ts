@@ -40,6 +40,7 @@ const STUDENT_SCHOOL_PRICE = 'pri_01kv5wrc5cz17pwgeva4zk8s0r' // tier: student_s
 let currentEvent: any = null
 let unmarshalThrows = false
 let txnGetResult: any = { details: { totals: { grandTotal: '1000' } } }
+let addressGetResult: any = { countryCode: 'GB' }
 vi.mock('../_utils/paddle', () => ({
   paddle: {
     webhooks: {
@@ -49,6 +50,7 @@ vi.mock('../_utils/paddle', () => ({
       }),
     },
     transactions: { get: vi.fn(async () => txnGetResult) },
+    addresses: { get: vi.fn(async () => addressGetResult) },
     customers: { get: vi.fn(async () => ({ email: 'payer@example.com' })) },
   },
   webhookSecret: 'whsec_test',
@@ -163,6 +165,7 @@ describe('POST /api/teacher/paddle-webhook', () => {
     currentEvent = null
     unmarshalThrows = false
     txnGetResult = { details: { totals: { grandTotal: '1000' } } }
+    addressGetResult = { countryCode: 'GB' }
     evtCounter = 0
     handler = (await import('./paddle-webhook')).default
   })
@@ -510,6 +513,75 @@ describe('POST /api/teacher/paddle-webhook', () => {
 
     expect(res._status).toBe(200)
     expect(rpcCalls.some((c) => c.name === 'accrue_teacher_commission_held')).toBe(false)
+  })
+
+  // ── region exclusion (Tom's ruling 2026-09-02: no rebates for India) ──
+  function tutorReferralWorld() {
+    responders.subscriptions = () => ({ data: { id: 'sub-1', learner_id: 'learner-1', plan_name: 'SSi Student Access' }, error: null })
+    responders.teacher_referrals = () => ({ data: { class_id: 'class-1', locked_price_pence: 1000 }, error: null })
+    responders.classes = () => ({ data: { teacher_user_id: 'tuid' }, error: null })
+    responders.learners = () => ({ data: { id: 'tlearner' }, error: null })
+    responders.teachers = () => ({ data: { id: 'teacher-1' }, error: null })
+  }
+
+  it('transaction.paid billed to an INDIA address accrues NO rebate', async () => {
+    tutorReferralWorld()
+    addressGetResult = { countryCode: 'IN' }
+    currentEvent = txnEvent({
+      customerId: 'ctm_1',
+      addressId: 'add_1',
+      details: { totals: { grandTotal: '29900', currencyCode: 'INR' } },
+    })
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(rpcCalls.some((c) => c.name === 'accrue_teacher_commission_held')).toBe(false)
+    expect(writes.tutor_rebate_ledger).toBeUndefined()
+  })
+
+  it('an INDIA sale is excluded on currency alone when the address cannot be read', async () => {
+    tutorReferralWorld()
+    currentEvent = txnEvent({ details: { totals: { grandTotal: '29900', currencyCode: 'INR' } } })
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(rpcCalls.some((c) => c.name === 'accrue_teacher_commission_held')).toBe(false)
+  })
+
+  it('a UK sale is unchanged — still accrues the flat £5', async () => {
+    tutorReferralWorld()
+    addressGetResult = { countryCode: 'GB' }
+    currentEvent = txnEvent({
+      customerId: 'ctm_1',
+      addressId: 'add_1',
+      details: { totals: { grandTotal: '1000', currencyCode: 'GBP' } },
+    })
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const accrue = rpcCalls.find((c) => c.name === 'accrue_teacher_commission_held')
+    expect(accrue).toBeDefined()
+    expect(accrue!.params).toMatchObject({ p_teacher_id: 'teacher-1', p_pence: 500 })
+    expect(writes.tutor_rebate_ledger?.some((w) => w.op === 'upsert')).toBe(true)
+  })
+
+  it('a refund on an INDIA sale claws back nothing', async () => {
+    tutorReferralWorld()
+    addressGetResult = { countryCode: 'IN' }
+    txnGetResult = { customerId: 'ctm_1', addressId: 'add_1', details: { totals: { grandTotal: '29900', currencyCode: 'INR' } } }
+    currentEvent = {
+      eventType: EventName.AdjustmentUpdated,
+      eventId: `evt-${++evtCounter}`,
+      data: { id: 'adj-in', action: 'refund', status: 'approved', transactionId: 'txn-1', subscriptionId: 'psub_1', createdAt: '2026-07-17T00:00:00Z', totals: { total: '29900' } },
+    }
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(rpcCalls.some((c) => c.name === 'reverse_teacher_commission')).toBe(false)
   })
 
   // ── adjustment (refund / chargeback) ──
