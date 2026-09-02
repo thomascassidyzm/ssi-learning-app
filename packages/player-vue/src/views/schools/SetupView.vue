@@ -41,7 +41,7 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo } from '@/composables/schools/useClassesData'
 import { useSchoolCourseCatalogue, type CatalogueCourse } from '@/composables/schools/useSchoolCourseCatalogue'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
@@ -60,10 +60,10 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { n: 1, title: 'Your school', desc: 'What your school is called.' },
-  { n: 2, title: 'Add staff', desc: 'Share your teacher invite link.' },
-  { n: 3, title: 'Choose courses', desc: 'Pick which languages to use for classes.' },
-  { n: 4, title: 'Create classes', desc: 'Set up your first classes.' },
+  { n: 1, title: t('setup.step1', 'Your school'), desc: t('setup.step1Desc', 'What your school is called.') },
+  { n: 2, title: t('setup.step2', 'Add staff'), desc: t('setup.step2Desc', 'Share your teacher invite link.') },
+  { n: 3, title: t('setup.step3', 'Choose courses'), desc: t('setup.step3Desc', 'Pick which languages to use for classes.') },
+  { n: 4, title: t('setup.step4', 'Create classes'), desc: t('setup.step4Desc', 'Set up your first classes.') },
 ]
 
 const step = ref<1 | 2 | 3 | 4>(1)
@@ -342,16 +342,15 @@ onMounted(() => {
 <template>
   <main class="setup-screen" :class="{ 'is-visible': isVisible }">
     <nav class="breadcrumb">
-      <router-link to="/schools/settings">Settings</router-link>
+      <router-link to="/schools/settings">{{ t('settings.title', 'Settings') }}</router-link>
       <span class="breadcrumb-sep">/</span>
-      <span class="breadcrumb-current">First-time setup</span>
+      <span class="breadcrumb-current">{{ t('setup.firstTimeSetup', 'First-time setup') }}</span>
     </nav>
 
     <header class="setup-header">
-      <h1 class="arsenal page-title">Let's get your school set up.</h1>
+      <h1 class="arsenal page-title">{{ t('setup.title', "Let's get your school set up.") }}</h1>
       <p class="setup-lede">
-        Four steps. About ten minutes. You can come back and finish any time —
-        we'll keep your place.
+        {{ t('setup.lede', "Four steps. About ten minutes. You can come back and finish any time — we'll keep your place.") }}
       </p>
     </header>
 
@@ -384,15 +383,15 @@ onMounted(() => {
       <div class="schools-card schools-card-pad step-panel">
         <!-- Step 1: School profile -->
         <section v-if="step === 1" class="step-section">
-          <h2 class="arsenal step-title">Your school</h2>
+          <h2 class="arsenal step-title">{{ t('setup.step1', 'Your school') }}</h2>
           <div class="form-stack">
             <label class="field">
-              <span class="field-label">School name</span>
+              <span class="field-label">{{ t('setup.schoolName', 'School name') }}</span>
               <input
                 v-model="schoolName"
                 type="text"
                 class="field-input"
-                placeholder="e.g. Ysgol Bro Banw"
+                :placeholder="t('setup.schoolNamePlaceholder', 'e.g. Ysgol Bro Banw')"
                 autocomplete="organization"
               />
             </label>
@@ -401,27 +400,25 @@ onMounted(() => {
 
         <!-- Step 2: Add staff -->
         <section v-else-if="step === 2" class="step-section">
-          <h2 class="arsenal step-title">Add your teachers</h2>
+          <h2 class="arsenal step-title">{{ t('setup.addYourTeachers', 'Add your teachers') }}</h2>
           <p class="step-lede">
-            Share this invite link however you reach your staff — Teams, WhatsApp,
-            in person. Clicking it signs them straight in. Anyone can teach: the
-            app does the teaching, so a teacher doesn't need to speak the language.
+            {{ t('setup.inviteLede', "Share this invite link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in. Anyone can teach: the app does the teaching, so a teacher doesn't need to speak the language.") }}
           </p>
 
           <div v-if="teacherJoinCode" class="join-code-callout">
-            <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
-            <InviteLinkField v-if="adminJoinCode" label="Admin invite link" :url="inviteUrl(adminJoinCode)" />
+            <InviteLinkField :label="t('setup.teacherInviteLink', 'Teacher invite link')" :url="inviteUrl(teacherJoinCode)" />
+            <InviteLinkField v-if="adminJoinCode" :label="t('setup.adminInviteLink', 'Admin invite link')" :url="inviteUrl(adminJoinCode)" />
           </div>
           <div v-else class="empty-state">
-            Your invite links will appear here once your school is saved.
+            {{ t('setup.inviteLinksLater', 'Your invite links will appear here once your school is saved.') }}
           </div>
 
           <div v-if="teachers.length > 0" class="existing-staff">
-            <div class="schools-kicker">Already on the team</div>
+            <div class="schools-kicker">{{ t('setup.alreadyOnTeam', 'Already on the team') }}</div>
             <ul class="existing-staff-list">
-              <li v-for="t in teachers" :key="t.user_id">
-                <span class="existing-staff-name">{{ t.display_name }}</span>
-                <span class="existing-staff-meta">{{ t.class_count }} class{{ t.class_count === 1 ? '' : 'es' }}</span>
+              <li v-for="staff in teachers" :key="staff.user_id">
+                <span class="existing-staff-name">{{ staff.display_name }}</span>
+                <span class="existing-staff-meta">{{ (staff.class_count === 1 ? t('setup.classCountOne', '{count} class') : t('setup.classCountMany', '{count} classes')).replace('{count}', String(staff.class_count)) }}</span>
               </li>
             </ul>
           </div>
@@ -429,16 +426,13 @@ onMounted(() => {
 
         <!-- Step 3: Choose courses -->
         <section v-else-if="step === 3" class="step-section">
-          <h2 class="arsenal step-title">Choose courses</h2>
+          <h2 class="arsenal step-title">{{ t('setup.step3', 'Choose courses') }}</h2>
           <p class="step-lede">
-            Pick which of your school's available courses you'll use for classes.
-            This just narrows the list you choose from in the next step — it doesn't
-            change who has access.
+            {{ t('setup.chooseCoursesLede', "Pick which of your school's available courses you'll use for classes. This just narrows the list you choose from in the next step — it doesn't change who has access.") }}
           </p>
 
           <div v-if="effectiveCourseGrants.length === 0" class="empty-state">
-            Your school doesn't have any courses available yet — get in touch with us
-            and we'll sort it out. You can continue and add classes once courses are available.
+            {{ t('setup.noCoursesAvailable', "Your school doesn't have any courses available yet — get in touch with us and we'll sort it out. You can continue and add classes once courses are available.") }}
           </div>
 
           <div v-else class="course-grid">
@@ -463,20 +457,19 @@ onMounted(() => {
 
         <!-- Step 4: Create classes -->
         <section v-else-if="step === 4" class="step-section">
-          <h2 class="arsenal step-title">Create classes</h2>
+          <h2 class="arsenal step-title">{{ t('setup.step4', 'Create classes') }}</h2>
           <p class="step-lede">
-            Name your first classes and pick a course for each. You can add
-            students from each class page whenever you're ready.
+            {{ t('setup.createClassesLede', "Name your first classes and pick a course for each. You can add students from each class page whenever you're ready.") }}
           </p>
 
           <div v-if="classes.length > 0" class="existing-classes">
-            <div class="schools-kicker">Existing classes</div>
+            <div class="schools-kicker">{{ t('setup.existingClasses', 'Existing classes') }}</div>
             <table class="ssi-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Course</th>
-                  <th>Students</th>
+                  <th>{{ t('schools.name', 'Name') }}</th>
+                  <th>{{ t('schools.course', 'Course') }}</th>
+                  <th>{{ t('schools.students', 'Students') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -490,9 +483,9 @@ onMounted(() => {
           </div>
 
           <div v-if="availableCoursesForClass.length === 0" class="empty-state">
-            No courses to choose from yet —
-            <button type="button" class="empty-state-link" @click="jumpToStep(3)">go back to Choose courses</button>
-            to pick which ones to use, or get in touch with us if your school has none available.
+            {{ t('setup.noCoursesToChoose', 'No courses to choose from yet —') }}
+            <button type="button" class="empty-state-link" @click="jumpToStep(3)">{{ t('setup.goBackToChooseCourses', 'go back to Choose courses') }}</button>
+            {{ t('setup.noCoursesToChoosePost', 'to pick which ones to use, or get in touch with us if your school has none available.') }}
           </div>
 
           <div v-else class="class-draft-list">
@@ -506,7 +499,7 @@ onMounted(() => {
                 v-model="draft.class_name"
                 type="text"
                 class="field-input field-input-flex"
-                placeholder="Class name"
+                :placeholder="t('schools.className', 'Class name')"
                 :disabled="draft.saved"
               />
               <span class="select-wrap field-input-flex">
@@ -515,7 +508,7 @@ onMounted(() => {
                   class="field-input field-select"
                   :disabled="draft.saved"
                 >
-                  <option value="" disabled>Choose course</option>
+                  <option value="" disabled>{{ t('setup.chooseCourse', 'Choose course') }}</option>
                   <option
                     v-for="g in availableCoursesForClass"
                     :key="g.course_code"
@@ -525,12 +518,12 @@ onMounted(() => {
                   </option>
                 </select>
               </span>
-              <span v-if="draft.saved" class="class-draft-saved">Added&nbsp;✓</span>
+              <span v-if="draft.saved" class="class-draft-saved">{{ t('setup.added', 'Added') }}&nbsp;✓</span>
               <button
                 v-else
                 type="button"
                 class="icon-btn"
-                aria-label="Remove class"
+                :aria-label="t('setup.removeClass', 'Remove class')"
                 @click="removeClassRow(i)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -540,7 +533,7 @@ onMounted(() => {
               </button>
             </div>
             <button type="button" class="btn-ghost btn-add" @click="addClassRow">
-              + Add another class
+              + {{ t('setup.addAnotherClass', 'Add another class') }}
             </button>
           </div>
         </section>
@@ -555,11 +548,11 @@ onMounted(() => {
             :disabled="step === 1"
             @click="handleBack"
           >
-            <span aria-hidden="true">&larr;</span> Back
+            <span aria-hidden="true">&larr;</span> {{ t('common.back', 'Back') }}
           </button>
           <div class="step-nav-right">
             <button type="button" class="btn-ghost" @click="handleSaveExit">
-              Save &amp; exit
+              {{ t('setup.saveAndExit', 'Save and exit') }}
             </button>
             <button
               type="button"
@@ -567,8 +560,8 @@ onMounted(() => {
               :disabled="!canAdvance"
               @click="handleContinue"
             >
-              <template v-if="step < 4">Continue <span aria-hidden="true">&rarr;</span></template>
-              <template v-else>Finish setup <span aria-hidden="true">&rarr;</span></template>
+              <template v-if="step < 4">{{ t('session.continue', 'Continue') }} <span aria-hidden="true">&rarr;</span></template>
+              <template v-else>{{ t('setup.finishSetup', 'Finish setup') }} <span aria-hidden="true">&rarr;</span></template>
             </button>
           </div>
         </footer>
