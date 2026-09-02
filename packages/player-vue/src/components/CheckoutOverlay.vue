@@ -20,6 +20,7 @@
  */
 import { watch, onBeforeUnmount, computed } from 'vue'
 import { useCheckout, CHECKOUT_FRAME_TARGET } from '@/composables/useCheckout'
+import { t } from '@/composables/useI18n'
 
 const { overlayOpen, overlayPlan, closeCheckout } = useCheckout()
 const overlayTitle = computed(() => (overlayPlan.value === 'family' ? 'SSi Family' : 'SSi Premium'))
@@ -61,7 +62,7 @@ onBeforeUnmount(() => {
       class="checkout-overlay"
       role="dialog"
       aria-modal="true"
-      :aria-label="`Subscribe to ${overlayTitle}`"
+      :aria-label="t('checkout.subscribeTo', 'Subscribe to {name}').replace('{name}', overlayTitle)"
       @click.self="closeCheckout"
     >
       <div class="checkout-card" @click.stop>
@@ -70,7 +71,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="checkout-close"
-            aria-label="Close checkout"
+            :aria-label="t('checkout.close', 'Close checkout')"
             @click="closeCheckout"
           >✕</button>
         </header>

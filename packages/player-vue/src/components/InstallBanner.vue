@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, inject, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { t } from '@/composables/useI18n'
 
 const router = useRouter()
 const installPrompt = inject<ReturnType<typeof ref<any>>>('installPrompt', ref(null))
@@ -105,13 +106,13 @@ function dismiss() {
         <div class="install-banner-left">
           <img src="/icons/icon-192.png" alt="" width="36" height="36" class="install-banner-icon" />
           <div class="install-banner-text">
-            <span class="install-banner-title">Install SaySomethingin</span>
-            <span class="install-banner-subtitle">Faster, offline, full-screen</span>
+            <span class="install-banner-title">{{ t('install.bannerTitle', 'Install SaySomethingin') }}</span>
+            <span class="install-banner-subtitle">{{ t('install.bannerSubtitle', 'Faster, offline, full-screen') }}</span>
           </div>
         </div>
         <div class="install-banner-actions">
-          <button class="install-banner-cta" @click="handleInstall">Install</button>
-          <button class="install-banner-dismiss" @click="dismiss" aria-label="Dismiss">
+          <button class="install-banner-cta" @click="handleInstall">{{ t('install.install', 'Install') }}</button>
+          <button class="install-banner-dismiss" @click="dismiss" :aria-label="t('common.dismiss', 'Dismiss')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>

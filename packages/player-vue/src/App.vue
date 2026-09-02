@@ -7,6 +7,7 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
+import { t } from './composables/useI18n'
 import {
   prewarmInstantCaches,
   setInstantPlaybackAuthProvider,
@@ -974,10 +975,9 @@ onMounted(async () => {
     <div v-if="catalogueSlow" class="slow-network-notice">
       <div class="slow-network-card">
         <div class="slow-network-pulse" aria-hidden="true"></div>
-        <p class="slow-network-title">Still loading</p>
+        <p class="slow-network-title">{{ t('loading.stillLoading', 'Still loading') }}</p>
         <p class="slow-network-body">
-          Your connection looks slow. This will start on its own as soon as it
-          comes through, so there's no need to reload.
+          {{ t('loading.slowConnection', "Your connection looks slow. This will start on its own as soon as it comes through, so there's no need to reload.") }}
         </p>
       </div>
     </div>

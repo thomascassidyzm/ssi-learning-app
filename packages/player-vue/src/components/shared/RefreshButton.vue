@@ -12,6 +12,8 @@
  */
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
+import { t } from '@/composables/useI18n'
+
 const { isRefreshing, hasHandler, refresh } = useDashboardRefresh()
 </script>
 
@@ -22,8 +24,8 @@ const { isRefreshing, hasHandler, refresh } = useDashboardRefresh()
     class="refresh-button"
     :class="{ 'is-spinning': isRefreshing }"
     :disabled="isRefreshing"
-    title="Refresh data"
-    aria-label="Refresh data"
+    :title="t('common.refreshData', 'Refresh data')"
+    :aria-label="t('common.refreshData', 'Refresh data')"
     @click="refresh"
   >
     <!-- Standard two-arrow circular refresh glyph -->

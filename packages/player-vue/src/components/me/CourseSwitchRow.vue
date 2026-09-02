@@ -15,7 +15,7 @@
  */
 import { computed, inject, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 interface CourseLike {
@@ -44,12 +44,12 @@ function switchTo(course: CourseLike): void {
 
 <template>
   <section v-if="courses.length" class="panel">
-    <h2 class="title">Your languages</h2>
+    <h2 class="title">{{ t('profile.yourLanguages', 'Your languages') }}</h2>
 
     <div v-if="activeCourse" class="current">
       <LanguageFlag v-if="activeCourse.target_lang" :code="activeCourse.course_code || activeCourse.target_lang" :size="20" />
       <span class="current-name">{{ getLanguageName(activeCourse.target_lang ?? '') }}</span>
-      <span class="current-tag">carrying on with this one</span>
+      <span class="current-tag">{{ t('profile.carryingOn', 'carrying on with this one') }}</span>
     </div>
 
     <div v-if="others.length" class="others">
@@ -66,7 +66,7 @@ function switchTo(course: CourseLike): void {
     </div>
 
     <p class="footnote">
-      Switching does not lose anything. Each one keeps its own place, waiting exactly where you left it.
+      {{ t('profile.switchingFootnote', 'Switching does not lose anything. Each one keeps its own place, waiting exactly where you left it.') }}
     </p>
   </section>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { t } from '@/composables/useI18n'
 import {
   BELTS,
   getSeedFromLegoId,
@@ -103,10 +104,10 @@ const selectSeed = (seedNumber: number) => {
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <h2 v-if="currentView === 'belts'">Course Browser</h2>
+      <h2 v-if="currentView === 'belts'">{{ t('browser.courseBrowser', 'Course browser') }}</h2>
       <h2 v-else-if="selectedBelt">
         <span class="belt-dot" :style="{ background: selectedBelt.color }"></span>
-        {{ selectedBelt.name }} Belt
+        {{ t('belt.label', '{color} Belt').replace('{color}', t(`belt.${selectedBelt.name}`, selectedBelt.name)) }}
       </h2>
     </div>
 
@@ -130,7 +131,7 @@ const selectSeed = (seedNumber: number) => {
         </div>
         <div class="belt-info">
           <div class="belt-name">{{ belt.name }}</div>
-          <div class="belt-range">Seeds {{ belt.beltStart }}&ndash;{{ belt.beltEnd }}</div>
+          <div class="belt-range">{{ t('browser.seeds', 'Seeds') }} {{ belt.beltStart }}&ndash;{{ belt.beltEnd }}</div>
         </div>
         <div class="belt-progress-area">
           <div class="belt-progress-bar">

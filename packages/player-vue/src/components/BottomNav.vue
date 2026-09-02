@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import ModeTray from './ModeTray.vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps({
   currentScreen: {
@@ -208,7 +209,7 @@ const handleSettings = () => {
           tapped: tappedItem === 'library'
         }"
         @click="handleNavTap('library')"
-        title="Library"
+        :title="t('nav.library', 'Library')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -220,7 +221,7 @@ const handleSettings = () => {
       </button>
 
       <!-- Slot 2: Revisit (hidden on non-player screens) -->
-      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" title="Previous LEGO">
+      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" :title="t('nav.previous', 'Previous')">
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
@@ -238,7 +239,7 @@ const handleSettings = () => {
         }"
         :aria-disabled="isPlayDisabled ? 'true' : 'false'"
         :aria-busy="isPlayDisabled ? 'true' : 'false'"
-        :aria-label="isPlayDisabled ? 'Loading' : undefined"
+        :aria-label="isPlayDisabled ? t('loading.loading', 'Loading') : undefined"
         @click="handlePlayTap"
       >
         <div class="center-btn-inner">
@@ -266,8 +267,8 @@ const handleSettings = () => {
         class="pill-btn"
         :class="{ tapped: tappedItem === 'skip', 'cue-listening': isInListeningCycle }"
         @click="handleSkip"
-        :title="isInListeningCycle ? 'Skip listening' : 'Next LEGO'"
-        :aria-label="isInListeningCycle ? 'Skip listening section' : 'Next LEGO'"
+        :title="isInListeningCycle ? t('nav.skipListening', 'Skip listening') : t('nav.next', 'Next')"
+        :aria-label="isInListeningCycle ? t('nav.skipListeningAria', 'Skip listening section') : t('nav.next', 'Next')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -280,7 +281,7 @@ const handleSettings = () => {
         class="pill-btn"
         :class="{ active: showSettings, tapped: tappedItem === 'settings' }"
         @click="handleSettings"
-        title="Settings"
+        :title="t('settings.title', 'Settings')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

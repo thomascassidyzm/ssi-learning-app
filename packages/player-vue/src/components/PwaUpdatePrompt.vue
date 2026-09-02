@@ -14,6 +14,7 @@ import {
   isDifferentBuild, fetchLatestBuildNumber,
 } from '@/composables/usePwaUpdate'
 import { RELOAD_WEDGE_MS } from '@/utils/bootHeal'
+import { t } from '@/composables/useI18n'
 
 // Never interrupt an active cycle (B6/Gap 4) — the banner still appears
 // promptly since it re-evaluates on every play/pause tick, and rounds are
@@ -175,21 +176,21 @@ onUnmounted(() => {
     <Transition name="slide-down">
       <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
         <div v-if="reloadWedged" class="pwa-update-content">
-          <span class="pwa-update-text">Update ready</span>
+          <span class="pwa-update-text">{{ t('update.ready', 'Update ready') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-button" @click.stop="onRelaunch">
-              Tap to relaunch
+              {{ t('update.tapToRelaunch', 'Tap to relaunch') }}
             </button>
           </div>
         </div>
         <div v-else class="pwa-update-content">
-          <span class="pwa-update-text">New version available</span>
+          <span class="pwa-update-text">{{ t('update.newVersion', 'New version available') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-dismiss" @click.stop="onDismiss">
-              Later
+              {{ t('update.later', 'Later') }}
             </button>
             <button class="pwa-update-button" @click.stop="onUpdate">
-              Update
+              {{ t('update.update', 'Update') }}
             </button>
           </div>
         </div>

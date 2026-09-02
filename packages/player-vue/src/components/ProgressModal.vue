@@ -174,6 +174,10 @@ const showFurthestMarker = computed(() => {
 
 const furthestBeltName = computed(() => belts.value[highestIdx.value]?.name ?? null)
 
+// Belt-jump affordance label, built from the translated belt name.
+const jumpToBeltLabel = (belt: { name: string }) =>
+  t('progress.jumpToBelt', 'Jump to {belt} belt').replace('{belt}', t(`belt.${belt.name}`, belt.name))
+
 const beltCssVars = computed(() => ({
   '--belt-color': props.currentBelt.color,
   '--belt-glow': props.currentBelt.glow || props.currentBelt.color,
@@ -262,7 +266,7 @@ onUnmounted(() => {
         @click="handleBackdropClick"
       >
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-modal-lang">
-          <button class="modal-close" @click="emit('close')" aria-label="Close">
+          <button class="modal-close" @click="emit('close')" :aria-label="t('common.close', 'Close')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -350,11 +354,11 @@ onUnmounted(() => {
             <div class="belt-strip-head">
               <p class="belt-strip-prompt">
                 <template v-if="isInfplay">
-                  you're in <strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">infinite play</strong>
+                  {{ t('progress.youreIn', "you're in") }} <strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">{{ t('progress.infinitePlay', 'infinite play') }}</strong>
                 </template>
                 <template v-else>
-                  you're working on
-                  <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+                  {{ t('progress.youreWorkingOn', "you're working on") }}
+                  <strong :style="{ color: currentBelt.color }">{{ t('progress.beltNamed', '{belt} belt').replace('{belt}', t(`belt.${currentBelt.name}`, currentBelt.name)) }}</strong>
                 </template>
               </p>
             </div>
@@ -366,7 +370,7 @@ onUnmounted(() => {
               {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
             </p>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
-              you've been as far as <strong>{{ furthestBeltName }} belt</strong>
+              {{ t('progress.beenAsFarAs', "you've been as far as") }} <strong>{{ t('progress.beltNamed', '{belt} belt').replace('{belt}', t(`belt.${furthestBeltName}`, furthestBeltName)) }}</strong>
             </p>
 
             <div class="map-row-wrap">
@@ -390,8 +394,8 @@ onUnmounted(() => {
                   }"
                   :style="{ '--chip-color': belt.color }"
                   :disabled="isCurrentBelt(belt) || isSkipping || isBeltUnavailableOffline(belt)"
-                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
-                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
+                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : jumpToBeltLabel(belt)"
+                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : jumpToBeltLabel(belt)"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
@@ -420,8 +424,8 @@ onUnmounted(() => {
                   class="map-chip map-chip--infplay"
                   :class="{ 'map-chip--current': isInfplay, 'is-skipping': isSkipping }"
                   :disabled="isSkipping"
-                  title="Infinite play — random review of everything you've learned"
-                  aria-label="Infinite play: random review of everything you've learned"
+                  :title="t('progress.infPlayTitle', 'Infinite play — random review of everything you\'ve learned')"
+                  :aria-label="t('progress.infPlayAria', 'Infinite play: random review of everything you\'ve learned')"
                   @click="handleInfPlayClick"
                 >
                   <svg class="map-chip-inf-glyph" viewBox="0 0 24 24" fill="none"
@@ -436,23 +440,23 @@ onUnmounted(() => {
                   class="map-marker map-marker--now"
                   :style="{ left: nowMarkerLeft + '%' }"
                 >
-                  <span class="map-marker-label">now</span>
+                  <span class="map-marker-label">{{ t('progress.markerNow', 'now') }}</span>
                 </div>
                 <div
                   v-if="showFurthestMarker"
                   class="map-marker map-marker--furthest"
                   :style="{ left: furthestMarkerLeft + '%' }"
                 >
-                  <span class="map-marker-label">furthest</span>
+                  <span class="map-marker-label">{{ t('progress.markerFurthest', 'furthest') }}</span>
                 </div>
               </div>
             </div>
 
             <p class="belt-strip-hint">{{ hasUndownloadedBelt
               ? (beltUnavailableHint || (offlineReadyUpToBeltName
-                ? `offline — belts up to ${offlineReadyUpToBeltName} ready to play; beyond needs a connection`
-                : 'offline — locked belts aren\'t downloaded; connect to jump there'))
-              : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
+                ? t('progress.hintOfflineUpTo', 'offline — belts up to {belt} ready to play; beyond needs a connection').replace('{belt}', t(`belt.${offlineReadyUpToBeltName}`, offlineReadyUpToBeltName))
+                : t('progress.hintOfflineLocked', "offline — locked belts aren't downloaded; connect to jump there")))
+              : t('progress.hintTapBelt', 'tap a belt to jump there, or ∞ at the end for infinite play') }}</p>
           </section>
         </div>
       </div>

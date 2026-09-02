@@ -179,7 +179,7 @@ onMounted(async () => {
 
       <!-- Quick stats (if they practiced anything) -->
       <div class="quick-stats" v-if="itemsPracticed > 0">
-        <span class="stat">{{ itemsPracticed }} items</span>
+        <span class="stat">{{ t('session.itemsCount', '{count} items').replace('{count}', String(itemsPracticed)) }}</span>
         <span class="stat-divider">·</span>
         <span class="stat">{{ formattedTime }}</span>
         <span class="stat-divider">·</span>
@@ -199,7 +199,7 @@ onMounted(async () => {
         v-if="contributionReady && contributionData"
         class="contribution-snippet"
       >
-        You added {{ sessionMinutes }} minutes of {{ contributionData.language_name }} today
+        {{ t('session.youAddedMinutes', 'You added {minutes} minutes of {language} today').replace('{minutes}', String(sessionMinutes)).replace('{language}', contributionData.language_name) }}
       </div>
 
       <!-- View Journey link -->
@@ -208,7 +208,7 @@ onMounted(async () => {
         class="view-journey-btn"
         @click="$emit('viewJourney')"
       >
-        View Your Journey
+        {{ t('session.viewYourJourney', 'View your journey') }}
       </button>
 
       <!-- Auth prompt for guests (after first session) -->
@@ -223,7 +223,7 @@ onMounted(async () => {
         <svg viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span>Continue</span>
+        <span>{{ t('session.continue', 'Continue') }}</span>
       </button>
     </div>
   </div>

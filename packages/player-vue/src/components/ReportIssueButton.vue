@@ -5,7 +5,7 @@
       :class="{ flagged: isFlagged, submitting: isSubmitting }"
       :disabled="isSubmitting"
       @click="flagPhrase"
-      title="Flag this phrase for review"
+      :title="t('report.flagPhrase', 'Flag this phrase for review')"
     >
       <svg viewBox="0 0 24 24" :fill="isFlagged ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
         <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
@@ -17,6 +17,7 @@
 
 <script setup>
 import { ref, inject, watch } from 'vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps({
   courseCode: {

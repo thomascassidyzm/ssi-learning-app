@@ -5,6 +5,8 @@
  * Appears in SessionComplete to encourage users to save their progress
  */
 
+import { t } from '@/composables/useI18n'
+
 const emit = defineEmits(['signup', 'dismiss'])
 </script>
 
@@ -18,18 +20,18 @@ const emit = defineEmits(['signup', 'dismiss'])
     </div>
 
     <div class="prompt-content">
-      <h3 class="prompt-title">Save your progress</h3>
+      <h3 class="prompt-title">{{ t('auth.savePromptTitle', 'Save your progress') }}</h3>
       <p class="prompt-description">
-        Create a free account to keep your learning history and continue on any device.
+        {{ t('auth.savePromptBody', 'Create a free account to keep your learning history and continue on any device.') }}
       </p>
     </div>
 
     <div class="prompt-actions">
       <button class="btn-primary" @click="emit('signup')">
-        Create account
+        {{ t('auth.createAccount', 'Create account') }}
       </button>
       <button class="btn-secondary" @click="emit('dismiss')">
-        Maybe later
+        {{ t('auth.maybeLater', 'Maybe later') }}
       </button>
     </div>
   </div>

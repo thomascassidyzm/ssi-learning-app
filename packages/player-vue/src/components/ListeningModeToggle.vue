@@ -20,11 +20,13 @@ defineProps<{
   modelValue: string
 }>()
 
+import { t } from '@/composables/useI18n'
+
 defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 </script>
 
 <template>
-  <div class="lmt" role="group" aria-label="Listening mode">
+  <div class="lmt" role="group" :aria-label="t('settings.listeningMode', 'Listening mode')">
     <button
       v-for="m in modes"
       :key="m.key"

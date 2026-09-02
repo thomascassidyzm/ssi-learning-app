@@ -8,13 +8,14 @@
  * better than a false "Updated —".
  */
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { t } from '@/composables/useI18n'
 
 const { updatedLabel } = useDashboardRefresh()
 </script>
 
 <template>
   <span v-if="updatedLabel" class="updated-stamp" aria-live="polite">
-    Updated {{ updatedLabel }}
+    {{ t('common.updatedAt', 'Updated {time}').replace('{time}', updatedLabel) }}
   </span>
 </template>
 

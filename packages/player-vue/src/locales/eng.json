@@ -21,7 +21,8 @@
     "fast": "Fast",
     "learningModeLabel": "Learning mode",
     "sector": "For your work",
-    "sectorDesc": "Runs alongside your course"
+    "sectorDesc": "Runs alongside your course",
+    "offlineTrial": "Free offline for 30 days"
   },
   "sector": {
     "title": "For your work",
@@ -104,7 +105,10 @@
     "goodStart": "Good start",
     "niceFlow": "Nice flow",
     "greatSession": "Great session",
-    "onFire": "On fire"
+    "onFire": "On fire",
+    "itemsCount": "{count} items",
+    "youAddedMinutes": "You added {minutes} minutes of {language} today",
+    "viewYourJourney": "View your journey"
   },
   "profile": {
     "title": "Profile",
@@ -114,7 +118,10 @@
     "courses": "Courses",
     "beltCollection": "Belt collection",
     "recentActivity": "Recent activity",
-    "seedsToGo": "{count} seeds to go"
+    "seedsToGo": "{count} seeds to go",
+    "yourLanguages": "Your languages",
+    "carryingOn": "carrying on with this one",
+    "switchingFootnote": "Switching does not lose anything. Each one keeps its own place, waiting exactly where you left it."
   },
   "settings": {
     "title": "Settings",
@@ -291,7 +298,8 @@
     "pronunciation": "Pronunciation",
     "tooFast": "Too fast",
     "confusing": "Confusing",
-    "other": "Other"
+    "other": "Other",
+    "flagPhrase": "Flag this phrase for review"
   },
   "contribution": {
     "spoken": "{language} Spoken",
@@ -337,7 +345,10 @@
     "stageFinding2": "Retrieving session data",
     "stagePreparing1": "Preparing audio streams",
     "stagePreparing2": "Calibrating rhythm patterns",
-    "stageReady": "Ready"
+    "stageReady": "Ready",
+    "stillLoading": "Still loading",
+    "slowConnection": "Your connection looks slow. This will start on its own as soon as it comes through, so there's no need to reload.",
+    "loading": "Loading"
   },
   "firstBoot": {
     "speakBeforeThem": "You'll hear a phrase you know — say it out loud in {lang} before the speakers do."
@@ -435,5 +446,60 @@
     "yue": "Cantonese",
     "zho": "Chinese",
     "zul": "Zulu"
+  },
+  "auth": {
+    "savePromptTitle": "Save your progress",
+    "savePromptBody": "Create a free account to keep your learning history and continue on any device.",
+    "createAccount": "Create account",
+    "maybeLater": "Maybe later"
+  },
+  "common": {
+    "close": "Close",
+    "refreshData": "Refresh data",
+    "updatedAt": "Updated {time}",
+    "dismiss": "Dismiss"
+  },
+  "progress": {
+    "youreIn": "you're in",
+    "infinitePlay": "infinite play",
+    "youreWorkingOn": "you're working on",
+    "beltNamed": "{belt} belt",
+    "beenAsFarAs": "you've been as far as",
+    "markerNow": "now",
+    "markerFurthest": "furthest",
+    "jumpToBelt": "Jump to {belt} belt",
+    "infPlayTitle": "Infinite play — random review of everything you've learned",
+    "infPlayAria": "Infinite play: random review of everything you've learned",
+    "hintOfflineUpTo": "offline — belts up to {belt} ready to play; beyond needs a connection",
+    "hintOfflineLocked": "offline — locked belts aren't downloaded; connect to jump there",
+    "hintTapBelt": "tap a belt to jump there, or ∞ at the end for infinite play"
+  },
+  "nav": {
+    "library": "Library",
+    "previous": "Previous",
+    "next": "Next",
+    "skipListening": "Skip listening",
+    "skipListeningAria": "Skip listening section"
+  },
+  "install": {
+    "bannerTitle": "Install SaySomethingin",
+    "bannerSubtitle": "Faster, offline, full-screen",
+    "install": "Install"
+  },
+  "update": {
+    "ready": "Update ready",
+    "tapToRelaunch": "Tap to relaunch",
+    "newVersion": "New version available",
+    "later": "Later",
+    "update": "Update"
+  },
+  "checkout": {
+    "subscribeTo": "Subscribe to {name}",
+    "close": "Close checkout"
+  },
+  "prosody": {
+    "length": "Length",
+    "syllables": "Syllables",
+    "shape": "Shape"
   }
 }
