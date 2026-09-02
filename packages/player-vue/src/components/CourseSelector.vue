@@ -450,7 +450,7 @@ onMounted(() => {
             <div class="header-top">
               <div class="header-spacer" />
               <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-              <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+              <button class="close-btn" @click="emit('close')" :aria-label="t('common.close', 'Close')">&#x2715;</button>
             </div>
             <input
               v-model="searchQuery"
@@ -498,21 +498,21 @@ onMounted(() => {
           <div v-else class="sheet-content">
           <!-- No results -->
           <div v-if="courseGroups.length === 0 && searchQuery.trim()" class="no-results">
-            No courses matching "{{ searchQuery }}"
+            {{ t('home.noCoursesMatching', 'No courses matching “{query}”').replace('{query}', searchQuery) }}
           </div>
           <div v-else-if="courseGroups.length === 0 && iSpeak" class="no-results">
-            No courses available yet for {{ getLanguageEndonym(iSpeak) }} speakers.
+            {{ t('courseSelector.noCoursesForSpeakers', 'No courses available yet for {lang} speakers.').replace('{lang}', getLanguageEndonym(iSpeak)) }}
           </div>
 
           <!-- Premium section -->
           <template v-if="premiumGroups.length > 0">
             <div class="section-header section-header--premium">
               <div class="section-header__text">
-                <span class="section-header__title">Premium</span>
-                <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
+                <span class="section-header__title">{{ t('courseSelector.premium', 'Premium') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.premiumSub', '£15/mo — unlimited access to all languages') }}</span>
               </div>
               <button class="section-header__cta" @click="goPremium()">
-                Go Premium
+                {{ t('settings.goPremium', 'Go Premium') }}
               </button>
             </div>
             <ul class="course-list">
@@ -530,10 +530,10 @@ onMounted(() => {
                   >
                     <LanguageFlag :code="group.target_lang" :size="22" class="row-flag" />
                     <span class="row-name">{{ group.name }}</span>
-                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">for {{ group.forLabel }}</span>
+                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">{{ t('courseSelector.forLang', 'for {lang}').replace('{lang}', group.forLabel) }}</span>
                     <span class="row-status">
                       <template v-if="group.courses.length > 1">
-                        {{ group.courses.length }} variants
+                        {{ t('courseSelector.variantsCount', '{count} variants').replace('{count}', String(group.courses.length)) }}
                         <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M6 9l6 6 6-6" />
                         </svg>
@@ -543,7 +543,7 @@ onMounted(() => {
                         {{ getProgress(group.courses[0].course_code) }}
                       </template>
                       <template v-else-if="isPreviewOnly(group.courses[0])">
-                        <span class="try-free">Try free →</span>
+                        <span class="try-free">{{ t('courseSelector.tryFree', 'Try free →') }}</span>
                       </template>
                     </span>
                   </button>
@@ -561,7 +561,7 @@ onMounted(() => {
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
-                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">Try free →</span></template>
+                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">{{ t('courseSelector.tryFree', 'Try free →') }}</span></template>
                       </span>
                     </button>
                   </li>
@@ -574,8 +574,8 @@ onMounted(() => {
           <template v-if="freeGroups.length > 0">
             <div class="section-header">
               <div class="section-header__text">
-                <span class="section-header__title">Free</span>
-                <span class="section-header__sub">Free forever</span>
+                <span class="section-header__title">{{ t('courseSelector.free', 'Free') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.freeForever', 'Free forever') }}</span>
               </div>
             </div>
             <ul class="course-list">
@@ -593,10 +593,10 @@ onMounted(() => {
                   >
                     <LanguageFlag :code="group.target_lang" :size="22" class="row-flag" />
                     <span class="row-name">{{ group.name }}</span>
-                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">for {{ group.forLabel }}</span>
+                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">{{ t('courseSelector.forLang', 'for {lang}').replace('{lang}', group.forLabel) }}</span>
                     <span class="row-status">
                       <template v-if="group.courses.length > 1">
-                        {{ group.courses.length }} variants
+                        {{ t('courseSelector.variantsCount', '{count} variants').replace('{count}', String(group.courses.length)) }}
                         <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M6 9l6 6 6-6" />
                         </svg>

@@ -436,8 +436,8 @@ onMounted(() => {
     <!-- Header -->
     <div class="browse-header">
       <div class="header-spacer" />
-      <h1 class="browse-title">Library</h1>
-      <button class="close-btn" @click="emit('close')" aria-label="Close library">&#x2715;</button>
+      <h1 class="browse-title">{{ t('nav.library', 'Library') }}</h1>
+      <button class="close-btn" @click="emit('close')" :aria-label="t('home.closeLibrary', 'Close library')">&#x2715;</button>
     </div>
 
     <div class="browse-content">
@@ -451,8 +451,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="guest-auth-text">
-          <span class="guest-auth-title">Your progress is fragile</span>
-          <span class="guest-auth-subtitle">Sign in to save it</span>
+          <span class="guest-auth-title">{{ t('home.fragileTitle', 'Your progress is fragile') }}</span>
+          <span class="guest-auth-subtitle">{{ t('home.fragileSubtitle', 'Sign in to save it') }}</span>
         </div>
         <svg class="guest-auth-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -469,8 +469,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Organisation Dashboard</span>
-          <span class="schools-link-subtitle">Your people, invites & progress</span>
+          <span class="schools-link-title">{{ t('settings.orgDashboard', 'Organisation dashboard') }}</span>
+          <span class="schools-link-subtitle">{{ t('settings.orgDashboardDesc', 'Your people, invites and progress') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -486,8 +486,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Schools Dashboard</span>
-          <span class="schools-link-subtitle">Classes, students & analytics</span>
+          <span class="schools-link-title">{{ t('settings.schoolsDashboard', 'Schools dashboard') }}</span>
+          <span class="schools-link-subtitle">{{ t('home.schoolsLinkSubtitle', 'Classes, students and analytics') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -503,8 +503,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Tutor Dashboard</span>
-          <span class="schools-link-subtitle">Your classes & learners</span>
+          <span class="schools-link-title">{{ t('home.tutorDashboard', 'Tutor dashboard') }}</span>
+          <span class="schools-link-subtitle">{{ t('home.tutorDashboardSubtitle', 'Your classes and learners') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -513,7 +513,7 @@ onMounted(() => {
 
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
-        <h3 class="section-label">Your Progress</h3>
+        <h3 class="section-label">{{ t('home.progress', 'Progress') }}</h3>
         <div class="progress-card" data-walk="library-progress-card" @click="showBeltBrowser = !showBeltBrowser">
           <!-- Belt strip: 8 colored dots -->
           <div class="belt-strip" data-walk="library-belt-strip">
@@ -551,16 +551,16 @@ onMounted(() => {
           <!-- Belt label + position (how far you've come, not how far's left) -->
           <div class="progress-meta">
             <span class="progress-belt-name" :style="{ color: currentBelt.color }">
-              {{ currentBelt.name }} Belt
+              {{ t('belt.label', '{color} Belt').replace('{color}', t(`belt.${currentBelt.name}`, currentBelt.name)) }}
             </span>
             <span class="progress-to-next">
-              {{ coursePercent }}% of the way
+              {{ t('home.percentOfTheWay', '{pct}% of the way').replace('{pct}', String(coursePercent)) }}
             </span>
           </div>
 
           <!-- Chevron -->
           <div class="card-action" data-walk="library-belt-browser">
-            <span class="card-action-label">View Belts</span>
+            <span class="card-action-label">{{ t('home.viewBelts', 'View belts') }}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -595,7 +595,7 @@ onMounted(() => {
 
       <!-- ── Section 3: Activity ── -->
       <section class="section">
-        <h3 class="section-label">Activity</h3>
+        <h3 class="section-label">{{ t('home.yourActivity', 'Your activity') }}</h3>
         <!-- Column count follows the tile count: the spoken-phrases tile is
              absent whenever the mic isn't listening, and a fixed 3-column grid
              would leave a hole where it used to be. -->
@@ -613,9 +613,9 @@ onMounted(() => {
             </div>
             <div
               class="stat-value"
-              :title="totalLearningMinutesEstimated ? 'Approximate — estimated from your course position, not yet logged session time' : undefined"
+              :title="totalLearningMinutesEstimated ? t('home.approxTimeTitle', 'Approximate — estimated from your course position, not yet logged session time') : undefined"
             >{{ formattedTime }}</div>
-            <div class="stat-label">Total Time</div>
+            <div class="stat-label">{{ t('home.totalTime', 'Total time') }}</div>
           </div>
 
           <div class="stat-card" data-walk="library-stat-phrases-learnt">
@@ -626,7 +626,7 @@ onMounted(() => {
               </svg>
             </div>
             <div class="stat-value">{{ phrasesLearnt }}</div>
-            <div class="stat-label">Phrases learnt</div>
+            <div class="stat-label">{{ t('home.phrasesLearnt', 'Phrases learnt') }}</div>
           </div>
 
           <div v-if="showPhrasesSpoken" class="stat-card" data-walk="library-stat-phrases">
@@ -637,14 +637,14 @@ onMounted(() => {
               </svg>
             </div>
             <div class="stat-value">{{ totalPhrasesSpoken }}</div>
-            <div class="stat-label">Phrases spoken</div>
+            <div class="stat-label">{{ t('home.phrasesSpoken', 'Phrases spoken') }}</div>
           </div>
         </div>
       </section>
 
       <!-- ── Section 4: All Courses ── -->
       <section class="section">
-        <h3 class="section-label">All Courses</h3>
+        <h3 class="section-label">{{ t('home.allCourses', 'All courses') }}</h3>
 
         <!-- Search -->
         <input
@@ -652,7 +652,7 @@ onMounted(() => {
           type="text"
           class="course-search-input"
           data-walk="library-course-search"
-          placeholder="Search any language..."
+          :placeholder="t('home.searchAnyLanguage', 'Search any language…')"
           autocomplete="off"
         />
 
@@ -663,7 +663,7 @@ onMounted(() => {
 
         <!-- No results -->
         <div v-else-if="courseGroups.length === 0 && courseSearchQuery.trim()" class="no-results">
-          No courses matching "{{ courseSearchQuery }}"
+          {{ t('home.noCoursesMatching', 'No courses matching “{query}”').replace('{query}', courseSearchQuery) }}
         </div>
 
         <!-- Course grid -->
@@ -682,14 +682,14 @@ onMounted(() => {
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                   </svg>
                 </div>
-                <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">Premium</div>
+                <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">{{ t('courseSelector.premium', 'Premium') }}</div>
 
                 <LanguageFlag :code="group.courses[0].course_code || group.courses[0].target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
-                <span class="course-for">for {{ group.forLabel }} speakers</span>
+                <span class="course-for">{{ t('home.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
 
                 <span class="course-status">
-                  <template v-if="isPreviewOnly(group.courses[0])">Try free →</template>
+                  <template v-if="isPreviewOnly(group.courses[0])">{{ t('courseSelector.tryFree', 'Try free →') }}</template>
                   <template v-else-if="isEnrolled(group.courses[0].course_code)">
                     <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                     {{ getProgress(group.courses[0].course_code) }}
@@ -710,8 +710,8 @@ onMounted(() => {
               >
                 <LanguageFlag :code="group.target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
-                <span class="course-for">for {{ group.forLabel }} speakers</span>
-                <span class="course-status variant-count">{{ group.courses.length }} variants ▾</span>
+                <span class="course-for">{{ t('home.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
+                <span class="course-status variant-count">{{ t('courseSelector.variantsCount', '{count} variants').replace('{count}', String(group.courses.length)) }} ▾</span>
               </button>
 
               <!-- Variant sub-cards -->
@@ -725,7 +725,7 @@ onMounted(() => {
                 >
                   <LanguageFlag :code="course.course_code" :size="18" />
                   <span class="variant-name">{{ getVariantLabel(course) || courseTargetName(course) }}</span>
-                  <span v-if="isPreviewOnly(course)" class="course-status">Try free →</span>
+                  <span v-if="isPreviewOnly(course)" class="course-status">{{ t('courseSelector.tryFree', 'Try free →') }}</span>
                   <span v-else-if="isEnrolled(course.course_code)" class="course-status"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</span>
                 </button>
               </div>
@@ -738,7 +738,7 @@ onMounted(() => {
       <button v-if="canBecomeTeacher" class="become-teacher" @click="goToBecomeTeacher">
         <span class="become-teacher-text">
           <span class="become-teacher-title">Teach with SaySomethingin</span>
-          <span class="become-teacher-subtitle">Anyone can teach — share the language you're learning</span>
+          <span class="become-teacher-subtitle">{{ t('home.becomeTeacherSubtitle', "Anyone can teach — share the language you're learning") }}</span>
         </span>
         <svg class="become-teacher-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>

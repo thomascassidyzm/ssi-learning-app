@@ -64,7 +64,15 @@
     "retry": "Retry",
     "freePreview": "Free preview",
     "forSpeakers": "for {lang} speakers",
-    "searchPlaceholder": "Search for any language..."
+    "searchPlaceholder": "Search for any language...",
+    "variantsCount": "{count} variants",
+    "premium": "Premium",
+    "tryFree": "Try free →",
+    "noCoursesForSpeakers": "No courses available yet for {lang} speakers.",
+    "premiumSub": "£15/mo — unlimited access to all languages",
+    "free": "Free",
+    "freeForever": "Free forever",
+    "forLang": "for {lang}"
   },
   "player": {
     "listen": "Listen",
@@ -75,7 +83,27 @@
     "pause": "Pause",
     "resume": "Resume",
     "offlinePracticeBody": "We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.",
-    "offlinePracticeAck": "Got it"
+    "offlinePracticeAck": "Got it",
+    "preparingInfPlay": "Preparing infinite play audio…",
+    "jumpingToBelt": "Jumping to {belt} belt…",
+    "nextBelt": "next",
+    "skipWelcome": "Skip welcome",
+    "hideHints": "Hide hints",
+    "guideSpeaking": "Your guide is speaking",
+    "previousCycle": "Previous cycle",
+    "cyclePhases": "Cycle phases",
+    "replayPrompt": "Replay prompt",
+    "backToYourTurn": "Back to your turn to speak",
+    "skipToVoice1": "Skip to model voice 1",
+    "skipToVoice2": "Skip to model voice 2",
+    "nextCycle": "Next cycle",
+    "saveProgress": "Save progress",
+    "backToClasses": "Back to classes",
+    "learningPlayer": "Learning player",
+    "playbackSpeed": "Playback speed",
+    "fragileProgressPre": "Your progress is fragile —",
+    "fragileProgressPost": "to save it",
+    "courseUpdated": "Your course was updated"
   },
   "home": {
     "goodMorning": "Good morning",
@@ -94,7 +122,22 @@
     "phrases": "Phrases",
     "mySchool": "My school",
     "schoolSubtitle": "Classes, students and progress",
-    "forSpeakers": "for {lang} speakers"
+    "forSpeakers": "for {lang} speakers",
+    "closeLibrary": "Close library",
+    "fragileTitle": "Your progress is fragile",
+    "fragileSubtitle": "Sign in to save it",
+    "schoolsLinkSubtitle": "Classes, students and analytics",
+    "tutorDashboard": "Tutor dashboard",
+    "tutorDashboardSubtitle": "Your classes and learners",
+    "percentOfTheWay": "{pct}% of the way",
+    "viewBelts": "View belts",
+    "approxTimeTitle": "Approximate — estimated from your course position, not yet logged session time",
+    "phrasesLearnt": "Phrases learnt",
+    "phrasesSpoken": "Phrases spoken",
+    "allCourses": "All courses",
+    "searchAnyLanguage": "Search any language…",
+    "noCoursesMatching": "No courses matching “{query}”",
+    "becomeTeacherSubtitle": "Anyone can teach — share the language you're learning"
   },
   "session": {
     "belt": "Belt",
@@ -306,7 +349,9 @@
     "blue": "Blue",
     "purple": "Purple",
     "brown": "Brown",
-    "black": "Black"
+    "black": "Black",
+    "newBeltEarned": "New belt earned!",
+    "keepLearning": "Keep learning to reach the next level!"
   },
   "resting": {
     "loading": "Loading...",
@@ -363,7 +408,27 @@
     "files": "Files",
     "resume": "Resume",
     "pause": "Pause",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "takeItOffline": "Take it offline",
+    "subWhole": "Take the whole thing with you for endless offline play.",
+    "subHowMuchCourse": "How much of the course do you want to keep offline?",
+    "subHowMuchLeft": "How much of what's left do you want to carry?",
+    "infPlayCaption": "Caches the course's key phrases so it plays on endless repeat with no signal.",
+    "downloadUnlimited": "Download for unlimited offline",
+    "sliderAria": "How much of the remaining course to download",
+    "barWholeCourse": "Keeps the whole course offline",
+    "barPercentOffline": "Keeps about {pct} percent of the course offline",
+    "barEverythingLeft": "Carries everything left to learn",
+    "barPercentFurther": "Carries you about {pct} percent further through the course",
+    "capWholeCourse": "The whole course, kept offline",
+    "capPercentOffline": "~{pct}% of the course, kept offline",
+    "capEverythingLeft": "Everything left to learn",
+    "capPercentFurther": "New learning — carries you ~{pct}% further",
+    "plusBehind": "Plus everything up to where you are — included automatically",
+    "workingOutSize": "Working out size…",
+    "lowSpace": "running low on space",
+    "download": "Download",
+    "pickerNote": "Plays offline forever once downloaded — it keeps going on repeat with no signal."
   },
   "browser": {
     "courseBrowser": "Course browser",
@@ -584,7 +649,8 @@
     "tapToRelaunch": "Tap to relaunch",
     "newVersion": "New version available",
     "later": "Later",
-    "update": "Update"
+    "update": "Update",
+    "newVersionAria": "New version available — tap to update"
   },
   "checkout": {
     "subscribeTo": "Subscribe to {name}",
@@ -594,5 +660,36 @@
     "length": "Length",
     "syllables": "Syllables",
     "shape": "Shape"
+  },
+  "paywall": {
+    "title": "You've reached the end of the free preview",
+    "subtitle": "Go Premium — £15/month. Cancel anytime.",
+    "benefit1": "Every course in 65+ languages, fully unlocked",
+    "benefit2": "Download courses for offline learning",
+    "benefit3": "New languages and courses added all the time",
+    "openingCheckout": "Opening checkout…",
+    "subscribeCta": "Subscribe — £15/month"
+  },
+  "offlineLease": {
+    "trialEnded": "Free offline trial ended",
+    "paused": "Offline access paused",
+    "trialEndedBody": "Your 30-day free offline trial has ended. Your downloads are still saved — reconnect and subscribe at £15/month to keep playing them offline. You can always learn online for free.",
+    "pausedBody": "Your downloads need a quick online check to keep playing. Connect to the internet and they'll unlock straight away — nothing is lost.",
+    "lapsedOn": "Offline access lapsed on {date}.",
+    "tryReconnect": "Try to reconnect"
+  },
+  "listening": {
+    "dialogues": "Dialogues",
+    "core": "Core",
+    "all": "All",
+    "loadingPods": "Loading dialogues…",
+    "noPods": "No dialogues for this course yet.",
+    "playAllScenes": "Play all scenes",
+    "sentenceCount": "{count} sentences",
+    "hideTranslations": "Hide translations",
+    "showTranslations": "Show translations",
+    "nothingOffline": "None of this is saved on your device yet, so there's nothing to listen to offline. Connect once and download for offline to bring it with you.",
+    "tapToPause": "Tap to pause",
+    "tapToPlay": "Tap to play"
   }
 }

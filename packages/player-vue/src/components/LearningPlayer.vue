@@ -16624,23 +16624,23 @@ defineExpose({
   <Teleport to="body">
     <Transition name="offline-picker">
       <div v-if="showOfflinePicker" class="offline-picker-backdrop" @click.self="cancelOfflinePicker">
-        <div class="offline-picker" role="dialog" aria-label="Take it offline">
+        <div class="offline-picker" role="dialog" :aria-label="t('download.takeItOffline', 'Take it offline')">
           <div class="offline-picker-head">
-            <h3 class="offline-picker-title">Take it offline</h3>
-            <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
+            <h3 class="offline-picker-title">{{ t('download.takeItOffline', 'Take it offline') }}</h3>
+            <button class="offline-picker-close" :aria-label="t('common.close', 'Close')" @click="cancelOfflinePicker">✕</button>
           </div>
-          <p class="offline-picker-sub">{{ offlineSingleOption ? 'Take the whole thing with you for endless offline play.' : (offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?") }}</p>
+          <p class="offline-picker-sub">{{ offlineSingleOption ? t('download.subWhole', 'Take the whole thing with you for endless offline play.') : (offlineAtTail ? t('download.subHowMuchCourse', 'How much of the course do you want to keep offline?') : t('download.subHowMuchLeft', "How much of what's left do you want to carry?")) }}</p>
 
           <!-- INF PLAY (or at-tail / guest-at-tail): a single download. INF PLAY
                only recycles USE phrases, so we cache USE audio only (the longest
                3 per LEGO) + pods/encouragements — small, and it plays forever. -->
           <div v-if="offlineSingleOption" class="offline-single">
             <p class="offline-depth-size">
-              <span class="offline-depth-size-mb">{{ offlineSingleEstimate.size || 'Working out size…' }}</span>
-              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+              <span class="offline-depth-size-mb">{{ offlineSingleEstimate.size || t('download.workingOutSize', 'Working out size…') }}</span>
+              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low"> · {{ t('download.lowSpace', 'running low on space') }}</span>
             </p>
-            <p class="offline-single-caption">Caches the course's key phrases so it plays on endless repeat with no signal.</p>
-            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">Download for unlimited offline</button>
+            <p class="offline-single-caption">{{ t('download.infPlayCaption', "Caches the course's key phrases so it plays on endless repeat with no signal.") }}</p>
+            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">{{ t('download.downloadUnlimited', 'Download for unlimited offline') }}</button>
           </div>
 
           <div v-else class="offline-depth">
@@ -16653,7 +16653,7 @@ defineExpose({
               step="1"
               v-model.number="offlineNotchIndex"
               :aria-valuetext="offlineSelectedLabel"
-              aria-label="How much of the remaining course to download"
+              :aria-label="t('download.sliderAria', 'How much of the remaining course to download')"
             />
             <!-- Tick labels stay tappable for mouse/touch, but the slider above is
                  the single canonical control: aria-hidden + tabindex -1 keeps them
@@ -16672,8 +16672,8 @@ defineExpose({
 
             <!-- Live cost readout for the selected notch -->
             <p class="offline-depth-size">
-              <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
-              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+              <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || t('download.workingOutSize', 'Working out size…') }}</span>
+              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low"> · {{ t('download.lowSpace', 'running low on space') }}</span>
             </p>
 
             <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
@@ -16682,27 +16682,27 @@ defineExpose({
               class="offline-depth-bar"
               role="img"
               :aria-label="offlineCourseBar.finished
-                ? (offlineSelectedFraction >= 1 ? 'Keeps the whole course offline' : `Keeps about ${Math.round(offlineCourseBar.newPct)} percent of the course offline`)
-                : (offlineSelectedFraction >= 1 ? 'Carries everything left to learn' : `Carries you about ${Math.round(offlineCourseBar.newPct)} percent further through the course`)"
+                ? (offlineSelectedFraction >= 1 ? t('download.barWholeCourse', 'Keeps the whole course offline') : t('download.barPercentOffline', 'Keeps about {pct} percent of the course offline').replace('{pct}', String(Math.round(offlineCourseBar.newPct))))
+                : (offlineSelectedFraction >= 1 ? t('download.barEverythingLeft', 'Carries everything left to learn') : t('download.barPercentFurther', 'Carries you about {pct} percent further through the course').replace('{pct}', String(Math.round(offlineCourseBar.newPct))))"
             >
               <div class="offline-depth-bar-done" :style="{ width: offlineCourseBar.donePct + '%' }"></div>
               <div class="offline-depth-bar-new" :style="{ left: offlineCourseBar.donePct + '%', width: offlineCourseBar.newPct + '%' }"></div>
             </div>
             <p class="offline-depth-caption">
               {{ offlineCourseBar.finished
-                ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
-                : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
+                ? (offlineSelectedFraction >= 1 ? t('download.capWholeCourse', 'The whole course, kept offline') : t('download.capPercentOffline', '~{pct}% of the course, kept offline').replace('{pct}', String(Math.round(offlineCourseBar.newPct))))
+                : (offlineSelectedFraction >= 1 ? t('download.capEverythingLeft', 'Everything left to learn') : t('download.capPercentFurther', 'New learning — carries you ~{pct}% further').replace('{pct}', String(Math.round(offlineCourseBar.newPct)))) }}
             </p>
             <!-- Behind-position content is always in the bundle — the slider only
                  chooses how much NEW learning rides along. -->
             <p v-if="!offlineCourseBar.finished && offlineCourseBar.donePct > 0" class="offline-depth-caption">
-              Plus everything up to where you are — included automatically
+              {{ t('download.plusBehind', 'Plus everything up to where you are — included automatically') }}
             </p>
 
-            <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
+            <button class="offline-depth-download" @click="startOfflineDownload">{{ t('download.download', 'Download') }}</button>
           </div>
 
-          <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
+          <p class="offline-picker-note">{{ t('download.pickerNote', 'Plays offline forever once downloaded — it keeps going on repeat with no signal.') }}</p>
         </div>
       </div>
     </Transition>
@@ -16729,8 +16729,8 @@ defineExpose({
       <div class="belt-skip-spinner"></div>
       <span class="belt-skip-label">{{
         isWarmingUpInfPlay
-          ? 'Preparing INF PLAY audio…'
-          : `Jumping to ${nextBelt?.name || 'next'} belt…`
+          ? t('player.preparingInfPlay', 'Preparing infinite play audio…')
+          : t('player.jumpingToBelt', 'Jumping to {belt} belt…').replace('{belt}', nextBelt?.name ? t(`belt.${nextBelt.name}`, nextBelt.name) : t('player.nextBelt', 'next'))
       }}</span>
     </div>
   </Transition>
@@ -16782,21 +16782,21 @@ defineExpose({
   <Transition name="fade">
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
-        <h2 class="paywall-title">You've reached the end of the free preview</h2>
-        <p class="paywall-subtitle">Go Premium — £15/month. Cancel anytime.</p>
+        <h2 class="paywall-title">{{ t('paywall.title', "You've reached the end of the free preview") }}</h2>
+        <p class="paywall-subtitle">{{ t('paywall.subtitle', 'Go Premium — £15/month. Cancel anytime.') }}</p>
         <ul class="paywall-benefits">
-          <li>Every course in 65+ languages, fully unlocked</li>
-          <li>Download courses for offline learning</li>
-          <li>New languages and courses added all the time</li>
+          <li>{{ t('paywall.benefit1', 'Every course in 65+ languages, fully unlocked') }}</li>
+          <li>{{ t('paywall.benefit2', 'Download courses for offline learning') }}</li>
+          <li>{{ t('paywall.benefit3', 'New languages and courses added all the time') }}</li>
         </ul>
         <div class="paywall-actions">
           <button
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
-          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
+          >{{ isOpeningCheckout ? t('paywall.openingCheckout', 'Opening checkout…') : t('paywall.subscribeCta', 'Subscribe — £15/month') }}</button>
           <!-- Access codes are entered in Settings during normal play, not here. -->
-          <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">Maybe later</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">{{ t('auth.maybeLater', 'Maybe later') }}</button>
         </div>
       </div>
     </div>
@@ -16808,24 +16808,21 @@ defineExpose({
   <Transition name="fade">
     <div v-if="offlineLeaseLocked && !isOnline" class="paywall-overlay">
       <div class="paywall-card">
-        <h2 class="paywall-title">{{ offlineTrial ? 'Free offline trial ended' : 'Offline access paused' }}</h2>
+        <h2 class="paywall-title">{{ offlineTrial ? t('offlineLease.trialEnded', 'Free offline trial ended') : t('offlineLease.paused', 'Offline access paused') }}</h2>
         <p class="paywall-subtitle">
           <template v-if="offlineTrial">
-            Your 30-day free offline trial has ended. Your downloads are still
-            saved — reconnect and subscribe (£15/month) to keep playing them
-            offline. You can always learn online for free.
+            {{ t('offlineLease.trialEndedBody', 'Your 30-day free offline trial has ended. Your downloads are still saved — reconnect and subscribe at £15/month to keep playing them offline. You can always learn online for free.') }}
           </template>
           <template v-else>
-            Your downloads need a quick online check to keep playing.
-            Connect to the internet and they'll unlock straight away — nothing is lost.
+            {{ t('offlineLease.pausedBody', "Your downloads need a quick online check to keep playing. Connect to the internet and they'll unlock straight away — nothing is lost.") }}
           </template>
-          <template v-if="offlineLeaseExpiryLabel"><br />Offline access lapsed on {{ offlineLeaseExpiryLabel }}.</template>
+          <template v-if="offlineLeaseExpiryLabel"><br />{{ t('offlineLease.lapsedOn', 'Offline access lapsed on {date}.').replace('{date}', offlineLeaseExpiryLabel) }}</template>
         </p>
         <div class="paywall-actions">
           <button
             class="paywall-btn paywall-btn-primary"
             @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
-          >Try to reconnect</button>
+          >{{ t('offlineLease.tryReconnect', 'Try to reconnect') }}</button>
         </div>
       </div>
     </div>
@@ -16902,7 +16899,7 @@ defineExpose({
     <div v-if="isPlayingWelcome" class="welcome-overlay">
       <div class="welcome-content">
         <button class="welcome-skip" @click="skipWelcome">
-          Skip Welcome
+          {{ t('player.skipWelcome', 'Skip welcome') }}
         </button>
       </div>
     </div>
@@ -16991,7 +16988,7 @@ defineExpose({
              carries no on-screen instruction at all (2026-08-06). -->
         <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
-          <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
+          <button class="hint-dismiss" @click.stop="dismissLearningHint" :title="t('player.hideHints', 'Hide hints')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -17010,7 +17007,7 @@ defineExpose({
                that reads as live voice. Instructions also keep their short
                caption; encouragements are wave-only. -->
           <div class="interjection-display" :class="`is-${currentCommentaryType}`">
-            <div class="interjection-wave" aria-label="Your guide is speaking" role="img">
+            <div class="interjection-wave" :aria-label="t('player.guideSpeaking', 'Your guide is speaking')" role="img">
               <span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span>
             </div>
             <div v-if="currentCommentaryType === 'instruction'" class="interjection-caption">{{ currentInstructionCaption }}</div>
@@ -17099,19 +17096,19 @@ defineExpose({
           type="button"
           class="belt-header-skip phase-cycle-skip"
           @click="handleRevisit"
-          title="Previous cycle"
-          aria-label="Previous cycle"
+          :title="t('player.previousCycle', 'Previous cycle')"
+          :aria-label="t('player.previousCycle', 'Previous cycle')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
-        <div class="phase-strip" role="group" aria-label="Cycle phases">
+        <div class="phase-strip" role="group" :aria-label="t('player.cyclePhases', 'Cycle phases')">
         <button
           type="button"
           class="phase-segment phase-segment--prompt"
           :class="{ 'is-active': currentPhase === Phase.PROMPT }"
-          aria-label="Replay prompt"
+          :aria-label="t('player.replayPrompt', 'Replay prompt')"
           @click="jumpToCyclePhase('prompt')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17124,7 +17121,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
-          aria-label="Back to your turn to speak"
+          :aria-label="t('player.backToYourTurn', 'Back to your turn to speak')"
           @click="jumpToCyclePhase('pause')"
         >
           <!-- span, not div: a button's content model is phrasing content, and
@@ -17141,7 +17138,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--voice1"
           :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
-          aria-label="Skip to model voice 1"
+          :aria-label="t('player.skipToVoice1', 'Skip to model voice 1')"
           @click="jumpToCyclePhase('voice1')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17154,7 +17151,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--voice2"
           :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
-          aria-label="Skip to model voice 2"
+          :aria-label="t('player.skipToVoice2', 'Skip to model voice 2')"
           @click="jumpToCyclePhase('voice2')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17168,8 +17165,8 @@ defineExpose({
           type="button"
           class="belt-header-skip phase-cycle-skip"
           @click="handleSkip"
-          title="Next cycle"
-          aria-label="Next cycle"
+          :title="t('player.nextCycle', 'Next cycle')"
+          :aria-label="t('player.nextCycle', 'Next cycle')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <polyline points="9 18 15 12 9 6"/>
@@ -17180,7 +17177,7 @@ defineExpose({
       <!-- Guest save progress button -->
       <Transition name="nudge-fade">
         <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
-          Save Progress
+          {{ t('player.saveProgress', 'Save progress') }}
         </button>
       </Transition>
     </div>
@@ -17398,7 +17395,7 @@ defineExpose({
         <polyline points="15 18 9 12 15 6"/>
       </svg>
       <span class="class-bar-name">{{ props.classContext.name }}</span>
-      <span class="class-bar-label">Back to classes</span>
+      <span class="class-bar-label">{{ t('player.backToClasses', 'Back to classes') }}</span>
     </button>
 
     <!-- Header - Logo with belt underneath, centered -->
@@ -17413,7 +17410,7 @@ defineExpose({
              (brand.say / brand.something / brand.in) so learners aren't forced
              to read an English app name. The env-label / dev-reset / PWA-update
              controls keep their home in .brand alongside it. -->
-        <div v-if="!props.embedded || envLabel || showDevReset || (pwaUpdateAvailable && pwaUserDismissed)" class="brand"><template v-if="!props.embedded"><span class="logo-say">{{ t('brand.say') }}</span><span class="logo-something">{{ t('brand.something') }}</span><span class="logo-in">{{ t('brand.in') }}</span></template><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <div v-if="!props.embedded || envLabel || showDevReset || (pwaUpdateAvailable && pwaUserDismissed)" class="brand"><template v-if="!props.embedded"><span class="logo-say">{{ t('brand.say') }}</span><span class="logo-something">{{ t('brand.something') }}</span><span class="logo-in">{{ t('brand.in') }}</span></template><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" :title="t('settings.tapToUpdate', 'Tap to update')" :aria-label="t('update.newVersionAria', 'New version available — tap to update')" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: ROUND/LEGO back ‹‹ + central belt-progress pill + ROUND/LEGO forward ››
              Granularity = location. These header chevrons step the
@@ -17567,7 +17564,7 @@ defineExpose({
       class="control-pane"
       :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isAudioPlaying }]"
       role="region"
-      aria-label="Learning player"
+      :aria-label="t('player.learningPlayer', 'Learning player')"
     >
       <!-- Screen-reader announcer for play/pause state. VoiceOver / TalkBack
            pick up changes to this region without disturbing sighted UI. -->
@@ -17615,7 +17612,7 @@ defineExpose({
           </p>
           <p v-else-if="isListeningCycle" class="known-text listening-label">
             {{ displayedKnownText }}
-            <span class="listening-speed-badge" aria-label="Playback speed">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
+            <span class="listening-speed-badge" :aria-label="t('player.playbackSpeed', 'Playback speed')">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
           </p>
           <p v-else class="known-text">{{ displayedKnownText }}</p>
         </div>
@@ -17627,7 +17624,7 @@ defineExpose({
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          <span class="nudge-text">Your progress is fragile — <strong>sign in</strong> to save it</span>
+          <span class="nudge-text">{{ t('player.fragileProgressPre', 'Your progress is fragile —') }} <strong>{{ t('auth.signIn', 'Sign in') }}</strong> {{ t('player.fragileProgressPost', 'to save it') }}</span>
         </div>
 
         <!-- Visual separator -->
@@ -17672,7 +17669,7 @@ defineExpose({
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span v-if="!hasEverStarted" class="start-label">Tap to start</span>
+        <span v-if="!hasEverStarted" class="start-label">{{ t('player.tapToStart', 'Tap to start') }}</span>
       </div>
     </section>
 
@@ -17687,7 +17684,7 @@ defineExpose({
     <Transition name="tip-fade">
       <div v-if="showCourseUpdatedNotice" class="mode-tip course-updated-notice" @click="showCourseUpdatedNotice = false">
         <div class="mode-tip__body">
-          <span class="mode-tip__label">Your course was updated</span>
+          <span class="mode-tip__label">{{ t('player.courseUpdated', 'Your course was updated') }}</span>
         </div>
       </div>
     </Transition>
@@ -17724,14 +17721,14 @@ defineExpose({
             </svg>
           </div>
 
-          <h2 class="belt-title">New Belt Earned!</h2>
+          <h2 class="belt-title">{{ t('belt.newBeltEarned', 'New belt earned!') }}</h2>
           <p class="belt-name" :style="{ color: beltJustEarned.color }">
-            {{ beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1) }} Belt
+            {{ t('belt.label', '{color} Belt').replace('{color}', t(`belt.${beltJustEarned.name}`, beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1))) }}
           </p>
-          <p class="belt-subtitle">Keep learning to reach the next level!</p>
+          <p class="belt-subtitle">{{ t('belt.keepLearning', 'Keep learning to reach the next level!') }}</p>
 
           <button class="belt-continue-btn" @click="beltJustEarned = null">
-            Continue
+            {{ t('session.continue', 'Continue') }}
           </button>
         </div>
       </div>
