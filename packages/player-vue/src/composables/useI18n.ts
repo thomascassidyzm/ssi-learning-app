@@ -624,8 +624,17 @@ syncDocumentLang()
 // reach, so nothing here can hit a temporal dead zone again. Fire-and-forget:
 // the UI mounts in English and rerenders when the locale chunk lands
 // (~50-200ms). A failure is LOUD — a silent catch is what hid this for a week.
+//
+// Carry the STORED source through rather than taking setLocale's 'chosen'
+// default. This re-save is bookkeeping, not a decision, and defaulting would
+// quietly promote an inferred guess to a choice on the very next page load —
+// which then locks the interface language against every later deep link.
+// Caught in the browser on staging (2026-09-02): a second link, to a
+// Tamil-known course, was refused because boot had already re-stamped the
+// previous link's Hindi guess as chosen.
 if (savedLocale !== 'eng' && LOCALE_LOADERS[savedLocale]) {
-  setLocale(savedLocale).catch((err) => {
+  const storedSource: LocaleSource = hasChosenLocale() ? 'chosen' : 'inferred'
+  setLocale(savedLocale, storedSource).catch((err) => {
     console.warn('[useI18n] Failed to apply saved locale on boot', savedLocale, err)
   })
 }

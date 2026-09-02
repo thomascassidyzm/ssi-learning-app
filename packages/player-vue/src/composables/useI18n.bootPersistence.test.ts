@@ -52,6 +52,44 @@ describe('useI18n boot persistence', () => {
     expect(document.documentElement.lang).toBe('cy')
   })
 
+
+  // Boot re-saves the stored locale to kick off its chunk fetch. That re-save
+  // must carry the stored SOURCE, or an inferred guess is promoted to a choice
+  // on the next page load and the interface language is locked against every
+  // later deep link. Found in the browser on staging, 2026-09-02.
+  it('does not promote an inferred locale to a chosen one on boot', async () => {
+    localStorage.setItem('ssi-locale', 'hin')
+    localStorage.setItem('ssi-locale-source', 'inferred')
+
+    const { hasChosenLocale } = await import('./useI18n')
+    await waitFor(() => localStorage.getItem('ssi-locale-source') !== null)
+
+    expect(localStorage.getItem('ssi-locale-source')).toBe('inferred')
+    expect(hasChosenLocale()).toBe(false)
+  })
+
+  it('keeps a chosen locale chosen across a boot', async () => {
+    localStorage.setItem('ssi-locale', 'cym')
+    localStorage.setItem('ssi-locale-source', 'chosen')
+
+    const { hasChosenLocale } = await import('./useI18n')
+    await flush()
+
+    expect(localStorage.getItem('ssi-locale-source')).toBe('chosen')
+    expect(hasChosenLocale()).toBe(true)
+  })
+
+  // A locale stored before the source key existed can only have come from the
+  // Settings picker, so boot must not downgrade it to a guess either.
+  it('treats a sourceless legacy locale as chosen through boot', async () => {
+    localStorage.setItem('ssi-locale', 'cym')
+
+    const { hasChosenLocale } = await import('./useI18n')
+    await flush()
+
+    expect(hasChosenLocale()).toBe(true)
+  })
+
   it('survives a relaunch: what setLocale stored is what the next boot renders', async () => {
     // Session 1 — the learner picks Cymraeg.
     const first = await import('./useI18n')
