@@ -48,6 +48,9 @@ const LOCALE_LOADERS: Record<string, LocaleLoader> = {
   guj: () => import('../locales/guj.json').then(unwrap),
   pan: () => import('../locales/pan.json').then(unwrap),
   urd: () => import('../locales/urd.json').then(unwrap),
+  kan: () => import('../locales/kan.json').then(unwrap),
+  mar: () => import('../locales/mar.json').then(unwrap),
+  tel: () => import('../locales/tel.json').then(unwrap),
   // Other interface languages
   aze: () => import('../locales/aze.json').then(unwrap),
   lit: () => import('../locales/lit.json').then(unwrap),
@@ -223,7 +226,7 @@ const ISO3_TO_BCP47: Record<string, string> = {
   vie: 'vi', ind: 'id', fil: 'tl', ben: 'bn', urd: 'ur', tam: 'ta',
   tel: 'te', msa: 'ms', yue: 'yue', fas: 'fa', kur: 'ku', amh: 'am',
   hau: 'ha', yor: 'yo', zul: 'zu', kat: 'ka', hye: 'hy', bre: 'br',
-  cor: 'kw', sin: 'si',
+  cor: 'kw', sin: 'si', kan: 'kn', mar: 'mr',
 }
 
 /**

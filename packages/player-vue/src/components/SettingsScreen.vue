@@ -368,7 +368,10 @@ const INTERFACE_LANGUAGES = [
   { code: 'ben', label: 'বাংলা' },
   { code: 'tam', label: 'தமிழ்' },
   { code: 'urd', label: 'اردو' },
+  { code: 'mar', label: 'मराठी' },
   { code: 'guj', label: 'ગુજરાતી' },
+  { code: 'kan', label: 'ಕನ್ನಡ' },
+  { code: 'tel', label: 'తెలుగు' },
   { code: 'pan', label: 'ਪੰਜਾਬੀ' },
   { code: 'sin', label: 'සිංහල' },
 ]

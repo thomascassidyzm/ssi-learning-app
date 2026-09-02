@@ -51,12 +51,24 @@ describe('localeForDeepLink', () => {
     expect(localeForDeepLink('?round=7')).toBeNull()
   })
 
-  // The honest no-op: we ship no Kannada, Marathi or Telugu interface, so a
-  // course for those speakers stays in English rather than half-translating.
+  // The honest no-op: a course whose known language has no locale file stays in
+  // English rather than half-translating.
+  //
+  // 2026-09-02: Kannada, Marathi and Telugu USED to be the examples here — they
+  // were the three courses in the estate this feature could not serve. They now
+  // ship locale files, so they belong in the case above, not this one. Nepali,
+  // Thai and Hebrew are the current shape of the hole: real known languages in
+  // the estate with no interface behind them.
   it('is null when we have no interface for that known language', () => {
-    expect(localeForDeepLink('?course=eng_for_kan')).toBeNull()
-    expect(localeForDeepLink('?course=eng_for_mar')).toBeNull()
-    expect(localeForDeepLink('?course=eng_for_tel')).toBeNull()
+    expect(localeForDeepLink('?course=eng_for_nep')).toBeNull()
+    expect(localeForDeepLink('?course=eng_for_tha')).toBeNull()
+    expect(localeForDeepLink('?course=eng_for_heb')).toBeNull()
+  })
+
+  it('resolves the three languages added on 2026-09-02', () => {
+    expect(localeForDeepLink('?course=eng_for_kan')).toBe('kan')
+    expect(localeForDeepLink('?course=eng_for_mar')).toBe('mar')
+    expect(localeForDeepLink('?course=eng_for_tel')).toBe('tel')
   })
 
   it('survives the other deep-link params riding along', () => {
