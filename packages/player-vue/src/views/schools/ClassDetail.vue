@@ -800,21 +800,21 @@ const deleteImpactLines = computed(() => {
             </option>
           </select>
           <p v-if="!addableTeachers.length" class="rail-note schools-subtle">
-            Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.
+            {{ t('schools.nobodyElseOnStaff', 'Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.') }}
           </p>
           <div class="teacher-add-actions">
             <button type="button" class="btn-ghost btn-small" :disabled="!pickedTeacherId || teacherBusy" @click="addTeacher">
-              {{ teacherBusy ? 'Adding…' : 'Add' }}
+              {{ teacherBusy ? t('schools.adding', 'Adding…') : t('install.add', 'Add') }}
             </button>
             <button type="button" class="btn-text teacher-action" :disabled="teacherBusy" @click="showAddTeacher = false; pickedTeacherId = ''">
-              Cancel
+              {{ t('common.cancel', 'Cancel') }}
             </button>
           </div>
         </template>
 
         <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
           <p class="rail-note schools-subtle">
-            Colleague not on the staff list yet? Send them a link into this class.
+            {{ t('schools.colleagueNotOnList', 'Colleague not on the staff list yet? Send them a link into this class.') }}
           </p>
           <InviteLinkField v-if="coTeacherLink" :url="coTeacherLink" />
           <button
@@ -891,7 +891,7 @@ const deleteImpactLines = computed(() => {
                     class="btn-ghost btn-small remove-btn"
                     @click="handleRemoveStudent({ user_id: s.user_id, name: s.name })"
                   >
-                    Remove
+                    {{ t('common.remove', 'Remove') }}
                   </button>
                 </td>
               </tr>

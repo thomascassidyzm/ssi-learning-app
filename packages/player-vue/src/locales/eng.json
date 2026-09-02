@@ -1316,7 +1316,12 @@
     "loadingSchools": "Loading schools…",
     "noSchoolsToShow": "No schools to show.",
     "addSchoolLede": "Creates the school in your programme immediately, with an admin link and a teacher link ready to share.",
-    "addSchoolHint": "Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also live on the school's row any time you need them again."
+    "addSchoolHint": "Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also live on the school's row any time you need them again.",
+    "nobodyElseOnStaff": "Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.",
+    "adding": "Adding…",
+    "colleagueNotOnList": "Colleague not on the staff list yet? Send them a link into this class.",
+    "classesWord": "classes",
+    "actionsAria": "actions"
   },
   "setup": {
     "step1": "Your school",
@@ -1477,7 +1482,10 @@
     "accountNumber": "Account number",
     "savePayoutDetails": "Save payout details",
     "ofStudents": "of {max} students",
-    "payoutQueued": "Payout queued for the next monthly run. We'll send the part of your balance whose refund period has completed to your Wise account. Anything still inside its refund period stays held and goes out on a later run."
+    "payoutQueued": "Payout queued for the next monthly run. We'll send the part of your balance whose refund period has completed to your Wise account. Anything still inside its refund period stays held and goes out on a later run.",
+    "updatePaymentMethod": "Update payment method",
+    "accessContinuesUntil": "Access continues until",
+    "nextCharge": "Next charge:"
   },
   "withTeacher": {
     "linkUnavailable": "This link is temporarily unavailable.",

@@ -284,7 +284,7 @@ watch(currentUser, (u) => {
             <th>{{ t('schools.joined', 'Joined') }}</th>
             <th>{{ t('schools.status', 'Status') }}</th>
             <th>{{ t('schools.links', 'Links') }}</th>
-            <th aria-label="actions"></th>
+            <th :aria-label="t('schools.actionsAria', 'actions')"></th>
           </tr>
         </thead>
         <tbody>

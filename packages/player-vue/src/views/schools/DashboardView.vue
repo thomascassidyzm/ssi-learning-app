@@ -423,7 +423,7 @@ async function handlePlayClass(cls: ClassInfo) {
 
     <div v-if="dashboardFetchError" class="fetch-error-banner">
       <span>{{ t('schools.refreshFailed', "Couldn't refresh this dashboard — showing the last data loaded.") }} {{ dashboardFetchError }}</span>
-      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
+      <button type="button" class="btn-ghost" @click="refresh">{{ t('courseSelector.retry', 'Retry') }}</button>
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>

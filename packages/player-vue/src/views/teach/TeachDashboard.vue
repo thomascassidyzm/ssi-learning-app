@@ -720,7 +720,7 @@ async function submitRecipient() {
           <p class="sub-status-sub">{{ t('teach.cardDeclined', 'Your card was declined. Please update your payment method.') }}</p>
         </div>
         <Button variant="primary" :loading="isOpeningPortal" @click="openPortal">
-          Update payment method
+          {{ t('teach.updatePaymentMethod', 'Update payment method') }}
         </Button>
       </div>
 
@@ -728,7 +728,7 @@ async function submitRecipient() {
         <div>
           <p class="sub-status-label">{{ t('teach.cancelled', 'Cancelled') }}</p>
           <p v-if="nextChargeDate" class="sub-status-sub">
-            Access continues until <strong>{{ nextChargeDate }}</strong>.
+            {{ t('teach.accessContinuesUntil', 'Access continues until') }} <strong>{{ nextChargeDate }}</strong>.
           </p>
         </div>
         <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
@@ -740,7 +740,7 @@ async function submitRecipient() {
         <div>
           <p class="sub-status-label">{{ t('settings.subActive', 'Active') }}</p>
           <p v-if="nextChargeDate" class="sub-status-sub">
-            Next charge: <strong>{{ nextChargeDate }}</strong>
+            {{ t('teach.nextCharge', 'Next charge:') }} <strong>{{ nextChargeDate }}</strong>
           </p>
         </div>
         <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
@@ -871,7 +871,7 @@ async function submitRecipient() {
 
         <!-- Empty roster (per-class) -->
         <div v-else class="empty">
-          <div class="empty-ghost">students</div>
+          <div class="empty-ghost">{{ t('schools.studentsWord', 'students') }}</div>
           <div class="empty-copy">
             <strong>{{ t('schools.noStudentsYet', 'No students yet') }}</strong>
             <p>{{ t('teach.shareLinkRoster', 'Share the link above to start filling this roster.') }}</p>
@@ -883,7 +883,7 @@ async function submitRecipient() {
     <!-- Empty state when no classes at all -->
     <FrostCard v-else variant="panel" class="section-panel">
       <div class="empty">
-        <div class="empty-ghost">classes</div>
+        <div class="empty-ghost">{{ t('schools.classesWord', 'classes') }}</div>
         <div class="empty-copy">
           <strong>{{ t('schools.noClassesYetTitle', 'No classes yet') }}</strong>
           <p>
