@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import { BELTS, type BeltName } from '@/composables/schools/belts'
@@ -283,13 +283,13 @@ const journeyTotal = computed(() => {
         <section class="left-col">
           <div class="schools-kicker">{{ dateLine }}</div>
           <h1 class="arsenal page-title">
-            Demat, {{ greetingName }}.
+            {{ t('schools.greetingDemat', 'Demat, {name}.').replace('{name}', greetingName) }}
           </h1>
           <p class="page-sub schools-subtle">{{ subtitle }}</p>
 
           <div v-if="!isAdminView" class="cta-row">
             <button type="button" class="btn-play" @click="handleKeepGoing">
-              ▶ Keep going — LEGO {{ nextLegoNumber }}
+              ▶ {{ t('schools.keepGoingLego', 'Keep going — LEGO {n}').replace('{n}', String(nextLegoNumber)) }}
             </button>
           </div>
 
@@ -298,7 +298,7 @@ const journeyTotal = computed(() => {
               {{ initials }}
             </div>
             <div class="identity-meta">
-              <div class="identity-name">{{ currentUser?.display_name || 'Learner' }}</div>
+              <div class="identity-name">{{ currentUser?.display_name || t('schools.learner', 'Learner') }}</div>
               <div class="schools-subtle identity-school">
                 {{ currentUser?.school_name || '—' }}
               </div>
@@ -314,42 +314,42 @@ const journeyTotal = computed(() => {
               :style="{ background: `var(--schools-belt-${belt.current.key})` }"
             />
             <div>
-              <div class="schools-kicker">Current belt</div>
+              <div class="schools-kicker">{{ t('schools.currentBelt', 'Current belt') }}</div>
               <div class="arsenal belt-name">{{ belt.current.name }}</div>
               <div class="schools-subtle belt-note">
                 <template v-if="belt.next">
-                  {{ Math.max(0, belt.total - belt.done) }} LEGOs to {{ belt.next.name }}
+                  {{ t('schools.legosToBelt', '{count} LEGOs to {belt}').replace('{count}', String(Math.max(0, belt.total - belt.done))).replace('{belt}', t(`belt.${belt.next.key}`, belt.next.name)) }}
                 </template>
-                <template v-else>You've reached the top belt</template>
+                <template v-else>{{ t('schools.topBelt', "You've reached the top belt") }}</template>
               </div>
             </div>
           </div>
 
           <div class="schools-card schools-card-pad journey-card">
-            <div class="schools-kicker">Your journey</div>
+            <div class="schools-kicker">{{ t('schools.yourJourney', 'Your journey') }}</div>
             <JourneyBar
               :done="journeyDone"
               :total="journeyTotal"
-              label="LEGOs retired"
+              :label="t('schools.legosRetired', 'LEGOs retired')"
             />
             <div class="stat-row">
               <!-- No streak stat — streaks are banned (founder ruling
                    2026-07-19, docs/gamification-done-right.md). -->
               <div class="stat">
                 <div class="arsenal stat-val">{{ hoursThisWeek }}h</div>
-                <div class="schools-subtle stat-label">This week</div>
+                <div class="schools-subtle stat-label">{{ t('schools.thisWeek', 'This week') }}</div>
               </div>
               <div class="stat">
                 <div class="arsenal stat-val">{{ avgSessionMins }}m</div>
-                <div class="schools-subtle stat-label">Avg / day</div>
+                <div class="schools-subtle stat-label">{{ t('schools.avgPerDay', 'Avg / day') }}</div>
               </div>
             </div>
           </div>
 
           <div class="schools-card schools-card-pad spark-card">
-            <div class="schools-kicker">Last 7 days</div>
+            <div class="schools-kicker">{{ t('schools.last7Days', 'Last 7 days') }}</div>
             <Sparkline :data="last7Hours" :width="260" :height="42" />
-            <div class="schools-subtle spark-foot">Sun – Sat · hours practised</div>
+            <div class="schools-subtle spark-foot">{{ t('schools.sparkFoot', 'Sun – Sat · hours practised') }}</div>
           </div>
         </aside>
       </div>
@@ -357,16 +357,16 @@ const journeyTotal = computed(() => {
       <!-- Course list (only when learner has more than one enrolment) -->
       <section v-if="courses.length > 1" class="schools-card courses-card">
         <div class="courses-head">
-          <h3 class="arsenal section-title">All courses</h3>
+          <h3 class="arsenal section-title">{{ t('home.allCourses', 'All courses') }}</h3>
         </div>
         <table class="ssi-table">
           <thead>
             <tr>
-              <th>Course</th>
-              <th>LEGOs retired</th>
-              <th>Seeds covered</th>
-              <th>Practice time</th>
-              <th>Last session</th>
+              <th>{{ t('schools.course', 'Course') }}</th>
+              <th>{{ t('schools.legosRetired', 'LEGOs retired') }}</th>
+              <th>{{ t('schools.seedsCovered', 'Seeds covered') }}</th>
+              <th>{{ t('schools.practiceTime', 'Practice time') }}</th>
+              <th>{{ t('schools.lastSession', 'Last session') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -374,12 +374,12 @@ const journeyTotal = computed(() => {
               <td>{{ formatCourseName(c.course_id) }}</td>
               <td>{{ c.legos_retired }}</td>
               <td>{{ c.seeds_completed }}</td>
-              <td :title="c.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
+              <td :title="c.total_practice_minutes_estimated ? t('schools.approxPracticeTitle', 'Approximate — no session logs for this course, derived from course position') : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
               <td>
                 {{
                   c.last_practiced_at
-                    ? new Date(c.last_practiced_at).toLocaleDateString('en-GB')
-                    : 'Never'
+                    ? new Date(c.last_practiced_at).toLocaleDateString()
+                    : t('schools.never', 'Never')
                 }}
               </td>
             </tr>
@@ -388,9 +388,9 @@ const journeyTotal = computed(() => {
       </section>
 
       <div v-if="courses.length === 0" class="schools-card schools-card-pad empty-card">
-        <h3 class="arsenal section-title">No courses yet</h3>
+        <h3 class="arsenal section-title">{{ t('schools.noCoursesYet', 'No courses yet') }}</h3>
         <p class="schools-subtle">
-          You haven't enrolled in any courses yet. Ask your teacher for a class join code.
+          {{ t('schools.noCoursesYetBody', "You haven't enrolled in any courses yet. Ask your teacher for a class join code.") }}
         </p>
       </div>
     </template>
