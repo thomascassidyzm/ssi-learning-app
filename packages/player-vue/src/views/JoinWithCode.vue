@@ -52,7 +52,7 @@ const gateOpen = ref(false)
 const LANDING = '/schools'
 
 const WHY_COPY =
-  'You are in. One thing before you go, and then you are away: **set a password**. That code worked once and is now spent, and a password is what gets you back to your classes from any phone or any laptop, whenever you need them. Your students&rsquo; progress lives in here — this is how you keep reaching it.'
+  'You are in. One thing before you go, and then you are away: **set a password**. That code worked once and is now spent, and a password is what gets you back to your classes from any phone or any laptop, whenever you need them. Your students’ progress lives in here — this is how you keep reaching it.'
 
 /** ABCD-EFGH as they type. Purely cosmetic; the server normalises anyway. */
 const prettyCode = computed({

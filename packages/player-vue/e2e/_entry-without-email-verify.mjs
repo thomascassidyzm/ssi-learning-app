@@ -288,6 +288,12 @@ try {
   log(/classes/i.test(framing) && !/secure|security|protect your account/i.test(framing),
       'it is worded around getting back to your classes, not around security',
       framing.replace(/\s+/g, ' ').slice(0, 120))
+  // WalkCard escapes its copy before rendering, so an HTML entity in the walk
+  // text reaches the teacher as literal "&rsquo;". Caught on screen, not by a
+  // unit test, and worth pinning.
+  log(!/&[a-z]+;/i.test(framing),
+      'no raw HTML entity is showing through on the screen a teacher reads',
+      (framing.match(/&[a-z]+;/i) || ['none'])[0])
 
   // 7a-ii. SINGLE USE, proved from the browser's side: the same code again.
   const replay = await post('/api/auth/access-code-redeem', { code: liveCode })
