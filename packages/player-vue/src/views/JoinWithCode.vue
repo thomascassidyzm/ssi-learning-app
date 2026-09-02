@@ -16,9 +16,17 @@
  *      further down some page that nobody scrolls to; the screen in front of
  *      them, at the one moment we know they are looking.
  *
- * And it is SKIPPABLE. A teacher redeeming a code between lessons has to be
- * able to get on with their day, and their admin can always mint another code.
- * A wall here would be the same wall we are dismantling, wearing our colours.
+ * It is COMPULSORY. One screen, once, and no way past it (Tom's ruling,
+ * 2026-09-02, reversing an earlier skippable version of this screen). The
+ * reasoning is worth carrying, because it is not a security argument: a
+ * teacher who skips has a session on THIS ONE DEVICE and nothing else, so the
+ * first dead session or new phone locks them out again — and what is behind
+ * that door by then is their classes and their students' records, not five
+ * minutes of their own time. Redemption is also the only moment we are
+ * guaranteed their attention with a reason that obviously matters to them.
+ *
+ * Which is why the copy below talks about getting back to your classes and
+ * never about security. That is the true reason as well as the persuasive one.
  */
 import { computed, inject, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -44,7 +52,7 @@ const gateOpen = ref(false)
 const LANDING = '/schools'
 
 const WHY_COPY =
-  'You are in. That code was a **one-off** though, so let us give you something permanent: a password. It is the one way back into your account that never touches your school email — no code to wait for, on any laptop or phone, whenever you need it.'
+  'You are in. One thing before you go, and then you are away: **set a password**. That code worked once and is now spent, and a password is what gets you back to your classes from any phone or any laptop, whenever you need them. Your students&rsquo; progress lives in here — this is how you keep reaching it.'
 
 /** ABCD-EFGH as they type. Purely cosmetic; the server normalises anyway. */
 const prettyCode = computed({
@@ -112,7 +120,9 @@ async function submit(): Promise<void> {
 function finish(): void {
   step.value = 'done'
   gateOpen.value = false
-  router.replace(LANDING)
+  // The install walk can hand off to /install itself. Only claim the
+  // navigation if we are still the ones on screen.
+  if (router.currentRoute.value.path.startsWith('/join')) router.replace(LANDING)
 }
 
 onMounted(() => {
@@ -162,15 +172,20 @@ onMounted(() => {
 
       <template v-else>
         <h1 class="join-title">You&rsquo;re in</h1>
-        <p class="join-lede">One last thing, and then you&rsquo;re away.</p>
+        <p class="join-lede">Setting up your way back to your classes.</p>
       </template>
     </div>
 
+    <!--
+      No allow-skip, and none exists: the password walk is not dismissible, so
+      `close` can only arrive from the walk's own terminal beat, i.e. after the
+      password is saved. `passworded` is deliberately NOT bound to finish —
+      letting the walk play its closing beat is the point of using the walk
+      genre at all, and navigating out from under it would cut that off.
+    -->
     <ManagerOnboardingGate
       :is-open="gateOpen"
-      allow-skip
       :why-copy="WHY_COPY"
-      @passworded="finish"
       @close="finish"
     />
   </div>

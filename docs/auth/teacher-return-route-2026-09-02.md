@@ -71,12 +71,27 @@ problem entirely, and the join URL points at whatever origin minted it.
 getting in, in the org lane's already-approved voice, reusing `ManagerOnboardingGate`
 rather than growing a third password UI. Not a card further down a page nobody scrolls to.
 
-**It is skippable, on purpose.** A teacher redeeming a code between lessons has to be able
-to get on with their day, and their admin can always mint another. The live run caught that
-my first version's only escape was the `×` in the card corner — technically an escape, and
-not one a hurried person reads as "you may leave". It now says **"Not now — remind me
-later"** in words. The org lane passes no `allowSkip` and still has neither, exactly as
-ruled in August.
+**It is compulsory** — Tom's ruling, reversing the skippable version I first shipped. One
+screen, once, no skip link, no dismiss, no close glyph.
+
+The reasoning is worth carrying because it is *not* a security argument. A teacher who skips
+has a session on **that one device and nothing else**. The first time it dies, or they pick
+up another phone, they are locked out again — and by then what is behind that door is their
+classes and their **students' records**. The loss is not their own five minutes. Redemption
+is also the only moment we are guaranteed their attention with a reason that obviously
+matters to them.
+
+So the screen is worded around **getting back to your classes**, never around security:
+
+> You are in. One thing before you go, and then you are away: **set a password**. That code
+> worked once and is now spent, and a password is what gets you back to your classes from any
+> phone or any laptop, whenever you need them. Your students' progress lives in here — this
+> is how you keep reaching it.
+
+That is the true reason as well as the persuasive one. The `allowSkip` prop I had added to
+`ManagerOnboardingGate` is **removed rather than left unused** — an unused escape hatch on a
+compulsory gate is the wrong thing to leave lying about. The gate is back to its original
+rule: the password walk never offers an escape, the install walk always does.
 
 **4. The password is now actually saveable.** The password walk had no username field, so
 iCloud Keychain and Google Password Manager either declined to save it or saved it against
@@ -122,8 +137,9 @@ box, press one button. Then it asserts the half that actually matters — **the 
 - and #66's containment refusals still refuse: a teacher at another school (404), a group
   leader wearing a teacher tag (403), a live account (409)
 
-Two real bugs came out of running it live that no unit test would have found: the
-`×`-only escape above, and the throttle one below.
+Running it live found two real bugs no unit test would have. One was the throttle bug below.
+The other was that my then-skippable screen's only escape was the `×` in the card corner —
+which the ruling has since made moot, since there is now no escape at all.
 
 ## The throttle bug the live run caught
 
@@ -203,14 +219,15 @@ so the device's own manager autofills it on the next laptop.
 
 ## For you — flags and one question
 
-Taste-safe defaults I took. Any of these is a one-word overrule:
+Taste-safe defaults I took. Any of these is a one-word overrule — and you have already
+overruled one, which is reflected below.
 
 | | I chose | |
 |---|---|---|
 | Code length | **8 characters**, `ABCD-EFGH` | shorter is easier to read out, weaker to guess |
 | Alphabet | Crockford base32 **minus `0` and `1`** | nothing in a printed code can be misread |
 | Expiry | **48 hours** | your ruling was "a day or two" |
-| Credential screen | prominent, default action, **but skippable** with "Not now" | your "never gate" instinct, applied |
+| Credential screen | ~~skippable~~ → **compulsory**, worded around classes | **you ruled this** — no longer a default of mine |
 | Landing after redeem | `/schools` | everyone holding one of these is school staff by construction |
 | Button label | "Access code" (was "Sign-in link") | it is no longer a link |
 
@@ -221,6 +238,13 @@ handful of mistyped access codes in a staffroom can therefore lock out a teacher
 perfectly good invite link. It is a redemption endpoint behind a school NAT, exactly like
 this one, and I think it should use `REDEEM_PER_IP_LIMIT` too. **Loosening a security control
 on someone else's endpoint is your call, not mine** — say the word and it is a two-line change.
+
+**One honest limit on the word "compulsory".** There is no skip in the product, but a teacher
+who closes the tab mid-screen keeps the session they were already given — we cannot take that
+back, and taking it back would put them straight back outside. They are caught afterwards by
+the existing dismissible prompt on the schools landing, so there is a second ask, just a
+softer one. If you want that second ask hardened too, that is the #66 question below rather
+than a gap in this ruling.
 
 Also still open from #66, unchanged and not mine to decide: whether a school leader's first
 **write** should require a password, as the org lane already does.
