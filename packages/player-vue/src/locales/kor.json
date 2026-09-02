@@ -19,7 +19,37 @@
     "listeningDesc": "오디오만, 말하기 없음",
     "easy": "쉬움",
     "fast": "빠름",
-    "learningModeLabel": "학습 모드"
+    "learningModeLabel": "학습 모드",
+    "sector": "당신의 일을 위해",
+    "sectorDesc": "코스와 나란히 진행됩니다"
+  },
+  "sector": {
+    "title": "당신의 일을 위해",
+    "subtitle": "맞는 것을 고르면 처음부터 코스와 나란히 진행됩니다.",
+    "loading": "분야를 찾는 중…",
+    "errorTitle": "불러오지 못했습니다",
+    "errorBody": "잠시 후 다시 시도해 주세요.",
+    "retry": "다시 시도",
+    "emptyTitle": "이 언어로는 아직 준비된 것이 없습니다",
+    "emptyBody": "첫 분야들을 만들고 있습니다. 코스는 평소대로 계속됩니다.",
+    "opensAfter": "다음 이후에 열립니다",
+    "roleTitle": "어떤 역할을 맡고 있나요?",
+    "roleSubtitle": "가장 가까운 것을 고르세요. 언제든지 바꿀 수 있습니다.",
+    "start": "시작",
+    "back": "뒤로",
+    "close": "닫기",
+    "roles": {
+      "general": "일반",
+      "patient": "환자",
+      "nurse": "간호사",
+      "doctor": "의사"
+    },
+    "roleDescs": {
+      "general": "두루두루 조금씩"
+    },
+    "walks": {
+      "health": "의료·건강"
+    }
   },
   "courseSelector": {
     "title": "코스 선택",

@@ -19,7 +19,37 @@
     "listeningDesc": "Somente áudio, sem falar",
     "easy": "Fácil",
     "fast": "Rápido",
-    "learningModeLabel": "Modo de aprendizagem"
+    "learningModeLabel": "Modo de aprendizagem",
+    "sector": "Para o seu trabalho",
+    "sectorDesc": "Corre ao lado do seu curso"
+  },
+  "sector": {
+    "title": "Para o seu trabalho",
+    "subtitle": "Escolha o que encaixa e ele corre ao lado do seu curso desde o início.",
+    "loading": "Procurando áreas…",
+    "errorTitle": "Isso não carregou",
+    "errorBody": "Tente de novo daqui a pouco.",
+    "retry": "Tentar novamente",
+    "emptyTitle": "Ainda não há nada aqui para este idioma",
+    "emptyBody": "As primeiras áreas estão sendo construídas. Seu curso continua normalmente.",
+    "opensAfter": "Abre depois de",
+    "roleTitle": "Qual é o seu papel?",
+    "roleSubtitle": "Escolha o mais próximo de você. Pode mudar quando quiser.",
+    "start": "Começar",
+    "back": "Voltar",
+    "close": "Fechar",
+    "roles": {
+      "general": "Geral",
+      "patient": "Paciente",
+      "nurse": "Enfermeiro",
+      "doctor": "Médico"
+    },
+    "roleDescs": {
+      "general": "Um pouco de tudo"
+    },
+    "walks": {
+      "health": "Saúde"
+    }
   },
   "courseSelector": {
     "title": "Escolha seu curso",

@@ -19,7 +19,37 @@
     "listeningDesc": "音声のみ、発話なし",
     "easy": "イージー",
     "fast": "ファスト",
-    "learningModeLabel": "学習モード"
+    "learningModeLabel": "学習モード",
+    "sector": "あなたの仕事のために",
+    "sectorDesc": "コースと並行して進みます"
+  },
+  "sector": {
+    "title": "あなたの仕事のために",
+    "subtitle": "合うものを選ぶと、最初からコースと並行して進みます。",
+    "loading": "分野を探しています…",
+    "errorTitle": "読み込めませんでした",
+    "errorBody": "少ししてからもう一度お試しください。",
+    "retry": "再試行",
+    "emptyTitle": "この言語向けのものはまだありません",
+    "emptyBody": "最初の分野を準備中です。コースはこれまでどおり続きます。",
+    "opensAfter": "次の後に開きます",
+    "roleTitle": "どの役割を担っていますか？",
+    "roleSubtitle": "いちばん近いものを選んでください。いつでも変更できます。",
+    "start": "開始",
+    "back": "戻る",
+    "close": "閉じる",
+    "roles": {
+      "general": "全般",
+      "patient": "患者",
+      "nurse": "看護師",
+      "doctor": "医師"
+    },
+    "roleDescs": {
+      "general": "ひととおり少しずつ"
+    },
+    "walks": {
+      "health": "医療・健康"
+    }
   },
   "courseSelector": {
     "title": "コースを選ぶ",

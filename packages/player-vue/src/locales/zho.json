@@ -19,7 +19,37 @@
     "listeningDesc": "仅音频，无需说话",
     "easy": "简单",
     "fast": "快速",
-    "learningModeLabel": "学习模式"
+    "learningModeLabel": "学习模式",
+    "sector": "为你的工作",
+    "sectorDesc": "与你的课程同步进行"
+  },
+  "sector": {
+    "title": "为你的工作",
+    "subtitle": "选一个适合你的，它会从一开始就与你的课程同步进行。",
+    "loading": "正在查找领域…",
+    "errorTitle": "加载失败",
+    "errorBody": "请稍后再试一次。",
+    "retry": "重试",
+    "emptyTitle": "这门语言暂时还没有内容",
+    "emptyBody": "首批领域正在制作中。你的课程照常继续。",
+    "opensAfter": "解锁于",
+    "roleTitle": "你扮演哪个角色？",
+    "roleSubtitle": "选最接近你的那个。你随时可以更改。",
+    "start": "开始",
+    "back": "返回",
+    "close": "关闭",
+    "roles": {
+      "general": "通用",
+      "patient": "患者",
+      "nurse": "护士",
+      "doctor": "医生"
+    },
+    "roleDescs": {
+      "general": "各方面都有一点"
+    },
+    "walks": {
+      "health": "医疗健康"
+    }
   },
   "courseSelector": {
     "title": "选择课程",
