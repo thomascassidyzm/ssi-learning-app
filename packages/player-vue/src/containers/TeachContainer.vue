@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
+import { t } from '@/composables/useI18n'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
@@ -161,18 +162,17 @@ const handleAuthSuccess = () => closeAuth()
 
     <div v-if="isAuthLoading" class="teach-loading">
       <div class="loading-spinner"></div>
-      <p>Loading…</p>
+      <p>{{ t('loading.loadingEllipsis', 'Loading…') }}</p>
     </div>
 
     <div v-else-if="showLogin" class="teach-login">
       <FrostCard variant="panel" class="login-card">
         <div class="login-header brand-text">
           <span class="login-logo">SaySomethingin</span>
-          <span class="login-logo-accent">Teach</span>
+          <span class="login-logo-accent">{{ t('teach.teach', 'Teach') }}</span>
         </div>
         <p class="login-subtitle">
-          Sign in to your teacher account, or use this email to start earning by
-          running classes for your students.
+          {{ t('teach.loginSubtitle', 'Sign in to your teacher account, or use this email to start earning by running classes for your students.') }}
         </p>
 
         <div v-if="loginError" class="login-error">
@@ -184,12 +184,12 @@ const handleAuthSuccess = () => closeAuth()
 
         <form v-if="loginStep === 'email'" class="login-form" @submit.prevent="handleSendOtp">
           <div class="login-field">
-            <label for="teach-email">Email</label>
+            <label for="teach-email">{{ t('auth.email', 'Email') }}</label>
             <input
               id="teach-email"
               v-model="loginEmail"
               type="email"
-              placeholder="you@example.com"
+              :placeholder="t('onboarding.emailPlaceholder', 'you@example.com')"
               autocomplete="email"
               autofocus
             />
@@ -201,17 +201,17 @@ const handleAuthSuccess = () => closeAuth()
             :disabled="!isEmailValid || isLoginLoading"
             :loading="isLoginLoading"
           >
-            Continue
+            {{ t('session.continue', 'Continue') }}
           </Button>
         </form>
 
         <form v-else class="login-form" @submit.prevent="handleVerifyOtp">
           <div class="login-otp-info">
-            <p>Check your email for a 6-digit code</p>
+            <p>{{ t('redeem.checkEmailSixDigit', 'Check your email for a 6-digit code') }}</p>
             <p class="login-otp-email">{{ loginEmail }}</p>
           </div>
           <div class="login-field">
-            <label for="teach-otp">Verification code</label>
+            <label for="teach-otp">{{ t('auth.verificationCode', 'Verification code') }}</label>
             <input
               id="teach-otp"
               v-model="loginOtp"
@@ -232,10 +232,10 @@ const handleAuthSuccess = () => closeAuth()
             :disabled="loginOtp.length < 6 || isLoginLoading"
             :loading="isLoginLoading"
           >
-            Verify
+            {{ t('settings.verify', 'Verify') }}
           </Button>
           <Button type="button" variant="ghost" size="sm" @click="handleBackToEmail">
-            Back
+            {{ t('common.back', 'Back') }}
           </Button>
         </form>
       </FrostCard>
@@ -243,11 +243,10 @@ const handleAuthSuccess = () => closeAuth()
 
     <div v-else-if="showExpired" class="teach-expired">
       <FrostCard variant="panel" class="expired-card">
-        <span class="expired-pill">● Trial ended</span>
-        <h1 class="expired-headline">Your free month has ended</h1>
+        <span class="expired-pill">● {{ t('schools.trialEnded', 'Trial ended') }}</span>
+        <h1 class="expired-headline">{{ t('teach.freeMonthEnded', 'Your free month has ended') }}</h1>
         <p class="expired-lede">
-          Subscribe below to keep running classes and earning. Your classes and
-          students are safe — nothing is deleted.
+          {{ t('teach.expiredLede', 'Subscribe below to keep running classes and earning. Your classes and students are safe — nothing is deleted.') }}
         </p>
         <UpgradeView />
       </FrostCard>

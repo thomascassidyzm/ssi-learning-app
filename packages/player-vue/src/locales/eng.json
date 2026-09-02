@@ -1433,5 +1433,40 @@
     "yourSubscription": "Your subscription",
     "manageSubscription": "Manage subscription",
     "schoolLede": "£{monthly} per teacher seat / month, or £{annual}/year. One subscription covers every teacher seat — add or remove seats any time."
+  },
+  "teach": {
+    "teach": "Teach",
+    "loginSubtitle": "Sign in to your teacher account, or use this email to start earning by running classes for your students.",
+    "freeMonthEnded": "Your free month has ended",
+    "expiredLede": "Subscribe below to keep running classes and earning. Your classes and students are safe — nothing is deleted."
+  },
+  "withTeacher": {
+    "linkUnavailable": "This link is temporarily unavailable.",
+    "pausedSignups": "Your teacher may have paused new sign-ups — check back later, or ask them to re-open the class.",
+    "goToSsi": "Go to SaySomethingin",
+    "classNotFound": "We couldn't find that class.",
+    "doubleCheckLink": "Double-check the link your teacher gave you, or head to the SaySomethingin home page.",
+    "youreJoining": "You're joining",
+    "with": "with",
+    "freePitchPre": "This course is",
+    "freeWord": "free",
+    "freePitchPost": "— no card needed. Join the class and start learning straight away.",
+    "ownAccountWith": "You'll have your own SaySomethingin account to practise between live sessions with",
+    "perYear": "/ year",
+    "perMonth": "/ month",
+    "thats": "That's",
+    "amountOff": "£{amount} off",
+    "regularPrice": "the regular SaySomethingin price of £{price}/month — unlocked by your teacher's class.",
+    "versusPaying": "versus paying £{price}/month — unlocked by your teacher's class.",
+    "ownAccountSupports": "You'll have your own SaySomethingin account to practise between live sessions. Your subscription supports",
+    "classFull": "This class is full. Ask your teacher to open another class.",
+    "alreadySubscribed": "You already have an active SaySomethingin subscription — no need to pay again. You're all set to start this class.",
+    "continueToSsi": "Continue to SaySomethingin",
+    "joinFree": "Join free",
+    "loginIntro": "Sign in or create your SaySomethingin account to continue.",
+    "sendCode": "Send code",
+    "emailedCodeTo": "We've emailed a 6-digit code to",
+    "verifyAndPay": "Verify and continue to payment",
+    "trialNote": "Same SaySomethingin account, same ten languages, same method."
   }
 }
