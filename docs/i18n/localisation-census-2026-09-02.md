@@ -215,3 +215,36 @@ Tier ordering below is the dispatching brief's default, **not a ruling of Tom's*
 | `insight/widgets/TimeSeries.vue` | Insight (admin) | 1 |
 | `insight/widgets/Treemap.vue` | Insight (admin) | 1 |
 | `views/admin/AdminClassInsights.vue` | Admin | 1 |
+
+
+---
+
+## What this branch then converted (updated after the work)
+
+Locale parity on `origin/dev` before this work: **all 22 files carried all 387 keys.** The gap was never the locale files — it was that only 16 of 191 components called `t()`.
+
+| Tier | Audience | Strings before | Strings left | Converted |
+|---|---|---:|---:|---:|
+| 1 | Learner-facing | 656 | 68 | 588 (89%) |
+| 2 | Teacher / school-facing | 821 | 135 | 686 (83%) |
+| 3 | Internal admin | 871 | 871 | 0 (0%) |
+| — | **Total** | **2348** | **1074** | **1274** |
+
+English key count: **387 → 1413** — 1026 new keys, every one of them reaching all 21 other languages.
+
+### What is deliberately still English
+
+- **The brand.** `SaySomethingin`, the `Say`/`Something`/`in` logo spans, `SSi`, `SSi Premium`, `SSi Family` — one word, lower-case i, verbatim English everywhere. "Teach with SaySomethingin" was split so the brand never enters a translatable string.
+- **The dev/debug overlay** in `LearningPlayer.vue` (Phase / Round / Item / LEGO / Audio Durations / Latency), the Developer section of Settings, and the `?podview=1` preview nav — all admin- or dev-flag-gated.
+- **`placeholder="DELETE"`** in the delete-account dialog: the typed word is matched against the literal string `DELETE`, so translating it would break the confirmation.
+- **Registered-company text**: `© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales`.
+- **Email addresses, URLs, timezone ids, currency figures and arrow/symbol glyphs.**
+- **The interface-language options in school Settings** (English / Cymraeg / Español / Brezhoneg) — a language picker names each language in its own language on purpose.
+
+### Not converted, and why
+
+- **Tier 3 (internal admin): 871 strings across 75 files, untouched.** Audience is ssi_admins, who read English. This ordering was the dispatching brief's default, **not a ruling of Tom's** — he can overrule it and the work is then a straightforward repeat of the method used here.
+- **`views/methodology/*` (80 strings)** — long-form methodology prose for teachers. Left as a deliberate gap: it is authored argument, not UI chrome, and translating it well is a different job from translating a button.
+- **`src/explainer/learnerExplainers.ts` (38 prose fields)** — same reason: paragraphs of authored learner copy, not chrome.
+- **`api/_utils/inviteEmailTemplate.ts`** — a server-rendered English email. It needs a **locale parameter on the API route**, i.e. a mechanism, not a translation. Flagged, not built. Its one sentence is also Tom's own verbatim wording.
+- **`views/marketing/partners.ts`** — partner-door marketing copy held as a data module; the page headings are keyed, the copy blocks are not.
