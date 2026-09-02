@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
 
     <!-- THE DEAL — three numbers, no adjectives -->
     <section class="pd-section">
-      <h2 class="pd-h2">The deal</h2>
+      <h2 class="pd-h2">{{ t('partner.theDeal', 'The deal') }}</h2>
       <ul class="pd-deal">
         <li v-for="d in copy.deal" :key="d.label" class="pd-deal-row">
           <span class="pd-deal-label">{{ d.label }}</span>
@@ -85,7 +85,7 @@ onBeforeUnmount(() => {
 
     <!-- HOW IT RUNS -->
     <section class="pd-section">
-      <h2 class="pd-h2">How it runs</h2>
+      <h2 class="pd-h2">{{ t('partner.howItRuns', 'How it runs') }}</h2>
       <ol class="pd-steps">
         <li v-for="(s, i) in copy.steps" :key="s.title" class="pd-step">
           <span class="pd-step-num" aria-hidden="true">{{ i + 1 }}</span>
@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
 
     <!-- PRACTICALITIES -->
     <section class="pd-section">
-      <h2 class="pd-h2">Practicalities</h2>
+      <h2 class="pd-h2">{{ t('partner.practicalities', 'Practicalities') }}</h2>
       <ul class="pd-practical">
         <li v-for="p in copy.practicalities" :key="p">{{ p }}</li>
       </ul>
@@ -115,7 +115,7 @@ onBeforeUnmount(() => {
   </div>
 
   <div v-else class="pd pd-missing">
-    <p>This page isn’t available.</p>
+    <p>{{ t('partner.notAvailable', 'This page isn’t available.') }}</p>
   </div>
 </template>
 

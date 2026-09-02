@@ -737,7 +737,7 @@ onMounted(() => {
       <!-- ── 'Anyone Can Teach' — card-free path into tutoring ── -->
       <button v-if="canBecomeTeacher" class="become-teacher" @click="goToBecomeTeacher">
         <span class="become-teacher-text">
-          <span class="become-teacher-title">Teach with SaySomethingin</span>
+          <span class="become-teacher-title">{{ t('home.teachWith', 'Teach with') }} SaySomethingin</span>
           <span class="become-teacher-subtitle">{{ t('home.becomeTeacherSubtitle', "Anyone can teach — share the language you're learning") }}</span>
         </span>
         <svg class="become-teacher-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -137,7 +137,8 @@
     "allCourses": "All courses",
     "searchAnyLanguage": "Search any language…",
     "noCoursesMatching": "No courses matching “{query}”",
-    "becomeTeacherSubtitle": "Anyone can teach — share the language you're learning"
+    "becomeTeacherSubtitle": "Anyone can teach — share the language you're learning",
+    "teachWith": "Teach with"
   },
   "session": {
     "belt": "Belt",
@@ -1009,5 +1010,11 @@
     "stillConnecting": "Still connecting — please try again in a moment.",
     "schoolNameNotSaved": "Your school name didn't save — you can set it later in School settings.",
     "nameNotSaved": "Your name didn't save — you can set it later in your profile."
+  },
+  "partner": {
+    "theDeal": "The deal",
+    "howItRuns": "How it runs",
+    "practicalities": "Practicalities",
+    "notAvailable": "This page isn’t available."
   }
 }
