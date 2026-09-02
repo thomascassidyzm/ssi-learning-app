@@ -6,7 +6,7 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 
-const { isOpen, inviteCodeMode, close } = useAuthModal()
+const { isOpen, inviteCodeMode, passwordMode, close } = useAuthModal()
 const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
 
 const emit = defineEmits<{
@@ -40,6 +40,7 @@ onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 watch(isOpen, (open) => {
   if (open) {
     step.value = inviteCodeMode.value ? 'code' : 'email'
+    usePassword.value = passwordMode.value
   } else {
     email.value = ''
     verificationCode.value = ''

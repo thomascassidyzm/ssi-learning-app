@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch, reactive, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
+import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
@@ -346,6 +347,9 @@ function exportCsv() {
 
 <template>
   <main class="dashboard">
+    <!-- A password is the one way back in that needs no inbox. -->
+    <SchoolsPasswordPrompt />
+
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
