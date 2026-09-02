@@ -122,8 +122,7 @@ code says the same, and points at the person who can fix it in seconds.
 ## Verified in a real browser, phone-sized
 
 `packages/player-vue/e2e/_entry-without-email-verify.mjs` — #66's rig, extended rather than
-replaced — against the deployed build at 390px. **23 of 24 checks pass** (the 24th is
-explained below and is not a product fault).
+replaced — against the deployed **staging** build at 390px. **27 of 27 checks pass.**
 
 It walks the return route the way a person does: open `/join`, the code is already in the
 box, press one button. Then it asserts the half that actually matters — **the refusals**:
@@ -137,9 +136,20 @@ box, press one button. Then it asserts the half that actually matters — **the 
 - and #66's containment refusals still refuse: a teacher at another school (404), a group
   leader wearing a teacher tag (403), a live account (409)
 
-Running it live found two real bugs no unit test would have. One was the throttle bug below.
-The other was that my then-skippable screen's only escape was the `×` in the card corner —
-which the ruling has since made moot, since there is now no escape at all.
+It also asserts the compulsory screen is genuinely compulsory — no escape words anywhere on
+it, and **zero** `.walk-close` elements — and that it is worded around classes rather than
+security.
+
+**Looking at the screen found three real bugs that no unit test would have**, which is the
+argument for this rig in one line:
+
+1. My then-skippable screen's only escape was the `×` in the card corner — moot now the
+   ruling has removed escape entirely, but it was a real defect at the time.
+2. The throttle bug below.
+3. **`Your students&rsquo; progress` rendered literally, entity and all.** `WalkCard` escapes
+   its copy before rendering — deliberately; it is `v-html` — so an HTML entity in walk text
+   arrives on screen as its own source. The rig now fails on any raw entity reaching the
+   rendered page.
 
 ## The throttle bug the live run caught
 
@@ -211,11 +221,12 @@ so the device's own manager autofills it on the next laptop.
   committed snapshot simply does not yet show it. Anyone with `pg_dump` should run the script.
   The exact DDL applied is at the end of this document.
 
-- **The 24th check.** #66's "already-registered dead end" check fails on repeat runs, and the
-  cause is measured rather than guessed: my rig's own attempts fill the **shared** per-IP
-  throttle bucket, and `possession-redeem` still uses the *mint* limit of 10. It passed on a
-  clean bucket. Not a fault in the return route — but see the flag below, because the same
-  mechanism can bite a real school.
+- **Repeat runs of the rig throttle themselves.** #66's "already-registered dead end" check
+  fails if the rig is run twice inside fifteen minutes, and the cause is measured rather than
+  guessed: the rig's own attempts fill the **shared** per-IP throttle bucket, and
+  `possession-redeem` still uses the *mint* limit of 10. Every clean-bucket run passes 27/27.
+  Not a fault in the return route — but see the question below, because the same mechanism
+  can bite a real school.
 
 ## For you — flags and one question
 
