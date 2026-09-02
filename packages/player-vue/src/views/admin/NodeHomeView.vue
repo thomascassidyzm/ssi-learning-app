@@ -646,6 +646,9 @@ const listPayload = computed(() => {
   </div>
 
   <div v-else class="node-home">
+    <!-- A password is the one way back in that needs no inbox. -->
+    <SchoolsPasswordPrompt />
+
     <!-- ORG TRIAL BANNER — always-visible upgrade entry point DURING the
          trial (founder ruling: upgradeable at any point, not only at
          expiry). -->
@@ -919,10 +922,7 @@ const listPayload = computed(() => {
       </div>
     </template>
 
-        <!-- A password is the one way back in that needs no inbox. -->
-    <SchoolsPasswordPrompt />
-
-    <div v-if="signinLinkError" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
+        <div v-if="signinLinkError" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
 
     <div v-if="signinLinkFor" class="signin-link-panel">
       <div class="signin-link-kicker">Sign-in link for {{ signinLinkFor.name }}</div>

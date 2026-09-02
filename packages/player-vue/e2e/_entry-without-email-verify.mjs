@@ -5,7 +5,9 @@
  * confirmed its email, and screenshots what that teacher actually sees, at
  * phone size.
  *
- * Fixture is fully synthetic (@ssi-internal.test, is_test school) and torn
+ * Fixture uses e2e-door-* addresses on our own MX-backed domain (the
+ * endpoint MX-checks the typed address and never sends mail to it), plus an
+ * is_test school and torn
  * down at the end.
  *
  * Usage: BASE=https://<preview> node e2e/_entry-without-email-verify.mjs
@@ -65,15 +67,40 @@ async function sessionFor(userId) {
   const { data: v } = await anon.auth.verifyOtp({ token_hash: data.properties.hashed_token, type: 'magiclink' })
   return v.session
 }
-async function seedSession(page, session) {
-  const projectRef = SUPABASE_URL.replace('https://', '').split('.')[0]
-  await page.addInitScript(([ref, s]) => {
-    localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(s))
-  }, [projectRef, session])
+/**
+ * Open a magic link, then carry the session onto BASE.
+ *
+ * Supabase only redirects to allow-listed origins, so on a preview alias the
+ * link lands on production and the session lives on THAT origin. In
+ * production the link lands where it should; this hop is test plumbing, not a
+ * product path — the sign-in itself is entirely real either way.
+ */
+async function openViaLink(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await page.waitForTimeout(9000)
+  const stored = await page.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('sb-') && k.endsWith('-auth-token')) return [k, localStorage.getItem(k)]
+    }
+    return null
+  })
+  if (!stored) throw new Error(`magic link did not establish a session (landed on ${page.url()})`)
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), stored)
 }
 
-const teacherEmail = `e2e-door-teacher-${stamp}@ssi-internal.test`
-const adminEmail = `e2e-door-admin-${stamp}@ssi-internal.test`
+/** A real magic-link URL for a user — we open it in the browser, as a person would. */
+async function signInUrlFor(userId) {
+  const { data: u } = await admin.auth.admin.getUserById(userId)
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'magiclink', email: u.user.email, options: { redirectTo: BASE },
+  })
+  if (error) throw new Error(`generateLink: ${error.message}`)
+  return data.properties.action_link
+}
+
+const teacherEmail = `e2e-door-teacher-${stamp}@saysomethingin.com`
+const adminEmail = `e2e-door-admin-${stamp}@saysomethingin.com`
 const teacherJoin = code6()
 
 let browser
@@ -118,7 +145,7 @@ try {
       `status=${adopt.status} adopted=${adopt.json.adopted} reason=${adopt.json.reason || ''}`)
 
   // ── 3. Takeover boundary still holds: a LIVE account is never adopted ───
-  const liveEmail = `e2e-door-live-${stamp}@ssi-internal.test`
+  const liveEmail = `e2e-door-live-${stamp}@saysomethingin.com`
   const liveUserId = await mkUser(liveEmail, { confirm: true })
   await learnerFor(liveUserId, { educational_role: 'teacher' })
   const takeover = await post('/api/auth/possession-redeem', { code: teacherJoin, email: liveEmail, displayName: 'Impostor' })
@@ -138,13 +165,13 @@ try {
       `status=${mint.status}`)
 
   // ── 5. Containment: a teacher at ANOTHER school is refused ──────────────
-  const outsiderId = await mkUser(`e2e-door-outsider-${stamp}@ssi-internal.test`, { confirm: true })
+  const outsiderId = await mkUser(`e2e-door-outsider-${stamp}@saysomethingin.com`, { confirm: true })
   await learnerFor(outsiderId, { educational_role: 'teacher' })
   const outside = await post('/api/school/staff-signin-link', { target_user_id: outsiderId }, adminSession.access_token)
   log(outside.status === 404, 'a teacher at another school is refused', `status=${outside.status}`)
 
   // ── 6. Containment: someone who outranks the school is refused ──────────
-  const bigUserId = await mkUser(`e2e-door-leader-${stamp}@ssi-internal.test`, { confirm: true })
+  const bigUserId = await mkUser(`e2e-door-leader-${stamp}@saysomethingin.com`, { confirm: true })
   await learnerFor(bigUserId, { educational_role: 'govt_admin' })
   await admin.from('user_tags').insert({
     user_id: bigUserId, tag_type: 'school', tag_value: `SCHOOL:${school.id}`,
@@ -156,40 +183,62 @@ try {
   // ── 7. Browser, phone-sized ─────────────────────────────────────────────
   browser = await chromium.launch()
 
-  // 7a. The teacher, signed in by the adopted session, using the product.
+  // 7a. The teacher gets in through the link their own admin minted — the
+  //     whole point: a real sign-in, with no email anywhere in the loop.
   const teacherCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   const tp = await teacherCtx.newPage()
-  await seedSession(tp, adopt.json.session)
-  await tp.goto(`${BASE}/schools`, { waitUntil: 'networkidle', timeout: 60000 })
-  await tp.waitForTimeout(4000)
+  await openViaLink(tp, mint.json.action_link)
+  await tp.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await tp.waitForTimeout(8000)
   await tp.screenshot({ path: `${SHOTS}/1-teacher-in-no-email.png`, fullPage: false })
-  const teacherSignedIn = await tp.evaluate(() => !document.body.innerText.match(/Sign in or create account/i))
-  log(teacherSignedIn, 'the never-confirmed teacher is inside the product')
-  const promptSeen = await tp.evaluate(() => /Set a password/i.test(document.body.innerText))
-  log(promptSeen, 'the teacher is offered a password — the way back in that needs no inbox')
+  const teacherText = await tp.evaluate(() => document.body.innerText)
+  log(!/Send me a code/i.test(teacherText),
+      'the never-confirmed teacher is inside the product, via a link, with no email',
+      teacherText.replace(/\s+/g, ' ').slice(0, 100))
+  log(/Set a password/i.test(teacherText),
+      'the teacher is offered a password — the way back in that needs no inbox')
 
-  // 7b. The school admin's Teachers page + the sign-in link panel.
+  // 7b. The school admin's own view: the staff list and the sign-in link panel.
   const adminCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   const ap = await adminCtx.newPage()
-  await seedSession(ap, adminSession)
-  await ap.goto(`${BASE}/schools/teachers`, { waitUntil: 'networkidle', timeout: 60000 })
-  await ap.waitForTimeout(4000)
+  await openViaLink(ap, await signInUrlFor(adminUserId))
+  await ap.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await ap.waitForTimeout(9000)
+  const lensChip = ap.locator('.chip', { hasText: /^Teachers$/ }).first()
+  if (await lensChip.count()) {
+    await lensChip.scrollIntoViewIfNeeded()
+    await lensChip.click()
+    await ap.waitForTimeout(5000)
+  } else {
+    console.log('   [diag] no Teachers lens chip found; url =', ap.url())
+  }
   await ap.screenshot({ path: `${SHOTS}/2-admin-teachers.png`, fullPage: false })
   const btn = ap.locator('[data-walk="teacher-signin-link"]').first()
   if (await btn.count()) {
     await btn.click()
-    await ap.waitForTimeout(3500)
+    await ap.waitForTimeout(4000)
     await ap.screenshot({ path: `${SHOTS}/3-signin-link-panel.png`, fullPage: true })
-    const panel = await ap.evaluate(() => /Give this link to/i.test(document.body.innerText))
+    const panel = await ap.evaluate(() => /Hand this to/i.test(document.body.innerText))
     log(panel, 'the admin sees a copyable sign-in link with its plain-language caveat')
   } else {
-    log(false, 'Sign-in link button visible on the Teachers page', 'button not found')
+    log(false, 'Sign-in link button visible on the staff list', 'button not found')
   }
+
+  // 7d. The schools front door offers two ways in, not one.
+  const doorCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+  const wp = await doorCtx.newPage()
+  await wp.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await wp.waitForTimeout(5000)
+  await wp.screenshot({ path: `${SHOTS}/5-front-door.png`, fullPage: true })
+  const doorText = await wp.evaluate(() => document.body.innerText)
+  log(/Use a password instead/i.test(doorText) && /blocked by school email filters/i.test(doorText),
+      'the schools front door offers a password route and says why the code may never come',
+      doorText.replace(/\s+/g, ' ').slice(0, 120))
 
   // 7c. The redeem dead end now names two inbox-free routes.
   const deadCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   const dp = await deadCtx.newPage()
-  await dp.goto(`${BASE}/redeem/${teacherJoin}`, { waitUntil: 'networkidle', timeout: 60000 })
+  await dp.goto(`${BASE}/redeem/${teacherJoin}`, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await dp.waitForTimeout(3000)
   const emailField = dp.locator('#redeem-email, input[type="email"]').first()
   if (await emailField.count()) {
@@ -212,6 +261,8 @@ try {
 } finally {
   if (browser) await browser.close().catch(() => {})
   // Teardown
+  // Our own rate-limit rows, so repeat runs don't lock the probe out.
+  await admin.from('possession_mint_attempts').delete().like('email', 'e2e-door-%')
   for (const id of ledger.codes) await admin.from('invite_codes').delete().eq('id', id)
   for (const id of ledger.schools) await admin.from('schools').delete().eq('id', id)
   for (const id of ledger.users) {
