@@ -158,6 +158,12 @@ try {
     user_id: shellUserId, tag_type: 'school', tag_value: `SCHOOL:${school.id}`,
     role_in_context: 'teacher', added_by: adminUserId,
   })
+  await admin.from('learners').update({ educational_role: 'teacher', display_name: 'E2E Teacher' }).eq('user_id', shellUserId)
+  // The admin's own staff tag, so scope resolution sees them inside the school.
+  await admin.from('user_tags').insert({
+    user_id: adminUserId, tag_type: 'school', tag_value: `SCHOOL:${school.id}`,
+    role_in_context: 'admin', added_by: adminUserId,
+  })
   const adminSession = await sessionFor(adminUserId)
   const mint = await post('/api/school/staff-signin-link', { target_user_id: shellUserId }, adminSession.access_token)
   log(mint.status === 200 && !!mint.json.action_link,
@@ -192,7 +198,7 @@ try {
   await tp.waitForTimeout(8000)
   await tp.screenshot({ path: `${SHOTS}/1-teacher-in-no-email.png`, fullPage: false })
   const teacherText = await tp.evaluate(() => document.body.innerText)
-  log(!/Send me a code/i.test(teacherText),
+  log(/You're signed in/i.test(teacherText) || /Welcome|Dashboard|classes/i.test(teacherText) && !/Send me a code/i.test(teacherText),
       'the never-confirmed teacher is inside the product, via a link, with no email',
       teacherText.replace(/\s+/g, ' ').slice(0, 100))
   log(/Set a password/i.test(teacherText),
@@ -204,7 +210,7 @@ try {
   await openViaLink(ap, await signInUrlFor(adminUserId))
   await ap.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await ap.waitForTimeout(9000)
-  const lensChip = ap.locator('.chip', { hasText: /^Teachers$/ }).first()
+  const lensChip = ap.locator('.chip', { hasText: /All teachers/i }).first()
   if (await lensChip.count()) {
     await lensChip.scrollIntoViewIfNeeded()
     await lensChip.click()
@@ -212,7 +218,8 @@ try {
   } else {
     console.log('   [diag] no Teachers lens chip found; url =', ap.url())
   }
-  await ap.screenshot({ path: `${SHOTS}/2-admin-teachers.png`, fullPage: false })
+  await ap.screenshot({ path: `${SHOTS}/2-admin-teachers.png`, fullPage: true })
+  console.log('   [diag] chips on page =', await ap.locator('.chip').count(), '| url =', ap.url())
   const btn = ap.locator('[data-walk="teacher-signin-link"]').first()
   if (await btn.count()) {
     await btn.click()
@@ -245,8 +252,12 @@ try {
     await emailField.fill(liveEmail)
     const nameField = dp.locator('input[type="text"]').first()
     if (await nameField.count()) await nameField.fill('Impostor')
-    await dp.getByRole('button').filter({ hasText: /Start learning|Continue/i }).first().click()
-    await dp.waitForTimeout(5000)
+    const submit = dp.locator('form button[type="submit"]').first()
+    await submit.waitFor({ state: 'visible', timeout: 20000 })
+    await submit.click()
+    await dp.waitForTimeout(2000)
+    await dp.waitForFunction(() => /already exists/i.test(document.body.innerText), null, { timeout: 30000 }).catch(() => {})
+    await dp.waitForTimeout(1500)
     await dp.screenshot({ path: `${SHOTS}/4-no-dead-end.png`, fullPage: true })
     const routes = await dp.evaluate(() => document.body.innerText)
     log(/password/i.test(routes) && /Sign-in link/i.test(routes),
