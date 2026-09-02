@@ -248,3 +248,47 @@ English key count: **387 → 1413** — 1026 new keys, every one of them reachin
 - **`src/explainer/learnerExplainers.ts` (38 prose fields)** — same reason: paragraphs of authored learner copy, not chrome.
 - **`api/_utils/inviteEmailTemplate.ts`** — a server-rendered English email. It needs a **locale parameter on the API route**, i.e. a mechanism, not a translation. Flagged, not built. Its one sentence is also Tom's own verbatim wording.
 - **`views/marketing/partners.ts`** — partner-door marketing copy held as a data module; the page headings are keyed, the copy blocks are not.
+
+---
+
+## Per-language result
+
+Every file carries **all 1,413 keys** — verified, not assumed. "Left in English" is not a gap: it is the brand, plus words that are spelled the same in that language (Premium, Pause, Patient, Forum) and language names that do not change.
+
+| Language | Keys | Translated | Left in English |
+|---|---:|---:|---:|
+| Arabic (`ara`) | 1413 | 1392 | 21 |
+| Azerbaijani (`aze`) | 1413 | 1376 | 37 |
+| Bengali (`ben`) | 1413 | 1389 | 24 |
+| Welsh (`cym`) | 1413 | 1389 | 24 |
+| German (`deu`) | 1413 | 1361 | 52 |
+| French (`fra`) | 1413 | 1359 | 54 |
+| Irish (`gle`) | 1413 | 1392 | 21 |
+| Gujarati (`guj`) | 1413 | 1389 | 24 |
+| Hindi (`hin`) | 1413 | 1389 | 24 |
+| Italian (`ita`) | 1413 | 1369 | 44 |
+| Japanese (`jpn`) | 1413 | 1396 | 17 |
+| Korean (`kor`) | 1413 | 1396 | 17 |
+| Lithuanian (`lit`) | 1413 | 1395 | 18 |
+| Punjabi (`pan`) | 1413 | 1391 | 22 |
+| Portuguese (`por`) | 1413 | 1386 | 27 |
+| Sinhala (`sin`) | 1413 | 1396 | 17 |
+| Spanish (`spa`) | 1413 | 1385 | 28 |
+| Tamil (`tam`) | 1413 | 1391 | 22 |
+| Urdu (`urd`) | 1413 | 1391 | 22 |
+| Yoruba (`yor`) | 1413 | 1391 | 22 |
+| Chinese (`zho`) | 1413 | 1392 | 21 |
+
+**29,115 translated strings** written across the 21 languages.
+
+### Verified on the way in, not trusted
+
+Every one of the 42 patch files was checked before merging: exact key-set match, and **any value that damaged a `{placeholder}` or dropped the brand was rejected rather than written.** None were. No key was ever filled from English to make the parity test pass.
+
+### Known limits, on the record
+
+- **Irish pluralisation cannot be right.** Irish nouns after cardinals 2–10 stay grammatically singular with mutation varying by number. A one/many key pair cannot express that, so Irish counts read slightly wrong in some number bands. This needs a per-number-band pluralisation mechanism, not more translation.
+- **One/many pairs are identical by design in Welsh, Chinese, Japanese, Korean and Sinhala** — those languages do not mark nouns for number and the `{count}` placeholder carries it. A lint rule that flags duplicate one/many pairs would false-positive on five languages.
+- **Four quoted device-UI labels are still English in Punjabi, Urdu and Tamil** (`install.share`, `install.mockCopy`, `install.mockReadingList`, `install.menu`). These are what iOS and Android themselves print on the share sheet; the translator did not know the real wording those phones show and declined to guess. Filling them needs the phones, not a translator. Irish, Azerbaijani and Yoruba carry natural translations of the same four, flagged as unverified against shipped OS strings.
+- **Sinhala wants a native spot-check** before production — its translator said plainly it had less confidence there than in Japanese or Korean, particularly the belt and progress metaphors.
+- **`LEGO` stays English; `belt` and `seed` are transliterated** in the South Asian languages — product vocabulary treated as terms of art. Consistent across all six, and reversible if that is the wrong call.
