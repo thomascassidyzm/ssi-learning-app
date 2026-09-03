@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { lastDashboardPath } from './router'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
-import { loadConfig, isSupabaseConfigured } from './config/env'
+import { loadConfig, isSupabaseConfigured, missingRequiredConfig } from './config/env'
 import { useAuth } from './composables/useAuth'
 import {
   prewarmInstantCaches,
@@ -351,6 +351,18 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
   } catch (err) {
     console.error('[App] Failed to initialize Supabase client synchronously:', err)
   }
+} else {
+  // FAIL LOUDLY. Skipping this block silently is how a single absent build-time
+  // variable bricked sign-in for everybody with no trace anywhere: no client is
+  // ever created, so every sign-in path answers "App not ready. Please try
+  // again." forever. console.error (not log/info/debug — those are stripped in
+  // production by the vite esbuild pure list) so the cause is one glance away
+  // in a real browser console, and it NAMES the missing variables.
+  console.error(
+    '[App] NO SUPABASE CLIENT — sign-in, progress and course loading are all dead. ' +
+    'Missing build-time config: ' + (missingRequiredConfig(config).join(', ') || 'none reported') +
+    '. Set these on the Vercel project and redeploy.',
+  )
 }
 
 // Eager script preload — provided for consumers that trigger their own walk
