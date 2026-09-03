@@ -112,7 +112,10 @@
     "learningPlayer": "Ẹ̀rọ ìṣeré ẹ̀kọ́",
     "courseWasUpdated": "A ti sọ ẹ̀kọ́ rẹ di tuntun",
     "newBeltEarned": "Àmùrè Tuntun Ti Jẹ́ Gbà!",
-    "keepLearningReachNext": "Máa bá ẹ̀kọ́ rẹ nìṣó láti dé ìpele tó kàn!"
+    "keepLearningReachNext": "Máa bá ẹ̀kọ́ rẹ nìṣó láti dé ìpele tó kàn!",
+    "progressLoadFailed": "A kò lè gbé ibi tí o dé wọlé. Ìlọsíwájú rẹ wà láìléwu — gbìyànjú lẹ́ẹ̀kan sí i.",
+    "practisingBanner": "Ìdánrawò",
+    "practisingBannerNote": "Àwọn ohun tuntun yóò padà nígbà tí ìsopọ̀ rẹ bá padà."
   },
   "home": {
     "goodMorning": "Ẹ kú àárọ̀",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Èyí máa ṣí sórí atúmọ̀-ayélujára rẹ.",
-    "refreshData": "Sọ dátà di tuntun"
+    "refreshData": "Sọ dátà di tuntun",
+    "tryAgain": "Gbìyànjú lẹ́ẹ̀kan sí i"
   },
   "install": {
     "installSaysomethingin": "Fi SaySomethingin sórí ẹ̀rọ",

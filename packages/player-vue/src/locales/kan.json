@@ -112,7 +112,10 @@
     "learningPlayer": "ಕಲಿಕಾ ಪ್ಲೇಯರ್",
     "courseWasUpdated": "ನಿಮ್ಮ ಕೋರ್ಸ್ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ",
     "newBeltEarned": "ಹೊಸ ಬೆಲ್ಟ್ ಗಳಿಸಿದ್ದೀರಿ!",
-    "keepLearningReachNext": "ಮುಂದಿನ ಹಂತ ತಲುಪಲು ಕಲಿಕೆ ಮುಂದುವರಿಸಿ!"
+    "keepLearningReachNext": "ಮುಂದಿನ ಹಂತ ತಲುಪಲು ಕಲಿಕೆ ಮುಂದುವರಿಸಿ!",
+    "progressLoadFailed": "ನೀವು ಎಲ್ಲಿಗೆ ತಲುಪಿದ್ದೀರಿ ಎಂಬುದನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ. ನಿಮ್ಮ ಪ್ರಗತಿ ಸುರಕ್ಷಿತವಾಗಿದೆ — ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "practisingBanner": "ಅಭ್ಯಾಸ ನಡೆಯುತ್ತಿದೆ",
+    "practisingBannerNote": "ನಿಮ್ಮ ಸಂಪರ್ಕ ಮರಳಿದಾಗ ಹೊಸ ವಿಷಯವೂ ಮರಳುತ್ತದೆ."
   },
   "home": {
     "goodMorning": "ಶುಭೋದಯ",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "ಇದು ನಿಮ್ಮ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ತೆರೆಯುತ್ತದೆ.",
-    "refreshData": "ಡೇಟಾ ರಿಫ್ರೆಶ್ ಮಾಡಿ"
+    "refreshData": "ಡೇಟಾ ರಿಫ್ರೆಶ್ ಮಾಡಿ",
+    "tryAgain": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin ಇನ್‌ಸ್ಟಾಲ್ ಮಾಡಿ",

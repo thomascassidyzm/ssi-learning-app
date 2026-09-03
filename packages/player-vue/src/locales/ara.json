@@ -112,7 +112,10 @@
     "learningPlayer": "مشغّل التعلّم",
     "courseWasUpdated": "تم تحديث دورتك",
     "newBeltEarned": "حزام جديد!",
-    "keepLearningReachNext": "واصل التعلّم للوصول إلى المستوى التالي!"
+    "keepLearningReachNext": "واصل التعلّم للوصول إلى المستوى التالي!",
+    "progressLoadFailed": "تعذّر تحميل الموضع الذي وصلت إليه. تقدّمك محفوظ — حاول مرة أخرى.",
+    "practisingBanner": "تدريب",
+    "practisingBannerNote": "ستعود المواد الجديدة عند عودة الاتصال."
   },
   "home": {
     "goodMorning": "صباح الخير",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "سيُفتح هذا في متصفحك.",
-    "refreshData": "تحديث البيانات"
+    "refreshData": "تحديث البيانات",
+    "tryAgain": "إعادة المحاولة"
   },
   "install": {
     "installSaysomethingin": "تثبيت SaySomethingin",

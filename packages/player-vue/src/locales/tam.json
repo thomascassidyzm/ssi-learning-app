@@ -112,7 +112,10 @@
     "learningPlayer": "கற்றல் பிளேயர்",
     "courseWasUpdated": "உங்கள் பாடநெறி புதுப்பிக்கப்பட்டது",
     "newBeltEarned": "புதிய பெல்ட் கிடைத்தது!",
-    "keepLearningReachNext": "அடுத்த நிலையை அடைய தொடர்ந்து கற்றுக்கொள்ளுங்கள்!"
+    "keepLearningReachNext": "அடுத்த நிலையை அடைய தொடர்ந்து கற்றுக்கொள்ளுங்கள்!",
+    "progressLoadFailed": "நீங்கள் எங்கு வரை சென்றீர்கள் என்பதை ஏற்ற முடியவில்லை. உங்கள் முன்னேற்றம் பாதுகாப்பாக உள்ளது — மீண்டும் முயற்சிக்கவும்.",
+    "practisingBanner": "பயிற்சி நடக்கிறது",
+    "practisingBannerNote": "உங்கள் இணைப்பு திரும்பியதும் புதிய பாடங்களும் திரும்பும்."
   },
   "home": {
     "goodMorning": "காலை வணக்கம்",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "இது உங்கள் உலாவியில் திறக்கும்.",
-    "refreshData": "தரவைப் புதுப்பிக்கவும்"
+    "refreshData": "தரவைப் புதுப்பிக்கவும்",
+    "tryAgain": "மீண்டும் முயல்க"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin ஐ நிறுவவும்",

@@ -112,7 +112,10 @@
     "learningPlayer": "学習プレイヤー",
     "courseWasUpdated": "コースが更新されました",
     "newBeltEarned": "新しいベルトを獲得！",
-    "keepLearningReachNext": "次のレベルに向けて学習を続けましょう!"
+    "keepLearningReachNext": "次のレベルに向けて学習を続けましょう!",
+    "progressLoadFailed": "どこまで進んだかを読み込めませんでした。学習の記録は残っています — もう一度お試しください。",
+    "practisingBanner": "練習中",
+    "practisingBannerNote": "接続が戻れば、新しい教材も戻ります。"
   },
   "home": {
     "goodMorning": "おはようございます",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "これはブラウザで開きます。",
-    "refreshData": "データを更新"
+    "refreshData": "データを更新",
+    "tryAgain": "再試行"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin をインストール",

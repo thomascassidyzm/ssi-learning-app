@@ -112,7 +112,10 @@
     "learningPlayer": "Seinnteoir foghlama",
     "courseWasUpdated": "Nuashonraíodh do chúrsa",
     "newBeltEarned": "Creas Nua Bainte Amach!",
-    "keepLearningReachNext": "Lean ort ag foghlaim chun an chéad leibhéal eile a bhaint amach!"
+    "keepLearningReachNext": "Lean ort ag foghlaim chun an chéad leibhéal eile a bhaint amach!",
+    "progressLoadFailed": "Níorbh fhéidir linn an áit ar stad tú a lódáil. Tá do dhul chun cinn slán — bain triail eile as.",
+    "practisingBanner": "Ag cleachtadh",
+    "practisingBannerNote": "Tiocfaidh ábhar nua ar ais nuair a thiocfaidh do cheangal ar ais."
   },
   "home": {
     "goodMorning": "Maidin mhaith",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Osclóidh an ceann seo i do bhrabhsálaí.",
-    "refreshData": "Athnuaigh sonraí"
+    "refreshData": "Athnuaigh sonraí",
+    "tryAgain": "Bain triail eile as"
   },
   "install": {
     "installSaysomethingin": "Suiteáil SaySomethingin",

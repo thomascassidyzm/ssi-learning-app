@@ -17069,8 +17069,8 @@ defineExpose({
             <!-- Known text - always visible, stable position -->
             <div class="hero-text-known">
               <div v-if="progressLoadFailed" class="progress-load-failed">
-                <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
-                <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+                <p class="progress-load-failed-text">{{ t('player.progressLoadFailed', "We couldn't load where you got to. Your progress is safe — have another go.") }}</p>
+                <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">{{ t('common.tryAgain', 'Try again') }}</button>
               </div>
               <p v-else-if="isAwakening" class="hero-known loading-text">
                 {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
@@ -17643,8 +17643,8 @@ defineExpose({
              unguarded it visibly floated over the pod dialogue. -->
         <div v-if="!playingPodLapAudio" class="pane-text-known">
           <div v-if="progressLoadFailed" class="progress-load-failed">
-            <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
-            <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+            <p class="progress-load-failed-text">{{ t('player.progressLoadFailed', "We couldn't load where you got to. Your progress is safe — have another go.") }}</p>
+            <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">{{ t('common.tryAgain', 'Try again') }}</button>
           </div>
           <p v-else-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
             {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>

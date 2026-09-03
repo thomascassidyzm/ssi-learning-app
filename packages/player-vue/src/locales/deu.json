@@ -112,7 +112,10 @@
     "learningPlayer": "Lernplayer",
     "courseWasUpdated": "Dein Kurs wurde aktualisiert",
     "newBeltEarned": "Neuer Gürtel verdient!",
-    "keepLearningReachNext": "Lerne weiter, um die nächste Stufe zu erreichen!"
+    "keepLearningReachNext": "Lerne weiter, um die nächste Stufe zu erreichen!",
+    "progressLoadFailed": "Wir konnten nicht laden, wo du warst. Dein Fortschritt ist sicher — versuch es noch einmal.",
+    "practisingBanner": "Üben",
+    "practisingBannerNote": "Neues Material kommt zurück, sobald deine Verbindung wieder da ist."
   },
   "home": {
     "goodMorning": "Guten Morgen",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Das hier öffnet sich in deinem Browser.",
-    "refreshData": "Daten aktualisieren"
+    "refreshData": "Daten aktualisieren",
+    "tryAgain": "Erneut versuchen"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin installieren",

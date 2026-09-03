@@ -112,7 +112,10 @@
     "learningPlayer": "学习播放器",
     "courseWasUpdated": "你的课程已更新",
     "newBeltEarned": "获得新段位！",
-    "keepLearningReachNext": "继续学习，迈向下一等级！"
+    "keepLearningReachNext": "继续学习，迈向下一等级！",
+    "progressLoadFailed": "无法加载你的进度位置。你的学习记录是安全的 — 请再试一次。",
+    "practisingBanner": "练习中",
+    "practisingBannerNote": "网络恢复后，新的内容就会回来。"
   },
   "home": {
     "goodMorning": "早上好",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "这个会在你的浏览器中打开。",
-    "refreshData": "刷新数据"
+    "refreshData": "刷新数据",
+    "tryAgain": "重试"
   },
   "install": {
     "installSaysomethingin": "安装 SaySomethingin",

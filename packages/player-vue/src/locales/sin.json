@@ -112,7 +112,10 @@
     "learningPlayer": "ඉගෙනුම් වාදකය",
     "courseWasUpdated": "ඔබේ පාඨමාලාව යාවත්කාලීන කරන ලදී",
     "newBeltEarned": "නව පටියක් ලැබුණි!",
-    "keepLearningReachNext": "ඊළඟ මට්ටමට යාමට ඉගෙනීම දිගටම කරගෙන යන්න!"
+    "keepLearningReachNext": "ඊළඟ මට්ටමට යාමට ඉගෙනීම දිගටම කරගෙන යන්න!",
+    "progressLoadFailed": "ඔබ කොතැනට පැමිණියේ දැයි පූරණය කළ නොහැකි විය. ඔබේ ප්‍රගතිය ආරක්ෂිතයි — නැවත උත්සාහ කරන්න.",
+    "practisingBanner": "පුහුණු වෙමින්",
+    "practisingBannerNote": "ඔබේ සම්බන්ධතාවය නැවත ලැබුණු විට නව දේවල් ද නැවත එයි."
   },
   "home": {
     "goodMorning": "සුභ උදෑසනක්",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "මෙය ඔබේ බ්‍රවුසරයේ විවෘත වේ.",
-    "refreshData": "දත්ත නැවුම් කරන්න"
+    "refreshData": "දත්ත නැවුම් කරන්න",
+    "tryAgain": "නැවත උත්සාහ කරන්න"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin ස්ථාපනය කරන්න",

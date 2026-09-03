@@ -112,7 +112,10 @@
     "learningPlayer": "ਸਿਖਲਾਈ ਪਲੇਅਰ",
     "courseWasUpdated": "ਤੁਹਾਡਾ ਕੋਰਸ ਅੱਪਡੇਟ ਕੀਤਾ ਗਿਆ",
     "newBeltEarned": "ਨਵਾਂ ਬੈਲਟ ਮਿਲਿਆ!",
-    "keepLearningReachNext": "ਅਗਲੇ ਪੱਧਰ 'ਤੇ ਪਹੁੰਚਣ ਲਈ ਸਿੱਖਦੇ ਰਹੋ!"
+    "keepLearningReachNext": "ਅਗਲੇ ਪੱਧਰ 'ਤੇ ਪਹੁੰਚਣ ਲਈ ਸਿੱਖਦੇ ਰਹੋ!",
+    "progressLoadFailed": "ਤੁਸੀਂ ਕਿੱਥੇ ਪਹੁੰਚੇ ਸੀ, ਇਹ ਲੋਡ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਤੁਹਾਡੀ ਤਰੱਕੀ ਸੁਰੱਖਿਅਤ ਹੈ — ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+    "practisingBanner": "ਅਭਿਆਸ ਜਾਰੀ ਹੈ",
+    "practisingBannerNote": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਵਾਪਸ ਆਵੇਗਾ, ਨਵੀਂ ਸਮੱਗਰੀ ਵੀ ਵਾਪਸ ਆ ਜਾਵੇਗੀ।"
   },
   "home": {
     "goodMorning": "ਸ਼ੁਭ ਸਵੇਰ",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "ਇਹ ਤੁਹਾਡੇ ਬ੍ਰਾਊਜ਼ਰ ਵਿੱਚ ਖੁੱਲ੍ਹਦਾ ਹੈ।",
-    "refreshData": "ਡਾਟਾ ਤਾਜ਼ਾ ਕਰੋ"
+    "refreshData": "ਡਾਟਾ ਤਾਜ਼ਾ ਕਰੋ",
+    "tryAgain": "ਮੁੜ ਕੋਸ਼ਿਸ਼"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin ਇੰਸਟਾਲ ਕਰੋ",

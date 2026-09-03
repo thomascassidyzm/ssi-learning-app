@@ -112,7 +112,10 @@
     "learningPlayer": "Mokymosi grotuvas",
     "courseWasUpdated": "Jūsų kursas atnaujintas",
     "newBeltEarned": "Gautas naujas diržas!",
-    "keepLearningReachNext": "Mokykitės toliau, kad pasiektumėte kitą lygį!"
+    "keepLearningReachNext": "Mokykitės toliau, kad pasiektumėte kitą lygį!",
+    "progressLoadFailed": "Nepavyko įkelti, kur sustojote. Jūsų pažanga išsaugota — bandykite dar kartą.",
+    "practisingBanner": "Kartojama",
+    "practisingBannerNote": "Nauja medžiaga sugrįš, kai atsinaujins ryšys."
   },
   "home": {
     "goodMorning": "Labas rytas",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Šis atsidarys jūsų naršyklėje.",
-    "refreshData": "Atnaujinti duomenis"
+    "refreshData": "Atnaujinti duomenis",
+    "tryAgain": "Bandyti dar kartą"
   },
   "install": {
     "installSaysomethingin": "Įdiekite SaySomethingin",

@@ -112,7 +112,10 @@
     "learningPlayer": "Öyrənmə player-i",
     "courseWasUpdated": "Kursunuz yeniləndi",
     "newBeltEarned": "Yeni kəmər qazandınız!",
-    "keepLearningReachNext": "Növbəti səviyyəyə çatmaq üçün öyrənməyə davam edin!"
+    "keepLearningReachNext": "Növbəti səviyyəyə çatmaq üçün öyrənməyə davam edin!",
+    "progressLoadFailed": "Harada qaldığınızı yükləyə bilmədik. İrəliləyişiniz təhlükəsizdir — bir də cəhd edin.",
+    "practisingBanner": "Məşq edilir",
+    "practisingBannerNote": "Bağlantı qayıdanda yeni material da qayıdacaq."
   },
   "home": {
     "goodMorning": "Sabahınız xeyir",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Bu, brauzerinizdə açılacaq.",
-    "refreshData": "Məlumatları yenilə"
+    "refreshData": "Məlumatları yenilə",
+    "tryAgain": "Yenidən cəhd edin"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin-i quraşdırın",

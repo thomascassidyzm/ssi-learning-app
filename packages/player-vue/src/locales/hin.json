@@ -112,7 +112,10 @@
     "learningPlayer": "लर्निंग प्लेयर",
     "courseWasUpdated": "आपका कोर्स अपडेट किया गया था",
     "newBeltEarned": "नई बेल्ट मिली!",
-    "keepLearningReachNext": "अगले स्तर तक पहुँचने के लिए सीखते रहें!"
+    "keepLearningReachNext": "अगले स्तर तक पहुँचने के लिए सीखते रहें!",
+    "progressLoadFailed": "आप कहाँ तक पहुँचे थे, यह लोड नहीं हो सका। आपकी प्रगति सुरक्षित है — दोबारा कोशिश करें।",
+    "practisingBanner": "अभ्यास जारी है",
+    "practisingBannerNote": "आपका कनेक्शन लौटते ही नई सामग्री भी लौट आएगी।"
   },
   "home": {
     "goodMorning": "सुप्रभात",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "यह आपके ब्राउज़र में खुलता है।",
-    "refreshData": "डेटा रीफ़्रेश करें"
+    "refreshData": "डेटा रीफ़्रेश करें",
+    "tryAgain": "फिर से कोशिश करें"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin इंस्टॉल करें",

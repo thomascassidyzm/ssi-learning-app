@@ -478,7 +478,7 @@ const handleClose = () => {
         :disabled="isLoading"
         @click="retryRedeem"
       >
-        <span v-if="!isLoading">Try again</span>
+        <span v-if="!isLoading">{{ t('common.tryAgain', 'Try again') }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
@@ -584,7 +584,7 @@ const handleClose = () => {
         :disabled="isLoading"
         @click="retryRedeem"
       >
-        <span v-if="!isLoading">Try again</span>
+        <span v-if="!isLoading">{{ t('common.tryAgain', 'Try again') }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>

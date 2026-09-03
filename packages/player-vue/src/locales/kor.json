@@ -112,7 +112,10 @@
     "learningPlayer": "학습 플레이어",
     "courseWasUpdated": "코스가 업데이트되었어요",
     "newBeltEarned": "새 벨트 획득!",
-    "keepLearningReachNext": "다음 레벨까지 조금만 더 힘내세요!"
+    "keepLearningReachNext": "다음 레벨까지 조금만 더 힘내세요!",
+    "progressLoadFailed": "어디까지 하셨는지 불러오지 못했습니다. 학습 기록은 안전합니다 — 다시 시도해 보세요.",
+    "practisingBanner": "연습 중",
+    "practisingBannerNote": "연결이 돌아오면 새 학습 자료도 함께 돌아옵니다."
   },
   "home": {
     "goodMorning": "좋은 아침이에요",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "이건 브라우저에서 열려요.",
-    "refreshData": "데이터 새로고침"
+    "refreshData": "데이터 새로고침",
+    "tryAgain": "다시 시도"
   },
   "install": {
     "installSaysomethingin": "SaySomethingin 설치하기",

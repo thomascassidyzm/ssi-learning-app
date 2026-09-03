@@ -112,7 +112,10 @@
     "learningPlayer": "Chwaraewr dysgu",
     "courseWasUpdated": "Cafodd eich cwrs ei ddiweddaru",
     "newBeltEarned": "Gwregys newydd wedi'i ennill!",
-    "keepLearningReachNext": "Daliwch ati i ddysgu i gyrraedd y lefel nesaf!"
+    "keepLearningReachNext": "Daliwch ati i ddysgu i gyrraedd y lefel nesaf!",
+    "progressLoadFailed": "Ni allem lwytho ble roeddech chi wedi cyrraedd. Mae eich cynnydd yn ddiogel — rhowch gynnig arall arni.",
+    "practisingBanner": "Ymarfer",
+    "practisingBannerNote": "Bydd deunydd newydd yn dod yn ôl pan ddaw eich cysylltiad yn ôl."
   },
   "home": {
     "goodMorning": "Bore da",
@@ -637,7 +640,8 @@
   },
   "common": {
     "oneOpensBrowser": "Mae hwn yn agor yn eich porwr.",
-    "refreshData": "Adnewyddu data"
+    "refreshData": "Adnewyddu data",
+    "tryAgain": "Ail-geisio"
   },
   "install": {
     "installSaysomethingin": "Gosodwch SaySomethingin",
