@@ -64,7 +64,27 @@ const HARVEST_REFS = [
 ]
 
 const CONCURRENCY = 4 // this box caps our scope at 4 CPUs; do not reason from nproc
-const CLAUDE = process.env.CLAUDE_BIN || '/usr/local/bin/claude'
+
+/**
+ * The Claude Code CLI, resolved off PATH so it works on whatever box this runs on.
+ * CLAUDE_BIN wins if it points at something real — but note that inside a Claude Code
+ * session CLAUDE_BIN can be inherited from a different machine's path, so it is
+ * checked for existence rather than trusted.
+ *
+ * Auth is the ambient CLAUDE_CONFIG_DIR, i.e. whichever account you are logged into.
+ * Not every config dir on a shared box is logged in for headless use; if yours is not,
+ * the run fails loudly with the CLI's own message rather than writing half a fill.
+ */
+const resolveClaude = () => {
+  const fromEnv = process.env.CLAUDE_BIN
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
+  try {
+    return execFileSync('bash', ['-lc', 'command -v claude'], { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
+const CLAUDE = resolveClaude()
 
 // ---------------------------------------------------------------- helpers
 
@@ -129,6 +149,11 @@ pnpm i18n:fill — fill every locale file with the keys eng.json has and it does
   pnpm i18n:fill --only=cym,deu  restrict to some locales
   pnpm i18n:fill --no-model      harvest only; leave the residue for a later run
   pnpm i18n:fill --help          this
+
+The residue pass shells out to the Claude Code CLI (resolved off PATH, or CLAUDE_BIN),
+authenticated by the ambient CLAUDE_CONFIG_DIR — whichever account you are logged into.
+If that config dir is not logged in for headless use the run fails loudly and writes
+nothing; use --no-model to take the free harvest anyway.
 
 What it does
   1. Diffs eng.json against every locale file on the CURRENT branch.
@@ -367,10 +392,10 @@ Rules, all hard:
 
 const failures = []
 if (!NO_MODEL && toTranslate) {
-  if (!existsSync(CLAUDE)) {
-    console.error(`\nFATAL: no translation backend at ${CLAUDE}.`)
+  if (!CLAUDE || !existsSync(CLAUDE)) {
+    console.error(`\nFATAL: no translation backend — the Claude Code CLI is not on PATH.`)
     console.error(`Harvest results were NOT written. Re-run with --no-model to write the harvest alone,`)
-    console.error(`or set CLAUDE_BIN. Nothing has been changed.`)
+    console.error(`or set CLAUDE_BIN to the CLI. Nothing has been changed.`)
     process.exit(1)
   }
   const runDir = join(process.env.HOME, '.cache', 'ssi-i18n-fill', String(Date.now()))
