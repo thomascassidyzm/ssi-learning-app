@@ -9,6 +9,7 @@ import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -1300,35 +1301,11 @@ const playFromIndex = async (index) => {
 }
 
 /**
- * Build a mode queue from a list of { targetAudioId, knownAudioId } units.
- *   immersion — each unit's TARGET once at base speed.
- *   drill     — per unit: TARGET first (the first hit is ALWAYS the target —
- *               the learner meets the target before the meaning), then KNOWN
- *               (hear the meaning), then TARGET twice more. All at base
- *               (normal) speed. A unit with no target plays its known alone.
+ * Build a mode queue from a list of { targetText, targetAudioId, knownAudioId }
+ * units. The rule itself lives in playback/podModalQueue.ts so it can be tested
+ * without the component; this is the reactive wrapper.
  */
-const buildModalQueue = (units) => {
-  const base = playbackSpeed.value || 1
-  const queue = []
-  if (listenMode.value === 'drill') {
-    for (const u of units) {
-      if (u.targetAudioId) {
-        queue.push({ id: u.targetAudioId, rate: base })   // target first
-        if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base }) // then meaning
-        queue.push({ id: u.targetAudioId, rate: base })   // target
-        queue.push({ id: u.targetAudioId, rate: base })   // target (twice after meaning)
-      } else if (u.knownAudioId) {
-        queue.push({ id: u.knownAudioId, rate: base })
-      }
-    }
-    return queue
-  }
-  // immersion (default): target only, at the chosen speed.
-  for (const u of units) {
-    if (u.targetAudioId) queue.push({ id: u.targetAudioId, rate: base })
-  }
-  return queue
-}
+const buildModalQueue = (units) => buildPodModalQueue(units, listenMode.value, playbackSpeed.value || 1)
 
 /**
  * Build the play queue for one phrase row as [{ id, rate|null }].
@@ -1362,12 +1339,14 @@ const buildPlayQueue = (phrase) => {
     // audio id if a row somehow lacks sentence detail.
     const units = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
       ? phrase.sentences
-      : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }]
+      // targetText rides along: buildModalQueue needs it to tell a line that was
+      // never in the target language from one whose recording is simply missing.
+      : [{ targetText: phrase.targetText || '', targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }]
     return buildModalQueue(units)
   }
   if (view.value === 'seeds') {
     // Core: the seed sentence is the unit — drill it against its English clip.
-    return buildModalQueue([{ targetAudioId: phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }])
+    return buildModalQueue([{ targetText: phrase.targetText || phrase.target1Text || '', targetAudioId: phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }])
   }
   if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
     return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
