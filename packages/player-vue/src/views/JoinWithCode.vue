@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * JoinWithCode — /join, the teacher's way back in.
  *
@@ -138,14 +140,14 @@ onMounted(() => {
   <div class="join-page">
     <div class="join-card">
       <template v-if="step === 'entry' || step === 'redeeming'">
-        <h1 class="join-title">Your way in</h1>
+        <h1 class="join-title">{{ t('join.way') }}</h1>
         <p class="join-lede">
           Someone at your school made you an access code. Type it in below &mdash;
           no email, no waiting.
         </p>
 
         <form class="join-form" @submit.prevent="submit">
-          <label class="join-label" for="join-code">Access code</label>
+          <label class="join-label" for="join-code">{{ t('join.accessCode') }}</label>
           <input
             id="join-code"
             v-model="prettyCode"
@@ -171,8 +173,8 @@ onMounted(() => {
       </template>
 
       <template v-else>
-        <h1 class="join-title">You&rsquo;re in</h1>
-        <p class="join-lede">Setting up your way back to your classes.</p>
+        <h1 class="join-title">{{ t('join.re') }}</h1>
+        <p class="join-lede">{{ t('join.settingUpWayBack') }}</p>
       </template>
     </div>
 

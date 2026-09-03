@@ -725,13 +725,13 @@ function goHome() {
       <!-- Step 1: Validating -->
       <div v-if="step === 'validating'" class="redeem-section">
         <div class="spinner"></div>
-        <p class="status-text">Checking code...</p>
+        <p class="status-text">{{ t('redeem.checkingCode') }}</p>
       </div>
 
       <!-- Manual code entry (bare /redeem — the whiteboard case) -->
       <form v-else-if="step === 'enter-code'" class="auth-form" @submit.prevent="handleManualCodeSubmit">
-        <h2 class="code-title">Enter your code</h2>
-        <p class="detail-text">Type the code your teacher or admin gave you.</p>
+        <h2 class="code-title">{{ t('redeem.enterCode') }}</h2>
+        <p class="detail-text">{{ t('redeem.typeCodeTeacherAdmin') }}</p>
 
         <Transition name="error-fade">
           <div v-if="error" class="error-banner">
@@ -745,7 +745,7 @@ function goHome() {
         </Transition>
 
         <div class="input-group">
-          <label for="redeem-manual-code" class="input-label">Code</label>
+          <label for="redeem-manual-code" class="input-label">{{ t('redeem.code') }}</label>
           <div class="input-wrapper">
             <input
               id="redeem-manual-code"
@@ -785,8 +785,8 @@ function goHome() {
           minutes. Wait a few minutes and open it again.
         </p>
         <p v-else class="detail-text">{{ error }}</p>
-        <button v-if="props.variant !== 'landing' && !wasThrottled" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">Try another code</button>
-        <button v-if="!wasThrottled" class="btn btn--secondary" @click="goHome">Go to App</button>
+        <button v-if="props.variant !== 'landing' && !wasThrottled" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">{{ t('redeem.tryAnotherCode') }}</button>
+        <button v-if="!wasThrottled" class="btn btn--secondary" @click="goHome">{{ t('redeem.goApp') }}</button>
       </div>
 
       <!-- Redeeming spinner -->
@@ -794,7 +794,7 @@ function goHome() {
         <h2 class="code-title">{{ displayTitle }}</h2>
         <p v-if="displayDetail" class="detail-text">{{ displayDetail }}</p>
         <div class="spinner" style="margin-top: 1.5rem"></div>
-        <p class="status-text">Activating your code...</p>
+        <p class="status-text">{{ t('redeem.activatingCode') }}</p>
       </div>
 
       <!-- Success -->
@@ -826,7 +826,7 @@ function goHome() {
             Continue as {{ userEmail }}
           </button>
           <button type="button" class="link-action" :disabled="isLoading" @click="useDifferentEmail">
-            Use a different email
+            {{ t('redeem.useDifferentEmail') }}
           </button>
         </div>
 
@@ -836,7 +836,7 @@ function goHome() {
              the link is still the credential; the email is recorded
              unverified and confirmed later from Settings. -->
         <form v-else-if="step === 'details'" class="auth-form" @submit.prevent="handlePossessionSubmit">
-          <p class="instruction-text">Tell us who you are and you're in — no password, no code to wait for.</p>
+          <p class="instruction-text">{{ t('redeem.tellUsWhoYoure') }}</p>
           <p class="capture-explainer">{{ captureExplainer }}</p>
 
           <Transition name="error-fade">
@@ -851,13 +851,13 @@ function goHome() {
           </Transition>
 
           <div class="input-group">
-            <label for="redeem-name" class="input-label">Your name</label>
+            <label for="redeem-name" class="input-label">{{ t('settings.name') }}</label>
             <div class="input-wrapper">
               <input
                 id="redeem-name"
                 v-model="displayName"
                 type="text"
-                placeholder="e.g. Sian Jones"
+                :placeholder="t('redeem.eGSianJones')"
                 autocomplete="name"
                 required
               />
@@ -865,7 +865,7 @@ function goHome() {
           </div>
 
           <div class="input-group">
-            <label for="redeem-details-email" class="input-label">Email</label>
+            <label for="redeem-details-email" class="input-label">{{ t('auth.email') }}</label>
             <div class="input-wrapper" :class="{ invalid: email && !isEmailValid }">
               <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -894,7 +894,7 @@ function goHome() {
 
           <p class="resend-text">
             Prefer to verify with an emailed code first?
-            <button type="button" :disabled="isLoading" @click="switchToEmailCode">Use email code instead</button>
+            <button type="button" :disabled="isLoading" @click="switchToEmailCode">{{ t('redeem.useEmailCodeInstead') }}</button>
           </p>
         </form>
 
@@ -917,13 +917,13 @@ function goHome() {
           </Transition>
 
           <div class="input-group">
-            <label for="redeem-pupil-name" class="input-label">Your name</label>
+            <label for="redeem-pupil-name" class="input-label">{{ t('settings.name') }}</label>
             <div class="input-wrapper">
               <input
                 id="redeem-pupil-name"
                 v-model="displayName"
                 type="text"
-                placeholder="e.g. Alys"
+                :placeholder="t('redeem.eGAlys')"
                 autocomplete="name"
                 autofocus
                 required
@@ -937,7 +937,7 @@ function goHome() {
             :class="{ loading: isLoading }"
             :disabled="!displayName.trim() || isLoading"
           >
-            <span v-if="!isLoading">Start learning</span>
+            <span v-if="!isLoading">{{ t('redeem.startLearning') }}</span>
             <span v-else class="btn-spinner"></span>
           </button>
         </form>
@@ -948,21 +948,21 @@ function goHome() {
         <div v-else-if="step === 'already-registered'" class="redeem-section">
           <p class="detail-text">An account already exists for <strong>{{ email }}</strong>.</p>
           <button class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading" @click="handleSignInInstead">
-            Email me a code
+            {{ t('redeem.emailMeCode') }}
           </button>
           <!-- Never a dead end. "Email me a code" is the wall for exactly the
                people this page exists for, so the two routes that need no
                inbox at all sit right next to it. -->
           <button type="button" class="link-action" :disabled="isLoading" @click="goToPasswordSignIn">
-            Sign in with a password instead
+            {{ t('redeem.signPasswordInstead') }}
           </button>
           <button type="button" class="link-action" :disabled="isLoading" @click="step = 'details'; error = ''">
-            Use a different email
+            {{ t('redeem.useDifferentEmail') }}
           </button>
           <p class="detail-text detail-text--muted">
             If your school email never delivers our codes, ask whoever runs your
             school&rsquo;s account to open Teachers and tap <strong>Access code</strong>
-            next to your name. They can read it out to you &mdash; no email at all.
+            {{ t('redeem.nextNameTheyCan') }}
           </p>
         </div>
 
@@ -985,7 +985,7 @@ function goHome() {
           </Transition>
 
           <div class="input-group">
-            <label for="redeem-email" class="input-label">Email</label>
+            <label for="redeem-email" class="input-label">{{ t('auth.email') }}</label>
             <div class="input-wrapper" :class="{ invalid: email && !isEmailValid }">
               <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -1022,9 +1022,9 @@ function goHome() {
                 <path d="M22 6l-10 7L2 6"/>
               </svg>
             </div>
-            <p class="instruction-text">Check your email for a 6-digit code</p>
+            <p class="instruction-text">{{ t('redeem.checkEmailDigitCode') }}</p>
             <p class="email-highlight">{{ email }}</p>
-            <p class="otp-helper-text">It may take a moment to arrive. Check your spam folder if needed.</p>
+            <p class="otp-helper-text">{{ t('redeem.mayTakeMomentArrive') }}</p>
           </div>
 
           <Transition name="error-fade">
@@ -1039,7 +1039,7 @@ function goHome() {
           </Transition>
 
           <div class="input-group">
-            <label for="redeem-otp" class="input-label">Verification Code</label>
+            <label for="redeem-otp" class="input-label">{{ t('auth.verificationCode') }}</label>
             <div class="input-wrapper otp-input-wrapper">
               <input
                 id="redeem-otp"
@@ -1061,20 +1061,20 @@ function goHome() {
             :class="{ loading: isLoading }"
             :disabled="otpCode.length < 6 || isLoading"
           >
-            <span v-if="!isLoading">Verify</span>
+            <span v-if="!isLoading">{{ t('auth.verify') }}</span>
             <span v-else class="btn-spinner"></span>
           </button>
 
           <p class="resend-text">
             Didn't get the code?
-            <button type="button" @click="handleResendOtp">Resend</button>
+            <button type="button" @click="handleResendOtp">{{ t('auth.resend') }}</button>
           </p>
 
           <Transition name="error-fade">
             <div v-if="showDeliveryHint" class="delivery-hint">
               <p v-if="isPossessionEligible">
                 Still nothing? School email filters often block these codes outright.
-                <button type="button" class="delivery-hint-link" @click="backToDetails">Go back and skip the email code</button>
+                <button type="button" class="delivery-hint-link" @click="backToDetails">{{ t('redeem.goBackSkipEmail') }}</button>
                 — you won't need to wait for anything. Still stuck? Email
                 <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
               </p>

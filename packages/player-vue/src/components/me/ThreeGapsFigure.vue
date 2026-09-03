@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * ThreeGapsFigure — "What a go is".
  *
@@ -55,7 +57,7 @@
       <text class="xf-ink2" x="169" y="18" text-anchor="middle" font-size="10.5">it half arrives</text>
       <text class="xf-ink2" x="279" y="18" text-anchor="middle" font-size="10.5">it comes out wrong</text>
     </svg>
-    <figcaption class="xf-claim">All three are a go.</figcaption>
+    <figcaption class="xf-claim">{{ t('me.allThreeGo') }}</figcaption>
   </figure>
 </template>
 

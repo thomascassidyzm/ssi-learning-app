@@ -508,8 +508,8 @@ onMounted(() => {
           <template v-if="premiumGroups.length > 0">
             <div class="section-header section-header--premium">
               <div class="section-header__text">
-                <span class="section-header__title">Premium</span>
-                <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
+                <span class="section-header__title">{{ t('browse.premium') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
               <button class="section-header__cta" @click="goPremium()">
                 {{ t('settings.goPremium') }}
@@ -543,7 +543,7 @@ onMounted(() => {
                         {{ getProgress(group.courses[0].course_code) }}
                       </template>
                       <template v-else-if="isPreviewOnly(group.courses[0])">
-                        <span class="try-free">Try free →</span>
+                        <span class="try-free">{{ t('browse.tryFree') }}</span>
                       </template>
                     </span>
                   </button>
@@ -561,7 +561,7 @@ onMounted(() => {
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
-                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">Try free →</span></template>
+                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">{{ t('browse.tryFree') }}</span></template>
                       </span>
                     </button>
                   </li>
@@ -574,8 +574,8 @@ onMounted(() => {
           <template v-if="freeGroups.length > 0">
             <div class="section-header">
               <div class="section-header__text">
-                <span class="section-header__title">Free</span>
-                <span class="section-header__sub">Free forever</span>
+                <span class="section-header__title">{{ t('courseSelector.free') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.freeForever') }}</span>
               </div>
             </div>
             <ul class="course-list">

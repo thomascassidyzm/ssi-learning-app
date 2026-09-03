@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * PortraitPanel — LAYER 3 of the learner profile: estimate level.
  *
@@ -36,7 +38,7 @@ const confidenceLine = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">Roughly where you are</h2>
+    <h2 class="title">{{ t('me.roughlyWhere') }}</h2>
 
     <div class="estimate">
       <span class="band">{{ portrait.cefr.band }}</span>
@@ -58,12 +60,12 @@ const confidenceLine = computed(() => {
     </p>
 
     <div v-if="portrait.positionTarget" class="position">
-      <span class="position-kicker">The last thing you said</span>
+      <span class="position-kicker">{{ t('me.lastThingSaid') }}</span>
       <p class="position-target">{{ portrait.positionTarget }}</p>
       <p v-if="portrait.positionKnown" class="position-known">{{ portrait.positionKnown }}</p>
     </div>
 
-    <p v-if="portrait.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="portrait.source === 'mock'" class="sample">{{ t('me.sampleDataNotReal') }}</p>
   </section>
 </template>
 

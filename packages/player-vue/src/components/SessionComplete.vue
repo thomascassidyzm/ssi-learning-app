@@ -208,7 +208,7 @@ onMounted(async () => {
         class="view-journey-btn"
         @click="$emit('viewJourney')"
       >
-        View Your Journey
+        {{ t('session.viewJourney') }}
       </button>
 
       <!-- Auth prompt for guests (after first session) -->

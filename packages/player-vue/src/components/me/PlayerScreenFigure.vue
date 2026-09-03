@@ -73,13 +73,13 @@ onBeforeUnmount(() => {
   <div class="psf">
     <button type="button" class="psf-thumb" @click="open = true">
       <img class="psf-thumb-img" :src="playerScreen" alt="" aria-hidden="true" width="640" height="1385" />
-      <span class="psf-thumb-label">Show me the screen</span>
+      <span class="psf-thumb-label">{{ t('me.showMeScreen') }}</span>
     </button>
 
     <Teleport to="body">
-      <div v-if="open" class="psf-sheet" role="dialog" aria-modal="true" aria-label="The player screen">
+      <div v-if="open" class="psf-sheet" role="dialog" aria-modal="true" :aria-label="t('me.playerScreen')">
         <header class="psf-header">
-          <span class="psf-title">The player screen</span>
+          <span class="psf-title">{{ t('me.playerScreen') }}</span>
           <button type="button" class="psf-close" :aria-label="t('sector.close')" @click="open = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" aria-hidden="true">

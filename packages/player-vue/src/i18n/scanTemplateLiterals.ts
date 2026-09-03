@@ -71,6 +71,11 @@ export function scanTemplateLiterals(source: string): BareLiteral[] {
   src = blankOut(src, /<svg[\s\S]*?<\/svg>/gi)
   // <pre>/<code> is literal by definition.
   src = blankOut(src, /<pre[\s\S]*?<\/pre>/gi)
+  // Mustache interpolations are expressions, and they wrap across lines — blank
+  // them here, before any line-based work, or a multi-line ternary reads as a
+  // dozen bare literals. Whatever text is LEFT beside a mustache is still
+  // flagged: "{{ n }} days left" is exactly the defect this gate exists for.
+  src = blankOut(src, /\{\{[\s\S]*?\}\}/g)
 
   const out: BareLiteral[] = []
   const lineOf = (idx: number) => src.slice(0, idx).split('\n').length
@@ -103,11 +108,7 @@ export function scanTemplateLiterals(source: string): BareLiteral[] {
   let m: RegExpExecArray | null
   while ((m = nodeRe.exec(stripped))) {
     let text = m[0].trim()
-    // Drop mustache interpolations — those are already expressions; if what is
-    // LEFT is still a word, the template is concatenating bare English onto a
-    // value ("{{ n }} days left"), which is exactly the defect.
-    text = text.replace(/\{\{[\s\S]*?\}\}/g, ' ').trim()
-    text = text.replace(/&[a-z]+;|&#\d+;/gi, ' ').trim()
+    text = text.replace(/&[a-z]+;|&#\d+;/gi, ' ').replace(/\s+/g, ' ').trim()
     if (!text || isNonWord(text)) continue
     out.push({ line: lineOf(m.index), text, kind: 'text' })
   }

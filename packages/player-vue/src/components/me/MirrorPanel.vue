@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * MirrorPanel — LAYER 2 of the learner profile: reflect execution.
  *
@@ -89,16 +91,16 @@ const directionLine = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">How quickly it comes</h2>
+    <h2 class="title">{{ t('me.howQuicklyComes') }}</h2>
 
     <div class="readout">
       <div class="now">
         <span class="now-value">{{ seconds(mirror.latencyNowMs) }}</span>
-        <span class="now-label">to answer, lately</span>
+        <span class="now-label">{{ t('me.answerLately') }}</span>
       </div>
       <div v-if="mirror.latencyEarlyMs" class="then">
         <span class="then-value">{{ seconds(mirror.latencyEarlyMs) }}</span>
-        <span class="then-label">when you started</span>
+        <span class="then-label">{{ t('me.whenStarted') }}</span>
       </div>
     </div>
 
@@ -111,8 +113,8 @@ const directionLine = computed(() => {
         <circle v-if="endPoint" :cx="endPoint.x" :cy="endPoint.y" r="4.5" class="endpoint" />
       </svg>
       <figcaption class="caption">
-        <span class="key-measured">Measured</span>
-        <span class="key-projected">Where this is heading</span>
+        <span class="key-measured">{{ t('me.measured') }}</span>
+        <span class="key-projected">{{ t('me.whereHeading') }}</span>
       </figcaption>
     </figure>
 
@@ -122,7 +124,7 @@ const directionLine = computed(() => {
       {{ mirror.unitsSteady }} things now come back without you reaching for them.
     </p>
 
-    <p v-if="mirror.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="mirror.source === 'mock'" class="sample">{{ t('me.sampleDataNotReal') }}</p>
   </section>
 </template>
 

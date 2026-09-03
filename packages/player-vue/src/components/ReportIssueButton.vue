@@ -5,7 +5,7 @@
       :class="{ flagged: isFlagged, submitting: isSubmitting }"
       :disabled="isSubmitting"
       @click="flagPhrase"
-      title="Flag this phrase for review"
+      :title="t('report.flagPhraseReview')"
     >
       <svg viewBox="0 0 24 24" :fill="isFlagged ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
         <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
@@ -16,6 +16,8 @@
 </template>
 
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, inject, watch } from 'vue'
 
 const props = defineProps({

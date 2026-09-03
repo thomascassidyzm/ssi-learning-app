@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * StandingPanel — where you are among the people who started when you did.
  *
@@ -152,7 +154,7 @@ const cohortLine = computed(() => {
     <p v-if="showPercentage" class="hero">
       You are further along than
       <span class="hero-number">{{ standing.aheadOfPct }}%</span>
-      of them.
+      {{ t('me.them') }}
     </p>
 
     <!-- The strip: the cohort ordered from earliest to furthest, the middle
@@ -172,12 +174,12 @@ const cohortLine = computed(() => {
       <div class="strip-track">
         <div class="strip-middle" aria-hidden="true"></div>
         <div class="strip-marker" :style="{ left: markerPct + '%' }" aria-hidden="true">
-          <span class="strip-you">You</span>
+          <span class="strip-you">{{ t('me.you') }}</span>
         </div>
       </div>
       <div class="strip-ends" aria-hidden="true">
-        <span>just started</span>
-        <span>furthest along</span>
+        <span>{{ t('me.justStarted') }}</span>
+        <span>{{ t('me.furthestAlong') }}</span>
       </div>
     </div>
 
@@ -188,7 +190,7 @@ const cohortLine = computed(() => {
       anyone has spent in the app. It only ever goes up.
     </p>
 
-    <p v-if="isSample" class="sample">Sample data — not your real numbers.</p>
+    <p v-if="isSample" class="sample">{{ t('me.sampleDataNotReal2') }}</p>
   </section>
 </template>
 

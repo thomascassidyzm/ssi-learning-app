@@ -1932,12 +1932,12 @@ watch(
         class="view-tab"
         :class="{ active: view === 'pods' }"
         @click="setView('pods')"
-      >Dialogues</button>
+      >{{ t('listening.dialogues') }}</button>
       <button
         class="view-tab"
         :class="{ active: view === 'seeds' }"
         @click="setView('seeds')"
-      >Core</button>
+      >{{ t('listening.core') }}</button>
       <button
         class="view-tab"
         :class="{ active: view === 'phrases', disabled: isOffline }"
@@ -1945,7 +1945,7 @@ watch(
         :aria-disabled="isOffline"
         :title="isOffline ? 'All isn\'t included in offline downloads — connect to use it' : undefined"
         @click="setView('phrases')"
-      >All</button>
+      >{{ t('listening.all') }}</button>
     </div>
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
@@ -1956,13 +1956,13 @@ watch(
     >
       <div v-if="pods.isLoading.value" class="loading">
         <div class="loading-spinner"></div>
-        <p>Loading pods...</p>
+        <p>{{ t('listening.loadingPods') }}</p>
       </div>
       <div v-else-if="pods.error.value" class="error">
         <p>{{ pods.error.value }}</p>
       </div>
       <div v-else-if="pods.scenes.value.length === 0" class="scene-empty">
-        <p>No pods for this course yet.</p>
+        <p>{{ t('listening.noPodsCourseYet') }}</p>
       </div>
       <div v-else class="scene-list">
         <!-- Play all scenes end-to-end (Aran 2026-06-29) — opens scene 1 and
@@ -1971,7 +1971,7 @@ watch(
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <polygon points="7 3 20 12 7 21 7 3"/>
           </svg>
-          Play all scenes
+          {{ t('listening.playAllScenes') }}
         </button>
         <button
           v-for="scene in pods.scenes.value"
@@ -2079,7 +2079,7 @@ watch(
            fixed-pace caption (Drill's pace is fixed at 1×/2×/2×) — which also
            explains WHY there is no speed choice in that mode. -->
       <div v-if="showSpeedRow" class="speed-controls">
-        <span class="speed-label">Speed</span>
+        <span class="speed-label">{{ t('listening.speed') }}</span>
         <div class="speed-selector">
           <button
             v-for="speed in SPEED_OPTIONS"
@@ -2143,7 +2143,7 @@ watch(
          plainly (Tom, 2026-08-31) rather than presenting a list that can only
          play silence. -->
     <div v-else-if="offlineNothingListenable" class="error" @click.stop>
-      <p>None of this is saved on your device yet, so there's nothing to listen to offline. Connect once and download for offline to bring it with you.</p>
+      <p>{{ t('listening.noneSavedDeviceYet') }}</p>
     </div>
 
     <div v-else-if="(view === 'phrases' || view === 'seeds' || selectedScene) && error" class="error" @click.stop>
@@ -2278,7 +2278,7 @@ watch(
         <!-- Play/Pause indicator -->
         <div class="playback-hint" :class="{ playing: isPlaying }">
           <span v-if="isPlaying">{{ t('onboarding.tapToPause') }}</span>
-          <span v-else>Tap to play</span>
+          <span v-else>{{ t('listening.tapPlay') }}</span>
         </div>
       </div>
 

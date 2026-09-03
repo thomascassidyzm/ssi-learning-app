@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * CheckoutOverlay — the app-controlled host for the consumer Premium checkout.
  *
@@ -70,7 +72,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="checkout-close"
-            aria-label="Close checkout"
+            :aria-label="t('checkout.closeCheckout')"
             @click="closeCheckout"
           >✕</button>
         </header>

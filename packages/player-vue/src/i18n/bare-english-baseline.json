@@ -1,0 +1,226 @@
+{
+  "_readme": "Bare English left in learner-facing templates by the 2026-09-03 i18n sweep — text the sweep could not key mechanically because it is spliced around a {{ }} value, or broken across inline markup, or lives in a file outside the mint scope. It is real debt, listed honestly rather than hidden. THIS LIST MAY ONLY SHRINK: noBareEnglish.test.ts fails on an entry that no longer matches anything, so keying a string means deleting its line here. Never add a new string to this file — wire it, or allowlist it in untranslatable.ts with a reason.",
+  "files": {
+    "components/BrowseScreen.vue": [
+      "% of the way",
+      "Belt",
+      "No courses matching \" \"",
+      "for speakers",
+      "variants ▾"
+    ],
+    "components/CourseBrowser.vue": [
+      "Belt",
+      "Seeds"
+    ],
+    "components/CourseExplorer.vue": [
+      "All rounds loaded",
+      "BUILD-",
+      "CONSOLIDATE-",
+      "Course Overview",
+      "Generating full course script...",
+      "INTRO",
+      "LEGO",
+      "LEGOs",
+      "Learning Script",
+      "Loaded",
+      "Loading course...",
+      "QA Script",
+      "REVIEW-R",
+      "ROUND",
+      "Refresh from database",
+      "Reviews:",
+      "STOP",
+      "Script",
+      "Seed:",
+      "Summary",
+      "Total LEGOs",
+      "Total Seeds",
+      "View Full Script",
+      "View and play the complete learning journey. Click any phrase to start playback.",
+      "cached"
+    ],
+    "components/CourseSelector.vue": [
+      "No courses available yet for speakers.",
+      "No courses matching \" \"",
+      "for",
+      "variants"
+    ],
+    "components/FamilyManagementModal.vue": [
+      "Family is full ( seats including you).",
+      "of seats used (including you)",
+      "· Child account"
+    ],
+    "components/InAppBrowser.vue": [
+      "Open"
+    ],
+    "components/LearningPlayer.vue": [
+      "Belt",
+      "Clear cache + reload the latest build (dev only)",
+      "Connect to the internet and they'll unlock straight away — nothing is lost.",
+      "Delta:",
+      "Item: /",
+      "New version available — tap to update",
+      "Offline access lapsed on .",
+      "Pause: ms",
+      "Playback speed",
+      "Reset and reload latest build",
+      "Review of: LEGO",
+      "Round: /",
+      "Tap to update",
+      "Your 30-day free offline trial has ended. Your downloads are still",
+      "Your downloads need a quick online check to keep playing.",
+      "Your progress is fragile — sign in to save it",
+      "offline. You can always learn online for free.",
+      "saved — reconnect and subscribe (£15/month) to keep playing them"
+    ],
+    "components/ListeningOverlay.vue": [
+      "sentences"
+    ],
+    "components/PodStageAuditioner.vue": [
+      "Course",
+      "One sentence, all 10 stages — Stage-0's 5 tiers + Stages 1-9, each once.",
+      "Pod stage auditioner admin",
+      "Select a sentence on the left.",
+      "loading…",
+      "sentences",
+      "— no audio for this stage —"
+    ],
+    "components/ProgressModal.vue": [
+      "belt",
+      "you're in infinite play",
+      "you're working on",
+      "you've been as far as belt"
+    ],
+    "components/PronunciationOverlay.vue": [
+      "Harder",
+      "Next",
+      "phrases available (short → long)"
+    ],
+    "components/SessionComplete.vue": [
+      "You added minutes of today",
+      "items"
+    ],
+    "components/SettingsScreen.vue": [
+      "App version · MB downloaded for offline",
+      "Ends — you keep access until then",
+      "Enter the code sent to",
+      "Renews",
+      "Reset ?",
+      "Stay Premium until , then stop",
+      "You'll stay on Premium until , then it ends and you won't be charged again. You can re-subscribe any time.",
+      "You're not signed in, so your progress on this device isn't backed up. Clearing now will reset it.",
+      "Your offline downloads (~ MB) will be removed — you'll need to download them again over the internet.",
+      "belt",
+      "min practiced",
+      "seeds learned"
+    ],
+    "components/TesterFeedback.vue": [
+      "Any extra detail... (optional)",
+      "Attach screenshot",
+      "Preview",
+      "Remove screenshot",
+      "Report feedback",
+      "Screenshot preview",
+      "Send Feedback",
+      "Thanks! We'll look into this.",
+      "What happened?"
+    ],
+    "components/auth/SignInModal.vue": [
+      "Didn't receive the code?",
+      "Don't have a code?",
+      "Still nothing? School email filters often block these codes outright.",
+      "Still stuck? Email admin@saysomethingin.com .",
+      "Try entering a personal email address instead — you can add your school",
+      "email later — or ask whoever sent your invite to re-share the link."
+    ],
+    "components/learner/SessionMirror.vue": [
+      "% faster"
+    ],
+    "components/me/AdherencePanel.vue": [
+      "minutes listening",
+      "minutes speaking"
+    ],
+    "components/me/CyclePillFigure.vue": [
+      "One go, as it looks on the player screen: you hear the phrase, then the",
+      "voices say it properly.",
+      "wide middle stretch is your turn to say it out loud, then two different"
+    ],
+    "components/me/MirrorPanel.vue": [
+      "things now come back without you reaching for them."
+    ],
+    "components/me/PlanPanel.vue": [
+      "Thirty hours is the stretch that matters. How you climb it is completely up to you — same",
+      "mountain, different routes up."
+    ],
+    "components/me/PortraitPanel.vue": [
+      "This is our best guess, not a test — worked out from how hard the material has got",
+      "and how it is going for you at that level. It is not something you can pass or fail.",
+      "somewhere between and"
+    ],
+    "components/me/StandingPanel.vue": [
+      "This compares how far through the course people have got — not how long",
+      "You are further along than",
+      "anyone has spent in the app. It only ever goes up."
+    ],
+    "components/shared/UpdatedStamp.vue": [
+      "Updated"
+    ],
+    "views/BoardSnapshotView.vue": [
+      "Board report —",
+      "Frozen — a dated snapshot, not a live view.",
+      "It may have been revoked, or the link may be mistyped.",
+      "Loading…",
+      "This board report link is no longer available."
+    ],
+    "views/InstallGuide.vue": [
+      "It's at the",
+      "Redirecting in s...",
+      "Scroll down and tap \"Add to Home Screen\"",
+      "Tap \"Add to Home screen\"",
+      "Tap \"Add\"",
+      "Tap \"Add\" in the top right",
+      "Tap Share",
+      "Tap the Share button",
+      "Tap the menu",
+      "That's it! Open SaySomethingin from your home screen."
+    ],
+    "views/JoinWithCode.vue": [
+      "Codes last two days and work once. If yours has run out, whoever gave",
+      "Someone at your school made you an access code. Type it in below",
+      "it to you can make another straight away.",
+      "no email, no waiting."
+    ],
+    "views/RedeemCode.vue": [
+      "An account already exists for .",
+      "Continue as",
+      "Didn't get the code?",
+      "If your school email never delivers our codes, ask whoever runs your",
+      "Prefer to verify with an emailed code first?",
+      "Still nothing? School email filters often block these codes outright.",
+      "Still stuck? Email admin@saysomethingin.com .",
+      "Try entering a personal email address instead — you can add your school",
+      "You're signed in as",
+      "Your link is fine — a lot of people have opened it from here in the last few",
+      "email later — or ask whoever sent your invite to re-share the link.",
+      "minutes. Wait a few minutes and open it again.",
+      "school s account to open Teachers and tap Access code",
+      "— you won't need to wait for anything. Still stuck? Email"
+    ],
+    "views/onboarding/Onboarding.vue": [
+      "A couple of details (optional)",
+      "Continuing as",
+      "Enter the 6-digit code we sent to .",
+      "Free for days",
+      "Free until . No card needed to start.",
+      "No languages match “ ”.",
+      "One code stands between you and",
+      "Still nothing? School email filters often block these codes outright.",
+      "Still stuck? Email admin@saysomethingin.com .",
+      "Try entering a personal email address instead — you can add your school",
+      "We couldn't load the language list.",
+      "Welcome. is yours to begin.",
+      "email later — or ask whoever sent your invite to re-share the link.",
+      "is ready"
+    ]
+  }
+}

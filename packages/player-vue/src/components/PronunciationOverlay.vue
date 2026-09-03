@@ -659,7 +659,7 @@ onUnmounted(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          Easier
+          {{ t('pronunciation.easier') }}
         </button>
         <div class="difficulty-dots">
           <span
@@ -701,7 +701,7 @@ onUnmounted(() => {
     <!-- Loading State -->
     <div v-if="isLoading" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading phrases...</p>
+      <p>{{ t('pronunciation.loadingPhrases') }}</p>
     </div>
 
     <!-- Error State -->
@@ -790,7 +790,7 @@ onUnmounted(() => {
             <polyline points="18 15 12 9 6 15"/>
           </svg>
         </div>
-        <p>Tap play to start</p>
+        <p>{{ t('pronunciation.tapPlayStart') }}</p>
         <p class="phrase-count">{{ totalCount }} phrases available (short → long)</p>
       </div>
     </div>

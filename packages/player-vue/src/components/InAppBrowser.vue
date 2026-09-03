@@ -86,7 +86,7 @@ onBeforeUnmount(() => {
     <div class="iab-body">
       <!-- The honest degradation. Never a silent blank sheet. -->
       <div v-if="loadFailed && !frameLoaded" class="iab-fallback">
-        <p class="iab-fallback-line">This one opens in your browser.</p>
+        <p class="iab-fallback-line">{{ t('common.oneOpensBrowser') }}</p>
         <button type="button" class="iab-fallback-btn" @click="escapeToBrowser">
           Open {{ hostLabel(target.url) }}
         </button>

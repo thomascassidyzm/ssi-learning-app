@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * ProfileView — the learner's motivation/profile surface. Founder-commissioned
  * design build, 2026-08-03.
@@ -68,13 +70,13 @@ onMounted(() => {
 <template>
   <div class="me">
     <header class="head">
-      <h1 class="head-title">You</h1>
+      <h1 class="head-title">{{ t('me.you') }}</h1>
       <p v-if="hasMock" class="head-note">
-        Some of this is sample data while your own numbers build up. It says so where it applies.
+        {{ t('profile.someSampleDataWhile') }}
       </p>
     </header>
 
-    <div v-if="loading && !profile" class="loading">Just a moment…</div>
+    <div v-if="loading && !profile" class="loading">{{ t('profile.justMoment') }}</div>
 
     <template v-else-if="profile">
       <AdherencePanel :adherence="profile.adherence" />
@@ -96,7 +98,7 @@ onMounted(() => {
     </template>
 
     <footer class="foot">
-      <router-link to="/" class="foot-link">Back to learning</router-link>
+      <router-link to="/" class="foot-link">{{ t('profile.backLearning') }}</router-link>
     </footer>
   </div>
 </template>

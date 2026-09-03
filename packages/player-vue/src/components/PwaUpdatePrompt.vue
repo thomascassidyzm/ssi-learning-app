@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * PwaUpdatePrompt — Banner shown when a new service worker is waiting.
  *
@@ -175,21 +177,21 @@ onUnmounted(() => {
     <Transition name="slide-down">
       <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
         <div v-if="reloadWedged" class="pwa-update-content">
-          <span class="pwa-update-text">Update ready</span>
+          <span class="pwa-update-text">{{ t('update.updateReady') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-button" @click.stop="onRelaunch">
-              Tap to relaunch
+              {{ t('update.tapRelaunch') }}
             </button>
           </div>
         </div>
         <div v-else class="pwa-update-content">
-          <span class="pwa-update-text">New version available</span>
+          <span class="pwa-update-text">{{ t('update.newVersionAvailable') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-dismiss" @click.stop="onDismiss">
-              Later
+              {{ t('update.later') }}
             </button>
             <button class="pwa-update-button" @click.stop="onUpdate">
-              Update
+              {{ t('update.update') }}
             </button>
           </div>
         </div>

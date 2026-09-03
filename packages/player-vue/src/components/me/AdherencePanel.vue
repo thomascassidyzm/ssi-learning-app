@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * AdherencePanel — LAYER 1 of the learner profile: celebrate showing up.
  *
@@ -33,7 +35,7 @@ const greeting = computed(() => {
 
     <div class="hero">
       <span class="hero-number">{{ adherence.goesThisWeek.toLocaleString() }}</span>
-      <span class="hero-label">goes this week</span>
+      <span class="hero-label">{{ t('me.goesWeek') }}</span>
     </div>
 
     <p class="detail">
@@ -43,10 +45,10 @@ const greeting = computed(() => {
     </p>
 
     <p class="footnote">
-      A go is one time you opened your mouth and had a crack at it. That is the whole game.
+      {{ t('me.goOneTimeOpened') }}
     </p>
 
-    <p v-if="adherence.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="adherence.source === 'mock'" class="sample">{{ t('me.sampleDataNotReal') }}</p>
   </section>
 </template>
 

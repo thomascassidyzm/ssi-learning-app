@@ -436,8 +436,8 @@ onMounted(() => {
     <!-- Header -->
     <div class="browse-header">
       <div class="header-spacer" />
-      <h1 class="browse-title">Library</h1>
-      <button class="close-btn" @click="emit('close')" aria-label="Close library">&#x2715;</button>
+      <h1 class="browse-title">{{ t('nav.library') }}</h1>
+      <button class="close-btn" @click="emit('close')" :aria-label="t('browse.closeLibrary')">&#x2715;</button>
     </div>
 
     <div class="browse-content">
@@ -451,8 +451,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="guest-auth-text">
-          <span class="guest-auth-title">Your progress is fragile</span>
-          <span class="guest-auth-subtitle">Sign in to save it</span>
+          <span class="guest-auth-title">{{ t('browse.progressFragile') }}</span>
+          <span class="guest-auth-subtitle">{{ t('browse.signSave') }}</span>
         </div>
         <svg class="guest-auth-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -469,8 +469,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Organisation Dashboard</span>
-          <span class="schools-link-subtitle">Your people, invites & progress</span>
+          <span class="schools-link-title">{{ t('browse.organisationDashboard') }}</span>
+          <span class="schools-link-subtitle">{{ t('browse.peopleInvitesProgress') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -487,7 +487,7 @@ onMounted(() => {
         </div>
         <div class="schools-link-text">
           <span class="schools-link-title">{{ t('settings.schoolsDashboard') }}</span>
-          <span class="schools-link-subtitle">Classes, students & analytics</span>
+          <span class="schools-link-subtitle">{{ t('browse.classesStudentsAnalytics') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -503,8 +503,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Tutor Dashboard</span>
-          <span class="schools-link-subtitle">Your classes & learners</span>
+          <span class="schools-link-title">{{ t('browse.tutorDashboard') }}</span>
+          <span class="schools-link-subtitle">{{ t('browse.classesLearners') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
@@ -560,7 +560,7 @@ onMounted(() => {
 
           <!-- Chevron -->
           <div class="card-action" data-walk="library-belt-browser">
-            <span class="card-action-label">View Belts</span>
+            <span class="card-action-label">{{ t('browse.viewBelts') }}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -595,7 +595,7 @@ onMounted(() => {
 
       <!-- ── Section 3: Activity ── -->
       <section class="section">
-        <h3 class="section-label">Activity</h3>
+        <h3 class="section-label">{{ t('browse.activity') }}</h3>
         <!-- Column count follows the tile count: the spoken-phrases tile is
              absent whenever the mic isn't listening, and a fixed 3-column grid
              would leave a hole where it used to be. -->
@@ -626,7 +626,7 @@ onMounted(() => {
               </svg>
             </div>
             <div class="stat-value">{{ phrasesLearnt }}</div>
-            <div class="stat-label">Phrases learnt</div>
+            <div class="stat-label">{{ t('browse.phrasesLearnt') }}</div>
           </div>
 
           <div v-if="showPhrasesSpoken" class="stat-card" data-walk="library-stat-phrases">
@@ -637,14 +637,14 @@ onMounted(() => {
               </svg>
             </div>
             <div class="stat-value">{{ totalPhrasesSpoken }}</div>
-            <div class="stat-label">Phrases spoken</div>
+            <div class="stat-label">{{ t('browse.phrasesSpoken') }}</div>
           </div>
         </div>
       </section>
 
       <!-- ── Section 4: All Courses ── -->
       <section class="section">
-        <h3 class="section-label">All Courses</h3>
+        <h3 class="section-label">{{ t('browse.allCourses') }}</h3>
 
         <!-- Search -->
         <input
@@ -652,7 +652,7 @@ onMounted(() => {
           type="text"
           class="course-search-input"
           data-walk="library-course-search"
-          placeholder="Search any language..."
+          :placeholder="t('browse.searchAnyLanguage')"
           autocomplete="off"
         />
 
@@ -682,14 +682,14 @@ onMounted(() => {
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                   </svg>
                 </div>
-                <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">Premium</div>
+                <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">{{ t('browse.premium') }}</div>
 
                 <LanguageFlag :code="group.courses[0].course_code || group.courses[0].target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
                 <span class="course-for">for {{ group.forLabel }} speakers</span>
 
                 <span class="course-status">
-                  <template v-if="isPreviewOnly(group.courses[0])">Try free →</template>
+                  <template v-if="isPreviewOnly(group.courses[0])">{{ t('browse.tryFree') }}</template>
                   <template v-else-if="isEnrolled(group.courses[0].course_code)">
                     <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                     {{ getProgress(group.courses[0].course_code) }}
@@ -725,7 +725,7 @@ onMounted(() => {
                 >
                   <LanguageFlag :code="course.course_code" :size="18" />
                   <span class="variant-name">{{ getVariantLabel(course) || courseTargetName(course) }}</span>
-                  <span v-if="isPreviewOnly(course)" class="course-status">Try free →</span>
+                  <span v-if="isPreviewOnly(course)" class="course-status">{{ t('browse.tryFree') }}</span>
                   <span v-else-if="isEnrolled(course.course_code)" class="course-status"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</span>
                 </button>
               </div>
@@ -737,8 +737,8 @@ onMounted(() => {
       <!-- ── 'Anyone Can Teach' — card-free path into tutoring ── -->
       <button v-if="canBecomeTeacher" class="become-teacher" @click="goToBecomeTeacher">
         <span class="become-teacher-text">
-          <span class="become-teacher-title">Teach with SaySomethingin</span>
-          <span class="become-teacher-subtitle">Anyone can teach — share the language you're learning</span>
+          <span class="become-teacher-title">{{ t('browse.teachSaysomethingin') }}</span>
+          <span class="become-teacher-subtitle">{{ t('browse.anyoneCanTeachShare') }}</span>
         </span>
         <svg class="become-teacher-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>

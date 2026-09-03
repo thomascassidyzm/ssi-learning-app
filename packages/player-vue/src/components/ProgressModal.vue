@@ -420,8 +420,8 @@ onUnmounted(() => {
                   class="map-chip map-chip--infplay"
                   :class="{ 'map-chip--current': isInfplay, 'is-skipping': isSkipping }"
                   :disabled="isSkipping"
-                  title="Infinite play — random review of everything you've learned"
-                  aria-label="Infinite play: random review of everything you've learned"
+                  :title="t('progress.infinitePlayRandomReview')"
+                  :aria-label="t('progress.infinitePlayRandomReview2')"
                   @click="handleInfPlayClick"
                 >
                   <svg class="map-chip-inf-glyph" viewBox="0 0 24 24" fill="none"

@@ -354,7 +354,7 @@ const handleSectorToggle = () => {
                 <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
                 <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
               </template>
-              <template v-else-if="offlineTrial">Free offline for 30 days</template>
+              <template v-else-if="offlineTrial">{{ t('modes.freeOfflineDays') }}</template>
               <template v-else>{{ t('modes.offlineDesc') }}</template>
             </span>
           </div>

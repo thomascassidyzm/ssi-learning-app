@@ -58,9 +58,9 @@ const { t } = useI18n()
       </div>
     </div>
     <div class="cpf-labels" aria-hidden="true">
-      <span class="cpf-label cpf-label--prompt">you hear it</span>
+      <span class="cpf-label cpf-label--prompt">{{ t('me.hear') }}</span>
       <span class="cpf-label cpf-label--pause">{{ t('driving.yourTurn') }}</span>
-      <span class="cpf-label cpf-label--voices">then twice, properly</span>
+      <span class="cpf-label cpf-label--voices">{{ t('me.thenTwiceProperly') }}</span>
     </div>
     <figcaption class="cpf-caption">
       One go, as it looks on the player screen: you hear the phrase, then the

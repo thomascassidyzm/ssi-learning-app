@@ -1456,7 +1456,7 @@ const confirmReset = async () => {
             </div>
           </div>
           <p class="reset-desc">
-            This will clear all progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.
+            {{ t('settings.willClearAllProgress') }}
           </p>
           <p v-if="resetError" class="reset-error">{{ resetError }}</p>
           <p v-if="resetSuccess" class="reset-success">{{ t('settings.progressReset') }}</p>
@@ -1481,12 +1481,12 @@ const confirmReset = async () => {
               <path d="M12 19V5M5 12l7-7 7 7"/>
             </svg>
           </div>
-          <h3 class="reset-title">Move to your furthest point?</h3>
+          <h3 class="reset-title">{{ t('settings.moveFurthestPoint') }}</h3>
           <p class="reset-desc">
             {{ recoverConfirmText }}
           </p>
           <p v-if="recoverError" class="reset-error">{{ recoverError }}</p>
-          <p v-if="recoverSuccess" class="reset-success">Position recovered!</p>
+          <p v-if="recoverSuccess" class="reset-success">{{ t('settings.positionRecovered') }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelRecover" :disabled="isRecovering">
               {{ t('settings.cancel') }}
@@ -1508,20 +1508,20 @@ const confirmReset = async () => {
               <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
             </svg>
           </div>
-          <h3 class="reset-title">Clear cache and reload?</h3>
+          <h3 class="reset-title">{{ t('settings.clearCacheReload2') }}</h3>
           <p class="reset-desc">
-            This clears the app's stored data and reloads from scratch. It fixes most audio and loading problems, and you'll stay signed in.
+            {{ t('settings.clearsAppsStoredData') }}
           </p>
           <p v-if="offlineMb > 0" class="clear-warn">
             Your offline downloads (~{{ offlineMb }} MB) will be removed — you'll need to download them again over the internet.
           </p>
           <div v-if="isGuestLearner" class="clear-warn clear-warn--guest">
             You're not signed in, so your progress on this device isn't backed up. Clearing now will reset it.
-            <button class="clear-account-btn" @click="createAccountFromClear">Create a free account to keep it</button>
+            <button class="clear-account-btn" @click="createAccountFromClear">{{ t('settings.createFreeAccountKeep') }}</button>
           </div>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelClearConfirm">{{ t('settings.cancel') }}</button>
-            <button class="reset-btn reset-btn--confirm" @click="confirmClearCache">Clear cache</button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmClearCache">{{ t('settings.clearCache') }}</button>
           </div>
         </div>
       </div>
@@ -1543,7 +1543,7 @@ const confirmReset = async () => {
               <span class="fix-step-label">{{ step.label }}</span>
             </li>
           </ul>
-          <p v-if="fixSteps.length && fixSteps.every(s => s.status === 'done')" class="fix-reloading">Reloading…</p>
+          <p v-if="fixSteps.length && fixSteps.every(s => s.status === 'done')" class="fix-reloading">{{ t('settings.reloading') }}</p>
           <p v-if="fixNote" class="fix-note">{{ fixNote }}</p>
         </div>
       </div>
@@ -1562,10 +1562,10 @@ const confirmReset = async () => {
           </div>
           <h3 class="reset-title">{{ t('settings.deleteConfirm') }}</h3>
           <p class="reset-desc">
-            This will permanently delete your account and all your learning progress across all courses. This action cannot be undone.
+            {{ t('settings.willPermanentlyDeleteAccount') }}
           </p>
           <div class="delete-confirm-field">
-            <label class="inline-label">Type DELETE to confirm</label>
+            <label class="inline-label">{{ t('settings.typeDeleteConfirm') }}</label>
             <input
               v-model="deleteConfirmInput"
               type="text"
@@ -1591,14 +1591,14 @@ const confirmReset = async () => {
     <Transition name="fade">
       <div v-if="showCancelConfirm" class="reset-overlay">
         <div class="reset-dialog">
-          <h3 class="reset-title">Cancel subscription?</h3>
+          <h3 class="reset-title">{{ t('settings.cancelSubscription2') }}</h3>
           <p class="reset-desc">
             You'll stay on Premium until {{ subscriptionEndsAt || 'the end of your current period' }}, then it ends and you won't be charged again. You can re-subscribe any time.
           </p>
           <p v-if="cancelError" class="reset-error">{{ cancelError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="dismissCancelConfirm" :disabled="isCancelling">
-              Keep Premium
+              {{ t('settings.keepPremium') }}
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmCancel" :disabled="isCancelling">
               {{ isCancelling ? 'Cancelling...' : 'Cancel subscription' }}
@@ -1615,7 +1615,7 @@ const confirmReset = async () => {
         <h1 class="title">{{ t('settings.title') }}</h1>
         <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
       </div>
-      <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
+      <button class="close-btn" @click="emit('close')" :aria-label="t('settings.closeSettings')">✕</button>
     </header>
 
     <!-- Main Content -->
@@ -1635,8 +1635,8 @@ const confirmReset = async () => {
           <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
         </span>
         <span class="build-card-action">
-          <span v-if="showUpdateBadge" class="build-update-badge">Update available</span>
-          <span v-else class="build-update-hint">Tap to update</span>
+          <span v-if="showUpdateBadge" class="build-update-badge">{{ t('settings.updateAvailable') }}</span>
+          <span v-else class="build-update-hint">{{ t('settings.tapUpdate') }}</span>
           <svg class="build-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
       </button>
@@ -1657,7 +1657,7 @@ const confirmReset = async () => {
             <!-- "In the latest version" marker — only on the newest note, only when
                  it describes a build the user doesn't have yet. -->
             <p v-if="note.id === latestNote?.id && noteIndicatesNewer" class="whats-new-newer">
-              ✦ In the latest version — tap the version above to update.
+              {{ t('settings.latestVersionTapVersion') }}
             </p>
             <ul class="whats-new-bullets">
               <li v-for="(bullet, bi) in visibleBullets(note)" :key="bi">{{ bullet }}</li>
@@ -1679,7 +1679,7 @@ const confirmReset = async () => {
       </section>
       <section v-else-if="notesLoading" class="section whats-new">
         <h3 class="section-title">{{ t('settings.whatsNew') }}</h3>
-        <div class="card whats-new-loading">Loading…</div>
+        <div class="card whats-new-loading">{{ t('settings.loading') }}</div>
       </section>
 
       <!-- Account Section (guest - not signed in) -->
@@ -1713,17 +1713,17 @@ const confirmReset = async () => {
           <!-- Display Name inline form -->
           <div v-if="showDisplayNameForm" class="inline-form">
             <div class="inline-form-field">
-              <label class="inline-label">Display name</label>
+              <label class="inline-label">{{ t('settings.displayName') }}</label>
               <input
                 v-model="displayNameInput"
                 type="text"
                 class="inline-input"
-                placeholder="Your name"
+                :placeholder="t('settings.name')"
                 autocomplete="name"
               />
             </div>
             <div v-if="displayNameError" class="inline-error">{{ displayNameError }}</div>
-            <div v-if="displayNameSuccess" class="inline-success">Name saved</div>
+            <div v-if="displayNameSuccess" class="inline-success">{{ t('settings.nameSaved') }}</div>
             <button
               class="inline-save-btn"
               :disabled="isSavingDisplayName || !displayNameInput.trim()"
@@ -1749,27 +1749,27 @@ const confirmReset = async () => {
           <!-- Password inline form -->
           <div v-if="showPasswordForm" class="inline-form">
             <div class="inline-form-field">
-              <label class="inline-label">New password</label>
+              <label class="inline-label">{{ t('settings.newPassword') }}</label>
               <input
                 v-model="passwordInput"
                 type="password"
                 class="inline-input"
-                placeholder="At least 6 characters"
+                :placeholder="t('settings.leastCharacters')"
                 autocomplete="new-password"
               />
             </div>
             <div class="inline-form-field">
-              <label class="inline-label">Confirm password</label>
+              <label class="inline-label">{{ t('settings.confirmPassword') }}</label>
               <input
                 v-model="passwordConfirm"
                 type="password"
                 class="inline-input"
-                placeholder="Type it again"
+                :placeholder="t('settings.typeAgain')"
                 autocomplete="new-password"
               />
             </div>
             <div v-if="passwordError" class="inline-error">{{ passwordError }}</div>
-            <div v-if="passwordSuccess" class="inline-success">Password saved</div>
+            <div v-if="passwordSuccess" class="inline-success">{{ t('settings.passwordSaved') }}</div>
             <button
               class="inline-save-btn"
               :disabled="isSavingPassword || !passwordInput || !passwordConfirm"
@@ -1796,7 +1796,7 @@ const confirmReset = async () => {
               <!-- Outcome shown HERE, at the button that was pressed. The form
                    itself is below a collapsed section and off-screen on a phone. -->
               <span v-if="verifyingPrimary && addEmailError" class="setting-status error">{{ addEmailError }}</span>
-              <span v-else-if="verifyingPrimary && addEmailStep === 'otp'" class="setting-status">Code sent — enter it below</span>
+              <span v-else-if="verifyingPrimary && addEmailStep === 'otp'" class="setting-status">{{ t('settings.codeSentEnterBelow') }}</span>
             </div>
             <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
               {{ isSendingOtp ? 'Sending...' : 'Add email' }}
@@ -1822,7 +1822,7 @@ const confirmReset = async () => {
             <div v-if="verifiedEmails.length" class="verified-emails-list">
               <div v-for="em in verifiedEmails" :key="em" class="verified-email-item">
                 <span class="verified-email-text">{{ em }}</span>
-                <span v-if="em === primaryEmail" class="verified-email-badge">primary</span>
+                <span v-if="em === primaryEmail" class="verified-email-badge">{{ t('settings.primary') }}</span>
               </div>
             </div>
 
@@ -1863,7 +1863,7 @@ const confirmReset = async () => {
                 />
               </div>
               <div v-if="addEmailError" class="inline-error">{{ addEmailError }}</div>
-              <div v-if="addEmailSuccess" class="inline-success">Email verified and linked</div>
+              <div v-if="addEmailSuccess" class="inline-success">{{ t('settings.emailVerifiedLinked') }}</div>
               <button
                 class="inline-save-btn"
                 :disabled="isVerifyingOtp || addEmailOtp.length < 6"
@@ -1878,7 +1878,7 @@ const confirmReset = async () => {
           <div class="divider"></div>
           <div class="setting-row clickable sign-out-row" @click="handleSignOut">
             <div class="setting-info">
-              <span class="setting-label sign-out-label">Sign Out</span>
+              <span class="setting-label sign-out-label">{{ t('settings.signOut') }}</span>
             </div>
             <svg class="sign-out-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -1900,8 +1900,8 @@ const confirmReset = async () => {
             @click="router.push(orgDashboardPath)"
           >
             <div class="setting-info">
-              <span class="setting-label">Organisation Dashboard</span>
-              <span class="setting-desc">Your people, invites and progress</span>
+              <span class="setting-label">{{ t('browse.organisationDashboard') }}</span>
+              <span class="setting-desc">{{ t('settings.peopleInvitesProgress') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -1914,7 +1914,7 @@ const confirmReset = async () => {
           <div v-if="showSchoolsLink" class="setting-row clickable" @click="router.push('/schools')">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.schoolsDashboard') }}</span>
-              <span class="setting-desc">Manage your classes and students</span>
+              <span class="setting-desc">{{ t('settings.manageClassesStudents') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -1926,8 +1926,8 @@ const confirmReset = async () => {
           <!-- Admin Dashboard -->
           <div v-if="hasAdminRole" class="setting-row clickable" @click="router.push('/admin')">
             <div class="setting-info">
-              <span class="setting-label">Admin Dashboard</span>
-              <span class="setting-desc">Platform users, activity, and course analytics</span>
+              <span class="setting-label">{{ t('settings.adminDashboard') }}</span>
+              <span class="setting-desc">{{ t('settings.platformUsersActivityCourse') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -1976,12 +1976,12 @@ const confirmReset = async () => {
 
       <!-- Practice Modes Section -->
       <section class="section">
-        <h3 v-if="isTester" class="section-title">Speed</h3>
+        <h3 v-if="isTester" class="section-title">{{ t('listening.speed') }}</h3>
         <div v-if="isTester" class="card">
           <div class="setting-row">
             <div class="setting-info">
-              <span class="setting-label">Learning Speed</span>
-              <span class="setting-desc">Adjust how fast target language audio plays. Does not affect your known language.</span>
+              <span class="setting-label">{{ t('settings.learningSpeed') }}</span>
+              <span class="setting-desc">{{ t('settings.adjustHowFastTarget') }}</span>
             </div>
           </div>
           <div class="speed-options">
@@ -2009,7 +2009,7 @@ const confirmReset = async () => {
             <div class="setting-row clickable" @click="emit('openExplorer')">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.viewScriptLabel') }}</span>
-                <span class="setting-desc">Browse course rounds and lego sequences</span>
+                <span class="setting-desc">{{ t('settings.browseCourseRoundsLego') }}</span>
               </div>
               <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -2026,7 +2026,7 @@ const confirmReset = async () => {
             <div class="setting-row clickable" @click="toggleQaMode">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.qaMode') }}</span>
-                <span class="setting-desc">Flag phrases that don't sound right. Feedback goes directly to the content team.</span>
+                <span class="setting-desc">{{ t('settings.flagPhrasesDontSound') }}</span>
               </div>
               <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
                 <div class="toggle-track">
@@ -2043,8 +2043,8 @@ const confirmReset = async () => {
                View Script and QA Mode are hidden. -->
           <div class="setting-row clickable" @click="toggleAdaptation">
             <div class="setting-info">
-              <span class="setting-label">Personalised pacing</span>
-              <span class="setting-desc">Uses your microphone to detect when you speak, adapting pause lengths to your rhythm. No audio is recorded or stored.</span>
+              <span class="setting-label">{{ t('settings.personalisedPacing') }}</span>
+              <span class="setting-desc">{{ t('settings.usesMicrophoneDetectWhen') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableAdaptation }">
               <div class="toggle-track">
@@ -2063,7 +2063,7 @@ const confirmReset = async () => {
           <div class="setting-row" v-if="!showJoinCode">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.enterACode') }}</span>
-              <span class="setting-desc">Enter an invite or access code</span>
+              <span class="setting-desc">{{ t('settings.enterInviteAccessCode') }}</span>
             </div>
             <button class="text-btn" @click="showJoinCode = true">{{ t('settings.enterCode') }}</button>
           </div>
@@ -2114,8 +2114,8 @@ const confirmReset = async () => {
           <template v-if="isFamilyMember">
             <div class="setting-row">
               <div class="setting-info">
-                <span class="setting-label">SSi Family</span>
-                <span class="setting-desc">Covered by your family plan</span>
+                <span class="setting-label">{{ t('settings.ssiFamily') }}</span>
+                <span class="setting-desc">{{ t('settings.coveredByFamilyPlan') }}</span>
               </div>
             </div>
           </template>
@@ -2127,7 +2127,7 @@ const confirmReset = async () => {
                 <span class="setting-desc">
                   <template v-if="isCancelScheduled">Ends {{ subscriptionEndsAt }} — you keep access until then</template>
                   <template v-else-if="subscriptionEndsAt">Renews {{ subscriptionEndsAt }}</template>
-                  <template v-else>Active</template>
+                  <template v-else>{{ t('settings.active') }}</template>
                 </span>
               </div>
             </div>
@@ -2136,8 +2136,8 @@ const confirmReset = async () => {
               <div class="divider"></div>
               <div class="setting-row clickable" @click="showFamilyModal = true">
                 <div class="setting-info">
-                  <span class="setting-label">Manage family</span>
-                  <span class="setting-desc">Add or remove members, up to 6 accounts</span>
+                  <span class="setting-label">{{ t('settings.manageFamily') }}</span>
+                  <span class="setting-desc">{{ t('settings.addRemoveMembersUp') }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>
@@ -2174,7 +2174,7 @@ const confirmReset = async () => {
             <div class="setting-row clickable" @click="goPremium">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.goPremium') }}</span>
-                <span class="setting-desc">£15/month — unlimited access to all languages</span>
+                <span class="setting-desc">{{ t('settings.monthUnlimitedAccessAll') }}</span>
               </div>
               <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
@@ -2184,8 +2184,8 @@ const confirmReset = async () => {
               <div class="divider"></div>
               <div class="setting-row clickable" @click="goFamily">
                 <div class="setting-info">
-                  <span class="setting-label">Go Family</span>
-                  <span class="setting-desc">£25/month — up to 6 accounts, everyone's own progress</span>
+                  <span class="setting-label">{{ t('settings.goFamily') }}</span>
+                  <span class="setting-desc">{{ t('settings.monthUpAccountsEveryones') }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>
@@ -2215,7 +2215,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable danger" @click="handleDeleteClick" v-if="isSignedIn">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.deleteAccount') }}</span>
-              <span class="setting-desc">Permanently delete your account and all data</span>
+              <span class="setting-desc">{{ t('settings.permanentlyDeleteAccountAll') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -2232,7 +2232,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable" @click="toggleViewScript">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.viewScriptLabel') }}</span>
-              <span class="setting-desc">Show script browser in Tools section</span>
+              <span class="setting-desc">{{ t('settings.showScriptBrowserTools') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
               <div class="toggle-track">
@@ -2246,7 +2246,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable" @click="toggleDebugOverlay">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.debugOverlay') }}</span>
-              <span class="setting-desc">Show phase, round, and LEGO info on screen</span>
+              <span class="setting-desc">{{ t('settings.showPhaseRoundLego') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showDebugOverlay }">
               <div class="toggle-track">
@@ -2273,8 +2273,8 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable" @click="toggleListeningAudit">
             <div class="setting-info">
-              <span class="setting-label">Listening Progression Audit</span>
-              <span class="setting-desc">Add a "Progression" mode to Listening → Dialogues that walks each line through all 9 acquisition stages, live from the Popty listening config</span>
+              <span class="setting-label">{{ t('settings.listeningProgressionAudit') }}</span>
+              <span class="setting-desc">{{ t('settings.addProgressionModeListening') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showListeningAudit }">
               <div class="toggle-track">
@@ -2288,8 +2288,8 @@ const confirmReset = async () => {
           <!-- UI Visibility -->
           <div class="setting-row clickable" @click="toggleFragileProgressWarning">
             <div class="setting-info">
-              <span class="setting-label">Fragile Progress Warning</span>
-              <span class="setting-desc">Show "progress is fragile" banner for guests</span>
+              <span class="setting-label">{{ t('settings.fragileProgressWarning2') }}</span>
+              <span class="setting-desc">{{ t('settings.showProgressFragileBanner') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showFragileProgressWarning }">
               <div class="toggle-track">
@@ -2306,9 +2306,9 @@ const confirmReset = async () => {
                poll, so the toggle state itself is the whole verdict. -->
           <div v-if="testDoorsAllowed" class="setting-row clickable" @click="togglePractisingOverride">
             <div class="setting-info">
-              <span class="setting-label">Practising Mode (test)</span>
-              <span class="setting-desc">While this is on you will only get material you have already met — no new LEGOs. Turn it off to resume new material. Resets itself when the app restarts.</span>
-              <span v-if="simulatePractisingOverride" class="setting-verdict is-engaged">Practising mode is ON — only already-met material is playing.</span>
+              <span class="setting-label">{{ t('settings.practisingModeTest') }}</span>
+              <span class="setting-desc">{{ t('settings.whileWillOnlyGet') }}</span>
+              <span v-if="simulatePractisingOverride" class="setting-verdict is-engaged">{{ t('settings.practisingModeOnlyAlready') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': simulatePractisingOverride }">
               <div class="toggle-track">
@@ -2338,7 +2338,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable" @click="handleUpdateToLatest">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.updateLatest') }}</span>
-              <span class="setting-desc">Reloads with the newest version. Your downloads and progress are kept.</span>
+              <span class="setting-desc">{{ t('settings.reloadsNewestVersionDownloads') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -2349,7 +2349,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable danger" @click="openClearConfirm">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.clearCacheReload') }}</span>
-              <span class="setting-desc">Fixes most audio and loading problems. You stay signed in.</span>
+              <span class="setting-desc">{{ t('settings.fixesMostAudioLoading') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -2386,7 +2386,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable" @click="router.push('/install')">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.installApp') }}</span>
-              <span class="setting-hint">Add to your home screen for faster, offline access</span>
+              <span class="setting-hint">{{ t('settings.addHomeScreenFaster') }}</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron">
               <path d="M9 18l6-6-6-6"/>
