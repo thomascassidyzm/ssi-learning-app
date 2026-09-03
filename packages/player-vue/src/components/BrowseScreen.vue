@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageEndonym, forSpeakersLabel } from '@/composables/useI18n'
+import { getLanguageName, getLanguageEndonym, forSpeakersLabel, useI18n } from '@/composables/useI18n'
 import { courseTargetName } from '@/utils/courseDisplayName'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
@@ -17,6 +17,7 @@ import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { hasTryEntitlement } from '@/composables/useEntitlement'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()

@@ -5,7 +5,7 @@ import { CyclePhase, dirFor } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { resolveIntroAudioUrl } from '../providers/resolveIntroAudioUrl'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
-import { getLanguageName } from '../composables/useI18n'
+import { getLanguageName, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 
 // ============================================================================
@@ -86,6 +86,8 @@ class ScriptAudioController {
     }
   }
 }
+
+const { t } = useI18n()
 
 const emit = defineEmits(['close'])
 
