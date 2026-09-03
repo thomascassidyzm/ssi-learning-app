@@ -197,3 +197,86 @@ describe('POST /api/player-events — event_type has no server-side allowlist', 
     expect(insertedRows[0].payload).toMatchObject({ peakEnergyDb: 999 })
   })
 })
+
+/**
+ * The same exception, reached through the REQUEST BODY instead of the cookie.
+ *
+ * A cookie does not cross an origin. Inside the Android WebView the API is a
+ * different origin and the requests are deliberately credential-free, so the
+ * cookie channel does not exist there at all — without this the class's own
+ * practice would silently attribute to the staff member driving it. The body
+ * field `acting_learner_id` carries the identical CLAIM and gets the identical
+ * authorisation: `isAuthorisedClassLearner` or nothing. Every refusal asserted
+ * for the cookie above is asserted again here, because a new channel into a
+ * privileged branch is exactly where an authz check gets forgotten.
+ */
+describe('POST /api/player-events — the same exception via acting_learner_id in the body', () => {
+  function bodyReq(actingLearnerId: string | undefined, cookieUserId?: string) {
+    return makeReq(
+      cookieUserId,
+      {
+        events: [{ event_type: 'course_load' }],
+        ...(actingLearnerId ? { acting_learner_id: actingLearnerId } : {}),
+      },
+      'Bearer good-token',
+    )
+  }
+
+  it('SECURE: honours a body claim naming a class-learner inside the caller\'s visible scope', async () => {
+    const res = makeRes()
+    await handler(bodyReq(IN_SCOPE_CLASS_LEARNER_ID), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].user_id).toBe(IN_SCOPE_CLASS_LEARNER_ID)
+    expect(insertedRows[0].learner_id).toBe(IN_SCOPE_CLASS_LEARNER_ID)
+  })
+
+  it('SECURE: refuses a body claim naming a REAL class-learner outside the caller\'s scope', async () => {
+    const res = makeRes()
+    await handler(bodyReq(OUT_OF_SCOPE_CLASS_LEARNER_ID), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].user_id).toBe(CALLER_LEARNER_ID)
+  })
+
+  it('SECURE: refuses a body claim from a caller with no staff scope at all', async () => {
+    scope = { role: 'learner', classIds: [], schoolIds: [], groupId: null }
+    const res = makeRes()
+    await handler(bodyReq(IN_SCOPE_CLASS_LEARNER_ID), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].user_id).toBe(CALLER_LEARNER_ID)
+  })
+
+  it('SECURE: a body claim naming a non-existent id never attributes to it', async () => {
+    const res = makeRes()
+    await handler(bodyReq('99999999-9999-4999-8999-999999999999'), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].user_id).toBe(CALLER_LEARNER_ID)
+  })
+
+  it('SECURE: a non-uuid body claim (a guest id) is ignored, not passed through', async () => {
+    const res = makeRes()
+    await handler(bodyReq('guest-not-a-uuid'), res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].user_id).toBe(CALLER_LEARNER_ID)
+  })
+
+  it('the body claim wins over a cookie, and is still authorised on its own merits', async () => {
+    // Body names an in-scope class, cookie names an out-of-scope one: the
+    // body's claim is the one evaluated, and it is allowed.
+    const res = makeRes()
+    await handler(bodyReq(IN_SCOPE_CLASS_LEARNER_ID, OUT_OF_SCOPE_CLASS_LEARNER_ID), res)
+    expect(insertedRows[0].user_id).toBe(IN_SCOPE_CLASS_LEARNER_ID)
+
+    // And the reverse: an out-of-scope body claim is NOT rescued by an
+    // in-scope cookie sitting behind it.
+    insertedRows = []
+    const res2 = makeRes()
+    await handler(bodyReq(OUT_OF_SCOPE_CLASS_LEARNER_ID, IN_SCOPE_CLASS_LEARNER_ID), res2)
+    expect(insertedRows[0].user_id).toBe(CALLER_LEARNER_ID)
+  })
+
+  it('UNCHANGED: with no body claim, the cookie path behaves exactly as before', async () => {
+    const res = makeRes()
+    await handler(bodyReq(undefined, IN_SCOPE_CLASS_LEARNER_ID), res)
+    expect(insertedRows[0].user_id).toBe(IN_SCOPE_CLASS_LEARNER_ID)
+  })
+})

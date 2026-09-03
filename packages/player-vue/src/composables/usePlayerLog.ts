@@ -163,7 +163,22 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     }
     const batch = buffer.splice(0, buffer.length)
 
-    const body = JSON.stringify({ events: batch })
+    // `acting_learner_id` carries the play-as-class claim (owner ruling
+    // 2026-07-16). It used to travel ONLY as the ssi-user-id cookie, which
+    // does not cross an origin — inside a native shell the API is a different
+    // origin, so class practice would silently attribute to the staff member
+    // instead of the class. Sending it in the body works on both origins and
+    // needs no cookie loosening. The server treats it as an unsigned CLAIM
+    // exactly as it treats the cookie: honoured only for a class the verified
+    // bearer may actually drive. Guest ids (`guest-<uuid>`) are not uuids and
+    // are ignored server-side, so they are not worth sending.
+    const actingLearnerId = resolveLearnerId()
+    const body = JSON.stringify({
+      events: batch,
+      ...(actingLearnerId && !actingLearnerId.startsWith('guest-')
+        ? { acting_learner_id: actingLearnerId }
+        : {}),
+    })
 
     // Attribution rides a VERIFIED bearer, never the cookie (SEC25 INPUT-04).
     // The token is cached from the previous flush so the unload path can use

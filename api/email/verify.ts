@@ -10,6 +10,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
 import {
@@ -53,6 +54,9 @@ async function otpAttemptsOverLimit(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Cross-origin (native shell) policy + preflight. No-op same-origin.
+  if (applyCors(req, res, { methods: 'POST' })) return
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
