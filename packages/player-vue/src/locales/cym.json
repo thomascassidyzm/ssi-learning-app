@@ -73,7 +73,16 @@
     "pause": "Oedi",
     "resume": "Parhau",
     "offlinePracticeBody": "Allwn ni ddim cyrraedd eitemau newydd ar hyn o bryd, felly dyma gyfle i ymarfer yr hyn rwyt ti eisoes wedi'i ddysgu — bydd eitemau newydd yn cyrraedd cyn gynted ag y gallwn ni eu cyrraedd.",
-    "offlinePracticeAck": "Iawn"
+    "offlinePracticeAck": "Iawn",
+    "newBeltEarned": "Gwregys newydd wedi'i ennill!",
+    "next": "Nesaf ›",
+    "nextPodSentence": "Brawddeg pod nesaf",
+    "podPreviewNavigation": "Llywio rhagolwg pod",
+    "prev": "‹ Blaenorol",
+    "previousPodSentence": "Brawddeg pod flaenorol",
+    "runningLowSpace": "· lle'n mynd yn brin",
+    "saveProgress": "Cadw cynnydd",
+    "skipWelcome": "Hepgor y croeso"
   },
   "home": {
     "goodMorning": "Bore da",
@@ -104,7 +113,8 @@
     "goodStart": "Dechrau da",
     "niceFlow": "Llif neis",
     "greatSession": "Sesiwn wych",
-    "onFire": "Ar dân"
+    "onFire": "Ar dân",
+    "viewJourney": "Gweld dy daith"
   },
   "profile": {
     "title": "Proffil",
@@ -195,7 +205,32 @@
     "nuclearResetDesc": "Clirio'r holl ddata lleol, gweithwyr gwasanaeth ac ail-lwytho",
     "about": "Amdano",
     "version": "Fersiwn",
-    "madeWithLove": "Wedi'i wneud â chariad i ddysgwyr ieithoedd"
+    "madeWithLove": "Wedi'i wneud â chariad i ddysgwyr ieithoedd",
+    "active": "Ar waith",
+    "addProgressionModeListening": "Ychwanegu modd 'Cynnydd' i Gwrando → Deialogau sy'n mynd â phob llinell drwy'r 9 cam meddiannu, yn fyw o gyfluniad gwrando Popty",
+    "adjustHowFastTarget": "Addasu pa mor gyflym mae sain yr iaith darged yn chwarae. Nid yw'n effeithio ar yr iaith rwyt ti'n ei siarad yn barod.",
+    "adminDashboard": "Dangosfwrdd gweinyddwr",
+    "browseCourseRoundsLego": "Pori rowndiau'r cwrs a threfn y LEGOs",
+    "coveredByFamilyPlan": "Wedi'i gynnwys yn dy gynllun teulu",
+    "enterInviteAccessCode": "Rho god gwahoddiad neu god mynediad",
+    "flagPhrasesDontSound": "Nodi ymadroddion nad ydyn nhw'n swnio'n iawn. Bydd yr adborth yn mynd yn syth at y tîm cynnwys.",
+    "fragileProgressWarning2": "Rhybudd cynnydd bregus",
+    "learningSpeed": "Cyflymder dysgu",
+    "listeningProgressionAudit": "Archwiliad cynnydd gwrando",
+    "manageClassesStudents": "Rheoli dy ddosbarthiadau a myfyrwyr",
+    "peopleInvitesProgress": "Dy bobl, gwahoddiadau a chynnydd",
+    "permanentlyDeleteAccountAll": "Dileu dy gyfrif a'r holl ddata am byth",
+    "personalisedPacing": "Cyflymder personol",
+    "platformUsersActivityCourse": "Defnyddwyr y platfform, gweithgarwch, a dadansoddeg cyrsiau",
+    "practisingModeOnlyAlready": "Mae Modd Ymarfer YMLAEN — dim ond deunydd rwyt ti eisoes wedi'i weld sy'n chwarae.",
+    "practisingModeTest": "Modd Ymarfer (prawf)",
+    "showPhaseRoundLego": "Dangos gwybodaeth cam, rownd, a LEGO ar y sgrin",
+    "showProgressFragileBanner": "Dangos baner 'mae cynnydd yn fregus' i westeion",
+    "showScriptBrowserTools": "Dangos y porwr sgript yn adran Offer",
+    "signOut": "Allgofnodi",
+    "ssiFamily": "Teulu SSi",
+    "usesMicrophoneDetectWhen": "Yn defnyddio dy feicroffon i ganfod pryd rwyt ti'n siarad, gan addasu hyd yr oedi i'th rythm. Ni chaiff unrhyw sain ei recordio na'i storio.",
+    "whileWillOnlyGet": "Tra bo hwn ymlaen dim ond deunydd rwyt ti eisoes wedi'i weld gei di — dim LEGOs newydd. Diffodda fe i ailddechrau deunydd newydd. Mae'n ailosod ei hun pan fydd yr ap yn ailgychwyn."
   },
   "belt": {
     "yourProgress": "Dy gynnydd",
@@ -246,7 +281,8 @@
     "tapToPause": "Tapio i oedi",
     "tapToStart": "Tapio i ddechrau",
     "phaseFlow": "Gwrando → Siarad → Gwrando → Gweld",
-    "tapAnywhere": "tapia rywle i ddechrau"
+    "tapAnywhere": "tapia rywle i ddechrau",
+    "confirmStart": "Cadarnhau a dechrau"
   },
   "driving": {
     "exitDrivingMode": "Gadael y modd gyrru",
@@ -435,5 +471,49 @@
     "yue": "Cantoneg",
     "zho": "Tsieineeg",
     "zul": "Swlw"
+  },
+  "auth": {
+    "inviteCode": "Cod gwahoddiad",
+    "validateCode": "Dilysu'r cod",
+    "verificationCode": "Cod gwirio"
+  },
+  "nav": {
+    "previousLego": "LEGO blaenorol"
+  },
+  "browse": {
+    "allCourses": "Pob cwrs",
+    "classesLearners": "Dy ddosbarthiadau a dysgwyr",
+    "classesStudentsAnalytics": "Dosbarthiadau, myfyrwyr a dadansoddeg",
+    "organisationDashboard": "Dangosfwrdd sefydliad",
+    "peopleInvitesProgress": "Dy bobl, gwahoddiadau a chynnydd",
+    "searchAnyLanguage": "Chwilio unrhyw iaith...",
+    "teachSaysomethingin": "Addysgu gyda SaySomethingin",
+    "tutorDashboard": "Dangosfwrdd tiwtor",
+    "viewBelts": "Gweld gwregysau"
+  },
+  "family": {
+    "addChild": "+ Ychwanegu plentyn",
+    "copy": "Copïo",
+    "inviteByEmail": "+ Gwahodd drwy e-bost"
+  },
+  "install": {
+    "next": "Nesaf"
+  },
+  "listening": {
+    "loadingPods": "Wrthi'n llwytho podiau...",
+    "noPodsCourseYet": "Dim podiau ar gyfer y cwrs hwn eto.",
+    "speed": "Cyflymder"
+  },
+  "pronunciation": {
+    "loadingPhrases": "Wrthi'n llwytho ymadroddion..."
+  },
+  "redeem": {
+    "activatingCode": "Wrthi'n actifadu dy god...",
+    "checkingCode": "Wrthi'n gwirio'r cod...",
+    "goApp": "Cer i'r ap"
+  },
+  "tryLink": {
+    "checkingLink": "Wrthi'n gwirio dy ddolen...",
+    "loadingCourses": "Wrthi'n llwytho dy gyrsiau..."
   }
 }
