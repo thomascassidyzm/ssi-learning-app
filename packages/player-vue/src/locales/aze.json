@@ -73,7 +73,16 @@
     "pause": "Dayandır",
     "resume": "Davam et",
     "offlinePracticeBody": "Hazırda yeni materiallara çata bilmirik, ona görə də bu, artıq keçdiklərinizi məşq etmək üçün gözəl fürsətdir — yeni materiallar onlara çata bildiyimiz kimi gələcək.",
-    "offlinePracticeAck": "Anladım"
+    "offlinePracticeAck": "Anladım",
+    "runningLowSpace": "· yer azalır",
+    "skipWelcome": "Salamlamanı keç",
+    "podPreviewNavigation": "Pod önizləmə naviqasiyası",
+    "previousPodSentence": "Əvvəlki pod cümləsi",
+    "prev": "‹ Əvvəlki",
+    "nextPodSentence": "Növbəti pod cümləsi",
+    "next": "Növbəti ›",
+    "saveProgress": "İrəliləyişi saxla",
+    "newBeltEarned": "Yeni kəmər qazandınız!"
   },
   "home": {
     "goodMorning": "Sabahınız xeyir",
@@ -104,7 +113,8 @@
     "goodStart": "Yaxşı başlanğıc",
     "niceFlow": "Gözəl axın",
     "greatSession": "Möhtəşəm məşğələ",
-    "onFire": "Alov kimi"
+    "onFire": "Alov kimi",
+    "viewJourney": "Səyahətinizə baxın"
   },
   "profile": {
     "title": "Profil",
@@ -195,7 +205,32 @@
     "troubleshooting": "Problemlərin həlli",
     "updateLatest": "Ən son versiyaya yeniləyin",
     "viewScriptLabel": "Skriptə baxın",
-    "whatsNew": "Yeniliklər"
+    "whatsNew": "Yeniliklər",
+    "signOut": "Çıxış et",
+    "peopleInvitesProgress": "İnsanlarınız, dəvətləriniz və irəliləyişiniz",
+    "manageClassesStudents": "Siniflərinizi və şagirdlərinizi idarə edin",
+    "adminDashboard": "Admin paneli",
+    "platformUsersActivityCourse": "Platforma istifadəçiləri, fəaliyyəti və kurs analitikası",
+    "learningSpeed": "Öyrənmə sürəti",
+    "adjustHowFastTarget": "Hədəf dil audiosunun nə qədər sürətlə oxunduğunu tənzimləyin. Bilinən dilinizə təsir etmir.",
+    "browseCourseRoundsLego": "Kurs raundlarına və lego ardıcıllıqlarına baxın",
+    "flagPhrasesDontSound": "Düzgün səslənməyən ifadələri bildirin. Rəyiniz birbaşa məzmun komandasına gedir.",
+    "personalisedPacing": "Fərdiləşdirilmiş tempo",
+    "usesMicrophoneDetectWhen": "Nə vaxt danışdığınızı aşkarlamaq üçün mikrofondan istifadə edir və fasilə uzunluğunu ritminizə uyğunlaşdırır. Heç bir səs yazılmır və ya saxlanmır.",
+    "enterInviteAccessCode": "Dəvət və ya giriş kodu daxil edin",
+    "ssiFamily": "SSi Ailəsi",
+    "coveredByFamilyPlan": "Ailə planınız tərəfindən əhatə olunub",
+    "active": "Aktiv",
+    "permanentlyDeleteAccountAll": "Hesabınızı və bütün məlumatlarınızı daimi olaraq silin",
+    "showScriptBrowserTools": "Alətlər bölməsində skript brauzerini göstər",
+    "showPhaseRoundLego": "Mərhələ, raund və LEGO məlumatını ekranda göstərin",
+    "listeningProgressionAudit": "Dinləmə irəliləyişi auditi",
+    "addProgressionModeListening": "Dinləmə → Dialoqlara hər sətri bütün 9 mənimsəmə mərhələsindən keçirən, birbaşa Popty dinləmə konfiqurasiyasından işləyən \"İrəliləyiş\" rejimi əlavə et",
+    "fragileProgressWarning2": "Xəbərdarlıq: kövrək irəliləyiş",
+    "showProgressFragileBanner": "Qonaqlar üçün 'kövrək irəliləyiş' bannerini göstərin",
+    "practisingModeTest": "Məşq rejimi (test)",
+    "whileWillOnlyGet": "Bu aktiv olduqda yalnız artıq keçdiyiniz materialı alacaqsınız — yeni LEGO yoxdur. Yeni materialı davam etdirmək üçün söndürün. Tətbiq yenidən başladıqda özü sıfırlanır.",
+    "practisingModeOnlyAlready": "Məşq rejimi AÇIQDIR — yalnız artıq keçdiyiniz material oxudulur."
   },
   "belt": {
     "yourProgress": "İrəliləyişiniz",
@@ -246,7 +281,8 @@
     "tapToPause": "Dayandırmaq üçün toxunun",
     "tapToStart": "Başlamaq üçün toxunun",
     "phaseFlow": "Dinlə → Danış → Dinlə → Gör",
-    "tapAnywhere": "başlamaq üçün istənilən yerə toxunun"
+    "tapAnywhere": "başlamaq üçün istənilən yerə toxunun",
+    "confirmStart": "Təsdiqlə və başla"
   },
   "driving": {
     "exitDrivingMode": "Sürücülük rejimindən çıx",
@@ -435,5 +471,50 @@
     "sme": "Şimal Sami",
     "vec": "Venesiya",
     "yid": "Yiddiş"
+  },
+  "auth": {
+    "inviteCode": "Dəvət kodu",
+    "validateCode": "Kodu təsdiqlə",
+    "verificationCode": "Təsdiq kodu"
+  },
+  "browse": {
+    "organisationDashboard": "Təşkilat paneli",
+    "peopleInvitesProgress": "İnsanlarınız, dəvətləriniz və irəliləyişiniz",
+    "classesStudentsAnalytics": "Siniflər, şagirdlər və analitika",
+    "tutorDashboard": "Repetitor paneli",
+    "classesLearners": "Sinifləriniz və öyrənənləriniz",
+    "viewBelts": "Kəmərlərə baxın",
+    "allCourses": "Bütün kurslar",
+    "searchAnyLanguage": "İstənilən dili axtarın...",
+    "premium": "Premium",
+    "teachSaysomethingin": "SaySomethingin ilə dərs keçin"
+  },
+  "family": {
+    "copy": "Kopyala",
+    "addChild": "+ Uşaq əlavə et",
+    "inviteByEmail": "+ E-poçtla dəvət et"
+  },
+  "install": {
+    "next": "Növbəti"
+  },
+  "listening": {
+    "loadingPods": "Podlar yüklənir...",
+    "noPodsCourseYet": "Bu kurs üçün hələ pod yoxdur.",
+    "speed": "Sürət"
+  },
+  "nav": {
+    "previousLego": "Əvvəlki LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "İfadələr yüklənir..."
+  },
+  "redeem": {
+    "checkingCode": "Kod yoxlanılır...",
+    "goApp": "Tətbiqə keç",
+    "activatingCode": "Kodunuz aktivləşdirilir..."
+  },
+  "tryLink": {
+    "checkingLink": "Linkiniz yoxlanılır...",
+    "loadingCourses": "Kurslarınız yüklənir..."
   }
 }

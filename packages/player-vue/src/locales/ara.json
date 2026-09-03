@@ -24,7 +24,16 @@
     "pause": "إيقاف مؤقت",
     "resume": "متابعة",
     "offlinePracticeBody": "لا يمكننا الوصول إلى عناصر جديدة الآن، لذا إليك فرصة لتتدرّب على ما تعلّمته من قبل — ستصلك العناصر الجديدة فور تمكّننا من الوصول إليها.",
-    "offlinePracticeAck": "حسنًا"
+    "offlinePracticeAck": "حسنًا",
+    "runningLowSpace": "· المساحة على وشك النفاد",
+    "skipWelcome": "تخطي الترحيب",
+    "podPreviewNavigation": "التنقل بين معاينة الحلقات",
+    "previousPodSentence": "جملة الحلقة السابقة",
+    "prev": "‹ السابق",
+    "nextPodSentence": "جملة الحلقة التالية",
+    "next": "التالي ›",
+    "saveProgress": "حفظ التقدّم",
+    "newBeltEarned": "حزام جديد!"
   },
   "home": {
     "goodMorning": "صباح الخير",
@@ -55,7 +64,8 @@
     "goodStart": "بداية جيدة",
     "niceFlow": "إيقاع جيد",
     "greatSession": "جلسة رائعة",
-    "onFire": "أداء متميّز"
+    "onFire": "أداء متميّز",
+    "viewJourney": "عرض رحلتك"
   },
   "profile": {
     "title": "الملف الشخصي",
@@ -146,7 +156,32 @@
     "troubleshooting": "استكشاف الأخطاء وإصلاحها",
     "updateLatest": "التحديث إلى أحدث إصدار",
     "viewScriptLabel": "عرض النص",
-    "whatsNew": "ما الجديد"
+    "whatsNew": "ما الجديد",
+    "signOut": "تسجيل الخروج",
+    "peopleInvitesProgress": "أشخاصك ودعواتك وتقدّمهم",
+    "manageClassesStudents": "إدارة فصولك وطلابك",
+    "adminDashboard": "لوحة تحكم المسؤول",
+    "platformUsersActivityCourse": "مستخدمو المنصّة ونشاطهم وتحليلات الدورات",
+    "learningSpeed": "سرعة التعلّم",
+    "adjustHowFastTarget": "اضبط سرعة تشغيل صوت اللغة الهدف. لا يؤثر هذا على لغتك المعروفة.",
+    "browseCourseRoundsLego": "تصفّح جولات الدورة وتسلسلات LEGO",
+    "flagPhrasesDontSound": "أبلغ عن العبارات التي لا تبدو صحيحة. تصل ملاحظاتك مباشرة إلى فريق المحتوى.",
+    "personalisedPacing": "وتيرة مخصّصة",
+    "usesMicrophoneDetectWhen": "يستخدم الميكروفون لرصد وقت حديثك، ويُكيّف مدة التوقف وفق إيقاعك. لا يتم تسجيل الصوت أو تخزينه.",
+    "enterInviteAccessCode": "أدخل رمز دعوة أو رمز وصول",
+    "ssiFamily": "عائلة SSi",
+    "coveredByFamilyPlan": "مشمول بخطة العائلة الخاصة بك",
+    "active": "نشط",
+    "permanentlyDeleteAccountAll": "حذف حسابك وجميع بياناتك نهائيًا",
+    "showScriptBrowserTools": "عرض متصفّح النص في قسم الأدوات",
+    "showPhaseRoundLego": "عرض معلومات المرحلة والجولة وLEGO على الشاشة",
+    "listeningProgressionAudit": "تدقيق تقدّم الاستماع",
+    "addProgressionModeListening": "أضف وضع \"التقدّم\" إلى الاستماع ← الحوارات، يمرّ بكل سطر عبر جميع مراحل الاكتساب التسع، مباشرة من إعدادات الاستماع في Popty",
+    "fragileProgressWarning2": "تحذير التقدّم الهش",
+    "showProgressFragileBanner": "عرض لافتة \"التقدّم هش\" للزوّار",
+    "practisingModeTest": "وضع التدريب (تجريبي)",
+    "whileWillOnlyGet": "أثناء تفعيل هذا، ستحصل فقط على المواد التي تعلّمتها من قبل — بلا LEGO جديدة. أوقفه لاستئناف المواد الجديدة. يُعاد ضبطه تلقائيًا عند إعادة تشغيل التطبيق.",
+    "practisingModeOnlyAlready": "وضع التدريب مفعّل — يتم تشغيل المواد التي تعلّمتها من قبل فقط."
   },
   "belt": {
     "yourProgress": "تقدّمك",
@@ -197,7 +232,10 @@
     "tapToPause": "اضغط للإيقاف المؤقت",
     "tapToStart": "اضغط للبدء",
     "phaseFlow": "استمع → تحدّث → أنصت → شاهد",
-    "tapAnywhere": "اضغط في أي مكان للبدء"
+    "tapAnywhere": "اضغط في أي مكان للبدء",
+    "eGCardiffCouncil": "مثال: مجلس كارديف",
+    "confirmStart": "تأكيد والبدء",
+    "eGYsgolGymraeg": "مثال: Ysgol Gymraeg…"
   },
   "driving": {
     "exitDrivingMode": "الخروج من وضع القيادة",
@@ -435,5 +473,51 @@
     "walks": {
       "health": "الصحة"
     }
+  },
+  "auth": {
+    "inviteCode": "رمز الدعوة",
+    "validateCode": "تحقق من الرمز",
+    "verificationCode": "رمز التحقق"
+  },
+  "browse": {
+    "organisationDashboard": "لوحة تحكم المؤسسة",
+    "peopleInvitesProgress": "أشخاصك ودعواتك وتقدّمهم",
+    "classesStudentsAnalytics": "الفصول والطلاب والتحليلات",
+    "tutorDashboard": "لوحة تحكم المعلم",
+    "classesLearners": "فصولك ومتعلّموك",
+    "viewBelts": "عرض الأحزمة",
+    "allCourses": "جميع الدورات",
+    "searchAnyLanguage": "ابحث عن أي لغة...",
+    "teachSaysomethingin": "قدّم دروسًا مع SaySomethingin"
+  },
+  "family": {
+    "copy": "نسخ",
+    "addChild": "+ إضافة طفل",
+    "inviteByEmail": "+ دعوة عبر البريد الإلكتروني"
+  },
+  "install": {
+    "next": "التالي"
+  },
+  "listening": {
+    "loadingPods": "جارٍ تحميل الحلقات...",
+    "noPodsCourseYet": "لا توجد حلقات لهذه الدورة بعد.",
+    "speed": "السرعة"
+  },
+  "nav": {
+    "previousLego": "LEGO السابق"
+  },
+  "pronunciation": {
+    "loadingPhrases": "جارٍ تحميل العبارات..."
+  },
+  "redeem": {
+    "checkingCode": "جارٍ التحقق من الرمز...",
+    "goApp": "الانتقال إلى التطبيق",
+    "activatingCode": "جارٍ تفعيل رمزك...",
+    "eGSianJones": "مثال: سيان جونز",
+    "eGAlys": "مثال: أليس"
+  },
+  "tryLink": {
+    "checkingLink": "جارٍ التحقق من رابطك...",
+    "loadingCourses": "جارٍ تحميل دوراتك..."
   }
 }

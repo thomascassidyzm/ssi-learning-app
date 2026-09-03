@@ -24,7 +24,16 @@
     "pause": "বিরতি",
     "resume": "চালু রাখুন",
     "offlinePracticeBody": "এই মুহূর্তে আমরা নতুন আইটেম আনতে পারছি না, তাই আপনি যা ইতিমধ্যে শিখেছেন তা অনুশীলন করার এটি একটি সুযোগ — আমরা পৌঁছাতে পারলেই নতুন আইটেম চলে আসবে।",
-    "offlinePracticeAck": "বুঝেছি"
+    "offlinePracticeAck": "বুঝেছি",
+    "runningLowSpace": "· জায়গা কমে যাচ্ছে",
+    "skipWelcome": "স্বাগত স্ক্রিন এড়িয়ে যান",
+    "podPreviewNavigation": "পড প্রিভিউ নেভিগেশন",
+    "previousPodSentence": "আগের পড বাক্য",
+    "prev": "‹ আগের",
+    "nextPodSentence": "পরের পড বাক্য",
+    "next": "পরবর্তী ›",
+    "saveProgress": "অগ্রগতি সংরক্ষণ করুন",
+    "newBeltEarned": "নতুন বেল্ট অর্জিত হয়েছে!"
   },
   "home": {
     "goodMorning": "শুভ সকাল",
@@ -55,7 +64,8 @@
     "goodStart": "ভালো শুরু",
     "niceFlow": "চমৎকার গতি",
     "greatSession": "দুর্দান্ত সেশন",
-    "onFire": "অপ্রতিরোধ্য!"
+    "onFire": "অপ্রতিরোধ্য!",
+    "viewJourney": "আপনার যাত্রা দেখুন"
   },
   "profile": {
     "title": "প্রোফাইল",
@@ -146,7 +156,32 @@
     "troubleshooting": "সমস্যা সমাধান",
     "updateLatest": "সর্বশেষ ভার্সনে আপডেট করুন",
     "viewScriptLabel": "স্ক্রিপ্ট দেখুন",
-    "whatsNew": "নতুন কী আছে"
+    "whatsNew": "নতুন কী আছে",
+    "signOut": "সাইন আউট",
+    "peopleInvitesProgress": "আপনার মানুষজন, ইনভাইট ও অগ্রগতি",
+    "manageClassesStudents": "আপনার ক্লাস ও শিক্ষার্থীদের পরিচালনা করুন",
+    "adminDashboard": "অ্যাডমিন ড্যাশবোর্ড",
+    "platformUsersActivityCourse": "প্ল্যাটফর্মের ব্যবহারকারী, কার্যকলাপ ও কোর্স অ্যানালিটিক্স",
+    "learningSpeed": "শেখার গতি",
+    "adjustHowFastTarget": "টার্গেট ভাষার অডিও কত দ্রুত বাজবে তা সমন্বয় করুন। এটি আপনার জানা ভাষাকে প্রভাবিত করে না।",
+    "browseCourseRoundsLego": "কোর্সের রাউন্ড এবং লেগো সিকোয়েন্স ব্রাউজ করুন",
+    "flagPhrasesDontSound": "যেসব বাক্যাংশ ঠিক শোনায় না তা ফ্ল্যাগ করুন। আপনার মতামত সরাসরি কনটেন্ট টিমের কাছে যায়।",
+    "personalisedPacing": "ব্যক্তিগতকৃত গতি",
+    "usesMicrophoneDetectWhen": "আপনি কখন কথা বলছেন তা শনাক্ত করতে মাইক্রোফোন ব্যবহার করে, আপনার ছন্দ অনুযায়ী বিরতির দৈর্ঘ্য সমন্বয় করে। কোনো অডিও রেকর্ড বা সংরক্ষণ করা হয় না।",
+    "enterInviteAccessCode": "একটি ইনভাইট বা অ্যাক্সেস কোড লিখুন",
+    "ssiFamily": "SSi ফ্যামিলি",
+    "coveredByFamilyPlan": "আপনার ফ্যামিলি প্ল্যানের অন্তর্ভুক্ত",
+    "active": "সক্রিয়",
+    "permanentlyDeleteAccountAll": "আপনার অ্যাকাউন্ট ও সব ডেটা স্থায়ীভাবে মুছে ফেলুন",
+    "showScriptBrowserTools": "টুলস সেকশনে স্ক্রিপ্ট ব্রাউজার দেখান",
+    "showPhaseRoundLego": "স্ক্রিনে ফেজ, রাউন্ড এবং LEGO তথ্য দেখান",
+    "listeningProgressionAudit": "লিসেনিং প্রোগ্রেশন অডিট",
+    "addProgressionModeListening": "লিসেনিং → ডায়ালগ-এ একটি \"প্রোগ্রেশন\" মোড যোগ করুন যা প্রতিটি লাইনকে ৯টি অর্জন পর্যায়ের মধ্য দিয়ে নিয়ে যায়, সরাসরি Popty লিসেনিং কনফিগারেশন থেকে",
+    "fragileProgressWarning2": "সতর্কতা: ভঙ্গুর অগ্রগতি",
+    "showProgressFragileBanner": "অতিথিদের জন্য 'ভঙ্গুর অগ্রগতি' ব্যানার দেখান",
+    "practisingModeTest": "প্র্যাকটিসিং মোড (টেস্ট)",
+    "whileWillOnlyGet": "এটি চালু থাকাকালীন আপনি শুধু আগে থেকে শেখা উপাদান পাবেন — কোনো নতুন LEGO নয়। নতুন উপাদান পেতে এটি বন্ধ করুন। অ্যাপ পুনরায় চালু হলে এটি নিজে থেকেই রিসেট হয়ে যায়।",
+    "practisingModeOnlyAlready": "প্র্যাকটিসিং মোড চালু আছে — শুধু আগে থেকে শেখা উপাদান চলছে।"
   },
   "belt": {
     "yourProgress": "আপনার অগ্রগতি",
@@ -197,7 +232,8 @@
     "tapToPause": "বিরতির জন্য ট্যাপ করুন",
     "tapToStart": "শুরু করতে ট্যাপ করুন",
     "phaseFlow": "শুনুন → বলুন → শুনুন → দেখুন",
-    "tapAnywhere": "শুরু করতে যেকোনো জায়গায় ট্যাপ করুন"
+    "tapAnywhere": "শুরু করতে যেকোনো জায়গায় ট্যাপ করুন",
+    "confirmStart": "নিশ্চিত করুন ও শুরু করুন"
   },
   "driving": {
     "exitDrivingMode": "ড্রাইভিং মোড থেকে বের হন",
@@ -435,5 +471,49 @@
     "walks": {
       "health": "স্বাস্থ্য"
     }
+  },
+  "auth": {
+    "inviteCode": "ইনভাইট কোড",
+    "validateCode": "কোড যাচাই করুন",
+    "verificationCode": "যাচাইকরণ কোড"
+  },
+  "browse": {
+    "organisationDashboard": "প্রতিষ্ঠান ড্যাশবোর্ড",
+    "peopleInvitesProgress": "আপনার মানুষজন, ইনভাইট ও অগ্রগতি",
+    "classesStudentsAnalytics": "ক্লাস, শিক্ষার্থী ও অ্যানালিটিক্স",
+    "tutorDashboard": "টিউটর ড্যাশবোর্ড",
+    "classesLearners": "আপনার ক্লাস ও শিক্ষার্থীরা",
+    "viewBelts": "বেল্ট দেখুন",
+    "allCourses": "সব কোর্স",
+    "searchAnyLanguage": "যেকোনো ভাষা খুঁজুন...",
+    "teachSaysomethingin": "SaySomethingin দিয়ে শেখান"
+  },
+  "family": {
+    "copy": "কপি",
+    "addChild": "+ সন্তান যোগ করুন",
+    "inviteByEmail": "+ ইমেইলে ইনভাইট করুন"
+  },
+  "install": {
+    "next": "পরবর্তী"
+  },
+  "listening": {
+    "loadingPods": "পড লোড হচ্ছে...",
+    "noPodsCourseYet": "এই কোর্সের জন্য এখনও কোনো পড নেই।",
+    "speed": "গতি"
+  },
+  "nav": {
+    "previousLego": "আগের LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "বাক্যাংশ লোড হচ্ছে..."
+  },
+  "redeem": {
+    "checkingCode": "কোড যাচাই করা হচ্ছে...",
+    "goApp": "অ্যাপে যান",
+    "activatingCode": "আপনার কোড সক্রিয় করা হচ্ছে..."
+  },
+  "tryLink": {
+    "checkingLink": "আপনার লিংক যাচাই করা হচ্ছে...",
+    "loadingCourses": "আপনার কোর্স লোড হচ্ছে..."
   }
 }
