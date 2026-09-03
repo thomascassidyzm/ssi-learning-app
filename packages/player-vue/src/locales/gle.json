@@ -17,9 +17,9 @@
     "hiseDesc": "Cleachtaí Cainte Ard-Déine",
     "listening": "Éisteacht",
     "listeningDesc": "Fuaim amháin, gan labhairt",
-    "easy": "Easy",
-    "fast": "Fast",
-    "learningModeLabel": "Learning mode"
+    "easy": "Éasca",
+    "fast": "Tapa",
+    "learningModeLabel": "Mód foghlama"
   },
   "courseSelector": {
     "title": "Roghnaigh do Chúrsa",
