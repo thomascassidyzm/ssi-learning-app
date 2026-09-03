@@ -27,6 +27,29 @@ Two of those days buy back most of the uncertainty: **one throwaway build on one
 
 ---
 
+## This has been scoped once before — and the old app is Flutter
+
+**Correction to my own starting assumptions, and it matters.** A multi-agent feasibility pass already exists: `archive/docs-retired-2026-08-24/native-migration-feasibility.md` and its companion `native-migration-flutter-checklist.md`, dated 3–4 June 2026. They were missed by the initial estate search because the whole docs tree was retired into `archive/` on 2026-08-24. They are on `origin/dev` and they are good.
+
+**Three facts from them that change this document:**
+
+1. **The live listing is a Flutter app**, not a native-Android-SDK one — and it does *strictly less* than the PWA. Your own ground-truth correction is recorded in that doc: no listening exercises, no pods, no offline, no fast course loading, and built on the pre-rendered "compile-the-whole-course, sync-by-audio-duration" architecture SSi already abandoned. **So feature-parity risk is roughly zero.** The wrapper is an upgrade on every product axis, not a port with something to lose.
+2. **Reusing the same bundle ID preserves the paid-install funnel**, which is a commercial reason to care about the signing key beyond "can we update the listing at all."
+3. **A Phase-0 checklist already exists for exactly the questions I could not answer** — bundle IDs, signing certs, account ownership, whether RevenueCat is *already* integrated in Flutter, the existing product IDs, and whether Flutter authenticates against the same Supabase identity. It is still entirely unchecked. Its own header says it right: *"Do this read FIRST — ahead of the audio spike — because the answers resize the whole project."*
+
+**The two passes agree, which is worth something.** That study, working independently three months ago, reached the same conclusions this one did from the code: gate the service worker off on native, RevenueCat over a provider-agnostic entitlement model, numeric OTP means no deep-link work for auth, bundled assets under the same bundle ID, and a native "session-hold" plugin rather than moving playback into native code. Its estimate was **6–10 weeks wall-clock**; mine is **~30 worker-days of build**. Those are the same answer stated two ways — theirs includes store review, soak and phased rollout, which is calendar time on top of build days.
+
+**Four things it flags that I did not, and you should carry:**
+
+- **The install-attribution SDK.** If the Flutter app embeds an MMP (AppsFlyer, Adjust, Branch, or AdServices), dropping it in the wrap makes your £1–2 paid-install funnel go blind. Confirm and port it *before* cutting over ad spend. Not in my estimate; add **1–2 days** if one exists.
+- **Supabase anonymous sign-in** as the proper replacement for the `localStorage` guest hack. That is a better answer than the one I gave for buy-first-then-alias: it gives the purchase a server-persisted identity to attach to from first launch, rather than relying on RevenueCat's anonymous id alone. It is a deliberate behaviour and RLS change, so it is Tom's call, but it is the cleaner spine.
+- **Keep Flutter shippable to the same listing for a full month post-rollout** as the real fallback. Android's staged rollout can be halted; that is the insurance policy.
+- **Pin Play Billing v8+**, and be aware that not uploading the store purchase key to RevenueCat silently fails to record transactions — RevenueCat's own documented number-one cause of existing payers appearing un-entitled.
+
+**Nothing in that study contradicts anything in this one.** Read them together: it has the phasing and the commercial framing, this one has the current code, the countable breakpoints and the day costs.
+
+---
+
 ## What is genuinely new versus what is already solved
 
 Before the detail, the shape of it:
@@ -246,7 +269,7 @@ It is also exactly the "more control once installed" win Tom expects — a daily
 - No `Fastfile`, no `Appfile`, no Google Play service-account credentials, nothing referencing `androidpublisher`.
 - `estate-search "play store android app signing keystore"` returns **no matches anywhere** across code, docs, the command-surface database and memory. `estate-search "play console"` and `"androidpublisher"` return only this job's own workers.
 
-**The old native app's source is not on this box at all.** The only traces of it are references from the other side — `ssi-learning-app/CLAUDE.md` notes that the dashboard "still generates `course_manifest.json` for legacy native app," and the dashboard's `LEARNING_APP_DATA_FLOW.md` says the manifest compiler exists only for it. Its build system, its signing setup and its Play Console configuration live somewhere else.
+**The old app is a Flutter app, and its source is not on this box at all.** The June feasibility study named above flagged this exact question as unresolved — *"Signing certs + provisioning profiles, and which Apple Developer + Play Console accounts own them"* is still an unticked box on `archive/docs-retired-2026-08-24/native-migration-flutter-checklist.md`. Three months on, nobody has answered it. The other traces of the old app are references from the other side — `ssi-learning-app/CLAUDE.md` notes that the dashboard "still generates `course_manifest.json` for legacy native app," and the dashboard's `LEARNING_APP_DATA_FLOW.md` says the manifest compiler exists only for it. Its build system, its signing setup and its Play Console configuration live somewhere else.
 
 **So this cannot be settled from here, and I am not going to guess at it.** The listing demonstrably exists — you have the screenshot — so the question is purely about update rights.
 
@@ -394,13 +417,13 @@ A **worker-day** is one focused engineer-or-agent day. These are build days; the
 Four things, each answerable in a sentence or a single look:
 
 1. **Play Console → Setup → App signing** — is Play App Signing enrolled? While you are there, grab the package name and the list of existing subscription product IDs. *This is the only item that can invalidate the plan.*
-2. **Whoever built the old native app** — what was its account model (did progress and identity live on a server the new app can read, or only on the device), and which sign-in providers did it use? This governs how bad the re-sign-in event in §3.3 is.
+2. **Run the existing Phase-0 checklist against the Flutter repo.** It is already written — `archive/docs-retired-2026-08-24/native-migration-flutter-checklist.md` — it is an afternoon's work for whoever has repo access, and it answers the account model, the sign-in providers, the product IDs, whether RevenueCat is already integrated (which would shrink the billing lump substantially), and whether an attribution SDK is embedded. Its own advice is to do this *before* anything else, and that advice is right.
 3. **Can one account hold both a Paddle web subscription and a Play Android subscription?** If not — and "not" is the simpler answer — the second purchase gets refused at the point of sale with a clear message.
 4. **Does the Android build include `/schools`, or hide it?** Recommendation: hide it.
 
 ## Explicit gaps — things I could not settle from here
 
-- **The signing key and the whole Play Console state.** Nothing about the old native app exists anywhere on this machine — no project, no keystore, no credentials, no notes. This is reported as a gap, not papered over.
+- **The signing key and the whole Play Console state.** Nothing about the Flutter app exists anywhere on this machine — no project, no keystore, no credentials, no notes. This is reported as a gap, not papered over.
 - **The real Android WebView IndexedDB quota.** No number in this codebase establishes it; it needs a scripted download-to-quota probe on a real device. It is the load-bearing unknown behind "does the full course fit without moving to the filesystem."
 - **No real Android device or emulator was used anywhere in this assessment**, by design — it is a read-only scoping job. Every platform claim is labelled as such. A single throwaway build on one mid-range Indian handset would settle four or five of the medium-likelihood breakpoints at once, and it is the cheapest next step available.
 - **CORS posture of most `/api/*` endpoints** — only the audio proxy and `sw-config` were read. The rest need checking before the origin fix is costed precisely.
