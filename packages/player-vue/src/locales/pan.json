@@ -24,7 +24,16 @@
     "pause": "ਰੋਕੋ",
     "resume": "ਜਾਰੀ ਰੱਖੋ",
     "offlinePracticeBody": "ਇਸ ਵੇਲੇ ਅਸੀਂ ਨਵੀਂ ਸਮੱਗਰੀ ਤੱਕ ਨਹੀਂ ਪਹੁੰਚ ਸਕਦੇ, ਇਸ ਲਈ ਇਹ ਉਸ ਦਾ ਅਭਿਆਸ ਕਰਨ ਦਾ ਮੌਕਾ ਹੈ ਜੋ ਤੁਸੀਂ ਪਹਿਲਾਂ ਹੀ ਸਿੱਖ ਚੁੱਕੇ ਹੋ — ਜਿਵੇਂ ਹੀ ਅਸੀਂ ਪਹੁੰਚ ਸਕਾਂਗੇ, ਨਵੀਂ ਸਮੱਗਰੀ ਆ ਜਾਵੇਗੀ।",
-    "offlinePracticeAck": "ਸਮਝ ਗਏ"
+    "offlinePracticeAck": "ਸਮਝ ਗਏ",
+    "newBeltEarned": "ਨਵਾਂ ਬੈਲਟ ਮਿਲਿਆ!",
+    "next": "ਅੱਗੇ ›",
+    "nextPodSentence": "ਅਗਲਾ ਪੌਡ ਵਾਕ",
+    "podPreviewNavigation": "ਪੌਡ ਝਲਕ ਨੈਵੀਗੇਸ਼ਨ",
+    "prev": "‹ ਪਿੱਛੇ",
+    "previousPodSentence": "ਪਿਛਲਾ ਪੌਡ ਵਾਕ",
+    "runningLowSpace": "· ਥਾਂ ਘੱਟ ਹੈ",
+    "saveProgress": "ਤਰੱਕੀ ਸੰਭਾਲੋ",
+    "skipWelcome": "ਸਵਾਗਤ ਛੱਡੋ"
   },
   "home": {
     "goodMorning": "ਸ਼ੁਭ ਸਵੇਰ",
@@ -55,7 +64,8 @@
     "goodStart": "ਚੰਗੀ ਸ਼ੁਰੂਆਤ",
     "niceFlow": "ਵਧੀਆ ਰਫ਼ਤਾਰ",
     "greatSession": "ਸ਼ਾਨਦਾਰ ਸੈਸ਼ਨ",
-    "onFire": "ਅੱਗ ਲੱਗੀ ਹੋਈ ਹੈ"
+    "onFire": "ਅੱਗ ਲੱਗੀ ਹੋਈ ਹੈ",
+    "viewJourney": "ਆਪਣੀ ਯਾਤਰਾ ਦੇਖੋ"
   },
   "profile": {
     "title": "ਪ੍ਰੋਫਾਈਲ",
@@ -146,7 +156,32 @@
     "troubleshooting": "ਸਮੱਸਿਆ ਨਿਵਾਰਨ",
     "updateLatest": "ਨਵੀਨਤਮ ਵਰਜ਼ਨ ਵਿੱਚ ਅੱਪਡੇਟ ਕਰੋ",
     "viewScriptLabel": "ਸਕ੍ਰਿਪਟ ਦੇਖੋ",
-    "whatsNew": "ਨਵਾਂ ਕੀ ਹੈ"
+    "whatsNew": "ਨਵਾਂ ਕੀ ਹੈ",
+    "active": "ਸਰਗਰਮ",
+    "addProgressionModeListening": "ਸੁਣਨਾ → ਡਾਇਲਾਗ ਵਿੱਚ ਇੱਕ \"ਤਰੱਕੀ\" ਮੋਡ ਸ਼ਾਮਲ ਕਰੋ ਜੋ ਹਰ ਲਾਈਨ ਨੂੰ ਸਾਰੇ 9 ਗ੍ਰਹਿਣ ਪੜਾਵਾਂ ਵਿੱਚੋਂ ਲੰਘਾਉਂਦਾ ਹੈ, ਸਿੱਧਾ Popty ਸੁਣਨ ਦੀ ਸੰਰਚਨਾ ਤੋਂ",
+    "adjustHowFastTarget": "ਵਿਵਸਥਿਤ ਕਰੋ ਕਿ ਟੀਚਾ ਭਾਸ਼ਾ ਦੀ ਆਵਾਜ਼ ਕਿੰਨੀ ਤੇਜ਼ੀ ਨਾਲ ਚੱਲਦੀ ਹੈ। ਇਹ ਤੁਹਾਡੀ ਜਾਣੀ-ਪਛਾਣੀ ਭਾਸ਼ਾ ਨੂੰ ਪ੍ਰਭਾਵਿਤ ਨਹੀਂ ਕਰਦਾ।",
+    "adminDashboard": "ਐਡਮਿਨ ਡੈਸ਼ਬੋਰਡ",
+    "browseCourseRoundsLego": "ਕੋਰਸ ਦੇ ਰਾਊਂਡ ਅਤੇ LEGO ਕ੍ਰਮ ਬ੍ਰਾਊਜ਼ ਕਰੋ",
+    "coveredByFamilyPlan": "ਤੁਹਾਡੇ ਪਰਿਵਾਰਕ ਪਲਾਨ ਵਿੱਚ ਸ਼ਾਮਲ",
+    "enterInviteAccessCode": "ਸੱਦਾ ਜਾਂ ਪਹੁੰਚ ਕੋਡ ਦਰਜ ਕਰੋ",
+    "flagPhrasesDontSound": "ਉਹ ਵਾਕਾਂਸ਼ ਫਲੈਗ ਕਰੋ ਜੋ ਸਹੀ ਨਹੀਂ ਲੱਗਦੇ। ਫੀਡਬੈਕ ਸਿੱਧਾ ਸਮੱਗਰੀ ਟੀਮ ਕੋਲ ਜਾਂਦਾ ਹੈ।",
+    "fragileProgressWarning2": "ਨਾਜ਼ੁਕ ਤਰੱਕੀ ਚੇਤਾਵਨੀ",
+    "learningSpeed": "ਸਿੱਖਣ ਦੀ ਗਤੀ",
+    "listeningProgressionAudit": "ਸੁਣਨ ਦੀ ਤਰੱਕੀ ਦਾ ਆਡਿਟ",
+    "manageClassesStudents": "ਆਪਣੀਆਂ ਕਲਾਸਾਂ ਅਤੇ ਵਿਦਿਆਰਥੀਆਂ ਦਾ ਪ੍ਰਬੰਧਨ ਕਰੋ",
+    "peopleInvitesProgress": "ਤੁਹਾਡੇ ਲੋਕ, ਸੱਦੇ ਅਤੇ ਤਰੱਕੀ",
+    "permanentlyDeleteAccountAll": "ਆਪਣਾ ਖਾਤਾ ਅਤੇ ਸਾਰਾ ਡਾਟਾ ਪੱਕੇ ਤੌਰ 'ਤੇ ਮਿਟਾਓ",
+    "personalisedPacing": "ਵਿਅਕਤੀਗਤ ਰਫ਼ਤਾਰ",
+    "platformUsersActivityCourse": "ਪਲੇਟਫਾਰਮ ਵਰਤੋਂਕਾਰ, ਗਤੀਵਿਧੀ ਅਤੇ ਕੋਰਸ ਵਿਸ਼ਲੇਸ਼ਣ",
+    "practisingModeOnlyAlready": "ਅਭਿਆਸ ਮੋਡ ਚਾਲੂ ਹੈ — ਸਿਰਫ਼ ਪਹਿਲਾਂ ਹੀ ਸਿੱਖੀ ਸਮੱਗਰੀ ਚੱਲ ਰਹੀ ਹੈ।",
+    "practisingModeTest": "ਅਭਿਆਸ ਮੋਡ (ਟੈਸਟ)",
+    "showPhaseRoundLego": "ਸਕਰੀਨ 'ਤੇ ਪੜਾਅ, ਰਾਊਂਡ ਅਤੇ LEGO ਜਾਣਕਾਰੀ ਦਿਖਾਓ",
+    "showProgressFragileBanner": "ਮਹਿਮਾਨਾਂ ਲਈ \"ਤਰੱਕੀ ਨਾਜ਼ੁਕ ਹੈ\" ਬੈਨਰ ਦਿਖਾਓ",
+    "showScriptBrowserTools": "ਟੂਲ ਸੈਕਸ਼ਨ ਵਿੱਚ ਸਕ੍ਰਿਪਟ ਬ੍ਰਾਊਜ਼ਰ ਦਿਖਾਓ",
+    "signOut": "ਸਾਈਨ ਆਊਟ",
+    "ssiFamily": "SSi ਪਰਿਵਾਰ",
+    "usesMicrophoneDetectWhen": "ਤੁਸੀਂ ਕਦੋਂ ਬੋਲਦੇ ਹੋ ਇਹ ਪਤਾ ਲਗਾਉਣ ਲਈ ਤੁਹਾਡੇ ਮਾਈਕ੍ਰੋਫ਼ੋਨ ਦੀ ਵਰਤੋਂ ਕਰਦਾ ਹੈ, ਤੁਹਾਡੀ ਤਾਲ ਮੁਤਾਬਕ ਰੁਕਣ ਦੀ ਲੰਬਾਈ ਢਾਲਦਾ ਹੈ। ਕੋਈ ਆਵਾਜ਼ ਰਿਕਾਰਡ ਜਾਂ ਸਟੋਰ ਨਹੀਂ ਕੀਤੀ ਜਾਂਦੀ।",
+    "whileWillOnlyGet": "ਜਦੋਂ ਤੱਕ ਇਹ ਚਾਲੂ ਹੈ ਤੁਹਾਨੂੰ ਸਿਰਫ਼ ਉਹ ਸਮੱਗਰੀ ਮਿਲੇਗੀ ਜੋ ਤੁਸੀਂ ਪਹਿਲਾਂ ਹੀ ਸਿੱਖ ਚੁੱਕੇ ਹੋ — ਕੋਈ ਨਵਾਂ LEGO ਨਹੀਂ। ਨਵੀਂ ਸਮੱਗਰੀ ਦੁਬਾਰਾ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਇਸਨੂੰ ਬੰਦ ਕਰੋ। ਐਪ ਮੁੜ ਚਾਲੂ ਹੋਣ 'ਤੇ ਆਪਣੇ ਆਪ ਰੀਸੈੱਟ ਹੋ ਜਾਂਦਾ ਹੈ।"
   },
   "belt": {
     "yourProgress": "ਤੁਹਾਡੀ ਤਰੱਕੀ",
@@ -197,7 +232,8 @@
     "tapToPause": "ਰੋਕਣ ਲਈ ਟੈਪ ਕਰੋ",
     "tapToStart": "ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਟੈਪ ਕਰੋ",
     "phaseFlow": "ਸੁਣੋ → ਬੋਲੋ → ਸੁਣੋ → ਦੇਖੋ",
-    "tapAnywhere": "ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਕਿਤੇ ਵੀ ਟੈਪ ਕਰੋ"
+    "tapAnywhere": "ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਕਿਤੇ ਵੀ ਟੈਪ ਕਰੋ",
+    "confirmStart": "ਪੁਸ਼ਟੀ ਕਰੋ ਅਤੇ ਸ਼ੁਰੂ ਕਰੋ"
   },
   "driving": {
     "exitDrivingMode": "ਡਰਾਈਵਿੰਗ ਮੋਡ ਤੋਂ ਬਾਹਰ ਨਿਕਲੋ",
@@ -435,5 +471,50 @@
     "walks": {
       "health": "ਸਿਹਤ"
     }
+  },
+  "auth": {
+    "inviteCode": "ਸੱਦਾ ਕੋਡ",
+    "validateCode": "ਕੋਡ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ",
+    "verificationCode": "ਤਸਦੀਕ ਕੋਡ"
+  },
+  "browse": {
+    "allCourses": "ਸਾਰੇ ਕੋਰਸ",
+    "classesLearners": "ਤੁਹਾਡੀਆਂ ਕਲਾਸਾਂ ਅਤੇ ਸਿਖਿਆਰਥੀ",
+    "classesStudentsAnalytics": "ਕਲਾਸਾਂ, ਵਿਦਿਆਰਥੀ ਅਤੇ ਵਿਸ਼ਲੇਸ਼ਣ",
+    "organisationDashboard": "ਸੰਸਥਾ ਡੈਸ਼ਬੋਰਡ",
+    "peopleInvitesProgress": "ਤੁਹਾਡੇ ਲੋਕ, ਸੱਦੇ ਅਤੇ ਤਰੱਕੀ",
+    "searchAnyLanguage": "ਕੋਈ ਵੀ ਭਾਸ਼ਾ ਖੋਜੋ...",
+    "teachSaysomethingin": "SaySomethingin ਨਾਲ ਪੜ੍ਹਾਓ",
+    "tutorDashboard": "ਟਿਊਟਰ ਡੈਸ਼ਬੋਰਡ",
+    "viewBelts": "ਬੈਲਟ ਦੇਖੋ"
+  },
+  "family": {
+    "addChild": "+ ਬੱਚਾ ਸ਼ਾਮਲ ਕਰੋ",
+    "copy": "ਕਾਪੀ ਕਰੋ",
+    "inviteByEmail": "+ ਈਮੇਲ ਰਾਹੀਂ ਸੱਦਾ ਦਿਓ"
+  },
+  "install": {
+    "addReadingList": "ਰੀਡਿੰਗ ਲਿਸਟ ਵਿੱਚ ਸ਼ਾਮਲ ਕਰੋ",
+    "next": "ਅੱਗੇ"
+  },
+  "listening": {
+    "loadingPods": "ਪੌਡ ਲੋਡ ਹੋ ਰਹੇ ਹਨ...",
+    "noPodsCourseYet": "ਇਸ ਕੋਰਸ ਲਈ ਅਜੇ ਕੋਈ ਪੌਡ ਨਹੀਂ ਹੈ।",
+    "speed": "ਗਤੀ"
+  },
+  "nav": {
+    "previousLego": "ਪਿਛਲਾ LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "ਵਾਕਾਂਸ਼ ਲੋਡ ਹੋ ਰਹੇ ਹਨ..."
+  },
+  "redeem": {
+    "activatingCode": "ਤੁਹਾਡਾ ਕੋਡ ਸਰਗਰਮ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ...",
+    "checkingCode": "ਕੋਡ ਦੀ ਜਾਂਚ ਹੋ ਰਹੀ ਹੈ...",
+    "goApp": "ਐਪ ਵਿੱਚ ਜਾਓ"
+  },
+  "tryLink": {
+    "checkingLink": "ਤੁਹਾਡਾ ਲਿੰਕ ਜਾਂਚਿਆ ਜਾ ਰਿਹਾ ਹੈ...",
+    "loadingCourses": "ਤੁਹਾਡੇ ਕੋਰਸ ਲੋਡ ਹੋ ਰਹੇ ਹਨ..."
   }
 }

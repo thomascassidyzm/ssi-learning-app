@@ -73,7 +73,16 @@
     "pause": "Pauzė",
     "resume": "Tęsti",
     "offlinePracticeBody": "Šiuo metu negalime pasiekti naujų dalykų, tad tai proga pasikartoti tai, ką jau išmokai — nauji dalykai atkeliaus vos tik juos pasieksime.",
-    "offlinePracticeAck": "Supratau"
+    "offlinePracticeAck": "Supratau",
+    "newBeltEarned": "Gautas naujas diržas!",
+    "next": "Toliau ›",
+    "nextPodSentence": "Kitas pod'o sakinys",
+    "podPreviewNavigation": "Pod'o peržiūros navigacija",
+    "prev": "‹ Atgal",
+    "previousPodSentence": "Ankstesnis pod'o sakinys",
+    "runningLowSpace": "· vietos mažai",
+    "saveProgress": "Išsaugoti pažangą",
+    "skipWelcome": "Praleisti pasveikinimą"
   },
   "home": {
     "goodMorning": "Labas rytas",
@@ -104,7 +113,8 @@
     "goodStart": "Gera pradžia",
     "niceFlow": "Geras tempas",
     "greatSession": "Puiki sesija",
-    "onFire": "Ugnis"
+    "onFire": "Ugnis",
+    "viewJourney": "Žiūrėti savo kelionę"
   },
   "profile": {
     "title": "Profilis",
@@ -195,7 +205,32 @@
     "troubleshooting": "Trikčių šalinimas",
     "updateLatest": "Atnaujinti į naujausią versiją",
     "viewScriptLabel": "Peržiūrėti scenarijų",
-    "whatsNew": "Kas naujo"
+    "whatsNew": "Kas naujo",
+    "active": "Aktyvu",
+    "addProgressionModeListening": "Pridėti \"Progreso\" režimą prie Klausymo → Dialogų, kuris kiekvieną eilutę praveda per visus 9 įsisavinimo etapus, tiesiogiai iš Popty klausymo konfigūracijos",
+    "adjustHowFastTarget": "Reguliuok, kaip greitai groja mokomosios kalbos garsas. Tavo gimtajai kalbai tai įtakos neturi.",
+    "adminDashboard": "Administratoriaus skydelis",
+    "browseCourseRoundsLego": "Naršyk kurso raundus ir LEGO sekas",
+    "coveredByFamilyPlan": "Apmokama pagal šeimos planą",
+    "enterInviteAccessCode": "Įvesk kvietimo ar prieigos kodą",
+    "flagPhrasesDontSound": "Pažymėk frazes, kurios skamba netaisyklingai. Atsiliepimai keliauja tiesiai turinio komandai.",
+    "fragileProgressWarning2": "Trapios pažangos įspėjimas",
+    "learningSpeed": "Mokymosi greitis",
+    "listeningProgressionAudit": "Klausymo progreso auditas",
+    "manageClassesStudents": "Valdyk savo klases ir mokinius",
+    "peopleInvitesProgress": "Tavo žmonės, kvietimai ir pažanga",
+    "permanentlyDeleteAccountAll": "Visam laikui ištrinti savo paskyrą ir visus duomenis",
+    "personalisedPacing": "Individualizuotas tempas",
+    "platformUsersActivityCourse": "Platformos naudotojai, veikla ir kursų analitika",
+    "practisingModeOnlyAlready": "Praktikos režimas ĮJUNGTAS — groja tik jau išmokta medžiaga.",
+    "practisingModeTest": "Praktikos režimas (testas)",
+    "showPhaseRoundLego": "Rodyk fazės, raundo ir LEGO informaciją ekrane",
+    "showProgressFragileBanner": "Rodyk \"pažanga trapi\" juostą svečiams",
+    "showScriptBrowserTools": "Rodyk scenarijaus naršyklę Įrankių skiltyje",
+    "signOut": "Atsijungti",
+    "ssiFamily": "SSi šeima",
+    "usesMicrophoneDetectWhen": "Naudoja tavo mikrofoną, kad aptiktų, kada kalbi, ir pritaiko pauzių trukmę prie tavo ritmo. Garsas nėra įrašomas ar saugomas.",
+    "whileWillOnlyGet": "Kol tai įjungta, gausi tik jau sutiktą medžiagą — jokių naujų LEGO. Išjunk, kad tęstum naują medžiagą. Nustatoma iš naujo perkrovus programėlę."
   },
   "belt": {
     "yourProgress": "Tavo pažanga",
@@ -246,7 +281,8 @@
     "tapToPause": "Bakstelėk, kad pristabdytum",
     "tapToStart": "Bakstelėk, kad pradėtum",
     "phaseFlow": "Klausyk → Kalbėk → Klausyk → Žiūrėk",
-    "tapAnywhere": "bakstelėk bet kur, kad pradėtum"
+    "tapAnywhere": "bakstelėk bet kur, kad pradėtum",
+    "confirmStart": "Patvirtinti ir pradėti"
   },
   "driving": {
     "exitDrivingMode": "Išeiti iš vairavimo režimo",
@@ -435,5 +471,50 @@
     "sme": "šiaurės samių",
     "vec": "venetų",
     "yid": "jidiš"
+  },
+  "auth": {
+    "inviteCode": "Kvietimo kodas",
+    "validateCode": "Patvirtinti kodą",
+    "verificationCode": "Patvirtinimo kodas"
+  },
+  "browse": {
+    "allCourses": "Visi kursai",
+    "classesLearners": "Tavo klasės ir besimokantieji",
+    "classesStudentsAnalytics": "Klasės, mokiniai ir analitika",
+    "organisationDashboard": "Organizacijos skydelis",
+    "peopleInvitesProgress": "Tavo žmonės, kvietimai ir pažanga",
+    "premium": "Premium",
+    "searchAnyLanguage": "Ieškok bet kurios kalbos...",
+    "teachSaysomethingin": "Mokyk su SaySomethingin",
+    "tutorDashboard": "Kuratoriaus skydelis",
+    "viewBelts": "Žiūrėti diržus"
+  },
+  "family": {
+    "addChild": "+ Pridėti vaiką",
+    "copy": "Kopijuoti",
+    "inviteByEmail": "+ Pakviesti el. paštu"
+  },
+  "install": {
+    "next": "Toliau"
+  },
+  "listening": {
+    "loadingPods": "Įkeliami pod'ai...",
+    "noPodsCourseYet": "Šiam kursui dar nėra pod'ų.",
+    "speed": "Greitis"
+  },
+  "nav": {
+    "previousLego": "Ankstesnis LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "Įkeliamos frazės..."
+  },
+  "redeem": {
+    "activatingCode": "Aktyvuojamas tavo kodas...",
+    "checkingCode": "Tikrinamas kodas...",
+    "goApp": "Eiti į programėlę"
+  },
+  "tryLink": {
+    "checkingLink": "Tikrinama tavo nuoroda...",
+    "loadingCourses": "Įkeliami tavo kursai..."
   }
 }
