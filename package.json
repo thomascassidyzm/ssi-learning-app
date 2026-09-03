@@ -15,6 +15,7 @@
     "typecheck:api": "tsc --noEmit -p tsconfig.api.json",
     "test:release-train": "node --test tools/release-train/release-notes.test.mjs",
     "lint": "pnpm -r lint",
+    "i18n:fill": "node tools/i18n/fill.mjs",
     "dev": "pnpm --filter player-vue dev",
     "clean": "pnpm -r clean"
   },
