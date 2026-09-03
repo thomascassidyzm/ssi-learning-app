@@ -486,7 +486,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">Schools Dashboard</span>
+          <span class="schools-link-title">{{ t('settings.schoolsDashboard') }}</span>
           <span class="schools-link-subtitle">Classes, students & analytics</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -513,7 +513,7 @@ onMounted(() => {
 
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
-        <h3 class="section-label">Your Progress</h3>
+        <h3 class="section-label">{{ t('belt.yourProgress') }}</h3>
         <div class="progress-card" data-walk="library-progress-card" @click="showBeltBrowser = !showBeltBrowser">
           <!-- Belt strip: 8 colored dots -->
           <div class="belt-strip" data-walk="library-belt-strip">
@@ -615,7 +615,7 @@ onMounted(() => {
               class="stat-value"
               :title="totalLearningMinutesEstimated ? 'Approximate — estimated from your course position, not yet logged session time' : undefined"
             >{{ formattedTime }}</div>
-            <div class="stat-label">Total Time</div>
+            <div class="stat-label">{{ t('home.totalTime') }}</div>
           </div>
 
           <div class="stat-card" data-walk="library-stat-phrases-learnt">

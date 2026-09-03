@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 interface Props {
   pointsEarned: number
   newPhrases: number
@@ -11,7 +13,7 @@ const props = defineProps<Props>()
 
 <template>
   <div class="session-mirror">
-    <div class="mirror-header">This Session</div>
+    <div class="mirror-header">{{ t('belt.thisSession') }}</div>
     <div class="mirror-stats">
       <div class="mirror-stat">
         <span class="mirror-stat-value mirror-stat-value--points">+{{ pointsEarned }}</span>

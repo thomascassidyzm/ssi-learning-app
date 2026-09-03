@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { detectFromBrowser } from '@/utils/installPlatform'
@@ -110,7 +112,7 @@ const shareLocation = computed(() => {
     <div class="install-container">
 
       <!-- CLOSE / SKIP -->
-      <button class="close-btn" @click="dismiss" aria-label="Close">
+      <button class="close-btn" @click="dismiss" :aria-label="t('sector.close')">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
@@ -250,13 +252,13 @@ const shareLocation = computed(() => {
               </div>
               <div class="mock-confirm">
                 <div class="mock-confirm-header">
-                  <span class="mock-cancel">Cancel</span>
+                  <span class="mock-cancel">{{ t('settings.cancel') }}</span>
                   <span class="mock-title-text">Add to Home Screen</span>
                   <span class="mock-add highlight">Add</span>
                 </div>
                 <div class="mock-confirm-preview">
                   <img src="/icons/icon-192.png" alt="" width="48" height="48" class="mock-preview-icon" />
-                  <span class="mock-preview-name">SaySomethingin</span>
+                  <span class="mock-preview-name">{{ t('app.name') }}</span>
                 </div>
               </div>
             </div>
@@ -274,7 +276,7 @@ const shareLocation = computed(() => {
 
         <!-- Navigation -->
         <div class="ios-nav">
-          <button v-if="currentStep > 0" class="nav-btn" @click="prevStep">Back</button>
+          <button v-if="currentStep > 0" class="nav-btn" @click="prevStep">{{ t('sector.back') }}</button>
           <span v-else></span>
           <button v-if="currentStep < totalSteps - 1" class="nav-btn primary" @click="nextStep">Next</button>
           <button v-else class="nav-btn primary" @click="dismiss">Done</button>

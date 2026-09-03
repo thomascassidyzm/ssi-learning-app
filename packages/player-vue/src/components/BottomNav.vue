@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed } from 'vue'
 import ModeTray from './ModeTray.vue'
 
@@ -280,7 +282,7 @@ const handleSettings = () => {
         class="pill-btn"
         :class="{ active: showSettings, tapped: tappedItem === 'settings' }"
         @click="handleSettings"
-        title="Settings"
+        :title="t('settings.title')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

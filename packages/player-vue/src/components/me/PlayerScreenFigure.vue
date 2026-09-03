@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * PlayerScreenFigure — the player screen itself, small and tappable in the
  * explainer card, opening full-screen with its four things named.
@@ -78,7 +80,7 @@ onBeforeUnmount(() => {
       <div v-if="open" class="psf-sheet" role="dialog" aria-modal="true" aria-label="The player screen">
         <header class="psf-header">
           <span class="psf-title">The player screen</span>
-          <button type="button" class="psf-close" aria-label="Close" @click="open = false">
+          <button type="button" class="psf-close" :aria-label="t('sector.close')" @click="open = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed } from 'vue'
 import {
   BELTS,
@@ -103,7 +105,7 @@ const selectSeed = (seedNumber: number) => {
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <h2 v-if="currentView === 'belts'">Course Browser</h2>
+      <h2 v-if="currentView === 'belts'">{{ t('browser.courseBrowser') }}</h2>
       <h2 v-else-if="selectedBelt">
         <span class="belt-dot" :style="{ background: selectedBelt.color }"></span>
         {{ selectedBelt.name }} Belt

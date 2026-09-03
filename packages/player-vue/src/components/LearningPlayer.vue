@@ -16627,7 +16627,7 @@ defineExpose({
         <div class="offline-picker" role="dialog" aria-label="Take it offline">
           <div class="offline-picker-head">
             <h3 class="offline-picker-title">Take it offline</h3>
-            <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
+            <button class="offline-picker-close" :aria-label="t('sector.close')" @click="cancelOfflinePicker">✕</button>
           </div>
           <p class="offline-picker-sub">{{ offlineSingleOption ? 'Take the whole thing with you for endless offline play.' : (offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?") }}</p>
 
@@ -17672,7 +17672,7 @@ defineExpose({
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span v-if="!hasEverStarted" class="start-label">Tap to start</span>
+        <span v-if="!hasEverStarted" class="start-label">{{ t('player.tapToStart') }}</span>
       </div>
     </section>
 
@@ -17731,7 +17731,7 @@ defineExpose({
           <p class="belt-subtitle">Keep learning to reach the next level!</p>
 
           <button class="belt-continue-btn" @click="beltJustEarned = null">
-            Continue
+            {{ t('session.continue') }}
           </button>
         </div>
       </div>

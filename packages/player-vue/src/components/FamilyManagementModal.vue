@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * FamilyManagementModal — the Settings → Family page (FAMILY-PLAN-SPEC.md §4).
  * Owner-only: list members, invite by email (magic-grade — Grandpa never sees
@@ -103,7 +105,7 @@ function statusLabel(m: { status: string; is_child_account: boolean }): string {
       <div class="family-card" @click.stop>
         <header class="family-bar">
           <span class="family-title">Family</span>
-          <button type="button" class="family-close" aria-label="Close" @click="emit('close')">✕</button>
+          <button type="button" class="family-close" :aria-label="t('sector.close')" @click="emit('close')">✕</button>
         </header>
 
         <div class="family-scroll">
@@ -149,7 +151,7 @@ function statusLabel(m: { status: string; is_child_account: boolean }): string {
               <form v-else class="add-form" @submit.prevent="submitChild">
                 <input v-model="childNameInput" type="text" placeholder="First name" maxlength="40" class="add-input" />
                 <button type="submit" class="text-btn" :disabled="!childNameInput.trim() || childBusy">{{ childBusy ? '...' : 'Add' }}</button>
-                <button type="button" class="text-btn text-btn--secondary" @click="showChildForm = false">Cancel</button>
+                <button type="button" class="text-btn text-btn--secondary" @click="showChildForm = false">{{ t('settings.cancel') }}</button>
               </form>
             </div>
             <div class="add-section">
@@ -157,7 +159,7 @@ function statusLabel(m: { status: string; is_child_account: boolean }): string {
               <form v-else class="add-form" @submit.prevent="submitEmail">
                 <input v-model="emailInput" type="email" placeholder="email@example.com" class="add-input" />
                 <button type="submit" class="text-btn" :disabled="!emailInput.trim() || emailBusy">{{ emailBusy ? '...' : 'Invite' }}</button>
-                <button type="button" class="text-btn text-btn--secondary" @click="showEmailForm = false">Cancel</button>
+                <button type="button" class="text-btn text-btn--secondary" @click="showEmailForm = false">{{ t('settings.cancel') }}</button>
               </form>
             </div>
           </template>

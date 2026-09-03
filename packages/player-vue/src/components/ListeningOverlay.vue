@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -2133,7 +2135,7 @@ watch(
     <!-- Loading State (All / Core only — Dialogues has its own loading) -->
     <div v-if="(view === 'phrases' || view === 'seeds' || selectedScene) && isLoading" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading...</p>
+      <p>{{ t('resting.loading') }}</p>
     </div>
 
     <!-- Error State -->
@@ -2146,7 +2148,7 @@ watch(
 
     <div v-else-if="(view === 'phrases' || view === 'seeds' || selectedScene) && error" class="error" @click.stop>
       <p>{{ error }}</p>
-      <button @click="view === 'seeds' ? loadSeeds() : loadPhrases()">Retry</button>
+      <button @click="view === 'seeds' ? loadSeeds() : loadPhrases()">{{ t('courseSelector.retry') }}</button>
     </div>
 
     <!-- Belt-jump strip — All / Core views. One pip per belt that has at
@@ -2275,7 +2277,7 @@ watch(
 
         <!-- Play/Pause indicator -->
         <div class="playback-hint" :class="{ playing: isPlaying }">
-          <span v-if="isPlaying">Tap to pause</span>
+          <span v-if="isPlaying">{{ t('onboarding.tapToPause') }}</span>
           <span v-else>Tap to play</span>
         </div>
       </div>

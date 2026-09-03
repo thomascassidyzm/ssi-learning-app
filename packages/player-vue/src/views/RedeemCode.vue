@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, onMounted, onUnmounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
@@ -710,7 +712,7 @@ function goHome() {
 <template>
   <div class="redeem-page" :class="{ 'is-landing': props.variant === 'landing' }">
     <div v-if="props.variant === 'landing'" class="landing-hero">
-      <img class="landing-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
+      <img class="landing-logo" src="/ssi-web-logo.svg" :alt="t('app.name')" />
       <span class="landing-eyebrow">{{ landingEyebrow }}</span>
       <h1 class="landing-heading">{{ landingHeading }}</h1>
       <p class="landing-sub">{{ landingSub }}</p>
@@ -759,7 +761,7 @@ function goHome() {
         </div>
 
         <button type="submit" class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading || !manualCode.trim()">
-          <span v-if="!isLoading">Continue</span>
+          <span v-if="!isLoading">{{ t('session.continue') }}</span>
           <span v-else class="btn-spinner"></span>
         </button>
       </form>
@@ -805,7 +807,7 @@ function goHome() {
         <h2 class="success-title">{{ successHeading }}</h2>
         <p class="detail-text">{{ redeemLabel }}</p>
         <p class="redirect-text">{{ successSubtext }}</p>
-        <button class="btn btn--primary btn--continue" @click="goToRedirect">Continue</button>
+        <button class="btn btn--primary btn--continue" @click="goToRedirect">{{ t('session.continue') }}</button>
       </div>
 
       <!-- Auth + OTP flow -->
@@ -886,7 +888,7 @@ function goHome() {
             :class="{ loading: isLoading }"
             :disabled="!displayName.trim() || !isEmailValid || isLoading"
           >
-            <span v-if="!isLoading">Continue</span>
+            <span v-if="!isLoading">{{ t('session.continue') }}</span>
             <span v-else class="btn-spinner"></span>
           </button>
 
@@ -1006,7 +1008,7 @@ function goHome() {
             :class="{ loading: isLoading }"
             :disabled="!isEmailValid || isLoading"
           >
-            <span v-if="!isLoading">Continue</span>
+            <span v-if="!isLoading">{{ t('session.continue') }}</span>
             <span v-else class="btn-spinner"></span>
           </button>
         </form>
@@ -1089,7 +1091,7 @@ function goHome() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Back
+            {{ t('sector.back') }}
           </button>
         </form>
       </template>

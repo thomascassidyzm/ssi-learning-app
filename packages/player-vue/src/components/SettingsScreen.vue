@@ -1459,10 +1459,10 @@ const confirmReset = async () => {
             This will clear all progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.
           </p>
           <p v-if="resetError" class="reset-error">{{ resetError }}</p>
-          <p v-if="resetSuccess" class="reset-success">Progress reset!</p>
+          <p v-if="resetSuccess" class="reset-success">{{ t('settings.progressReset') }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelReset" :disabled="isResetting">
-              Cancel
+              {{ t('settings.cancel') }}
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmReset" :disabled="isResetting">
               {{ isResetting ? 'Resetting...' : 'Reset Progress' }}
@@ -1489,7 +1489,7 @@ const confirmReset = async () => {
           <p v-if="recoverSuccess" class="reset-success">Position recovered!</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelRecover" :disabled="isRecovering">
-              Cancel
+              {{ t('settings.cancel') }}
             </button>
             <button class="reset-btn reset-btn--recover" @click="confirmRecover" :disabled="isRecovering">
               {{ isRecovering ? 'Moving...' : 'Move Position' }}
@@ -1520,7 +1520,7 @@ const confirmReset = async () => {
             <button class="clear-account-btn" @click="createAccountFromClear">Create a free account to keep it</button>
           </div>
           <div class="reset-actions">
-            <button class="reset-btn reset-btn--cancel" @click="cancelClearConfirm">Cancel</button>
+            <button class="reset-btn reset-btn--cancel" @click="cancelClearConfirm">{{ t('settings.cancel') }}</button>
             <button class="reset-btn reset-btn--confirm" @click="confirmClearCache">Clear cache</button>
           </div>
         </div>
@@ -1560,7 +1560,7 @@ const confirmReset = async () => {
               <line x1="14" y1="11" x2="14" y2="17"/>
             </svg>
           </div>
-          <h3 class="reset-title">Delete Account?</h3>
+          <h3 class="reset-title">{{ t('settings.deleteConfirm') }}</h3>
           <p class="reset-desc">
             This will permanently delete your account and all your learning progress across all courses. This action cannot be undone.
           </p>
@@ -1577,7 +1577,7 @@ const confirmReset = async () => {
           <p v-if="deleteError" class="reset-error">{{ deleteError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelDelete" :disabled="isDeleting">
-              Cancel
+              {{ t('settings.cancel') }}
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmDelete" :disabled="isDeleting || !deleteConfirmMatch">
               {{ isDeleting ? 'Deleting...' : 'Delete Account' }}
@@ -1612,7 +1612,7 @@ const confirmReset = async () => {
     <header class="header">
       <div class="header-spacer" />
       <div class="header-center">
-        <h1 class="title">Settings</h1>
+        <h1 class="title">{{ t('settings.title') }}</h1>
         <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
       </div>
       <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
@@ -1687,9 +1687,9 @@ const confirmReset = async () => {
         <h3 class="section-title">{{ t('settings.account') }}</h3>
         <div class="card">
           <div class="auth-cta-row">
-            <p class="auth-cta-text">Sign in to save your progress across devices</p>
+            <p class="auth-cta-text">{{ t('settings.signInCta') }}</p>
             <div class="auth-cta-buttons">
-              <button class="auth-cta-btn primary" @click="emit('close'); openAuth()">Sign In</button>
+              <button class="auth-cta-btn primary" @click="emit('close'); openAuth()">{{ t('settings.signIn') }}</button>
             </div>
           </div>
         </div>
@@ -2008,7 +2008,7 @@ const confirmReset = async () => {
           <template v-if="showViewScript">
             <div class="setting-row clickable" @click="emit('openExplorer')">
               <div class="setting-info">
-                <span class="setting-label">View Script</span>
+                <span class="setting-label">{{ t('settings.viewScriptLabel') }}</span>
                 <span class="setting-desc">Browse course rounds and lego sequences</span>
               </div>
               <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2025,7 +2025,7 @@ const confirmReset = async () => {
           <template v-if="hasAdminRole">
             <div class="setting-row clickable" @click="toggleQaMode">
               <div class="setting-info">
-                <span class="setting-label">QA Mode</span>
+                <span class="setting-label">{{ t('settings.qaMode') }}</span>
                 <span class="setting-desc">Flag phrases that don't sound right. Feedback goes directly to the content team.</span>
               </div>
               <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
@@ -2065,7 +2065,7 @@ const confirmReset = async () => {
               <span class="setting-label">{{ t('settings.enterACode') }}</span>
               <span class="setting-desc">Enter an invite or access code</span>
             </div>
-            <button class="text-btn" @click="showJoinCode = true">Enter Code</button>
+            <button class="text-btn" @click="showJoinCode = true">{{ t('settings.enterCode') }}</button>
           </div>
           <div v-else class="join-code-form">
             <div class="join-code-input-row">
@@ -2096,11 +2096,11 @@ const confirmReset = async () => {
                 <button class="text-btn" :disabled="isJoinRedeeming" @click="handleJoinRedeem">
                   {{ isJoinRedeeming ? 'Joining...' : 'Confirm' }}
                 </button>
-                <button class="text-btn text-btn--secondary" @click="joinContext = null; joinCodeInput = ''">Cancel</button>
+                <button class="text-btn text-btn--secondary" @click="joinContext = null; joinCodeInput = ''">{{ t('settings.cancel') }}</button>
               </div>
             </div>
-            <p v-if="joinSuccess" class="join-success">Joined successfully!</p>
-            <button class="text-btn text-btn--secondary" @click="showJoinCode = false; joinCodeInput = ''; joinError = ''; joinContext = null; joinSuccess = false">Close</button>
+            <p v-if="joinSuccess" class="join-success">{{ t('settings.joinedSuccessfully') }}</p>
+            <button class="text-btn text-btn--secondary" @click="showJoinCode = false; joinCodeInput = ''; joinError = ''; joinContext = null; joinSuccess = false">{{ t('settings.close') }}</button>
           </div>
         </div>
       </section>
@@ -2203,7 +2203,7 @@ const confirmReset = async () => {
           <div class="setting-row clickable danger" @click="handleResetClick">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.resetProgress') }}</span>
-              <span class="setting-desc">Start fresh for this course</span>
+              <span class="setting-desc">{{ t('settings.resetProgressDesc') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -2226,12 +2226,12 @@ const confirmReset = async () => {
 
       <!-- Developer Section -->
       <section class="section" v-if="isAdmin">
-        <h3 class="section-title">Developer</h3>
+        <h3 class="section-title">{{ t('settings.developer') }}</h3>
         <div class="card">
           <!-- Tools -->
           <div class="setting-row clickable" @click="toggleViewScript">
             <div class="setting-info">
-              <span class="setting-label">View Script</span>
+              <span class="setting-label">{{ t('settings.viewScriptLabel') }}</span>
               <span class="setting-desc">Show script browser in Tools section</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
@@ -2245,7 +2245,7 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable" @click="toggleDebugOverlay">
             <div class="setting-info">
-              <span class="setting-label">Debug Overlay</span>
+              <span class="setting-label">{{ t('settings.debugOverlay') }}</span>
               <span class="setting-desc">Show phase, round, and LEGO info on screen</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showDebugOverlay }">
@@ -2259,8 +2259,8 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable" @click="toggleVerboseLogging">
             <div class="setting-info">
-              <span class="setting-label">Verbose Logging</span>
-              <span class="setting-desc">Enable detailed console logs</span>
+              <span class="setting-label">{{ t('settings.verboseLogging') }}</span>
+              <span class="setting-desc">{{ t('settings.verboseLoggingDesc') }}</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableVerboseLogging }">
               <div class="toggle-track">
@@ -2474,7 +2474,7 @@ const confirmReset = async () => {
         <div class="brand">
           <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
         </div>
-        <p class="copyright">Made with love for language learners</p>
+        <p class="copyright">{{ t('settings.madeWithLove') }}</p>
         <p class="legal-entity">© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales</p>
       </footer>
     </main>

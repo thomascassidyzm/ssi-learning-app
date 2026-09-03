@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { dirFor } from '@ssi/core'
 import {
@@ -705,7 +707,7 @@ onUnmounted(() => {
     <!-- Error State -->
     <div v-else-if="error" class="error-state" @click.stop>
       <p>{{ error }}</p>
-      <button @click="loadPhrases()">Retry</button>
+      <button @click="loadPhrases()">{{ t('courseSelector.retry') }}</button>
     </div>
 
     <!-- Main Content -->
@@ -770,7 +772,7 @@ onUnmounted(() => {
               <polyline points="1 4 1 10 7 10"/>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
             </svg>
-            Retry
+            {{ t('courseSelector.retry') }}
           </button>
           <button class="action-btn action-btn--next" @click.stop="handleSkip">
             Next

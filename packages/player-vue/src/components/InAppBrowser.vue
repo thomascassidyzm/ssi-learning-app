@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * InAppBrowser — the full-screen sheet that shows a saysomethingin.com page
  * over the app, so the learner never leaves the PWA and never loses their
@@ -72,7 +74,7 @@ onBeforeUnmount(() => {
         <span class="iab-title">{{ target.title }}</span>
         <span class="iab-host">{{ hostLabel(target.url) }}</span>
       </div>
-      <button type="button" class="iab-close" aria-label="Close" @click="closeInApp">
+      <button type="button" class="iab-close" :aria-label="t('sector.close')" @click="closeInApp">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18" />

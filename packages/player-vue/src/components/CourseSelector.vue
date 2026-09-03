@@ -450,7 +450,7 @@ onMounted(() => {
             <div class="header-top">
               <div class="header-spacer" />
               <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-              <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+              <button class="close-btn" @click="emit('close')" :aria-label="t('sector.close')">&#x2715;</button>
             </div>
             <input
               v-model="searchQuery"
@@ -512,7 +512,7 @@ onMounted(() => {
                 <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
               </div>
               <button class="section-header__cta" @click="goPremium()">
-                Go Premium
+                {{ t('settings.goPremium') }}
               </button>
             </div>
             <ul class="course-list">

@@ -262,7 +262,7 @@ onUnmounted(() => {
         @click="handleBackdropClick"
       >
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-modal-lang">
-          <button class="modal-close" @click="emit('close')" aria-label="Close">
+          <button class="modal-close" @click="emit('close')" :aria-label="t('sector.close')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -436,14 +436,14 @@ onUnmounted(() => {
                   class="map-marker map-marker--now"
                   :style="{ left: nowMarkerLeft + '%' }"
                 >
-                  <span class="map-marker-label">now</span>
+                  <span class="map-marker-label">{{ t('resting.now') }}</span>
                 </div>
                 <div
                   v-if="showFurthestMarker"
                   class="map-marker map-marker--furthest"
                   :style="{ left: furthestMarkerLeft + '%' }"
                 >
-                  <span class="map-marker-label">furthest</span>
+                  <span class="map-marker-label">{{ t('resting.furthest') }}</span>
                 </div>
               </div>
             </div>

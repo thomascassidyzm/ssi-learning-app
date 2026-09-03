@@ -223,7 +223,7 @@ onMounted(async () => {
         <svg viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span>Continue</span>
+        <span>{{ t('session.continue') }}</span>
       </button>
     </div>
   </div>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, watch, inject, onUnmounted } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
@@ -364,7 +366,7 @@ const handleClose = () => {
       </div>
 
       <button type="button" class="submit-btn" @click="step = 'email'">
-        Continue
+        {{ t('session.continue') }}
       </button>
 
       <button type="button" class="back-btn" @click="clearPendingCode(); codeInput = ''; step = 'code'">
@@ -533,7 +535,7 @@ const handleClose = () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
-        Back
+        {{ t('sector.back') }}
       </button>
     </form>
   </AuthModal>

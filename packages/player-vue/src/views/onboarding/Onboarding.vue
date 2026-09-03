@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
@@ -800,7 +802,7 @@ async function continueIn() {
         <span class="ob-spine" aria-hidden="true"></span>
 
         <header class="ob-brand">
-          <img class="ob-wordmark" src="/ssi-web-logo.svg" alt="SaySomethingin" />
+          <img class="ob-wordmark" src="/ssi-web-logo.svg" :alt="t('app.name')" />
           <span class="ob-brand-sub">{{ cfg.heading }}</span>
         </header>
 
@@ -998,7 +1000,7 @@ async function continueIn() {
           <div v-else-if="catalogueError" class="ob-field">
             <p class="ob-muted">
               We couldn't load the language list.
-              <button type="button" class="ob-link" @click="retryCatalogue">Try again</button>
+              <button type="button" class="ob-link" @click="retryCatalogue">{{ t('sector.retry') }}</button>
             </p>
           </div>
 
@@ -1133,7 +1135,7 @@ async function continueIn() {
             :disabled="(isOrgDoor ? !orgName.trim() : !selectedCourse) || busy"
             @click="continueSignedIn"
           >
-            Continue
+            {{ t('session.continue') }}
           </Button>
           <template v-else>
             <Button
@@ -1232,7 +1234,7 @@ async function continueIn() {
           </Button>
 
           <div class="ob-links">
-            <button type="button" class="ob-link" @click="changeEmail">Change email</button>
+            <button type="button" class="ob-link" @click="changeEmail">{{ t('settings.changeEmail') }}</button>
             <span class="ob-link-sep" aria-hidden="true">·</span>
             <button type="button" class="ob-link" :disabled="busy" @click="sendCode">Resend code</button>
           </div>
@@ -1308,7 +1310,7 @@ async function continueIn() {
             <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
             <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
-              Continue
+              {{ t('session.continue') }}
             </Button>
             <p class="ob-fine">You can change these anytime in your settings.</p>
           </template>
