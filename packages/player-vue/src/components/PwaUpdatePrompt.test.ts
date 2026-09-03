@@ -10,8 +10,10 @@ import { ref } from 'vue'
 // can flip it to simulate a waiting service worker.
 const needRefresh = ref(false)
 const updateServiceWorker = vi.fn().mockResolvedValue(undefined)
+const registerCalls = vi.fn()
 vi.mock('virtual:pwa-register/vue', () => ({
   useRegisterSW: (opts: any) => {
+    registerCalls()
     // Hand the component a registration with a waiting worker, exactly as the
     // real library does when a new build has installed and is waiting.
     opts?.onRegistered?.({ waiting, update: vi.fn() })
@@ -26,6 +28,7 @@ const waiting = { postMessage: vi.fn() }
 import PwaUpdatePrompt from './PwaUpdatePrompt.vue'
 import { updateAvailable, userDismissed } from '@/composables/usePwaUpdate'
 import { RELOAD_WEDGE_MS } from '@/utils/bootHeal'
+import { configurePlatform, resetPlatform } from '@/platform/capabilities'
 
 // jsdom's location is read-only; swap in a stub that records reloads.
 const reload = vi.fn()
@@ -46,6 +49,8 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     userDismissed.value = false
     reload.mockClear()
     waiting.postMessage.mockClear()
+    registerCalls.mockClear()
+    resetPlatform()
     vi.stubGlobal('fetch', vi.fn())
   })
 
@@ -142,6 +147,22 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
       vi.useRealTimers()
     }
   })
+
+  // THE SERVICE-WORKER GATE. Web = register, exactly as before. WebView = never
+  // register, because the native shell owns caching and update delivery and a
+  // Workbox precache underneath it would serve its own stale app shell.
+  it('registers the service worker on the web — unchanged', () => {
+    activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
+    expect(registerCalls).toHaveBeenCalledTimes(1)
+  })
+
+  it('never registers a service worker inside a native shell', () => {
+    configurePlatform({ shell: 'webview' })
+    activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
+    expect(registerCalls).not.toHaveBeenCalled()
+    expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
+  })
+
 })
 
 // Lets the pending fetchLatestBuildNumber() chain AND Vue's own watcher/render
