@@ -504,6 +504,16 @@ export default async function handler(
         // 67 courses — and no course that can play a pod today loses one.
         .eq('pod_type', 'core')
         .in('slug', ['pod-1', 'pod-0'])
+        // RESTRICTED CONTENT IS ONLINE-ONLY. This route reads with
+        // SUPABASE_SERVICE_ROLE_KEY and therefore bypasses RLS entirely, so
+        // the role gate added on 2026-09-03
+        // (Popty database/changes/20260903_restricted_content_by_role.sql)
+        // does not reach it. Without this line, a pod restricted to one named
+        // person would be written into every learner's offline bundle. A
+        // bundle is built per COURSE and cached, not per learner, so there is
+        // no correct way to include role-restricted content here at all —
+        // it is excluded outright and its holder listens online.
+        .is('required_role', null)
         .order('pod_order', { ascending: true, nullsFirst: true }),
       // Bookends live in course_audio (role-based), not on listening_pods.
       // One pair per course today — shared across all that course's pods.
