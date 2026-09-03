@@ -47,9 +47,40 @@ page.on('response', (r) => {
 const readTimer = () =>
   page.evaluate(() => (document.body.innerText.match(/\d+:\d\d/) || [null])[0]).catch(() => null)
 
-await page.goto(PROD, { waitUntil: 'networkidle', timeout: 45000 })
-await page.waitForTimeout(3000)
+// Emit a verdict line and leave. NOTHING in this probe may throw its way out
+// of the process: an uncaught exception prints a stack trace with no JSON, and
+// the sentinel then has no way to tell "the probe fell over" from "learners
+// can't play" — which is exactly the 2026-09-03 00:15 false alarm (a nav
+// failure whose message was truncated to the useless `page.goto: `).
+async function bail(verdict, reason) {
+  console.log(JSON.stringify({ ok: false, verdict, reason, started: false, probeFault: true }))
+  await browser.close().catch(() => {})
+  process.exit(verdict === 'healthy' ? 0 : 1)
+}
+process.on('unhandledRejection', (e) => bail('probe-error', `unhandled rejection: ${String(e).replace(/\s+/g, ' ').slice(0, 300)}`))
+process.on('uncaughtException', (e) => bail('probe-error', `uncaught exception: ${String(e).replace(/\s+/g, ' ').slice(0, 300)}`))
+
+// Navigation. A cold CDN right after a deploy, a slow DNS answer or a page that
+// never reaches `networkidle` are all PROBE-SIDE facts, not learner outages —
+// one retry, then 'inconclusive'. `domcontentloaded` is the real bar: the SPA
+// keeps sockets and audio in flight, so 'networkidle' is a coin toss under load.
+let navError = null
+for (let attempt = 1; attempt <= 2; attempt++) {
+  try {
+    await page.goto(PROD, { waitUntil: 'domcontentloaded', timeout: 45000 })
+    navError = null
+    break
+  } catch (e) {
+    navError = `attempt ${attempt}: ${String(e).replace(/\s+/g, ' ').slice(0, 300)}`
+    if (attempt === 1) await page.waitForTimeout(5000)
+  }
+}
+if (navError) await bail('inconclusive', `could not load ${PROD} in the probe browser — ${navError}`)
+
+// The SPA needs a moment past DOMContentLoaded to mount its player.
+await page.waitForTimeout(8000)
 const timerBefore = await readTimer()
+if (timerBefore === null) await bail('inconclusive', `page loaded but no session clock rendered within 8s of DOMContentLoaded at ${PROD}`)
 
 // Start playback. These are the REAL guest-landing controls — the player's
 // centre transport button and its accessible label. Text selectors are
