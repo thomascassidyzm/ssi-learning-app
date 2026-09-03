@@ -73,7 +73,16 @@
     "pause": "暂停",
     "resume": "继续",
     "offlinePracticeBody": "现在无法获取新的内容，正好可以练习你已经学过的部分 — 一旦可以获取，新的内容就会送到。",
-    "offlinePracticeAck": "知道了"
+    "offlinePracticeAck": "知道了",
+    "newBeltEarned": "获得新段位！",
+    "next": "下一个 ›",
+    "nextPodSentence": "下一句",
+    "podPreviewNavigation": "预览导航",
+    "prev": "‹ 上一个",
+    "previousPodSentence": "上一句",
+    "runningLowSpace": "· 存储空间不足",
+    "saveProgress": "保存进度",
+    "skipWelcome": "跳过欢迎"
   },
   "home": {
     "goodMorning": "早上好",
@@ -104,7 +113,8 @@
     "goodStart": "好的开始",
     "niceFlow": "节奏不错",
     "greatSession": "出色的练习",
-    "onFire": "状态绝佳"
+    "onFire": "状态绝佳",
+    "viewJourney": "查看你的学习历程"
   },
   "profile": {
     "title": "个人资料",
@@ -195,7 +205,32 @@
     "troubleshooting": "故障排除",
     "updateLatest": "更新到最新版本",
     "viewScriptLabel": "查看脚本",
-    "whatsNew": "新功能"
+    "whatsNew": "新功能",
+    "active": "已启用",
+    "addProgressionModeListening": "为「听力 → 对话」新增一个「进阶」模式，让每一句都直接从Popty听力配置走完全部9个习得阶段",
+    "adjustHowFastTarget": "调整目标语言音频的播放速度。不影响你的已知语言。",
+    "adminDashboard": "管理员仪表盘",
+    "browseCourseRoundsLego": "浏览课程回合与LEGO序列",
+    "coveredByFamilyPlan": "已包含在你的家庭计划中",
+    "enterInviteAccessCode": "输入邀请码或访问码",
+    "flagPhrasesDontSound": "标记听起来不对的短语。反馈会直接发送给内容团队。",
+    "fragileProgressWarning2": "进度不稳定提醒",
+    "learningSpeed": "学习速度",
+    "listeningProgressionAudit": "听力进阶审核",
+    "manageClassesStudents": "管理你的班级和学生",
+    "peopleInvitesProgress": "你的成员、邀请和进度",
+    "permanentlyDeleteAccountAll": "永久删除你的账户和所有数据",
+    "personalisedPacing": "个性化学习节奏",
+    "platformUsersActivityCourse": "平台用户、活跃度与课程分析",
+    "practisingModeOnlyAlready": "练习模式已开启 — 目前只播放你已学过的内容。",
+    "practisingModeTest": "练习模式（测试）",
+    "showPhaseRoundLego": "在屏幕上显示阶段、回合和LEGO信息",
+    "showProgressFragileBanner": "为访客显示「进度不稳定」提示条",
+    "showScriptBrowserTools": "在工具部分显示脚本浏览器",
+    "signOut": "退出登录",
+    "ssiFamily": "SSi家庭版",
+    "usesMicrophoneDetectWhen": "使用你的麦克风检测你说话的时机，并根据你的节奏调整停顿时长。不会录制或存储任何音频。",
+    "whileWillOnlyGet": "开启此项时，你只会看到已经学过的内容 — 不会有新的LEGO。关闭它以恢复学习新内容。应用重启后会自动重置。"
   },
   "belt": {
     "yourProgress": "你的进度",
@@ -246,7 +281,10 @@
     "tapToPause": "点击暂停",
     "tapToStart": "点击开始",
     "phaseFlow": "听 → 说 → 听 → 看",
-    "tapAnywhere": "点击任意位置开始"
+    "tapAnywhere": "点击任意位置开始",
+    "confirmStart": "确认并开始",
+    "eGCardiffCouncil": "例如：加的夫市议会",
+    "eGYsgolGymraeg": "例如：Ysgol Gymraeg…"
   },
   "driving": {
     "exitDrivingMode": "退出驾驶模式",
@@ -435,5 +473,51 @@
     "stagePreparing1": "正在准备音频流",
     "stagePreparing2": "正在校准节奏模式",
     "stageReady": "准备就绪"
+  },
+  "auth": {
+    "inviteCode": "邀请码",
+    "validateCode": "验证代码",
+    "verificationCode": "验证码"
+  },
+  "browse": {
+    "allCourses": "所有课程",
+    "classesLearners": "你的班级和学员",
+    "classesStudentsAnalytics": "班级、学生与数据分析",
+    "organisationDashboard": "机构仪表盘",
+    "peopleInvitesProgress": "你的成员、邀请与进度",
+    "searchAnyLanguage": "搜索任意语言...",
+    "teachSaysomethingin": "与 SaySomethingin 一起教学",
+    "tutorDashboard": "导师仪表盘",
+    "viewBelts": "查看段位"
+  },
+  "family": {
+    "addChild": "+ 添加孩子",
+    "copy": "复制",
+    "inviteByEmail": "+ 通过邮箱邀请"
+  },
+  "install": {
+    "next": "下一步"
+  },
+  "listening": {
+    "loadingPods": "正在加载音频组...",
+    "noPodsCourseYet": "此课程暂无音频组。",
+    "speed": "速度"
+  },
+  "nav": {
+    "previousLego": "上一个LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "正在加载短语..."
+  },
+  "redeem": {
+    "activatingCode": "正在激活你的兑换码...",
+    "checkingCode": "正在检查兑换码...",
+    "eGAlys": "例如：Alys",
+    "eGSianJones": "例如：Sian Jones",
+    "goApp": "前往应用"
+  },
+  "tryLink": {
+    "checkingLink": "正在检查你的链接...",
+    "loadingCourses": "正在加载你的课程..."
   }
 }

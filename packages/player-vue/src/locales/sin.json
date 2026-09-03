@@ -73,7 +73,16 @@
     "pause": "විරාමය",
     "resume": "ඉදිරියට",
     "offlinePracticeBody": "දැනට අපට නව අයිතම ලබා ගත නොහැක, එබැවින් ඔබ දැනටමත් ඉගෙන ගත් දේ පුහුණු වීමට මෙය අවස්ථාවකි — අපට ලබා ගත හැකි වූ විගස නව අයිතම එනු ඇත.",
-    "offlinePracticeAck": "තේරුණා"
+    "offlinePracticeAck": "තේරුණා",
+    "newBeltEarned": "නව පටියක් ලැබුණි!",
+    "next": "ඊළඟ ›",
+    "nextPodSentence": "ඊළඟ පොඩ් වාක්‍යය",
+    "podPreviewNavigation": "පොඩ් පෙරදසුන් සංචලනය",
+    "prev": "‹ පෙර",
+    "previousPodSentence": "පෙර පොඩ් වාක්‍යය",
+    "runningLowSpace": "· ඉඩකඩ අඩුවෙමින් පවතී",
+    "saveProgress": "ප්‍රගතිය සුරකින්න",
+    "skipWelcome": "පිළිගැනීම මඟහරින්න"
   },
   "home": {
     "goodMorning": "සුභ උදෑසනක්",
@@ -104,7 +113,8 @@
     "goodStart": "හොඳ ආරම්භයක්",
     "niceFlow": "හොඳ ගලායාමක්",
     "greatSession": "අපූරු සැසියක්",
-    "onFire": "ගිනි අවුළුවලා!"
+    "onFire": "ගිනි අවුළුවලා!",
+    "viewJourney": "ඔබේ ගමන බලන්න"
   },
   "profile": {
     "title": "පැතිකඩ",
@@ -195,7 +205,32 @@
     "troubleshooting": "දෝෂ නිරාකරණය",
     "updateLatest": "නවතම අනුවාදයට යාවත්කාලීන කරන්න",
     "viewScriptLabel": "පිටපත බලන්න",
-    "whatsNew": "අලුත් දේ"
+    "whatsNew": "අලුත් දේ",
+    "active": "සක්‍රීයයි",
+    "addProgressionModeListening": "ශ්‍රවණය → සංවාද වෙත සෑම පේළියක්ම අත්පත් කර ගැනීමේ අදියර 9 හරහා ගෙන යන \"ප්‍රගතිය\" ප්‍රකාරයක් එක් කරන්න, Popty ශ්‍රවණ වින්‍යාසයෙන් සජීවීව",
+    "adjustHowFastTarget": "ඉලක්ක භාෂා ශ්‍රව්‍යය වාදනය වන වේගය සකසන්න. ඔබේ දන්නා භාෂාවට බලපාන්නේ නැත.",
+    "adminDashboard": "පරිපාලක පුවරුව",
+    "browseCourseRoundsLego": "පාඨමාලා වට සහ LEGO අනුපිළිවෙළ පිරික්සන්න",
+    "coveredByFamilyPlan": "ඔබේ පවුල් සැලැස්මෙන් ආවරණය වේ",
+    "enterInviteAccessCode": "ආරාධනා හෝ ප්‍රවේශ කේතයක් ඇතුළත් කරන්න",
+    "flagPhrasesDontSound": "හරි නොවැටෙන වාක්‍ය සලකුණු කරන්න. ප්‍රතිපෝෂණය කෙලින්ම අන්තර්ගත කණ්ඩායමට යයි.",
+    "fragileProgressWarning2": "දුර්වල ප්‍රගති අනතුරු ඇඟවීම",
+    "learningSpeed": "ඉගෙනුම් වේගය",
+    "listeningProgressionAudit": "ශ්‍රවණ ප්‍රගති විගණනය",
+    "manageClassesStudents": "ඔබේ පන්ති සහ සිසුන් කළමනාකරණය කරන්න",
+    "peopleInvitesProgress": "ඔබේ පුද්ගලයන්, ආරාධනා සහ ප්‍රගතිය",
+    "permanentlyDeleteAccountAll": "ඔබේ ගිණුම සහ සියලුම දත්ත ස්ථිරවම මකන්න",
+    "personalisedPacing": "පුද්ගලාරෝපිත වේගය",
+    "platformUsersActivityCourse": "වේදිකා පරිශීලකයන්, ක්‍රියාකාරකම් සහ පාඨමාලා විශ්ලේෂණ",
+    "practisingModeOnlyAlready": "පුහුණු ප්‍රකාරය සක්‍රීයයි — දැනටමත් හඳුනාගත් අන්තර්ගතය පමණක් වාදනය වේ.",
+    "practisingModeTest": "පුහුණු ප්‍රකාරය (පරීක්ෂණ)",
+    "showPhaseRoundLego": "තිරයේ අදියර, වට සහ LEGO තොරතුරු පෙන්වන්න",
+    "showProgressFragileBanner": "අමුත්තන් සඳහා \"ප්‍රගතිය දුර්වලයි\" බැනරය පෙන්වන්න",
+    "showScriptBrowserTools": "මෙවලම් අංශයේ පිටපත් බ්‍රවුසරය පෙන්වන්න",
+    "signOut": "පිටවන්න",
+    "ssiFamily": "SSi පවුල",
+    "usesMicrophoneDetectWhen": "ඔබ කථා කරන අවස්ථාව හඳුනා ගැනීමට ඔබේ මයික්‍රෆෝනය භාවිත කරයි, විරාම දිග ඔබේ රිද්මයට අනුවර්තනය කරයි. කිසිදු ශ්‍රව්‍යයක් පටිගත හෝ ගබඩා නොකෙරේ.",
+    "whileWillOnlyGet": "මෙය සක්‍රීයව පවතින විට ඔබට ලැබෙන්නේ දැනටමත් හඳුනාගත් අන්තර්ගතය පමණි — නව LEGO නැත. නව අන්තර්ගතය නැවත ලබා ගැනීමට එය අක්‍රිය කරන්න. යෙදුම යළි ඇරඹූ විට එය තනිවම යළි සකසයි."
   },
   "belt": {
     "yourProgress": "ඔබේ ප්‍රගතිය",
@@ -246,7 +281,8 @@
     "tapToPause": "විරාම කිරීමට තට්ටු කරන්න",
     "tapToStart": "පටන් ගැනීමට තට්ටු කරන්න",
     "phaseFlow": "අසන්න → කථා කරන්න → අසන්න → බලන්න",
-    "tapAnywhere": "පටන් ගැනීමට ඕනෑම තැනකට තට්ටු කරන්න"
+    "tapAnywhere": "පටන් ගැනීමට ඕනෑම තැනකට තට්ටු කරන්න",
+    "confirmStart": "තහවුරු කර පටන් ගන්න"
   },
   "driving": {
     "exitDrivingMode": "රිය පැදවීමේ ක්‍රමයෙන් ඉවත්වන්න",
@@ -435,5 +471,49 @@
     "sme": "උතුරු සාමි",
     "vec": "වෙනීටියානු",
     "yid": "යිඩිෂ්"
+  },
+  "auth": {
+    "inviteCode": "ආරාධනා කේතය",
+    "validateCode": "කේතය තහවුරු කරන්න",
+    "verificationCode": "සත්‍යාපන කේතය"
+  },
+  "browse": {
+    "allCourses": "සියලුම පාඨමාලා",
+    "classesLearners": "ඔබේ පන්ති සහ ඉගෙන ගන්නන්",
+    "classesStudentsAnalytics": "පන්ති, සිසුන් සහ විශ්ලේෂණ",
+    "organisationDashboard": "සංවිධාන පුවරුව",
+    "peopleInvitesProgress": "ඔබේ පුද්ගලයන්, ආරාධනා සහ ප්‍රගතිය",
+    "searchAnyLanguage": "ඕනෑම භාෂාවක් සොයන්න...",
+    "teachSaysomethingin": "SaySomethingin සමඟ ඉගැන්වන්න",
+    "tutorDashboard": "උපදේශක පුවරුව",
+    "viewBelts": "පටි බලන්න"
+  },
+  "family": {
+    "addChild": "+ දරුවෙකු එකතු කරන්න",
+    "copy": "පිටපත් කරන්න",
+    "inviteByEmail": "+ විද්‍යුත් තැපෑලෙන් ආරාධනා කරන්න"
+  },
+  "install": {
+    "next": "ඊළඟ"
+  },
+  "listening": {
+    "loadingPods": "පොඩ් පූරණය වෙමින්...",
+    "noPodsCourseYet": "මෙම පාඨමාලාව සඳහා තවම පොඩ් නොමැත.",
+    "speed": "වේගය"
+  },
+  "nav": {
+    "previousLego": "පෙර LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "වාක්‍ය පූරණය වෙමින්..."
+  },
+  "redeem": {
+    "activatingCode": "ඔබේ කේතය සක්‍රීය කරමින්...",
+    "checkingCode": "කේතය පරීක්ෂා කරමින්...",
+    "goApp": "යෙදුමට යන්න"
+  },
+  "tryLink": {
+    "checkingLink": "ඔබේ සබැඳිය පරීක්ෂා කරමින්...",
+    "loadingCourses": "ඔබේ පාඨමාලා පූරණය වෙමින්..."
   }
 }

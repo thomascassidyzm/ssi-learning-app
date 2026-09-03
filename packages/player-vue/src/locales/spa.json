@@ -73,7 +73,16 @@
     "pause": "Pausar",
     "resume": "Continuar",
     "offlinePracticeBody": "Ahora mismo no podemos acceder a nuevos elementos, así que esta es una buena ocasión para practicar lo que ya has visto — los nuevos elementos llegarán en cuanto podamos acceder a ellos.",
-    "offlinePracticeAck": "Entendido"
+    "offlinePracticeAck": "Entendido",
+    "newBeltEarned": "¡Nuevo cinturón conseguido!",
+    "next": "Siguiente ›",
+    "nextPodSentence": "Siguiente frase del pod",
+    "podPreviewNavigation": "Navegación de vista previa del pod",
+    "prev": "‹ Anterior",
+    "previousPodSentence": "Frase anterior del pod",
+    "runningLowSpace": "· queda poco espacio",
+    "saveProgress": "Guardar progreso",
+    "skipWelcome": "Omitir bienvenida"
   },
   "home": {
     "goodMorning": "Buenos días",
@@ -104,7 +113,8 @@
     "goodStart": "Buen comienzo",
     "niceFlow": "Buen ritmo",
     "greatSession": "Gran sesión",
-    "onFire": "Imparable"
+    "onFire": "Imparable",
+    "viewJourney": "Ver tu trayecto"
   },
   "profile": {
     "title": "Perfil",
@@ -195,7 +205,32 @@
     "nuclearResetDesc": "Borrar todos los datos locales, service workers y recargar",
     "about": "Acerca de",
     "version": "Versión",
-    "madeWithLove": "Hecho con amor para quienes aprenden idiomas"
+    "madeWithLove": "Hecho con amor para quienes aprenden idiomas",
+    "active": "Activo",
+    "addProgressionModeListening": "Añade un modo «Progresión» a Escucha → Diálogos que recorre cada línea por las 9 etapas de adquisición, en directo desde la configuración de escucha de Popty",
+    "adjustHowFastTarget": "Ajusta la velocidad a la que se reproduce el audio en el idioma que aprendes. No afecta a tu idioma conocido.",
+    "adminDashboard": "Panel de administración",
+    "browseCourseRoundsLego": "Explora las rondas del curso y las secuencias de LEGOs",
+    "coveredByFamilyPlan": "Cubierto por tu plan familiar",
+    "enterInviteAccessCode": "Introduce un código de invitación o acceso",
+    "flagPhrasesDontSound": "Marca las frases que no suenan bien. Los comentarios van directamente al equipo de contenido.",
+    "fragileProgressWarning2": "Aviso de progreso frágil",
+    "learningSpeed": "Velocidad de aprendizaje",
+    "listeningProgressionAudit": "Auditoría de progresión de escucha",
+    "manageClassesStudents": "Gestiona tus clases y estudiantes",
+    "peopleInvitesProgress": "Tu gente, invitaciones y progreso",
+    "permanentlyDeleteAccountAll": "Eliminar tu cuenta y todos tus datos de forma permanente",
+    "personalisedPacing": "Ritmo personalizado",
+    "platformUsersActivityCourse": "Usuarios de la plataforma, actividad y análisis de cursos",
+    "practisingModeOnlyAlready": "El modo de práctica está activado — solo se reproduce material que ya has visto.",
+    "practisingModeTest": "Modo de práctica (prueba)",
+    "showPhaseRoundLego": "Mostrar información de fase, ronda y LEGO en pantalla",
+    "showProgressFragileBanner": "Mostrar el aviso de «progreso frágil» a los invitados",
+    "showScriptBrowserTools": "Mostrar el explorador de scripts en la sección Herramientas",
+    "signOut": "Cerrar sesión",
+    "ssiFamily": "SSi Family",
+    "usesMicrophoneDetectWhen": "Usa tu micrófono para detectar cuándo hablas, ajustando la duración de las pausas a tu ritmo. No se graba ni se guarda ningún audio.",
+    "whileWillOnlyGet": "Mientras esté activado, solo recibirás material que ya has visto — sin LEGOs nuevos. Desactívalo para retomar contenido nuevo. Se restablece solo al reiniciar la app."
   },
   "belt": {
     "yourProgress": "Tu progreso",
@@ -246,7 +281,8 @@
     "tapToPause": "Toca para pausar",
     "tapToStart": "Toca para empezar",
     "phaseFlow": "Escucha → Habla → Escucha → Mira",
-    "tapAnywhere": "toca en cualquier lugar para empezar"
+    "tapAnywhere": "toca en cualquier lugar para empezar",
+    "confirmStart": "Confirmar y empezar"
   },
   "driving": {
     "exitDrivingMode": "Salir del modo conducción",
@@ -435,5 +471,50 @@
     "yue": "Cantonés",
     "zho": "Chino",
     "zul": "Zulú"
+  },
+  "auth": {
+    "inviteCode": "Código de invitación",
+    "validateCode": "Validar código",
+    "verificationCode": "Código de verificación"
+  },
+  "browse": {
+    "allCourses": "Todos los cursos",
+    "classesLearners": "Tus clases y alumnos",
+    "classesStudentsAnalytics": "Clases, estudiantes y análisis",
+    "organisationDashboard": "Panel de la organización",
+    "peopleInvitesProgress": "Tu gente, invitaciones y progreso",
+    "premium": "Premium",
+    "searchAnyLanguage": "Busca cualquier idioma...",
+    "teachSaysomethingin": "Enseña con SaySomethingin",
+    "tutorDashboard": "Panel del tutor",
+    "viewBelts": "Ver cinturones"
+  },
+  "family": {
+    "addChild": "+ Añadir un hijo/a",
+    "copy": "Copiar",
+    "inviteByEmail": "+ Invitar por correo"
+  },
+  "install": {
+    "next": "Siguiente"
+  },
+  "listening": {
+    "loadingPods": "Cargando pods...",
+    "noPodsCourseYet": "Todavía no hay pods para este curso.",
+    "speed": "Velocidad"
+  },
+  "nav": {
+    "previousLego": "LEGO anterior"
+  },
+  "pronunciation": {
+    "loadingPhrases": "Cargando frases..."
+  },
+  "redeem": {
+    "activatingCode": "Activando tu código...",
+    "checkingCode": "Comprobando código...",
+    "goApp": "Ir a la app"
+  },
+  "tryLink": {
+    "checkingLink": "Comprobando tu enlace...",
+    "loadingCourses": "Cargando tus cursos..."
   }
 }

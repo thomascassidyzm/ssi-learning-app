@@ -73,7 +73,16 @@
     "pause": "Dáwọ́",
     "resume": "Tẹ̀síwájú",
     "offlinePracticeBody": "A ò lè rí àwọn ohun tuntun gbà báyìí, nítorí náà èyí ni àǹfààní láti ṣe àdáṣe ohun tí o ti kọ́ tẹ́lẹ̀ — àwọn ohun tuntun yóò dé bí a bá ti lè rí wọn gbà.",
-    "offlinePracticeAck": "Ó yé mi"
+    "offlinePracticeAck": "Ó yé mi",
+    "newBeltEarned": "Àmùrè Tuntun Ti Jẹ́ Gbà!",
+    "next": "Tẹ̀síwájú ›",
+    "nextPodSentence": "Gbólóhùn pod tí ó tẹ̀lé",
+    "podPreviewNavigation": "Ìtọ́ka àwòsàyẹ̀wò pod",
+    "prev": "‹ Tẹ́lẹ̀",
+    "previousPodSentence": "Gbólóhùn pod tẹ́lẹ̀",
+    "runningLowSpace": "· àyè ń dínkù",
+    "saveProgress": "Fi Ìlọsíwájú Pamọ́",
+    "skipWelcome": "Fo Ìkíni sílẹ̀"
   },
   "home": {
     "goodMorning": "Ẹ kú àárọ̀",
@@ -104,7 +113,8 @@
     "goodStart": "Ìbẹ̀rẹ̀ rere",
     "niceFlow": "Ìṣàn dídára",
     "greatSession": "Ìpàdé tí ó dára gan-an",
-    "onFire": "O wà lórí iná"
+    "onFire": "O wà lórí iná",
+    "viewJourney": "Wo Ìrìnàjò Rẹ"
   },
   "profile": {
     "title": "Ìwé Ìmọ̀ Ara Rẹ",
@@ -195,7 +205,32 @@
     "troubleshooting": "Àtúnṣe ìṣòro",
     "updateLatest": "Mú ṣe àtúntò tuntun jùlọ",
     "viewScriptLabel": "Wo Ìwé-akọrin",
-    "whatsNew": "Ohun tuntun"
+    "whatsNew": "Ohun tuntun",
+    "active": "Ń Ṣiṣẹ́",
+    "addProgressionModeListening": "Fi ipò \"Ìlọsíwájú\" kún Ìtẹ́tísílẹ̀ → Ìjíròrò tí ó máa mú ìlà kọ̀ọ̀kan la gbogbo ìpele mọ́nà mẹ́sàn-án já, tààrà láti ètò ìtẹ́tísílẹ̀ Popty",
+    "adjustHowFastTarget": "Ṣàtúnṣe bí ìró èdè tí o ń kọ́ ṣe ń yára tó. Kò ní í kan èdè tí o ti mọ̀.",
+    "adminDashboard": "Pátákó Alábòójútó",
+    "browseCourseRoundsLego": "Wo àwọn ìpele ìdánilẹ́kọ̀ọ́ àti ìtẹ̀lé lego",
+    "coveredByFamilyPlan": "Ètò ìdílé rẹ ni ó bò ó mọ́lẹ̀",
+    "enterInviteAccessCode": "Tẹ kóòdù ìpè tàbí kóòdù ààyè kan sí",
+    "flagPhrasesDontSound": "Fi àmì sí àwọn gbólóhùn tí kò dún dáadáa. Èsì ń lọ tààrà sí ẹgbẹ́ àkóónú.",
+    "fragileProgressWarning2": "Ìkìlọ̀ Ìlọsíwájú Aláìlágbára",
+    "learningSpeed": "Iyara Ìkẹ́kọ̀ọ́",
+    "listeningProgressionAudit": "Àyẹ̀wò Ìlọsíwájú Ìtẹ́tísílẹ̀",
+    "manageClassesStudents": "Bójútó àwọn kíláàsì àti akẹ́kọ̀ọ́ rẹ",
+    "peopleInvitesProgress": "Àwọn ènìyàn rẹ, ìpè àti ìlọsíwájú",
+    "permanentlyDeleteAccountAll": "Pa àkọọ́lẹ̀ rẹ àti gbogbo dátà rẹ rẹ́ pátápátá",
+    "personalisedPacing": "Ìyára tí a ṣe fún ọ ní pàtàkì",
+    "platformUsersActivityCourse": "Àwọn olùlò pèpèle, ìgbòkègbodò, àti ìtúpalẹ̀ ìdánilẹ́kọ̀ọ́",
+    "practisingModeOnlyAlready": "Ipò Àdáṣe wà ní ṣíṣí — ohun tí o ti kọ́ tẹ́lẹ̀ nìkan ni ó ń ṣiṣẹ́.",
+    "practisingModeTest": "Ipò Àdáṣe (àdánwò)",
+    "showPhaseRoundLego": "Fi ìwọ̀n ìpele, yíkiri, àti àlàyé LEGO hàn lórí ìwòye",
+    "showProgressFragileBanner": "Fi àmì \"ìlọsíwájú kò fẹsẹ̀múlẹ̀\" hàn fún àwọn àlejò",
+    "showScriptBrowserTools": "Fi olùwádìí ìwé-akọrin hàn ní abala Àwọn ohun-èlò",
+    "signOut": "Jáde",
+    "ssiFamily": "SSi Family",
+    "usesMicrophoneDetectWhen": "Ó ń lo máìkúrofóònù rẹ láti mọ ìgbà tí o bá ń sọ̀rọ̀, ó sì ń ṣàtúnṣe gígùn ìdáwọ́dúró sí bí o ṣe ń lọ. A kò ń gba ohùn kankan sílẹ̀ tàbí kí a fi pamọ́.",
+    "whileWillOnlyGet": "Nígbà tí èyí bá wà ní ṣíṣí ìwọ yóò rí ohun tí o ti kọ́ tẹ́lẹ̀ nìkan — kò ní í sí LEGO tuntun. Pa á kúrò láti tẹ̀síwájú pẹ̀lú ohun tuntun. Yóò tún padà sí ìpò rẹ̀ àkọ́kọ́ nígbàkígbà tí app bá bẹ̀rẹ̀ padà."
   },
   "belt": {
     "yourProgress": "Ìtẹ̀síwájú rẹ",
@@ -246,7 +281,10 @@
     "tapToPause": "Fọwọ́ kàn láti dáwọ́",
     "tapToStart": "Fọwọ́ kàn láti bẹ̀rẹ̀",
     "phaseFlow": "Tẹ́tí → Sọ̀rọ̀ → Tẹ́tí → Wò",
-    "tapAnywhere": "fọwọ́ kàn ibikíbi láti bẹ̀rẹ̀"
+    "tapAnywhere": "fọwọ́ kàn ibikíbi láti bẹ̀rẹ̀",
+    "confirmStart": "Fọwọ́sí kí o sì bẹ̀rẹ̀",
+    "eGCardiffCouncil": "f.à. Cardiff Council",
+    "eGYsgolGymraeg": "f.à. Ysgol Gymraeg…"
   },
   "driving": {
     "exitDrivingMode": "Jáde nínú ipò ìwákọ̀",
@@ -435,5 +473,52 @@
     "sme": "Èdè Sami Àríwá",
     "vec": "Èdè Venetian",
     "yid": "Èdè Yiddish"
+  },
+  "auth": {
+    "inviteCode": "Kóòdù Ìpè",
+    "validateCode": "Fọwọ́sí Kóòdù",
+    "verificationCode": "Kóòdù Ìjẹ́rìísí"
+  },
+  "browse": {
+    "allCourses": "Gbogbo Ìdánilẹ́kọ̀ọ́",
+    "classesLearners": "Àwọn kíláàsì àti akẹ́kọ̀ọ́ rẹ",
+    "classesStudentsAnalytics": "Kíláàsì, akẹ́kọ̀ọ́ àti ìtúpalẹ̀",
+    "organisationDashboard": "Pátákó Ètò Àjọ",
+    "peopleInvitesProgress": "Àwọn ènìyàn rẹ, ìpè àti ìlọsíwájú",
+    "premium": "Premium",
+    "searchAnyLanguage": "Wá èdè èyíkéyìí...",
+    "teachSaysomethingin": "Kọ́ni pẹ̀lú SaySomethingin",
+    "tutorDashboard": "Pátákó Olùkọ́",
+    "viewBelts": "Wo Àwọn Àmùrè"
+  },
+  "family": {
+    "addChild": "+ Fi ọmọ kún",
+    "copy": "Ẹ̀dà",
+    "inviteByEmail": "+ Pe nípasẹ̀ ímeèlì"
+  },
+  "install": {
+    "next": "Tẹ̀síwájú"
+  },
+  "listening": {
+    "loadingPods": "Ń gbé àwọn pod wọlé...",
+    "noPodsCourseYet": "Kò sí pod kankan fún ìdánilẹ́kọ̀ọ́ yìí síbẹ̀.",
+    "speed": "Iyara"
+  },
+  "nav": {
+    "previousLego": "LEGO tẹ́lẹ̀"
+  },
+  "pronunciation": {
+    "loadingPhrases": "Ń gbé àwọn gbólóhùn wọlé..."
+  },
+  "redeem": {
+    "activatingCode": "Ń mú kóòdù rẹ ṣiṣẹ́...",
+    "checkingCode": "Ń ṣàyẹ̀wò kóòdù...",
+    "eGAlys": "f.à. Alys",
+    "eGSianJones": "f.à. Sian Jones",
+    "goApp": "Lọ sí App"
+  },
+  "tryLink": {
+    "checkingLink": "Ń ṣàyẹ̀wò ọ̀nà asopọ̀ rẹ...",
+    "loadingCourses": "Ń gbé àwọn ìdánilẹ́kọ̀ọ́ rẹ wọlé..."
   }
 }

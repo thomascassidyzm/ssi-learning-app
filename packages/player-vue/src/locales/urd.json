@@ -24,7 +24,16 @@
     "pause": "روکیں",
     "resume": "جاری رکھیں",
     "offlinePracticeBody": "ابھی ہم نئے اسباق تک نہیں پہنچ پا رہے، اس لیے یہ اُس کی مشق کا موقع ہے جو آپ پہلے ہی سیکھ چکے ہیں — جیسے ہی ہم پہنچ سکے، نئے اسباق آ جائیں گے۔",
-    "offlinePracticeAck": "سمجھ گئے"
+    "offlinePracticeAck": "سمجھ گئے",
+    "newBeltEarned": "نیا بیلٹ حاصل ہوا!",
+    "next": "اگلا ›",
+    "nextPodSentence": "اگلا پوڈ جملہ",
+    "podPreviewNavigation": "پوڈ پیش منظر نیویگیشن",
+    "prev": "‹ پچھلا",
+    "previousPodSentence": "پچھلا پوڈ جملہ",
+    "runningLowSpace": "· جگہ کم ہو رہی ہے",
+    "saveProgress": "پیش رفت محفوظ کریں",
+    "skipWelcome": "خوش آمدید نظر انداز کریں"
   },
   "home": {
     "goodMorning": "صبح بخیر",
@@ -55,7 +64,8 @@
     "goodStart": "اچھی شروعات",
     "niceFlow": "اچھی روانی",
     "greatSession": "زبردست سیشن",
-    "onFire": "چھائے ہوئے ہیں"
+    "onFire": "چھائے ہوئے ہیں",
+    "viewJourney": "اپنا سفر دیکھیں"
   },
   "profile": {
     "title": "پروفائل",
@@ -146,7 +156,32 @@
     "troubleshooting": "خرابیوں کا ازالہ",
     "updateLatest": "تازہ ترین ورژن میں اپڈیٹ کریں",
     "viewScriptLabel": "اسکرپٹ دیکھیں",
-    "whatsNew": "نیا کیا ہے"
+    "whatsNew": "نیا کیا ہے",
+    "active": "فعال",
+    "addProgressionModeListening": "سننا → مکالمے میں ایک \"پیش رفت\" موڈ شامل کریں جو ہر سطر کو Popty سننے کی ترتیب سے براہ راست تمام 9 حصولی مراحل میں لے جاتا ہے",
+    "adjustHowFastTarget": "ہدف زبان کا آڈیو کتنی تیزی سے چلتا ہے، اسے ایڈجسٹ کریں۔ اس سے آپ کی معلوم زبان متاثر نہیں ہوتی۔",
+    "adminDashboard": "ایڈمن ڈیش بورڈ",
+    "browseCourseRoundsLego": "کورس کے راؤنڈز اور لیگو ترتیب دیکھیں",
+    "coveredByFamilyPlan": "آپ کے فیملی پلان میں شامل ہے",
+    "enterInviteAccessCode": "دعوتی یا رسائی کوڈ درج کریں",
+    "flagPhrasesDontSound": "ایسے جملے نشان زد کریں جو درست نہ لگیں۔ رائے براہ راست مواد کی ٹیم کو جاتی ہے۔",
+    "fragileProgressWarning2": "غیر مستحکم پیش رفت کی وارننگ",
+    "learningSpeed": "سیکھنے کی رفتار",
+    "listeningProgressionAudit": "سننے کی پیش رفت کا آڈٹ",
+    "manageClassesStudents": "اپنی کلاسز اور طلبہ کا نظم کریں",
+    "peopleInvitesProgress": "آپ کے لوگ، دعوتیں اور پیش رفت",
+    "permanentlyDeleteAccountAll": "اپنا اکاؤنٹ اور تمام ڈیٹا مستقل طور پر حذف کریں",
+    "personalisedPacing": "ذاتی رفتار",
+    "platformUsersActivityCourse": "پلیٹ فارم صارفین، سرگرمی، اور کورس تجزیات",
+    "practisingModeOnlyAlready": "مشق موڈ آن ہے — صرف وہ مواد چل رہا ہے جو آپ پہلے ہی سیکھ چکے ہیں۔",
+    "practisingModeTest": "مشق موڈ (ٹیسٹ)",
+    "showPhaseRoundLego": "اسکرین پر مرحلہ، راؤنڈ، اور LEGO کی معلومات دکھائیں",
+    "showProgressFragileBanner": "مہمانوں کے لیے \"پیش رفت غیر مستحکم ہے\" بینر دکھائیں",
+    "showScriptBrowserTools": "ٹولز سیکشن میں اسکرپٹ براؤزر دکھائیں",
+    "signOut": "سائن آؤٹ کریں",
+    "ssiFamily": "SSi فیملی",
+    "usesMicrophoneDetectWhen": "یہ آپ کے بولنے کا پتہ لگانے کے لیے آپ کا مائیکروفون استعمال کرتا ہے، اور وقفوں کی لمبائی کو آپ کی رفتار کے مطابق ڈھالتا ہے۔ کوئی آڈیو ریکارڈ یا محفوظ نہیں کیا جاتا۔",
+    "whileWillOnlyGet": "جب تک یہ آن ہے آپ کو صرف وہ مواد ملے گا جو آپ پہلے ہی سیکھ چکے ہیں — کوئی نئے LEGO نہیں۔ نیا مواد دوبارہ شروع کرنے کے لیے اسے بند کریں۔ ایپ دوبارہ شروع ہونے پر یہ خود بخود ری سیٹ ہو جاتا ہے۔"
   },
   "belt": {
     "yourProgress": "آپ کی پیش رفت",
@@ -197,7 +232,8 @@
     "tapToPause": "روکنے کے لیے ٹیپ کریں",
     "tapToStart": "شروع کرنے کے لیے ٹیپ کریں",
     "phaseFlow": "سنیں ← بولیں ← سنیں ← دیکھیں",
-    "tapAnywhere": "شروع کرنے کے لیے کہیں بھی ٹیپ کریں"
+    "tapAnywhere": "شروع کرنے کے لیے کہیں بھی ٹیپ کریں",
+    "confirmStart": "تصدیق کریں اور شروع کریں"
   },
   "driving": {
     "exitDrivingMode": "ڈرائیونگ موڈ سے باہر نکلیں",
@@ -435,5 +471,50 @@
     "walks": {
       "health": "صحت"
     }
+  },
+  "auth": {
+    "inviteCode": "دعوتی کوڈ",
+    "validateCode": "کوڈ کی توثیق کریں",
+    "verificationCode": "تصدیقی کوڈ"
+  },
+  "browse": {
+    "allCourses": "تمام کورسز",
+    "classesLearners": "آپ کی کلاسز اور سیکھنے والے",
+    "classesStudentsAnalytics": "کلاسز، طلبہ اور تجزیات",
+    "organisationDashboard": "تنظیمی ڈیش بورڈ",
+    "peopleInvitesProgress": "آپ کے لوگ، دعوتیں اور پیش رفت",
+    "searchAnyLanguage": "کوئی بھی زبان تلاش کریں...",
+    "teachSaysomethingin": "SaySomethingin کے ساتھ سکھائیں",
+    "tutorDashboard": "ٹیوٹر ڈیش بورڈ",
+    "viewBelts": "بیلٹس دیکھیں"
+  },
+  "family": {
+    "addChild": "+ بچہ شامل کریں",
+    "copy": "کاپی کریں",
+    "inviteByEmail": "+ ای میل کے ذریعے دعوت دیں"
+  },
+  "install": {
+    "addReadingList": "ریڈنگ لسٹ میں شامل کریں",
+    "next": "اگلا"
+  },
+  "listening": {
+    "loadingPods": "پوڈز لوڈ ہو رہے ہیں...",
+    "noPodsCourseYet": "اس کورس کے لیے ابھی تک کوئی پوڈز نہیں ہیں۔",
+    "speed": "رفتار"
+  },
+  "nav": {
+    "previousLego": "پچھلا LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "جملے لوڈ ہو رہے ہیں..."
+  },
+  "redeem": {
+    "activatingCode": "آپ کا کوڈ فعال کیا جا رہا ہے...",
+    "checkingCode": "کوڈ چیک کیا جا رہا ہے...",
+    "goApp": "ایپ پر جائیں"
+  },
+  "tryLink": {
+    "checkingLink": "آپ کا لنک چیک کیا جا رہا ہے...",
+    "loadingCourses": "آپ کے کورسز لوڈ ہو رہے ہیں..."
   }
 }
