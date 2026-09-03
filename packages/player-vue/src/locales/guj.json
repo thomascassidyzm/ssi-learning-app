@@ -24,7 +24,16 @@
     "pause": "વિરામ",
     "resume": "ચાલુ રાખો",
     "offlinePracticeBody": "અત્યારે અમે નવી સામગ્રી મેળવી શકતા નથી, તેથી તમે જે પહેલેથી શીખ્યા છો તેનો અભ્યાસ કરવાની આ એક તક છે — અમે પહોંચી શકીશું કે તરત જ નવી સામગ્રી આવી જશે.",
-    "offlinePracticeAck": "સમજાયું"
+    "offlinePracticeAck": "સમજાયું",
+    "newBeltEarned": "નવો બેલ્ટ મળ્યો!",
+    "next": "આગળ ›",
+    "nextPodSentence": "પોડનું આગલું વાક્ય",
+    "podPreviewNavigation": "પોડ પ્રિવ્યૂ નેવિગેશન",
+    "prev": "‹ પાછળ",
+    "previousPodSentence": "પોડનું પાછલું વાક્ય",
+    "runningLowSpace": "· સ્પેસ ઓછી થઈ રહી છે",
+    "saveProgress": "પ્રગતિ સાચવો",
+    "skipWelcome": "સ્વાગત છોડી દો"
   },
   "home": {
     "goodMorning": "સુપ્રભાત",
@@ -55,7 +64,8 @@
     "goodStart": "સારી શરૂઆત",
     "niceFlow": "સરસ પ્રવાહ",
     "greatSession": "શાનદાર સત્ર",
-    "onFire": "જબરદસ્ત!"
+    "onFire": "જબરદસ્ત!",
+    "viewJourney": "તમારી સફર જુઓ"
   },
   "profile": {
     "title": "પ્રોફાઇલ",
@@ -146,7 +156,32 @@
     "troubleshooting": "સમસ્યા નિવારણ",
     "updateLatest": "નવીનતમ વર્ઝનમાં અપડેટ કરો",
     "viewScriptLabel": "સ્ક્રિપ્ટ જુઓ",
-    "whatsNew": "શું નવું છે"
+    "whatsNew": "શું નવું છે",
+    "active": "સક્રિય",
+    "addProgressionModeListening": "સાંભળવું → સંવાદોમાં એક \"પ્રગતિ\" મોડ ઉમેરો જે દરેક લાઇનને 9 સંપાદન તબક્કાઓમાંથી પસાર કરે, Popty સાંભળવાની કન્ફિગમાંથી જીવંત",
+    "adjustHowFastTarget": "લક્ષ્ય ભાષાનો ઑડિયો કેટલી ઝડપે વાગે તે ગોઠવો. તમારી જાણીતી ભાષા પર તેની અસર થતી નથી.",
+    "adminDashboard": "એડમિન ડૅશબોર્ડ",
+    "browseCourseRoundsLego": "કોર્સના રાઉન્ડ અને LEGO ક્રમ બ્રાઉઝ કરો",
+    "coveredByFamilyPlan": "તમારા ફેમિલી પ્લાનમાં આવરી લેવાયું",
+    "enterInviteAccessCode": "આમંત્રણ અથવા ઍક્સેસ કોડ દાખલ કરો",
+    "flagPhrasesDontSound": "જે વાક્યો બરાબર ન લાગે તેને ફ્લેગ કરો. પ્રતિભાવ સીધો કન્ટેન્ટ ટીમને જાય છે.",
+    "fragileProgressWarning2": "નાજુક પ્રગતિ ચેતવણી",
+    "learningSpeed": "શીખવાની ઝડપ",
+    "listeningProgressionAudit": "સાંભળવાની પ્રગતિનું ઑડિટ",
+    "manageClassesStudents": "તમારા વર્ગો અને વિદ્યાર્થીઓ સંભાળો",
+    "peopleInvitesProgress": "તમારા લોકો, આમંત્રણો અને પ્રગતિ",
+    "permanentlyDeleteAccountAll": "તમારું ખાતું અને બધો ડેટા કાયમ માટે કાઢી નાખો",
+    "personalisedPacing": "વ્યક્તિગત ગતિ",
+    "platformUsersActivityCourse": "પ્લેટફોર્મના યુઝર્સ, પ્રવૃત્તિ અને કોર્સ એનાલિટિક્સ",
+    "practisingModeOnlyAlready": "પ્રેક્ટિસ મોડ ચાલુ છે — ફક્ત તમે પહેલેથી શીખેલી સામગ્રી જ ચાલી રહી છે.",
+    "practisingModeTest": "પ્રેક્ટિસ મોડ (ટેસ્ટ)",
+    "showPhaseRoundLego": "સ્ક્રીન પર ફેઝ, રાઉન્ડ અને LEGO માહિતી બતાવો",
+    "showProgressFragileBanner": "મહેમાનો માટે \"પ્રગતિ નાજુક છે\" બેનર બતાવો",
+    "showScriptBrowserTools": "ટૂલ્સ વિભાગમાં સ્ક્રિપ્ટ બ્રાઉઝર બતાવો",
+    "signOut": "સાઇન આઉટ",
+    "ssiFamily": "SSi ફેમિલી",
+    "usesMicrophoneDetectWhen": "તમે ક્યારે બોલો છો તે પારખવા માટે તમારા માઇક્રોફોનનો ઉપયોગ કરે છે, અને તમારી લયને અનુરૂપ થોભાવોની લંબાઈ ગોઠવે છે. કોઈ ઑડિયો રેકોર્ડ કે સાચવવામાં આવતો નથી.",
+    "whileWillOnlyGet": "આ ચાલુ હોય ત્યાં સુધી તમને ફક્ત તમે પહેલેથી શીખેલી સામગ્રી જ મળશે — કોઈ નવો LEGO નહીં. નવી સામગ્રી ફરી શરૂ કરવા તેને બંધ કરો. એપ ફરી શરૂ થાય ત્યારે તે જાતે રીસેટ થઈ જાય છે."
   },
   "belt": {
     "yourProgress": "તમારી પ્રગતિ",
@@ -197,7 +232,8 @@
     "tapToPause": "વિરામ માટે ટૅપ કરો",
     "tapToStart": "શરૂ કરવા ટૅપ કરો",
     "phaseFlow": "સાંભળો → બોલો → સાંભળો → જુઓ",
-    "tapAnywhere": "શરૂ કરવા ક્યાંય પણ ટૅપ કરો"
+    "tapAnywhere": "શરૂ કરવા ક્યાંય પણ ટૅપ કરો",
+    "confirmStart": "પુષ્ટિ કરો અને શરૂ કરો"
   },
   "driving": {
     "exitDrivingMode": "ડ્રાઇવિંગ મોડમાંથી બહાર નીકળો",
@@ -435,5 +471,49 @@
     "walks": {
       "health": "આરોગ્ય"
     }
+  },
+  "auth": {
+    "inviteCode": "આમંત્રણ કોડ",
+    "validateCode": "કોડ ચકાસો",
+    "verificationCode": "વેરિફિકેશન કોડ"
+  },
+  "browse": {
+    "allCourses": "બધા કોર્સ",
+    "classesLearners": "તમારા વર્ગો અને શીખનારાઓ",
+    "classesStudentsAnalytics": "વર્ગો, વિદ્યાર્થીઓ અને એનાલિટિક્સ",
+    "organisationDashboard": "સંસ્થા ડૅશબોર્ડ",
+    "peopleInvitesProgress": "તમારા લોકો, આમંત્રણો અને પ્રગતિ",
+    "searchAnyLanguage": "કોઈપણ ભાષા શોધો...",
+    "teachSaysomethingin": "SaySomethingin સાથે શીખવો",
+    "tutorDashboard": "ટ્યુટર ડૅશબોર્ડ",
+    "viewBelts": "બેલ્ટ જુઓ"
+  },
+  "family": {
+    "addChild": "+ બાળક ઉમેરો",
+    "copy": "કૉપિ કરો",
+    "inviteByEmail": "+ ઈમેઇલથી આમંત્રિત કરો"
+  },
+  "install": {
+    "next": "આગળ"
+  },
+  "listening": {
+    "loadingPods": "પોડ લોડ થઈ રહ્યા છે...",
+    "noPodsCourseYet": "આ કોર્સ માટે હજુ કોઈ પોડ નથી.",
+    "speed": "ઝડપ"
+  },
+  "nav": {
+    "previousLego": "પાછલો LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "વાક્યો લોડ થઈ રહ્યા છે..."
+  },
+  "redeem": {
+    "activatingCode": "તમારો કોડ સક્રિય થઈ રહ્યો છે...",
+    "checkingCode": "કોડ તપાસાઈ રહ્યો છે...",
+    "goApp": "એપ પર જાઓ"
+  },
+  "tryLink": {
+    "checkingLink": "તમારી લિંક તપાસાઈ રહી છે...",
+    "loadingCourses": "તમારા કોર્સ લોડ થઈ રહ્યા છે..."
   }
 }

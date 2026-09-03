@@ -24,7 +24,16 @@
     "pause": "रोकें",
     "resume": "जारी रखें",
     "offlinePracticeBody": "अभी हम नई सामग्री तक नहीं पहुँच पा रहे हैं, तो यह उसका अभ्यास करने का मौका है जो आपने पहले ही सीखा है — जैसे ही हम पहुँच पाएँगे, नई सामग्री आ जाएगी।",
-    "offlinePracticeAck": "समझ गए"
+    "offlinePracticeAck": "समझ गए",
+    "newBeltEarned": "नई बेल्ट मिली!",
+    "next": "आगे ›",
+    "nextPodSentence": "पॉड का अगला वाक्य",
+    "podPreviewNavigation": "पॉड प्रीव्यू नेविगेशन",
+    "prev": "‹ पीछे",
+    "previousPodSentence": "पॉड का पिछला वाक्य",
+    "runningLowSpace": "· जगह कम हो रही है",
+    "saveProgress": "प्रगति सहेजें",
+    "skipWelcome": "स्वागत छोड़ें"
   },
   "home": {
     "goodMorning": "सुप्रभात",
@@ -55,7 +64,8 @@
     "goodStart": "अच्छी शुरुआत",
     "niceFlow": "बढ़िया रवानी",
     "greatSession": "शानदार सेशन",
-    "onFire": "ज़बरदस्त"
+    "onFire": "ज़बरदस्त",
+    "viewJourney": "अपनी यात्रा देखें"
   },
   "profile": {
     "title": "प्रोफ़ाइल",
@@ -146,7 +156,32 @@
     "troubleshooting": "समस्या निवारण",
     "updateLatest": "नवीनतम वर्शन में अपडेट करें",
     "viewScriptLabel": "स्क्रिप्ट देखें",
-    "whatsNew": "नया क्या है"
+    "whatsNew": "नया क्या है",
+    "active": "सक्रिय",
+    "addProgressionModeListening": "सुनना → संवादों में एक \"प्रगति\" मोड जोड़ें जो हर लाइन को सभी 9 सीखने के चरणों से गुज़ारे, Popty की लिसनिंग कॉन्फ़िग से लाइव",
+    "adjustHowFastTarget": "लक्ष्य भाषा का ऑडियो कितनी तेज़ी से चले यह तय करें। इसका आपकी जानी-पहचानी भाषा पर कोई असर नहीं पड़ता।",
+    "adminDashboard": "एडमिन डैशबोर्ड",
+    "browseCourseRoundsLego": "कोर्स के राउंड और LEGO क्रम देखें",
+    "coveredByFamilyPlan": "आपके फ़ैमिली प्लान में शामिल",
+    "enterInviteAccessCode": "आमंत्रण या एक्सेस कोड डालें",
+    "flagPhrasesDontSound": "जो वाक्यांश सही न लगें उन्हें फ़्लैग करें। फ़ीडबैक सीधे कंटेंट टीम तक जाता है।",
+    "fragileProgressWarning2": "नाज़ुक प्रगति चेतावनी",
+    "learningSpeed": "सीखने की गति",
+    "listeningProgressionAudit": "लिसनिंग प्रोग्रेशन ऑडिट",
+    "manageClassesStudents": "अपनी कक्षाएँ और छात्र मैनेज करें",
+    "peopleInvitesProgress": "आपके लोग, आमंत्रण और प्रगति",
+    "permanentlyDeleteAccountAll": "अपना खाता और सारा डेटा हमेशा के लिए हटाएँ",
+    "personalisedPacing": "व्यक्तिगत गति-निर्धारण",
+    "platformUsersActivityCourse": "प्लेटफ़ॉर्म के उपयोगकर्ता, गतिविधि और कोर्स एनालिटिक्स",
+    "practisingModeOnlyAlready": "प्रैक्टिसिंग मोड ऑन है — सिर्फ़ वही सामग्री चल रही है जो आप पहले से सीख चुके हैं।",
+    "practisingModeTest": "प्रैक्टिसिंग मोड (टेस्ट)",
+    "showPhaseRoundLego": "स्क्रीन पर फ़ेज़, राउंड और LEGO जानकारी दिखाएँ",
+    "showProgressFragileBanner": "मेहमानों के लिए \"प्रगति नाज़ुक है\" बैनर दिखाएँ",
+    "showScriptBrowserTools": "टूल्स सेक्शन में स्क्रिप्ट ब्राउज़र दिखाएँ",
+    "signOut": "साइन आउट करें",
+    "ssiFamily": "SSi फ़ैमिली",
+    "usesMicrophoneDetectWhen": "आप कब बोल रहे हैं यह पहचानने के लिए आपके माइक्रोफ़ोन का उपयोग करता है, और रुकने की अवधि को आपकी लय के अनुसार ढालता है। कोई ऑडियो रिकॉर्ड या सहेजा नहीं जाता।",
+    "whileWillOnlyGet": "जब तक यह ऑन है आपको सिर्फ़ वही सामग्री मिलेगी जो आप पहले से सीख चुके हैं — कोई नया LEGO नहीं। नई सामग्री फिर से शुरू करने के लिए इसे बंद करें। ऐप के फिर से शुरू होने पर यह अपने आप रीसेट हो जाता है।"
   },
   "belt": {
     "yourProgress": "आपकी प्रगति",
@@ -197,7 +232,8 @@
     "tapToPause": "रोकने के लिए टैप करें",
     "tapToStart": "शुरू करने के लिए टैप करें",
     "phaseFlow": "सुनो → बोलो → सुनो → देखो",
-    "tapAnywhere": "शुरू करने के लिए कहीं भी टैप करें"
+    "tapAnywhere": "शुरू करने के लिए कहीं भी टैप करें",
+    "confirmStart": "पुष्टि करें और शुरू करें"
   },
   "driving": {
     "exitDrivingMode": "ड्राइविंग मोड से बाहर निकलें",
@@ -435,5 +471,49 @@
     "walks": {
       "health": "स्वास्थ्य"
     }
+  },
+  "auth": {
+    "inviteCode": "आमंत्रण कोड",
+    "validateCode": "कोड सत्यापित करें",
+    "verificationCode": "सत्यापन कोड"
+  },
+  "browse": {
+    "allCourses": "सभी कोर्स",
+    "classesLearners": "आपकी कक्षाएँ और सीखने वाले",
+    "classesStudentsAnalytics": "कक्षाएँ, छात्र और एनालिटिक्स",
+    "organisationDashboard": "संस्था डैशबोर्ड",
+    "peopleInvitesProgress": "आपके लोग, आमंत्रण और प्रगति",
+    "searchAnyLanguage": "कोई भी भाषा खोजें...",
+    "teachSaysomethingin": "SaySomethingin के साथ सिखाएँ",
+    "tutorDashboard": "ट्यूटर डैशबोर्ड",
+    "viewBelts": "बेल्ट देखें"
+  },
+  "family": {
+    "addChild": "+ बच्चा जोड़ें",
+    "copy": "कॉपी करें",
+    "inviteByEmail": "+ ईमेल से आमंत्रित करें"
+  },
+  "install": {
+    "next": "आगे"
+  },
+  "listening": {
+    "loadingPods": "पॉड लोड हो रहे हैं...",
+    "noPodsCourseYet": "इस कोर्स के लिए अभी कोई पॉड नहीं है।",
+    "speed": "गति"
+  },
+  "nav": {
+    "previousLego": "पिछला LEGO"
+  },
+  "pronunciation": {
+    "loadingPhrases": "वाक्यांश लोड हो रहे हैं..."
+  },
+  "redeem": {
+    "activatingCode": "आपका कोड सक्रिय हो रहा है...",
+    "checkingCode": "कोड जाँचा जा रहा है...",
+    "goApp": "ऐप पर जाएँ"
+  },
+  "tryLink": {
+    "checkingLink": "आपका लिंक जाँचा जा रहा है...",
+    "loadingCourses": "आपके कोर्स लोड हो रहे हैं..."
   }
 }

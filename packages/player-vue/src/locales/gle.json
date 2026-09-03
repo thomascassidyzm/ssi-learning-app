@@ -73,7 +73,16 @@
     "pause": "Sos",
     "resume": "Lean ar aghaidh",
     "offlinePracticeBody": "Ní féidir linn míreanna nua a fháil faoi láthair, mar sin seo deis chun cleachtadh a dhéanamh ar a bhfuil déanta agat cheana — tiocfaidh míreanna nua chugat chomh luath agus is féidir linn iad a fháil.",
-    "offlinePracticeAck": "Tuigim"
+    "offlinePracticeAck": "Tuigim",
+    "newBeltEarned": "Creas Nua Bainte Amach!",
+    "next": "Ar Aghaidh ›",
+    "nextPodSentence": "An chéad abairt eile sa phod",
+    "podPreviewNavigation": "Nascleanúint réamhamhairc an phoda",
+    "prev": "‹ Siar",
+    "previousPodSentence": "An abairt roimhe seo sa phod",
+    "runningLowSpace": "· ag rith gann ar spás",
+    "saveProgress": "Sábháil an Dul Chun Cinn",
+    "skipWelcome": "Ná taispeáin an Fáilte"
   },
   "home": {
     "goodMorning": "Maidin mhaith",
@@ -104,7 +113,8 @@
     "goodStart": "Tús maith",
     "niceFlow": "Sruth deas",
     "greatSession": "Seisiún iontach",
-    "onFire": "Ar thine"
+    "onFire": "Ar thine",
+    "viewJourney": "Féach ar Do Thuras"
   },
   "profile": {
     "title": "Próifíl",
@@ -195,7 +205,32 @@
     "nuclearResetDesc": "Glan gach sonra logánta, oibrithe seirbhíse agus athluchtaigh",
     "about": "Maidir le",
     "version": "Leagan",
-    "madeWithLove": "Déanta le grá d'fhoghlaimeoirí teanga"
+    "madeWithLove": "Déanta le grá d'fhoghlaimeoirí teanga",
+    "active": "Gníomhach",
+    "addProgressionModeListening": "Cuir mód \"Dul Chun Cinn\" le hÉisteacht → Comhráite a shiúlann gach líne trí na 9 gcéim shealbhaithe, beo ó chumraíocht éisteachta Popty",
+    "adjustHowFastTarget": "Coigeartaigh cé chomh gasta a sheinneann fuaim na sprioctheanga. Ní chuireann sé isteach ar do theanga dhúchais.",
+    "adminDashboard": "Painéal Riaracháin",
+    "browseCourseRoundsLego": "Brabhsáil babhtaí an chúrsa agus seichimh LEGO",
+    "coveredByFamilyPlan": "Clúdaithe ag do phlean teaghlaigh",
+    "enterInviteAccessCode": "Cuir isteach cód cuiridh nó rochtana",
+    "flagPhrasesDontSound": "Cuir bratach ar fhrásaí nach bhfuil ceart. Téann aiseolas díreach chuig an bhfoireann ábhair.",
+    "fragileProgressWarning2": "Rabhadh maidir le Dul Chun Cinn Leochaileach",
+    "learningSpeed": "Luas Foghlama",
+    "listeningProgressionAudit": "Iniúchadh Dul Chun Cinn na hÉisteachta",
+    "manageClassesStudents": "Bainistigh do ranganna agus do dhaltaí",
+    "peopleInvitesProgress": "Do dhaoine, cuirí agus dul chun cinn",
+    "permanentlyDeleteAccountAll": "Scrios do chuntas agus gach sonra go buan",
+    "personalisedPacing": "Luasrialú pearsantaithe",
+    "platformUsersActivityCourse": "Úsáideoirí ardáin, gníomhaíocht agus anailísíocht chúrsaí",
+    "practisingModeOnlyAlready": "Tá Mód Cleachtaidh ANN — níl ach ábhar a bhfuil tú tar éis castáil leis á sheinm.",
+    "practisingModeTest": "Mód Cleachtaidh (tástáil)",
+    "showPhaseRoundLego": "Taispeáin eolas céime, babhta agus LEGO ar an scáileán",
+    "showProgressFragileBanner": "Taispeáin an bratach \"tá an dul chun cinn leochaileach\" d'aíonna",
+    "showScriptBrowserTools": "Taispeáin an brabhsálaí scripte sa rannóg Uirlisí",
+    "signOut": "Sínigh Amach",
+    "ssiFamily": "Teaghlach SSi",
+    "usesMicrophoneDetectWhen": "Úsáideann sé do mhicreafón chun a bhrath cathain a labhraíonn tú, ag coigeartú fad na sosanna do do rithim féin. Ní thaifeadtar ná ní stóráiltear aon fhuaim.",
+    "whileWillOnlyGet": "Fad is atá seo ann ní bhfaighidh tú ach ábhar a bhfuil tú tar éis castáil leis cheana — gan LEGO nua ar bith. Múch é chun ábhar nua a atosú. Athshocraíonn sé féin nuair a atosaítear an aip."
   },
   "belt": {
     "yourProgress": "Do dhul chun cinn",
@@ -246,7 +281,8 @@
     "tapToPause": "Tapáil le sos a chur",
     "tapToStart": "Tapáil le tosú",
     "phaseFlow": "Éist → Labhair → Éist → Féach",
-    "tapAnywhere": "tapáil áit ar bith le tosú"
+    "tapAnywhere": "tapáil áit ar bith le tosú",
+    "confirmStart": "Deimhnigh agus tosaigh"
   },
   "driving": {
     "exitDrivingMode": "Fág an mód tiomána",
@@ -435,5 +471,50 @@
     "yue": "Cantainis",
     "zho": "Sínis",
     "zul": "Súlúis"
+  },
+  "auth": {
+    "inviteCode": "Cód Cuiridh",
+    "validateCode": "Bailíochtaigh an Cód",
+    "verificationCode": "Cód Fíoraithe"
+  },
+  "browse": {
+    "allCourses": "Gach Cúrsa",
+    "classesLearners": "Do ranganna agus foghlaimeoirí",
+    "classesStudentsAnalytics": "Ranganna, daltaí agus anailísíocht",
+    "organisationDashboard": "Painéal Eagraíochta",
+    "peopleInvitesProgress": "Do dhaoine, cuirí agus dul chun cinn",
+    "premium": "Premium",
+    "searchAnyLanguage": "Cuardaigh teanga ar bith...",
+    "teachSaysomethingin": "Múin le SaySomethingin",
+    "tutorDashboard": "Painéal an Teagascóra",
+    "viewBelts": "Féach ar Chreasa"
+  },
+  "family": {
+    "addChild": "+ Cuir leanbh leis",
+    "copy": "Cóipeáil",
+    "inviteByEmail": "+ Tabhair cuireadh trí ríomhphost"
+  },
+  "install": {
+    "next": "Ar Aghaidh"
+  },
+  "listening": {
+    "loadingPods": "Podanna á luchtú...",
+    "noPodsCourseYet": "Níl aon phodanna don chúrsa seo go fóill.",
+    "speed": "Luas"
+  },
+  "nav": {
+    "previousLego": "An LEGO roimhe seo"
+  },
+  "pronunciation": {
+    "loadingPhrases": "Frásaí á luchtú..."
+  },
+  "redeem": {
+    "activatingCode": "Do chód á ghníomhachtú...",
+    "checkingCode": "An cód á sheiceáil...",
+    "goApp": "Téigh chuig an Aip"
+  },
+  "tryLink": {
+    "checkingLink": "Do nasc á sheiceáil...",
+    "loadingCourses": "Do chúrsaí á luchtú..."
   }
 }
