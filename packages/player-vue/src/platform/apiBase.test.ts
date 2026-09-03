@@ -53,14 +53,14 @@ describe('configured origin — requests follow it', () => {
   it('rewrites a string /api path', async () => {
     const { scope, spy } = wrappedScope()
     await scope.fetch('/api/courses/spa_for_eng/bundle')
-    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/courses/spa_for_eng/bundle`, undefined)
+    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/courses/spa_for_eng/bundle`, { credentials: 'omit' })
   })
 
   it('keeps the init object', async () => {
     const { scope, spy } = wrappedScope()
     const init = { method: 'POST', body: '{}' }
     await scope.fetch('/api/player-events', init)
-    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/player-events`, init)
+    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/player-events`, { ...init, credentials: 'omit' })
   })
 
   it('rewrites a Request object', async () => {
@@ -87,7 +87,7 @@ describe('configured origin — requests follow it', () => {
     const { scope, spy } = wrappedScope()
     expect(installApiOriginRewrite(scope)).toBe(false)
     await scope.fetch('/api/audio/abc')
-    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/audio/abc`, undefined)
+    expect(spy).toHaveBeenCalledWith(`${ORIGIN}/api/audio/abc`, { credentials: 'omit' })
   })
 
   it('never throws a request away if URL bookkeeping fails', async () => {
@@ -103,5 +103,57 @@ describe('audio URLs — the non-fetch consumers', () => {
     configurePlatform({ apiOrigin: 'https://api.example.test' })
     const id = 'a1b2'
     expect(apiUrl(`/api/audio/${id}`)).toBe('https://api.example.test/api/audio/a1b2')
+  })
+})
+
+/**
+ * CREDENTIALS. Authentication here is a bearer token, not a cookie, so the
+ * cross-origin requests are deliberately credential-free — which is also what
+ * keeps `Access-Control-Allow-Origin: *` legal on `/api/audio/(.*)`, a
+ * wildcard `securityHeaders.security.test.ts` documents as safe precisely
+ * because nothing credentialed ever hits it.
+ */
+describe('credentials — cross-origin requests carry none', () => {
+  const ORIGIN = 'https://api.saysomethingin.app'
+
+  function wrappedScope() {
+    const spy = vi.fn(async (_input?: unknown, _init?: unknown) => new Response('ok'))
+    const scope = { fetch: spy as unknown as typeof fetch }
+    configurePlatform({ shell: 'webview', apiOrigin: ORIGIN })
+    expect(installApiOriginRewrite(scope)).toBe(true)
+    return { scope, spy }
+  }
+
+  it('pins credentials: omit on a rewritten string request', async () => {
+    const { scope, spy } = wrappedScope()
+    await scope.fetch('/api/me/profile')
+    expect(spy.mock.calls[0]![1]).toMatchObject({ credentials: 'omit' })
+  })
+
+  it('pins credentials: omit on a rewritten URL request', async () => {
+    const { scope, spy } = wrappedScope()
+    await scope.fetch(new URL('/api/me/profile', location.origin))
+    expect(spy.mock.calls[0]![1]).toMatchObject({ credentials: 'omit' })
+  })
+
+  it('respects a caller that has explicitly asked for something else', async () => {
+    const { scope, spy } = wrappedScope()
+    await scope.fetch('/api/me/profile', { credentials: 'same-origin' })
+    expect(spy.mock.calls[0]![1]).toMatchObject({ credentials: 'same-origin' })
+  })
+
+  it('a Request object built by app code already defaults to same-origin, which sends no cookies cross-origin', () => {
+    // Asserted rather than overridden: a Request's credentials cannot be
+    // re-initialised without pulling its body apart, and the default is
+    // already the safe one.
+    expect(new Request('/api/me/profile').credentials).toBe('same-origin')
+  })
+
+  it('sends no credentials on the WEB path either — because the wrapper is not installed at all', () => {
+    resetPlatform()
+    const original = vi.fn(() => Promise.resolve(new Response('{}')))
+    const scope = { fetch: original as unknown as typeof fetch }
+    expect(installApiOriginRewrite(scope)).toBe(false)
+    expect(scope.fetch).toBe(original)
   })
 })

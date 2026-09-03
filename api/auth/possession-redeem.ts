@@ -46,6 +46,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
@@ -182,6 +183,9 @@ async function tryAdoptShellAccount(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Cross-origin (native shell) policy + preflight. No-op same-origin.
+  if (applyCors(req, res, { methods: 'POST' })) return
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return

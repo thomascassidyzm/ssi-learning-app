@@ -42,6 +42,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from '../_utils/cors'
 import { createClient } from '@supabase/supabase-js'
 import { normaliseAccessCode, hashAccessCode } from '../_utils/accessCode'
 import {
@@ -67,6 +68,9 @@ const REFUSAL =
   'That code has expired or has already been used. Ask whoever gave it to you for a new one — they can make another straight away.'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Cross-origin (native shell) policy + preflight. No-op same-origin.
+  if (applyCors(req, res, { methods: 'POST' })) return
+
   if (req.method !== 'POST') {
     res.status(405).json({ success: false, error: 'Method not allowed' })
     return

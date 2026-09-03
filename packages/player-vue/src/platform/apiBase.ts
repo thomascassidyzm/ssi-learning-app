@@ -25,6 +25,25 @@
  * ON THE WEB THIS IS INERT. The configured origin is the empty string, the
  * wrapper installs nothing, and every request is the identical relative path
  * it is today.
+ *
+ * CREDENTIALS: the rewritten requests are deliberately CREDENTIAL-FREE.
+ * Authentication in this app rides an `Authorization: Bearer <supabase jwt>`
+ * header (see `api/_utils/auth.ts`) — nothing server-side sets a session
+ * cookie, and no endpoint trusts a cookie as an identity. So a cross-origin
+ * WebView needs no ambient credentials at all, and asking for them would be
+ * a real cost rather than a nicety: any request carrying credentials makes
+ * `Access-Control-Allow-Origin: *` illegal, and `/api/audio/(.*)` ships
+ * exactly that wildcard on purpose (see securityHeaders.security.test.ts —
+ * the audio proxy is credential-free, so the wildcard grants no cross-origin
+ * read that a plain <audio> tag could not already do).
+ *
+ * We therefore pin `credentials: 'omit'` on rewritten string/URL requests so
+ * the posture is explicit rather than inherited, and the server side never
+ * emits `Access-Control-Allow-Credentials` (see `api/_utils/cors.ts`). A
+ * `Request` object built by app code already defaults to `'same-origin'`,
+ * which sends nothing cross-origin — that default is asserted in the tests
+ * rather than overridden here, because there is no way to re-init a Request's
+ * credentials without pulling its body apart.
  */
 import { platform } from './capabilities'
 
@@ -70,10 +89,10 @@ export function installApiOriginRewrite(scope: { fetch?: typeof fetch } = global
   const wrapped: typeof fetch = (input, init) => {
     try {
       if (typeof input === 'string' && needsRewrite(input)) {
-        return original(origin + input, init)
+        return original(origin + input, credentialFree(init))
       }
       if (input instanceof URL && needsRewrite(input.pathname) && input.origin === locationOrigin()) {
-        return original(origin + input.pathname + input.search + input.hash, init)
+        return original(origin + input.pathname + input.search + input.hash, credentialFree(init))
       }
       if (isRequest(input)) {
         const rel = relativePathOf(input.url)
@@ -91,6 +110,16 @@ export function installApiOriginRewrite(scope: { fetch?: typeof fetch } = global
   ;(wrapped as any)[MARK] = true
   scope.fetch = wrapped
   return true
+}
+
+/**
+ * Pin the cross-origin request to `credentials: 'omit'`. A caller that has
+ * deliberately asked for a credentials mode keeps it — nothing in this app
+ * does, and silently overriding an explicit choice would be its own bug.
+ */
+function credentialFree(init?: RequestInit): RequestInit {
+  if (init && init.credentials) return init
+  return { ...(init || {}), credentials: 'omit' }
 }
 
 function locationOrigin(): string {

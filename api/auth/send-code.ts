@@ -34,6 +34,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from '../_utils/cors'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { getClientIp } from '../_utils/codeAttemptThrottle'
@@ -77,6 +78,9 @@ export function signInCodeHash(value: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Cross-origin (native shell) policy + preflight. No-op same-origin.
+  if (applyCors(req, res, { methods: 'POST' })) return
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const raw = (req.body || {}).email
