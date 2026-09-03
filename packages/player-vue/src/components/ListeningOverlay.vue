@@ -20,6 +20,7 @@ import { PodStateStore, dirFor } from '@ssi/core'
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
 import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
 import { isOfflineish } from '../config/networkGate'
+import { apiUrl } from '@/platform/apiBase'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -1188,7 +1189,7 @@ const glossPairsFor = (phrase) => {
  */
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
-  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+  return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
 /**

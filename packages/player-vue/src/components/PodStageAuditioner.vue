@@ -88,6 +88,7 @@ import { usePodStage0 } from '../composables/usePodStage0'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { ROLE_SPEED } from '../composables/usePodLapScheduler'
 import { tierSequence, foldEventsToPlays } from '@ssi/core/pods'
+import { apiUrl } from '@/platform/apiBase'
 
 const COURSES = [
   { code: 'spa_for_eng', label: 'Spanish' }, { code: 'fra_for_eng', label: 'French' },
@@ -205,7 +206,7 @@ async function runFlat(items: Array<AudPlay & { stageKey: string; localIndex: nu
   for (const it of items) {
     if (token !== runToken) return
     nowStageKey.value = it.stageKey; nowIndex.value = it.localIndex
-    el.src = `/api/audio/${it.audioId}`; el.playbackRate = it.speed || 1; el.load()
+    el.src = apiUrl(`/api/audio/${it.audioId}`); el.playbackRate = it.speed || 1; el.load()
     await playToEnd(el)
     if (it.gapAfterMs && token === runToken) await sleep(it.gapAfterMs)
   }

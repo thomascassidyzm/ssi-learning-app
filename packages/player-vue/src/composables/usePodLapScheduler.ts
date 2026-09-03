@@ -67,6 +67,7 @@ import {
 import type { ListeningPlayPolicy } from './useAlgorithmConfig'
 import type { TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
+import { apiUrl } from '@/platform/apiBase'
 
 /**
  * A-64 (Tom, 2026-08-06): "no mode should ever repeat the same prompt more than
@@ -676,7 +677,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       }
     } else {
       for (const id of ids) {
-        const url = `/api/audio/${id}`
+        const url = apiUrl(`/api/audio/${id}`)
         fetch(url, { priority: 'low' }).catch(() => undefined)
       }
     }

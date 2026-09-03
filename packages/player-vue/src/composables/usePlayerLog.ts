@@ -17,6 +17,7 @@
 
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { isOfflineish } from '../config/networkGate'
+import { apiUrl } from '@/platform/apiBase'
 
 interface PlayerEvent {
   event_type: string
@@ -177,7 +178,7 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     if (sync && !token && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         const blob = new Blob([body], { type: 'application/json' })
-        navigator.sendBeacon('/api/player-events', blob)
+        navigator.sendBeacon(apiUrl('/api/player-events'), blob)
         return
       } catch { /* fall through to fetch */ }
     }

@@ -31,6 +31,7 @@ import type {
   LegoPair,
 } from '@ssi/core'
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from './revisedAudioRefs'
+import { apiUrl } from '@/platform/apiBase'
 
 export interface LearningItem {
   lego: {
@@ -337,7 +338,7 @@ export class CourseDataProvider {
       }
       return ''
     }
-    return `/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`
+    return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`)
   }
 
   /**

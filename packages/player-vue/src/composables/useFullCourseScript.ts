@@ -17,6 +17,7 @@
 
 import { ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { apiUrl } from '@/platform/apiBase'
 import {
   generateLearningScript,
   type ScriptItem,
@@ -79,7 +80,7 @@ export function useFullCourseScript() {
   const error = ref<string | null>(null)
 
   const audioUrl = (id: string | undefined, courseCode: string): string =>
-    id ? `/api/audio/${id}?courseId=${encodeURIComponent(courseCode)}` : ''
+    id ? apiUrl(`/api/audio/${id}?courseId=${encodeURIComponent(courseCode)}`) : ''
 
   const audioRef = (id: string | undefined, courseCode: string): AdaptedAudioRef | null =>
     id ? { id, url: audioUrl(id, courseCode) } : null

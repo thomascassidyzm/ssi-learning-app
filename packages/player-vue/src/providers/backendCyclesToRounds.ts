@@ -53,11 +53,12 @@ import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { computeCycleSpeed, type TargetSpeedConfig } from './toSimpleRounds'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 import { repeatRoundCycles, type RepeatPhraseCyclesOptions } from './repeatPhraseCycles'
+import { apiUrl } from '@/platform/apiBase'
 
 /** Same audio-URL builder pattern as `toSimpleRounds`. */
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
-  return `/api/audio/${uuid}`
+  return apiUrl(`/api/audio/${uuid}`)
 }
 
 /**

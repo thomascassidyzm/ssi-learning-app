@@ -13,6 +13,7 @@ import ProsodyFeedback from './ProsodyFeedback.vue'
 // A-86: this overlay runs its own course_practice_phrases walk, so it stamps
 // the per-clip versioned ref itself before its URL builder sees the id.
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
+import { apiUrl } from '@/platform/apiBase'
 
 // ============================================================================
 // Pronunciation Overlay - Record-compare-feedback loop on completed phrases
@@ -297,7 +298,7 @@ function shuffle(arr) {
 
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
-  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+  return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
 const initializeAudio = async () => {
