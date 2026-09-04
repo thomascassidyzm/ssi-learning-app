@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   shouldRunServiceWorker,
+  shouldOfferAppInstall,
   configurePlatform,
   hasServiceWorkerApi,
   isNativeShell,
@@ -24,6 +25,18 @@ describe('platform capabilities', () => {
     configurePlatform({ shell: 'webview' })
     expect(isNativeShell()).toBe(true)
     expect(shouldRunServiceWorker()).toBe(false)
+  })
+
+  it('offers the install banner on the web — as today', () => {
+    expect(shouldOfferAppInstall()).toBe(true)
+  })
+
+  it('never offers "install this app" inside a native shell', () => {
+    // The learner installed the app to get here. Note the banner's own gate was
+    // `display-mode: standalone`, which is FALSE in a WebView — which is why
+    // this question has to be asked here rather than left to the display mode.
+    configurePlatform({ shell: 'webview' })
+    expect(shouldOfferAppInstall()).toBe(false)
   })
 
   it('still reports whether an SW API exists, so diagnostics can no-op safely', () => {
