@@ -33,6 +33,20 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Answer the preflight in the same posture this route serves: wildcard,
+  // credential-free, no Authorization. Without this an OPTIONS falls into the
+  // 405 below, and any cross-origin caller that preflights (a ranged fetch
+  // from the native shell, say) never reaches the bytes. The wildcard is the
+  // deliberate one — see the comment beside the response headers further down.
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    res.setHeader('Access-Control-Max-Age', '86400')
+    res.status(204).end()
+    return
+  }
+
   // Only allow GET requests
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })

@@ -44,6 +44,7 @@ import { isStrictDescendantGroup } from '../_utils/schoolScope'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { syncSchoolNameForNode } from '../_utils/schoolNodeName'
+import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -108,6 +109,11 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'GET, PATCH, DELETE' })) return
+
   const groupId = req.query.id as string
   if (!groupId) {
     res.status(400).json({ error: 'Group ID is required' })

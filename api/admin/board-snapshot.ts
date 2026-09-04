@@ -20,6 +20,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { resolveBoardMetric, type MetricValue } from '../_utils/boardMetrics'
 import { generateShareCode } from '../_utils/codeGen'
+import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -40,6 +41,11 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'GET, POST' })) return
+
   const admin = await verifyAdmin(req)
   if ('error' in admin) {
     res.status(admin.status).json({ error: admin.error })
