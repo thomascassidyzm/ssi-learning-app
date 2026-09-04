@@ -10770,17 +10770,49 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
       await loadSeedIfNeeded(targetSeed)
       // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
       let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-      // Unresolved + we came from INF PLAY: try one more main-loop load. Only
-      // after that, a -1 genuinely means the course doesn't extend to this
-      // belt (e.g. picking Black on a Brown-capped course) — the ONE legitimate
-      // course-end case, so (re-)enter INF PLAY. We never re-enter INF PLAY for
-      // a belt the course DOES contain.
-      if (resolvedTargetIdx < 0 && inInfplay) {
+      // Unresolved → try one more load, this time FORCED. Tom, 2026-09-04, on
+      // the first Android build: tapping Orange or Blue in zho_for_eng did
+      // nothing at all, while Yellow and White (already in the loaded queue)
+      // landed instantly. The telemetry says the same — `belt_skip` logged, no
+      // `cursor_move` after it, audio carrying on undisturbed.
+      //
+      // The retry used to be conditional on `inInfplay`, so a MAIN-LOOP jump
+      // got exactly one shot at loading the target. That one shot can come back
+      // with nothing through paths that are all silent: generateScript()'s
+      // in-flight dedupe can hand back a walk that was already running for a
+      // narrower purpose, `loadSeedIfNeeded` bails without loading when the
+      // Supabase client isn't up yet, and a rejected walk unwinds straight past
+      // here. The forced second attempt runs a genuinely fresh walk (the dedupe
+      // entry is cleared in generateScript's own finally), which is the cheap
+      // way to distinguish "we didn't manage to load it" from "the course does
+      // not contain it".
+      if (resolvedTargetIdx < 0) {
         await loadSeedIfNeeded(targetSeed, /* forceReload */ true)
         resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
       }
       if (resolvedTargetIdx < 0) {
-        await enterInfPlayFromCache()
+        // Still nothing. OFFLINE this is the legitimate course-end / edge-of-
+        // cache case and enterInfPlayFromCache handles it. ONLINE it is not:
+        // that function refuses the random recycle when online and returns
+        // false, so the tap ended in silence — no landing, no message, no
+        // event. NEVER OFFER WHAT CANNOT BE SERVED cuts both ways: if the
+        // control declines, it has to say so, in the same one-line form the
+        // practising/offline refusals already use.
+        const recycled = await enterInfPlayFromCache()
+        if (!recycled) {
+          logEvent('belt_skip_blocked', {
+            toBelt: belt.name,
+            fromBelt: fromBelt?.name ?? null,
+            targetSeed,
+            cause: 'unresolved_target',
+            deliberateOffline: offlineActive.value,
+          })
+          showBeltBlockedMessage(
+            t('player.beltJumpUnavailable', "We couldn't load {belt} just now — try again in a moment.")
+              .replace('{belt}', t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))),
+          )
+          console.warn(`[LearningPlayer] Belt jump to ${belt.name} (seed ${targetSeed}) unresolved after a forced reload`)
+        }
         return
       }
       // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
@@ -12118,13 +12150,19 @@ const beltNewLegosOnDevice = (belt: { seedsRequired: number }): boolean => {
 const beltSkipRefusal = (belt: { name: string; seedsRequired: number }): string | null => {
   const goingForward = belt.seedsRequired > (playingBelt.value?.seedsRequired ?? 0)
   if (!goingForward) return null
+  // These sentences are read by the learner, in the belt modal and in the
+  // one-line refusal — so they are keyed, and the belt is named in the
+  // interface language (belt.label + belt.<colour>, already in all 24 locales).
+  const named = t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))
   if (isPractising.value) {
-    return `You're practising what you've already covered — ${belt.name} belt needs new material we can't reach right now.`
+    return t('player.beltNeedsNewMaterial', "You're practising what you've already covered — {belt} needs new material we can't reach right now.")
+      .replace('{belt}', named)
   }
   if (cannotFetchNewContent() && !beltNewLegosOnDevice(belt)) {
-    return offlineActive.value
-      ? `${belt.name} belt isn't in your offline download — reconnect to add it.`
-      : `You're offline and ${belt.name} belt isn't on this device yet.`
+    return (offlineActive.value
+      ? t('player.beltNotInOfflineDownload', "{belt} isn't in your offline download — reconnect to add it.")
+      : t('player.beltNotOnDevice', "You're offline and {belt} isn't on this device yet."))
+      .replace('{belt}', named)
   }
   return null
 }
@@ -12153,7 +12191,7 @@ const offlineUnavailableBeltNames = computed<Set<string>>(
 // existing "belts up to X ready" wording, which is more informative.
 const beltUnavailableHint = computed<string | null>(() =>
   isPractising.value
-    ? "practising what you've already covered — new belts need material we can't reach right now"
+    ? t('player.practisingBeltHint', "practising what you've already covered — new belts need material we can't reach right now")
     : null,
 )
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported

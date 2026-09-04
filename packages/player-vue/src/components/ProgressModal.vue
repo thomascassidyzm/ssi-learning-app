@@ -172,7 +172,10 @@ const showFurthestMarker = computed(() => {
     && highestIdx.value > currentIdx.value
 })
 
-const furthestBeltName = computed(() => belts.value[highestIdx.value]?.name ?? null)
+const furthestBeltName = computed(() => {
+  const belt = belts.value[highestIdx.value]
+  return belt ? beltLabel(belt) : null
+})
 
 const beltCssVars = computed(() => ({
   '--belt-color': props.currentBelt.color,
@@ -180,6 +183,31 @@ const beltCssVars = computed(() => ({
 }))
 
 const isCurrentBelt = (belt: Belt) => belt.name === props.currentBelt.name
+
+// A belt named in the learner's own interface language: "Green Belt", "綠帶".
+// Both halves already ship in all 24 locales (belt.<colour> + belt.label), so
+// this is reuse, not new translation work — and it is the ONE place the modal
+// turns a belt into words, so nothing here can go back to naming them in
+// English. Unknown names fall through to their raw value rather than a key.
+const beltLabel = (belt: { name: string }): string =>
+  t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))
+
+// Sentences that wrap a belt name in belt-coloured emphasis. Word order moves
+// between languages, so the translated sentence is SPLIT on its {belt} slot and
+// the two halves are rendered either side of the <strong> — rather than
+// hardcoding "prefix + name + suffix", which is what put these four sentences
+// in the bare-English baseline in the first place.
+const splitAround = (sentence: string, token: string): [string, string] => {
+  const at = sentence.indexOf(token)
+  if (at === -1) return [sentence + ' ', '']
+  return [sentence.slice(0, at), sentence.slice(at + token.length)]
+}
+const workingOnParts = computed(() =>
+  splitAround(t('progress.workingOnBelt', "you're working on {belt}"), '{belt}'))
+const infinitePlayParts = computed(() =>
+  splitAround(t('progress.youreInMode', "you're in {mode}"), '{mode}'))
+const furthestParts = computed(() =>
+  splitAround(t('progress.beenAsFarAs', "you've been as far as {belt}"), '{belt}'))
 
 // Only a belt whose content isn't on the device is unavailable offline —
 // NOT every non-current belt (that was the "everything greyed out" bug).
@@ -190,7 +218,8 @@ const isBeltUnavailableOffline = (belt: Belt) =>
 // Falls back to the old not-downloaded line when no reason map is supplied.
 const beltUnavailableReason = (belt: Belt) =>
   props.beltUnavailableReasons?.get(belt.name)
-  ?? `${belt.name} belt isn't downloaded — reconnect to jump there`
+  ?? t('progress.beltNotDownloaded', "{belt} isn't downloaded — reconnect to jump there")
+    .replace('{belt}', beltLabel(belt))
 
 // Only warn about connectivity when it would actually block a jump — most
 // offline sessions have every belt up to position downloaded, so the old
@@ -207,9 +236,28 @@ const offlineReadyUpToBeltName = computed<string | null>(() => {
   let last: string | null = null
   for (const b of belts.value) {
     if (isBeltUnavailableOffline(b)) break
-    last = b.name
+    last = beltLabel(b)
   }
   return last
+})
+
+// Chip title/aria — the only words a screen reader gets for a belt dot.
+const jumpToBeltLabel = (belt: Belt): string =>
+  t('progress.jumpToBeltName', 'Jump to {belt}').replace('{belt}', beltLabel(belt))
+
+// The one line under the ladder. Built here rather than in the template so the
+// three branches are t() calls a scanner can see, not literals inside a
+// mustache expression (which is how they slipped past the bare-English gate).
+const beltStripHint = computed(() => {
+  if (!hasUndownloadedBelt.value) {
+    return t('progress.tapBeltHint', 'tap a belt to jump there, or ∞ at the end for infinite play')
+  }
+  if (props.beltUnavailableHint) return props.beltUnavailableHint
+  if (offlineReadyUpToBeltName.value) {
+    return t('progress.offlineBeltsReadyUpTo', 'offline — belts up to {belt} ready to play; beyond needs a connection')
+      .replace('{belt}', offlineReadyUpToBeltName.value)
+  }
+  return t('progress.offlineBeltsLocked', "offline — locked belts aren't downloaded; connect to jump there")
 })
 
 function handleBeltClick(belt: Belt) {
@@ -350,11 +398,10 @@ onUnmounted(() => {
             <div class="belt-strip-head">
               <p class="belt-strip-prompt">
                 <template v-if="isInfplay">
-                  you're in <strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">infinite play</strong>
+                  {{ infinitePlayParts[0] }}<strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">{{ t('progress.infinitePlay', 'infinite play') }}</strong>{{ infinitePlayParts[1] }}
                 </template>
                 <template v-else>
-                  you're working on
-                  <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+                  {{ workingOnParts[0] }}<strong :style="{ color: currentBelt.color }">{{ beltLabel(currentBelt) }}</strong>{{ workingOnParts[1] }}
                 </template>
               </p>
             </div>
@@ -366,7 +413,7 @@ onUnmounted(() => {
               {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
             </p>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
-              you've been as far as <strong>{{ furthestBeltName }} belt</strong>
+              {{ furthestParts[0] }}<strong>{{ furthestBeltName }}</strong>{{ furthestParts[1] }}
             </p>
 
             <div class="map-row-wrap">
@@ -390,8 +437,8 @@ onUnmounted(() => {
                   }"
                   :style="{ '--chip-color': belt.color }"
                   :disabled="isCurrentBelt(belt) || isSkipping || isBeltUnavailableOffline(belt)"
-                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
-                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
+                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : jumpToBeltLabel(belt)"
+                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : jumpToBeltLabel(belt)"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
@@ -448,11 +495,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <p class="belt-strip-hint">{{ hasUndownloadedBelt
-              ? (beltUnavailableHint || (offlineReadyUpToBeltName
-                ? `offline — belts up to ${offlineReadyUpToBeltName} ready to play; beyond needs a connection`
-                : 'offline — locked belts aren\'t downloaded; connect to jump there'))
-              : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
+            <p class="belt-strip-hint">{{ beltStripHint }}</p>
           </section>
         </div>
       </div>

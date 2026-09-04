@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProgressModal from './ProgressModal.vue'
 import { BELTS } from '@/composables/useBeltProgress'
+import { t } from '@/composables/useI18n'
 import eng from '../locales/eng.json'
 
 const MESSAGE = (eng as Record<string, any>).player.offlinePracticeBody
@@ -60,6 +61,12 @@ describe('ProgressModal — offline infinite-play message', () => {
  */
 describe('ProgressModal — a belt we cannot serve is not tappable', () => {
   const unreachable = new Set([BELTS[3].name])
+  // The chip names its belt in the INTERFACE language now (belt.label +
+  // belt.<colour>), not by the raw internal name — so "Green Belt", not
+  // "green belt". Built from the same keys the component uses so this reads
+  // the same way in any locale the suite might run under.
+  const label = (name: string) =>
+    t('belt.label', '{color} Belt').replace('{color}', t(`belt.${name}`, name))
 
   it('disables the chip and swallows the tap', async () => {
     const wrapper = render({
@@ -67,7 +74,7 @@ describe('ProgressModal — a belt we cannot serve is not tappable', () => {
       offlineUnavailableBeltNames: unreachable,
     })
     const chip = wrapper.findAll('.map-chip')
-      .find((c) => c.attributes('aria-label')?.startsWith(`${BELTS[3].name} belt`))!
+      .find((c) => c.attributes('aria-label')?.startsWith(label(BELTS[3].name)))!
     expect(chip.attributes('disabled')).toBeDefined()
     // and it SAYS why, rather than looking broken. This used to assert the
     // literal word "unavailable"; since 2026-09-01 the chip carries the SAME
@@ -99,7 +106,7 @@ describe('ProgressModal — a belt we cannot serve is not tappable', () => {
       offlineUnavailableBeltNames: unreachable,
     })
     const chip = wrapper.findAll('.map-chip')
-      .find((c) => c.attributes('aria-label') === `Jump to ${BELTS[2].name} belt`)!
+      .find((c) => c.attributes('aria-label') === `Jump to ${label(BELTS[2].name)}`)!
     expect(chip.attributes('disabled')).toBeUndefined()
     await chip.trigger('click')
     expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
