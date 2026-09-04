@@ -67,7 +67,11 @@ const versionFilePlugin = () => ({
     this.emitFile({
       type: 'asset',
       fileName: 'version.json',
-      source: JSON.stringify({ buildNumber }),
+      // buildTime rides along so a reader can tell "newer" from merely
+      // "different". A bundled native shell compares its own stamp against
+      // this one (platform/buildStaleness.ts), and two shas that disagree do
+      // not say which came first — only the clock does.
+      source: JSON.stringify({ buildNumber, buildTime }),
     })
   },
 })

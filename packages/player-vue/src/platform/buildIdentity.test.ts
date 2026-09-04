@@ -51,20 +51,32 @@ describe('the two build identifiers share one source', () => {
     expect(emitter?.value).toBe('buildNumber')
   })
 
+  it('stays green when the emitter carries EXTRA properties beside the id', () => {
+    // version.json emits `buildTime` alongside `buildNumber` so a bundled
+    // native shell can tell "newer" from merely "different". The scanner's
+    // business is the id the reader compares, not the shape of the object it
+    // travels in — an object with more in it is not a fork.
+    const widened = fork(
+      'source: JSON.stringify({ buildNumber, buildTime }),',
+      'source: JSON.stringify({ buildNumber, buildTime, note: "hello" }),'
+    )
+    expect(findBuildIdentityForks(widened)).toEqual([])
+  })
+
   it('goes red when the emitter uses a different identifier', () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber }),',
-      'source: JSON.stringify({ buildNumber: buildTime }),'
+      'source: JSON.stringify({ buildNumber, buildTime }),',
+      'source: JSON.stringify({ buildNumber: swSelfUpdate, buildTime }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['forked'])
-    expect(findings[0].why).toContain('buildTime')
+    expect(findings[0].why).toContain('swSelfUpdate')
   })
 
   it('goes red when the emitter inlines its own expression', () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber }),',
-      'source: JSON.stringify({ buildNumber: Date.now().toString(36) }),'
+      'source: JSON.stringify({ buildNumber, buildTime }),',
+      'source: JSON.stringify({ buildNumber: Date.now().toString(36), buildTime }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['inline-expression'])
@@ -89,8 +101,8 @@ describe('the two build identifiers share one source', () => {
 
   it("goes red when version.json stops emitting the reader's key", () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber }),',
-      'source: JSON.stringify({ build: buildNumber }),'
+      'source: JSON.stringify({ buildNumber, buildTime }),',
+      'source: JSON.stringify({ build: buildNumber, buildTime }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['emitter-key'])

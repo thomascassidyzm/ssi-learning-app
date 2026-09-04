@@ -87,6 +87,27 @@ export function findDefineExpression(content: string): string | null {
   return null
 }
 
+/** The reader's key: `fetchLatestBuildNumber()` reads `data.buildNumber`. */
+const READER_KEY = 'buildNumber'
+
+/** Split an object body on its TOP-LEVEL commas, ignoring nested brackets. */
+function splitTopLevel(body: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i]
+    if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') depth--
+    else if (c === ',' && depth === 0) {
+      parts.push(tidy(body.slice(start, i)))
+      start = i + 1
+    }
+  }
+  parts.push(tidy(body.slice(start)))
+  return parts.filter((p) => p.length > 0)
+}
+
 export interface EmitterSource {
   /** The whole `source:` value, as written. */
   raw: string
@@ -110,17 +131,23 @@ export function findVersionEmitterSource(content: string): EmitterSource | null 
     const objectBody = /^\{([\s\S]*)\}$/.exec(tidy(stringify ? stringify[1] : raw))
     if (!objectBody) return { raw, key: null, value: null }
     const body = tidy(objectBody[1])
-    const keyed = /^([A-Za-z_$][\w$]*)\s*:\s*([\s\S]*)$/.exec(body)
-    if (keyed) return { raw, key: keyed[1], value: tidy(keyed[2]) }
-    // Shorthand `{ buildNumber }` — the key and the value are one name.
-    if (IDENTIFIER.test(body)) return { raw, key: body, value: body }
+    // The emitted object may carry MORE than the build number — `buildTime`
+    // rides along so a native shell can tell "newer" from merely "different".
+    // Only the reader's key is this scanner's business, so find that property
+    // among the others rather than insisting the object hold exactly one.
+    // Split on top-level commas only: a value could itself be a call with
+    // arguments, and cutting inside one would invent a property that is not
+    // there.
+    for (const prop of splitTopLevel(body)) {
+      const keyed = /^([A-Za-z_$][\w$]*)\s*:\s*([\s\S]*)$/.exec(prop)
+      if (keyed && keyed[1] === READER_KEY) return { raw, key: keyed[1], value: tidy(keyed[2]) }
+      // Shorthand `{ buildNumber }` — the key and the value are one name.
+      if (IDENTIFIER.test(prop) && prop === READER_KEY) return { raw, key: prop, value: prop }
+    }
     return { raw, key: null, value: null }
   }
   return null
 }
-
-/** The reader's key: `fetchLatestBuildNumber()` reads `data.buildNumber`. */
-const READER_KEY = 'buildNumber'
 
 /**
  * THE CHECK. `__BUILD_NUMBER__` and the `/version.json` emitter must both be
@@ -151,6 +178,10 @@ export function findBuildIdentityForks(content: string): BuildIdentityFinding[] 
       kind: 'emitter-key',
       why: `version.json emits ${emitter.key ? `\`${emitter.key}\`` : 'no readable property'}, but fetchLatestBuildNumber() reads \`${READER_KEY}\``,
     })
+    // The id the update check compares is not in the file at all, so every
+    // downstream question about which binding it references is meaningless —
+    // report the one real finding rather than a cascade behind it.
+    return findings
   }
 
   const defineBinding = toBinding(defineExpr)
