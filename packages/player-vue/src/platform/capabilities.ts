@@ -125,6 +125,28 @@ export function shouldRunServiceWorker(): boolean {
 }
 
 /**
+ * Should this build ever offer the learner "install this app"?
+ *
+ * On the web: YES. The PWA install banner, the /install guide and the org
+ * lane's install walk are all unchanged.
+ *
+ * In a WebView: NO. The learner has ALREADY installed the app — that is how
+ * they are reading this — so an add-to-home-screen offer is at best noise and
+ * at worst an instruction to install a second copy. Tom, seeing it on the
+ * first Android build, 2026-09-04: "we want to suppress this install pop up
+ * presumably!!!"
+ *
+ * Note this is NOT the same question as "did beforeinstallprompt fire". The
+ * banner's own gate was `display-mode: standalone`, which is FALSE inside a
+ * WebView, so the banner appeared without any prompt event at all. The
+ * question the callers actually have is this one, so this is the one the seam
+ * answers.
+ */
+export function shouldOfferAppInstall(): boolean {
+  return current.shell !== 'webview'
+}
+
+/**
  * Is a service worker API present at all? Diagnostics and cleanup paths ask
  * this — they must keep working on the web and quietly no-op where there is
  * no SW to inspect.

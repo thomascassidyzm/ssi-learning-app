@@ -116,7 +116,9 @@
     "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
     "practisingBanner": "Practising",
     "practisingBannerNote": "New material comes back when your connection does.",
-    "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet."
+    "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
+    "beltStillDownloading": "{belt} is still downloading — it'll open as soon as it's here.",
+    "contentStillDownloading": "That's still downloading — it'll open as soon as it's here."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -683,7 +685,17 @@
   },
   "progress": {
     "infinitePlayRandomReview": "Infinite play — random review of everything you've learned",
-    "infinitePlayRandomReview2": "Infinite play: random review of everything you've learned"
+    "infinitePlayRandomReview2": "Infinite play: random review of everything you've learned",
+    "workingOnBelt": "you're working on {belt}",
+    "youreInMode": "you're in {mode}",
+    "infinitePlay": "infinite play",
+    "beenAsFarAs": "you've been as far as {belt}",
+    "jumpToBeltName": "Jump to {belt}",
+    "tapBeltHint": "tap a belt to jump there, or ∞ at the end for infinite play",
+    "offlineBeltsReadyUpTo": "belts up to {belt} are on this device; the rest open as they download",
+    "beltStillDownloading": "{belt} is still downloading — it'll open as soon as it's here",
+    "beltsStillDownloading": "tap any belt — the ones still downloading open as soon as they're here",
+    "beltNeedsSubscription": "{belt} is part of the full course — tap to see the options"
   },
   "pronunciation": {
     "easier": "Easier",

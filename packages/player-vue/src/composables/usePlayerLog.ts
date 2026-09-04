@@ -18,6 +18,7 @@
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { isOfflineish } from '../config/networkGate'
 import { apiUrl } from '@/platform/apiBase'
+import { platform } from '@/platform/capabilities'
 
 interface PlayerEvent {
   event_type: string
@@ -173,8 +174,17 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // bearer may actually drive. Guest ids (`guest-<uuid>`) are not uuids and
     // are ignored server-side, so they are not worth sending.
     const actingLearnerId = resolveLearnerId()
+    // WHICH CONTAINER THIS LEARNER IS IN. `device_type` is derived server-side
+    // from the user-agent and answers a different question — phone / tablet /
+    // desktop — so a wrapped Android session and an ordinary phone browser both
+    // read 'mobile' and are indistinguishable. For the India rollout, whose
+    // whole question is whether the app beats the web, that distinction IS the
+    // measurement. Sent once per batch (it is a property of the client, not of
+    // an event) and read from the ONE platform door; the server falls back to
+    // the user-agent's WebView marker if it is missing.
     const body = JSON.stringify({
       events: batch,
+      app_shell: platform().shell,
       ...(actingLearnerId && !actingLearnerId.startsWith('guest-')
         ? { acting_learner_id: actingLearnerId }
         : {}),
