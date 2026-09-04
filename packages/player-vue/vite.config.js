@@ -2,11 +2,30 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { execSync } from 'node:child_process'
 
 // Generate build info at build time
 const buildTime = new Date().toISOString()
+
+// A build must be able to say which commit it came from. Vercel hands us the
+// sha; a build run anywhere else (the Android wrapper's `pnpm build:store`, a
+// laptop) has to ask git for it, or the Settings build row degrades to a
+// base-36 CLOCK READING — `dev-mtmmp3ke` — which names no code at all. That
+// cost a real evening: an Android APK's Settings row read `dev-mtmmp3ke`, and
+// nobody could tell from the device which tree it had been cut from.
+// The timestamp stays as the LAST resort, for a tree with no git available.
+function gitShortSha() {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim() || ''
+  } catch {
+    return ''
+  }
+}
+
 const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     process.env.GIT_COMMIT?.slice(0, 7) ||
+                    gitShortSha() ||
                     `dev-${Date.now().toString(36)}`
 
 // Dev-only affordances (the `?wedge=1` boot-watchdog rehearsal cheat). Vercel
