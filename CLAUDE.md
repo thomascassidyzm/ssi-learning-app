@@ -39,6 +39,16 @@ Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-ag
 - Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
 - If you find yourself on `staging` or `main`, switch to `dev` before making changes.
 
+**GitHub Actions is retired, by DELETION, not by disabling.** `.github/` is empty on `dev` and on
+`staging` (deleted in `8c2a8830`). It still carries `auto-merge-claude.yml` and `verify.yml` on
+`main`, and will until the next ordinary promotion carries the deletion there — that residue is
+EXPECTED and is not a defect. This matters because every worker gets a private worktree cut from
+`origin/main`, so a worker reading `.github/workflows/` in its own fresh tree finds the files every
+time. Four workers in a row reported them as broken. They are not broken; they are retired, and the
+gate is `pnpm test:api` + the local feedback loops below, asserted by
+`api/_utils/securityTestMachineryIntegrity.security.test.ts`. Do not delete them from `main` — that
+is a hotfix to the production branch, and this is cosmetic.
+
 **Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
 
 ---
