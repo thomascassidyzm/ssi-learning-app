@@ -86,6 +86,7 @@
     "player.beltStillDownloading",
     "player.contentStillDownloading",
     "progress.beenAsFarAs",
+    "progress.beltNeedsSubscription",
     "progress.beltStillDownloading",
     "progress.beltsStillDownloading",
     "progress.infinitePlay",

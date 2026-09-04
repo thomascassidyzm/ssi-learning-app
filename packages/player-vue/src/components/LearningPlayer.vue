@@ -12237,6 +12237,28 @@ const beltWaitingReasons = computed<Map<string, string>>(() => {
 const beltsAwaitingDownload = computed<Set<string>>(
   () => new Set(beltWaitingReasons.value.keys()),
 )
+
+/**
+ * Which belts this learner would have to PAY to reach — the padlock set, and
+ * the only thing the padlock is allowed to mean (Tom, 2026-09-04: "The only
+ * reason these would be locked would be if there was a [plain] entitlement
+ * issue... These should be just greyed out - never locked").
+ *
+ * Derived from the SAME canAccessSeed call gateSeed uses on the tap, given the
+ * belt's own first seed — so the glyph and the behaviour are one fact, and the
+ * free-preview boundary (PREMIUM_PREVIEW_MAX_SEED, end of Yellow) is never
+ * restated here. Free / community courses and entitled learners: empty set.
+ */
+const paywalledBeltNames = computed<Set<string>>(() => {
+  const out = new Set<string>()
+  const course = props.course
+  if (!course) return out
+  for (const belt of BELTS) {
+    const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
+    if (!entitlementComposable.canAccessSeed(course, targetSeed)) out.add(belt.name)
+  }
+  return out
+})
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
 // for it now lives on the mode button (the ring) + the Offline row in ModeTray,
@@ -16879,6 +16901,7 @@ defineExpose({
     :is-offline="cannotFetchNewContent()"
     :belts-awaiting-download="beltsAwaitingDownload"
     :belt-waiting-reasons="beltWaitingReasons"
+    :paywalled-belt-names="paywalledBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
     @enterInfPlay="handleActivateInfPlay"

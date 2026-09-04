@@ -117,3 +117,59 @@ describe('ProgressModal — a belt still downloading is tappable and says so', (
     expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
   })
 })
+
+/**
+ * THE PADLOCK MEANS ENTITLEMENT, AND NOTHING ELSE. Tom, 2026-09-04: "The only
+ * reason these would be locked would be if there was a [plain] entitlement
+ * issue. Because not reachable because not downloaded - / These should be just
+ * greyed out - never locked". Would money fix it? Padlock. Would time fix it?
+ * Not a padlock.
+ */
+describe('ProgressModal — the belt-strip padlock', () => {
+  const chipFor = (wrapper: ReturnType<typeof render>, name: string) =>
+    wrapper.findAll('.map-chip').find((c) => c.attributes('aria-label')?.includes(
+      t('belt.label', '{color} Belt').replace('{color}', t(`belt.${name}`, name)),
+    ))!
+
+  it('draws a padlock on a belt that needs paying for', () => {
+    const wrapper = render({ paywalledBeltNames: new Set([BELTS[2].name]) })
+    expect(chipFor(wrapper, BELTS[2].name).find('.map-chip-lock').exists()).toBe(true)
+    // …and on nothing else.
+    expect(chipFor(wrapper, BELTS[1].name).find('.map-chip-lock').exists()).toBe(false)
+  })
+
+  it('NEVER draws a padlock on a belt that is merely still downloading', () => {
+    const wrapper = render({ isOffline: true, beltsAwaitingDownload: new Set([BELTS[3].name]) })
+    const chip = chipFor(wrapper, BELTS[3].name)
+    expect(chip.find('.map-chip-lock').exists()).toBe(false)
+    // It gets the three-channel affordance instead: dashed/unfilled/dim + arrow.
+    expect(chip.classes()).toContain('is-offline')
+    expect(chip.find('.map-chip-dl').exists()).toBe(true)
+  })
+
+  it('leaves a padlocked chip tappable — the tap is what opens the paywall', async () => {
+    const wrapper = render({ paywalledBeltNames: new Set([BELTS[2].name]) })
+    const chip = chipFor(wrapper, BELTS[2].name)
+    expect(chip.attributes('disabled')).toBeUndefined()
+    expect(chip.attributes('aria-label')).toMatch(/tap to see the options/)
+    await chip.trigger('click')
+    expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
+  })
+
+  it('unpaid AND undownloaded wears the padlock: money is the binding answer', () => {
+    const wrapper = render({
+      isOffline: true,
+      paywalledBeltNames: new Set([BELTS[4].name]),
+      beltsAwaitingDownload: new Set([BELTS[4].name]),
+    })
+    const chip = chipFor(wrapper, BELTS[4].name)
+    expect(chip.find('.map-chip-lock').exists()).toBe(true)
+    expect(chip.find('.map-chip-dl').exists()).toBe(false)
+    expect(chip.classes()).not.toContain('is-offline')
+  })
+
+  it('a course with nothing behind a paywall wears no padlock at all', () => {
+    const wrapper = render({})
+    expect(wrapper.findAll('.map-chip-lock')).toHaveLength(0)
+  })
+})

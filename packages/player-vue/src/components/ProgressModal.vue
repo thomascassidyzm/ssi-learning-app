@@ -61,6 +61,14 @@ const props = defineProps<{
   /** Belt name → the waiting line, from the same function the belt-skip action
    *  uses, so a pill and a tap always say the same thing. */
   beltWaitingReasons?: Map<string, string>
+  // Names of belts this learner cannot reach WITHOUT PAYING. The padlock means
+  // entitlement and nothing else (Tom, 2026-09-04: "The only reason these would
+  // be locked would be if there was a [plain] entitlement issue... These should
+  // be just greyed out - never locked"). Money is the answer here and time
+  // never will be — which is exactly what separates it from the set above.
+  // Computed in LearningPlayer from the SAME canAccessSeed call that gates the
+  // jump, so the glyph and the behaviour cannot drift.
+  paywalledBeltNames?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -210,6 +218,20 @@ const furthestParts = computed(() =>
 const isBeltAwaitingDownload = (belt: Belt) =>
   !!props.isOffline && !!props.beltsAwaitingDownload?.has(belt.name)
 
+// A belt behind the paywall. Drawn iff the learner would have to PAY to get
+// there — never because of anything the device is still fetching. Takes
+// precedence over the waiting state: if a belt is both unpaid and not yet
+// downloaded, the padlock is the honest glyph, because the download will
+// resolve itself and the payment will not.
+const isBeltPaywalled = (belt: Belt) =>
+  !!props.paywalledBeltNames?.has(belt.name)
+
+// What a padlocked chip says to a screen reader and on hover. It must read as
+// an offer, not a refusal — the tap opens the subscription card.
+const beltPaywallLabel = (belt: Belt) =>
+  t('progress.beltNeedsSubscription', '{belt} is part of the full course — tap to see the options')
+    .replace('{belt}', beltLabel(belt))
+
 // The waiting line for this belt, in the words the action would use.
 const beltWaitingReason = (belt: Belt) =>
   props.beltWaitingReasons?.get(belt.name)
@@ -238,6 +260,13 @@ const offlineReadyUpToBeltName = computed<string | null>(() => {
 // Chip title/aria — the only words a screen reader gets for a belt dot.
 const jumpToBeltLabel = (belt: Belt): string =>
   t('progress.jumpToBeltName', 'Jump to {belt}').replace('{belt}', beltLabel(belt))
+
+// One place decides what a chip says, in the same precedence as the glyph:
+// money first (it will not resolve itself), then time, then the plain jump.
+const chipLabel = (belt: Belt): string =>
+  isBeltPaywalled(belt) ? beltPaywallLabel(belt)
+  : isBeltAwaitingDownload(belt) ? beltWaitingReason(belt)
+  : jumpToBeltLabel(belt)
 
 // The one line under the ladder. Built here rather than in the template so the
 // three branches are t() calls a scanner can see, not literals inside a
@@ -430,15 +459,31 @@ onUnmounted(() => {
                   :class="{
                     'map-chip--current': isCurrentBelt(belt),
                     'is-skipping': isSkipping,
-                    'is-offline': isBeltAwaitingDownload(belt),
+                    'is-offline': isBeltAwaitingDownload(belt) && !isBeltPaywalled(belt),
+                    'is-paywalled': isBeltPaywalled(belt),
                   }"
                   :style="{ '--chip-color': belt.color }"
                   :disabled="isSkipping"
-                  :title="isBeltAwaitingDownload(belt) ? beltWaitingReason(belt) : jumpToBeltLabel(belt)"
-                  :aria-label="isBeltAwaitingDownload(belt) ? beltWaitingReason(belt) : jumpToBeltLabel(belt)"
+                  :title="chipLabel(belt)"
+                  :aria-label="chipLabel(belt)"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
+                  <!-- PADLOCK = ENTITLEMENT, and nothing else. It appears iff
+                       the learner would have to pay to go there, and the tap
+                       opens the same subscription card that meets them when
+                       they play into seed 20. It is never worn by a belt that
+                       is merely still downloading. -->
+                  <svg
+                    v-if="isBeltPaywalled(belt)"
+                    class="map-chip-glyph map-chip-lock"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true" focusable="false"
+                  >
+                    <rect x="4" y="10.5" width="16" height="10.5" rx="2"/>
+                    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+                  </svg>
                   <!-- Still-coming affordance. Dimming alone read as "murky"
                        on-device (Tom 2026-07-09), so the state gets a glyph —
                        but a PADLOCK is the wrong word now that the chip is
@@ -446,8 +491,8 @@ onUnmounted(() => {
                        way", which is the only thing that can stand between a
                        tap and a belt. -->
                   <svg
-                    v-if="isBeltAwaitingDownload(belt)"
-                    class="map-chip-lock"
+                    v-else-if="isBeltAwaitingDownload(belt)"
+                    class="map-chip-glyph map-chip-dl"
                     viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
                     aria-hidden="true" focusable="false"
@@ -900,28 +945,36 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* Offline: belt jumps leap out of the downloaded plan, so they're disabled.
-   Dim HARD + desaturate the dot + overlay a padlock so the split between
-   ready and not-downloaded is unmistakable — 0.4 opacity alone read as
-   "murky as hell what was ready to play" on-device (Tom 2026-07-09). The
-   always-disabled current belt stays fully lit (bare :disabled only changes
-   the cursor, deliberately). */
+/* Still downloading: THREE redundant channels, none of them a padlock —
+   dashed outline, no fill, and the dim — plus the download-arrow glyph in the
+   corner. Dim alone read as "murky as hell what was ready to play" on-device
+   (Tom 2026-07-09), which is what put a padlock here in the first place; the
+   padlock is now reserved for entitlement, so the state has to earn its
+   legibility another way. The chip stays enabled: a tap lands as soon as the
+   content arrives. */
 .map-chip.is-offline {
-  opacity: 0.45;
-  background: #f1efeb;
+  opacity: 0.5;
+  background: transparent;
   border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.28);
 }
 .map-chip.is-offline .map-chip-dot {
   filter: grayscale(0.85);
   box-shadow: none;
 }
-.map-chip-lock {
+.map-chip-glyph {
   position: absolute;
   width: 11px;
   height: 11px;
   top: 3px;
   right: 3px;
   color: rgba(0, 0, 0, 0.75);
+}
+
+/* Paywalled: the chip is NOT dimmed into the murk — it's a live offer, and it
+   stays fully tappable. The padlock alone carries the meaning. */
+.map-chip.is-paywalled .map-chip-dot {
+  filter: grayscale(0.6);
 }
 /* Anchor for the lock overlay — no visual change to available chips. */
 .map-chip {

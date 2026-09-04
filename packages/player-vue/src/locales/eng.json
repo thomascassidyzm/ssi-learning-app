@@ -691,7 +691,8 @@
     "tapBeltHint": "tap a belt to jump there, or ∞ at the end for infinite play",
     "offlineBeltsReadyUpTo": "belts up to {belt} are on this device; the rest open as they download",
     "beltStillDownloading": "{belt} is still downloading — it'll open as soon as it's here",
-    "beltsStillDownloading": "tap any belt — the ones still downloading open as soon as they're here"
+    "beltsStillDownloading": "tap any belt — the ones still downloading open as soon as they're here",
+    "beltNeedsSubscription": "{belt} is part of the full course — tap to see the options"
   },
   "pronunciation": {
     "easier": "Easier",
