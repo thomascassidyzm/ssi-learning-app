@@ -23,6 +23,11 @@ export default tseslint.config(
       '**/playwright-report/**',
       '**/test-results/**',
       '**/.vercel/**',
+      // Capacitor's generated Android project: Gradle build output and the
+      // vendored native-bridge.js are not our source and are gitignored.
+      '**/android/app/build/**',
+      '**/android/build/**',
+      '**/android/capacitor-cordova-android-plugins/**',
     ],
   },
 
