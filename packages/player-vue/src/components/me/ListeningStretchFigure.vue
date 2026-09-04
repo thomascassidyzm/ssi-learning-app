@@ -10,6 +10,9 @@
  * claim a learner will not believe from a sentence, because everything else in
  * the app has asked something of them; a line with nowhere to speak is proof.
  */
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -19,7 +22,7 @@
       viewBox="0 0 330 96"
       fill="none"
       role="img"
-      aria-label="The speaking rhythm of beats and gaps gives way to one long unbroken line of listening, with no gaps in it, and then the speaking resumes."
+      :aria-label="t('explainer.figures.listeningStretch.alt')"
     >
       <!-- Speaking: beat, gap, beat, gap. The dotted stretches are the turns. -->
       <g stroke-linecap="round">
@@ -36,9 +39,9 @@
       <path d="M306 44 L 322 44" stroke="currentColor" opacity="0.55" stroke-width="2.4" stroke-linecap="round" />
       <path d="M132 34 L132 54" stroke="currentColor" opacity="0.22" stroke-width="1.2" stroke-linecap="round" />
       <path d="M304 34 L304 54" stroke="currentColor" opacity="0.22" stroke-width="1.2" stroke-linecap="round" />
-      <text class="xf-ink2" x="59" y="22" text-anchor="middle" font-size="10.5">your turns</text>
-      <text class="xf-ink1" x="218" y="22" text-anchor="middle" font-size="11" font-weight="600">no gaps, nothing asked of you</text>
-      <text class="xf-ink2" x="165" y="72" text-anchor="middle" font-size="10.5">it simply plays, then the speaking returns</text>
+      <text class="xf-ink2" x="59" y="22" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.listeningStretch.yourTurns') }}</text>
+      <text class="xf-ink1" x="218" y="22" text-anchor="middle" font-size="11" font-weight="600">{{ t('explainer.figures.listeningStretch.noGaps') }}</text>
+      <text class="xf-ink2" x="165" y="72" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.listeningStretch.simplyPlays') }}</text>
     </svg>
   </figure>
 </template>

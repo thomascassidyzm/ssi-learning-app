@@ -32,7 +32,7 @@ const { t } = useI18n()
  * full-screen, safe-area-padded header, one close, Escape closes, body scroll
  * locked while open.
  */
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import playerScreen from '@/assets/explainer/player-screen.jpg'
 
 /**
@@ -40,12 +40,12 @@ import playerScreen from '@/assets/explainer/player-screen.jpg'
  * says. The pins touch the edge of the thing they name rather than sitting on
  * its middle — dead centre buries the icon the learner is being pointed at.
  */
-const CALLOUTS = [
-  { x: 54, y: 27.9, text: 'One go: you hear it, then your turn, then twice properly.' },
-  { x: 81, y: 83, text: 'Offline downloads live here.' },
-  { x: 11, y: 90.5, text: 'Every course you have.' },
-  { x: 43.5, y: 90, text: 'The only button that matters.' },
-]
+const CALLOUTS = computed(() => [
+  { x: 54, y: 27.9, text: t('explainer.figures.playerScreen.oneGo') },
+  { x: 81, y: 83, text: t('explainer.figures.playerScreen.offline') },
+  { x: 11, y: 90.5, text: t('explainer.figures.playerScreen.everyCourse') },
+  { x: 43.5, y: 90, text: t('explainer.figures.playerScreen.theButton') },
+])
 
 const open = ref(false)
 

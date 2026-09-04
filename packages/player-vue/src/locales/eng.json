@@ -782,5 +782,267 @@
     "loadingCourses": "Loading your courses...",
     "linkNotValid": "Link not valid",
     "visitSaysomethingin": "Visit SaySomethingin"
+  },
+  "explainer": {
+    "howThisWorks": {
+      "linkLabel": "How this works",
+      "intro": "The whole thing is one button. You press play and it takes it from there.",
+      "blocks": {
+        "0": {
+          "heading": "What pressing play does",
+          "body": {
+            "0": "You hear a short phrase in your known language. Then there is a gap. The gap is yours — say your version out loud, out loud, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different model voices, so you can hear how it really sounds.",
+            "1": "Then the next one arrives on its own. There is nothing to tap in between."
+          }
+        },
+        "1": {
+          "heading": "What a go is",
+          "body": {
+            "0": "A 'go' is one of those gaps where you opened your mouth and had a crack at it.",
+            "1": "Getting it wrong is still a go, and it still does the work. The reaching is the bit that builds the language — whether it arrives is almost beside the point."
+          }
+        },
+        "2": {
+          "heading": "What a session feels like",
+          "body": {
+            "0": "New things arrive one at a time, and things you met earlier come back on their own, just as they start to slip. You never have to keep track of any of that.",
+            "1": "You can play as long as you like. Stop at any time and the app picks up exactly where you left off."
+          }
+        },
+        "3": {
+          "heading": "The different ways to use it",
+          "body": {
+            "0": "Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces, and you pick between them on the player screen before you start. Offline lives behind the sliders button at the bottom of the player, and Listening lives in Settings."
+          },
+          "points": {
+            "0": "Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.",
+            "1": "Fast is the standard pace. Easy gives you about double the thinking time and says each phrase twice over.",
+            "2": "Offline downloads a chunk of the course onto your phone, so it plays with no signal at all."
+          }
+        },
+        "4": {
+          "heading": "What the listening stretches ask of you",
+          "body": {
+            "0": "Every so often the speaking gives way to a stretch of listening, introduced by a quiet now just listen for a while.",
+            "1": "Let it come at you without effort but with attention, the way you would listen to birdsong. The words are on screen if you want them."
+          }
+        },
+        "5": {
+          "heading": "Changing course",
+          "body": {
+            "0": "The Library button at the bottom left holds everything you have access to. Tap a different course and you are straight into it.",
+            "1": "Each course remembers its own place, so you can have a poke at a second language without losing an inch in the first."
+          }
+        }
+      }
+    },
+    "whyThisWorks": {
+      "linkLabel": "Why this works",
+      "intro": "Why the app asks you to do it this way, and what to expect from it.",
+      "blocks": {
+        "0": {
+          "heading": "Say it before you hear it",
+          "body": {
+            "0": "That gap before the answer is where everything happens. Every time you reach for something and it does not quite come, you are laying down the path that makes it come next time.",
+            "1": "So we ask you to produce it first, out loud, every time."
+          }
+        },
+        "1": {
+          "heading": "What happens at around thirty hours",
+          "body": {
+            "0": "The first thirty hours are tough. We would rather say so than pretend otherwise. After them it really does get a lot easier — not finished and not fluent, but fun and playful in a way that first stretch honestly is not. Three things you will be able to check for yourself:"
+          },
+          "points": {
+            "0": "You will be getting into conversations.",
+            "1": "You will be moving towards more listening work.",
+            "2": "You will be noticing how much surfaces easily that was genuinely impossible before."
+          }
+        },
+        "2": {
+          "heading": "The best way to spend thirty hours",
+          "body": {
+            "0": "If we had to tell you one thing about how to spend the thirty hours, it is this. Start with a big stretch, then settle into a rhythm. A whole day of it, then an hour a day, then another whole day when you can.",
+            "1": "That is not because rushing teaches you more. It does not. Thirty hours spread thin gives your brain far more time to settle in between, and Easy hands you about double the thinking time and says each phrase twice over. Taken steadily, that really is the better learning, and we would not pretend otherwise.",
+            "2": "It is that five minutes a day for a year is a much harder thing to actually do than it sounds, and for most of that year you would not feel much happening. A burst at the start changes that. You get a first conversation out of it, and the faith that this works on you, months before the gentle road would hand you either.",
+            "3": "And there is one plain advantage to going fast. You get there sooner, and you can start using the language sooner."
+          }
+        },
+        "3": {
+          "heading": "Speaking first, deep listening later",
+          "body": {
+            "0": "For the first thirty hours or so it is mostly speaking, with listening folded in around it. After that the balance tips, and longer listening deep dives on harder material become the thing that carries you forward.",
+            "1": "That second part is what we are most confident about — but it only works once you have enough of your own language to hang it on, which is what the speaking builds."
+          }
+        },
+        "4": {
+          "heading": "Why there are no streaks and no points",
+          "body": {
+            "0": "We do not count days in a row, and we never will. The app does know when you were last here — every session is stamped with its time, which is how it picks up exactly where you left off. We simply never turn that into something you have to keep up, because pressure is the opposite of what makes this work, and we would like this to be fun.",
+            "1": "There are no points, no score and no leaderboard either. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.",
+            "2": "Turn up when it suits you. This is glad to see you whenever you do."
+          }
+        },
+        "5": {
+          "heading": "Where all this comes from",
+          "body": {
+            "0": "None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently Aran worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.",
+            "1": "Which means you do not have to take a view on the method, or work out how to study, or build a plan. You just press play.",
+            "2": "If you want to watch it happening to somebody, it is all on our website."
+          },
+          "links": {
+            "0": "An hour a day of Croatian, filmed all seventy-five days",
+            "1": "Ten days of Irish, ending in a live interview on RTÉ Raidió na Gaeltachta",
+            "2": "Ten days of Japanese",
+            "3": "Thirty days of Welsh from a standing start",
+            "4": "The folk we have taught on telly"
+          }
+        }
+      }
+    },
+    "figures": {
+      "climbingBand": {
+        "alt": "One climbing band split in two: speaking is the wide half at the start and the narrow half later; deep listening does the opposite. Neither ever stops.",
+        "corner": "it turns a corner",
+        "speaking": "speaking",
+        "speakingSub": "builds the language you own",
+        "listening": "deep listening",
+        "listeningSub": "carries you furthest"
+      },
+      "cyclePill": {
+        "caption": "One go, as it looks on the player screen: you hear the phrase, then the wide middle stretch is your turn to say it out loud, then two different voices say it properly."
+      },
+      "listeningStretch": {
+        "alt": "The speaking rhythm of beats and gaps gives way to one long unbroken line of listening, with no gaps in it, and then the speaking resumes.",
+        "yourTurns": "your turns",
+        "noGaps": "no gaps, nothing asked of you",
+        "simplyPlays": "it simply plays, then the speaking returns"
+      },
+      "playerScreen": {
+        "oneGo": "One go: you hear it, then your turn, then twice properly.",
+        "offline": "Offline downloads live here.",
+        "everyCourse": "Every course you have.",
+        "theButton": "The only button that matters."
+      },
+      "spacingReturns": {
+        "alt": "A line through a session: new things arrive along the top, and each one comes back below at widening intervals.",
+        "new": "new",
+        "comesBack": "and it comes back, further apart each time"
+      },
+      "threeGaps": {
+        "alt": "Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick.",
+        "arrives": "it arrives",
+        "halfArrives": "it half arrives",
+        "wrong": "it comes out wrong"
+      },
+      "wornPath": {
+        "alt": "Reaching for a phrase wears a path into the ground; recognising one on a page leaves the ground unmarked.",
+        "reaching": "reaching for it",
+        "wearsPath": "wears the path in",
+        "recognising": "recognising it",
+        "feelsEasier": "feels easier, does less",
+        "nothingToRevise": "nothing to revise, nothing to memorise"
+      }
+    }
+  },
+  "walkthrough": {
+    "choose-something-else-to-learn": {
+      "title": "Choose something else to learn",
+      "topic": "Other languages",
+      "steps": {
+        "0": {
+          "say": "Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go."
+        },
+        "1": {
+          "say": "Tap any one of these and you are straight into it — no setting up, no starting over."
+        },
+        "2": {
+          "say": "Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.",
+          "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      }
+    },
+    "go-back-over-something": {
+      "title": "Go back over something",
+      "topic": "Going back over things",
+      "steps": {
+        "0": {
+          "say": "Nothing is ever locked behind you. Tap here to open the whole course up."
+        },
+        "1": {
+          "say": "Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there."
+        },
+        "2": {
+          "say": "Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.",
+          "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+        }
+      }
+    },
+    "reading-the-course-list": {
+      "title": "Reading the course list",
+      "topic": "Reading a course card",
+      "steps": {
+        "0": {
+          "say": "Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in."
+        },
+        "1": {
+          "say": "The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you."
+        },
+        "2": {
+          "say": "**Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes."
+        },
+        "3": {
+          "say": "Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.",
+          "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      }
+    },
+    "save-your-progress": {
+      "title": "Save your progress",
+      "topic": "Saving your progress",
+      "steps": {
+        "0": {
+          "say": "Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it."
+        },
+        "1": {
+          "say": "Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.",
+          "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+        }
+      }
+    },
+    "what-your-numbers-mean": {
+      "title": "What your numbers mean",
+      "topic": "Your numbers",
+      "steps": {
+        "0": {
+          "say": "These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody."
+        },
+        "1": {
+          "say": "Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves."
+        },
+        "2": {
+          "say": "Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.",
+          "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+        }
+      }
+    },
+    "where-you-are-in-this-course": {
+      "title": "Where you are in this course",
+      "topic": "Where you are",
+      "steps": {
+        "0": {
+          "say": "This card is your whole position in the course in one glance. Nothing here is a score, and nothing here is counting anything against you."
+        },
+        "1": {
+          "say": "Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on."
+        },
+        "2": {
+          "say": "The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left."
+        },
+        "3": {
+          "say": "Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.",
+          "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+        }
+      }
+    }
   }
 }

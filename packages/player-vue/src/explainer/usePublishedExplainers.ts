@@ -24,6 +24,8 @@ import {
   type ExplainerSection,
 } from './learnerExplainers'
 import { buildSectionsFromMarkdown } from './parseHtwCopy'
+import { localiseSection } from './localiseExplainers'
+import { useI18n } from '@/composables/useI18n'
 
 /**
  * Where the published document lives. Staging can point elsewhere by setting
@@ -100,9 +102,22 @@ export function usePublishedExplainers(): {
   whyThisWorks: ComputedRef<ExplainerSection>
 } {
   loadPublishedExplainers()
+  const { locale } = useI18n()
+  // The published document has no language dimension — Popty publishes exactly
+  // one `doc=htw`, in English. So it may only override the copy an English
+  // reader sees. On any other locale the localised floor wins, because a
+  // freshly-published English paragraph landing in the middle of Hindi prose is
+  // strictly worse than the Hindi it replaced.
+  const pick = (
+    fromPublished: () => ExplainerSection | undefined,
+    floor: ExplainerSection,
+  ): ExplainerSection => {
+    if (locale.value === 'eng') return fromPublished() ?? floor
+    return localiseSection(floor)
+  }
   return {
-    howThisWorks: computed(() => published.value?.howThisWorks ?? HOW_THIS_WORKS_LEARNER),
-    whyThisWorks: computed(() => published.value?.whyThisWorks ?? WHY_THIS_WORKS),
+    howThisWorks: computed(() => pick(() => published.value?.howThisWorks, HOW_THIS_WORKS_LEARNER)),
+    whyThisWorks: computed(() => pick(() => published.value?.whyThisWorks, WHY_THIS_WORKS)),
   }
 }
 

@@ -10,6 +10,9 @@
  * untouched, say that in one look. It is also the only figure here that reuses
  * the mountain's own material: a path, ink, ground.
  */
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -19,7 +22,7 @@
       viewBox="0 0 330 112"
       fill="none"
       role="img"
-      aria-label="Reaching for a phrase wears a path into the ground; recognising one on a page leaves the ground unmarked."
+      :aria-label="t('explainer.figures.wornPath.alt')"
     >
       <!-- Left: reaching. The path is worn wide, with footfalls along it. -->
       <path d="M16 78 C 50 70, 78 84, 132 72" stroke="currentColor" opacity="0.14" stroke-width="11" stroke-linecap="round" />
@@ -37,11 +40,11 @@
         <path d="M214 61 L 288 61" />
       </g>
       <path d="M198 82 C 232 74, 260 88, 314 76" stroke="currentColor" opacity="0.18" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="3 6" />
-      <text class="xf-ink1" x="74" y="22" text-anchor="middle" font-size="11.5" font-weight="600">reaching for it</text>
-      <text class="xf-ink2" x="74" y="37" text-anchor="middle" font-size="10.5">wears the path in</text>
-      <text class="xf-ink3" x="256" y="22" text-anchor="middle" font-size="11.5" font-weight="600">recognising it</text>
-      <text class="xf-ink3" x="256" y="37" text-anchor="middle" font-size="10.5">feels easier, does less</text>
-      <text class="xf-ink2" x="165" y="104" text-anchor="middle" font-size="10.5">nothing to revise, nothing to memorise</text>
+      <text class="xf-ink1" x="74" y="22" text-anchor="middle" font-size="11.5" font-weight="600">{{ t('explainer.figures.wornPath.reaching') }}</text>
+      <text class="xf-ink2" x="74" y="37" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.wornPath.wearsPath') }}</text>
+      <text class="xf-ink3" x="256" y="22" text-anchor="middle" font-size="11.5" font-weight="600">{{ t('explainer.figures.wornPath.recognising') }}</text>
+      <text class="xf-ink3" x="256" y="37" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.wornPath.feelsEasier') }}</text>
+      <text class="xf-ink2" x="165" y="104" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.wornPath.nothingToRevise') }}</text>
     </svg>
   </figure>
 </template>
