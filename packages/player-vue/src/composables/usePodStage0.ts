@@ -103,6 +103,9 @@ export function usePodStage0(courseCode: Ref<string>) {
             'id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map',
           )
           .like('id', `${course}:${podSlug}:%`)
+          // Base rows only — stage 0 is a linear sequence with no branch to
+          // offer, so a continuation would lengthen it. See composables/podSlate.ts.
+          .is('variant_key', null)
           .order('global_order', { ascending: true }),
         supabase
           .from('pod_legos')

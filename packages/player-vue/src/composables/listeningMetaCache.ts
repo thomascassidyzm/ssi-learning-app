@@ -306,7 +306,12 @@ export const clearCachedListeningPodRows = async (courseCode: string): Promise<v
 const POD_ROW_COLUMNS =
   'id, scene_number, sentence_number, global_order, speaker, target_text, known_text, ' +
   'target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, ' +
-  'sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids'
+  'sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, ' +
+  // Carried so the OFFLINE lane can draw the same walk/continuation line the
+  // online one does. A snapshot without these columns would hand every reader
+  // rows it could not classify, and a continuation would read as a line of the
+  // walk — a learner's walk lengthening on a plane, silently.
+  'variant_key, attach_sentence_number'
 
 const PAGE = 1000
 

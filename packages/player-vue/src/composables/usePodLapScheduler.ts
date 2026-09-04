@@ -52,6 +52,7 @@ import {
 } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
+import { baseSlate, continuationsByBranch, type SlateRow, type PodContinuation } from './podSlate'
 import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
 import { resolveServedPod } from './servedPod'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
@@ -458,6 +459,15 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const isInitialized = ref(false)
   const isLoading = ref(false)
   const podSentences = shallowRef<SchedulerPodRow[]>([])
+  /**
+   * The pod's continuations, indexed by the branch point they attach to
+   * (`podSlate.branchKey(scene, sentence)`). THE CAPABILITY, NOT THE POLICY:
+   * this makes a recovery servable at the coordinate it belongs to, in the
+   * moment. WHEN one should fire is Tom's call and is deliberately not decided
+   * here. Empty for every pod that carries no continuation, which is all of
+   * them today.
+   */
+  const podContinuations = shallowRef<Map<string, Array<PodContinuation<RawPodRow>>>>(new Map())
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
 
@@ -507,7 +517,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         () => Promise.all([
           supabase
             .from('listening_pod_sentences')
-            .select('id, global_order, scene_number, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
+            .select('id, global_order, scene_number, sentence_number, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids, variant_key, attach_sentence_number')
             .eq('pod_id', podId)
             .order('global_order', { ascending: true }),
           supabase
@@ -567,7 +577,14 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // per-sentence by construction. atom_map rides along per sentence for
       // the always-visible LEGO-tile breakdown (LearningPlayer renders it —
       // no audio ladder is built from it any more, see podTurnDisplay).
-      podSentences.value = flattenPodRows((podRowsData || []) as RawPodRow[])
+      // A pod's WALK is its base rows. A continuation (variant_key set) is
+      // attached to a coordinate, not appended to the walk, so it must never
+      // enter the lap sequence — a learner who never branches walks exactly
+      // what they walked before this existed. It stays reachable through
+      // podContinuations below, indexed by the branch point it attaches to.
+      const allRows = (podRowsData || []) as RawPodRow[]
+      podContinuations.value = continuationsByBranch(allRows as unknown as SlateRow[]) as unknown as Map<string, Array<PodContinuation<RawPodRow>>>
+      podSentences.value = flattenPodRows(baseSlate(allRows))
 
       const byRole = new Map<string, BookendAudio>()
       for (const row of bookendData || []) {
@@ -1076,6 +1093,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     podActivationRound,
     completedPodRounds,
     podSentences,
+    podContinuations,
     introAudio,
     outroAudio,
 

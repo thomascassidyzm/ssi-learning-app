@@ -828,6 +828,10 @@ export default async function handler(
       const sentencesRes = await supabase
         .from('listening_pod_sentences')
         .select('pod_id, global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next')
+        // Base rows only: the bundle is a linear walk with no branch to offer,
+        // so a continuation row would become an extra line of it. The
+        // branch-capable readers live in player-vue and fetch both.
+        .is('variant_key', null)
         .in('pod_id', podRows.map((p) => p.id))
         .order('global_order', { ascending: true })
       if (sentencesRes.error) {
