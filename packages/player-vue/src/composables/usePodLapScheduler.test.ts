@@ -43,7 +43,7 @@ interface MockState {
   podState?: Array<{ sentence_id: string; exposures: number }>
   /** listening_pods rows. Absent = the pre-2026-08-22 world: no pod-1, so the
    *  resolver answers `pod-0` and behaviour is bit-identical to before. */
-  pods?: Array<{ slug: string }>
+  pods?: Array<{ slug: string; required_role?: string | null }>
   /** pod_id the scheduler actually queried — the flip's proof. */
   queriedPodId?: string
 }
@@ -61,6 +61,12 @@ function makeMockSupabase(state: MockState) {
         return chain
       },
       in: (col?: string, val?: any) => { if (col) filters[col] = val; return chain },
+      // servedPod resolves the slug with a single `.or()` carrying two arms
+      // (rule 1: pod_type=core AND slug IN …; rule 5: required_role NOT NULL).
+      // Without this method the chain throws, resolveOnce swallows it, and
+      // every course silently answers `pod-0` — which is what made this file's
+      // pod-1 test go red and its pod-0 test pass for the wrong reason.
+      or: (expr?: string) => { if (expr) filters.or = expr; return chain },
       order: () => chain,
       maybeSingle: () => {
         if (table === 'course_enrollments') {
@@ -83,8 +89,20 @@ function makeMockSupabase(state: MockState) {
           return Promise.resolve({ data: state.podSentences, error: null }).then(cb)
         }
         if (table === 'listening_pods') {
-          const allowed = filters.slug as string[] | undefined
-          const rows = (state.pods ?? []).filter((p) => !allowed || allowed.includes(p.slug))
+          // Mirror the server: the slug set is carried inside the `.or()` arm,
+          // and a role-addressed row comes back on the other arm regardless of
+          // slug (RLS, not this query, is what hides it from everyone else).
+          const or = filters.or as string | undefined
+          const allowed =
+            (filters.slug as string[] | undefined) ??
+            (or
+              ? (or.match(/slug\.in\.\(([^)]*)\)/)?.[1] ?? '').split(',').filter(Boolean)
+              : undefined)
+          const rows = (state.pods ?? []).filter((p) => {
+            const addressed = typeof p.required_role === 'string' && p.required_role !== ''
+            if (addressed) return or !== undefined
+            return !allowed || allowed.includes(p.slug)
+          })
           return Promise.resolve({ data: rows, error: null }).then(cb)
         }
         if (table === 'course_audio') {
@@ -825,5 +843,25 @@ describe('usePodLapScheduler — served pod resolution', () => {
     })
     await s.initialize()
     expect(state.queriedPodId).toBe('spa_for_eng_v2:pod-0')
+  })
+
+  // The pod-0 case above cannot tell resolution from FAILURE: `pod-0` is also
+  // what resolveOnce answers when the query throws, and that is exactly how a
+  // missing `.or()` in this file's double hid a red pod-1 test behind a green
+  // pod-0 one (CI 2026-09-04). A slug nothing else can produce is the proof
+  // that the round-trip really happened.
+  it('serves a role-addressed pod on its own slug — proof the query ran, not the fallback', async () => {
+    const state: MockState = {
+      podSentences: [podSentence(1)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+      pods: [{ slug: 'pod-0' }, { slug: 'senedd-s4c-steve', required_role: 'previewer_001' }],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'cym_n_for_eng', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(state.queriedPodId).toBe('cym_n_for_eng:senedd-s4c-steve')
   })
 })

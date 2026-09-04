@@ -57,6 +57,13 @@ const POD_ROWS = [
   { id: 'cym:pod-1', course_code: 'cym', pod_order: 2, title: 'Live', visibility: 'live', pod_type: 'core', slug: 'pod-1' },
   { id: 'cym:pod-0-retired-2026-08-22', course_code: 'cym', pod_order: 0, title: 'Retired', visibility: 'live', pod_type: 'core', slug: 'pod-0-retired-2026-08-22' },
   { id: 'cym:music', course_code: 'cym', pod_order: 9, title: 'Music', visibility: 'live', pod_type: 'choice', slug: 'music' },
+  // From 2026-09-03: a pod addressed to ONE named person (Popty
+  // database/changes/20260903_restricted_content_by_role.sql). It is live, core
+  // and sits on a serving slug — everything else about it says "ship it". Only
+  // required_role keeps it out, and this route reads with the service-role key,
+  // so RLS is not there to do it. A bundle is per COURSE and cached, so there
+  // is no correct way to include restricted content: it is online-only.
+  { id: 'cym:pod-1-steve', course_code: 'cym', pod_order: 3, title: 'Restricted', visibility: 'live', pod_type: 'core', slug: 'pod-1', required_role: 'previewer_001' },
 ]
 
 const SENTENCE_ROWS = [
@@ -85,6 +92,16 @@ const SENTENCE_ROWS = [
     global_order: 1,
     target_text: 'SECRET-RETIRED-SENTENCE',
     known_text: 'the set this one replaced',
+    target_audio_id: null,
+    known_audio_id: null,
+    explainer_audio_id: null,
+    glue_to_next: false,
+  },
+  {
+    pod_id: 'cym:pod-1-steve',
+    global_order: 1,
+    target_text: 'SECRET-RESTRICTED-SENTENCE',
+    known_text: 'addressed to one named person',
     target_audio_id: null,
     known_audio_id: null,
     explainer_audio_id: null,
@@ -142,6 +159,14 @@ function makeChainable(table: string) {
     in: (col: string, vals: unknown[]) => {
       filters[col] = vals
       rows = rows.filter((r) => vals.includes(r[col]))
+      return builder
+    },
+    // `.is(col, null)` is how the route excludes role-restricted pods. An
+    // absent column reads as NULL here exactly as it does in Postgres, so a
+    // fixture row that says nothing about required_role is unrestricted.
+    is: (col: string, val: unknown) => {
+      filters[`is:${col}`] = val
+      rows = rows.filter((r) => (r[col] ?? null) === val)
       return builder
     },
     order: () => builder,
@@ -212,6 +237,18 @@ describe('bundle route — listening pod visibility', () => {
     const blob = JSON.stringify(res.body)
     expect(blob).not.toContain('SECRET-RETIRED-SENTENCE')
     expect(blob).not.toContain('SECRET-CHOICE-SENTENCE')
+  })
+
+  it('omits a role-restricted pod even though it is live, core and on a serving slug', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const podQuery = queries.find((q) => q.table === 'listening_pods')
+    expect(podQuery!.filters['is:required_role']).toBe(null)
+
+    const podIds = (res.body.pods as Array<{ podId: string }>).map((p) => p.podId)
+    expect(podIds).not.toContain('cym:pod-1-steve')
+    expect(JSON.stringify(res.body)).not.toContain('SECRET-RESTRICTED-SENTENCE')
   })
 
   it('never fetches a held pod’s sentences', async () => {
