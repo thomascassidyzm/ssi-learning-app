@@ -140,11 +140,6 @@
       "minutes listening",
       "minutes speaking"
     ],
-    "components/me/CyclePillFigure.vue": [
-      "One go, as it looks on the player screen: you hear the phrase, then the",
-      "voices say it properly.",
-      "wide middle stretch is your turn to say it out loud, then two different"
-    ],
     "components/me/MirrorPanel.vue": [
       "things now come back without you reaching for them."
     ],

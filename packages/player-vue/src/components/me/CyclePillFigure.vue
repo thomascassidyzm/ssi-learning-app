@@ -63,9 +63,7 @@ const { t } = useI18n()
       <span class="cpf-label cpf-label--voices">{{ t('me.thenTwiceProperly') }}</span>
     </div>
     <figcaption class="cpf-caption">
-      One go, as it looks on the player screen: you hear the phrase, then the
-      wide middle stretch is your turn to say it out loud, then two different
-      voices say it properly.
+      {{ t('explainer.figures.cyclePill.caption') }}
     </figcaption>
   </figure>
 </template>

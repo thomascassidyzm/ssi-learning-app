@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useI18n } from '../../composables/useI18n'
-const { t } = useI18n()
 /**
  * ThreeGapsFigure — "What a go is".
  *
@@ -18,6 +16,9 @@ const { t } = useI18n()
  * The viewBox carries five units of bleed each side: "it comes out wrong" is
  * the widest label in the set and sat a whisker off the right edge at 390px.
  */
+import { useI18n } from '../../composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -27,7 +28,7 @@ const { t } = useI18n()
       viewBox="-5 0 340 104"
       fill="none"
       role="img"
-      aria-label="Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick."
+      :aria-label="t('explainer.figures.threeGaps.alt')"
     >
       <!-- The three gaps, bracketed to the same width: nothing about the shape
            of the gap changes according to how it went. -->
@@ -53,9 +54,9 @@ const { t } = useI18n()
         <path d="M162 82 l5 6 l10 -13" />
         <path d="M272 82 l5 6 l10 -13" />
       </g>
-      <text class="xf-ink2" x="59" y="18" text-anchor="middle" font-size="10.5">it arrives</text>
-      <text class="xf-ink2" x="169" y="18" text-anchor="middle" font-size="10.5">it half arrives</text>
-      <text class="xf-ink2" x="279" y="18" text-anchor="middle" font-size="10.5">it comes out wrong</text>
+      <text class="xf-ink2" x="59" y="18" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.threeGaps.arrives') }}</text>
+      <text class="xf-ink2" x="169" y="18" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.threeGaps.halfArrives') }}</text>
+      <text class="xf-ink2" x="279" y="18" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.threeGaps.wrong') }}</text>
     </svg>
     <figcaption class="xf-claim">{{ t('me.allThreeGo') }}</figcaption>
   </figure>

@@ -898,6 +898,44 @@
           }
         }
       }
+    },
+    "figures": {
+      "climbingBand": {
+        "alt": "One climbing band split in two: speaking is the wide half at the start and the narrow half later; deep listening does the opposite. Neither ever stops.",
+        "corner": "it turns a corner",
+        "speaking": "speaking",
+        "speakingSub": "builds the language you own",
+        "listening": "deep listening",
+        "listeningSub": "carries you furthest"
+      },
+      "cyclePill": {
+        "caption": "One go, as it looks on the player screen: you hear the phrase, then the wide middle stretch is your turn to say it out loud, then two different voices say it properly."
+      },
+      "listeningStretch": {
+        "alt": "The speaking rhythm of beats and gaps gives way to one long unbroken line of listening, with no gaps in it, and then the speaking resumes.",
+        "yourTurns": "your turns",
+        "noGaps": "no gaps, nothing asked of you",
+        "simplyPlays": "it simply plays, then the speaking returns"
+      },
+      "spacingReturns": {
+        "alt": "A line through a session: new things arrive along the top, and each one comes back below at widening intervals.",
+        "new": "new",
+        "comesBack": "and it comes back, further apart each time"
+      },
+      "threeGaps": {
+        "alt": "Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick.",
+        "arrives": "it arrives",
+        "halfArrives": "it half arrives",
+        "wrong": "it comes out wrong"
+      },
+      "wornPath": {
+        "alt": "Reaching for a phrase wears a path into the ground; recognising one on a page leaves the ground unmarked.",
+        "reaching": "reaching for it",
+        "wearsPath": "wears the path in",
+        "recognising": "recognising it",
+        "feelsEasier": "feels easier, does less",
+        "nothingToRevise": "nothing to revise, nothing to memorise"
+      }
     }
   }
 }
