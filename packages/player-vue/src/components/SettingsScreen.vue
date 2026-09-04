@@ -19,6 +19,7 @@ import { paddleConfig } from '../lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
+import { platform } from '../platform/capabilities'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -274,6 +275,26 @@ const formattedBuildTime = computed(() => {
 const versionDisplay = computed(() => {
   const sha = buildNumber || 'dev'
   return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
+})
+
+// Which deployment is this build actually TALKING TO?
+//
+// On a bundled native shell the web assets are frozen into the APK, so the
+// build id alone does not answer the question that matters when something
+// looks wrong: which API origin is on the other end. The wrapper stamps that
+// origin at build time (scripts/injectPlatform.mjs -> window.__SSI_PLATFORM__)
+// and the platform seam reads it; on the web apiOrigin is empty by design,
+// where the page's own host IS the truthful answer.
+//
+// Host only, not the full URL — the scheme and path are noise on a phone.
+const buildOrigin = computed(() => {
+  try {
+    const configured = platform().apiOrigin
+    if (configured) return new URL(configured).host
+    return typeof window !== 'undefined' ? window.location.host : ''
+  } catch {
+    return ''
+  }
 })
 
 // What's new — latest curated release notes from Supabase
@@ -1650,6 +1671,11 @@ const confirmReset = async () => {
         </span>
       </button>
 
+      <!-- Where this build's API traffic goes. Quiet second line, deliberately
+           outside the tappable card so it isn't read out as part of the update
+           action. See buildOrigin above for why it exists at all. -->
+      <p v-if="buildOrigin" class="build-origin">{{ buildOrigin }}</p>
+
       <!-- What's New — the release train's own notes, bundled at build time from
            tools/release-train/notes/ (shipped ones only, never a draft), merged
            with any admin-curated rows (see /admin/release-notes), which win their
@@ -2579,6 +2605,14 @@ const confirmReset = async () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.build-origin {
+  margin: 6px 2px 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  word-break: break-all;
 }
 
 .build-card {
