@@ -1030,7 +1030,12 @@ onUnmounted(() => {
   font-size: 0.9375rem;
   color: var(--text-secondary);
   margin-top: 0.5rem;
-  font-style: italic;
+  /* The gloss reads as the gloss through WEIGHT and COLOUR, not italic:
+     italic has no form in Tamil, Han, Hangul, Devanagari, Arabic or Thai, so
+     the browser shears the glyphs instead (Tom, zho_for_tam, 2026-09-04). The
+     same treatment runs in every script so the app has one visual language.
+     styles/italicScripts.ts + design-tokens.css hold the guard. */
+  font-weight: 400;
 }
 
 /* Phase indicator */

@@ -1169,13 +1169,16 @@ onMounted(() => {
 
 /* Typeable iSpeak pill — same shape as the buttons, dashed border + italic
    placeholder so it reads as 'enter your language' rather than a fixed
-   choice. Width auto-grows up to a sensible cap. */
+   choice. Width auto-grows up to a sensible cap.
+   The italic is on the PLACEHOLDER only: what the learner types is a language
+   name, often in their own script (தமிழ், 한국어), and italic there is
+   synthesised by shearing glyphs that have no italic form. The dashed border
+   already carries the 'type here' affordance. */
 .i-speak-pill.i-speak-input {
   border-style: dashed;
   background: transparent;
   outline: none;
   width: 7.5rem;
-  font-style: italic;
   color: var(--text-primary, #2C2622);
 }
 

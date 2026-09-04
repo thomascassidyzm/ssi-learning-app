@@ -19758,10 +19758,12 @@ defineExpose({
   max-width: 100%;
 }
 
-/* Listening pedagogy — calmer, italic, slightly smaller. The learner is
- * meant to be passive here; the text is a nudge, not a prompt. */
+/* Listening pedagogy — calmer, lighter, slightly smaller. The learner is
+ * meant to be passive here; the text is a nudge, not a prompt. Lighter weight
+ * rather than italic: half the estate's known languages are written in scripts
+ * with no italic form, where the browser shears the glyphs instead. */
 .hero-known.listening-pedagogy {
-  font-style: italic;
+  font-weight: 400;
   opacity: 0.85;
   font-size: calc(var(--known-text-size) * 0.92);
   letter-spacing: 0.005em;

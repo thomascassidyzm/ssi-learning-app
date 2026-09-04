@@ -382,3 +382,41 @@
 .brand-text, .brand-text * {
   font-family: var(--font-brand);
 }
+
+/* ================================================================
+ * NO SYNTHETIC ITALIC — the script-scoped exception to font-style
+ * ================================================================
+ * Italic is a Latin invention. Tamil, Han, Hangul, Devanagari, Arabic, Thai,
+ * Hebrew and the rest have no italic form, so `font-style: italic` does not
+ * pick a second typeface — the browser SHEARS the upright glyphs sideways and
+ * calls it italic. On scripts built from vertical stems and loops that reads
+ * as a rendering fault, and Tom caught it on zho_for_tam (2026-09-04): Chinese
+ * upright on the card, Tamil visibly slanted underneath.
+ *
+ * So text in a language whose script has no italic renders upright, whatever a
+ * component asked for. The trigger is the language on the run, never a course
+ * code and never a list of screens — same shape as the glyph-coverage rule
+ * above, and for the same reason: a list of instances rots, a derivation does
+ * not.
+ *
+ * `!important` is deliberate and is the whole mechanism. This is a correctness
+ * guard, not a style: a Vue scoped rule carries a [data-v-…] attribute and so
+ * outranks a bare `:lang()` selector on specificity. Without it the guard
+ * silently loses to the very rules it exists to overrule.
+ *
+ * Latin, Greek and Cyrillic are untouched — they have real drawn italics and
+ * DM Sans / Noto Sans ship them.
+ *
+ * The list is derived — see styles/italicScripts.ts, which maps every language
+ * in the estate to its script and is held to this selector by
+ * styles/italicScripts.test.ts. Do not edit one alone. */
+:lang(ar), :lang(ara), :lang(ben), :lang(bn), :lang(cmn), :lang(fa),
+:lang(fas), :lang(gu), :lang(guj), :lang(hak), :lang(he), :lang(heb),
+:lang(hi), :lang(hin), :lang(hy), :lang(hye), :lang(ja), :lang(jpn),
+:lang(kan), :lang(kn), :lang(ko), :lang(kor), :lang(mar), :lang(mr),
+:lang(nan), :lang(ne), :lang(nep), :lang(pa), :lang(pan), :lang(si),
+:lang(sin), :lang(ta), :lang(tam), :lang(te), :lang(tel), :lang(th),
+:lang(tha), :lang(ur), :lang(urd), :lang(yi), :lang(yid), :lang(yue),
+:lang(zh), :lang(zho) {
+  font-style: normal !important;
+}
