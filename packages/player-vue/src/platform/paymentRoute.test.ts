@@ -59,24 +59,37 @@ describe('paymentRoute', () => {
 })
 
 describe('a webview BUILD (not merely a webview runtime)', () => {
-  it('drops institutional purchase from the build constant', async () => {
-    vi.stubEnv('VITE_APP_SHELL', 'webview')
-    vi.resetModules()
-    const mod = await import('./paymentRoute')
-    expect(mod.INSTITUTIONAL_PURCHASE_IN_BUILD).toBe(false)
-    vi.unstubAllEnvs()
+  // vite.config.js sets __INSTITUTIONAL_PURCHASE__ from VITE_APP_SHELL as a
+  // literal `define`. vitest does not run that config, so the build case is
+  // reproduced by stubbing the same global the define produces.
+  afterEach(() => {
+    vi.unstubAllGlobals()
     vi.resetModules()
   })
 
+  it('drops institutional purchase from the build constant', async () => {
+    vi.stubGlobal('__INSTITUTIONAL_PURCHASE__', false)
+    vi.resetModules()
+    const mod = await import('./paymentRoute')
+    expect(mod.INSTITUTIONAL_PURCHASE_IN_BUILD).toBe(false)
+  })
+
   it('registers no upgrade route in that build', async () => {
-    vi.stubEnv('VITE_APP_SHELL', 'webview')
+    vi.stubGlobal('__INSTITUTIONAL_PURCHASE__', false)
     vi.resetModules()
     const { default: router } = await import('@/router/index')
     const names = router.getRoutes().map((r) => r.name)
     expect(names).not.toContain('schools-upgrade')
     expect(names).not.toContain('org-upgrade')
     expect(names).not.toContain('teach-upgrade')
-    vi.unstubAllEnvs()
+  })
+
+  it('still registers them on a web build', async () => {
     vi.resetModules()
+    const { default: router } = await import('@/router/index')
+    const names = router.getRoutes().map((r) => r.name)
+    expect(names).toContain('schools-upgrade')
+    expect(names).toContain('org-upgrade')
+    expect(names).toContain('teach-upgrade')
   })
 })

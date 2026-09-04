@@ -81,9 +81,13 @@ export function paddleBillingAvailable(): boolean {
 /**
  * Build-time: does this BUILD contain institutional / seat purchase at all?
  *
- * Deliberately not a runtime predicate. `import.meta.env.VITE_APP_SHELL` is
- * replaced with a string literal at build time, so in a webview build this
- * folds to `false` and every branch guarded by it — the /schools/upgrade,
+ * Deliberately not a runtime predicate, and deliberately a vite `define`
+ * (`__INSTITUTIONAL_PURCHASE__`, set from VITE_APP_SHELL in vite.config.js)
+ * rather than `import.meta.env`: Vite replaces `import.meta.env` with the whole
+ * env OBJECT, so a key lookup off it is a property access Rollup cannot fold
+ * and the branch survives into the bundle — measured, not assumed. A define is
+ * a textual literal, so in a webview build this folds to `false` and every
+ * branch guarded by it — the /schools/upgrade,
  * /org/upgrade and /tutors/dashboard/upgrade routes, and the lazy import of
  * UpgradeView they hang off — is dead code Rollup drops. There is nothing left
  * in the artifact to flip.
@@ -93,7 +97,7 @@ export function paddleBillingAvailable(): boolean {
  * VITE_APP_SHELL=webview build).
  */
 export const INSTITUTIONAL_PURCHASE_IN_BUILD: boolean =
-  import.meta.env.VITE_APP_SHELL !== 'webview'
+  typeof __INSTITUTIONAL_PURCHASE__ === 'boolean' ? __INSTITUTIONAL_PURCHASE__ : true
 
 /**
  * Runtime companion for components that render an institutional affordance
