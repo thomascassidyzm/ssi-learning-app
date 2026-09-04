@@ -16,6 +16,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './_utils/auth'
+import { applyCors } from './_utils/cors'
 import { resolveVisibleScope } from './_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -197,18 +198,13 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<VercelResponse | void> {
-  // Wildcard is deliberate and unchanged: this endpoint is credential-free
-  // (no Allow-Credentials, no cookie trusted as an identity) and accepts guest
-  // telemetry from anywhere. `Authorization` is listed because attribution
-  // rides a bearer token — without it every cross-origin authenticated flush
-  // from a native shell fails its preflight and the learner's telemetry is
-  // silently downgraded to guest. Matches the posture already shipped on
-  // /api/entitlement/offline-lease and /api/audio/batch-urls.
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-
-  if (req.method === 'OPTIONS') return res.status(200).end()
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`. The
+  // wildcard this replaced was justified as "accepts guest telemetry from
+  // anywhere", but the only callers are our own web origin and the native
+  // shell, and the allowlist covers both — including the `Authorization`
+  // preflight an authenticated flush needs. A beacon flush is unaffected
+  // either way: it never reads the response.
+  if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
