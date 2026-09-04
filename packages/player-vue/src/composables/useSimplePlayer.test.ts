@@ -227,8 +227,9 @@ describe('useSimplePlayer — belt-threshold seed→round resolution', () => {
     expect(sp.findLegoIdForBeltThreshold(20)).toBe('S0020L01')
   })
 
-  it('regression: offlineUnavailableBeltNames pattern — resolving a target legoId and finding it BY VALUE in a diverged mirror lands correctly, where cross-indexing would not', () => {
-    // Mirrors LearningPlayer.vue's offlineUnavailableBeltNames, which used to
+  it('regression: beltsAwaitingDownload pattern — resolving a target legoId and finding it BY VALUE in a diverged mirror lands correctly, where cross-indexing would not', () => {
+    // Mirrors LearningPlayer.vue's beltsAwaitingDownload (formerly
+    // offlineUnavailableBeltNames), which used to
     // reuse findRoundIndexForBeltThreshold's index to read cachedRounds (a
     // separate component-level mirror) — the same fencepost bug as belt-skip,
     // just for deciding which belts to grey out offline.

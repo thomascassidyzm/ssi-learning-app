@@ -9,13 +9,13 @@ STOP conditions, and update your row when done.
 (never `staging`/`main` directly — see `CLAUDE.md`). Verification commands are the same
 everywhere: `pnpm --filter player-vue typecheck`, `pnpm --filter player-vue test`,
 `pnpm typecheck:api`, `pnpm test:api`. `lint` is currently a stub (plan 016 fixes it).
-There is currently **no CI** running these (plan 001 fixes that) — run them locally.
+There is **no CI** running these — GitHub Actions is off on this repo (Tom's ruling, 2026-08-31; plan 001, which built the CI gate, is superseded). The same gates run as nightly jobs on watson-1 and report rather than block, so run them locally before you merge.
 
 ## Execution order & status
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | CI verify gate before auto-merge to dev | P1 | S | — | DONE |
+| 001 | CI verify gate before auto-merge to dev | P1 | S | — | SUPERSEDED |
 | 002 | Typecheck the whole api/ surface | P1 | S–M | — | DONE |
 | 003 | Clear critical/high prod dep vulns (fast-xml-parser) | P1 | S | — | DONE |
 | 004 | Characterization tests for payment/entitlement handlers | P1 | M | — | DONE |

@@ -85,12 +85,6 @@
       "sentences",
       "— no audio for this stage —"
     ],
-    "components/ProgressModal.vue": [
-      "belt",
-      "you're in infinite play",
-      "you're working on",
-      "you've been as far as belt"
-    ],
     "components/PronunciationOverlay.vue": [
       "Harder",
       "Next",

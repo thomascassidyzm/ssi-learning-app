@@ -6,6 +6,7 @@ import { lastDashboardPath } from './router'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, missingRequiredConfig } from './config/env'
+import { shouldOfferAppInstall } from './platform/capabilities'
 import { useAuth } from './composables/useAuth'
 import {
   prewarmInstantCaches,
@@ -387,12 +388,17 @@ const checkCourseContentVersion = (client, code) => {
 // Invite code composable (singleton)
 const inviteCode = useInviteCode()
 
-// Capture beforeinstallprompt for PWA install guide
+// Capture beforeinstallprompt for PWA install guide. Not inside the native
+// shell: there is nothing to install from in there, and holding a deferred
+// prompt only gives the install surfaces something to light up on. Asked once,
+// at the seam (platform/capabilities), not sniffed here.
 const installPrompt = ref(null)
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault()
-  installPrompt.value = e
-})
+if (shouldOfferAppInstall()) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    installPrompt.value = e
+  })
+}
 
 // Active course and enrolled courses state
 const activeCourse = ref(null)

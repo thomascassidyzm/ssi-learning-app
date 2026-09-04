@@ -42,6 +42,27 @@ function getDeviceType(userAgent: string): 'mobile' | 'tablet' | 'desktop' {
 }
 
 /**
+ * WHICH CONTAINER the session is running in — 'web' (browser tab or installed
+ * PWA) or 'webview' (the native Android/iOS shell).
+ *
+ * This is NOT device_type and must never be folded into it. device_type is
+ * form factor — phone, tablet, desktop — and a wrapped Android session on a
+ * phone is legitimately 'mobile'. Both axes matter: for the India rollout the
+ * question is whether the app beats the web, and answering it needs "phone,
+ * in the app" separable from "phone, in the browser". Tom, first Android
+ * build, 2026-09-04, where both read 'mobile'.
+ *
+ * The client declares it from its one platform door. The user-agent fallback
+ * catches an older client and Android's own `; wv)` WebView marker; an iOS
+ * WKWebView carries no such marker, which is exactly why the declaration is
+ * the primary source and the sniff is only the backstop.
+ */
+function getAppShell(declared: unknown, userAgent: string): 'web' | 'webview' {
+  if (declared === 'webview' || declared === 'web') return declared
+  return /;\s*wv\)/i.test(userAgent) ? 'webview' : 'web'
+}
+
+/**
  * Deployment environment, derived SERVER-SIDE from the request host so it
  * can't be spoofed by the client and there's one source of truth.
  *   saysomethingin.app          -> 'production'
@@ -196,7 +217,7 @@ export default async function handler(
     return res.status(500).json({ error: 'Service role key not configured' })
   }
 
-  const body = req.body as { events?: unknown } | undefined
+  const body = req.body as { events?: unknown; app_shell?: unknown } | undefined
   const events = Array.isArray(body?.events) ? (body!.events as IncomingEvent[]) : null
   if (!events || events.length === 0) {
     return res.status(400).json({ error: 'events array required' })
@@ -210,6 +231,7 @@ export default async function handler(
   // Trusted identity from a verified session when present; else cookie/null.
   const userId = await resolveIdentity(req, supabase)
   const deviceType = getDeviceType(req.headers['user-agent'] || '')
+  const appShell = getAppShell(body?.app_shell, req.headers['user-agent'] || '')
   const ipCountry = (req.headers['x-vercel-ip-country'] as string) || null
   const env = getEnv(req.headers['host'] as string | undefined, req.headers['origin'] as string | undefined)
 
@@ -242,6 +264,7 @@ export default async function handler(
         payload: sanitizePayload(e.payload),
         client_version: typeof e.client_version === 'string' ? e.client_version.slice(0, 64) || null : null,
         device_type: deviceType,
+        app_shell: appShell,
         ip_country: ipCountry,
         env,
       }
@@ -252,7 +275,20 @@ export default async function handler(
   }
 
   try {
-    const { error } = await supabase.from('player_events').insert(rows)
+    let { error } = await supabase.from('player_events').insert(rows)
+    // app_shell is an ADDITIVE column (supabase/migrations/20260904_player_
+    // events_app_shell.sql.UNAPPLIED) that has to be applied by hand. Until it is, or if
+    // this code ever runs against a database that predates it, PostgREST
+    // rejects the whole batch for an unknown column — which would take out ALL
+    // telemetry to buy one new field. So a schema-cache/undefined-column error
+    // retries once without it: the new signal is the thing that degrades, not
+    // the existing ones. Delete this fallback once the column is live
+    // everywhere.
+    if (error && (error.code === 'PGRST204' || error.code === '42703')) {
+      console.warn('[player-events] app_shell column absent — retrying without it:', error.message)
+      const withoutShell = rows.map(({ app_shell: _drop, ...rest }) => rest)
+      ;({ error } = await supabase.from('player_events').insert(withoutShell))
+    }
     if (error) {
       // Log the real detail server-side; return a generic message so raw
       // PostgREST/Postgres text never leaks to an unauthenticated caller.
