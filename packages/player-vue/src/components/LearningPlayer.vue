@@ -10426,10 +10426,37 @@ const handleRoundForward = async () => {
     }
     if (targetIdx >= cachedRounds.value.length) {
       // Couldn't load the next round — if there genuinely is no more main-loop
-      // content this is the course end, so enter INF PLAY; otherwise stay put.
+      // content this is the course end, so enter INF PLAY.
       if (wouldEnterInfplay.value) { await enterInfPlay('round_cross'); return }
-      console.warn('[LearningPlayer] Round forward: next round unavailable — staying put')
-      return
+      // Otherwise this is the SILENT DROP, and it is the same bug as the belt
+      // tap: the learner asked to move, nothing happened, and nothing was said
+      // (Tom, 2026-09-04 — navigation is never refused; only availability can
+      // wait). One more genuinely fresh attempt, then the honest waiting line
+      // plus an alarm. No refusal copy, and no silence.
+      await new Promise((r) => setTimeout(r, 1_500))
+      if (supabase?.value) {
+        const retry = await generateScript()
+        if (retry.roundCount > 0) {
+          if (retry.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = retry.mainLoopRoundCount
+          mergeGeneratedRoundsIntoQueue(retry)
+        }
+      }
+      if (targetIdx >= cachedRounds.value.length) {
+        showBeltWaitingMessage(
+          t('player.contentStillDownloading', "That's still downloading — it'll open as soon as it's here."),
+        )
+        // ALARM ONLY. A forward step that cannot resolve its own next round is
+        // a bug in the load path, not a learner event.
+        logEvent('lego_skip_blocked', {
+          direction: 'forward',
+          cause: 'unresolved_next_round',
+          fromLegoId: currentRound?.legoId ?? null,
+          targetRoundIndex: targetIdx,
+          deliberateOffline: offlineActive.value,
+        })
+        console.warn('[LearningPlayer] ALARM: round forward unresolved after a retry — next round unavailable')
+        return
+      }
     }
 
     // Gate the LEGO-step: if the next round sits past the free preview, raise
@@ -14360,6 +14387,13 @@ onMounted(async () => {
     if (!gateSeed(seedNumber)) return
     try {
       await loadSeedIfNeeded(seedNumber)
+      // NAVIGATION IS NEVER REFUSED (Tom, 2026-09-04). jumpToSeed no-ops with a
+      // console warn when the seed isn't in the loaded rounds, which is a
+      // silent drop from the learner's side — so re-ask with a genuinely fresh
+      // walk before giving up, exactly as the belt jump does.
+      if (simplePlayer.findRoundIndexForSeed(seedNumber) < 0) {
+        await loadSeedIfNeeded(seedNumber, /* forceReload */ true)
+      }
       simplePlayer.jumpToSeed(seedNumber)
       // Belt position derives from the landed round (beltAnchorSeed, M9);
       // only the lego-id signal is pushed here.

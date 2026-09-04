@@ -116,7 +116,8 @@
     "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
     "practisingBanner": "Practising",
     "practisingBannerNote": "New material comes back when your connection does.",
-    "beltStillDownloading": "{belt} is still downloading — it'll open as soon as it's here."
+    "beltStillDownloading": "{belt} is still downloading — it'll open as soon as it's here.",
+    "contentStillDownloading": "That's still downloading — it'll open as soon as it's here."
   },
   "home": {
     "goodMorning": "Good morning",
