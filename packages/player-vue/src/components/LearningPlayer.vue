@@ -83,6 +83,7 @@ import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
 import { seguePodWithLayer1, podBoundaryOutcome, podIsWhollyOnDevice } from '../playback/podSegue'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
+import { canTakePayment } from '../platform/paymentRoute'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
@@ -2235,6 +2236,9 @@ const showPaywall = ref(false)
 // The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
 // paywall overlay; the money-capture backend is untouched.
 const { startCheckout, isOpeningCheckout } = useCheckout()
+// platform/paymentRoute: the wall still explains why play stopped, but it only
+// offers a Subscribe button when there is a route that can honour it.
+const purchaseAvailable = computed(() => canTakePayment())
 function handleSubscribe() {
   startCheckout({ courseCode: courseCode.value || null })
 }
@@ -16826,10 +16830,15 @@ defineExpose({
         </ul>
         <div class="paywall-actions">
           <button
+            v-if="purchaseAvailable"
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
           >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
+          <!-- Store shell with no wired billing route: an honest sentence. No
+               button, no link, no price — a dead Pay control is a broken promise
+               to the learner and a rejection at store review. -->
+          <p v-else class="paywall-unavailable">{{ t('player.subscriptionsNotAvailableHere') }}</p>
           <!-- Access codes are entered in Settings during normal play, not here. -->
           <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">{{ t('auth.maybeLater') }}</button>
         </div>
@@ -17962,6 +17971,13 @@ defineExpose({
   background: rgba(255, 255, 255, 0.12);
 }
 
+.paywall-unavailable {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #6b6660);
+  text-align: center;
+}
 .paywall-btn-ghost {
   background: none;
   color: var(--text-muted, rgba(255, 255, 255, 0.45));

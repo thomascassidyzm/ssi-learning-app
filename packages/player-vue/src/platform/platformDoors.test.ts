@@ -58,10 +58,12 @@ describe('one platform door', () => {
       { path: 'composables/useThing.ts', content: 'if (window.Capacitor) { doNativeThing() }\n' },
       { path: 'cache/Other.ts', content: 'const est = await navigator.storage.estimate()\n' },
       { path: 'boot.ts', content: "navigator.serviceWorker.register('/sw.js')\n" },
+      { path: 'views/Pay.vue', content: 'function canTakePayment() { return true }\n' },
     ]
     const hits = findPlatformDoors(synthetic)
     expect(hits.map((h) => h.pattern).sort()).toEqual([
       'capacitor-global',
+      'payment-route-redefinition',
       'raw-storage-estimate',
       'shell-predicate',
       'sw-registration',

@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Keep learning to reach the next level!",
     "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
     "practisingBanner": "Practising",
-    "practisingBannerNote": "New material comes back when your connection does."
+    "practisingBannerNote": "New material comes back when your connection does.",
+    "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Practising mode is ON — only already-met material is playing.",
     "reloadsNewestVersionDownloads": "Reloads with the newest version. Your downloads and progress are kept.",
     "fixesMostAudioLoading": "Fixes most audio and loading problems. You stay signed in.",
-    "addHomeScreenFaster": "Add to your home screen for faster, offline access"
+    "addHomeScreenFaster": "Add to your home screen for faster, offline access",
+    "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
+    "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer."
   },
   "belt": {
     "yourProgress": "Your progress",

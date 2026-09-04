@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch, inject, defineAsyncComponent } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
@@ -25,7 +25,9 @@ const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 // how other admin-only controls hide (not disable) for teachers elsewhere
 // (e.g. TeachersView's invite/remove buttons).
 const canEditSchool = computed(() => isSchoolAdmin.value && !isAdminView)
-const visibleSections = computed(() => SECTIONS.filter((s) => s.id !== 'billing' || isSchoolAdmin.value))
+// No billing panel in this build (store shell) => no Billing tab either.
+const visibleSections = computed(() =>
+  SECTIONS.filter((s) => s.id !== 'billing' || (isSchoolAdmin.value && seatPurchaseAvailable)))
 
 const activeSection = ref<SectionId>('profile')
 
@@ -121,6 +123,14 @@ async function loadSubscription() {
     // Non-fatal — billing UI just stays in its default (Subscribe) state.
   }
 }
+
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+// Seat purchase + the Paddle portal are the WEB rail (platform/paymentRoute);
+// a store build shows neither.
+const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
+const SchoolBillingPanel = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? defineAsyncComponent(() => import('./SchoolBillingPanel.vue'))
+  : null
 
 // Paddle billing portal — invoices, card updates, cancellation. Only
 // meaningful once subscribed (the webhook stamps provider_customer_id).
@@ -492,33 +502,17 @@ function toggleDataItem(id: string) {
           </div>
         </section>
 
-        <section v-else-if="activeSection === 'billing'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Billing</h2>
-          <div class="plan-card">
-            <div class="schools-kicker plan-kicker">Current plan</div>
-            <div class="arsenal plan-title">{{ planLine }}</div>
-            <div class="plan-meta">£{{ PRICE_PER_SEAT_GBP }} per teacher seat / month.</div>
-          </div>
-
-          <!-- Subscription + seats are managed on the canonical Upgrade page so
-               there's a single payment surface (no duplicated checkout logic). -->
-          <div class="panel-actions">
-            <router-link to="/schools/upgrade" class="btn-play">
-              {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
-            </router-link>
-            <!-- Paddle portal: invoices, card updates, cancellation. -->
-            <button
-              v-if="isSubscribed"
-              type="button"
-              class="btn-ghost"
-              :disabled="isOpeningPortal"
-              @click="openBillingPortal"
-            >
-              {{ isOpeningPortal ? 'Opening…' : 'Billing & invoices' }}
-            </button>
-          </div>
-          <p v-if="portalError" class="portal-error" role="alert">{{ portalError }}</p>
-        </section>
+        <!-- Billing is the WEB rail (platform/paymentRoute): its own component
+             so a store build never compiles the seat-purchase markup. -->
+        <SchoolBillingPanel
+          v-else-if="activeSection === 'billing' && SchoolBillingPanel"
+          :plan-line="planLine"
+          :PRICE_PER_SEAT_GBP="PRICE_PER_SEAT_GBP"
+          :is-subscribed="isSubscribed"
+          :is-opening-portal="isOpeningPortal"
+          :portal-error="portalError"
+          @open-portal="openBillingPortal"
+        />
       </div>
     </div>
 

@@ -17,6 +17,14 @@ type NavTab = {
   lens?: string
 }
 
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+
+// Seat purchase is web-only (platform/paymentRoute). In a store build the
+// /schools/upgrade route is not compiled in, so the tab that points at it
+// must not render either — one declaration, three tab sets.
+const upgradeTab: NavTab[] = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? [{ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' }]
+  : []
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
@@ -88,7 +96,7 @@ const tabs = computed<NavTab[]>(() => {
         { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
         { label: 'Students',  to: '/schools/students',  routeName: 'students' },
         { label: 'Insights',  to: `/org/${schoolId}/insights`, routeName: 'org-node-insights' },
-        { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+        ...upgradeTab,
       ]
     }
     // Legacy school_admin rows with no resolvable school keep the flat set
@@ -102,7 +110,7 @@ const tabs = computed<NavTab[]>(() => {
       // (govt tabs, node "See insights") — the destination is already THE
       // LENS's teacher wrapper, only the label was still the old generation.
       { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
-      { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+      ...upgradeTab,
     ]
   }
   // Teacher (default) — a school-employed teacher's billing is the school
@@ -118,7 +126,7 @@ const tabs = computed<NavTab[]>(() => {
     { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
   ]
   if (!currentUser.value.school_id) {
-    teacherTabs.push({ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' })
+    teacherTabs.push(...upgradeTab)
   }
   return teacherTabs
 })

@@ -16,6 +16,9 @@ import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
 import { paddleConfig } from '../lib/paddle'
+// The ONE payment-route declaration (platform/paymentRoute). Every control in
+// this file that starts or manages a payment asks it — never the platform.
+import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -562,7 +565,13 @@ function goPremium() {
 // Tom has created the Paddle product and set the price env vars — hidden
 // (not a broken button) until then, same pattern as the annual-price-unset
 // case elsewhere in this file.
-const familyPlanAvailable = computed(() => !!paddleConfig.familyMonthlyPriceId)
+// Can this build actually complete a purchase? False in a store shell until
+// Play Billing is wired — so the CTA is not rendered at all rather than
+// rendered dead.
+const purchaseAvailable = computed(() => canTakePayment())
+// Paddle's hosted portal / in-app cancel. Meaningless in a store shell.
+const webBillingAvailable = computed(() => paddleBillingAvailable())
+const familyPlanAvailable = computed(() => !!paddleConfig.familyMonthlyPriceId && purchaseAvailable.value)
 function goFamily() {
   startCheckout({ plan: 'family', billingPeriod: 'monthly' })
 }
@@ -2145,7 +2154,7 @@ const confirmReset = async () => {
               </div>
             </template>
             <!-- Cancel (in-app) — hidden once a cancellation is scheduled -->
-            <template v-if="!isCancelScheduled">
+            <template v-if="!isCancelScheduled && webBillingAvailable">
               <div class="divider"></div>
               <div class="setting-row clickable danger" @click="openCancelConfirm">
                 <div class="setting-info">
@@ -2157,9 +2166,9 @@ const confirmReset = async () => {
                 </svg>
               </div>
             </template>
-            <div class="divider"></div>
+            <div v-if="webBillingAvailable" class="divider"></div>
             <!-- Hosted portal: card updates / invoices (rare) -->
-            <div class="setting-row clickable" @click="handleManageSubscription">
+            <div v-if="webBillingAvailable" class="setting-row clickable" @click="handleManageSubscription">
               <div class="setting-info">
                 <span class="setting-label">{{ isPortalLoading ? 'Opening...' : 'Payment & invoices' }}</span>
                 <span class="setting-desc">{{ portalFeedback || 'Update card or view invoices (opens Paddle)' }}</span>
@@ -2168,10 +2177,29 @@ const confirmReset = async () => {
                 <path d="M9 18l6-6-6-6"/>
               </svg>
             </div>
+            <!-- Store shell: this subscription was taken on the web, so Paddle's
+                 cancel/invoice rows are gone. Say where it lives; never a link
+                 or a price, which is what store review forbids. -->
+            <template v-if="!webBillingAvailable">
+              <div class="divider"></div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-desc">{{ t('settings.manageSubscriptionOnComputer') }}</span>
+                </div>
+              </div>
+            </template>
           </template>
           <!-- Not subscribed -->
           <template v-else>
-            <div class="setting-row clickable" @click="goPremium">
+            <!-- No purchase route in this build (store shell, Play Billing not
+                 wired yet): an honest line, not a button that cannot pay. -->
+            <div v-if="!purchaseAvailable" class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.subscription') }}</span>
+                <span class="setting-desc">{{ t('settings.subscriptionsNotAvailableHere') }}</span>
+              </div>
+            </div>
+            <div v-else class="setting-row clickable" @click="goPremium">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.goPremium') }}</span>
                 <span class="setting-desc">{{ t('settings.monthUnlimitedAccessAll') }}</span>

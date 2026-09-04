@@ -22,3 +22,5 @@ declare module 'virtual:pwa-register/vue' {
 // Build-time constants
 declare const __BUILD_TIME__: string
 declare const __BUILD_NUMBER__: string
+/** vite.config define — read ONLY by src/platform/paymentRoute.ts. */
+declare const __INSTITUTIONAL_PURCHASE__: boolean

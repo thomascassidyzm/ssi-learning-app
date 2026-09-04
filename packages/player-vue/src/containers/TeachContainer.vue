@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, inject, computed, watch } from 'vue'
+import { ref, inject, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
-import UpgradeView from '@/views/schools/UpgradeView.vue'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
 import Button from '@/components/schools/shared/Button.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -12,6 +12,13 @@ import { useUserRole } from '@/composables/useUserRole'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../auth/sendSignInCode'
+// Seat purchase is web-only (platform/paymentRoute). In a store build the
+// constant folds to false, this branch is dropped, and UpgradeView is not in
+// the bundle at all — the wall below explains the lock without offering a
+// purchase route the store forbids.
+const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
+  : null
 
 // Supabase + auth from App.vue
 const supabase = inject('supabase', ref(null)) as any
@@ -249,7 +256,11 @@ const handleAuthSuccess = () => closeAuth()
           Subscribe below to keep running classes and earning. Your classes and
           students are safe — nothing is deleted.
         </p>
-        <UpgradeView />
+        <UpgradeView v-if="UpgradeView" />
+        <p v-else class="expired-lede">
+          Your tutoring subscription has ended. Renew it from your account on a
+          computer to start running classes again.
+        </p>
       </FrostCard>
     </div>
 

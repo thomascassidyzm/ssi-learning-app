@@ -6,6 +6,11 @@ import {
 } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { prepareMissionFromRoute } from '@/missions/useMission'
+// Build-time: seat/institutional purchase is a WEB-ONLY rail. In a store build
+// this folds to false, the three upgrade routes below are never constructed,
+// and UpgradeView is never imported — the destination does not exist in the
+// artifact rather than being hidden behind a flag somebody can flip.
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
 
 // Breadcrumb for the LAST management surface a user was on (`teach` | `schools`).
 // Solo tutors have no `educational_role`, so the role cache can't tell a tutor
@@ -76,6 +81,8 @@ const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
 // THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
+// Referenced ONLY from the INSTITUTIONAL_PURCHASE_IN_BUILD branches below, so a
+// store build drops this dynamic import along with them.
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
@@ -182,14 +189,14 @@ const routes: RouteRecordRaw[] = [
           description: 'The Insight Engine scoped to this node (member scope)',
         },
       },
-      {
+      ...(INSTITUTIONAL_PURCHASE_IN_BUILD ? [{
         // The org lane's billing door: the same UpgradeView, reached without
         // an org leader ever being shown a /schools URL.
         path: 'upgrade',
         name: 'org-upgrade',
         component: UpgradeView,
         meta: { title: 'Upgrade', description: 'Subscribe / manage seats' },
-      },
+      } as RouteRecordRaw] : []),
     ],
   },
   // Schools dashboard routes
@@ -337,12 +344,12 @@ const routes: RouteRecordRaw[] = [
             'immersive navless player at /, so a class-less arrival here is redirected there.',
         },
       },
-      {
+      ...(INSTITUTIONAL_PURCHASE_IN_BUILD ? [{
         path: 'upgrade',
         name: 'schools-upgrade',
         component: UpgradeView,
         meta: { title: 'Upgrade', description: 'Subscribe / manage teacher seats' },
-      },
+      } as RouteRecordRaw] : []),
     ],
   },
   // Tutor (freelancer) dashboard. ONE tutor namespace: /tutors is the sign-up
@@ -371,12 +378,12 @@ const routes: RouteRecordRaw[] = [
         component: TeachDashboard,
         meta: { title: 'Teach' },
       },
-      {
+      ...(INSTITUTIONAL_PURCHASE_IN_BUILD ? [{
         path: 'upgrade',
         name: 'teach-upgrade',
         component: UpgradeView,
         meta: { title: 'Upgrade', description: 'Subscribe to your tutoring dashboard' },
-      },
+      } as RouteRecordRaw] : []),
       {
         // Play-as-class for tutors — renders the player INSIDE TeachContainer so
         // the tutor nav stays above it (mirrors /schools/play in SchoolsContainer).
@@ -396,7 +403,9 @@ const routes: RouteRecordRaw[] = [
   // /teach/setup is retired — its signup now happens at the /tutors door.
   { path: '/teach', redirect: '/tutors/dashboard' },
   { path: '/teach/setup', redirect: '/tutors' },
-  { path: '/teach/upgrade', redirect: '/tutors/dashboard/upgrade' },
+  ...(INSTITUTIONAL_PURCHASE_IN_BUILD
+    ? [{ path: '/teach/upgrade', redirect: '/tutors/dashboard/upgrade' } as RouteRecordRaw]
+    : []),
   { path: '/teach/play', redirect: '/tutors/dashboard/play' },
   // Student attribution gateway (no auth required)
   {

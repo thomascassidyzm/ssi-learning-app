@@ -256,6 +256,17 @@ export default defineConfig(({ mode }) => ({
     // production, not the staging branch) rather than inventing a second
     // "is this dev" check.
     __ENABLE_WEDGE_CHEAT__: JSON.stringify(swSelfUpdate),
+    // Is institutional / seat purchase compiled into this build at all?
+    //
+    // A `define` and not `import.meta.env`, deliberately: Vite replaces
+    // `import.meta.env` with the whole env OBJECT, so a key lookup off it is a
+    // property access Rollup cannot fold, and the branch survives into the
+    // bundle. A define is a textual literal, so `if (false)` collapses and the
+    // three /upgrade routes and UpgradeView leave the artifact entirely.
+    // Read ONLY by src/platform/paymentRoute.ts — one door.
+    __INSTITUTIONAL_PURCHASE__: JSON.stringify(
+      (process.env.VITE_APP_SHELL || '').trim() !== 'webview'
+    ),
   },
   build: {
     sourcemap: true,
