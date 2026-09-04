@@ -13,6 +13,9 @@
  * · No "you are here" marker. The line is the shape of a session, not a
  *   position in one — the app has deliberately refused to have a position.
  */
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -22,7 +25,7 @@
       viewBox="0 0 330 98"
       fill="none"
       role="img"
-      aria-label="A line through a session: new things arrive along the top, and each one comes back below at widening intervals."
+      :aria-label="t('explainer.figures.spacingReturns.alt')"
     >
       <path d="M10 34 L 320 34" stroke="currentColor" opacity="0.28" stroke-width="1.4" stroke-linecap="round" />
       <!-- New arrivals. -->
@@ -45,9 +48,9 @@
         <path d="M112 64 C 134 76, 166 74, 184 64" />
         <path d="M188 64 C 218 80, 268 78, 296 64" />
       </g>
-      <text class="xf-ink2" x="34" y="20" text-anchor="middle" font-size="10.5">new</text>
-      <text class="xf-ink2" x="176" y="20" text-anchor="middle" font-size="10.5">new</text>
-      <text class="xf-ink2" x="165" y="92" text-anchor="middle" font-size="10.5">and it comes back, further apart each time</text>
+      <text class="xf-ink2" x="34" y="20" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.spacingReturns.new') }}</text>
+      <text class="xf-ink2" x="176" y="20" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.spacingReturns.new') }}</text>
+      <text class="xf-ink2" x="165" y="92" text-anchor="middle" font-size="10.5">{{ t('explainer.figures.spacingReturns.comesBack') }}</text>
     </svg>
   </figure>
 </template>

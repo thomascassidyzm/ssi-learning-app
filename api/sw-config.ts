@@ -11,11 +11,15 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from './_utils/cors'
 
 export default function handler(
   req: VercelRequest,
   res: VercelResponse
 ): void {
+  // Cross-origin (native shell) policy + preflight. No-op same-origin.
+  if (applyCors(req, res, { methods: 'GET' })) return
+
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return

@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed } from 'vue'
 import ModeTray from './ModeTray.vue'
 
@@ -208,7 +210,7 @@ const handleSettings = () => {
           tapped: tappedItem === 'library'
         }"
         @click="handleNavTap('library')"
-        title="Library"
+        :title="t('nav.library')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -220,7 +222,7 @@ const handleSettings = () => {
       </button>
 
       <!-- Slot 2: Revisit (hidden on non-player screens) -->
-      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" title="Previous LEGO">
+      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" :title="t('nav.previousLego')">
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
@@ -280,7 +282,7 @@ const handleSettings = () => {
         class="pill-btn"
         :class="{ active: showSettings, tapped: tappedItem === 'settings' }"
         @click="handleSettings"
-        title="Settings"
+        :title="t('settings.title')"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

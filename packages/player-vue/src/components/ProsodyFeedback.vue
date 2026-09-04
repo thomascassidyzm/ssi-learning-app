@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
 /**
  * ProsodyFeedback - Visual pronunciation feedback
  *
@@ -8,6 +9,8 @@
  */
 import { ref, watch, onMounted, computed, nextTick, type PropType } from 'vue'
 import type { PronunciationResult } from '@ssi/core/audio'
+
+const { t } = useI18n()
 
 const props = defineProps({
   result: {
@@ -125,15 +128,15 @@ watch(() => props.result, () => {
     <Transition name="score-fade">
       <div v-if="showScore" class="sub-scores">
         <span class="sub-score">
-          <span class="sub-label">Length</span>
+          <span class="sub-label">{{ t('prosody.length') }}</span>
           <span class="sub-dot" :class="dotClass(result.score.duration)" />
         </span>
         <span class="sub-score">
-          <span class="sub-label">Syllables</span>
+          <span class="sub-label">{{ t('prosody.syllables') }}</span>
           <span class="sub-dot" :class="dotClass(result.score.peakCount)" />
         </span>
         <span class="sub-score">
-          <span class="sub-label">Shape</span>
+          <span class="sub-label">{{ t('prosody.shape') }}</span>
           <span class="sub-dot" :class="dotClass(result.score.envelope)" />
         </span>
       </div>

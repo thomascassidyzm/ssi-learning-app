@@ -9,6 +9,15 @@ import { shouldReloadForPreloadError } from './utils/bootHeal'
 import { loadWebFonts } from './utils/loadWebFonts'
 import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 import { applyDeepLinkLocale } from './utils/deepLinkLocale'
+import { installApiOriginRewrite } from './platform/apiBase'
+
+// Point every app-relative `/api/...` request at the configured API origin.
+// FIRST, before anything can make a request. On the web the configured origin
+// is the empty string, so this installs nothing at all and every request is
+// the identical relative path it has always been. Inside a native shell's
+// WebView — whose own origin serves no API — it is the one place that makes
+// the difference. See platform/apiBase.ts.
+installApiOriginRewrite()
 
 // A deep link to a course sets the interface language to that course's KNOWN
 // language — the one the visitor already speaks — unless they have chosen a

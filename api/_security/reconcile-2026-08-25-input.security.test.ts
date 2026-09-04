@@ -65,8 +65,20 @@ describe('INPUT-04: /api/player-events attributes events only from a verified be
     const src = read('api/player-events.ts')
     expect(src).toMatch(/if \(!authHeader \|\| !authHeader\.startsWith\('Bearer '\)\) return null/)
     expect(src).not.toMatch(/return rawUserId && UUID_RE\.test\(rawUserId\) \? rawUserId : null/)
-    // The one cookie path left is gated on an authorisation check.
-    expect(src).toMatch(/isAuthorisedClassLearner\(supabase, result\.userId, cookieId\)/)
+    // The play-as-class exception is gated on an authorisation check, and the
+    // id it honours is the SAME id that was checked. Since 2026-09-03 that
+    // claim arrives on either of two channels — the `ssi-user-id` cookie
+    // (same-origin web) or an `acting_learner_id` body field (a cookie does
+    // not travel to the native shell's origin) — so the variable is
+    // `claimedId`, not `cookieId`. Neither channel is trusted: both are
+    // unsigned claims, and both go through the same check. Behavioural
+    // coverage of both is in api/playerEventsAttribution.security.test.ts.
+    expect(src).toMatch(
+      /const authorisedClass = await isAuthorisedClassLearner\(supabase, result\.userId, claimedId\)/,
+    )
+    expect(src).toMatch(/return authorisedClass \? claimedId : verifiedLearnerId/)
+    // Whichever channel it came from, the claim is uuid-shaped or it is dropped.
+    expect(src).toMatch(/if \(!claimedId \|\| !UUID_RE\.test\(claimedId\) \|\| claimedId === verifiedLearnerId\)/)
     expect(src).toMatch(/scope\.classIds\.includes\(cls\.id as string\)/)
   })
 })

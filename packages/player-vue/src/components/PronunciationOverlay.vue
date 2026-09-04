@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { dirFor } from '@ssi/core'
 import {
@@ -11,6 +13,7 @@ import ProsodyFeedback from './ProsodyFeedback.vue'
 // A-86: this overlay runs its own course_practice_phrases walk, so it stamps
 // the per-clip versioned ref itself before its URL builder sees the id.
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
+import { apiUrl } from '@/platform/apiBase'
 
 // ============================================================================
 // Pronunciation Overlay - Record-compare-feedback loop on completed phrases
@@ -295,7 +298,7 @@ function shuffle(arr) {
 
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
-  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+  return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
 const initializeAudio = async () => {
@@ -657,7 +660,7 @@ onUnmounted(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          Easier
+          {{ t('pronunciation.easier') }}
         </button>
         <div class="difficulty-dots">
           <span
@@ -699,13 +702,13 @@ onUnmounted(() => {
     <!-- Loading State -->
     <div v-if="isLoading" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading phrases...</p>
+      <p>{{ t('pronunciation.loadingPhrases') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state" @click.stop>
       <p>{{ error }}</p>
-      <button @click="loadPhrases()">Retry</button>
+      <button @click="loadPhrases()">{{ t('courseSelector.retry') }}</button>
     </div>
 
     <!-- Main Content -->
@@ -770,7 +773,7 @@ onUnmounted(() => {
               <polyline points="1 4 1 10 7 10"/>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
             </svg>
-            Retry
+            {{ t('courseSelector.retry') }}
           </button>
           <button class="action-btn action-btn--next" @click.stop="handleSkip">
             Next
@@ -788,7 +791,7 @@ onUnmounted(() => {
             <polyline points="18 15 12 9 6 15"/>
           </svg>
         </div>
-        <p>Tap play to start</p>
+        <p>{{ t('pronunciation.tapPlayStart') }}</p>
         <p class="phrase-count">{{ totalCount }} phrases available (short → long)</p>
       </div>
     </div>
@@ -1027,7 +1030,12 @@ onUnmounted(() => {
   font-size: 0.9375rem;
   color: var(--text-secondary);
   margin-top: 0.5rem;
-  font-style: italic;
+  /* The gloss reads as the gloss through WEIGHT and COLOUR, not italic:
+     italic has no form in Tamil, Han, Hangul, Devanagari, Arabic or Thai, so
+     the browser shears the glyphs instead (Tom, zho_for_tam, 2026-09-04). The
+     same treatment runs in every script so the app has one visual language.
+     styles/italicScripts.ts + design-tokens.css hold the guard. */
+  font-weight: 400;
 }
 
 /* Phase indicator */

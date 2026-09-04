@@ -25,6 +25,13 @@
  * 3. One resolution per course per session. Five call sites share one memoised
  *    in-flight promise (the same shape listeningMetaCache uses for its
  *    once-only fetches) so the flip costs one round-trip, not five.
+ * * 5. A pod that NAMES A ROLE is addressed to one person, and outranks
+ *    everything above it for the person who holds that role. This is the one
+ *    way a non-serving slug is ever served, and it is safe because the CLIENT
+ *    does not decide it: RLS returns a role-restricted row only to a holder of
+ *    that role (database/changes/20260903_restricted_content_by_role.sql in
+ *    Popty), so for everybody else the row does not exist and rule 1 is
+ *    exactly as hard as it was. It rides on the same round-trip as rule 1.
  *
  * 4. Offline, the answer comes from the download snapshot. The offline
  *    metadata cache persists the slug it was built from, so a learner who
@@ -82,6 +89,35 @@ const servedPod = (courseCode: string, slug: string): ServedPod => ({
   podId: `${courseCode}:${slug}`,
 })
 
+export interface PodRow {
+  slug: string
+  /** `listening_pods.required_role` — NULL/absent means "everyone". */
+  required_role?: string | null
+}
+
+/**
+ * Which slug do these rows mean? Pure, so the rule can be tested without a
+ * client. A row only reaches here if RLS let it through, so a role-restricted
+ * row IS one this reader may play — the check has already happened server-side
+ * and this function must not try to repeat it.
+ */
+export const pickServedSlug = (rows: PodRow[] | null | undefined): string => {
+  const list = rows ?? []
+  // Rule 5: personally addressed content wins, on any slug.
+  const addressed = list.find((r) => typeof r.required_role === 'string' && r.required_role !== '')
+  if (addressed && typeof addressed.slug === 'string' && addressed.slug !== '') {
+    return addressed.slug
+  }
+  // Rule 1: the hard gate, in preference order.
+  const found = new Set(list.map((r) => r.slug))
+  for (const slug of SERVING_POD_SLUGS) {
+    if (found.has(slug)) return slug
+  }
+  // Rule 2: no serving pod — the course has none yet, or its only pod is
+  // parked. Both read as `pod-0`, whose sentence query returns zero rows.
+  return FALLBACK_POD_SLUG
+}
+
 const isServingSlug = (slug: unknown): slug is string =>
   typeof slug === 'string' && (SERVING_POD_SLUGS as readonly string[]).includes(slug)
 
@@ -114,15 +150,20 @@ const resolveOnce = async (
 
   // `withNetworkTimeout` returns the sentinel on a hang but still PROPAGATES a
   // real rejection, so both arms have to land in the same fallback.
-  let result: { data: Array<{ slug: string }> | null; error: unknown } | typeof NETWORK_TIMEOUT
+  let result: { data: PodRow[] | null; error: unknown } | typeof NETWORK_TIMEOUT
   try {
     result = await withNetworkTimeout(
       client
         .from('listening_pods')
-        .select('slug')
+        .select('slug, required_role')
         .eq('course_code', courseCode)
-        .eq('pod_type', 'core')
-        .in('slug', SERVING_POD_SLUGS as unknown as string[]),
+        // Rule 1 unchanged, plus rule 5 on the same round-trip. The role arm
+        // carries no slug or pod_type filter on purpose: a pod addressed to a
+        // person may live on any slug, and RLS — not this query — is what
+        // makes it invisible to everyone else.
+        .or(
+          `required_role.not.is.null,and(pod_type.eq.core,slug.in.(${SERVING_POD_SLUGS.join(',')}))`,
+        ),
     )
   } catch {
     result = NETWORK_TIMEOUT
@@ -134,14 +175,7 @@ const resolveOnce = async (
     return servedPod(courseCode, fallback)
   }
 
-  const found = new Set((result.data ?? []).map((row: { slug: string }) => row.slug))
-  for (const slug of SERVING_POD_SLUGS) {
-    if (found.has(slug)) return servedPod(courseCode, slug)
-  }
-  // No serving pod: the course has none yet, or its only pod is parked. Both
-  // read as `pod-0`, whose sentence query returns zero rows — "no pods yet",
-  // exactly as before.
-  return servedPod(courseCode, FALLBACK_POD_SLUG)
+  return servedPod(courseCode, pickServedSlug(result.data))
 }
 
 /**

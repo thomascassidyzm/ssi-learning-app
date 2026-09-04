@@ -19,6 +19,8 @@ import type {
 } from './AudioCache.types'
 import type { AudioLifecycle } from '../types/courseBundle'
 import { bytesToWavBlob } from './wav'
+import { estimateStorage, storagePressure } from '../platform/storage'
+import { apiUrl } from '../platform/apiBase'
 
 const DB_NAME = 'ssi-audio-cache-v2'
 const DB_VERSION = 1
@@ -102,7 +104,7 @@ export class AudioCacheImpl implements AudioCache {
   readonly ephemeral: EphemeralNamespace
 
   constructor(options: CreateAudioCacheOptions = {}) {
-    this.audioUrl = options.audioUrl ?? ((id) => `/api/audio/${id}`)
+    this.audioUrl = options.audioUrl ?? ((id) => apiUrl(`/api/audio/${id}`))
     this.fetchTimeoutMs = options.fetchTimeoutMs ?? 30_000
 
     // Bind namespace facades to `this`.
@@ -521,19 +523,9 @@ export class AudioCacheImpl implements AudioCache {
   // ==========================================================================
 
   async quotaPressure(): Promise<number> {
-    try {
-      if (typeof navigator === 'undefined') return 0
-      const storage = (navigator as Navigator & { storage?: StorageManager }).storage
-      if (!storage?.estimate) return 0
-      const est = await storage.estimate()
-      if (!est.quota || est.quota === 0) return 0
-      const ratio = (est.usage ?? 0) / est.quota
-      if (ratio < 0) return 0
-      if (ratio > 1) return 1
-      return ratio
-    } catch {
-      return 0
-    }
+    // Through the platform storage seam, so a native shell's real filesystem
+    // quota can be swapped in without touching this call site.
+    return storagePressure()
   }
 
   async stats(): Promise<AudioCacheStats> {
@@ -564,19 +556,10 @@ export class AudioCacheImpl implements AudioCache {
       await tx.done
     }
 
-    // Best-effort quota/usage read.
-    try {
-      if (typeof navigator !== 'undefined') {
-        const storage = (navigator as Navigator & { storage?: StorageManager }).storage
-        if (storage?.estimate) {
-          const est = await storage.estimate()
-          result.quotaBytes = est.quota
-          result.usageBytes = est.usage
-        }
-      }
-    } catch {
-      // Leave undefined.
-    }
+    // Best-effort quota/usage read, via the platform storage seam.
+    const est = await estimateStorage()
+    result.quotaBytes = est.quotaBytes
+    result.usageBytes = est.usageBytes
 
     this.statsCache = { at: now, value: result }
     return result

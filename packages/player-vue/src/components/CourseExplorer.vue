@@ -5,7 +5,7 @@ import { CyclePhase, dirFor } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { resolveIntroAudioUrl } from '../providers/resolveIntroAudioUrl'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
-import { getLanguageName } from '../composables/useI18n'
+import { getLanguageName, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 
 // ============================================================================
@@ -86,6 +86,8 @@ class ScriptAudioController {
     }
   }
 }
+
+const { t } = useI18n()
 
 const emit = defineEmits(['close'])
 
@@ -1006,14 +1008,14 @@ onUnmounted(() => {
           cached
         </span>
       </div>
-      <button class="close-btn" @click="$emit('close')" aria-label="Close">&#x2715;</button>
+      <button class="close-btn" @click="$emit('close')" :aria-label="t('sector.close')">&#x2715;</button>
     </header>
 
     <!-- Stats Bar -->
     <div class="stats-bar">
       <div class="stat">
         <span class="stat-value">{{ totalSeeds }}</span>
-        <span class="stat-label">Seeds</span>
+        <span class="stat-label">{{ t('home.seeds') }}</span>
       </div>
       <div class="stat-divider"></div>
       <div class="stat">
@@ -1028,7 +1030,7 @@ onUnmounted(() => {
       <div class="stat-divider"></div>
       <div class="stat">
         <span class="stat-value">{{ allItems.length }}</span>
-        <span class="stat-label">Items</span>
+        <span class="stat-label">{{ t('session.items') }}</span>
       </div>
     </div>
 

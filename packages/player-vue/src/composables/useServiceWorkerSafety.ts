@@ -11,6 +11,7 @@
  */
 
 import { ref } from 'vue'
+import { shouldRunServiceWorker } from '../platform/capabilities'
 
 // ============================================================================
 // TYPES
@@ -221,6 +222,13 @@ export async function clearAllCaches(): Promise<number> {
  */
 export async function triggerServiceWorkerUpdate(): Promise<void> {
   if (!('serviceWorker' in navigator)) {
+    return
+  }
+  // In a native shell we deliberately never register a worker (see
+  // platform/capabilities), and `serviceWorker.ready` NEVER RESOLVES when
+  // nothing is registered — awaiting it there would hang this call forever
+  // rather than fail. There is nothing to update, so say so and return.
+  if (!shouldRunServiceWorker()) {
     return
   }
 

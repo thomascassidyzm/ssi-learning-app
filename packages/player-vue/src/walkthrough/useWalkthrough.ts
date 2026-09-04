@@ -17,6 +17,7 @@
  */
 import { ref, computed } from 'vue'
 import pack from './pack.json'
+import { localiseWalk } from './localiseWalk'
 
 // Semantic places a walk can live — the compiler gate checks every walk's
 // place.route against this list (lockstep, like the explainer's KNOWN_TARGETS).
@@ -78,10 +79,16 @@ const showingTerminal = ref(false)
 
 /** Walks offerable at a persona × place (× node kind, where the place has kinds). */
 export function walksFor(persona: WalkPersona, place: string, kind?: string): Walk[] {
-  return walks.filter((w) =>
-    w.place.route === place &&
-    w.personas.includes(persona) &&
-    (!w.place.kinds || !kind || w.place.kinds.includes(kind)))
+  // Localised on the way out, not at import: the locale chunk lands after the
+  // module does, so a walk read at boot would otherwise be English for ever.
+  // Everything downstream — the chips, the search, the overlay — reads through
+  // here or walkById, so there is one place where English becomes Hindi.
+  return walks
+    .filter((w) =>
+      w.place.route === place &&
+      w.personas.includes(persona) &&
+      (!w.place.kinds || !kind || w.place.kinds.includes(kind)))
+    .map(localiseWalk)
 }
 
 /** The chip label for a walk — its topic where it has one, else its title. */
@@ -119,7 +126,8 @@ export function searchWalks(persona: WalkPersona, place: string, kind: string | 
 }
 
 export function walkById(id: string): Walk | null {
-  return walks.find((w) => w.id === id) ?? null
+  const walk = walks.find((w) => w.id === id)
+  return walk ? localiseWalk(walk) : null
 }
 
 function stamp(): void {

@@ -21,7 +21,8 @@
     "fast": "Fast",
     "learningModeLabel": "Learning mode",
     "sector": "For your work",
-    "sectorDesc": "Runs alongside your course"
+    "sectorDesc": "Runs alongside your course",
+    "freeOfflineDays": "Free offline for 30 days"
   },
   "sector": {
     "title": "For your work",
@@ -62,7 +63,10 @@
     "retry": "Retry",
     "freePreview": "Free preview",
     "forSpeakers": "for {lang} speakers",
-    "searchPlaceholder": "Search for any language..."
+    "searchPlaceholder": "Search for any language...",
+    "moUnlimitedAccessAll": "£15/mo — unlimited access to all languages",
+    "free": "Free",
+    "freeForever": "Free forever"
   },
   "player": {
     "listen": "Listen",
@@ -73,7 +77,45 @@
     "pause": "Pause",
     "resume": "Resume",
     "offlinePracticeBody": "We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.",
-    "offlinePracticeAck": "Got it"
+    "offlinePracticeAck": "Got it",
+    "takeOffline": "Take it offline",
+    "runningLowSpace": "· running low on space",
+    "cachesCoursesKeyPhrases": "Caches the course's key phrases so it plays on endless repeat with no signal.",
+    "downloadUnlimitedOffline": "Download for unlimited offline",
+    "howMuchRemainingCourse": "How much of the remaining course to download",
+    "plusEverythingUpWhere": "Plus everything up to where you are — included automatically",
+    "download": "Download",
+    "playsOfflineForeverOnce": "Plays offline forever once downloaded — it keeps going on repeat with no signal.",
+    "youveReachedEndFree": "You've reached the end of the free preview",
+    "goPremiumMonthCancel": "Go Premium — £15/month. Cancel anytime.",
+    "everyCourseLanguagesFully": "Every course in 65+ languages, fully unlocked",
+    "downloadCoursesOfflineLearning": "Download courses for offline learning",
+    "newLanguagesCoursesAdded": "New languages and courses added all the time",
+    "tryReconnect": "Try to reconnect",
+    "skipWelcome": "Skip Welcome",
+    "podPreviewNavigation": "Pod preview navigation",
+    "previousPodSentence": "Previous pod sentence",
+    "prev": "‹ Prev",
+    "nextPodSentence": "Next pod sentence",
+    "next": "Next ›",
+    "hideHints": "Hide hints",
+    "guideSpeaking": "Your guide is speaking",
+    "previousCycle": "Previous cycle",
+    "cyclePhases": "Cycle phases",
+    "replayPrompt": "Replay prompt",
+    "backTurnSpeak": "Back to your turn to speak",
+    "skipModelVoice": "Skip to model voice 1",
+    "skipModelVoice2": "Skip to model voice 2",
+    "nextCycle": "Next cycle",
+    "saveProgress": "Save Progress",
+    "backClasses": "Back to classes",
+    "learningPlayer": "Learning player",
+    "courseWasUpdated": "Your course was updated",
+    "newBeltEarned": "New Belt Earned!",
+    "keepLearningReachNext": "Keep learning to reach the next level!",
+    "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
+    "practisingBanner": "Practising",
+    "practisingBannerNote": "New material comes back when your connection does."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -104,7 +146,8 @@
     "goodStart": "Good start",
     "niceFlow": "Nice flow",
     "greatSession": "Great session",
-    "onFire": "On fire"
+    "onFire": "On fire",
+    "viewJourney": "View Your Journey"
   },
   "profile": {
     "title": "Profile",
@@ -114,7 +157,10 @@
     "courses": "Courses",
     "beltCollection": "Belt collection",
     "recentActivity": "Recent activity",
-    "seedsToGo": "{count} seeds to go"
+    "seedsToGo": "{count} seeds to go",
+    "someSampleDataWhile": "Some of this is sample data while your own numbers build up. It says so where it applies.",
+    "justMoment": "Just a moment…",
+    "backLearning": "Back to learning"
   },
   "settings": {
     "title": "Settings",
@@ -195,7 +241,68 @@
     "nuclearResetDesc": "Clear all local data, service workers and reload",
     "about": "About",
     "version": "Version",
-    "madeWithLove": "Made with love for language learners"
+    "madeWithLove": "Made with love for language learners",
+    "willClearAllProgress": "This will clear all progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.",
+    "moveFurthestPoint": "Move to your furthest point?",
+    "positionRecovered": "Position recovered!",
+    "clearCacheReload2": "Clear cache and reload?",
+    "clearsAppsStoredData": "This clears the app's stored data and reloads from scratch. It fixes most audio and loading problems, and you'll stay signed in.",
+    "createFreeAccountKeep": "Create a free account to keep it",
+    "clearCache": "Clear cache",
+    "reloading": "Reloading…",
+    "willPermanentlyDeleteAccount": "This will permanently delete your account and all your learning progress across all courses. This action cannot be undone.",
+    "typeDeleteConfirm": "Type DELETE to confirm",
+    "cancelSubscription2": "Cancel subscription?",
+    "keepPremium": "Keep Premium",
+    "closeSettings": "Close settings",
+    "updateAvailable": "Update available",
+    "tapUpdate": "Tap to update",
+    "latestVersionTapVersion": "✦ In the latest version — tap the version above to update.",
+    "loading": "Loading…",
+    "displayName": "Display name",
+    "name": "Your name",
+    "nameSaved": "Name saved",
+    "newPassword": "New password",
+    "leastCharacters": "At least 6 characters",
+    "confirmPassword": "Confirm password",
+    "typeAgain": "Type it again",
+    "passwordSaved": "Password saved",
+    "codeSentEnterBelow": "Code sent — enter it below",
+    "primary": "primary",
+    "emailVerifiedLinked": "Email verified and linked",
+    "signOut": "Sign Out",
+    "peopleInvitesProgress": "Your people, invites and progress",
+    "manageClassesStudents": "Manage your classes and students",
+    "adminDashboard": "Admin Dashboard",
+    "platformUsersActivityCourse": "Platform users, activity, and course analytics",
+    "learningSpeed": "Learning Speed",
+    "adjustHowFastTarget": "Adjust how fast target language audio plays. Does not affect your known language.",
+    "browseCourseRoundsLego": "Browse course rounds and lego sequences",
+    "flagPhrasesDontSound": "Flag phrases that don't sound right. Feedback goes directly to the content team.",
+    "personalisedPacing": "Personalised pacing",
+    "usesMicrophoneDetectWhen": "Uses your microphone to detect when you speak, adapting pause lengths to your rhythm. No audio is recorded or stored.",
+    "enterInviteAccessCode": "Enter an invite or access code",
+    "ssiFamily": "SSi Family",
+    "coveredByFamilyPlan": "Covered by your family plan",
+    "active": "Active",
+    "manageFamily": "Manage family",
+    "addRemoveMembersUp": "Add or remove members, up to 6 accounts",
+    "monthUnlimitedAccessAll": "£15/month — unlimited access to all languages",
+    "goFamily": "Go Family",
+    "monthUpAccountsEveryones": "£25/month — up to 6 accounts, everyone's own progress",
+    "permanentlyDeleteAccountAll": "Permanently delete your account and all data",
+    "showScriptBrowserTools": "Show script browser in Tools section",
+    "showPhaseRoundLego": "Show phase, round, and LEGO info on screen",
+    "listeningProgressionAudit": "Listening Progression Audit",
+    "addProgressionModeListening": "Add a \"Progression\" mode to Listening → Dialogues that walks each line through all 9 acquisition stages, live from the Popty listening config",
+    "fragileProgressWarning2": "Fragile Progress Warning",
+    "showProgressFragileBanner": "Show \"progress is fragile\" banner for guests",
+    "practisingModeTest": "Practising Mode (test)",
+    "whileWillOnlyGet": "While this is on you will only get material you have already met — no new LEGOs. Turn it off to resume new material. Resets itself when the app restarts.",
+    "practisingModeOnlyAlready": "Practising mode is ON — only already-met material is playing.",
+    "reloadsNewestVersionDownloads": "Reloads with the newest version. Your downloads and progress are kept.",
+    "fixesMostAudioLoading": "Fixes most audio and loading problems. You stay signed in.",
+    "addHomeScreenFaster": "Add to your home screen for faster, offline access"
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -246,7 +353,41 @@
     "tapToPause": "Tap to pause",
     "tapToStart": "Tap to start",
     "phaseFlow": "Listen → Speak → Listen → See",
-    "tapAnywhere": "tap anywhere to start"
+    "tapAnywhere": "tap anywhere to start",
+    "organisationName": "Organisation name",
+    "eGCardiffCouncil": "e.g. Cardiff Council",
+    "youllTeach": "You'll teach",
+    "searchLanguages": "Search languages…",
+    "searchTaughtLanguages": "Search taught languages",
+    "freeYear": "Free for a year",
+    "youreTeaching": "You're teaching",
+    "changeLanguage": "Change language",
+    "learnersMainlySpeak": "Your learners mainly speak",
+    "searchLanguages2": "Search languages",
+    "loadingLanguages": "Loading languages…",
+    "noLanguagesAvailableSignup": "No languages available for this signup yet.",
+    "alreadySetUpGo": "Already set up? Go to your dashboard",
+    "notSignOut": "Not you? Sign out",
+    "email": "Your email",
+    "sendMyCode": "Send my code",
+    "wellEmailDigitCode": "We'll email you a 6-digit code to confirm your account.",
+    "almostThere": "Almost there",
+    "checkEmail": "Check your email",
+    "confirmationCode": "Confirmation code",
+    "pasteWholeCodeWell": "Paste the whole code — we'll sort it out.",
+    "changeName": "Change the name",
+    "goAheadAnyway": "Go ahead anyway",
+    "goSchoolDashboard": "Go to your school dashboard",
+    "confirmStart": "Confirm & start",
+    "resendCode": "Resend code",
+    "welcomeBack": "Welcome back",
+    "youreAlreadySetUp": "You're already set up — let's get you back to your dashboard.",
+    "goMyDashboard": "Go to my dashboard",
+    "accountReadyNoCard": "Your account is ready — no card needed to start.",
+    "whatShallWeCall": "What shall we call you?",
+    "schoolInstitution": "School / institution",
+    "eGYsgolGymraeg": "e.g. Ysgol Gymraeg…",
+    "canChangeTheseAnytime": "You can change these anytime in your settings."
   },
   "driving": {
     "exitDrivingMode": "Exit driving mode",
@@ -291,7 +432,8 @@
     "pronunciation": "Pronunciation",
     "tooFast": "Too fast",
     "confusing": "Confusing",
-    "other": "Other"
+    "other": "Other",
+    "flagPhraseReview": "Flag this phrase for review"
   },
   "contribution": {
     "spoken": "{language} Spoken",
@@ -435,5 +577,472 @@
     "yue": "Cantonese",
     "zho": "Chinese",
     "zul": "Zulu"
+  },
+  "auth": {
+    "saveProgress": "Save your progress",
+    "createFreeAccountKeep": "Create a free account to keep your learning history and continue on any device.",
+    "createAccount": "Create account",
+    "maybeLater": "Maybe later",
+    "enterInviteAccessCode": "Enter your invite or access code below.",
+    "inviteCode": "Invite Code",
+    "validateCode": "Validate Code",
+    "continueWithoutCode": "Continue without a code",
+    "useDifferentCode": "Use a different code",
+    "signActivate": "Sign in to activate",
+    "email": "Email",
+    "password": "Password",
+    "password2": "Your password",
+    "wellSendCode": "We'll send you a code",
+    "gotAccessCode": "Got an access code?",
+    "weveSentCode": "We've sent a code to",
+    "verificationCode": "Verification Code",
+    "verify": "Verify",
+    "resend": "Resend"
+  },
+  "nav": {
+    "library": "Library",
+    "previousLego": "Previous LEGO"
+  },
+  "browse": {
+    "closeLibrary": "Close library",
+    "progressFragile": "Your progress is fragile",
+    "signSave": "Sign in to save it",
+    "organisationDashboard": "Organisation Dashboard",
+    "peopleInvitesProgress": "Your people, invites & progress",
+    "classesStudentsAnalytics": "Classes, students & analytics",
+    "tutorDashboard": "Tutor Dashboard",
+    "classesLearners": "Your classes & learners",
+    "viewBelts": "View Belts",
+    "activity": "Activity",
+    "phrasesLearnt": "Phrases learnt",
+    "phrasesSpoken": "Phrases spoken",
+    "allCourses": "All Courses",
+    "searchAnyLanguage": "Search any language...",
+    "premium": "Premium",
+    "tryFree": "Try free →",
+    "teachSaysomethingin": "Teach with SaySomethingin",
+    "anyoneCanTeachShare": "Anyone can teach — share the language you're learning"
+  },
+  "checkout": {
+    "closeCheckout": "Close checkout"
+  },
+  "family": {
+    "family": "Family",
+    "signQrCode": "Sign-in QR code",
+    "copy": "Copy",
+    "done": "Done",
+    "getSignLink": "Get sign-in link",
+    "remove": "Remove",
+    "noOneAddedYet": "No one added yet.",
+    "addChild": "+ Add a child",
+    "firstName": "First name",
+    "inviteByEmail": "+ Invite by email"
+  },
+  "common": {
+    "oneOpensBrowser": "This one opens in your browser.",
+    "refreshData": "Refresh data",
+    "tryAgain": "Try again"
+  },
+  "install": {
+    "installSaysomethingin": "Install SaySomethingin",
+    "fasterOfflineFullScreen": "Faster, offline, full-screen",
+    "install": "Install",
+    "dismiss": "Dismiss",
+    "youreAllSet": "You're all set!",
+    "saysomethinginAlreadyInstalled": "SaySomethingin is already installed.",
+    "learnFromHomeScreen": "Learn from your home screen",
+    "opensInstantlyNoBrowser": "Opens instantly — no browser chrome",
+    "worksOfflineLearnAnywhere": "Works offline — learn anywhere",
+    "picksUpWhereLeft": "Picks up where you left off",
+    "notNow": "Not now",
+    "threeQuickTaps": "Three quick taps",
+    "chrome": "in Chrome",
+    "menu": "in the menu",
+    "tapMenuIconTop": "Tap the menu icon at the top right, then Share",
+    "addHomeScreen": "Add to Home Screen",
+    "addReadingList": "Add to Reading List",
+    "add": "Add",
+    "worksJustLikeNative": "It works just like a native app — full screen, no browser bar.",
+    "next": "Next",
+    "opensInstantlyItsOwn": "Opens instantly in its own window",
+    "preparingInstall": "Preparing install"
+  },
+  "listening": {
+    "dialogues": "Dialogues",
+    "core": "Core",
+    "all": "All",
+    "loadingPods": "Loading pods...",
+    "noPodsCourseYet": "No pods for this course yet.",
+    "playAllScenes": "Play all scenes",
+    "speed": "Speed",
+    "noneSavedDeviceYet": "None of this is saved on your device yet, so there's nothing to listen to offline. Connect once and download for offline to bring it with you.",
+    "tapPlay": "Tap to play"
+  },
+  "progress": {
+    "infinitePlayRandomReview": "Infinite play — random review of everything you've learned",
+    "infinitePlayRandomReview2": "Infinite play: random review of everything you've learned"
+  },
+  "pronunciation": {
+    "easier": "Easier",
+    "loadingPhrases": "Loading phrases...",
+    "tapPlayStart": "Tap play to start"
+  },
+  "prosody": {
+    "length": "Length",
+    "syllables": "Syllables",
+    "shape": "Shape"
+  },
+  "update": {
+    "updateReady": "Update ready",
+    "tapRelaunch": "Tap to relaunch",
+    "newVersionAvailable": "New version available",
+    "later": "Later",
+    "update": "Update"
+  },
+  "me": {
+    "pointsEarned": "Points earned",
+    "newPhrases": "New phrases",
+    "steady": "steady",
+    "responseTime": "Response time",
+    "goesWeek": "goes this week",
+    "goOneTimeOpened": "A go is one time you opened your mouth and had a crack at it. That is the whole game.",
+    "sampleDataNotReal": "Sample data — not your real numbers yet.",
+    "languages": "Your languages",
+    "carryingOne": "carrying on with this one",
+    "switchingDoesNotLose": "Switching does not lose anything. Each one keeps its own place, waiting exactly where you left it.",
+    "hear": "you hear it",
+    "thenTwiceProperly": "then twice, properly",
+    "howWorks": "How this works",
+    "takeLookRoundApp": "Take a look round the app, right here on your own page.",
+    "search": "Search",
+    "howWorksSearch": "How this works — search",
+    "whatWouldLikeKnow": "What would you like to know?",
+    "closeSearch": "Close search",
+    "nothingOneYetTry": "Nothing on that one yet — try another word.",
+    "howQuicklyComes": "How quickly it comes",
+    "answerLately": "to answer, lately",
+    "whenStarted": "when you started",
+    "measured": "Measured",
+    "whereHeading": "Where this is heading",
+    "howWantDo": "How you want to do it",
+    "hours": "hours in",
+    "route": "Your route",
+    "fromHereHaveOne": "From here you have one job, and it is a small one: press play.",
+    "fancyDifferentRoutePick": "Fancy a different route? Pick again any time.",
+    "showMeScreen": "Show me the screen",
+    "playerScreen": "The player screen",
+    "roughlyWhere": "Roughly where you are",
+    "lastThingSaid": "The last thing you said",
+    "settingsQuietVersion": "Settings, the quiet version",
+    "threeThingsActuallyChange": "Three things actually change how you learn. Everything else just needs to work.",
+    "languageRead": "Language you read in",
+    "wordsAroundLessonNot": "The words around the lesson — not what you're learning.",
+    "howFastThingsPlay": "How fast things play",
+    "slowsLanguageYoureLearning": "Slows the language you're learning down. Never the explanations.",
+    "giveMeMoment": "Give me a moment",
+    "listensWhenStartTalking": "Listens for when you start talking and waits accordingly. Nothing is recorded.",
+    "directionSketchOnlyThese": "A direction sketch only — these labels aren't live controls here yet.",
+    "them": "of them.",
+    "you": "You",
+    "justStarted": "just started",
+    "furthestAlong": "furthest along",
+    "sampleDataNotReal2": "Sample data — not your real numbers.",
+    "allThreeGo": "All three are a go."
+  },
+  "join": {
+    "way": "Your way in",
+    "accessCode": "Access code",
+    "re": "You’re in",
+    "settingUpWayBack": "Setting up your way back to your classes."
+  },
+  "redeem": {
+    "checkingCode": "Checking code...",
+    "enterCode": "Enter your code",
+    "typeCodeTeacherAdmin": "Type the code your teacher or admin gave you.",
+    "code": "Code",
+    "tryAnotherCode": "Try another code",
+    "goApp": "Go to App",
+    "activatingCode": "Activating your code...",
+    "useDifferentEmail": "Use a different email",
+    "tellUsWhoYoure": "Tell us who you are and you're in — no password, no code to wait for.",
+    "eGSianJones": "e.g. Sian Jones",
+    "useEmailCodeInstead": "Use email code instead",
+    "eGAlys": "e.g. Alys",
+    "startLearning": "Start learning",
+    "emailMeCode": "Email me a code",
+    "signPasswordInstead": "Sign in with a password instead",
+    "nextNameTheyCan": "next to your name. They can read it out to you — no email at all.",
+    "checkEmailDigitCode": "Check your email for a 6-digit code",
+    "mayTakeMomentArrive": "It may take a moment to arrive. Check your spam folder if needed.",
+    "goBackSkipEmail": "Go back and skip the email code"
+  },
+  "tryLink": {
+    "checkingLink": "Checking your link...",
+    "welcomeSaysomethingin": "Welcome to SaySomethingin",
+    "loadingCourses": "Loading your courses...",
+    "linkNotValid": "Link not valid",
+    "visitSaysomethingin": "Visit SaySomethingin"
+  },
+  "explainer": {
+    "howThisWorks": {
+      "linkLabel": "How this works",
+      "intro": "The whole thing is one button. You press play and it takes it from there.",
+      "blocks": {
+        "0": {
+          "heading": "What pressing play does",
+          "body": {
+            "0": "You hear a short phrase in your known language. Then there is a gap. The gap is yours — say your version out loud, out loud, even if it comes out wrong or halfway. Then you hear it said properly, twice, by two different model voices, so you can hear how it really sounds.",
+            "1": "Then the next one arrives on its own. There is nothing to tap in between."
+          }
+        },
+        "1": {
+          "heading": "What a go is",
+          "body": {
+            "0": "A 'go' is one of those gaps where you opened your mouth and had a crack at it.",
+            "1": "Getting it wrong is still a go, and it still does the work. The reaching is the bit that builds the language — whether it arrives is almost beside the point."
+          }
+        },
+        "2": {
+          "heading": "What a session feels like",
+          "body": {
+            "0": "New things arrive one at a time, and things you met earlier come back on their own, just as they start to slip. You never have to keep track of any of that.",
+            "1": "You can play as long as you like. Stop at any time and the app picks up exactly where you left off."
+          }
+        },
+        "3": {
+          "heading": "The different ways to use it",
+          "body": {
+            "0": "Speaking is the main one, and it is what you get by default. Easy and Fast are the two paces, and you pick between them on the player screen before you start. Offline lives behind the sliders button at the bottom of the player, and Listening lives in Settings."
+          },
+          "points": {
+            "0": "Listening is audio only, with no speaking — for when your mouth is busy walking the dog, driving or doing the washing-up.",
+            "1": "Fast is the standard pace. Easy gives you about double the thinking time and says each phrase twice over.",
+            "2": "Offline downloads a chunk of the course onto your phone, so it plays with no signal at all."
+          }
+        },
+        "4": {
+          "heading": "What the listening stretches ask of you",
+          "body": {
+            "0": "Every so often the speaking gives way to a stretch of listening, introduced by a quiet now just listen for a while.",
+            "1": "Let it come at you without effort but with attention, the way you would listen to birdsong. The words are on screen if you want them."
+          }
+        },
+        "5": {
+          "heading": "Changing course",
+          "body": {
+            "0": "The Library button at the bottom left holds everything you have access to. Tap a different course and you are straight into it.",
+            "1": "Each course remembers its own place, so you can have a poke at a second language without losing an inch in the first."
+          }
+        }
+      }
+    },
+    "whyThisWorks": {
+      "linkLabel": "Why this works",
+      "intro": "Why the app asks you to do it this way, and what to expect from it.",
+      "blocks": {
+        "0": {
+          "heading": "Say it before you hear it",
+          "body": {
+            "0": "That gap before the answer is where everything happens. Every time you reach for something and it does not quite come, you are laying down the path that makes it come next time.",
+            "1": "So we ask you to produce it first, out loud, every time."
+          }
+        },
+        "1": {
+          "heading": "What happens at around thirty hours",
+          "body": {
+            "0": "The first thirty hours are tough. We would rather say so than pretend otherwise. After them it really does get a lot easier — not finished and not fluent, but fun and playful in a way that first stretch honestly is not. Three things you will be able to check for yourself:"
+          },
+          "points": {
+            "0": "You will be getting into conversations.",
+            "1": "You will be moving towards more listening work.",
+            "2": "You will be noticing how much surfaces easily that was genuinely impossible before."
+          }
+        },
+        "2": {
+          "heading": "The best way to spend thirty hours",
+          "body": {
+            "0": "If we had to tell you one thing about how to spend the thirty hours, it is this. Start with a big stretch, then settle into a rhythm. A whole day of it, then an hour a day, then another whole day when you can.",
+            "1": "That is not because rushing teaches you more. It does not. Thirty hours spread thin gives your brain far more time to settle in between, and Easy hands you about double the thinking time and says each phrase twice over. Taken steadily, that really is the better learning, and we would not pretend otherwise.",
+            "2": "It is that five minutes a day for a year is a much harder thing to actually do than it sounds, and for most of that year you would not feel much happening. A burst at the start changes that. You get a first conversation out of it, and the faith that this works on you, months before the gentle road would hand you either.",
+            "3": "And there is one plain advantage to going fast. You get there sooner, and you can start using the language sooner."
+          }
+        },
+        "3": {
+          "heading": "Speaking first, deep listening later",
+          "body": {
+            "0": "For the first thirty hours or so it is mostly speaking, with listening folded in around it. After that the balance tips, and longer listening deep dives on harder material become the thing that carries you forward.",
+            "1": "That second part is what we are most confident about — but it only works once you have enough of your own language to hang it on, which is what the speaking builds."
+          }
+        },
+        "4": {
+          "heading": "Why there are no streaks and no points",
+          "body": {
+            "0": "We do not count days in a row, and we never will. The app does know when you were last here — every session is stamped with its time, which is how it picks up exactly where you left off. We simply never turn that into something you have to keep up, because pressure is the opposite of what makes this work, and we would like this to be fun.",
+            "1": "There are no points, no score and no leaderboard either. The thing worth measuring is what you can actually say, and you can check that yourself in any conversation you fancy.",
+            "2": "Turn up when it suits you. This is glad to see you whenever you do."
+          }
+        },
+        "5": {
+          "heading": "Where all this comes from",
+          "body": {
+            "0": "None of it is a hunch. SSi has been running this as action research since 2009 — real learners, real conversations, and the method changed whenever the evidence said it should. Most recently Aran worked through Croatian an hour a day, which gave the clearest picture yet of what happens and when.",
+            "1": "Which means you do not have to take a view on the method, or work out how to study, or build a plan. You just press play.",
+            "2": "If you want to watch it happening to somebody, it is all on our website."
+          },
+          "links": {
+            "0": "An hour a day of Croatian, filmed all seventy-five days",
+            "1": "Ten days of Irish, ending in a live interview on RTÉ Raidió na Gaeltachta",
+            "2": "Ten days of Japanese",
+            "3": "Thirty days of Welsh from a standing start",
+            "4": "The folk we have taught on telly"
+          }
+        }
+      }
+    },
+    "figures": {
+      "climbingBand": {
+        "alt": "One climbing band split in two: speaking is the wide half at the start and the narrow half later; deep listening does the opposite. Neither ever stops.",
+        "corner": "it turns a corner",
+        "speaking": "speaking",
+        "speakingSub": "builds the language you own",
+        "listening": "deep listening",
+        "listeningSub": "carries you furthest"
+      },
+      "cyclePill": {
+        "caption": "One go, as it looks on the player screen: you hear the phrase, then the wide middle stretch is your turn to say it out loud, then two different voices say it properly."
+      },
+      "listeningStretch": {
+        "alt": "The speaking rhythm of beats and gaps gives way to one long unbroken line of listening, with no gaps in it, and then the speaking resumes.",
+        "yourTurns": "your turns",
+        "noGaps": "no gaps, nothing asked of you",
+        "simplyPlays": "it simply plays, then the speaking returns"
+      },
+      "playerScreen": {
+        "oneGo": "One go: you hear it, then your turn, then twice properly.",
+        "offline": "Offline downloads live here.",
+        "everyCourse": "Every course you have.",
+        "theButton": "The only button that matters."
+      },
+      "spacingReturns": {
+        "alt": "A line through a session: new things arrive along the top, and each one comes back below at widening intervals.",
+        "new": "new",
+        "comesBack": "and it comes back, further apart each time"
+      },
+      "threeGaps": {
+        "alt": "Three gaps: one where the answer arrives, one where it half arrives, one where it comes out wrong. All three carry the same tick.",
+        "arrives": "it arrives",
+        "halfArrives": "it half arrives",
+        "wrong": "it comes out wrong"
+      },
+      "wornPath": {
+        "alt": "Reaching for a phrase wears a path into the ground; recognising one on a page leaves the ground unmarked.",
+        "reaching": "reaching for it",
+        "wearsPath": "wears the path in",
+        "recognising": "recognising it",
+        "feelsEasier": "feels easier, does less",
+        "nothingToRevise": "nothing to revise, nothing to memorise"
+      }
+    }
+  },
+  "walkthrough": {
+    "choose-something-else-to-learn": {
+      "title": "Choose something else to learn",
+      "topic": "Other languages",
+      "steps": {
+        "0": {
+          "say": "Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go."
+        },
+        "1": {
+          "say": "Tap any one of these and you are straight into it — no setting up, no starting over."
+        },
+        "2": {
+          "say": "Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.",
+          "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      }
+    },
+    "go-back-over-something": {
+      "title": "Go back over something",
+      "topic": "Going back over things",
+      "steps": {
+        "0": {
+          "say": "Nothing is ever locked behind you. Tap here to open the whole course up."
+        },
+        "1": {
+          "say": "Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there."
+        },
+        "2": {
+          "say": "Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.",
+          "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+        }
+      }
+    },
+    "reading-the-course-list": {
+      "title": "Reading the course list",
+      "topic": "Reading a course card",
+      "steps": {
+        "0": {
+          "say": "Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in."
+        },
+        "1": {
+          "say": "The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you."
+        },
+        "2": {
+          "say": "**Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes."
+        },
+        "3": {
+          "say": "Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.",
+          "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      }
+    },
+    "save-your-progress": {
+      "title": "Save your progress",
+      "topic": "Saving your progress",
+      "steps": {
+        "0": {
+          "say": "Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it."
+        },
+        "1": {
+          "say": "Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.",
+          "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+        }
+      }
+    },
+    "what-your-numbers-mean": {
+      "title": "What your numbers mean",
+      "topic": "Your numbers",
+      "steps": {
+        "0": {
+          "say": "These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody."
+        },
+        "1": {
+          "say": "Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves."
+        },
+        "2": {
+          "say": "Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.",
+          "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+        }
+      }
+    },
+    "where-you-are-in-this-course": {
+      "title": "Where you are in this course",
+      "topic": "Where you are",
+      "steps": {
+        "0": {
+          "say": "This card is your whole position in the course in one glance. Nothing here is a score, and nothing here is counting anything against you."
+        },
+        "1": {
+          "say": "Those eight coloured dots are **belts**, and the filled one is where you are now. A belt marks how far along the course you have come — it is a position, not a grade, and there is nothing to pass. You move to the next one simply by carrying on."
+        },
+        "2": {
+          "say": "The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left."
+        },
+        "3": {
+          "say": "Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.",
+          "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+        }
+      }
+    }
   }
 }

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * PwaUpdatePrompt — Banner shown when a new service worker is waiting.
  *
@@ -14,6 +16,7 @@ import {
   isDifferentBuild, fetchLatestBuildNumber,
 } from '@/composables/usePwaUpdate'
 import { RELOAD_WEDGE_MS } from '@/utils/bootHeal'
+import { shouldRunServiceWorker } from '@/platform/capabilities'
 
 // Never interrupt an active cycle (B6/Gap 4) — the banner still appears
 // promptly since it re-evaluates on every play/pause tick, and rounds are
@@ -29,26 +32,37 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
-const {
-  needRefresh,
-} = useRegisterSW({
-  immediate: true,
-  onRegistered(registration) {
-    console.log('[PWA] Service worker registered')
-    if (registration) {
-      // Check for a new build every 5 minutes. This is a background SW update
-      // poll, not dashboard data — a new deploy still surfaces well within a
-      // sitting, but at 1/5min it stops reading as "auto-refresh" idle chatter
-      // in the Network tab (founder ruling, 2026-07-19).
-      updateCheckInterval = setInterval(() => {
-        registration.update().catch(() => {})
-      }, 5 * 60 * 1000)
-    }
-  },
-  onRegisterError(error) {
-    console.error('[PWA] Service worker registration error:', error)
-  },
-})
+// THE service-worker registration gate. `useRegisterSW` registers the moment
+// it is called (vite-plugin-pwa's registerSW kicks off register() eagerly —
+// `immediate` only decides whether Workbox waits for window load), so the only
+// real gate is not calling it. On the web that is always — behaviour is
+// unchanged. Inside a native shell's WebView it is never: the shell owns
+// caching and update delivery, and a Workbox precache underneath it would
+// serve its own stale app shell.
+//
+// `registerType: 'prompt'` and skipWaiting/clientsClaim=false in vite.config.js
+// are load-bearing for Tom's rule that an update NEVER force-applies while
+// audio is playing. Nothing here changes them.
+const { needRefresh } = shouldRunServiceWorker()
+  ? useRegisterSW({
+      immediate: true,
+      onRegistered(registration) {
+        console.log('[PWA] Service worker registered')
+        if (registration) {
+          // Check for a new build every 5 minutes. This is a background SW
+          // update poll, not dashboard data — a new deploy still surfaces well
+          // within a sitting, but at 1/5min it stops reading as "auto-refresh"
+          // idle chatter in the Network tab (founder ruling, 2026-07-19).
+          updateCheckInterval = setInterval(() => {
+            registration.update().catch(() => {})
+          }, 5 * 60 * 1000)
+        }
+      },
+      onRegisterError(error) {
+        console.error('[PWA] Service worker registration error:', error)
+      },
+    })
+  : { needRefresh: ref(false) }
 
 // needRefresh only means "a new SW is waiting" — NOT "the running app is
 // behind". Navigations are NetworkFirst, so the page can already be on the
@@ -175,21 +189,21 @@ onUnmounted(() => {
     <Transition name="slide-down">
       <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
         <div v-if="reloadWedged" class="pwa-update-content">
-          <span class="pwa-update-text">Update ready</span>
+          <span class="pwa-update-text">{{ t('update.updateReady') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-button" @click.stop="onRelaunch">
-              Tap to relaunch
+              {{ t('update.tapRelaunch') }}
             </button>
           </div>
         </div>
         <div v-else class="pwa-update-content">
-          <span class="pwa-update-text">New version available</span>
+          <span class="pwa-update-text">{{ t('update.newVersionAvailable') }}</span>
           <div class="pwa-update-actions">
             <button class="pwa-update-dismiss" @click.stop="onDismiss">
-              Later
+              {{ t('update.later') }}
             </button>
             <button class="pwa-update-button" @click.stop="onUpdate">
-              Update
+              {{ t('update.update') }}
             </button>
           </div>
         </div>

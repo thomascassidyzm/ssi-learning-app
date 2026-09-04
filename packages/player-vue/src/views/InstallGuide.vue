@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { detectFromBrowser } from '@/utils/installPlatform'
@@ -110,49 +112,49 @@ const shareLocation = computed(() => {
     <div class="install-container">
 
       <!-- CLOSE / SKIP -->
-      <button class="close-btn" @click="dismiss" aria-label="Close">
+      <button class="close-btn" @click="dismiss" :aria-label="t('sector.close')">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
       <!-- A) Already installed -->
       <div v-if="flow === 'installed'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
-        <h1>You're all set!</h1>
-        <p class="subtitle">SaySomethingin is already installed.</p>
+        <h1>{{ t('install.youreAllSet') }}</h1>
+        <p class="subtitle">{{ t('install.saysomethinginAlreadyInstalled') }}</p>
         <p class="muted">Redirecting in {{ redirectCountdown }}s...</p>
       </div>
 
       <!-- B) Android with native prompt -->
       <div v-else-if="flow === 'android'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
-        <h1>Install SaySomethingin</h1>
-        <p class="subtitle">Learn from your home screen</p>
+        <h1>{{ t('install.installSaysomethingin') }}</h1>
+        <p class="subtitle">{{ t('install.learnFromHomeScreen') }}</p>
         <ul class="value-props">
-          <li>Opens instantly — no browser chrome</li>
-          <li>Works offline — learn anywhere</li>
-          <li>Picks up where you left off</li>
+          <li>{{ t('install.opensInstantlyNoBrowser') }}</li>
+          <li>{{ t('install.worksOfflineLearnAnywhere') }}</li>
+          <li>{{ t('install.picksUpWhereLeft') }}</li>
         </ul>
         <button v-if="hasNativePrompt" class="install-btn" @click="triggerInstall">
-          Install
+          {{ t('install.install') }}
         </button>
         <div v-else class="loading-dots">
           <span></span><span></span><span></span>
         </div>
-        <button class="skip-link" @click="dismiss">Not now</button>
+        <button class="skip-link" @click="dismiss">{{ t('install.notNow') }}</button>
       </div>
 
       <!-- B2) Android fallback (no prompt) -->
       <div v-else-if="flow === 'android-manual'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="80" height="80" />
-        <h1>Install SaySomethingin</h1>
-        <p class="subtitle">Three quick taps</p>
+        <h1>{{ t('install.installSaysomethingin') }}</h1>
+        <p class="subtitle">{{ t('install.threeQuickTaps') }}</p>
         <div class="steps">
           <div class="step">
             <div class="step-num">1</div>
             <div class="step-text">
               Tap the <strong>menu</strong>
               <svg class="inline-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-              in Chrome
+              {{ t('install.chrome') }}
             </div>
           </div>
           <div class="step">
@@ -164,13 +166,13 @@ const shareLocation = computed(() => {
             <div class="step-text">Tap <strong>"Add"</strong></div>
           </div>
         </div>
-        <button class="skip-link" @click="dismiss">Not now</button>
+        <button class="skip-link" @click="dismiss">{{ t('install.notNow') }}</button>
       </div>
 
       <!-- C) iOS walkthrough -->
       <div v-else-if="flow === 'ios'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon app-icon-small" width="64" height="64" />
-        <h1 class="ios-title">Install SaySomethingin</h1>
+        <h1 class="ios-title">{{ t('install.installSaysomethingin') }}</h1>
 
         <!-- Step indicators -->
         <div class="step-dots">
@@ -208,9 +210,9 @@ const shareLocation = computed(() => {
                   <polyline points="16 6 12 2 8 6"/>
                   <line x1="12" y1="2" x2="12" y2="15"/>
                 </svg>
-                in the menu
+                {{ t('install.menu') }}
               </div>
-              <p class="step-hint">Tap the menu icon at the top right, then Share</p>
+              <p class="step-hint">{{ t('install.tapMenuIconTop') }}</p>
               <div class="share-pointer top-right">
                 <div class="pulse-ring"></div>
                 <svg class="arrow-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ssi-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg)">
@@ -228,17 +230,17 @@ const shareLocation = computed(() => {
               <div class="mock-share-sheet">
                 <div class="mock-option faded">
                   <div class="mock-icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg></div>
-                  <span class="mock-label">Copy</span>
+                  <span class="mock-label">{{ t('family.copy') }}</span>
                 </div>
                 <div class="mock-option highlighted-row">
                   <div class="mock-icon-box highlight-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                   </div>
-                  <span class="mock-label highlight">Add to Home Screen</span>
+                  <span class="mock-label highlight">{{ t('install.addHomeScreen') }}</span>
                 </div>
                 <div class="mock-option faded">
                   <div class="mock-icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg></div>
-                  <span class="mock-label">Add to Reading List</span>
+                  <span class="mock-label">{{ t('install.addReadingList') }}</span>
                 </div>
               </div>
             </div>
@@ -250,13 +252,13 @@ const shareLocation = computed(() => {
               </div>
               <div class="mock-confirm">
                 <div class="mock-confirm-header">
-                  <span class="mock-cancel">Cancel</span>
-                  <span class="mock-title-text">Add to Home Screen</span>
-                  <span class="mock-add highlight">Add</span>
+                  <span class="mock-cancel">{{ t('settings.cancel') }}</span>
+                  <span class="mock-title-text">{{ t('install.addHomeScreen') }}</span>
+                  <span class="mock-add highlight">{{ t('install.add') }}</span>
                 </div>
                 <div class="mock-confirm-preview">
                   <img src="/icons/icon-192.png" alt="" width="48" height="48" class="mock-preview-icon" />
-                  <span class="mock-preview-name">SaySomethingin</span>
+                  <span class="mock-preview-name">{{ t('app.name') }}</span>
                 </div>
               </div>
             </div>
@@ -267,39 +269,39 @@ const shareLocation = computed(() => {
                 That's it! Open <strong>SaySomethingin</strong> from your home screen.
               </div>
               <img src="/icons/icon-192.png" alt="SSi" class="bounce-icon" width="80" height="80" />
-              <p class="step-hint">It works just like a native app — full screen, no browser bar.</p>
+              <p class="step-hint">{{ t('install.worksJustLikeNative') }}</p>
             </div>
           </Transition>
         </div>
 
         <!-- Navigation -->
         <div class="ios-nav">
-          <button v-if="currentStep > 0" class="nav-btn" @click="prevStep">Back</button>
+          <button v-if="currentStep > 0" class="nav-btn" @click="prevStep">{{ t('sector.back') }}</button>
           <span v-else></span>
-          <button v-if="currentStep < totalSteps - 1" class="nav-btn primary" @click="nextStep">Next</button>
-          <button v-else class="nav-btn primary" @click="dismiss">Done</button>
+          <button v-if="currentStep < totalSteps - 1" class="nav-btn primary" @click="nextStep">{{ t('install.next') }}</button>
+          <button v-else class="nav-btn primary" @click="dismiss">{{ t('family.done') }}</button>
         </div>
       </div>
 
       <!-- D) Desktop -->
       <div v-else class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
-        <h1>Install SaySomethingin</h1>
+        <h1>{{ t('install.installSaysomethingin') }}</h1>
         <p class="subtitle">
           {{ isChrome ? 'A Chrome app in its own window — no browser tabs, no distractions' : 'Its own window — no browser tabs, no distractions' }}
         </p>
         <ul class="value-props">
-          <li>Opens instantly in its own window</li>
-          <li>Works offline — learn anywhere</li>
-          <li>Picks up where you left off</li>
+          <li>{{ t('install.opensInstantlyItsOwn') }}</li>
+          <li>{{ t('install.worksOfflineLearnAnywhere') }}</li>
+          <li>{{ t('install.picksUpWhereLeft') }}</li>
         </ul>
         <button v-if="hasNativePrompt" class="install-btn" @click="triggerInstall">
           {{ isChrome ? 'Install the Chrome app' : 'Install the app' }}
         </button>
-        <div v-else class="loading-dots" aria-label="Preparing install">
+        <div v-else class="loading-dots" :aria-label="t('install.preparingInstall')">
           <span></span><span></span><span></span>
         </div>
-        <button class="skip-link" @click="dismiss">Not now</button>
+        <button class="skip-link" @click="dismiss">{{ t('install.notNow') }}</button>
       </div>
 
     </div>

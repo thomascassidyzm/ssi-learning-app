@@ -19,6 +19,8 @@
  * only records which LEGO it was cut for.
  */
 
+import { apiUrl } from '@/platform/apiBase'
+
 export interface IntroAudioItem {
   legoId?: string | null
   /** Pre-resolved clip (the /cycles wire format supplies this). */
@@ -53,7 +55,7 @@ export function resolveIntroAudioUrl(
 
   // 2. The LEGO's own link — the clip the player plays.
   if (item.presentationAudioId) {
-    return `${opts.proxyEndpoint ?? '/api/audio'}/${item.presentationAudioId}`
+    return apiUrl(`${opts.proxyEndpoint ?? '/api/audio'}/${item.presentationAudioId}`)
   }
 
   // 3. Last resort: whatever clip carries this lego_id.

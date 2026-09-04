@@ -88,7 +88,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * That is honoured only when the caller ALSO presents a verified bearer whose
  * visible scope contains that class — i.e. it is authorised, not asserted.
  *
- * Everything else (no bearer, stale bearer, guest, unknown cookie) attributes
+ * CROSS-ORIGIN (native shell): a cookie does not travel to a different
+ * origin, and this endpoint is deliberately credential-free, so inside a
+ * WebView the cookie channel simply does not exist. The same claim therefore
+ * also rides the request BODY as `acting_learner_id`, which works on both
+ * origins and needs no cookie loosening (`SameSite=None; Secure`) anywhere.
+ * Body wins over cookie when both are present; the authorisation check is
+ * identical either way, so neither channel is more trusted than the other —
+ * both are unsigned CLAIMS that `isAuthorisedClassLearner` has to justify.
+ *
+ * Everything else (no bearer, stale bearer, guest, unknown claim) attributes
  * to `null` — an unattributed row. Guest telemetry is a legitimate product
  * path and keeps flowing; usePlayerLog still stamps its own `learnerId` into
  * the event payload, so guest runs stay traceable without being trusted.
@@ -112,14 +121,19 @@ async function resolveIdentity(
     .maybeSingle()
   const verifiedLearnerId = !error && data?.id ? (data.id as string) : null
 
-  const cookieId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
-  if (!cookieId || !UUID_RE.test(cookieId) || cookieId === verifiedLearnerId) {
+  // Body first (works cross-origin), cookie second (the same-origin web path).
+  const bodyId = (req.body as { acting_learner_id?: unknown } | undefined)?.acting_learner_id
+  const claimedId =
+    (typeof bodyId === 'string' && bodyId) ||
+    (req.cookies?.['ssi-user-id'] as string | undefined) ||
+    null
+  if (!claimedId || !UUID_RE.test(claimedId) || claimedId === verifiedLearnerId) {
     return verifiedLearnerId
   }
 
-  // The cookie names someone else — only a class this caller may drive.
-  const authorisedClass = await isAuthorisedClassLearner(supabase, result.userId, cookieId)
-  return authorisedClass ? cookieId : verifiedLearnerId
+  // The claim names someone else — only a class this caller may drive.
+  const authorisedClass = await isAuthorisedClassLearner(supabase, result.userId, claimedId)
+  return authorisedClass ? claimedId : verifiedLearnerId
 }
 
 /** True iff `classLearnerId` is a class entity inside this staff member's scope. */
@@ -162,8 +176,15 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<VercelResponse | void> {
+  // Wildcard is deliberate and unchanged: this endpoint is credential-free
+  // (no Allow-Credentials, no cookie trusted as an identity) and accepts guest
+  // telemetry from anywhere. `Authorization` is listed because attribution
+  // rides a bearer token — without it every cross-origin authenticated flush
+  // from a native shell fails its preflight and the learner's telemetry is
+  // silently downgraded to guest. Matches the posture already shipped on
+  // /api/entitlement/offline-lease and /api/audio/batch-urls.
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
 
   if (req.method === 'OPTIONS') return res.status(200).end()

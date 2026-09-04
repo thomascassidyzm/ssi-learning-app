@@ -12,16 +12,24 @@
  *  4. Any query failure degrades to `pod-0` — today's behaviour — never to
  *     "no pods".
  *  5. One round-trip per course per session, shared by all five call sites.
+ *  6. A pod that NAMES A ROLE outranks everything and may sit on any slug —
+ *     the server has already decided the reader may have it (2026-09-03 role
+ *     gate), so the client must serve it rather than second-guess it.
  */
 
 import 'fake-indexeddb/auto'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import { resolveServedPod, resetServedPodCache, FALLBACK_POD_SLUG } from './servedPod'
+import {
+  resolveServedPod,
+  resetServedPodCache,
+  pickServedSlug,
+  FALLBACK_POD_SLUG,
+} from './servedPod'
 import { __resetNetworkGateForTests } from '../config/networkGate'
 
 /** Fake client returning the given listening_pods rows, counting round-trips. */
 function makeClient(
-  rows: Array<{ slug: string; pod_type?: string }> | null,
+  rows: Array<{ slug: string; pod_type?: string; required_role?: string | null }> | null,
   error: { message: string } | null = null,
 ) {
   const calls = { count: 0, lastFilters: {} as Record<string, unknown> }
@@ -32,17 +40,29 @@ function makeClient(
         select: () => chain,
         eq: (col: string, val: unknown) => { filters[col] = val; return chain },
         in: (col: string, vals: unknown[]) => { filters[col] = vals; return chain },
+        // The real query is one `.or()` with two arms. The mock mirrors the
+        // SERVER: rows the reader may not see never come back, so a
+        // required_role row present in `rows` is one RLS already allowed.
+        or: (expr: string) => { filters.or = expr; return chain },
         then: (resolve: (r: unknown) => void) => {
           if (table !== 'listening_pods') return resolve({ data: null, error: null })
           calls.count += 1
           calls.lastFilters = filters
           // Mirror the server: the `.in('slug', …)` filter is applied there,
           // so a parked slug never even comes back over the wire.
-          const allowed = filters.slug as string[] | undefined
-          const data = rows?.filter(
-            (r) => (!allowed || allowed.includes(r.slug)) &&
-              (filters.pod_type === undefined || (r.pod_type ?? 'core') === filters.pod_type),
-          ) ?? null
+          const or = filters.or as string | undefined
+          const allowedFromOr = or
+            ? (or.match(/slug\.in\.\(([^)]*)\)/)?.[1] ?? '').split(',').filter(Boolean)
+            : undefined
+          const allowed = (filters.slug as string[] | undefined) ?? allowedFromOr
+          const data = rows?.filter((r) => {
+            const addressed = typeof r.required_role === 'string' && r.required_role !== ''
+            if (addressed) return or !== undefined // the role arm carries no slug filter
+            return (
+              (!allowed || allowed.includes(r.slug)) &&
+              (filters.pod_type === undefined || (r.pod_type ?? 'core') === filters.pod_type)
+            )
+          }) ?? null
           return resolve({ data: error ? null : data, error })
         },
       }
@@ -154,8 +174,8 @@ describe('resolveServedPod', () => {
     const { client, calls } = makeClient([{ slug: 'pod-0' }])
     await resolveServedPod(client, 'deu_for_eng')
     expect(calls.lastFilters.course_code).toBe('deu_for_eng')
-    expect(calls.lastFilters.pod_type).toBe('core')
-    expect(calls.lastFilters.slug).toEqual(['pod-1', 'pod-0'])
+    expect(String(calls.lastFilters.or)).toContain('pod_type.eq.core')
+    expect(String(calls.lastFilters.or)).toContain('slug.in.(pod-1,pod-0)')
   })
 })
 
@@ -205,6 +225,7 @@ function makeFullClient(pods: Array<{ slug: string }>) {
         select: () => chain,
         eq: (c: string, v: unknown) => { filters[c] = v; return chain },
         in: (c: string, v: unknown[]) => { filters[c] = v; return chain },
+        or: (expr: string) => { filters.or = expr; return chain },
         order: () => chain,
         range: () => chain,
         limit: () => chain,
@@ -224,3 +245,37 @@ function makeFullClient(pods: Array<{ slug: string }>) {
     },
   } as any
 }
+
+describe('pickServedSlug — the rule, without a client', () => {
+  it('serves a role-addressed pod on a non-serving slug, above pod-1', () => {
+    expect(
+      pickServedSlug([
+        { slug: 'pod-1' },
+        { slug: 'senedd-s4c-steve', required_role: 'previewer_001' },
+      ]),
+    ).toBe('senedd-s4c-steve')
+  })
+
+  it('is unchanged for everyone else: no role rows means rule 1 exactly', () => {
+    expect(pickServedSlug([{ slug: 'pod-0' }, { slug: 'pod-1' }])).toBe('pod-1')
+    expect(pickServedSlug([{ slug: 'pod-0' }])).toBe('pod-0')
+    expect(pickServedSlug([])).toBe(FALLBACK_POD_SLUG)
+    expect(pickServedSlug(null)).toBe(FALLBACK_POD_SLUG)
+  })
+
+  it('treats a null/empty required_role as unrestricted, never as addressed', () => {
+    expect(pickServedSlug([{ slug: 'parked-slug', required_role: null }])).toBe(FALLBACK_POD_SLUG)
+    expect(pickServedSlug([{ slug: 'parked-slug', required_role: '' }])).toBe(FALLBACK_POD_SLUG)
+  })
+})
+
+describe('resolveServedPod — role-addressed content', () => {
+  it('serves the pod the server addressed to this reader', async () => {
+    const { client, calls } = makeClient([
+      { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: 'previewer_001' },
+    ])
+    const served = await resolveServedPod(client, 'cym_n_for_eng')
+    expect(served.podId).toBe('cym_n_for_eng:senedd-s4c-steve')
+    expect(calls.count).toBe(1)
+  })
+})

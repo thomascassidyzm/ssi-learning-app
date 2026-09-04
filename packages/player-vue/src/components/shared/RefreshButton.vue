@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * RefreshButton — the ONE universal refresh affordance.
  *
@@ -22,8 +24,8 @@ const { isRefreshing, hasHandler, refresh } = useDashboardRefresh()
     class="refresh-button"
     :class="{ 'is-spinning': isRefreshing }"
     :disabled="isRefreshing"
-    title="Refresh data"
-    aria-label="Refresh data"
+    :title="t('common.refreshData')"
+    :aria-label="t('common.refreshData')"
     @click="refresh"
   >
     <!-- Standard two-arrow circular refresh glyph -->

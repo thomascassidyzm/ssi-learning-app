@@ -180,10 +180,22 @@ function playProbe() {
     const verdict = JSON.parse(out.trim().split('\n').pop())
     return { ran: true, ok: verdict.ok === true, inconclusive: verdict.verdict === 'inconclusive', detail: JSON.stringify(verdict).slice(0, 300) }
   } catch (e) {
-    const line = (e.stdout || '').trim().split('\n').pop() || String(e).slice(0, 200)
-    let inconclusive = false
-    try { inconclusive = JSON.parse(line).verdict === 'inconclusive' } catch { /* not JSON — treat as a real failure */ }
-    return { ran: true, ok: false, inconclusive, detail: line.slice(0, 300) }
+    const line = (e.stdout || '').trim().split('\n').pop() || ''
+    let verdict = null
+    try { verdict = JSON.parse(line).verdict } catch { /* no JSON verdict — the probe itself fell over */ }
+    if (verdict) {
+      return { ran: true, ok: verdict === 'healthy', inconclusive: verdict !== 'broken', detail: line.slice(0, 300) }
+    }
+    // THE PROBE IS BROKEN, not the app. A probe that cannot even print its own
+    // verdict line (crash, timeout, missing dep) has observed NOTHING about
+    // learners, and must never be reported as one who can't play — that is the
+    // cry-wolf failure the whole verdict field exists to prevent (2026-08-20,
+    // and again 2026-09-03 00:15 when a nav failure truncated to `page.goto: `).
+    const err = String(e.stderr || e.message || e).replace(/\s+/g, ' ').trim()
+    return {
+      ran: true, ok: false, inconclusive: true, probeFault: true,
+      detail: `PROBE FAULT — the play probe produced no verdict: ${err.slice(-300) || 'no output'}`,
+    }
   }
 }
 
@@ -355,6 +367,11 @@ async function tick() {
     if (probe.ran && !probe.ok && !probe.inconclusive) {
       await alertOnce('probe:live-play',
         `DEPLOY FALLOUT after ${short}: a real browser play-through of saysomethingin.app FAILED — ${probe.detail}. Learners likely can't play.`)
+    } else if (probe.probeFault) {
+      // Distinct alert, distinct words: the WATCHMAN is broken, the app is not
+      // being watched. Never phrased as a learner outage.
+      await alertOnce('probe:fault',
+        `THE DEPLOY SENTINEL'S PLAY PROBE IS BROKEN after ${short} — it crashed without reporting a verdict, so it says NOTHING about whether learners can play. ${probe.detail}. Fix the probe: packages/player-vue/e2e/deploy-sentinel-play-probe.mjs.`)
     } else if (probe.ran && probe.inconclusive) {
       log(`play probe INCONCLUSIVE (not alarmed — says nothing about learners): ${probe.detail}`)
     }
@@ -377,7 +394,7 @@ async function tick() {
         log(`crater verdict REFUTED by live play probe: ${probe.detail}`)
       } else {
         await alertOnce('telemetry',
-          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.ran && probe.inconclusive ? ` A live browser play-through could not start playback, so it neither confirms nor refutes this (${probe.detail}).` : probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
+          `Possible fallout from the deploy (${short}): learner activity on the live app has almost stopped — only ${tele.window} events in the ${tele.elapsedMin} min since the deploy, when even the QUIETEST recent week at this hour had ${tele.baselineRef}.${probe.probeFault ? ` The live play-probe could not run at all, so nothing double-checks this (${probe.detail}).` : probe.ran && probe.inconclusive ? ` A live browser play-through could not start playback, so it neither confirms nor refutes this (${probe.detail}).` : probe.ran ? ` A live browser play-through ALSO failed (${probe.detail}) — learners likely can't play.` : ' (Live play-probe unavailable on this machine to double-check.)'} Worth a look at saysomethingin.app.`)
       }
     }
   }

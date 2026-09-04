@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * AuthPrompt - Soft signup prompt shown after first session for guests
  *
@@ -18,18 +20,18 @@ const emit = defineEmits(['signup', 'dismiss'])
     </div>
 
     <div class="prompt-content">
-      <h3 class="prompt-title">Save your progress</h3>
+      <h3 class="prompt-title">{{ t('auth.saveProgress') }}</h3>
       <p class="prompt-description">
-        Create a free account to keep your learning history and continue on any device.
+        {{ t('auth.createFreeAccountKeep') }}
       </p>
     </div>
 
     <div class="prompt-actions">
       <button class="btn-primary" @click="emit('signup')">
-        Create account
+        {{ t('auth.createAccount') }}
       </button>
       <button class="btn-secondary" @click="emit('dismiss')">
-        Maybe later
+        {{ t('auth.maybeLater') }}
       </button>
     </div>
   </div>

@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 import { openInApp } from '../composables/useInAppBrowser'
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
@@ -66,7 +68,7 @@ onMounted(async () => {
       <!-- Validating -->
       <template v-if="status === 'validating'">
         <div class="spinner" />
-        <p class="message">Checking your link...</p>
+        <p class="message">{{ t('tryLink.checkingLink') }}</p>
       </template>
 
       <!-- Valid — redirecting -->
@@ -76,9 +78,9 @@ onMounted(async () => {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <h2 class="title">Welcome to SaySomethingin</h2>
+        <h2 class="title">{{ t('tryLink.welcomeSaysomethingin') }}</h2>
         <p class="subtitle" v-if="label">{{ label }}</p>
-        <p class="message">Loading your courses...</p>
+        <p class="message">{{ t('tryLink.loadingCourses') }}</p>
       </template>
 
       <!-- Error -->
@@ -90,9 +92,9 @@ onMounted(async () => {
             <line x1="9" y1="9" x2="15" y2="15" />
           </svg>
         </div>
-        <h2 class="title">Link not valid</h2>
+        <h2 class="title">{{ t('tryLink.linkNotValid') }}</h2>
         <p class="message">{{ errorMessage }}</p>
-        <a href="https://www.saysomethingin.com" target="_blank" rel="noopener" class="home-link" @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')">Visit SaySomethingin</a>
+        <a href="https://www.saysomethingin.com" target="_blank" rel="noopener" class="home-link" @click.prevent="openInApp('https://www.saysomethingin.com', 'SaySomethingin')">{{ t('tryLink.visitSaysomethingin') }}</a>
       </template>
     </div>
   </div>

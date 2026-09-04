@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.30 (2026-08-15)
+# Version: 2.1.31 (2026-09-04)
 # Status: Production-ready
 
 ## ============================================================================
@@ -360,6 +360,49 @@ TILE_ASSEMBLY:
 
       `--font-mono` is exempt: it renders code, IDs and QA textareas only, never
       course text, so JetBrains Mono's own gaps are not a live break.
+
+    no_synthetic_italic: |
+      (Tom 2026-09-04) Italic is a Latin invention. Tamil, Han, Hangul,
+      Devanagari, Arabic, Hebrew, Thai and the rest have NO italic form, so
+      `font-style: italic` does not select a second typeface — the browser
+      SHEARS the upright glyphs and calls the result italic. Tom caught it on
+      `zho_for_tam`: Chinese upright at the top of the card, Tamil visibly
+      slanted underneath. Same failure shape as glyph_coverage above — silent,
+      no error, wrong letterforms.
+
+      TWO PARTS, and the second is the one that lasts.
+
+      1. THE KNOWN-SIDE LINE NO LONGER USES ITALIC AT ALL. The gloss under the
+         target phrase reads as the gloss through WEIGHT (400 against the
+         target's 600) and COLOUR (--text-secondary), which work in every
+         script. Applied identically in Latin scripts, so the app has ONE
+         visual language rather than two. Surfaces: ListeningOverlay and
+         TeleprompterScroll (.phrase-known — the Immersion/Drill card),
+         PronunciationOverlay (.phrase-known-text — the recording screen),
+         LearningPlayer (.hero-known.listening-pedagogy). CourseSelector's
+         typeable iSpeak field keeps italic on the ::placeholder only: what the
+         learner TYPES is a language name in their own script.
+
+      2. A SCRIPT-SCOPED GUARD, so this cannot come back anywhere else. Text in
+         a language whose script has no italic renders upright whatever a
+         component asks for — a `:lang(...)` block at the foot of
+         styles/design-tokens.css setting `font-style: normal !important`. The
+         `!important` IS the mechanism: a Vue scoped rule carries a [data-v-…]
+         attribute and outranks a bare `:lang()` selector, so without it the
+         guard silently loses to the rules it exists to overrule.
+
+      DERIVED, NEVER ENUMERATED: styles/italicScripts.ts maps every language in
+      the estate — both sides of all 149 live courses plus all 22 interface
+      locales — to its SCRIPT, and the non-italic tag list falls out of that.
+      No course codes, no list of offending screens: a list of instances rots,
+      a derivation does not. Latin, Greek and Cyrillic are exempt — they have
+      real drawn italics and DM Sans / Noto Sans ship them.
+      styles/italicScripts.test.ts holds the TS table and the CSS selector to
+      each other, and fails if an estate language is unclassified — so a new
+      course in a new script cannot ship sheared text unnoticed.
+
+      The `lang` attribute this rides on is the same one glyph_coverage uses,
+      from the same places (see WHERE THE `lang` ATTRIBUTE COMES FROM above).
 
   script_toggle:
     composable: "composables/useScriptMode.ts (per-course localStorage)"
@@ -1431,7 +1474,7 @@ LIBRARY_ACTIVITY_TILES:
                   for the progress modal."
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-09-01 (SCRIPT TOGGLE OFFLINE: hasRomanizedText is now the OR of a script-derived signal and the DB probe, so a cached/offline boot keeps the pronunciation-guide control AND the native glyphs — see script_toggle.availability; previously 2026-08-31: PRACTISING: an IN-APP, TAP-ONLY door into the mode gated on a SERVER-VERIFIED ssi_admin privilege — a permission, not a trick — Settings > Developer > "Practising Mode (test)" — because a query string cannot be typed into an installed PWA, and because the query-string door was a fake that showed the banner without exercising the trigger; the new one takes the CONTENT away, declining the network, the cycles cache AND the whole-course bundle, and lets the real trigger, the real write suppression and the real recovery fire; earlier same day: the recycled-playback SUPPRESSION FLOOR restored underneath the mode — a recycled round can never write the cursor, whatever the mode says; our own 401/403/429/5xx no longer freeze a learner's position; earlier same day: INF PLAY OBSERVABILITY: infplay_enter/exit and cursor_move, so a chosen ∞ and a machine ∞ stop looking identical; plus course_enrollments.updated_at, the first thing that dates a cursor at all)
+## GENERATED: 2026-01-18 — Last updated: 2026-09-04 (NO SYNTHETIC ITALIC: the known-side gloss line drops italic everywhere and separates from the target by WEIGHT and COLOUR instead — the same treatment in every script — because Tamil, Han, Hangul, Devanagari, Arabic, Hebrew and Thai have no italic form and the browser was shearing their glyphs to fake one; backed by a script-scoped `:lang()` guard derived from styles/italicScripts.ts, never a list of course codes — see typography.no_synthetic_italic; previously 2026-09-01: SCRIPT TOGGLE OFFLINE: hasRomanizedText is now the OR of a script-derived signal and the DB probe, so a cached/offline boot keeps the pronunciation-guide control AND the native glyphs — see script_toggle.availability; previously 2026-08-31: PRACTISING: an IN-APP, TAP-ONLY door into the mode gated on a SERVER-VERIFIED ssi_admin privilege — a permission, not a trick — Settings > Developer > "Practising Mode (test)" — because a query string cannot be typed into an installed PWA, and because the query-string door was a fake that showed the banner without exercising the trigger; the new one takes the CONTENT away, declining the network, the cycles cache AND the whole-course bundle, and lets the real trigger, the real write suppression and the real recovery fire; earlier same day: the recycled-playback SUPPRESSION FLOOR restored underneath the mode — a recycled round can never write the cursor, whatever the mode says; our own 401/403/429/5xx no longer freeze a learner's position; earlier same day: INF PLAY OBSERVABILITY: infplay_enter/exit and cursor_move, so a chosen ∞ and a machine ∞ stop looking identical; plus course_enrollments.updated_at, the first thing that dates a cursor at all)
 ## Previously: 2026-08-19 (Library activity tiles: Phrases spoken now has a server-side home — lifetime, all-courses, tab-close-safe; see LIBRARY_ACTIVITY_TILES)
 ## Previously: 2026-08-18 (glyph coverage is now LANGUAGE-scoped: DM Sans stays the default and the brand, and only the 15 languages it cannot spell flip — whole runs, never single letters — to Noto Sans; see typography.glyph_coverage)
 ## Previously: 2026-08-09 (THE MODE IS PLAYER LOGIC: the walk is mode-neutral and generous, Easy/Fast are live per-step SELECTIONS over it, and a cycle's cached POSITION is now separated from its live PLAY SEQUENCE in the walker)

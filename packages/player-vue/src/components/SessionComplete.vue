@@ -208,7 +208,7 @@ onMounted(async () => {
         class="view-journey-btn"
         @click="$emit('viewJourney')"
       >
-        View Your Journey
+        {{ t('session.viewJourney') }}
       </button>
 
       <!-- Auth prompt for guests (after first session) -->
@@ -223,7 +223,7 @@ onMounted(async () => {
         <svg viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span>Continue</span>
+        <span>{{ t('session.continue') }}</span>
       </button>
     </div>
   </div>

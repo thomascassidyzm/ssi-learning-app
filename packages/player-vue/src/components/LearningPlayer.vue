@@ -142,6 +142,7 @@ import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
+import { apiUrl } from '@/platform/apiBase'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -4062,8 +4063,8 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   } else if (scriptItem.type === 'component_intro' && scriptItem.target1Id) {
     // Component intros have target1Id/target2Id as bare UUIDs (no audioRefs)
     // Resolve directly via proxy URL — presentation audio handled by playIntroductionAudioDirectly
-    target1AudioUrl = `/api/audio/${scriptItem.target1Id}`
-    target2AudioUrl = scriptItem.target2Id ? `/api/audio/${scriptItem.target2Id}` : undefined
+    target1AudioUrl = apiUrl(`/api/audio/${scriptItem.target1Id}`)
+    target2AudioUrl = scriptItem.target2Id ? apiUrl(`/api/audio/${scriptItem.target2Id}`) : undefined
     console.log('[scriptItemToPlayableItem] Component intro resolved from UUIDs:', { target1AudioUrl, target2AudioUrl })
   } else {
     // Fallback: Look up audio URLs from cache (lazy loaded)
@@ -5551,7 +5552,7 @@ const playPodSegment = async (
     } catch {}
     audio.play({
       id: audioId,
-      url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+      url: apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`),
       duration_ms: durationMs,
       // Fusion-rung chunks: an ms slice of the sentence's Take G render.
       ...(slice ? { startMs: slice.startMs, endMs: slice.endMs } : {}),
@@ -5683,7 +5684,7 @@ const playPodLap = async (inputLap: PodLap, omitIntro: boolean = false): Promise
   currentPodLapPlays.value = lap.plays
 
   const courseId = encodeURIComponent(courseCode.value)
-  const audioUrlFor = (id: string) => `/api/audio/${id}?courseId=${courseId}`
+  const audioUrlFor = (id: string) => apiUrl(`/api/audio/${id}?courseId=${courseId}`)
 
   let playsCompleted = 0
   let abortReason: 'completed' | 'audio_error' | 'cancelled' | 'safety_timeout' = 'completed'
@@ -6667,7 +6668,7 @@ const resolveAudioFromCache = async (
   // CacheFirst on /api/audio/* serves cached bytes when warm.
   return {
     type: 'url',
-    url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+    url: apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`),
   }
 }
 
@@ -9259,7 +9260,7 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
 
   // Fallback: resolve from presentationAudioId UUID (generateLearningScript emits UUID, not resolved object)
   if (!presentationUrl && scriptItem?.presentationAudioId) {
-    presentationUrl = `/api/audio/${scriptItem.presentationAudioId}`
+    presentationUrl = apiUrl(`/api/audio/${scriptItem.presentationAudioId}`)
   }
 
   // Fallback: try audioMap cache (for backwards compatibility with cached scripts)
@@ -9552,7 +9553,7 @@ const playCourseWelcome = async () => {
     // for free. The old direct-S3 paths 404'd whenever the cached record lacked
     // s3_key (the id-based URL pointed at a non-existent root object).
     const audioUrl = w.id
-      ? `/api/audio/${w.id}`
+      ? apiUrl(`/api/audio/${w.id}`)
       : `${AUDIO_S3_BASE_URL}/${w.s3_key}`
     const welcomeAudio = {
       id: w.id,
@@ -16658,10 +16659,10 @@ defineExpose({
   <Teleport to="body">
     <Transition name="offline-picker">
       <div v-if="showOfflinePicker" class="offline-picker-backdrop" @click.self="cancelOfflinePicker">
-        <div class="offline-picker" role="dialog" aria-label="Take it offline">
+        <div class="offline-picker" role="dialog" :aria-label="t('player.takeOffline')">
           <div class="offline-picker-head">
-            <h3 class="offline-picker-title">Take it offline</h3>
-            <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
+            <h3 class="offline-picker-title">{{ t('player.takeOffline') }}</h3>
+            <button class="offline-picker-close" :aria-label="t('sector.close')" @click="cancelOfflinePicker">✕</button>
           </div>
           <p class="offline-picker-sub">{{ offlineSingleOption ? 'Take the whole thing with you for endless offline play.' : (offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?") }}</p>
 
@@ -16671,10 +16672,10 @@ defineExpose({
           <div v-if="offlineSingleOption" class="offline-single">
             <p class="offline-depth-size">
               <span class="offline-depth-size-mb">{{ offlineSingleEstimate.size || 'Working out size…' }}</span>
-              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low">{{ t('player.runningLowSpace') }}</span>
             </p>
-            <p class="offline-single-caption">Caches the course's key phrases so it plays on endless repeat with no signal.</p>
-            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">Download for unlimited offline</button>
+            <p class="offline-single-caption">{{ t('player.cachesCoursesKeyPhrases') }}</p>
+            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">{{ t('player.downloadUnlimitedOffline') }}</button>
           </div>
 
           <div v-else class="offline-depth">
@@ -16687,7 +16688,7 @@ defineExpose({
               step="1"
               v-model.number="offlineNotchIndex"
               :aria-valuetext="offlineSelectedLabel"
-              aria-label="How much of the remaining course to download"
+              :aria-label="t('player.howMuchRemainingCourse')"
             />
             <!-- Tick labels stay tappable for mouse/touch, but the slider above is
                  the single canonical control: aria-hidden + tabindex -1 keeps them
@@ -16707,7 +16708,7 @@ defineExpose({
             <!-- Live cost readout for the selected notch -->
             <p class="offline-depth-size">
               <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
-              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low">{{ t('player.runningLowSpace') }}</span>
             </p>
 
             <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
@@ -16730,13 +16731,13 @@ defineExpose({
             <!-- Behind-position content is always in the bundle — the slider only
                  chooses how much NEW learning rides along. -->
             <p v-if="!offlineCourseBar.finished && offlineCourseBar.donePct > 0" class="offline-depth-caption">
-              Plus everything up to where you are — included automatically
+              {{ t('player.plusEverythingUpWhere') }}
             </p>
 
-            <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
+            <button class="offline-depth-download" @click="startOfflineDownload">{{ t('player.download') }}</button>
           </div>
 
-          <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
+          <p class="offline-picker-note">{{ t('player.playsOfflineForeverOnce') }}</p>
         </div>
       </div>
     </Transition>
@@ -16816,12 +16817,12 @@ defineExpose({
   <Transition name="fade">
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
-        <h2 class="paywall-title">You've reached the end of the free preview</h2>
-        <p class="paywall-subtitle">Go Premium — £15/month. Cancel anytime.</p>
+        <h2 class="paywall-title">{{ t('player.youveReachedEndFree') }}</h2>
+        <p class="paywall-subtitle">{{ t('player.goPremiumMonthCancel') }}</p>
         <ul class="paywall-benefits">
-          <li>Every course in 65+ languages, fully unlocked</li>
-          <li>Download courses for offline learning</li>
-          <li>New languages and courses added all the time</li>
+          <li>{{ t('player.everyCourseLanguagesFully') }}</li>
+          <li>{{ t('player.downloadCoursesOfflineLearning') }}</li>
+          <li>{{ t('player.newLanguagesCoursesAdded') }}</li>
         </ul>
         <div class="paywall-actions">
           <button
@@ -16830,7 +16831,7 @@ defineExpose({
             @click="handleSubscribe"
           >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
           <!-- Access codes are entered in Settings during normal play, not here. -->
-          <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">Maybe later</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">{{ t('auth.maybeLater') }}</button>
         </div>
       </div>
     </div>
@@ -16859,7 +16860,7 @@ defineExpose({
           <button
             class="paywall-btn paywall-btn-primary"
             @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
-          >Try to reconnect</button>
+          >{{ t('player.tryReconnect') }}</button>
         </div>
       </div>
     </div>
@@ -16936,7 +16937,7 @@ defineExpose({
     <div v-if="isPlayingWelcome" class="welcome-overlay">
       <div class="welcome-content">
         <button class="welcome-skip" @click="skipWelcome">
-          Skip Welcome
+          {{ t('player.skipWelcome') }}
         </button>
       </div>
     </div>
@@ -16986,9 +16987,9 @@ defineExpose({
          without waiting for the current lap to finish. Cancels the in-flight
          lap (podPreviewNext/Prev) and composes the neighbour via
          nextLapPreviewFallback. Dev/staging-only, same gate as the cheat. -->
-    <div v-if="podPreviewMode" class="pod-preview-nav" role="group" aria-label="Pod preview navigation">
-      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewPrev" aria-label="Previous pod sentence">‹ Prev</button>
-      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewNext" aria-label="Next pod sentence">Next ›</button>
+    <div v-if="podPreviewMode" class="pod-preview-nav" role="group" :aria-label="t('player.podPreviewNavigation')">
+      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewPrev" :aria-label="t('player.previousPodSentence')">{{ t('player.prev') }}</button>
+      <button type="button" class="pod-preview-nav__btn" @click.stop="podPreviewNext" :aria-label="t('player.nextPodSentence')">{{ t('player.next') }}</button>
     </div>
 
     <!-- Ambient listening cue — a small headphones mark in the top safe-area
@@ -17025,7 +17026,7 @@ defineExpose({
              carries no on-screen instruction at all (2026-08-06). -->
         <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
-          <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
+          <button class="hint-dismiss" @click.stop="dismissLearningHint" :title="t('player.hideHints')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -17044,7 +17045,7 @@ defineExpose({
                that reads as live voice. Instructions also keep their short
                caption; encouragements are wave-only. -->
           <div class="interjection-display" :class="`is-${currentCommentaryType}`">
-            <div class="interjection-wave" aria-label="Your guide is speaking" role="img">
+            <div class="interjection-wave" :aria-label="t('player.guideSpeaking')" role="img">
               <span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span>
             </div>
             <div v-if="currentCommentaryType === 'instruction'" class="interjection-caption">{{ currentInstructionCaption }}</div>
@@ -17069,8 +17070,8 @@ defineExpose({
             <!-- Known text - always visible, stable position -->
             <div class="hero-text-known">
               <div v-if="progressLoadFailed" class="progress-load-failed">
-                <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
-                <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+                <p class="progress-load-failed-text">{{ t('player.progressLoadFailed', "We couldn't load where you got to. Your progress is safe — have another go.") }}</p>
+                <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">{{ t('common.tryAgain', 'Try again') }}</button>
               </div>
               <p v-else-if="isAwakening" class="hero-known loading-text">
                 {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
@@ -17137,19 +17138,19 @@ defineExpose({
           type="button"
           class="belt-header-skip phase-cycle-skip"
           @click="handleRevisit"
-          title="Previous cycle"
-          aria-label="Previous cycle"
+          :title="t('player.previousCycle')"
+          :aria-label="t('player.previousCycle')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
-        <div class="phase-strip" role="group" aria-label="Cycle phases">
+        <div class="phase-strip" role="group" :aria-label="t('player.cyclePhases')">
         <button
           type="button"
           class="phase-segment phase-segment--prompt"
           :class="{ 'is-active': currentPhase === Phase.PROMPT }"
-          aria-label="Replay prompt"
+          :aria-label="t('player.replayPrompt')"
           @click="jumpToCyclePhase('prompt')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17162,7 +17163,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
-          aria-label="Back to your turn to speak"
+          :aria-label="t('player.backTurnSpeak')"
           @click="jumpToCyclePhase('pause')"
         >
           <!-- span, not div: a button's content model is phrasing content, and
@@ -17179,7 +17180,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--voice1"
           :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
-          aria-label="Skip to model voice 1"
+          :aria-label="t('player.skipModelVoice')"
           @click="jumpToCyclePhase('voice1')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17192,7 +17193,7 @@ defineExpose({
           type="button"
           class="phase-segment phase-segment--voice2"
           :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
-          aria-label="Skip to model voice 2"
+          :aria-label="t('player.skipModelVoice2')"
           @click="jumpToCyclePhase('voice2')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -17206,8 +17207,8 @@ defineExpose({
           type="button"
           class="belt-header-skip phase-cycle-skip"
           @click="handleSkip"
-          title="Next cycle"
-          aria-label="Next cycle"
+          :title="t('player.nextCycle')"
+          :aria-label="t('player.nextCycle')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <polyline points="9 18 15 12 9 6"/>
@@ -17218,7 +17219,7 @@ defineExpose({
       <!-- Guest save progress button -->
       <Transition name="nudge-fade">
         <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
-          Save Progress
+          {{ t('player.saveProgress') }}
         </button>
       </Transition>
     </div>
@@ -17436,7 +17437,7 @@ defineExpose({
         <polyline points="15 18 9 12 15 6"/>
       </svg>
       <span class="class-bar-name">{{ props.classContext.name }}</span>
-      <span class="class-bar-label">Back to classes</span>
+      <span class="class-bar-label">{{ t('player.backClasses') }}</span>
     </button>
 
     <!-- Header - Logo with belt underneath, centered -->
@@ -17605,7 +17606,7 @@ defineExpose({
       class="control-pane"
       :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isAudioPlaying }]"
       role="region"
-      aria-label="Learning player"
+      :aria-label="t('player.learningPlayer')"
     >
       <!-- Screen-reader announcer for play/pause state. VoiceOver / TalkBack
            pick up changes to this region without disturbing sighted UI. -->
@@ -17643,8 +17644,8 @@ defineExpose({
              unguarded it visibly floated over the pod dialogue. -->
         <div v-if="!playingPodLapAudio" class="pane-text-known">
           <div v-if="progressLoadFailed" class="progress-load-failed">
-            <p class="progress-load-failed-text">We couldn't load where you got to. Your progress is safe — have another go.</p>
-            <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">Try again</button>
+            <p class="progress-load-failed-text">{{ t('player.progressLoadFailed', "We couldn't load where you got to. Your progress is safe — have another go.") }}</p>
+            <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">{{ t('common.tryAgain', 'Try again') }}</button>
           </div>
           <p v-else-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
             {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
@@ -17714,7 +17715,7 @@ defineExpose({
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span v-if="!hasEverStarted" class="start-label">Tap to start</span>
+        <span v-if="!hasEverStarted" class="start-label">{{ t('player.tapToStart') }}</span>
       </div>
     </section>
 
@@ -17729,7 +17730,7 @@ defineExpose({
     <Transition name="tip-fade">
       <div v-if="showCourseUpdatedNotice" class="mode-tip course-updated-notice" @click="showCourseUpdatedNotice = false">
         <div class="mode-tip__body">
-          <span class="mode-tip__label">Your course was updated</span>
+          <span class="mode-tip__label">{{ t('player.courseWasUpdated') }}</span>
         </div>
       </div>
     </Transition>
@@ -17766,14 +17767,14 @@ defineExpose({
             </svg>
           </div>
 
-          <h2 class="belt-title">New Belt Earned!</h2>
+          <h2 class="belt-title">{{ t('player.newBeltEarned') }}</h2>
           <p class="belt-name" :style="{ color: beltJustEarned.color }">
             {{ beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1) }} Belt
           </p>
-          <p class="belt-subtitle">Keep learning to reach the next level!</p>
+          <p class="belt-subtitle">{{ t('player.keepLearningReachNext') }}</p>
 
           <button class="belt-continue-btn" @click="beltJustEarned = null">
-            Continue
+            {{ t('session.continue') }}
           </button>
         </div>
       </div>
@@ -19757,10 +19758,12 @@ defineExpose({
   max-width: 100%;
 }
 
-/* Listening pedagogy — calmer, italic, slightly smaller. The learner is
- * meant to be passive here; the text is a nudge, not a prompt. */
+/* Listening pedagogy — calmer, lighter, slightly smaller. The learner is
+ * meant to be passive here; the text is a nudge, not a prompt. Lighter weight
+ * rather than italic: half the estate's known languages are written in scripts
+ * with no italic form, where the browser shears the glyphs instead. */
 .hero-known.listening-pedagogy {
-  font-style: italic;
+  font-weight: 400;
   opacity: 0.85;
   font-size: calc(var(--known-text-size) * 0.92);
   letter-spacing: 0.005em;

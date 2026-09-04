@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * TesterFeedback - Floating bug report widget for testers and admins
  *
@@ -292,7 +294,7 @@ async function submitFeedback() {
         <template v-else>
           <div class="feedback-header">
             <h3>Send Feedback</h3>
-            <button class="feedback-close" aria-label="Close" @click="closePanel">
+            <button class="feedback-close" :aria-label="t('sector.close')" @click="closePanel">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />

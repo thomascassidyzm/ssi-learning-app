@@ -18,10 +18,11 @@ import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
+import { apiUrl } from '@/platform/apiBase'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
-  return `/api/audio/${uuid}`
+  return apiUrl(`/api/audio/${uuid}`)
 }
 
 /**

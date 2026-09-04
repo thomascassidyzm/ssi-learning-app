@@ -14,7 +14,13 @@
  * count — a count tells you something broke, the keys tell you what to do.
  *
  * The `languages.*` block is deliberately exempt from the parity assertion
- * (see LANGUAGES_PREFIX below). Everything else is strict.
+ * (see LANGUAGES_PREFIX below). One other exemption exists and is explicit:
+ * keys enrolled in `i18n/pending-translation.json`, the register of English
+ * strings knowingly awaiting a translation pass. Enrolment is a reviewable
+ * admission of debt in a diff; it is not a way to make this test quiet, and the
+ * register can only shrink — a key listed there that IS translated everywhere,
+ * or that eng.json no longer has, fails the test below. Everything else is
+ * strict.
  */
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'fs'
@@ -39,6 +45,20 @@ const SOURCE = 'eng.json'
  * one `filter` that uses it, and the block becomes strict like the rest.
  */
 const LANGUAGES_PREFIX = 'languages.'
+
+/**
+ * The pending-translation register. Minting an English key and translating it
+ * into 24 languages are two different jobs done by two different people, often
+ * weeks apart; without this file the second job's absence blocks the first
+ * job's merge, and the pressure is then to paste machine translations into the
+ * locale files — which ships text in Tom's product in languages nobody here can
+ * check. An explicit list is the honest alternative, and it doubles as the
+ * translation pass's work order.
+ */
+const PENDING: string[] = JSON.parse(
+  readFileSync(join(LOCALES_DIR, '..', 'i18n', 'pending-translation.json'), 'utf8'),
+).keys
+const pendingSet = new Set(PENDING)
 
 type Leaf = [key: string, value: unknown]
 
@@ -77,13 +97,15 @@ describe('locale parity with eng.json', () => {
 
   it.each(otherLocales)('%s carries every UI string English carries', (file) => {
     const locale = loadLocale(file)
-    const missing = englishUiKeys.filter((k) => !locale.has(k))
+    const missing = englishUiKeys.filter((k) => !locale.has(k) && !pendingSet.has(k))
 
     expect(
       missing,
       report(
         `${file} is missing ${missing.length} UI key(s) that eng.json has. ` +
-          `These render in English inside a non-English interface. Add them to ${file}:`,
+          `These render in English inside a non-English interface. Translate them into ` +
+          `${file} — or, if the translation pass hasn't run yet, enrol each key in ` +
+          `i18n/pending-translation.json so the debt is visible instead of silent:`,
         missing,
       ),
     ).toEqual([])
@@ -158,6 +180,33 @@ describe('locale parity with eng.json', () => {
     expect(
       mismatched,
       report(`${file} disagrees with eng.json about the type of these keys:`, mismatched),
+    ).toEqual([])
+  })
+
+  // --- the pending-translation register ratchets DOWN only ----------------
+  it('every pending-translation key still exists in eng.json', () => {
+    const gone = PENDING.filter((k) => !english.has(k))
+    expect(
+      gone,
+      report(
+        `pending-translation.json lists ${gone.length} key(s) eng.json no longer has. ` +
+          `The English string was renamed or deleted; delete these lines too:`,
+        gone,
+      ),
+    ).toEqual([])
+  })
+
+  it('every pending-translation key is genuinely still missing somewhere', () => {
+    const locales = otherLocales.map(loadLocale)
+    const done = PENDING.filter((k) => locales.every((l) => l.has(k)))
+    expect(
+      done,
+      report(
+        `pending-translation.json lists ${done.length} key(s) that every locale now ` +
+          `carries. The debt is paid — delete these lines so the register keeps ` +
+          `telling the truth about what is left:`,
+        done,
+      ),
     ).toEqual([])
   })
 })

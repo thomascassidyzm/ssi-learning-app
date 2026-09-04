@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 /**
  * PlanPanel — the reasonable plan: THIRTY HOURS, and the route is yours.
  *
@@ -125,11 +127,11 @@ const coveredPct = computed(() => {
 
 <template>
   <section class="panel">
-    <h2 class="title">How you want to do it</h2>
+    <h2 class="title">{{ t('me.howWantDo') }}</h2>
 
     <div class="hero">
       <span class="hero-number">{{ hoursLabel }}</span>
-      <span class="hero-label">hours in</span>
+      <span class="hero-label">{{ t('me.hours') }}</span>
     </div>
     <p class="behind">{{ behindYou }}</p>
 
@@ -159,18 +161,18 @@ const coveredPct = computed(() => {
     </div>
 
     <div v-else-if="chosen" class="chosen">
-      <span class="chosen-kicker">Your route</span>
+      <span class="chosen-kicker">{{ t('me.route') }}</span>
       <p class="chosen-name">{{ chosen.name }}</p>
       <p class="chosen-shape">{{ chosen.shape }}</p>
-      <p class="chosen-job">From here you have one job, and it is a small one: press play.</p>
+      <p class="chosen-job">{{ t('me.fromHereHaveOne') }}</p>
       <button type="button" class="change" @click="reopen">
-        Fancy a different route? Pick again any time.
+        {{ t('me.fancyDifferentRoutePick') }}
       </button>
     </div>
 
     <p class="thirty">{{ thirtyLine }}</p>
 
-    <p v-if="plan.source === 'mock'" class="sample">Sample data — not your real numbers yet.</p>
+    <p v-if="plan.source === 'mock'" class="sample">{{ t('me.sampleDataNotReal') }}</p>
   </section>
 </template>
 

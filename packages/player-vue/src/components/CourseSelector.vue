@@ -450,7 +450,7 @@ onMounted(() => {
             <div class="header-top">
               <div class="header-spacer" />
               <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-              <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+              <button class="close-btn" @click="emit('close')" :aria-label="t('sector.close')">&#x2715;</button>
             </div>
             <input
               v-model="searchQuery"
@@ -508,11 +508,11 @@ onMounted(() => {
           <template v-if="premiumGroups.length > 0">
             <div class="section-header section-header--premium">
               <div class="section-header__text">
-                <span class="section-header__title">Premium</span>
-                <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
+                <span class="section-header__title">{{ t('browse.premium') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
               <button class="section-header__cta" @click="goPremium()">
-                Go Premium
+                {{ t('settings.goPremium') }}
               </button>
             </div>
             <ul class="course-list">
@@ -543,7 +543,7 @@ onMounted(() => {
                         {{ getProgress(group.courses[0].course_code) }}
                       </template>
                       <template v-else-if="isPreviewOnly(group.courses[0])">
-                        <span class="try-free">Try free →</span>
+                        <span class="try-free">{{ t('browse.tryFree') }}</span>
                       </template>
                     </span>
                   </button>
@@ -561,7 +561,7 @@ onMounted(() => {
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
-                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">Try free →</span></template>
+                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">{{ t('browse.tryFree') }}</span></template>
                       </span>
                     </button>
                   </li>
@@ -574,8 +574,8 @@ onMounted(() => {
           <template v-if="freeGroups.length > 0">
             <div class="section-header">
               <div class="section-header__text">
-                <span class="section-header__title">Free</span>
-                <span class="section-header__sub">Free forever</span>
+                <span class="section-header__title">{{ t('courseSelector.free') }}</span>
+                <span class="section-header__sub">{{ t('courseSelector.freeForever') }}</span>
               </div>
             </div>
             <ul class="course-list">
@@ -1169,13 +1169,16 @@ onMounted(() => {
 
 /* Typeable iSpeak pill — same shape as the buttons, dashed border + italic
    placeholder so it reads as 'enter your language' rather than a fixed
-   choice. Width auto-grows up to a sensible cap. */
+   choice. Width auto-grows up to a sensible cap.
+   The italic is on the PLACEHOLDER only: what the learner types is a language
+   name, often in their own script (தமிழ், 한국어), and italic there is
+   synthesised by shearing glyphs that have no italic form. The dashed border
+   already carries the 'type here' affordance. */
 .i-speak-pill.i-speak-input {
   border-style: dashed;
   background: transparent;
   outline: none;
   width: 7.5rem;
-  font-style: italic;
   color: var(--text-primary, #2C2622);
 }
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n'
+const { t } = useI18n()
 /**
  * ListeningModeToggle — a dumb, self-contained segmented control for the
  * listening modes (Immersion / Drill / Progression).
@@ -24,7 +26,7 @@ defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 </script>
 
 <template>
-  <div class="lmt" role="group" aria-label="Listening mode">
+  <div class="lmt" role="group" :aria-label="t('settings.listeningMode')">
     <button
       v-for="m in modes"
       :key="m.key"

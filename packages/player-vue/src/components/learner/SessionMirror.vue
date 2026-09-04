@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n'
+const { t } = useI18n()
 interface Props {
   pointsEarned: number
   newPhrases: number
@@ -11,15 +13,15 @@ const props = defineProps<Props>()
 
 <template>
   <div class="session-mirror">
-    <div class="mirror-header">This Session</div>
+    <div class="mirror-header">{{ t('belt.thisSession') }}</div>
     <div class="mirror-stats">
       <div class="mirror-stat">
         <span class="mirror-stat-value mirror-stat-value--points">+{{ pointsEarned }}</span>
-        <span class="mirror-stat-label">Points earned</span>
+        <span class="mirror-stat-label">{{ t('me.pointsEarned') }}</span>
       </div>
       <div class="mirror-stat">
         <span class="mirror-stat-value">{{ newPhrases }}</span>
-        <span class="mirror-stat-label">New phrases</span>
+        <span class="mirror-stat-label">{{ t('me.newPhrases') }}</span>
       </div>
       <div class="mirror-stat">
         <span
@@ -32,10 +34,10 @@ const props = defineProps<Props>()
             {{ responseTimeDelta }}% faster
           </template>
           <template v-else>
-            steady
+            {{ t('me.steady') }}
           </template>
         </span>
-        <span class="mirror-stat-label">Response time</span>
+        <span class="mirror-stat-label">{{ t('me.responseTime') }}</span>
       </div>
     </div>
   </div>
