@@ -21,6 +21,7 @@ import { paddleConfig } from '../lib/paddle'
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
 import { platform } from '../platform/capabilities'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
+import { shaPrefixEq } from '../platform/buildStaleness'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -373,12 +374,10 @@ function visibleBullets(note: { id: string; bullets: string[] }): string[] {
 // short-circuit never fired → released_at (always after buildTime, since notes
 // are written post-deploy) produced a PERMANENT false "Update available" that
 // tapping couldn't clear. Compare on the shorter prefix to be length-agnostic.
+//
+// The comparison itself lives in platform/buildStaleness.ts, where the
+// staleness line reads it too — two surfaces must never recompute one fact.
 const latestNote = computed(() => releaseNotes.value[0] || null)
-function shaPrefixEq(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  const n = Math.min(a.length, b.length)
-  return n > 0 && a.slice(0, n) === b.slice(0, n)
-}
 const onLatestNoteVersion = computed(() => !!latestNote.value && shaPrefixEq(latestNote.value.version, buildNumber))
 const noteIndicatesNewer = computed(() => {
   const n = latestNote.value
