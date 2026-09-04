@@ -1,0 +1,31 @@
+-- player_events.app_shell — which CONTAINER a session ran in.
+--
+-- Tom ran the SSi learner app as a native Android app for the first time on
+-- 2026-09-04 and found its telemetry indistinguishable from mobile web:
+-- device_type read 'mobile' for both. device_type is FORM FACTOR (phone /
+-- tablet / desktop) and is right to keep saying 'mobile' for a phone in the
+-- app — the container is a second, orthogonal axis, and the India rollout's
+-- whole question ("does the app beat the web?") needs both.
+--
+-- Additive and nullable on purpose: every historical row keeps exactly the
+-- meaning it had, and NULL reads honestly as "written before we recorded
+-- this" rather than being back-filled with a guess. api/player-events.ts
+-- writes it from the client's declared platform, falling back to the
+-- user-agent's Android `; wv)` WebView marker, and tolerates the column being
+-- absent so telemetry cannot break on deploy ordering in either direction.
+--
+-- APPLY BY HAND (canary method, supabase/secfix-toolkit/). No RLS change:
+-- player_events' posture is untouched by adding a column.
+
+ALTER TABLE public.player_events
+  ADD COLUMN IF NOT EXISTS app_shell text;
+
+COMMENT ON COLUMN public.player_events.app_shell IS
+  'Container the session ran in: ''web'' (browser tab / installed PWA) or ''webview'' (native shell). NULL for rows written before 2026-09-04. Orthogonal to device_type, which is form factor.';
+
+-- Container-vs-web comparisons scan by env + shell over a time window.
+CREATE INDEX IF NOT EXISTS player_events_app_shell_idx
+  ON public.player_events (app_shell, occurred_at DESC)
+  WHERE app_shell IS NOT NULL;
+
+NOTIFY pgrst, 'reload schema';
